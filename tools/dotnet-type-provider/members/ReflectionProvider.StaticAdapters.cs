@@ -331,6 +331,7 @@ sealed partial class ReflectionProvider
             {
                 new
                 {
+                    identity = $"{MethodId(method!)}::source-dispatch",
                     name = dispatchName,
                     constraints = new[] { new { kind = "implements", contract } },
                 },

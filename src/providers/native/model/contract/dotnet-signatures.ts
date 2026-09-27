@@ -433,8 +433,11 @@ export function validateDotnetTypeParameters(
   collector: ContractCollector,
 ): void {
   const names = new Set<string>();
+  const identities = new Set<string>();
   for (const [index, parameter] of parameters.entries()) {
     const parameterPath = `${path}[${index}]`;
+    requireNonEmptyString(parameter.identity, `${parameterPath}.identity`, collector);
+    requireUnique(identities, parameter.identity, `${parameterPath}.identity`, collector);
     requireNonEmptyString(parameter.name, `${parameterPath}.name`, collector);
     requireUnique(names, parameter.name, `${parameterPath}.name`, collector);
     validateDotnetConstraints(parameter.constraints ?? [], `${parameterPath}.constraints`, collector);

@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../../../target-model/types/index.js";
+import { csharpObjectShapeTypeParameters } from "../../../../target-model/types/generic-references.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpTypeParameter,
@@ -17,6 +17,7 @@ import {
 } from "./diagnostics.js";
 
 export function renderObjectShapeTypeParameters(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   fact: CsharpObjectShapeFact,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
@@ -26,6 +27,7 @@ export function renderObjectShapeTypeParameters(
   }
   const declaredTypeParameters: CsharpTypeParameter[] = [];
   const declaredNames = new Set<string>();
+  const declaredIdentities = new Set<string>();
   for (const typeArgument of fact.targetType.typeArguments ?? []) {
     if (typeArgument.kind !== "type-parameter") {
       pushObjectShapeDeclarationDiagnostic(
@@ -35,7 +37,7 @@ export function renderObjectShapeTypeParameters(
       );
       return undefined;
     }
-    const name = tryCsharpIdentifier(typeArgument.name);
+    const name = tryCsharpIdentifier(typeParameterNames?.get(typeArgument.identity) ?? typeArgument.name);
     if (name === undefined) {
       pushObjectShapeDeclarationDiagnostic(
         diagnostics,
@@ -44,88 +46,29 @@ export function renderObjectShapeTypeParameters(
       );
       return undefined;
     }
-    if (!declaredNames.has(typeArgument.name)) {
-      declaredNames.add(typeArgument.name);
+    if (!declaredIdentities.has(typeArgument.identity)) {
+      if (declaredNames.has(name)) {
+        pushObjectShapeDeclarationDiagnostic(diagnostics, diagnosticSubject,
+          `Generated object-shape carrier '${fact.targetType.id}' has conflicting generic binders '${name}'.`);
+        return undefined;
+      }
+      declaredIdentities.add(typeArgument.identity);
+      declaredNames.add(name);
       declaredTypeParameters.push({ name,
-        ...(fact.covariantTypeParameters?.includes(typeArgument.name) === true ? { variance: "out" as const } : {}),
+        ...(fact.covariantTypeParameterIdentities?.includes(typeArgument.identity) === true ? { variance: "out" as const } : {}),
       });
     }
   }
-  const usedTypeParameters = collectObjectShapeTypeParameterNames(fact);
-  for (const usedName of usedTypeParameters) {
-    if (!declaredNames.has(usedName)) {
+  const usedTypeParameters = csharpObjectShapeTypeParameters(fact.members, fact.implements, fact.methodImplementation);
+  for (const parameter of usedTypeParameters) {
+    if (!declaredIdentities.has(parameter.identity)) {
       pushObjectShapeDeclarationDiagnostic(
         diagnostics,
         diagnosticSubject,
-        `Generated object-shape carrier '${fact.targetType.id}' uses type parameter '${usedName}' without declaring it in the finalized target carrier type.`,
+        `Generated object-shape carrier '${fact.targetType.id}' uses type parameter '${parameter.name}' without declaring it in the finalized target carrier type.`,
       );
       return undefined;
     }
   }
   return declaredTypeParameters;
-}
-
-function collectObjectShapeTypeParameterNames(
-  fact: CsharpObjectShapeFact,
-): ReadonlySet<string> {
-  const names = new Set<string>();
-  for (const member of fact.members) {
-    const memberNames = new Set<string>();
-    collectTargetTypeParameterNames(member.type, memberNames);
-    for (const parameter of member.typeParameters ?? []) {
-      for (const constraint of parameter.constraints) {
-        if (constraint.kind === "type") collectTargetTypeParameterNames(constraint.type, memberNames);
-      }
-    }
-    for (const parameter of member.typeParameters ?? []) memberNames.delete(parameter.name);
-    for (const name of memberNames) names.add(name);
-    if (member.methodStorageType !== undefined) collectTargetTypeParameterNames(member.methodStorageType, names);
-  }
-  for (const implementedType of fact.implements ?? []) {
-    collectTargetTypeParameterNames(implementedType, names);
-  }
-  for (const capture of fact.methodImplementation?.captures ?? []) collectTargetTypeParameterNames(capture.type, names);
-  return names;
-}
-
-function collectTargetTypeParameterNames(
-  type: TargetTypeRef,
-  names: Set<string>,
-): void {
-  switch (type.kind) {
-    case "type-parameter":
-      names.add(type.name);
-      return;
-    case "source-global":
-    case "target-named":
-      for (const typeArgument of type.typeArguments ?? []) {
-        collectTargetTypeParameterNames(typeArgument, names);
-      }
-      return;
-    case "array":
-      collectTargetTypeParameterNames(type.element, names);
-      return;
-    case "tuple":
-      for (const element of type.elements) {
-        collectTargetTypeParameterNames(element, names);
-      }
-      return;
-    case "pointer":
-      collectTargetTypeParameterNames(type.pointee, names);
-      return;
-    case "function-pointer":
-      for (const argument of type.args) {
-        collectTargetTypeParameterNames(argument, names);
-      }
-      collectTargetTypeParameterNames(type.result, names);
-      return;
-    case "associated-type":
-      collectTargetTypeParameterNames(type.owner, names);
-      return;
-    case "source-primitive":
-    case "opaque":
-    case "lifetime":
-    case "target-specific":
-      return;
-  }
 }

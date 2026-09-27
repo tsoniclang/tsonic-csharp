@@ -63,7 +63,7 @@ function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBi
   const declaredCsharpType = declaration.targetType === undefined
     ? csharpTargetNamedType(
         targetId,
-        declaration.typeParameters?.map((parameter) => ({ kind: "type-parameter", name: parameter.name }) satisfies TargetTypeRef),
+        declaration.typeParameters?.map((parameter) => ({ kind: "type-parameter", identity: parameter.identity, name: parameter.name }) satisfies TargetTypeRef),
         declaration.renderShape === undefined ? undefined : dotnetRenderShapeToCsharpRenderShape(declaration.renderShape),
         csharpTargetMetadataFromDotnetTypeDeclaration(declaration),
       )

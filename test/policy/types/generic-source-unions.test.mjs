@@ -10,7 +10,7 @@ import { selectCsharpObjectLiteralUnionShape } from "../../../dist/policy/types/
 
 const byte = { kind: "source-primitive", name: "uint8" };
 const integer = { kind: "source-primitive", name: "int32" };
-const parameter = { kind: "type-parameter", name: "Element" };
+const parameter = { kind: "type-parameter", identity: "Element", name: "Element" };
 const arm = (name, argument) => ({ kind: "target-named", id: name, typeArguments: [argument] });
 
 test("union literal construction requires one total declaration-identity match", () => {
@@ -57,7 +57,7 @@ test("shape substitution keeps one symbolic declaration through multiple instant
     sourceName: "value", sourceKey: { kind: "property", name: "value" },
     sourceDeclarations: [declaration], targetName: "value", memberKind: "property", type: parameter,
   }] };
-  const renamed = substituteObjectShapeFactTargetTypeParameters(original, new Map([["Element", { kind: "type-parameter", name: "Item" }]]));
+  const renamed = substituteObjectShapeFactTargetTypeParameters(original, new Map([["Element", { kind: "type-parameter", identity: "Item", name: "Item" }]]));
   const selected = substituteObjectShapeFactTargetTypeParameters(renamed, new Map([["Item", byte]]));
   assert.equal(selected.declarationTemplate, original);
   assert.deepEqual(selected.targetType, arm("Value", byte));

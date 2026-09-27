@@ -155,7 +155,7 @@ export function getCsharpTypeForExpressionCarrier(
   const carrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
   const carrier = getArrayBoundaryCoreCarrierForExpression(input, expression, sourceFile) ??
     probeCarrierFromResolution(carrierResolution);
-  const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
+  const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
   if (type !== undefined) {
     return type;
   }

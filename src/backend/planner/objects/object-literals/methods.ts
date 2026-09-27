@@ -88,9 +88,9 @@ export function planObjectShapeMethodMemberAssignment(
     : member.type;
   const storageType = storageTargetType === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(storageTargetType);
+    : csharpTypeFromTargetTypeRef(storageTargetType, input.scope.typeParameterNames);
   const selfType = receiverBound
-    ? csharpTypeFromTargetTypeRef(objectShape.targetType)
+    ? csharpTypeFromTargetTypeRef(objectShape.targetType, input.scope.typeParameterNames)
     : undefined;
   if (
     storageTargetType === undefined ||
@@ -156,7 +156,7 @@ function planObjectLiteralMethodAsLambda(
         selfName,
         objectShape.targetType,
       );
-  const targetContext = lambdaTargetContextFromTargetRef(expectedTargetType);
+  const targetContext = lambdaTargetContextFromTargetRef(input.scope.typeParameterNames, expectedTargetType);
   const parameterNodes = method.Parameters?.Nodes ?? [];
   const parameterPlan = planLambdaParameterStorage(
     parameterNodes,

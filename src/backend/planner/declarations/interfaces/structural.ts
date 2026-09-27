@@ -14,7 +14,7 @@ export function planCsharpStructuralInterfaceMethods(
 ): readonly CsharpTypeMember[] {
   const result: CsharpTypeMember[] = [];
   for (const implementation of input.program.objectShapes.structuralImplementations(shape.targetType)) {
-    const explicitInterface = csharpTypeFromTargetTypeRef(implementation.interfaceType);
+    const explicitInterface = csharpTypeFromTargetTypeRef(implementation.interfaceType, input.scope.typeParameterNames);
     for (const method of implementation.methods) {
       const sourceFile = input.program.source.ast.getSourceFile(method.declaration);
       if (sourceFile === undefined) {
@@ -24,8 +24,8 @@ export function planCsharpStructuralInterfaceMethods(
       const original = planParametersWithPrelude(input.program.source.ast.parameters(method.declaration),
         sourceFile, input, diagnostics);
       const signature = getCsharpDelegateSignature(method.member.type);
-      const returnType = signature === undefined ? undefined : csharpTypeFromTargetTypeRef(signature.returnType);
-      const parameters = signature?.parameters.map((type, index) => ({ name: `argument${index}`, type: csharpTypeFromTargetTypeRef(type) }));
+      const returnType = signature === undefined ? undefined : csharpTypeFromTargetTypeRef(signature.returnType, input.scope.typeParameterNames);
+      const parameters = signature?.parameters.map((type, index) => ({ name: `argument${index}`, type: csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames) }));
       if (explicitInterface === undefined || returnType === undefined || parameters === undefined || original.prelude.length !== 0 ||
         parameters.some(parameter => parameter.type === undefined) || original.parameters.length !== parameters.length ||
         method.defaultArguments.some(index => original.parameters[index]?.defaultValue === undefined)) {

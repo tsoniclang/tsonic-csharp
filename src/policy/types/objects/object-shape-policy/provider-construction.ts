@@ -96,7 +96,7 @@ export function resolveProviderObjectLiteralShape(
   }
   const substitutions = new Map(
     typeParameters.map((parameter, index) => [
-      parameter.name,
+      parameter.identity,
       targetArguments[index]!,
     ]),
   );

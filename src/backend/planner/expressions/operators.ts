@@ -130,6 +130,7 @@ export function tryPlanBinaryExpression(
         return undefined;
       }
       return translateCsharpJsValueInvocation(
+        input.scope.typeParameterNames,
         jsValueOperation,
         undefined,
         [
@@ -268,7 +269,7 @@ function tryPlanJsValueAssignment(
           diagnostics,
         );
         const memberType = csharpTypeFromTargetTypeRef(
-          jsValueProperty.member.type,
+          jsValueProperty.member.type, input.scope.typeParameterNames,
         );
         const value = memberType === undefined
           ? undefined
@@ -291,6 +292,7 @@ function tryPlanJsValueAssignment(
         return {
           handled: true,
           expression: translateCsharpJsValueInvocation(
+            input.scope.typeParameterNames,
             selection,
             receiver,
             [
@@ -337,6 +339,7 @@ function tryPlanJsValueAssignment(
     return {
       handled: true,
       expression: translateCsharpJsValueInvocation(
+        input.scope.typeParameterNames,
         selection,
         receiver,
         [
@@ -386,6 +389,7 @@ function tryPlanJsValueAssignment(
     return {
       handled: true,
       expression: translateCsharpJsValueInvocation(
+        input.scope.typeParameterNames,
         selection,
         receiver,
         [argument, value],

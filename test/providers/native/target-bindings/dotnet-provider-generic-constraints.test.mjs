@@ -121,8 +121,8 @@ test(".NET provider preserves nested and generic target identities without metad
   assert.ok(dictionaryBinding);
   assert.equal(dictionaryBinding.id, dictionary.targetId);
   assert.deepEqual(dictionaryBinding.csharpType.typeArguments, [
-    { kind: "type-parameter", name: "TKey" },
-    { kind: "type-parameter", name: "TValue" },
+    { kind: "type-parameter", identity: dictionary.typeParameters[0].identity, name: "TKey" },
+    { kind: "type-parameter", identity: dictionary.typeParameters[1].identity, name: "TValue" },
   ]);
 });
 

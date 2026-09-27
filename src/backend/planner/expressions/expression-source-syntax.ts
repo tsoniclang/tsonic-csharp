@@ -113,7 +113,7 @@ export function tryPlanSourceSyntaxExpression(
         diagnostics.push(unsupportedNodeDiagnostic(node, "BigInt literal emission requires a finalized System.Numerics.BigInteger runtime carrier fact."));
         return undefined;
       }
-      const bigIntegerType = csharpTypeFromTargetTypeRef(carrier);
+      const bigIntegerType = csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
       if (bigIntegerType === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "BigInt literal emission requires a renderable System.Numerics.BigInteger target type."));
         return undefined;

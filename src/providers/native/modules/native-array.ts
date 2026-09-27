@@ -16,7 +16,7 @@ export const dotnetNativeArrayLengthMemberId = `${dotnetNativeArrayTypeId}.Lengt
 export const dotnetNativeArrayIndexerMemberId = `${dotnetNativeArrayTypeId}.Item(System.Int32)`;
 
 const systemModuleSpecifier = createDotnetModuleSpecifier("System");
-const typeParameter = { kind: "type-parameter", name: "T" } satisfies DotnetTypeRef;
+const typeParameter = { kind: "type-parameter", identity: `${dotnetNativeArrayTypeId}::0`, name: "T" } satisfies DotnetTypeRef;
 const int32Type = { kind: "source-primitive", name: "int32" } satisfies DotnetTypeRef;
 const nativeArrayType = {
   kind: "array",
@@ -86,7 +86,7 @@ function dotnetNativeArrayDeclaration(complete: boolean): DotnetTypeDeclaration 
     targetId: dotnetNativeArrayTypeId,
     metadataName: "System.Array`1",
     displayName: "System.Array<T>",
-    typeParameters: [{ name: "T", defaultType: { kind: "unknown" } }],
+    typeParameters: [{ identity: typeParameter.identity, name: "T", defaultType: { kind: "unknown" } }],
     targetType: nativeArrayType,
     ...(complete ? { members: [
       {
@@ -100,7 +100,7 @@ function dotnetNativeArrayDeclaration(complete: boolean): DotnetTypeDeclaration 
           {
             id: dotnetNativeArrayCreateMemberId,
             sourceId: dotnetNativeArrayCreateMemberId,
-            typeParameters: [{ name: "T" }],
+            typeParameters: [{ identity: typeParameter.identity, name: "T" }],
             parameters: [
               {
                 name: "length",

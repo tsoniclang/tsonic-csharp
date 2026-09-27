@@ -260,12 +260,15 @@ test(".NET reflection provider preserves declaring generic type parameters in me
   const rawSlice = rawSpan.members
     .find((member) => member.sourceName === "Slice" && member.signatures?.some((signature) => signature.parameters.length === 2));
   const rawSliceSignature = rawSlice?.signatures.find((signature) => signature.parameters.length === 2);
-  assert.deepEqual(rawSliceSignature?.returnType?.typeArguments, [{ kind: "type-parameter", name: "T" }]);
+  const parameter = { kind: "type-parameter", identity: rawSpan.typeParameters[0].identity, name: "T" };
+  assert.equal(typeof parameter.identity, "string");
+  assert.deepEqual(rawSliceSignature?.returnType?.typeArguments, [parameter]);
 
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.Span`1");
   const targetSlice = binding.members
     ?.find((member) => member.sourceName === "Slice" && member.parameters.length === 2);
-  assert.deepEqual(targetSlice?.returnType?.typeArguments, [{ kind: "type-parameter", name: "T" }]);
+  assert.equal(binding.typeParameters[0].identity, parameter.identity);
+  assert.deepEqual(targetSlice?.returnType?.typeArguments, [parameter]);
 });
 test(".NET target bindings retain generic Dictionary indexers as target-only facts", () => {
   const provider = createDotnetReflectionTypeDataProvider();
@@ -277,7 +280,8 @@ test(".NET target bindings retain generic Dictionary indexers as target-only fac
   const rawIndexers = rawDictionary.members.filter((member) => member.kind === "indexer");
   assert.equal(rawIndexers.length, 1);
   assert.equal(rawIndexers[0].targetName, "Item");
-  assert.deepEqual(rawIndexers[0].signatures[0].parameters[0].type, { kind: "type-parameter", name: "TKey" });
+  const key = { kind: "type-parameter", identity: rawDictionary.typeParameters[0].identity, name: "TKey" };
+  assert.deepEqual(rawIndexers[0].signatures[0].parameters[0].type, key);
 
   const sourceModel = dotnetModuleToProviderDeclarationModel(collectionsModule);
   const sourceDictionary = sourceModel.exports.find((declaration) => declaration.name === "Dictionary");
@@ -287,7 +291,7 @@ test(".NET target bindings retain generic Dictionary indexers as target-only fac
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/System.Collections.Generic.js", "System.Collections.Generic.Dictionary`2");
   const targetIndexers = binding.members.filter((member) => member.kind === "indexer");
   assert.equal(targetIndexers.length, 1);
-  assert.deepEqual(targetIndexers[0].parameters[0].type, { kind: "type-parameter", name: "TKey" });
+  assert.deepEqual(targetIndexers[0].parameters[0].type, key);
 });
 test(".NET provider source declarations preserve Constructor property casing without colliding with constructor syntax", () => {
   const provider = createDotnetReflectionTypeDataProvider();
@@ -373,7 +377,7 @@ test(".NET reflection provider exposes delegates with source shells and target d
   assert.equal(targetBinding?.csharpType.kind, "target-named");
   assert.equal(targetBinding?.csharpType.kind === "target-named" ? idEndsWith(targetBinding.csharpType.id, "System.Predicate`1") : false, true);
   assert.deepEqual(targetBinding?.csharpType.csharpDelegateSignature, {
-    parameters: [{ kind: "type-parameter", name: "T" }],
+    parameters: [{ kind: "type-parameter", identity: targetBinding.typeParameters[0].identity, name: "T" }],
     returnType: { kind: "source-primitive", name: "bool" },
   });
 });

@@ -60,8 +60,8 @@ export function planIdentifierExpression(
   if (declarationReference !== undefined && input.program.source.ast.is.IsClassDeclaration(declarationReference.declaration)) {
     const constructor = getCsharpDelegateSignature(input.types.classifications.resolveNode(identifier));
     if (constructor !== undefined) {
-      const resultType = csharpTypeFromTargetTypeRef(constructor.returnType);
-      const parameters = constructor.parameters.map((type, index) => ({ name: `argument${index}`, type: csharpTypeFromTargetTypeRef(type) }));
+      const resultType = csharpTypeFromTargetTypeRef(constructor.returnType, input.scope.typeParameterNames);
+      const parameters = constructor.parameters.map((type, index) => ({ name: `argument${index}`, type: csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames) }));
       if (resultType === undefined || parameters.some(parameter => parameter.type === undefined)) {
         diagnostics.push(unsupportedNodeDiagnostic(identifier, "The selected constructor value has no closed native factory signature."));
         return undefined;
@@ -149,7 +149,7 @@ function planProviderValueReference(
     ));
     return undefined;
   }
-  const receiver = csharpTypeFromTargetTypeRef(member.declaringType);
+  const receiver = csharpTypeFromTargetTypeRef(member.declaringType, input.scope.typeParameterNames);
   if (receiver === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       identifier,

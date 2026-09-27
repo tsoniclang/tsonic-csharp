@@ -118,6 +118,7 @@ test(".NET provider model contract rejects malformed identities and type refs be
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[0].type.elementType.name"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[1].passingMode"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[1].type.name"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[1].type.identity"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[1].defaultValue.value"), true);
 });
 test(".NET provider model contract rejects extra fields on type-ref variants", () => {
@@ -356,6 +357,7 @@ test(".NET provider model contract rejects metadata-name fallback identities and
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].targetId"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].assembly.name"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].typeParameters[0].variance"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].typeParameters[0].identity"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.unsupportedExports[0].reason"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.unsupportedExports[0].targetIds"), true);
 });
@@ -801,7 +803,7 @@ test(".NET provider invariant scan closes reflected models, virtual declarations
       kind: "provider-ref",
       moduleSpecifier: "@tsonic/dotnet/System.js",
       exportName: "Array",
-      typeArguments: [{ kind: "type-parameter", name: "T" }],
+      typeArguments: [{ kind: "type-parameter", identity: nativeArray.typeParameters[0].identity, name: "T" }],
     },
   );
 

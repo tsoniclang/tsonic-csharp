@@ -24,7 +24,7 @@ test(".NET delegate target facts preserve exact optional parameter positions", (
       parameters: [
         {
           name: "value",
-          type: { kind: "type-parameter", name: "T" },
+          type: { kind: "type-parameter", identity: "Example.Callback:0", name: "T" },
           passingMode: "by-value",
           optional: true,
         },
@@ -44,7 +44,7 @@ test(".NET delegate target facts preserve exact optional parameter positions", (
   );
   const closed = substituteTargetTypeParameters(
     targetType,
-    new Map([["T", { kind: "source-primitive", name: "int32" }]]),
+    new Map([["Example.Callback:0", { kind: "source-primitive", name: "int32" }]]),
   );
   assert.deepEqual(
     closed.csharpDelegateSignature.optionalParameterIndexes,

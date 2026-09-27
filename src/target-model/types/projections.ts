@@ -46,7 +46,8 @@ export function csharpProjectedType(projection: CsharpTypeProjection): CsharpPro
     sourceArguments: Object.freeze([...projection.sourceArguments]), arguments: Object.freeze([...projection.arguments]),
   }) : Object.freeze({ ...projection,
     arguments: Object.freeze([projection.arguments[0]]) as readonly [TargetTypeRef] });
-  return Object.freeze({ kind: "type-parameter", name, csharpProjection: contract,
+  return Object.freeze({ kind: "type-parameter", identity: JSON.stringify(["projection", key,
+    projection.kind === "optional" ? projection.part : "result"]), name, csharpProjection: contract,
     csharpProjectionConstraints: Object.freeze(constraints) });
 }
 

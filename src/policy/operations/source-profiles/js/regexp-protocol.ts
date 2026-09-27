@@ -92,10 +92,12 @@ export function resolveCustomRegExpProtocol(
   if (targetTypeArguments === undefined || targetTypeArguments.length !== selectedTypeArguments.length) {
     return undefined;
   }
-  const substitutions = new Map(selectedTypeArguments.map((argument, index) => [
-    argument.typeParameterName,
-    targetTypeArguments[index]!,
-  ]));
+  const substitutions = new Map<string, TargetTypeRef>();
+  for (const [index, argument] of selectedTypeArguments.entries()) {
+    const parameter = context.host.types.resolveType(argument.typeParameter, context.sourceFile);
+    if (parameter?.kind !== "type-parameter") return undefined;
+    substitutions.set(parameter.identity, targetTypeArguments[index]!);
+  }
   const selectedSignature = getCsharpDelegateSignature(selectedMember === undefined
     ? undefined
     : substituteTargetTypeParameters(selectedMember.type, substitutions));

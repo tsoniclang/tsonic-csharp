@@ -36,13 +36,13 @@ export function renderCsharpCaptureFrameMethods(
   const members: CsharpTypeMember[] = [];
   for (const method of frame.methods) {
     const signature = getCsharpDelegateSignature(method.type);
-    const returnType = signature === undefined ? undefined : csharpTypeFromTargetTypeRef(signature.returnType);
+    const returnType = signature === undefined ? undefined : csharpTypeFromTargetTypeRef(signature.returnType, input.scope.typeParameterNames);
     const file = input.program.source.ast.getSourceFile(method.declaration);
     if (signature === undefined || returnType === undefined || file === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(method.declaration, "A native captured method requires its sealed callable signature."));
       return undefined;
     }
-    const context = createCsharpMemberPlanningContext({ ...input, scope: {
+    const context = createCsharpMemberPlanningContext({ ...input, scope: { ...input.scope,
       captureFrames, capturedBindings, capturedReceivers, nativeCallableBody: method.declaration,
     } });
     const lambda = input.program.source.ast.is.IsArrowFunction(method.declaration)
@@ -53,7 +53,7 @@ export function renderCsharpCaptureFrameMethods(
       : planFunctionExpression(method.declaration, file, context, diagnostics, undefined, undefined, method.type);
     if (lambda?.kind !== "LambdaExpression") return undefined;
     const parameters = lambda.parameters.map((parameter, index) => {
-      const type = parameter.type ?? (signature.parameters[index] === undefined ? undefined : csharpTypeFromTargetTypeRef(signature.parameters[index]!));
+      const type = parameter.type ?? (signature.parameters[index] === undefined ? undefined : csharpTypeFromTargetTypeRef(signature.parameters[index]!, input.scope.typeParameterNames));
       return type === undefined ? undefined : { name: parameter.name, type };
     });
     if (parameters.some(parameter => parameter === undefined)) return undefined;

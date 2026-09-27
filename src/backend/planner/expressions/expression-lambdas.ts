@@ -359,7 +359,7 @@ function getLambdaReturnContext(
     ));
     return undefined;
   }
-  const returnExpressionType = csharpTypeFromTargetTypeRef(resultTargetType);
+  const returnExpressionType = csharpTypeFromTargetTypeRef(resultTargetType, input.scope.typeParameterNames);
   if (returnExpressionType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -418,7 +418,7 @@ export function planLambdaParameters(
       const nativeParameterType = input.program.storage.lambdaParameterType(parameterNode);
       const explicitParameterType = nativeParameterType === undefined
         ? sourceParameterType
-        : csharpTypeFromTargetTypeRef(nativeParameterType);
+        : csharpTypeFromTargetTypeRef(nativeParameterType, input.scope.typeParameterNames);
       return {
         kind: "Parameter",
         name: bindingPattern
@@ -464,13 +464,14 @@ export function getLambdaTargetContext(
   if (!HasSourceKind(input.program.source.ast, node, KindArrowFunction) && !HasSourceKind(input.program.source.ast, node, KindFunctionExpression)) {
     return undefined;
   }
-  const expectedTargetContext = lambdaTargetContextFromTargetRef(expectedTargetType);
+  const expectedTargetContext = lambdaTargetContextFromTargetRef(input.scope.typeParameterNames, expectedTargetType);
   if (expectedTargetContext !== undefined) {
     return expectedTargetContext;
   }
   void sourceFile;
   void expectedType;
   return lambdaTargetContextFromTargetRef(
+    input.scope.typeParameterNames,
     input.program.expectedTypes.callableTarget(node),
   );
 }
@@ -484,17 +485,17 @@ export function csharpDelegateSignatureFromTargetTypeRef(
   return signature?.returnType === undefined ? undefined : signature;
 }
 
-export function lambdaTargetContextFromTargetRef(type: TargetTypeRef | undefined): LambdaTargetContext | undefined {
+export function lambdaTargetContextFromTargetRef(typeParameterNames: ReadonlyMap<string, string> | undefined, type: TargetTypeRef | undefined): LambdaTargetContext | undefined {
   const signature = csharpDelegateSignatureFromTargetTypeRef(type);
   if (signature === undefined || type === undefined) {
     return undefined;
   }
-  const targetType = csharpTypeFromTargetTypeRef(type);
+  const targetType = csharpTypeFromTargetTypeRef(type, typeParameterNames);
   if (targetType === undefined) {
     return undefined;
   }
-  const parameters = signature.parameters.map(csharpTypeFromTargetTypeRef);
-  const returnType = csharpTypeFromTargetTypeRef(signature.returnType);
+  const parameters = signature.parameters.map(type => csharpTypeFromTargetTypeRef(type, typeParameterNames));
+  const returnType = csharpTypeFromTargetTypeRef(signature.returnType, typeParameterNames);
   if (parameters.some((parameter) => parameter === undefined) || returnType === undefined) {
     return undefined;
   }

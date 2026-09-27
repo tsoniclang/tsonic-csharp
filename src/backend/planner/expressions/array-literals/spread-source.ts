@@ -71,6 +71,7 @@ export function planArraySpreadSourceExpression(
   if (
     actualElementTargetType === undefined ||
     !spreadElementMatches(
+      input.scope.typeParameterNames,
       actualElementTargetType,
       expectedElementTargetType,
       expectedElementType,
@@ -96,6 +97,7 @@ export function planArraySpreadSourceExpression(
 }
 
 function spreadElementMatches(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   actual: TargetTypeRef,
   expected: TargetTypeRef | undefined,
   expectedType: CsharpTypeNode,
@@ -103,6 +105,6 @@ function spreadElementMatches(
   if (expected !== undefined) {
     return targetTypeRefEquals(actual, expected);
   }
-  const actualType = csharpTypeFromTargetTypeRef(actual);
+  const actualType = csharpTypeFromTargetTypeRef(actual, typeParameterNames);
   return actualType !== undefined && sameCsharpType(actualType, expectedType);
 }

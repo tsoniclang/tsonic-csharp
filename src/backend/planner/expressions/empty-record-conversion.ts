@@ -5,6 +5,7 @@ import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 
 export function planCsharpEmptyRecordConversion(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   selection: Extract<CsharpConversionSelection, { readonly kind: "empty-record" }>,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
@@ -12,7 +13,7 @@ export function planCsharpEmptyRecordConversion(
 ): CsharpExpression | undefined {
   if (source === undefined || target === undefined || !targetTypeRefEquals(source, selection.source) ||
     !targetTypeRefEquals(target, selection.target)) return undefined;
-  const type = csharpTypeFromTargetTypeRef(target);
+  const type = csharpTypeFromTargetTypeRef(target, typeParameterNames);
   return type === undefined ? undefined : {
     kind: "SimpleMemberAccessExpression",
     receiver: {

@@ -17,13 +17,16 @@ import {
   isCsharpNeverTargetType,
 } from "../../../target-model/types/index.js";
 
-export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode | undefined {
+export function csharpTypeFromTargetTypeRef(
+  type: TargetTypeRef,
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
+): CsharpTypeNode | undefined {
   if (isCsharpNeverTargetType(type)) {
     return { kind: "IdentifierName", name: "Never", requiredUsingNamespace: "Tsonic.CSharp.Runtime" };
   }
   const method = getCsharpGenericMethodValue(type);
-  if (method !== undefined) return csharpTypeFromTargetTypeRef(method.owner);
-  const rendered = csharpTypeFromEnrichedTargetTypeRef(type);
+  if (method !== undefined) return csharpTypeFromTargetTypeRef(method.owner, typeParameterNames);
+  const rendered = csharpTypeFromEnrichedTargetTypeRef(type, typeParameterNames);
   return rendered === undefined
     ? undefined
     : isCsharpNullableReferenceTargetType(type) && rendered.kind !== "NullableType"
@@ -31,37 +34,40 @@ export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode
       : rendered;
 }
 
-function csharpTypeFromEnrichedTargetTypeRef(type: TargetTypeRef): CsharpTypeNode | undefined {
+function csharpTypeFromEnrichedTargetTypeRef(
+  type: TargetTypeRef,
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
+): CsharpTypeNode | undefined {
   switch (type.kind) {
     case "source-primitive":
       return csharpTypeFromSourcePrimitiveKind(type.name);
     case "source-global":
       return undefined;
     case "target-named":
-      return csharpTypeFromTargetNamedType(type);
+      return csharpTypeFromTargetNamedType(type, typeParameterNames);
     case "type-parameter":
-      return csharpTypeParameterName(type.name);
+      return csharpTypeParameterName(typeParameterNames?.get(type.identity) ?? type.name);
     case "array": {
-      const elementType = csharpTypeFromTargetTypeRef(type.element);
+      const elementType = csharpTypeFromTargetTypeRef(type.element, typeParameterNames);
       return elementType === undefined
         ? undefined
         : { kind: "ArrayType", elementType, ...(type.rank !== undefined ? { rank: type.rank } : {}) };
     }
     case "tuple": {
-      const elements = type.elements.map(csharpTypeFromTargetTypeRef);
+      const elements = type.elements.map(type => csharpTypeFromTargetTypeRef(type, typeParameterNames));
       return elements.some((element) => element === undefined)
         ? undefined
         : csharpTupleType(elements as readonly CsharpTypeNode[]);
     }
     case "pointer": {
-      const pointee = csharpTypeFromTargetTypeRef(type.pointee);
+      const pointee = csharpTypeFromTargetTypeRef(type.pointee, typeParameterNames);
       return pointee === undefined
         ? undefined
         : { kind: "PointerType", pointee };
     }
     case "function-pointer": {
-      const parameters = type.args.map(csharpTypeFromTargetTypeRef);
-      const returnType = csharpTypeFromTargetTypeRef(type.result);
+      const parameters = type.args.map(type => csharpTypeFromTargetTypeRef(type, typeParameterNames));
+      const returnType = csharpTypeFromTargetTypeRef(type.result, typeParameterNames);
       const convention = csharpFunctionPointerCallingConvention(type.abi);
       return returnType === undefined || parameters.some((parameter) => parameter === undefined) || convention === undefined
         ? undefined
@@ -130,8 +136,11 @@ export function csharpTypeFromSourcePrimitiveKind(kind: SourcePrimitiveKind): Cs
       };
 }
 
-function csharpTypeFromTargetNamedType(type: Extract<TargetTypeRef, { readonly kind: "target-named" }>): CsharpTypeNode | undefined {
-  const typeArguments = (type.typeArguments ?? []).map(csharpTypeFromTargetTypeRef);
+function csharpTypeFromTargetNamedType(
+  type: Extract<TargetTypeRef, { readonly kind: "target-named" }>,
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
+): CsharpTypeNode | undefined {
+  const typeArguments = (type.typeArguments ?? []).map(type => csharpTypeFromTargetTypeRef(type, typeParameterNames));
   if (typeArguments.some((argument) => argument === undefined)) {
     return undefined;
   }

@@ -95,6 +95,7 @@ export function planCsharpStartupSourceFile(
         entry.planned?.asyncModuleInitializer === true)
     );
   const workerDispatch = planCsharpWorkerDispatch(
+    input.scope.typeParameterNames,
     workerEntries,
     binaryExecutionDriver,
     diagnostics,
@@ -158,6 +159,7 @@ export function planCsharpStartupSourceFile(
 }
 
 function planCsharpWorkerDispatch(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   entries: readonly {
     readonly sourceFile: import("@tsonic/tsts").SourceFile;
     readonly identity: string;
@@ -182,7 +184,7 @@ function planCsharpWorkerDispatch(
     left[0]!.bootstrap.id.localeCompare(right[0]!.bootstrap.id, "en"));
   for (const [index, group] of groups.entries()) {
     const bootstrap = group[0]!.bootstrap;
-    const bootstrapType = csharpTypeFromTargetTypeRef(bootstrap.declaringType);
+    const bootstrapType = csharpTypeFromTargetTypeRef(bootstrap.declaringType, typeParameterNames);
     if (bootstrapType === undefined) {
       diagnostics.push(targetPolicyDiagnostic(
         group[0]!.sourceFile,
@@ -295,7 +297,7 @@ function planCsharpBinaryExecutionDriver(
 ): PlannedCsharpBinaryExecutionDriver | undefined {
   const driver = input.program.binaryExecutionDriver;
   if (driver === undefined) return undefined;
-  const declaringType = csharpTypeFromTargetTypeRef(driver.declaringType);
+  const declaringType = csharpTypeFromTargetTypeRef(driver.declaringType, input.scope.typeParameterNames);
   if (declaringType === undefined) {
     diagnostics.push({
       code: "CSHARP_BINARY_EXECUTION_DRIVER_TYPE_UNRENDERABLE",

@@ -27,7 +27,7 @@ export function csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(
   diagnosticSubject?: Node,
 ): CsharpTypeNode | undefined {
   registerObjectShapeDeclarationsForTargetType(input, type, diagnostics, diagnosticSubject);
-  return csharpTypeFromTargetTypeRef(type);
+  return csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames);
 }
 
 function registerObjectShapeDeclarationsForTargetType(

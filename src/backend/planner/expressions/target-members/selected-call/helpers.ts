@@ -26,12 +26,14 @@ export function sourceCalleeRequiresExactTargetArity(
 }
 
 export function applyCalleeTypeArguments(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   callee: CsharpExpression,
   typeArguments: readonly TargetTypeRef[],
   node: Node,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   const rendered = renderCsharpTargetTypeArguments(
+    typeParameterNames,
     typeArguments,
     node,
     diagnostics,
@@ -58,11 +60,12 @@ export function applyCalleeTypeArguments(
 }
 
 export function renderCsharpTargetTypeArguments(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   typeArguments: readonly TargetTypeRef[],
   node: Node,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeNode[] | undefined {
-  const rendered = typeArguments.map(csharpTypeFromTargetTypeRef);
+  const rendered = typeArguments.map(type => csharpTypeFromTargetTypeRef(type, typeParameterNames));
   if (rendered.some((argument) => argument === undefined)) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -118,6 +121,7 @@ export function targetArgumentOrderIsRepresentable(
 }
 
 export function translateArrayCreationCall(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   node: Node,
   member: CsharpTargetMember,
   arguments_: readonly CsharpArgument[],
@@ -137,7 +141,7 @@ export function translateArrayCreationCall(
     ));
     return undefined;
   }
-  const elementType = csharpTypeFromTargetTypeRef(resultType.element);
+  const elementType = csharpTypeFromTargetTypeRef(resultType.element, typeParameterNames);
   if (elementType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,

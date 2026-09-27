@@ -18,11 +18,12 @@ export function csharpReferenceIdentityInterfaceType(): CsharpTypeNode {
 }
 
 export function renderObjectShapeInterfaces(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   fact: CsharpObjectShapeFact,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
 ): readonly CsharpTypeNode[] | undefined {
-  const rendered = (fact.implements ?? []).map((contract) => csharpTypeFromTargetTypeRef(contract));
+  const rendered = (fact.implements ?? []).map((contract) => csharpTypeFromTargetTypeRef(contract, typeParameterNames));
   if (rendered.some((contract) => contract === undefined)) {
     if (diagnostics !== undefined && diagnosticSubject !== undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, "Object-shape implemented contracts must carry renderable target type references before C# emission."));

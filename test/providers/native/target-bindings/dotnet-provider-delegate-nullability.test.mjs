@@ -96,8 +96,9 @@ test(".NET provider distinguishes authored T from T? inside generic delegate use
   const rawNullable = requireRawMethod(rawHost, "Nullable").signatures[0];
   assert.deepEqual(rawPlain.typeParameters?.map((parameter) => parameter.name), ["T"]);
   assert.deepEqual(rawNullable.typeParameters?.map((parameter) => parameter.name), ["T"]);
-  assertGenericDelegateArgumentNullability(rawPlain.parameters[0].type, false, "named");
-  assertGenericDelegateArgumentNullability(rawNullable.parameters[0].type, true, "named");
+  assert.notEqual(rawPlain.typeParameters[0].identity, rawNullable.typeParameters[0].identity);
+  assertGenericDelegateArgumentNullability(rawPlain.parameters[0].type, false, "named", rawPlain.typeParameters[0].identity);
+  assertGenericDelegateArgumentNullability(rawNullable.parameters[0].type, true, "named", rawNullable.typeParameters[0].identity);
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
   const host = declarationModel.exports.find((declaration) => declaration.name === "GenericCallbackHost");
@@ -142,7 +143,7 @@ test(".NET provider projects Queryable expression-tree parameters from exact del
     signature.parameters.length === 2
   );
   assert.ok(rawOrderByDescending);
-  assertGenericSelectorShape(rawOrderByDescending.parameters[1].type.sourceShape);
+  assertGenericSelectorShape(rawOrderByDescending.parameters[1].type.sourceShape, rawOrderByDescending.typeParameters);
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
   const queryable = declarationModel.exports.find((declaration) => declaration.name === "Queryable");
@@ -273,7 +274,7 @@ function assertSourceGenericDelegateArgumentNullability(type, expectedNullable) 
   assert.deepEqual(authoredType, { kind: "type-parameter", name: "T" });
 }
 
-function assertGenericDelegateArgumentNullability(type, expectedNullable, expectedKind) {
+function assertGenericDelegateArgumentNullability(type, expectedNullable, expectedKind, identity) {
   assert.equal(type.kind, expectedKind);
   assert.equal(type.sourceShape?.kind, "function");
   const argumentType = type.typeArguments[0];
@@ -284,17 +285,21 @@ function assertGenericDelegateArgumentNullability(type, expectedNullable, expect
     type.sourceShape.parameters[0].type;
   assert.equal(allowsUndefined(sourceArgumentType), expectedNullable);
   const authoredType = argumentType.kind === "nullable-reference" ? argumentType.elementType : argumentType;
-  assert.deepEqual(authoredType, { kind: "type-parameter", name: "T" });
+  assert.equal(typeof identity, "string");
+  assert.notEqual(identity.length, 0);
+  assert.deepEqual(authoredType, { kind: "type-parameter", identity, name: "T" });
 }
 
-function assertGenericSelectorShape(type) {
+function assertGenericSelectorShape(type, nativeParameters) {
   assert.equal(type.kind, "function");
   assert.deepEqual(type.parameters[0].type, {
     kind: "type-parameter",
+    ...(nativeParameters === undefined ? {} : { identity: nativeParameters[0].identity }),
     name: "TSource",
   });
   assert.deepEqual(type.returnType, {
     kind: "type-parameter",
+    ...(nativeParameters === undefined ? {} : { identity: nativeParameters[1].identity }),
     name: "TKey",
   });
   assert.equal(type.parameters[0].sourceType, undefined);

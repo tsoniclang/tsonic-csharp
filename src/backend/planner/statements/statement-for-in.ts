@@ -85,7 +85,7 @@ export function planForInStatement(
     diagnostics.push(unsupportedNodeDiagnostic(statementNode, "C# for-in emission received an unsupported exact iteration policy."));
     return [];
   }
-  const keyType = getForInKeyType(selectedIteration, statementNode, diagnostics);
+  const keyType = getForInKeyType(input.scope.typeParameterNames, selectedIteration, statementNode, diagnostics);
   if (keyType === undefined) {
     return [];
   }
@@ -103,6 +103,7 @@ export function planForInStatement(
     return [];
   }
   const collectionType = getCsharpTypeForForInCollection(
+    input.scope.typeParameterNames,
     selectedIteration,
     statement.Expression,
     diagnostics,

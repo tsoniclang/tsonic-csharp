@@ -27,8 +27,9 @@ export function dotnetTypeRefKey(type: DotnetTypeRef): string {
     case "literal":
       return JSON.stringify(type.value);
     case "source-primitive":
-    case "type-parameter":
       return type.name;
+    case "type-parameter":
+      return `parameter:${JSON.stringify(type.identity)}`;
     default:
       return type.kind;
   }

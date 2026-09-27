@@ -24,8 +24,8 @@ export function planCsharpRestSequence(
   const name = allocateSyntheticParameter(state);
   if (actual.kind === "tuple") {
     if (sequence.elements.length !== actual.elements.length) return undefined;
-    const tupleType = csharpTypeFromTargetTypeRef(actual);
-    const elementType = csharpTypeFromTargetTypeRef(sequence.targetElementType);
+    const tupleType = csharpTypeFromTargetTypeRef(actual, input.scope.typeParameterNames);
+    const elementType = csharpTypeFromTargetTypeRef(sequence.targetElementType, input.scope.typeParameterNames);
     if (tupleType === undefined || elementType === undefined) return undefined;
     const elements = sequence.elements.map((element, index) => applyCsharpConversionSelection(
       sequence.expression, sourceFile, input, diagnostics, element.type, sequence.targetElementType,
@@ -45,13 +45,13 @@ export function planCsharpRestSequence(
   const element = sequence.elements[0];
   if (sequence.elements.length !== 1 || element === undefined) return undefined;
   if (sequence.semantics === "native") {
-    const elementType = csharpTypeFromTargetTypeRef(sequence.targetElementType);
+    const elementType = csharpTypeFromTargetTypeRef(sequence.targetElementType, input.scope.typeParameterNames);
     return elementType === undefined ? undefined : {
       kind: "CastExpression", type: { kind: "ArrayType", elementType },
       expression: { kind: "CollectionExpression", elements: [{ kind: "SpreadElement", expression: source }] },
     };
   }
-  const type = csharpTypeFromTargetTypeRef(element.type);
+  const type = csharpTypeFromTargetTypeRef(element.type, input.scope.typeParameterNames);
   if (type === undefined) return undefined;
   const converted = applyCsharpConversionSelection(sequence.expression, sourceFile, input, diagnostics,
     element.type, sequence.targetElementType, element.conversion, { kind: "IdentifierName", name });

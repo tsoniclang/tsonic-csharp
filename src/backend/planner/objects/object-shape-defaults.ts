@@ -35,7 +35,7 @@ export function planObjectShapeDefaultProjection(
     diagnostics.push(unsupportedNodeDiagnostic(initializer, `Object-shape member '${member.sourceName}' default requires optional value-type members to carry a nullable target carrier before C# emission.`));
     return undefined;
   }
-  const defaultType = csharpTypeFromTargetTypeRef(defaultCarrier);
+  const defaultType = csharpTypeFromTargetTypeRef(defaultCarrier, input.scope.typeParameterNames);
   if (defaultType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(initializer, `Object-shape member '${member.sourceName}' default requires a renderable finalized target carrier before C# emission.`));
     return undefined;

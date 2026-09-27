@@ -30,7 +30,7 @@ export function getExplicitReturnType(
       sourceFile,
       input,
     );
-    const inferred = csharpDeclarationReturnType(returnTargetType);
+    const inferred = csharpDeclarationReturnType(input.scope.typeParameterNames, returnTargetType);
     if (inferred === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         declarationNode,
@@ -42,7 +42,7 @@ export function getExplicitReturnType(
   }
   const explicitTargetType = input.types.classifications.resolveNode(typeNode, sourceFile);
   if (isCsharpNeverTargetType(explicitTargetType)) {
-    const neverReturnType = csharpDeclarationReturnType(explicitTargetType);
+    const neverReturnType = csharpDeclarationReturnType(input.scope.typeParameterNames, explicitTargetType);
     if (neverReturnType !== undefined) {
       return neverReturnType;
     }
@@ -51,11 +51,12 @@ export function getExplicitReturnType(
 }
 
 function csharpDeclarationReturnType(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   targetType: TargetTypeRef | undefined,
 ): ReturnType<typeof getCsharpTypeForNode> | undefined {
   return targetType === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(targetType);
+    : csharpTypeFromTargetTypeRef(targetType, typeParameterNames);
 }
 
 export function getAsyncReturnExpressionExpectedType(
@@ -75,7 +76,7 @@ export function getAsyncReturnExpressionExpectedType(
     ));
     return undefined;
   }
-  const type = csharpTypeFromTargetTypeRef(resultTargetType);
+  const type = csharpTypeFromTargetTypeRef(resultTargetType, input.scope.typeParameterNames);
   if (type === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       typeNode ?? declarationNode,

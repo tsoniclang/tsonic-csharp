@@ -162,7 +162,10 @@ export function validateDotnetTypeRef(
     case "bigint":
       return;
     case "source-primitive":
+      requireNonEmptyString(type.name, `${path}.name`, collector);
+      return;
     case "type-parameter":
+      requireNonEmptyString(type.identity, `${path}.identity`, collector);
       requireNonEmptyString(type.name, `${path}.name`, collector);
       return;
   }

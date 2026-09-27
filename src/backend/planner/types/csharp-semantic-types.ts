@@ -37,15 +37,10 @@ export function getCsharpTypeFromSemanticType(
   ) {
     return undefined;
   }
-  if (classification.typeParameterName !== undefined) {
-    return {
-      kind: "IdentifierName",
-      name: classification.typeParameterName,
-    };
-  }
-  const resolved = classification.targetType === undefined
+  const targetType = classification.typeParameter ?? classification.targetType;
+  const resolved = targetType === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(classification.targetType);
+    : csharpTypeFromTargetTypeRef(targetType, input.scope.typeParameterNames);
   if (resolved !== undefined) {
     return resolved;
   }
@@ -62,14 +57,5 @@ export function getCsharpTypeFromSemanticType(
             : undefined;
   return intrinsicTarget === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(intrinsicTarget);
-}
-
-export function getCsharpTypeParameterName(
-  type: Type,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-): string | undefined {
-  return input.program.sourceEvidence.semanticType(type, sourceFile)
-    ?.typeParameterName;
+    : csharpTypeFromTargetTypeRef(intrinsicTarget, input.scope.typeParameterNames);
 }

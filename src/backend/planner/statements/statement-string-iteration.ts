@@ -88,7 +88,7 @@ export function planStringCodePointForOfStatement(
   const collectionIdentifier = { kind: "IdentifierName", name: collectionName } satisfies CsharpExpression;
   const indexIdentifier = { kind: "IdentifierName", name: indexName } satisfies CsharpExpression;
   const collectionExpression = planExpression(statement.Expression, sourceFile, input, diagnostics);
-  const surrogatePairTest = stringHasSurrogatePairAt(collectionIdentifier, indexIdentifier, selectedIteration, diagnostics, statementNode);
+  const surrogatePairTest = stringHasSurrogatePairAt(input.scope.typeParameterNames, collectionIdentifier, indexIdentifier, selectedIteration, diagnostics, statementNode);
   if (collectionExpression === undefined || surrogatePairTest === undefined) {
     return [];
   }
@@ -160,6 +160,7 @@ export function planStringCodePointForOfStatement(
 }
 
 function stringHasSurrogatePairAt(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   collection: CsharpExpression,
   index: CsharpExpression,
   selectedIteration: Extract<
@@ -174,12 +175,14 @@ function stringHasSurrogatePairAt(
     return undefined;
   }
   const high = callSurrogateOperation(
+    typeParameterNames,
     selectedIteration.lowering.policy.highSurrogateMethod,
     element(collection, index),
     diagnostics,
     diagnosticNode,
   );
   const low = callSurrogateOperation(
+    typeParameterNames,
     selectedIteration.lowering.policy.lowSurrogateMethod,
     element(collection, add(index, literalNumber(1))),
     diagnostics,
@@ -195,12 +198,13 @@ function stringHasSurrogatePairAt(
 }
 
 function callSurrogateOperation(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   operation: CsharpStaticTargetMethod,
   argument: CsharpExpression,
   diagnostics: TargetDiagnostic[],
   diagnosticNode: Node,
 ): CsharpExpression | undefined {
-  const declaringType = csharpTypeFromTargetTypeRef(operation.declaringType);
+  const declaringType = csharpTypeFromTargetTypeRef(operation.declaringType, typeParameterNames);
   if (declaringType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "String code-point surrogate test requires a renderable static target method policy."));
     return undefined;

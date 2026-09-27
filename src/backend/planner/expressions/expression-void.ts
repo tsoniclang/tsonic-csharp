@@ -52,7 +52,7 @@ export function planVoidExpression(
   }
   const operandType = operand === undefined ? undefined : input.types.classifications.resolveNode(operand, sourceFile);
   const target = expectedTargetType ?? input.types.classifications.resolveNode(node, sourceFile);
-  const resultType = target === undefined ? undefined : csharpTypeFromTargetTypeRef(target);
+  const resultType = target === undefined ? undefined : csharpTypeFromTargetTypeRef(target, input.scope.typeParameterNames);
   if (operand === undefined || operandType === undefined || target === undefined || resultType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -82,7 +82,7 @@ export function planVoidExpression(
   let statement: CsharpExpression = expression;
   while (statement.kind === "ParenthesizedExpression") statement = statement.expression;
   const asynchronous = statement.kind === "AwaitExpression";
-  const returnType = asynchronous ? csharpTypeFromTargetTypeRef(csharpTaskTargetType(target)) : resultType;
+  const returnType = asynchronous ? csharpTypeFromTargetTypeRef(csharpTaskTargetType(target), input.scope.typeParameterNames) : resultType;
   if (returnType === undefined) return undefined;
   const invocation: CsharpExpression = {
     kind: "InvocationExpression",

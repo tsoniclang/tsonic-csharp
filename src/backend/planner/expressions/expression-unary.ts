@@ -71,6 +71,7 @@ export function planPrefixUnaryExpression(
       return operand === undefined
         ? undefined
         : translateCsharpJsValueInvocation(
+            input.scope.typeParameterNames,
             jsValueOperation,
             undefined,
             [
@@ -169,6 +170,7 @@ export function planPostfixUnaryExpression(
       return operand === undefined
         ? undefined
         : translateCsharpJsValueInvocation(
+            input.scope.typeParameterNames,
             jsValueOperation,
             undefined,
             [

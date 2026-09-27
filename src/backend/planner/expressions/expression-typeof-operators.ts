@@ -68,6 +68,7 @@ export function planTypeofExpression(
     return planned === undefined
       ? undefined
       : translateCsharpJsValueInvocation(
+          input.scope.typeParameterNames,
           jsValueOperation,
           undefined,
           [planned],
@@ -115,7 +116,7 @@ export function tryPlanTypeTestExpression(
   if (factory !== undefined) {
     const retained = input.program.classFactories.get(factory.declaration);
     const receiver = planExpression(right, sourceFile, input, diagnostics);
-    const owner = factoryType === undefined ? undefined : csharpTypeFromTargetTypeRef(factoryType);
+    const owner = factoryType === undefined ? undefined : csharpTypeFromTargetTypeRef(factoryType, input.scope.typeParameterNames);
     if (!retained?.requiresInstanceTest || planned === undefined || receiver === undefined || owner === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "A local class identity test requires its sealed per-evaluation environment."));
       return undefined;
@@ -128,12 +129,12 @@ export function tryPlanTypeTestExpression(
   const instanceType = input.program.operations.binary(node)?.instanceType;
   const targetType = instanceType === undefined
     ? expressionToCsharpType(right, sourceFile, input, diagnostics)
-    : csharpTypeFromTargetTypeRef(instanceType);
+    : csharpTypeFromTargetTypeRef(instanceType, input.scope.typeParameterNames);
   if (planned === undefined || targetType === undefined) {
     return undefined;
   }
   if (isCsharpJsValueTargetType(input.types.classifications.resolveNode(left, sourceFile))) {
-    const runtimeType = csharpTypeFromTargetTypeRef(csharpTsValueTargetType());
+    const runtimeType = csharpTypeFromTargetTypeRef(csharpTsValueTargetType(), input.scope.typeParameterNames);
     return runtimeType === undefined
       ? undefined
       : {
@@ -207,7 +208,7 @@ export function tryPlanTypeofComparisonExpression(
     );
     const runtimeTypeof = planned === undefined
       ? undefined
-      : translateCsharpJsValueInvocation(jsValueOperation, undefined, [planned]);
+      : translateCsharpJsValueInvocation(input.scope.typeParameterNames, jsValueOperation, undefined, [planned]);
     return runtimeTypeof === undefined
       ? undefined
       : {
@@ -252,7 +253,7 @@ export function tryPlanTypeofComparisonExpression(
       selection.negated,
     );
   }
-  const targetType = csharpTypeFromTargetTypeRef(selection.targetType);
+  const targetType = csharpTypeFromTargetTypeRef(selection.targetType, input.scope.typeParameterNames);
   if (targetType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,

@@ -30,9 +30,9 @@ export function createCsharpProjectTypeCatalog(
       const outerProjections = projections?.outer(declaration) ?? [];
       const outerCount = sourceDefinition.outerTypeParameters.length;
       const definition = Object.freeze({ ...sourceDefinition, typeProjections: selectedProjections, outerTypeProjections: outerProjections,
-        typeParameterNames: Object.freeze([
-        ...sourceDefinition.typeParameterNames.slice(0, outerCount), ...outerProjections.map(parameter => parameter.name),
-        ...sourceDefinition.typeParameterNames.slice(outerCount), ...selectedProjections.map(parameter => parameter.name),
+        typeParameterBindings: Object.freeze([
+        ...sourceDefinition.typeParameterBindings.slice(0, outerCount), ...outerProjections,
+        ...sourceDefinition.typeParameterBindings.slice(outerCount), ...selectedProjections,
       ]) });
       const existing = byId.get(definition.id);
       if (existing !== undefined && existing.declaration !== declaration) {
@@ -95,11 +95,11 @@ export function createCsharpProjectTypeCatalog(
         ? undefined
         : byDeclaration.get(declaration);
       return definition === undefined ||
-          typeArguments.length !== definition.typeParameterNames.length
+          typeArguments.length !== definition.typeParameterBindings.length
         ? undefined
         : projectDefinitionTargetType(definition, typeArguments.map((argument, index) =>
-          argument.kind === "type-parameter" && argument.name === definition.typeParameterNames[index]
-            ? [...definition.outerTypeProjections, ...definition.typeProjections].find(projection => projection.name === argument.name) ?? argument
+          argument.kind === "type-parameter" && argument.identity === definition.typeParameterBindings[index]?.identity
+            ? [...definition.outerTypeProjections, ...definition.typeProjections].find(projection => projection.identity === argument.identity) ?? argument
             : argument));
     },
   });

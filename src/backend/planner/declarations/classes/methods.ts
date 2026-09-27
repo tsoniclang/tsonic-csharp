@@ -138,7 +138,7 @@ export function planMethodDeclaration(
     : declaredReturnTargetType;
   const returnType = effectiveReturnTargetType === undefined
     ? declaredReturnType
-    : csharpTypeFromTargetTypeRef(effectiveReturnTargetType) ??
+    : csharpTypeFromTargetTypeRef(effectiveReturnTargetType, input.scope.typeParameterNames) ??
       declaredReturnType;
   return {
     kind: "MethodDeclaration",

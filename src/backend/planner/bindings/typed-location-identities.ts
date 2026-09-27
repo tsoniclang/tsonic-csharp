@@ -30,14 +30,14 @@ export function planCsharpParameterStorageDeclaration(
   const name = input.program.source.ast.name(declaration);
   if (backing !== undefined && name !== undefined && input.program.source.ast.is.IsParameterDeclaration(declaration)) {
     const binding = redirectCsharpParameterStorage(name, input, state);
-    const type = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(backing.pointeeType));
+    const type = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(backing.pointeeType), input.scope.typeParameterNames);
     if (binding === undefined || type === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(declaration,
         "Sealed native parameter storage requires its exact planned binding and type."));
       return undefined;
     }
     return { kind: "LocalDeclarationStatement", name: binding.storageName, type,
-      initializer: planCsharpNativeMemoryCall("Allocate", { kind: "IdentifierName", name: binding.parameterName }, backing) };
+      initializer: planCsharpNativeMemoryCall(input.scope.typeParameterNames, "Allocate", { kind: "IdentifierName", name: binding.parameterName }, backing) };
   }
   return planCsharpTypedLocationIdentityDeclaration(declaration, input, state);
 }

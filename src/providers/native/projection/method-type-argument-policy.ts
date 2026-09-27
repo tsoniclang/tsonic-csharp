@@ -44,7 +44,7 @@ export function dotnetMethodTypeArgumentProjections(
           policy.targetTypeParameterIndex < parameters.length &&
           returnTypeReferencesExactTypeParameter(
             returnType,
-            returnParameter.name,
+            returnParameter.identity,
           )
         ? [Object.freeze({
             kind: policy.projection,
@@ -57,10 +57,10 @@ export function dotnetMethodTypeArgumentProjections(
 
 function returnTypeReferencesExactTypeParameter(
   type: DotnetTypeRef | undefined,
-  name: string,
+  identity: string,
 ): boolean {
   if (type?.kind === "nullable" || type?.kind === "nullable-reference") {
-    return returnTypeReferencesExactTypeParameter(type.elementType, name);
+    return returnTypeReferencesExactTypeParameter(type.elementType, identity);
   }
-  return type?.kind === "type-parameter" && type.name === name;
+  return type?.kind === "type-parameter" && type.identity === identity;
 }

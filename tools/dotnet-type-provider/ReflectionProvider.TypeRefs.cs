@@ -64,7 +64,7 @@ sealed partial class ReflectionProvider
                 type,
                 typeNullability,
                 typeNullabilityMetadata,
-                new { kind = "type-parameter", name = genericParameters.SourceName(type) },
+                new { kind = "type-parameter", identity = GenericParameterIdentity(type), name = genericParameters.SourceName(type) },
                 includeTopLevelReferenceNullability);
         }
         if (type.IsArray)
@@ -374,7 +374,7 @@ sealed partial class ReflectionProvider
             }
             return genericParameters.IsOmitted(type)
                 ? null
-                : new SourceTypeProjection(new { kind = "type-parameter", name = genericParameters.SourceName(type) });
+                : new SourceTypeProjection(new { kind = "type-parameter", identity = GenericParameterIdentity(type), name = genericParameters.SourceName(type) });
         }
         if (IsNullableShape(type, out var nullableElement))
         {

@@ -64,6 +64,7 @@ export function planCsharpConditionExpression(
     return planned === undefined
       ? undefined
       : translateCsharpJsValueInvocation(
+          input.scope.typeParameterNames,
           jsValueOperation,
           undefined,
           [planned],
@@ -76,7 +77,7 @@ export function planCsharpConditionExpression(
     diagnostics.push(unsupportedNodeDiagnostic(expression, `${context} requires a finalized C# bool runtime carrier; TypeScript truthiness must be resolved by TSTS/provider facts before C# emission. ${detail.reason}`, detail.evidence));
     return undefined;
   }
-  if (!isCsharpBoolType(csharpTypeFromTargetTypeRef(carrier))) {
+  if (!isCsharpBoolType(csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames))) {
     diagnostics.push(unsupportedNodeDiagnostic(expression, `${context} requires a finalized C# bool runtime carrier; TypeScript truthiness must be resolved by TSTS/provider facts before C# emission.`));
     return undefined;
   }

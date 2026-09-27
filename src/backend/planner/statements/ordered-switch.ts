@@ -17,7 +17,7 @@ export function planOrderedSwitch(
   planBody: (node: Node) => readonly CsharpStatement[],
 ): CsharpStatement | undefined {
   const expression = planExpression(selection.expression, sourceFile, input, diagnostics, state);
-  const type = csharpTypeFromTargetTypeRef(selection.type);
+  const type = csharpTypeFromTargetTypeRef(selection.type, input.scope.typeParameterNames);
   if (expression === undefined || type === undefined) return undefined;
   const valueName = allocateExpressionTemp(state);
   const sectionName = allocateExpressionTemp(state);

@@ -63,7 +63,7 @@ test("exact native storage keeps every integer width and does not route through 
 });
 
 test("exact storage requires numeric evidence and remains part of shape identity", () => {
-  for (const type of [primitive("bool"), primitive("char"), { kind: "opaque", id: "unknown" }, { kind: "type-parameter", name: "Value" }]) {
+  for (const type of [primitive("bool"), primitive("char"), { kind: "opaque", id: "unknown" }, { kind: "type-parameter", identity: "Value", name: "Value" }]) {
     assert.equal(selectCsharpExactIntegerConversion(type, primitive("int32")), undefined);
     assert.equal(selectCsharpExactIntegerConversion(primitive("float64"), type), undefined);
   }

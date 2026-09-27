@@ -60,6 +60,7 @@ import { csharpReferenceIdentityInterfaceType } from "./declarations/interfaces.
 import { csharpEnumerableKeysContract, isCsharpEnumerableKeysMember, renderCsharpEnumerableKeys } from "./declarations/enumerable-keys.js";
 import { renderCsharpGenericObjectMethods } from "./declarations/generic-methods.js";
 import { renderCsharpCaptureFrameMethods } from "./declarations/capture-methods.js";
+import { csharpAuthoredTypeParameterNames, csharpGeneratedTypeParameterNames } from "../../../target-model/names/type-parameters.js";
 
 export function registerSourceObjectShape(
   input: CsharpPlanningContext,
@@ -84,7 +85,7 @@ export function csharpTypeFromObjectShapeFact(
   diagnostics?: TargetDiagnostic[],
   diagnosticSubject?: Parameters<typeof unsupportedNodeDiagnostic>[0],
 ): CsharpTypeNode | undefined {
-  const targetType = csharpTypeFromTargetTypeRef(fact.targetType);
+  const targetType = csharpTypeFromTargetTypeRef(fact.targetType, input.scope.typeParameterNames);
   if (targetType === undefined) {
     reportObjectShapeFailure(
       diagnostics,
@@ -164,8 +165,17 @@ export function materializeObjectShapeDeclarations(
     if (artifact.materialization !== "synthetic") {
       continue;
     }
+    const fact = artifact.fact.declarationTemplate ?? artifact.fact;
+    const typeParameterNames = csharpGeneratedTypeParameterNames(
+      fact.targetType.kind === "target-named"
+        ? (fact.targetType.typeArguments ?? []).filter(argument => argument.kind === "type-parameter") : [],
+      [...fact.members.flatMap(member => (member.typeParameters ?? []).map(parameter => parameter.name)),
+        ...(fact.methodImplementation === undefined ? [] : csharpAuthoredTypeParameterNames(
+          fact.methodImplementation.declaration, input.program.source.ast))],
+    );
+    const declarationInput = { ...input, scope: { ...input.scope, typeParameterNames } };
     const declaration = renderObjectShapeDeclaration(
-      input,
+      declarationInput,
       artifact.fact,
       artifact.capabilities,
       artifact.projections,
@@ -181,6 +191,7 @@ export function materializeObjectShapeDeclarations(
       (existing.kind !== declaration.kind || (artifact.fact.methodImplementation !== undefined || input.program.captureStorage.forShape(artifact.fact.targetType) !== undefined
         ? JSON.stringify(existing) !== JSON.stringify(declaration)
         : existing.kind === "ClassDeclaration" && !objectShapeDeclarationMatches(
+        typeParameterNames,
         existing,
         artifact.fact.declarationTemplate ?? artifact.fact,
         artifact.capabilities.includes("json-serialization"),
@@ -252,7 +263,7 @@ function renderObjectShapeDeclaration(
   const fact = instance.declarationTemplate ?? instance;
   const jsonSerializable = capabilities.includes("json-serialization");
   const referenceIdentity = capabilities.includes("reference-identity");
-  const targetType = csharpTypeFromTargetTypeRef(fact.targetType);
+  const targetType = csharpTypeFromTargetTypeRef(fact.targetType, input.scope.typeParameterNames);
   if (targetType === undefined || targetType.kind !== "IdentifierName") {
     diagnostics.push({
       code: "CSHARP_OBJECT_SHAPE_TARGET_TYPE_INVALID",
@@ -262,8 +273,9 @@ function renderObjectShapeDeclaration(
     });
     return undefined;
   }
-  const interfaces = renderObjectShapeInterfaces(fact, undefined, undefined);
+  const interfaces = renderObjectShapeInterfaces(input.scope.typeParameterNames, fact, undefined, undefined);
   const typeParameters = renderObjectShapeTypeParameters(
+    input.scope.typeParameterNames,
     fact,
     undefined,
     undefined,
@@ -277,7 +289,7 @@ function renderObjectShapeDeclaration(
       const shape = input.types.objectShapes.resolveTarget(type);
       return shape === undefined ? [] : [shape];
     });
-    const contractMembers = renderCsharpStructuralInterfaceMembers(fact, input.program.storage, capabilities.includes("method-values"), inherited);
+    const contractMembers = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, fact, input.program.storage, capabilities.includes("method-values"), inherited);
     if (contractMembers === undefined || interfaces === undefined || typeParameters === undefined) {
       diagnostics.push({ code: "CSHARP_STRUCTURAL_INTERFACE_NOT_CLOSED", category: "error", source: "tsonic-csharp",
         message: "A structural reference contract requires exact renderable member signatures." });
@@ -290,6 +302,7 @@ function renderObjectShapeDeclaration(
       members: [...contractMembers, ...(capabilities.includes("enumerable-keys") && !inheritedEnumerableKeys ? [csharpEnumerableKeysContract()] : [])] };
   }
   const members = renderObjectShapeMembers(
+    input.scope.typeParameterNames,
     fact,
     (interfaces?.length ?? 0) > 0,
     new Set(receiverBoundMethodKeys),

@@ -152,7 +152,7 @@ export function planExplicitObjectShapeLiteralMember(
     ));
     return undefined;
   }
-  const memberType = csharpTypeFromTargetTypeRef(member.type);
+  const memberType = csharpTypeFromTargetTypeRef(member.type, input.scope.typeParameterNames);
   if (memberType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       property,

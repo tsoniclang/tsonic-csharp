@@ -9,25 +9,25 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeParameter } from "../../../target-ast/roslyn/index.js";
 import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../../types/type-parameters.js";
 
-export function renderCsharpStructuralInterfaceMembers(shape: CsharpObjectShapeFact, storage: CsharpStorageClassifications, methodValues: boolean, inherited: readonly CsharpObjectShapeFact[]): readonly CsharpInterfaceMember[] | undefined {
+export function renderCsharpStructuralInterfaceMembers(typeParameterNames: ReadonlyMap<string, string> | undefined, shape: CsharpObjectShapeFact, storage: CsharpStorageClassifications, methodValues: boolean, inherited: readonly CsharpObjectShapeFact[]): readonly CsharpInterfaceMember[] | undefined {
   const result: CsharpInterfaceMember[] = [];
   for (const member of shape.members) {
     if (member.memberKind === "method") {
       if (methodValues) {
         const valueType = (member.typeParameters?.length ?? 0) === 0 ? member.type : member.methodValueContract;
-        const type = valueType === undefined ? undefined : csharpTypeFromTargetTypeRef(valueType);
+        const type = valueType === undefined ? undefined : csharpTypeFromTargetTypeRef(valueType, typeParameterNames);
         if (type === undefined) return undefined;
         result.push({ kind: "PropertyDeclaration", name: objectShapeStorageMemberName(shape, member), type, writable: false });
       }
       const signature = getCsharpDelegateSignature(member.type);
       if (signature === undefined) return undefined;
-      const returnType = csharpTypeFromTargetTypeRef(signature.returnType);
-      const parameters = signature.parameters.map(csharpTypeFromTargetTypeRef);
+      const returnType = csharpTypeFromTargetTypeRef(signature.returnType, typeParameterNames);
+      const parameters = signature.parameters.map(type => csharpTypeFromTargetTypeRef(type, typeParameterNames));
       if (returnType === undefined || parameters.some(type => type === undefined)) return undefined;
       const issues: TargetDiagnostic[] = [];
       const typeParameters: CsharpTypeParameter[] = (member.typeParameters ?? []).map(parameter => ({
         name: parameter.name, constraints: parameter.constraints.flatMap(constraint => {
-          const result = csharpGenericConstraintFromTargetTypeParameterConstraint(constraint, parameter.declaration, issues);
+          const result = csharpGenericConstraintFromTargetTypeParameterConstraint(typeParameterNames, constraint, parameter.declaration, issues);
           return result === undefined ? [] : [result];
         }),
       }));
@@ -38,13 +38,13 @@ export function renderCsharpStructuralInterfaceMembers(shape: CsharpObjectShapeF
           ...(signature.optionalParameterIndexes?.includes(index) ? { defaultValue: { kind: "DefaultExpression" as const, type: type! } } : {}),
         })) });
     } else {
-      const type = csharpTypeFromTargetTypeRef(member.type);
+      const type = csharpTypeFromTargetTypeRef(member.type, typeParameterNames);
       if (type === undefined) return undefined;
       result.push({ kind: "PropertyDeclaration", name: member.targetName, type,
         writable: member.readonly !== true && member.accessor?.setter !== false });
       const backing = storage.nativeField(shape.targetType, member.targetName);
       if (backing !== undefined) {
-        const locationType = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(member.type));
+        const locationType = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(member.type), typeParameterNames);
         if (locationType === undefined) return undefined;
         result.push({ kind: "PropertyDeclaration", name: backing.storageName, type: locationType, writable: false });
       }
@@ -52,7 +52,7 @@ export function renderCsharpStructuralInterfaceMembers(shape: CsharpObjectShapeF
   }
   const inheritedNames = new Set<string>();
   for (const parent of inherited) {
-    const members = renderCsharpStructuralInterfaceMembers(parent, storage, methodValues, []);
+    const members = renderCsharpStructuralInterfaceMembers(typeParameterNames, parent, storage, methodValues, []);
     if (members === undefined) return undefined;
     for (const member of members) {
       if (member.kind !== "IndexerDeclaration") inheritedNames.add(member.name);

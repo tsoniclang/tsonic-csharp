@@ -53,7 +53,7 @@ export function planSelectedCsharpBinaryOperation(
     return planCsharpBigIntCall(node, selection, sourceFile, input, diagnostics, planExpression, state);
   }
   if (selection.targetOperation.kind === "union-coalesce") {
-    const resultType = csharpTypeFromTargetTypeRef(selection.resultType);
+    const resultType = csharpTypeFromTargetTypeRef(selection.resultType, input.scope.typeParameterNames);
     if (state === undefined || resultType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "Union coalescing requires its sealed result type and hygienic evaluation scope."));
       return undefined;
@@ -84,7 +84,7 @@ export function planSelectedCsharpBinaryOperation(
       { node: selection.left, type: selection.leftInputType },
       { node: selection.right, type: selection.rightInputType },
     ].map(({ node: operand, type }) => {
-      const syntaxType = csharpTypeFromTargetTypeRef(type);
+      const syntaxType = csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames);
       const expression = syntaxType === undefined ? undefined : planExpressionWithExpectedType(
         operand, sourceFile, input, diagnostics, syntaxType, undefined, type, state,
       );
@@ -121,9 +121,9 @@ export function planSelectedCsharpBinaryOperation(
       isCsharpAbsenceTargetType(input.program.sourceEvidence.nodeTargetType(otherNode));
     if (other.kind !== "LiteralExpression" && !intrinsicUndefined) {
       const testedType = csharpTypeFromTargetTypeRef(selection.targetOperation.operand === "left"
-        ? selection.leftType : selection.rightType);
+        ? selection.leftType : selection.rightType, input.scope.typeParameterNames);
       const otherType = csharpTypeFromTargetTypeRef(selection.targetOperation.operand === "left"
-        ? selection.rightType : selection.leftType);
+        ? selection.rightType : selection.leftType, input.scope.typeParameterNames);
       if (testedType === undefined || otherType === undefined) return undefined;
       const testedValue: CsharpExpression = { kind: "CastExpression", type: testedType, expression: operand };
       const otherValue: CsharpExpression = { kind: "CastExpression", type: otherType, expression: other };
@@ -249,7 +249,7 @@ export function planSelectedCsharpBinaryOperation(
       { ...input, storageExpression },
       diagnostics,
     );
-    const expectedRightType = csharpTypeFromTargetTypeRef(selection.leftType);
+    const expectedRightType = csharpTypeFromTargetTypeRef(selection.leftType, input.scope.typeParameterNames);
     const right = selection.sourceOperator === "=" && expectedRightType !== undefined
       ? planExpressionWithExpectedType(
           selection.right,
@@ -291,7 +291,7 @@ export function planSelectedCsharpBinaryOperation(
     diagnostics,
     planExpression,
     planExpressionWithExpectedType,
-    csharpTypeFromTargetTypeRef(selection.leftInputType),
+    csharpTypeFromTargetTypeRef(selection.leftInputType, input.scope.typeParameterNames),
     selection.leftInputType,
   );
   const right = planBinaryOperand(
@@ -302,12 +302,12 @@ export function planSelectedCsharpBinaryOperation(
     diagnostics,
     planExpression,
     planExpressionWithExpectedType,
-    csharpTypeFromTargetTypeRef(selection.rightInputType),
+    csharpTypeFromTargetTypeRef(selection.rightInputType, input.scope.typeParameterNames),
     selection.rightInputType,
   );
   if (left !== undefined && right !== undefined && input.program.numericRepresentations.usesInt32Remainder(node)) {
-    const integer = csharpTypeFromTargetTypeRef({ kind: "source-primitive", name: "int32" })!;
-    const number = csharpTypeFromTargetTypeRef({ kind: "source-primitive", name: "float64" })!;
+    const integer = csharpTypeFromTargetTypeRef({ kind: "source-primitive", name: "int32" }, input.scope.typeParameterNames)!;
+    const number = csharpTypeFromTargetTypeRef({ kind: "source-primitive", name: "float64" }, input.scope.typeParameterNames)!;
     return {
       kind: "CastExpression",
       type: number,

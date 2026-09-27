@@ -63,11 +63,11 @@ export function isCsharpJsThrowableValueCarrier(carrier: TargetTypeRef | undefin
 }
 
 export function csharpCatchExceptionType(): CsharpTypeNode | undefined {
-  return csharpTypeFromTargetTypeRef(csharpExceptionTargetType());
+  return csharpTypeFromTargetTypeRef(csharpExceptionTargetType(), undefined);
 }
 
 export function csharpThrownValueFromExpression(expression: CsharpExpression): CsharpExpression | undefined {
-  const type = csharpTypeFromTargetTypeRef(csharpTsThrownValueExceptionTargetType());
+  const type = csharpTypeFromTargetTypeRef(csharpTsThrownValueExceptionTargetType(), undefined);
   return type === undefined
     ? undefined
     : {
@@ -82,7 +82,7 @@ export function csharpThrownValueFromExpression(expression: CsharpExpression): C
 }
 
 export function csharpThrownValueToValueExpression(expression: CsharpExpression): CsharpExpression | undefined {
-  const type = csharpTypeFromTargetTypeRef(csharpTsThrownValueExceptionTargetType());
+  const type = csharpTypeFromTargetTypeRef(csharpTsThrownValueExceptionTargetType(), undefined);
   return type === undefined
     ? undefined
     : {

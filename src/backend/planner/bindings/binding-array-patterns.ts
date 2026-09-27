@@ -111,7 +111,7 @@ function planArrayBindingElement(
     return [];
   }
   const projected = planArrayBindingProjection(sourceExpression, index, sourceCarrier);
-  const projectedType = elementCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(elementCarrier);
+  const projectedType = elementCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(elementCarrier, input.scope.typeParameterNames);
   if (projectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array destructuring element requires a renderable provider element carrier type before C# emission."));
     return [];
@@ -122,7 +122,7 @@ function planArrayBindingElement(
         getCsharpNullableElementTargetType(elementCarrier);
       if (defaultedElementCarrier !== undefined) {
         const defaultedElementType = csharpTypeFromTargetTypeRef(
-          defaultedElementCarrier,
+          defaultedElementCarrier, input.scope.typeParameterNames,
         );
         if (
           defaultedElementType === undefined ||
@@ -216,7 +216,7 @@ function planArrayRestBindingElement(
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array rest destructuring requires a target binding name."));
     return [];
   }
-  const projectedType = csharpTypeFromTargetTypeRef(sourceCarrier.restCarrier);
+  const projectedType = csharpTypeFromTargetTypeRef(sourceCarrier.restCarrier, input.scope.typeParameterNames);
   if (projectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array rest destructuring requires a renderable provider array carrier type before C# emission."));
     return [];
@@ -251,7 +251,7 @@ function planTupleRestBindingElement(
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Tuple rest destructuring requires an exact tuple-slice carrier."));
     return [];
   }
-  const projectedType = csharpTypeFromTargetTypeRef(restCarrier);
+  const projectedType = csharpTypeFromTargetTypeRef(restCarrier, input.scope.typeParameterNames);
   if (projectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Tuple rest destructuring requires a renderable provider tuple carrier type before C# emission."));
     return [];

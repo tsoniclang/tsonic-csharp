@@ -135,7 +135,7 @@ export function projectSourceDeclarationTargetType(
     ? queries.types.authoredType(parameter)
     : bindings?.find(candidate => candidate.declaration === parameter && candidate.scope === "outer")?.argumentType);
   const outerArguments = outerSources.map((source, index): TargetTypeRef | undefined => {
-    if (selectedType === undefined) return { kind: "type-parameter", name: definition.typeParameterNames[index]! };
+    if (selectedType === undefined) return definition.typeParameterBindings[index]!;
     return source === undefined ? undefined : scope.resolveTypeWithState(source, queries.sourceFile, nextState(state));
   });
   if (outerArguments.some(argument => argument === undefined) || outerSources.some(source => source === undefined)) return undefined;

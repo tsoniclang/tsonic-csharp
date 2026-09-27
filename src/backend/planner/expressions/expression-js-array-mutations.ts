@@ -138,7 +138,7 @@ function planMutationArgument(
   planCallArgument: CallArgumentPlanner,
 ) {
   const targetType = csharpSourcePrimitiveTargetType("float64");
-  const expectedType = csharpTypeFromTargetTypeRef(targetType);
+  const expectedType = csharpTypeFromTargetTypeRef(targetType, input.scope.typeParameterNames);
   if (expectedType === undefined) {
     throw new Error("The C# float64 mutation parameter must always be renderable.");
   }

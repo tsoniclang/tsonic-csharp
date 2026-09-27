@@ -30,6 +30,7 @@ export interface CsharpObjectShapeMemberFact {
   readonly methodStorageType?: TargetTypeRef;
   readonly typeParameters?: readonly {
     readonly declaration: Node;
+    readonly identity: string;
     readonly name: string;
     readonly constraints: readonly import("../declarations/generic-constraints.js").CsharpTypeParameterConstraint[];
   }[];
@@ -46,7 +47,7 @@ export interface CsharpObjectShapeFact {
   readonly targetType: TargetTypeRef;
   readonly sourceType?: Type;
   readonly declarationTemplate?: CsharpObjectShapeFact;
-  readonly covariantTypeParameters?: readonly string[];
+  readonly covariantTypeParameterIdentities?: readonly string[];
   readonly members: readonly CsharpObjectShapeMemberFact[];
   readonly implements?: readonly TargetTypeRef[];
   readonly constructible?: boolean;
@@ -83,7 +84,7 @@ export type TargetTypeRef =
   | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind }
   | { readonly kind: "source-global"; readonly name: string; readonly typeArguments?: readonly TargetTypeRef[] }
   | { readonly kind: "target-named"; readonly id: string; readonly typeArguments?: readonly TargetTypeRef[] }
-  | { readonly kind: "type-parameter"; readonly name: string; readonly csharpProjection?: import("./projections.js").CsharpTypeProjection }
+  | { readonly kind: "type-parameter"; readonly identity: string; readonly name: string; readonly csharpProjection?: import("./projections.js").CsharpTypeProjection }
   | { readonly kind: "array"; readonly element: TargetTypeRef; readonly rank?: number }
   | { readonly kind: "tuple"; readonly elements: readonly TargetTypeRef[] }
   | { readonly kind: "pointer"; readonly pointee: TargetTypeRef; readonly mutability?: "const" | "mut" | "target-defined" }
@@ -107,6 +108,7 @@ export type TargetConstraint =
   | { readonly kind: "target-specific"; readonly target: string; readonly name: string; readonly payloadId?: string };
 
 export interface TargetTypeParameter {
+  readonly identity: string;
   readonly name: string;
   readonly constraints?: readonly TargetConstraint[];
   readonly variance?: "in" | "out" | "invariant" | "target-defined";

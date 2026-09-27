@@ -52,6 +52,7 @@ export function planImplicitForwardingConstructors(
   );
   return constructors.flatMap((constructor) =>
     planForwardingConstructorOverloads(
+      input.scope.typeParameterNames,
       constructor,
       className,
       safetyModifiers,
@@ -61,6 +62,7 @@ export function planImplicitForwardingConstructors(
 }
 
 function planForwardingConstructorOverloads(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   constructor: CsharpProjectForwardingConstructor,
   className: string,
   safetyModifiers: readonly CsharpModifier[],
@@ -78,6 +80,7 @@ function planForwardingConstructorOverloads(
   }
   return variants.flatMap((parameters) => {
     const planned = planForwardingParameters(
+      typeParameterNames,
       parameters,
       constructor,
       diagnostics,
@@ -130,6 +133,7 @@ function forwardingParameterVariants(
 }
 
 function planForwardingParameters(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   parameters: readonly CsharpTargetParameter[],
   constructor: CsharpProjectForwardingConstructor,
   diagnostics: TargetDiagnostic[],
@@ -142,7 +146,7 @@ function planForwardingParameters(
   const plannedParameters: CsharpParameter[] = [];
   const baseArguments: CsharpArgument[] = [];
   for (const parameter of parameters) {
-    const type = csharpTypeFromTargetTypeRef(parameter.type);
+    const type = csharpTypeFromTargetTypeRef(parameter.type, typeParameterNames);
     const passing = csharpPassing(parameter.passingMode);
     if (type === undefined || passing.kind === "unsupported") {
       diagnostics.push(unsupportedNodeDiagnostic(

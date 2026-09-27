@@ -45,7 +45,7 @@ export function selectCsharpStructuralInterface(
       if (destinationTemplate !== undefined) {
         const member = resolveCsharpObjectShapeMemberBySelectedSubject(destinationTemplate, destinationSubjects);
         if (member.kind !== "resolved" || member.member.type.kind !== "type-parameter") return undefined;
-        arguments_.set(member.member.type.name, open.member.type);
+        arguments_.set(member.member.type.identity, open.member.type);
       } else if (!targetTypeRefEquals(open.member.type, read.member.type)) return undefined;
       continue;
     }

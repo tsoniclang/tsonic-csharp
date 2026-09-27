@@ -425,7 +425,7 @@ function resolveMethodTypeArguments(
     const selected = sourceArguments[mapping.sourceTypeParameterIndex];
     const parameter = member.typeParameters?.[mapping.targetTypeParameterIndex];
     return selected !== undefined && selected.explicitTypeNode === undefined && parameter !== undefined
-      ? [[parameter.name, selected] as const] : [];
+      ? [[parameter.identity, selected] as const] : [];
   }));
   const inferredNames = new Set(inferredSourceArguments.keys());
   const bounds = new Map<string, TargetTypeRef[]>();
@@ -457,7 +457,7 @@ function resolveMethodTypeArguments(
   }
   const refinements = new Map(relation.methodTypeParameters.flatMap(mapping => {
     const parameter = member.typeParameters?.[mapping.targetTypeParameterIndex];
-    const carrier = parameter === undefined ? undefined : inferred.get(parameter.name);
+    const carrier = parameter === undefined ? undefined : inferred.get(parameter.identity);
     return carrier === undefined ? [] : [[mapping.sourceTypeParameterIndex, carrier] as const];
   }));
   return resolveSelectedTypeArguments(
@@ -566,10 +566,10 @@ function targetTypeParameterSubstitutions(
   for (const [index, parameter] of
     (relation.targetMember.typeParameters ?? []).entries()) {
     const argument = methodArguments[index];
-    if (argument === undefined || methodSubstitutions.has(parameter.name)) {
+    if (argument === undefined || methodSubstitutions.has(parameter.identity)) {
       return undefined;
     }
-    methodSubstitutions.set(parameter.name, argument.targetType);
+    methodSubstitutions.set(parameter.identity, argument.targetType);
   }
   return mergeCsharpTypeParameterSubstitutions(
     bindingSubstitutions,

@@ -58,7 +58,8 @@ export function nativeMemoryProvider({ missingRelation = false, wrongCarrier = f
   const wordTarget = csharpSourcePrimitiveTargetType("uint32");
   const genericSource = { kind: "provider-ref", moduleSpecifier: "@tsonic/core/types.js", exportName: "Pointer",
     typeArguments: [{ kind: "type-parameter", name: "Value" }] };
-  const genericCarrier = csharpRuntimeLocationTargetType({ kind: "type-parameter", name: "Value" });
+  const genericTarget = name => ({ kind: "type-parameter", identity: `${providerId}:${name}:0`, name: "Value" });
+  const genericCarrier = csharpRuntimeLocationTargetType(genericTarget("relay"));
   const owner = csharpTargetNamedType("NativeMemoryProof.Provider", undefined,
     csharpQualifiedTypeRenderShape("NativeMemoryProof", "Provider"));
   const definitions = [
@@ -73,11 +74,11 @@ export function nativeMemoryProvider({ missingRelation = false, wrongCarrier = f
     ["relay", "Relay", [{ name: "pointer", type: genericSource }], genericSource, genericCarrier,
       [{ name: "Value" }], [genericCarrier]],
     ["identity", "Identity", [{ name: "value", type: { kind: "type-parameter", name: "Value" } }],
-      { kind: "type-parameter", name: "Value" }, { kind: "type-parameter", name: "Value" },
-      [{ name: "Value" }], [{ kind: "type-parameter", name: "Value" }]],
+      { kind: "type-parameter", name: "Value" }, genericTarget("identity"),
+      [{ name: "Value" }], [genericTarget("identity")]],
     ["choose", "Choose", ["first", "second", "third"].map(name => ({ name, type: { kind: "type-parameter", name: "Value" } })),
-      { kind: "type-parameter", name: "Value" }, { kind: "type-parameter", name: "Value" },
-      [{ name: "Value" }], [0, 1, 2].map(() => ({ kind: "type-parameter", name: "Value" }))],
+      { kind: "type-parameter", name: "Value" }, genericTarget("choose"),
+      [{ name: "Value" }], [0, 1, 2].map(() => genericTarget("choose"))],
   ];
   const exports = definitions.map(([name, , parameters, returnType, , typeParameters]) => ({
     id: `source.export.${name}`, name, kind: "function",
@@ -101,7 +102,9 @@ export function nativeMemoryProvider({ missingRelation = false, wrongCarrier = f
         target: "csharp", kind: "class", csharpType: owner },
       targetMember: { id: `native.method.${targetName}`, sourceName: name, targetName,
         kind: "method", static: true, declaringType: owner,
-        ...(typeParameters === undefined ? {} : { typeParameters }),
+        ...(typeParameters === undefined ? {} : { typeParameters: typeParameters.map((parameter, index) => ({
+          ...parameter, identity: `${providerId}:${name}:${index}`,
+        })) }),
         parameters: parameters.map((parameter, index) => targetParameter(parameter.name, parameterCarriers?.[index] ?? wordTarget)),
         ...(wrongByRefPointee && name === "location" ? { csharpReturnPassing: "byref-readwrite" } : {}),
         returnType: wrongByRefPointee && name === "location" ? csharpSourcePrimitiveTargetType("int32") :

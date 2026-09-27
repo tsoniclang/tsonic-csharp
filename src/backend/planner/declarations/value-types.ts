@@ -48,7 +48,7 @@ export function planValueTypeDeclaration(
     members: valueType.fields.flatMap((field): readonly CsharpTypeMember[] => {
       const member = shape?.members.find(candidate => candidate.sourceSubjects?.includes(field.sourceType));
       if (shape !== undefined && member?.bound === true) {
-        const rendered = renderBoundRecordMember(shape, member, getCsharpTypeForSourceField(field, "Value-type field", sourceFile, input, diagnostics));
+        const rendered = renderBoundRecordMember(input.scope.typeParameterNames, shape, member, getCsharpTypeForSourceField(field, "Value-type field", sourceFile, input, diagnostics));
         if (rendered.some(candidate => candidate === undefined)) {
           diagnostics.push(unsupportedNodeDiagnostic(declarationNode, "The bound value-type member has no renderable storage contract."));
           return [];

@@ -40,7 +40,7 @@ test(".NET provider declaration model preserves generic base arguments on herita
     namespaceName: "ProviderModelFixtures",
     targetId: testTargetId("ProviderModelFixtures.GenericBase`1"),
     metadataName: "ProviderModelFixtures.GenericBase`1",
-    typeParameters: [{ name: "T" }],
+    typeParameters: [{ identity: "T", name: "T" }],
     members: [
       {
         kind: "property",
@@ -49,11 +49,11 @@ test(".NET provider declaration model preserves generic base arguments on herita
         targetId: testTargetId("ProviderModelFixtures.GenericBase`1.Value"),
         metadataName: "ProviderModelFixtures.GenericBase`1.Value",
         readable: true,
-        type: { kind: "type-parameter", name: "T" },
+        type: { kind: "type-parameter", identity: "T", name: "T" },
       },
       methodMember("ProviderModelFixtures.GenericBase`1", "echo", "Echo", [
-        { name: "value", type: { kind: "type-parameter", name: "T" }, passingMode: "by-value" },
-      ], { kind: "type-parameter", name: "T" }),
+        { name: "value", type: { kind: "type-parameter", identity: "T", name: "T" }, passingMode: "by-value" },
+      ], { kind: "type-parameter", identity: "T", name: "T" }),
     ],
   };
   const derivedType = {
@@ -713,7 +713,7 @@ test(".NET provider keeps LINQ container methods as explicit static calls", () =
 });
 test(".NET provider model preserves overlap-like receiver and out parameter facts", () => {
   const int32 = { kind: "source-primitive", name: "int32" };
-  const typeParameter = { kind: "type-parameter", name: "T" };
+  const typeParameter = { kind: "type-parameter", identity: "T", name: "T" };
   const spanOfT = {
     kind: "named",
     targetId: testTargetId("Example.Span`1"),
@@ -753,7 +753,7 @@ test(".NET provider model preserves overlap-like receiver and out parameter fact
           {
             id: testTargetId("Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)"),
             sourceId: testTargetId("Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)"),
-            typeParameters: [{ name: "T" }],
+            typeParameters: [{ identity: "T", name: "T" }],
             parameters: [
               { name: "span", type: spanOfT, passingMode: "by-value" },
               { name: "other", type: readOnlySpanOfT, passingMode: "by-value" },

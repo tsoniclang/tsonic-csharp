@@ -61,7 +61,7 @@ export function planArrayLiteralExpression(
     elements,
   };
   const native = input.program.storage.nativeArray(node);
-  return native === undefined ? array : planCsharpNativeArray(array, native.layout, native.stride);
+  return native === undefined ? array : planCsharpNativeArray(input.scope.typeParameterNames, array, native.layout, native.stride);
 }
 
 export function plannedArrayElements(

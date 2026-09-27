@@ -56,16 +56,16 @@ export function tryPlanCsharpNativePointerOperation(
         "Raw memory reinterpretation requires an explicit unsafecontext() source region."));
       return { handled: true };
     }
-    const type = csharpTypeFromTargetTypeRef(selection.inputType);
+    const type = csharpTypeFromTargetTypeRef(selection.inputType, input.scope.typeParameterNames);
     const value = type === undefined ? undefined : planExpressionWithExpectedType(
       selection.expression, sourceFile, input, diagnostics, type, undefined, selection.inputType, state);
-    return { handled: true, expression: value === undefined ? undefined : planCsharpNativeMemoryCall(selection.method, value, selection.layout) };
+    return { handled: true, expression: value === undefined ? undefined : planCsharpNativeMemoryCall(input.scope.typeParameterNames, selection.method, value, selection.layout) };
   }
   if (selection.kind === "raw-address") {
     const arguments_: CsharpExpression[] = [];
     for (const argument of selection.arguments) {
-      const sourceType = csharpTypeFromTargetTypeRef(argument.sourceType);
-      const parameterType = csharpTypeFromTargetTypeRef(argument.parameterType);
+      const sourceType = csharpTypeFromTargetTypeRef(argument.sourceType, input.scope.typeParameterNames);
+      const parameterType = csharpTypeFromTargetTypeRef(argument.parameterType, input.scope.typeParameterNames);
       const expression = sourceType === undefined ? undefined : planExpressionWithExpectedType(
         argument.expression, sourceFile, input, diagnostics, sourceType, undefined, argument.sourceType, state);
       if (expression === undefined || parameterType === undefined) return { handled: true };
@@ -73,8 +73,8 @@ export function tryPlanCsharpNativePointerOperation(
         ? expression : { kind: "CastExpression", type: parameterType,
           expression: { kind: "ParenthesizedExpression", expression } });
     }
-    const rawType = csharpTypeFromTargetTypeRef(csharpRuntimeRawPointerTargetType());
-    const resultType = csharpTypeFromTargetTypeRef(selection.resultType);
+    const rawType = csharpTypeFromTargetTypeRef(csharpRuntimeRawPointerTargetType(), input.scope.typeParameterNames);
+    const resultType = csharpTypeFromTargetTypeRef(selection.resultType, input.scope.typeParameterNames);
     if (rawType === undefined || resultType === undefined) return { handled: true };
     arguments_.push({ kind: "NumericLiteralExpression", value: selection.width });
     const invocation: CsharpExpression = { kind: "InvocationExpression",
@@ -87,8 +87,8 @@ export function tryPlanCsharpNativePointerOperation(
     return { handled: true, expression: { kind: "NumericLiteralExpression", value: selection.value } };
   }
   if (selection.kind === "raw-identity") {
-    const receiver = csharpTypeFromTargetTypeRef(selection.carrier);
-    const parameter = csharpTypeFromTargetTypeRef(selection.parameterType);
+    const receiver = csharpTypeFromTargetTypeRef(selection.carrier, input.scope.typeParameterNames);
+    const parameter = csharpTypeFromTargetTypeRef(selection.parameterType, input.scope.typeParameterNames);
     const arguments_ = selection.arguments.map(argument => parameter === undefined ? undefined : planExpressionWithExpectedType(
       argument, sourceFile, input, diagnostics, parameter, undefined, selection.parameterType, state));
     return { handled: true, ...(receiver === undefined || arguments_.some(argument => argument === undefined) ? {} : {
@@ -125,7 +125,7 @@ export function tryPlanCsharpNativePointerOperation(
     case "load":
       return { handled: true, expression: dereference };
     case "store": {
-      const pointeeType = csharpTypeFromTargetTypeRef(selection.pointeeType);
+      const pointeeType = csharpTypeFromTargetTypeRef(selection.pointeeType, input.scope.typeParameterNames);
       const value = pointeeType === undefined
         ? undefined
         : planExpressionWithExpectedType(
@@ -153,7 +153,7 @@ export function tryPlanCsharpNativePointerOperation(
       };
     }
     case "offset": {
-      const offsetType = csharpTypeFromTargetTypeRef(selection.offsetType);
+      const offsetType = csharpTypeFromTargetTypeRef(selection.offsetType, input.scope.typeParameterNames);
       const offset = offsetType === undefined
         ? undefined
         : planExpressionWithExpectedType(

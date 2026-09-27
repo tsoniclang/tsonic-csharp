@@ -24,7 +24,7 @@ export function targetTypeRefEquals(
         left.id === right.id &&
         targetTypeRefListEquals(left.typeArguments ?? [], right.typeArguments ?? []);
     case "type-parameter":
-      return right.kind === "type-parameter" && left.name === right.name;
+      return right.kind === "type-parameter" && left.identity === right.identity;
     case "array":
       return right.kind === "array" &&
         (left.rank ?? 1) === (right.rank ?? 1) &&
@@ -83,14 +83,14 @@ export function targetTypeRefIsClosed(type: TargetTypeRef): boolean {
   }
 }
 
-const noBoundTypeNames: ReadonlyMap<string, number> = new Map();
+const noBoundTypeParameters: ReadonlyMap<string, number> = new Map();
 
 export function targetTypeRefKey(type: TargetTypeRef): string {
-  return scopedTargetTypeRefKey(type, noBoundTypeNames);
+  return scopedTargetTypeRefKey(type, noBoundTypeParameters);
 }
 
-export function scopedTargetTypeRefKey(type: TargetTypeRef, boundNames: ReadonlyMap<string, number>): string {
-  const key = (child: TargetTypeRef): string => scopedTargetTypeRefKey(child, boundNames);
+export function scopedTargetTypeRefKey(type: TargetTypeRef, boundParameters: ReadonlyMap<string, number>): string {
+  const key = (child: TargetTypeRef): string => scopedTargetTypeRefKey(child, boundParameters);
   const nullablePrefix = isCsharpNullableReferenceTargetType(type)
     ? "nullable-reference:"
     : "";
@@ -102,9 +102,9 @@ export function scopedTargetTypeRefKey(type: TargetTypeRef, boundNames: Readonly
     case "target-named":
       return `${nullablePrefix}target:${type.id}<${(type.typeArguments ?? []).map(key).join(",")}>`;
     case "type-parameter":
-      return boundNames.has(type.name)
-        ? `${nullablePrefix}bound-type-parameter:${boundNames.get(type.name)}`
-        : `${nullablePrefix}type-parameter:${type.name}`;
+      return boundParameters.has(type.identity)
+        ? `${nullablePrefix}bound-type-parameter:${boundParameters.get(type.identity)}`
+        : `${nullablePrefix}type-parameter:${type.identity}`;
     case "array":
       return `${nullablePrefix}array:${type.rank ?? 1}:${key(type.element)}`;
     case "tuple":

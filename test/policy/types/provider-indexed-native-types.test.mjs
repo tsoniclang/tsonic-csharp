@@ -10,14 +10,14 @@ const integer = { kind: "source-primitive", name: "int64" };
 
 function fixture(options = {}) {
   const selected = providerIndexedPolicyFixture(options.keys);
-  const binding = providerBinding({ id: "Native.Box", typeParameters: [{ name: "T" }] });
+  const binding = providerBinding({ id: "Native.Box", typeParameters: [{ identity: "T", name: "T" }] });
   const facts = new Map();
   const relations = selected.evidence.properties.map((member, index) => {
     const declaration = providerDeclaration({ signatureId: null, memberId: `field-${index}` });
     if (!options.missingFact || index === 0) for (const subject of member.subjects) facts.set(subject, declaration);
     return memberRelation({ declaration, binding, member: providerField({
       id: `Native.Box.Field${index}`, returnType: options.conflicting && index === 1
-        ? { kind: "source-primitive", name: "uint64" } : { kind: "type-parameter", name: "T" },
+        ? { kind: "source-primitive", name: "uint64" } : { kind: "type-parameter", identity: "T", name: "T" },
     }) });
   });
   const direct = directProviderHost({ relations: options.missingRelation ? [] :

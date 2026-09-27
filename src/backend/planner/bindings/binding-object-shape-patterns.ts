@@ -96,7 +96,7 @@ function planObjectShapeBindingElement(
     return [];
   }
   const member = memberLookup.member;
-  const projectedType = csharpTypeFromTargetTypeRef(member.type);
+  const projectedType = csharpTypeFromTargetTypeRef(member.type, input.scope.typeParameterNames);
   if (projectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, `Object-shape member '${member.sourceName}' must carry a renderable target type before C# emission.`));
     return [];

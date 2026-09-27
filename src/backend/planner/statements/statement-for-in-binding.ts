@@ -109,7 +109,7 @@ export function planForInBinding(
       return undefined;
     }
     const storageType = input.program.storage.type(first) ?? targetType;
-    const currentType = csharpTypeFromTargetTypeRef(storageType);
+    const currentType = csharpTypeFromTargetTypeRef(storageType, input.scope.typeParameterNames);
     if (currentType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         first,
@@ -139,6 +139,7 @@ export function planForInBinding(
 }
 
 export function getForInKeyType(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   selectedIteration: Extract<
     CsharpResolvedIteration,
     { readonly iterationKind: "for-in" }
@@ -146,7 +147,7 @@ export function getForInKeyType(
   diagnosticNode: Node,
   diagnostics: TargetDiagnostic[],
 ): ReturnType<typeof getCsharpTypeForNode> | undefined {
-  const keyType = csharpTypeFromTargetTypeRef(selectedIteration.elementType);
+  const keyType = csharpTypeFromTargetTypeRef(selectedIteration.elementType, typeParameterNames);
   if (keyType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       diagnosticNode,
@@ -168,6 +169,7 @@ export function getForInKeyType(
 }
 
 export function getCsharpTypeForForInCollection(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   selectedIteration: Extract<
     CsharpResolvedIteration,
     { readonly iterationKind: "for-in" }
@@ -175,7 +177,7 @@ export function getCsharpTypeForForInCollection(
   expression: Node,
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
-  const type = csharpTypeFromTargetTypeRef(selectedIteration.iterableType);
+  const type = csharpTypeFromTargetTypeRef(selectedIteration.iterableType, typeParameterNames);
   if (type !== undefined) {
     return type;
   }

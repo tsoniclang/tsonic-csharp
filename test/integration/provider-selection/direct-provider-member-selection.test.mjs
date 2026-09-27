@@ -116,7 +116,7 @@ test("generic property members close from exact receiver representation", () => 
   const stringType = csharpStringTargetType();
   const binding = providerBinding({
     id: "Fixture.Box`1",
-    typeParameters: [{ name: "T" }],
+    typeParameters: [{ identity: "T", name: "T" }],
   });
   const member = providerField({
     id: "Fixture.Box`1.Value",
@@ -124,9 +124,9 @@ test("generic property members close from exact receiver representation", () => 
     declaringType: {
       kind: "target-named",
       id: binding.id,
-      typeArguments: [{ kind: "type-parameter", name: "T" }],
+      typeArguments: [{ kind: "type-parameter", identity: "T", name: "T" }],
     },
-    returnType: { kind: "type-parameter", name: "T" },
+    returnType: { kind: "type-parameter", identity: "T", name: "T" },
   });
   const fixture = createPropertyFixture({
     binding,
@@ -148,10 +148,10 @@ test("generic property members close from exact receiver representation", () => 
 
 test("structural property bindings close from exact receiver representation", () => {
   const int32 = csharpSourcePrimitiveTargetType("int32");
-  const typeParameter = { kind: "type-parameter", name: "T" };
+  const typeParameter = { kind: "type-parameter", identity: "T", name: "T" };
   const binding = providerBinding({
     id: "Fixture.Array`1",
-    typeParameters: [{ name: "T" }],
+    typeParameters: [{ identity: "T", name: "T" }],
     csharpType: { kind: "array", element: typeParameter },
   });
   const member = providerField({
@@ -306,16 +306,16 @@ test("generic indexer results close from exact receiver representation", () => {
   const stringType = csharpStringTargetType();
   const binding = providerBinding({
     id: "Fixture.Dictionary`1",
-    typeParameters: [{ name: "T" }],
+    typeParameters: [{ identity: "T", name: "T" }],
   });
   const member = providerIndexer({
     id: "Fixture.Dictionary`1.Item(System.Int32)",
     declaringType: {
       kind: "target-named",
       id: binding.id,
-      typeArguments: [{ kind: "type-parameter", name: "T" }],
+      typeArguments: [{ kind: "type-parameter", identity: "T", name: "T" }],
     },
-    returnType: { kind: "type-parameter", name: "T" },
+    returnType: { kind: "type-parameter", identity: "T", name: "T" },
   });
   const fixture = createElementFixture({
     binding,
@@ -337,10 +337,10 @@ test("generic indexer results close from exact receiver representation", () => {
 
 test("structural indexer bindings close from exact receiver representation", () => {
   const int32 = csharpSourcePrimitiveTargetType("int32");
-  const typeParameter = { kind: "type-parameter", name: "T" };
+  const typeParameter = { kind: "type-parameter", identity: "T", name: "T" };
   const binding = providerBinding({
     id: "Fixture.Array`1",
-    typeParameters: [{ name: "T" }],
+    typeParameters: [{ identity: "T", name: "T" }],
     csharpType: { kind: "array", element: typeParameter },
   });
   const member = providerIndexer({

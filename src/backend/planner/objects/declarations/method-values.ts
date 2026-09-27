@@ -21,7 +21,7 @@ export function renderCsharpMethodValueContracts(
     if (contract === undefined) return undefined;
     pending.push(...contract.implements ?? []);
     if (!input.artifacts.objectShapeHasCapability(contract, "method-values")) continue;
-    const explicitInterface = csharpTypeFromTargetTypeRef(type);
+    const explicitInterface = csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames);
     if (explicitInterface === undefined) return undefined;
     for (const required of contract.members) {
       if (required.memberKind !== "method") continue;
@@ -30,7 +30,7 @@ export function renderCsharpMethodValueContracts(
         csharpObjectShapeMemberContractKey(candidate) === csharpObjectShapeMemberContractKey(required));
       const selected = exact.length === 1 ? exact[0] : undefined;
       const valueType = generic ? required.methodValueContract : selected?.type;
-      const memberType = valueType === undefined ? undefined : csharpTypeFromTargetTypeRef(valueType);
+      const memberType = valueType === undefined ? undefined : csharpTypeFromTargetTypeRef(valueType, input.scope.typeParameterNames);
       if (selected === undefined || memberType === undefined || input.artifacts.objectShapeMethodUsesReceiver(shape, selected)) return undefined;
       members.push({ kind: "PropertyDeclaration", name: objectShapeStorageMemberName(contract, required),
         explicitInterface, modifiers: [], type: memberType, getter: { kind: "Block", statements: [{

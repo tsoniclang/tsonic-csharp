@@ -29,12 +29,12 @@ test(".NET provider declaration model preserves explicit target parameter passin
                 parameters: [
                   {
                     name: "key",
-                    type: { kind: "type-parameter", name: "TKey" },
+                    type: { kind: "type-parameter", identity: "dictionary:0", name: "TKey" },
                     passingMode: "by-value",
                   },
                   {
                     name: "value",
-                    type: { kind: "type-parameter", name: "TValue" },
+                    type: { kind: "type-parameter", identity: "dictionary:1", name: "TValue" },
                     passingMode: "byref-writeonly-must-init",
                   },
                 ],
@@ -575,8 +575,8 @@ test(".NET reflection provider exposes conflicted nested closure types through s
     moduleSpecifier: "@tsonic/dotnet/System.Collections.Generic.js",
     exportName: "Dictionary_ValueCollection",
     typeArguments: [
-      { kind: "type-parameter", name: "TKey" },
-      { kind: "type-parameter", name: "TValue" },
+      { kind: "type-parameter", identity: dictionary.typeParameters[0].identity, name: "TKey" },
+      { kind: "type-parameter", identity: dictionary.typeParameters[1].identity, name: "TValue" },
     ],
   });
 

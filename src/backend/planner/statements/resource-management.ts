@@ -225,7 +225,7 @@ export function planResourceRegistrationStatement(
     return undefined;
   }
   const resourceType = csharpTypeFromTargetTypeRef(
-    selected.registration.resourceType,
+    selected.registration.resourceType, input.scope.typeParameterNames,
   );
   if (resourceType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(

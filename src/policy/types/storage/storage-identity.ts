@@ -27,7 +27,7 @@ export function csharpTargetStorageIdentityEquals(
           right.typeArguments ?? [],
         );
     case "type-parameter":
-      return right.kind === "type-parameter" && left.name === right.name;
+      return right.kind === "type-parameter" && left.identity === right.identity;
     case "array":
       return right.kind === "array" &&
         (left.rank ?? 1) === (right.rank ?? 1) &&

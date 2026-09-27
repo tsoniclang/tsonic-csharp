@@ -83,6 +83,7 @@ export function translateCsharpElementAccess(
       return undefined;
     }
     return translateCsharpJsValueInvocation(
+      input.scope.typeParameterNames,
       jsValueOperation,
       receiver,
       expression?.QuestionDotToken === undefined
@@ -174,7 +175,7 @@ function translateProjectIndexerElement(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
-  const keyType = csharpTypeFromTargetTypeRef(selection.keyType);
+  const keyType = csharpTypeFromTargetTypeRef(selection.keyType, input.scope.typeParameterNames);
   if (keyType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -256,7 +257,7 @@ function translateSelectedElement(
   ];
   const expectedType = parameter === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(parameter.type);
+    : csharpTypeFromTargetTypeRef(parameter.type, input.scope.typeParameterNames);
   if (parameter === undefined || expectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -295,7 +296,7 @@ function translateSelectedElement(
     const projected = applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
       projection.source, projection.target, projection.conversion, receiver);
     const owner = selection.targetMember.declaringType === undefined ? undefined
-      : csharpTypeFromTargetTypeRef(selection.targetMember.declaringType);
+      : csharpTypeFromTargetTypeRef(selection.targetMember.declaringType, input.scope.typeParameterNames);
     if (projected === undefined || owner === undefined) return undefined;
     return {
       kind: "InvocationExpression",

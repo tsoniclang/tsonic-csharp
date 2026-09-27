@@ -186,7 +186,7 @@ function translateSelectedProperty(
     return undefined;
   }
   const receiver = selection.receiver.kind === "none"
-    ? targetStaticReceiver(member, node, diagnostics)
+    ? targetStaticReceiver(input.scope.typeParameterNames, member, node, diagnostics)
     : translateCsharpSelectedReceiver(
         selection.source.receiver,
         sourceFile,
@@ -361,6 +361,7 @@ function translateSourceOwnedProperty(
   }
   const planned = jsValueOperation.kind === "resolved" && jsValueSourceName !== undefined
     ? translateCsharpJsValueInvocation(
+        input.scope.typeParameterNames,
         jsValueOperation,
         receiver,
         [{ kind: "LiteralExpression", value: jsValueSourceName }],
@@ -500,6 +501,7 @@ function translateRuntimeUnionObjectShapeProperty(
 }
 
 function targetStaticReceiver(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   member: Extract<
     CsharpTargetPropertySelection,
     { readonly kind: "resolved" }
@@ -515,7 +517,7 @@ function targetStaticReceiver(
     ));
     return undefined;
   }
-  const receiver = csharpTypeFromTargetTypeRef(declaringType);
+  const receiver = csharpTypeFromTargetTypeRef(declaringType, typeParameterNames);
   if (receiver === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,

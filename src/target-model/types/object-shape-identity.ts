@@ -42,10 +42,10 @@ export function csharpObjectShapeMemberContractParts(
 export function csharpObjectShapeMemberTypeKey(member: CsharpObjectShapeMemberFact): string {
   const parameters = member.typeParameters ?? [];
   if (parameters.length === 0) return targetTypeRefKey(member.type);
-  const boundNames = new Map(parameters.map((parameter, index) => [parameter.name, index]));
-  return JSON.stringify([scopedTargetTypeRefKey(member.type, boundNames),
+  const boundParameters = new Map(parameters.map((parameter, index) => [parameter.identity, index]));
+  return JSON.stringify([scopedTargetTypeRefKey(member.type, boundParameters),
     parameters.map(parameter => parameter.constraints.map(constraint =>
-      constraint.kind === "type" ? [constraint.kind, scopedTargetTypeRefKey(constraint.type, boundNames)]
+      constraint.kind === "type" ? [constraint.kind, scopedTargetTypeRefKey(constraint.type, boundParameters)]
         : constraint.kind === "keyword" ? [constraint.kind, constraint.keyword] : [constraint.kind])),
   ]);
 }
@@ -62,7 +62,7 @@ export function csharpObjectShapeContractKey(
   return JSON.stringify([
     targetTypeRefKey(shape.targetType),
     String(shape.constructible),
-    shape.covariantTypeParameters ?? [],
+    shape.covariantTypeParameterIdentities ?? [],
     canonicalCsharpObjectShapeImplementedTypes(shape.implements ?? [])
       .map(targetTypeRefKey),
     canonicalCsharpObjectShapeMembers(shape.members)

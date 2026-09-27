@@ -1,7 +1,7 @@
 import type { Node, Type } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpProjectedType } from "../../../target-model/types/projections.js";
-import { csharpSourceTypeParameterName } from "../../../target-model/names/type-parameters.js";
+import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
 import { substituteTargetTypeParameters } from "../callables/substitution.js";
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
@@ -24,10 +24,10 @@ export function resolveCsharpProjectionArguments(
   const bound = csharpSourceBindings(parameters as readonly Node[], sources, arguments_, nextState(state));
   if (bound === undefined) return undefined;
   const nativeBindings = new Map((parameters as readonly Node[]).map((parameter, index) => [
-    csharpSourceTypeParameterName(parameter, scope.host.ast)!, arguments_[index]!,
+    csharpSourceTypeParameter(parameter, scope.host.ast)!.identity, arguments_[index]!,
   ]));
   const queries = scope.host.semanticsFor(declaration);
-  const projectionNames = new Set(projections.map(projection => projection.name));
+  const projectionIdentities = new Set(projections.map(projection => projection.identity));
   const selected = new Map<string, TargetTypeRef>();
   const pending = new Set(projections);
   while (pending.size > 0) {
@@ -42,7 +42,7 @@ export function resolveCsharpProjectionArguments(
         if (visited.has(component)) continue;
         visited.add(component);
         const dependency = csharpTypeProjection(component);
-        if (dependency !== undefined && projectionNames.has(dependency.name) && !selected.has(dependency.name)) {
+        if (dependency !== undefined && projectionIdentities.has(dependency.identity) && !selected.has(dependency.identity)) {
           waiting = true;
           break;
         }
@@ -57,7 +57,7 @@ export function resolveCsharpProjectionArguments(
         const sourceArguments = contract.sourceArguments.map((argument, index) => {
           const target = contract.arguments[index];
           const parameterIndex = target?.kind !== "type-parameter" ? -1
-            : (parameters as readonly Node[]).findIndex(parameter => csharpSourceTypeParameterName(parameter, scope.host.ast) === target.name);
+            : (parameters as readonly Node[]).findIndex(parameter => csharpSourceTypeParameter(parameter, scope.host.ast)?.identity === target.identity);
           return parameterIndex >= 0 ? sources[parameterIndex]!
             : csharpBoundSourceType(argument, queries, bound)?.sourceType ?? argument;
         });
@@ -65,12 +65,12 @@ export function resolveCsharpProjectionArguments(
         result = application === undefined ? undefined : resolveCsharpConditionalApplication(scope, application, targetArguments, queries, bound);
       }
       if (result === undefined) return undefined;
-      selected.set(projection.name, result);
-      nativeBindings.set(projection.name, result);
+      selected.set(projection.identity, result);
+      nativeBindings.set(projection.identity, result);
       pending.delete(projection);
       progress = true;
     }
     if (!progress) return undefined;
   }
-  return projections.map(projection => selected.get(projection.name)!);
+  return projections.map(projection => selected.get(projection.identity)!);
 }

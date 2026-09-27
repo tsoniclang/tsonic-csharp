@@ -43,7 +43,7 @@ export function analyzeCsharpObjectShapes(
     if (type.kind !== "target-named") return [];
     return [...structuralInterfaces.get(type.id)?.values() ?? []].map(selected => {
       const parameters = new Set(selected.sourceType.kind === "target-named"
-        ? (selected.sourceType.typeArguments ?? []).flatMap(argument => argument.kind === "type-parameter" ? [argument.name] : []) : []);
+        ? (selected.sourceType.typeArguments ?? []).flatMap(argument => argument.kind === "type-parameter" ? [argument.identity] : []) : []);
       const bindings = inferCsharpTargetTypeParameterBindings(selected.sourceType, type, parameters);
       if (bindings === undefined) throw new Error("A structural implementation lost its exact source generic instantiation.");
       return { ...selected, sourceType: type, interfaceType: substituteTargetTypeParameters(selected.interfaceType, bindings),

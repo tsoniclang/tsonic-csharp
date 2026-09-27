@@ -766,7 +766,7 @@ function createConstrainedMethodFixture(
 ) {
   const selectedType = {};
   const member = providerMethod({
-    typeParameters: [{ name: "T", constraints: [constraint] }],
+    typeParameters: [{ identity: "T", name: "T", constraints: [constraint] }],
   });
   return createCallFixture({
     member,

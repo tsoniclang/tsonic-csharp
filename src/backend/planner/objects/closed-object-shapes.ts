@@ -65,7 +65,7 @@ function renderObjectShapeProjectionMethod(
   fact: CsharpObjectShapeFact,
   projection: CsharpObjectShapeProjection,
 ): ProjectionMethodResult {
-  const returnType = csharpTypeFromTargetTypeRef(projection.resultType);
+  const returnType = csharpTypeFromTargetTypeRef(projection.resultType, input.scope.typeParameterNames);
   if (returnType === undefined) {
     return rejected(
       `Closed object '${projection.kind}' projection has no renderable selected result type.`,
@@ -82,7 +82,7 @@ function renderObjectShapeProjectionMethod(
     return assignment;
   }
   const assignmentSourceType = projection.kind === "assign"
-    ? csharpTypeFromTargetTypeRef(projection.sourceShape.targetType)
+    ? csharpTypeFromTargetTypeRef(projection.sourceShape.targetType, input.scope.typeParameterNames)
     : undefined;
   if (projection.kind === "assign" && assignmentSourceType === undefined) {
     return rejected(
@@ -139,6 +139,7 @@ function renderProjectionExpression(
         return rejected("Object.keys requires an exact JS string-array result carrier.");
       }
       return jsArrayExpression(
+        input.scope.typeParameterNames,
         projection.resultType,
         elementType,
         members.map((member): CsharpExpression => ({
@@ -167,7 +168,7 @@ function renderProjectionExpression(
         }
         values.push(converted.expression);
       }
-      return jsArrayExpression(projection.resultType, elementType, values);
+      return jsArrayExpression(input.scope.typeParameterNames, projection.resultType, elementType, values);
     }
     case "entries": {
       const elementType = getCsharpJsArrayElementTargetType(projection.resultType);
@@ -202,7 +203,7 @@ function renderProjectionExpression(
           ],
         });
       }
-      return jsArrayExpression(projection.resultType, elementType, entries);
+      return jsArrayExpression(input.scope.typeParameterNames, projection.resultType, elementType, entries);
     }
     case "has-own": {
       if (!targetTypeRefEquals(projection.resultType, boolTargetType)) {
@@ -290,14 +291,15 @@ function renderAssignStatements(
 }
 
 function jsArrayExpression(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   collectionTargetType: TargetTypeRef,
   elementTargetType: TargetTypeRef,
   elements: readonly CsharpExpression[],
 ):
   | { readonly kind: "resolved"; readonly expression: CsharpExpression }
   | { readonly kind: "rejected"; readonly reason: string } {
-  const collectionType = csharpTypeFromTargetTypeRef(collectionTargetType);
-  const elementType = csharpTypeFromTargetTypeRef(elementTargetType);
+  const collectionType = csharpTypeFromTargetTypeRef(collectionTargetType, typeParameterNames);
+  const elementType = csharpTypeFromTargetTypeRef(elementTargetType, typeParameterNames);
   if (collectionType === undefined || elementType === undefined) {
     return rejected("Closed object projection array types are not renderable in C#.");
   }
@@ -337,6 +339,7 @@ function convertClosedShapeValue(
   | { readonly kind: "resolved"; readonly expression: CsharpExpression }
   | { readonly kind: "rejected"; readonly reason: string } {
   return applyClosedShapeConversion(
+    input.scope.typeParameterNames,
     input.program.conversions.select(
       sourceType,
       targetType,
@@ -352,6 +355,7 @@ function convertClosedShapeValue(
 }
 
 function applyClosedShapeConversion(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   selection: CsharpConversionSelection,
   targetType: TargetTypeRef,
   expression: CsharpExpression,
@@ -362,7 +366,7 @@ function applyClosedShapeConversion(
     case "identity":
       return { kind: "resolved", expression };
     case "empty-record": {
-      const converted = planCsharpEmptyRecordConversion(selection, selection.source, targetType, expression);
+      const converted = planCsharpEmptyRecordConversion(typeParameterNames, selection, selection.source, targetType, expression);
       return converted === undefined ? rejected("The empty-record conversion has mismatched carriers.")
         : { kind: "resolved", expression: converted };
     }
@@ -371,11 +375,12 @@ function applyClosedShapeConversion(
         return { kind: "resolved", expression };
       }
       {
-        const declaringType = csharpTypeFromTargetTypeRef(targetType);
+        const declaringType = csharpTypeFromTargetTypeRef(targetType, typeParameterNames);
         if (declaringType === undefined) {
           return rejected("Runtime-union result carrier is not renderable.");
         }
         const arm = applyClosedShapeConversion(
+          typeParameterNames,
           selection.sourceToArm,
           selection.armType,
           expression,
@@ -396,7 +401,7 @@ function applyClosedShapeConversion(
             };
       }
     case "js-value-box": {
-      const declaringType = csharpTypeFromTargetTypeRef(csharpTsValueTargetType());
+      const declaringType = csharpTypeFromTargetTypeRef(csharpTsValueTargetType(), typeParameterNames);
       return declaringType === undefined
         ? rejected("The TsValue carrier is not renderable.")
         : {

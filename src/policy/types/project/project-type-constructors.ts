@@ -405,10 +405,7 @@ function forwardingTargetMember(
 ): CsharpTargetMember {
   const declaringType = host.targetTypeForDefinition(
     definition,
-    definition.typeParameterNames.map((name) => ({
-      kind: "type-parameter" as const,
-      name,
-    })),
+    definition.typeParameterBindings,
   );
   return Object.freeze({
     id: `${definition.id}::forward-constructor:${baseIdentity}`,

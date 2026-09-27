@@ -3,6 +3,7 @@ import type {
   SourceFile,
   Type,
 } from "@tsonic/tsts";
+import { csharpSourceTypeParameter } from "../../../../target-model/names/type-parameters.js";
 import type {
   SourceFileSemantics,
 } from "@tsonic/target-api/source";
@@ -149,7 +150,7 @@ function validateTypeParameterArguments(
   }
   const substitutions = new Map(
     parameters.map((parameter, index) => [
-      parameter.name,
+      parameter.identity,
       arguments_[index]!.targetType,
     ]),
   );
@@ -353,11 +354,11 @@ function selectedSourceConstraintSatisfies(
       host.ast.is.IsTypeParameterDeclaration(declaration));
   if (declarations.length !== 1) return undefined;
   const declaration = declarations[0]!;
-  const name = host.ast.name(declaration);
-  if (name === undefined) return false;
+  const parameter = csharpSourceTypeParameter(declaration, host.ast);
+  if (parameter === undefined) return false;
   const resolution = resolveCsharpTypeParameterConstraints(
     declaration,
-    host.ast.text(name),
+    parameter,
     sourceFile,
     host,
   );

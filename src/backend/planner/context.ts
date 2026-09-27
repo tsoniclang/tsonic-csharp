@@ -53,6 +53,7 @@ export interface CsharpPlanningTypeView {
 }
 
 export interface CsharpPlanningScope {
+  readonly typeParameterNames?: ReadonlyMap<string, string>;
   readonly classValues?: ReadonlyMap<Node, CsharpExpression>;
   readonly capturedBindings?: ReadonlyMap<Node, CsharpExpression>;
   readonly captureFrames?: ReadonlyMap<Node, CsharpExpression>;

@@ -346,6 +346,7 @@ export interface DotnetUnsupportedDefaultValueDeclaration {
 }
 
 export interface DotnetTypeParameterDeclaration {
+  readonly identity: string;
   readonly name: string;
   readonly constraints?: readonly DotnetConstraint[];
   readonly defaultType?: DotnetTypeRef;
@@ -380,7 +381,7 @@ export type DotnetTypeRef =
   | { readonly kind: "number" }
   | { readonly kind: "bigint" }
   | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind }
-  | { readonly kind: "type-parameter"; readonly name: string }
+  | { readonly kind: "type-parameter"; readonly identity: string; readonly name: string }
   | { readonly kind: "provider-ref"; readonly moduleSpecifier: string; readonly exportName: string; readonly typeArguments?: readonly DotnetTypeRef[] }
   | { readonly kind: "named"; readonly targetId: string; readonly metadataName: string; readonly displayName?: string; readonly renderShape?: DotnetRenderShape; readonly typeArguments?: readonly DotnetTypeRef[]; readonly sourceShape?: DotnetTypeRef; readonly implicitArrayInput?: true }
   | { readonly kind: "nullable"; readonly elementType: DotnetTypeRef }

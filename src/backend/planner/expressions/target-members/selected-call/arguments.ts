@@ -195,7 +195,7 @@ export function translateCallArgument(
     );
   }
   const targetType = csharpTargetParameterValueType(parameter, sourceForm);
-  const expectedType = csharpTypeFromTargetTypeRef(targetType);
+  const expectedType = csharpTypeFromTargetTypeRef(targetType, input.scope.typeParameterNames);
   if (expectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       expression,
@@ -265,7 +265,7 @@ export function translateCallArgument(
       );
     }
     const sourceExpectedType = csharpTypeFromTargetTypeRef(
-      selectedMapping.sourceType,
+      selectedMapping.sourceType, input.scope.typeParameterNames,
     );
     if (sourceExpectedType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
@@ -383,9 +383,9 @@ function translateEcmascriptArgumentVectorCallback(
     return undefined;
   }
   const sourceCallableType = csharpTypeFromTargetTypeRef(
-    effectiveSourceCallableType,
+    effectiveSourceCallableType, input.scope.typeParameterNames,
   );
-  const vectorCsharpType = csharpTypeFromTargetTypeRef(vectorType);
+  const vectorCsharpType = csharpTypeFromTargetTypeRef(vectorType, input.scope.typeParameterNames);
   if (sourceCallableType === undefined || vectorCsharpType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       expression,
@@ -422,7 +422,7 @@ function translateEcmascriptArgumentVectorCallback(
       : sourceParameterType;
     const projectedCsharpType = projectedType === undefined
       ? undefined
-      : csharpTypeFromTargetTypeRef(projectedType);
+      : csharpTypeFromTargetTypeRef(projectedType, input.scope.typeParameterNames);
     if (projectedCsharpType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         expression,

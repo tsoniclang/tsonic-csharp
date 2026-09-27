@@ -268,7 +268,7 @@ function planForOfBindingCore(
     }
     const storageType = input.program.storage.type(first) ??
       selectedIteration.elementType;
-    const itemStorageType = csharpTypeFromTargetTypeRef(storageType);
+    const itemStorageType = csharpTypeFromTargetTypeRef(storageType, input.scope.typeParameterNames);
     if (itemStorageType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         first,
@@ -349,7 +349,7 @@ function planForOfBindingCore(
     return {
       name: itemName,
       kind: "VariableDeclarator",
-      type: csharpTypeFromTargetTypeRef(selectedIteration.elementType) ??
+      type: csharpTypeFromTargetTypeRef(selectedIteration.elementType, input.scope.typeParameterNames) ??
         getCsharpTypeForNode(initializer, sourceFile, input, undefined, diagnostics),
       outerPrelude: [],
       prelude: [{

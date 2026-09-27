@@ -76,7 +76,7 @@ export function planObjectShapeAccessorMemberAssignment(
     ));
     return undefined;
   }
-  const selfType = csharpTypeFromTargetTypeRef(objectShape.targetType);
+  const selfType = csharpTypeFromTargetTypeRef(objectShape.targetType, input.scope.typeParameterNames);
   if (selfType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       accessorNode,
@@ -136,6 +136,7 @@ function planGetter(
 ): CsharpExpression | undefined {
   const declaration = AsGetAccessorDeclaration(input.program.source.ast, accessorNode);
   const bodyTarget = lambdaTargetContextFromTargetRef(
+    input.scope.typeParameterNames,
     csharpDelegateTargetType("System.Func", [], resultType),
   );
   const body = declaration?.Body === undefined || bodyTarget === undefined
@@ -188,7 +189,7 @@ function planSetter(
     return undefined;
   }
   const sourceTarget = csharpDelegateTargetType("System.Action", [valueType]);
-  const bodyTarget = lambdaTargetContextFromTargetRef(sourceTarget);
+  const bodyTarget = lambdaTargetContextFromTargetRef(input.scope.typeParameterNames, sourceTarget);
   const sealedParameterType = input.program.storage.requiredType(parameterNode);
   if (
     bodyTarget === undefined ||
