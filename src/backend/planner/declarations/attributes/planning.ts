@@ -19,19 +19,16 @@ import {
   type SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpArgument, CsharpAttribute, CsharpAttributeTargetSpecifier } from "../../../target-ast/roslyn/index.js";
+import type { CsharpAttribute, CsharpAttributeTargetSpecifier } from "../../../target-ast/roslyn/index.js";
 import type {
   CsharpAttributeApplication,
 } from "../../../../analysis/attributes/application-index.js";
-import { expressionToCsharpType } from "../../types/index.js";
 import { planExpression } from "../../expressions/index.js";
 import {
   collectAttributeFactsForSubject,
 } from "./collection.js";
 import {
   attributeApplicationDiagnostic,
-  unsupportedAttributeArgument,
-  unsupportedAttributeTarget,
 } from "./diagnostics.js";
 import {
   attributeSubjectDescription,
@@ -76,16 +73,23 @@ function planAttribute(
     return undefined;
   }
   const targetSpecifier = planAttributeTargetSpecifier(attribute, sourceFile, input, diagnostics);
-  const arguments_ = planAttributeArguments(attribute, sourceFile, input, diagnostics);
-  if (arguments_ === undefined) {
+  if (!isAstNode(input.program.source.ast, attribute.invocation)) {
+    diagnostics.push(attributeApplicationDiagnostic(attribute, "requires an exact checked construction subject."));
+    return undefined;
+  }
+  const construction = planExpression(attribute.invocation, sourceFile, input, diagnostics);
+  if (construction === undefined) {
+    return undefined;
+  }
+  if (construction.kind !== "ObjectCreationExpression" ||
+    construction.assignments !== undefined || construction.collectionInitializers !== undefined) {
+    diagnostics.push(attributeApplicationDiagnostic(attribute, "must emit a native attribute construction without a factory or runtime conversion."));
     return undefined;
   }
   return {
     ...(targetSpecifier === undefined ? {} : { targetSpecifier }),
-    type: isAstNode(input.program.source.ast, attribute.attributeType)
-      ? expressionToCsharpType(attribute.attributeType, sourceFile, input, diagnostics)
-      : unsupportedAttributeTarget(attribute, diagnostics),
-    arguments: arguments_,
+    type: construction.type,
+    arguments: construction.arguments ?? [],
   };
 }
 
@@ -111,27 +115,6 @@ function attributeApplicationMemberKindIsValid(
     ));
   }
   return valid;
-}
-
-function planAttributeArguments(
-  attribute: CsharpAttributeApplication,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-): readonly CsharpArgument[] | undefined {
-  const arguments_: CsharpArgument[] = [];
-  for (const argument of attribute.arguments ?? []) {
-    if (!isAstNode(input.program.source.ast, argument)) {
-      unsupportedAttributeArgument(attribute, diagnostics);
-      return undefined;
-    }
-    const expression = planExpression(argument, sourceFile, input, diagnostics);
-    if (expression === undefined) {
-      return undefined;
-    }
-    arguments_.push({ kind: "Argument", expression });
-  }
-  return arguments_;
 }
 
 function planAttributeTargetSpecifier(

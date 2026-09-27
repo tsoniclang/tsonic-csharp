@@ -8,8 +8,8 @@ import {
 
 test("attribute application facts enter C# through one target-owned index", () => {
   const builderState = Object.freeze({ kind: "builder-state", applicationTarget: {} });
-  const firstApplication = Object.freeze({ kind: "application", attributeType: {}, arguments: [], applicationTarget: {} });
-  const secondApplication = Object.freeze({ kind: "application", attributeType: {}, arguments: [], applicationTarget: {} });
+  const firstApplication = Object.freeze({ kind: "application", invocation: {}, applicationTarget: {} });
+  const secondApplication = Object.freeze({ kind: "application", invocation: {}, applicationTarget: {} });
   const firstSourceFile = {};
   const builderCall = {};
   const firstCall = {};
@@ -46,14 +46,12 @@ test("attribute application facts enter C# through one target-owned index", () =
 
   const firstCsharpApplication = {
     kind: "csharp-attribute-application",
-    attributeType: firstApplication.attributeType,
-    arguments: [],
+    invocation: firstApplication.invocation,
     applicationTarget: firstApplication.applicationTarget,
   };
   const secondCsharpApplication = {
     kind: "csharp-attribute-application",
-    attributeType: secondApplication.attributeType,
-    arguments: [],
+    invocation: secondApplication.invocation,
     applicationTarget: secondApplication.applicationTarget,
   };
   const csharpBuilderState = {
@@ -76,5 +74,5 @@ test("attribute application facts enter C# through one target-owned index", () =
   assert.equal(Object.isFrozen(index.forSourceFile(firstSourceFile)), true);
   assert.equal(Object.isFrozen(index.forSubject(builderCall)), true);
   assert.equal(Object.isFrozen(index.forSubject(firstCall)), true);
-  assert.equal(Object.isFrozen(index.forSubject(firstCall).arguments), true);
+  assert.equal(index.forSubject(firstCall).invocation, firstApplication.invocation);
 });

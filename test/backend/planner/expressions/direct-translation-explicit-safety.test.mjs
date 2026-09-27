@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  checkCsharpSource,
   compileCsharpSource,
 } from "../../../helpers/direct-csharp-session.mjs";
 
@@ -53,10 +54,10 @@ test("logical locations and native pointer shapes remain independent", () => {
 test("native pointer operations lower only inside an explicit unsafe block", () => {
   const compiled = cleanCompile(`
     import {
-      loadNativePointer,
-      offsetNativePointer,
-      storeNativePointer,
-      unsafeContext,
+      loadnativeptr,
+      offsetnativeptr,
+      storenativeptr,
+      unsafecontext,
     } from "@tsonic/core/lang.js";
     import type { NativePointer, int32, nativeInt } from "@tsonic/core/types.js";
 
@@ -65,9 +66,9 @@ test("native pointer operations lower only inside an explicit unsafe block", () 
       destination: NativePointer<int32>,
       offset: nativeInt,
     ): NativePointer<int32> {
-      unsafeContext();
-      storeNativePointer(destination, loadNativePointer(source));
-      return offsetNativePointer(source, offset);
+      unsafecontext();
+      storenativeptr(destination, loadnativeptr(source));
+      return offsetnativeptr(source, offset);
     }
   `);
 
@@ -81,10 +82,10 @@ test("native pointer operations lower only inside an explicit unsafe block", () 
 test("native pointer operation results retain exact pointee types through inferred locals", () => {
   const compiled = cleanCompile(`
     import {
-      loadNativePointer,
-      offsetNativePointer,
-      storeNativePointer,
-      unsafeContext,
+      loadnativeptr,
+      offsetnativeptr,
+      storenativeptr,
+      unsafecontext,
     } from "@tsonic/core/lang.js";
     import type { NativePointer, int32, nativeInt } from "@tsonic/core/types.js";
 
@@ -93,10 +94,10 @@ test("native pointer operation results retain exact pointee types through inferr
       destination: NativePointer<int32>,
       elementOffset: nativeInt,
     ): int32 {
-      unsafeContext();
-      const selected = offsetNativePointer(source, elementOffset);
-      const value = loadNativePointer(selected);
-      storeNativePointer(destination, value);
+      unsafecontext();
+      const selected = offsetnativeptr(source, elementOffset);
+      const value = loadnativeptr(selected);
+      storenativeptr(destination, value);
       return value;
     }
   `);
@@ -112,11 +113,11 @@ test("native pointer operation results retain exact pointee types through inferr
 test("native pointer operations fail closed outside explicit unsafe context", () => {
   const compiled = compileCsharpSource({
     sourceText: `
-      import { loadNativePointer } from "@tsonic/core/lang.js";
+      import { loadnativeptr } from "@tsonic/core/lang.js";
       import type { NativePointer, int32 } from "@tsonic/core/types.js";
 
       export function reject(pointer: NativePointer<int32>): int32 {
-        return loadNativePointer(pointer);
+        return loadnativeptr(pointer);
       }
     `,
   });
@@ -127,18 +128,18 @@ test("native pointer operations fail closed outside explicit unsafe context", ()
     compiled.targetDiagnostics.map(({ code, message }) => ({ code, message })),
     [{
       code: "CSHARP_NATIVE_POINTER_UNSAFE_CONTEXT_REQUIRED",
-      message: "C# native-pointer 'load' requires an explicit unsafeContext()/unsafe() source region.",
+      message: "C# native-pointer 'load' requires an explicit unsafecontext()/unsafe() source region.",
     }],
   );
 });
 
 test("C# 15 preview unsafe expressions do not imply declaration safety", () => {
   const compiled = cleanCompile(`
-    import { loadNativePointer, unsafeContext } from "@tsonic/core/lang.js";
+    import { loadnativeptr, unsafecontext } from "@tsonic/core/lang.js";
     import type { NativePointer, int32 } from "@tsonic/core/types.js";
 
     export function read(pointer: NativePointer<int32>): int32 {
-      return unsafeContext(loadNativePointer(pointer));
+      return unsafecontext(loadnativeptr(pointer));
     }
   `, {
     targetOptions: { languageDialect: "csharp15-preview" },
@@ -177,17 +178,17 @@ test("C# aliases preserve exact unsafe evidence and local shadows remain ordinar
   const compiled = cleanCompile(`
     import { unsafe as directUnsafe } from "@tsonic/csharp/lang.js";
     import * as csharp from "@tsonic/csharp/lang.js";
-    import { loadNativePointer } from "@tsonic/core/lang.js";
+    import { loadnativeptr } from "@tsonic/core/lang.js";
     import type { ptr } from "@tsonic/csharp/lang.js";
     import type { int32 } from "@tsonic/core/types.js";
 
     function unsafe(value: int32): int32 { return value; }
 
     export function direct(pointer: ptr<int32>): int32 {
-      return directUnsafe(loadNativePointer(pointer));
+      return directUnsafe(loadnativeptr(pointer));
     }
     export function namespaced(pointer: ptr<int32>): int32 {
-      return csharp.unsafe(loadNativePointer(pointer));
+      return csharp.unsafe(loadnativeptr(pointer));
     }
     export function shadowed(value: int32): int32 {
       return unsafe(value);
@@ -217,11 +218,11 @@ test("declaration safety contracts attach only to exact selected declarations", 
       get snapshot(): int32 { return this.value; }
     }
 
-    safety(selected).requiresUnsafe();
-    safety<NativeApi>().method(api => api.read).requiresUnsafe();
-    safety<NativeApi>().property(api => api.value).requiresUnsafe();
-    safety<NativeApi>().property(api => api.current).setter().requiresUnsafe();
-    safety<NativeApi>().property(api => api.snapshot).getter().requiresUnsafe();
+    safety(selected).requiresunsafe();
+    safety<NativeApi>().method(api => api.read).requiresunsafe();
+    safety<NativeApi>().property(api => api.value).requiresunsafe();
+    safety<NativeApi>().property(api => api.current).setter().requiresunsafe();
+    safety<NativeApi>().property(api => api.snapshot).getter().requiresunsafe();
   `, {
     targetOptions: {
       languageDialect: "csharp15-preview",
@@ -259,7 +260,7 @@ test("C# safety aliases preserve cross-file selected declaration identity", () =
 
       function safety(value: int32): int32 { return value; }
       export function local(value: int32): int32 { return safety(value); }
-      csharpSafety(imported).requiresUnsafe();
+      csharpSafety(imported).requiresunsafe();
     `,
     files: {
       "dependency.ts": `
@@ -283,13 +284,39 @@ test("C# safety aliases preserve cross-file selected declaration identity", () =
   assert.match(generated, /return safety\(value\);/u);
 });
 
+for (const moduleSpecifier of ["@tsonic/core/lang.js", "@tsonic/csharp/lang.js"]) {
+  test(`removed requiresUnsafe builder methods reject in ${moduleSpecifier}`, () => {
+    const checked = checkCsharpSource({
+      sourceText: `
+        import { safety as select } from "${moduleSpecifier}";
+        import * as contracts from "${moduleSpecifier}";
+        import type { int32 } from "@tsonic/core/types.js";
+        export function selected(value: int32): int32 { return value; }
+        export class Owner { read(value: int32): int32 { return value; } }
+        select(selected).requiresUnsafe();
+        contracts.safety<Owner>().method(owner => owner.read).requiresUnsafe();
+      `,
+      targetOptions: {
+        languageDialect: "csharp15-preview",
+        memorySafetyRules: "preview",
+      },
+    });
+    assert.equal(checked.source.diagnostics.length, 2, checked.sourceDiagnosticsText);
+    assert.equal(
+      checked.sourceDiagnosticsText.match(/Property 'requiresUnsafe' does not exist/gu)?.length,
+      2,
+      checked.sourceDiagnosticsText,
+    );
+  });
+}
+
 test("declaration caller contracts reject dialects that cannot express them", () => {
   const compiled = compileCsharpSource({
     sourceText: `
       import { safety } from "@tsonic/core/lang.js";
       import type { int32 } from "@tsonic/core/types.js";
       export function selected(value: int32): int32 { return value; }
-      safety(selected).requiresUnsafe();
+      safety(selected).requiresunsafe();
     `,
   });
 
@@ -307,13 +334,13 @@ test("declaration caller contracts reject dialects that cannot express them", ()
 test("declaration caller contracts never create lexical unsafe permission", () => {
   const compiled = compileCsharpSource({
     sourceText: `
-      import { loadNativePointer, safety } from "@tsonic/core/lang.js";
+      import { loadnativeptr, safety } from "@tsonic/core/lang.js";
       import type { NativePointer, int32 } from "@tsonic/core/types.js";
 
       export function read(pointer: NativePointer<int32>): int32 {
-        return loadNativePointer(pointer);
+        return loadnativeptr(pointer);
       }
-      safety(read).requiresUnsafe();
+      safety(read).requiresunsafe();
     `,
     targetOptions: {
       languageDialect: "csharp15-preview",
@@ -327,7 +354,7 @@ test("declaration caller contracts never create lexical unsafe permission", () =
     compiled.targetDiagnostics.map(({ code, message }) => ({ code, message })),
     [{
       code: "CSHARP_NATIVE_POINTER_UNSAFE_CONTEXT_REQUIRED",
-      message: "C# native-pointer 'load' requires an explicit unsafeContext()/unsafe() source region.",
+      message: "C# native-pointer 'load' requires an explicit unsafecontext()/unsafe() source region.",
     }],
   );
 });
@@ -359,13 +386,13 @@ test("bodyless members and constructors retain independent declaration safety", 
       value: int32 = 0;
     }
 
-    safety<NativeContract>().method(value => value.read).requiresUnsafe();
-    safety<NativeContract>().property(value => value.current).setter().requiresUnsafe();
-    safety<NativeIndexerContract>().indexer(value => value[""]).requiresUnsafe();
-    safety<NativeIndexerAccessorContract>().indexer(value => value[""]).getter().requiresUnsafe();
-    safety<NativeIndexerAccessorContract>().indexer(value => value[""]).setter().requiresUnsafe();
-    safety<ExplicitNative>().constructor().requiresUnsafe();
-    safety<ImplicitNative>().constructor().requiresUnsafe();
+    safety<NativeContract>().method(value => value.read).requiresunsafe();
+    safety<NativeContract>().property(value => value.current).setter().requiresunsafe();
+    safety<NativeIndexerContract>().indexer(value => value[""]).requiresunsafe();
+    safety<NativeIndexerAccessorContract>().indexer(value => value[""]).getter().requiresunsafe();
+    safety<NativeIndexerAccessorContract>().indexer(value => value[""]).setter().requiresunsafe();
+    safety<ExplicitNative>().constructor().requiresunsafe();
+    safety<ImplicitNative>().constructor().requiresunsafe();
   `, {
     targetOptions: {
       languageDialect: "csharp15-preview",
@@ -396,8 +423,8 @@ test("accessor safety contracts fail closed when C# emits no matching accessor",
         readonly [key: string]: int32;
       }
 
-      safety<FieldOwner>().property(value => value.value).setter().requiresUnsafe();
-      safety<ReadonlyIndex>().indexer(value => value[""]).setter().requiresUnsafe();
+      safety<FieldOwner>().property(value => value.value).setter().requiresunsafe();
+      safety<ReadonlyIndex>().indexer(value => value[""]).setter().requiresunsafe();
     `,
     targetOptions: {
       languageDialect: "csharp15-preview",
@@ -428,7 +455,7 @@ test("preview syntax does not implicitly opt into updated memory-safety rules", 
       import { safety } from "@tsonic/core/lang.js";
       import type { int32 } from "@tsonic/core/types.js";
       export function selected(value: int32): int32 { return value; }
-      safety(selected).requiresUnsafe();
+      safety(selected).requiresunsafe();
     `,
     targetOptions: { languageDialect: "csharp15-preview" },
   });
@@ -476,7 +503,7 @@ test("conflicting declaration safety contracts fail closed once", () => {
       import type { int32 } from "@tsonic/core/types.js";
       export function selected(value: int32): int32 { return value; }
       safety(selected).safe();
-      safety(selected).requiresUnsafe();
+      safety(selected).requiresunsafe();
     `,
     targetOptions: {
       languageDialect: "csharp15-preview",
@@ -498,10 +525,10 @@ test("conflicting declaration safety contracts fail closed once", () => {
 test("unsafe expression syntax rejects the stable C# dialect", () => {
   const compiled = compileCsharpSource({
     sourceText: `
-      import { loadNativePointer, unsafeContext } from "@tsonic/core/lang.js";
+      import { loadnativeptr, unsafecontext } from "@tsonic/core/lang.js";
       import type { NativePointer, int32 } from "@tsonic/core/types.js";
       export function read(pointer: NativePointer<int32>): int32 {
-        return unsafeContext(loadNativePointer(pointer));
+        return unsafecontext(loadnativeptr(pointer));
       }
     `,
   });
