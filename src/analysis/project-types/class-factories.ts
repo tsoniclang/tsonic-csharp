@@ -20,6 +20,7 @@ export interface CsharpClassFactory {
   readonly declaration: Node;
   readonly sourceFile: SourceFile;
   readonly instanceName: string;
+  readonly instanceScope: string;
   readonly factoryName: string;
   readonly factoryType: CsharpTargetNamedTypeRef;
   readonly contract: CsharpClassFactoryType;
@@ -70,10 +71,12 @@ export function analyzeCsharpClassFactories(
         mutable: source.navigation.declarationUseSummary(capture.declaration).bindingWritten,
       });
     });
-    if (contract === undefined || type?.kind !== "target-named" || captures.some(capture => capture === undefined) || selected.receivers.length !== 0) {
+    if (contract === undefined || type?.kind !== "target-named" || definition.scopeName === undefined ||
+      captures.some(capture => capture === undefined) || selected.receivers.length !== 0) {
       issues.push({ node: declaration, code: "CSHARP_CLASS_FACTORY_NOT_CLOSED",
         message: `A local class requires an exact native contract. Unresolved: ${[
           ...(contract === undefined ? ["constructor signature and instance identity"] : []),
+          ...(definition.scopeName === undefined ? ["local declaration scope"] : []),
           ...(captures.some(capture => capture === undefined) ? ["lexical capture storage"] : []),
           ...(selected.receivers.length !== 0 ? ["outer receiver lifetime"] : []),
         ].join(", ")}.` });
@@ -92,7 +95,8 @@ export function analyzeCsharpClassFactories(
       return false;
     });
     factories.push(Object.freeze({ declaration, sourceFile: definition.sourceFile,
-      instanceName: definition.sourceName, factoryName: definition.factoryName!, factoryType: type,
+      instanceName: definition.sourceName, instanceScope: definition.scopeName,
+      factoryName: definition.factoryName!, factoryType: type,
       environmentName: names.temporaryName("environment"),
       contract, captures: Object.freeze(captures as CsharpClassCapture[]), retainsEnvironment, requiresInstanceTest,
       ...(requiresInstanceTest && definition.sourceTypeParameterCount > 0 ? { identity: Object.freeze({

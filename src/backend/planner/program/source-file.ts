@@ -104,10 +104,12 @@ export function planSourceFile(
     moduleInitialization.isAsync(sourceFile);
   const members: CsharpTypeMember[] = [];
   const namespaceMembers: CsharpTypeDeclaration[] = [];
+  const localTypeScopes: CsharpCompilationUnit["members"][number][] = [];
   for (const factory of input.program.classFactories.factories) {
     if (factory.sourceFile !== sourceFile) continue;
     const instance = planClassDeclaration(factory.declaration, sourceFile, input, diagnostics);
-    namespaceMembers.push(instance);
+    localTypeScopes.push({ kind: "NamespaceDeclaration", name: `${readNamespace(input)}.${factory.instanceScope}`,
+      members: [instance] });
     namespaceMembers.push(planClassFactoryDeclaration(factory, instance, input, diagnostics));
     const identity = planClassFactoryIdentity(factory, input, diagnostics);
     if (identity !== undefined) namespaceMembers.push(identity);
@@ -330,7 +332,7 @@ export function planSourceFile(
       kind: "NamespaceDeclaration",
       name: readNamespace(input),
       members: namespaceMembers,
-    }],
+    }, ...localTypeScopes],
   };
   const finalized = finalizeCsharpCompilationUnit(
     unit,

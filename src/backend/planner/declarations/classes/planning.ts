@@ -34,7 +34,8 @@ export function planClassDeclaration(
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "class declaration", diagnostics, ["abstract"]);
   const factory = input.program.classFactories.get(node);
   const staticCompanion = input.types.projectTypes.definitionContainingDeclaration(node)?.staticCompanion === true;
-  const className = factory?.instanceName ?? planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
+  const className = declaration.name === undefined && factory !== undefined ? factory.instanceName
+    : planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
   const heritage = planClassHeritage(node, input, diagnostics);
   const autoPropertyNames = new Set(getImplementedInterfacePropertyNames(node, input));
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
