@@ -60,6 +60,7 @@ export interface CsharpProjectTypeDefinition {
   readonly abstract: boolean;
   readonly publicParameterlessConstructor: boolean;
   readonly local: boolean;
+  readonly scopeName?: string;
   readonly factoryName?: string;
   readonly factoryIdentityName?: string;
 }
@@ -374,9 +375,7 @@ export function projectTypeDefinition(
     id: `tsonic.source:${identity}`,
     declaration,
     sourceFile,
-    sourceName: kind === "class" && !host.ast.is.IsSourceFile(host.ast.parent(declaration)!)
-      ? `${name === undefined ? "AnonymousClass" : host.ast.text(name)}__${host.ast.pos(declaration)}`
-      : host.ast.text(name),
+    sourceName: name === undefined ? "AnonymousClass" : host.ast.text(name),
     local,
     kind,
     sourceTypeParameterCount: typeParameters.length,
@@ -564,7 +563,8 @@ export function projectDefinitionTargetType(
   return csharpTargetNamedType(
     definition.id,
     typeArguments,
-    { kind: "named", name: definition.sourceName },
+    { kind: "named", name: definition.sourceName,
+      ...(definition.scopeName === undefined ? {} : { namespace: [definition.scopeName] }) },
     { sourceDeclarationKind: definition.kind },
   );
 }

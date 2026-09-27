@@ -17,6 +17,7 @@ import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
+import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
 import {
   invalidCsharpType,
 } from "./csharp-type-primitives.js";
@@ -88,7 +89,9 @@ export function getCsharpTypeFromProjectSourceReference(
   }
   const nameNode = Node_Name(input.program.source.ast, reference.declaration);
   const factory = input.program.classFactories.get(reference.declaration);
-  if (factory !== undefined) return { kind: "IdentifierName", name: factory.instanceName };
+  if (factory !== undefined) return { kind: "QualifiedName",
+    left: { kind: "IdentifierName", name: sanitizeIdentifier(factory.instanceScope) },
+    name: sanitizeIdentifier(factory.instanceName) };
   if (nameNode === undefined) {
     diagnostics?.push(unsupportedNodeDiagnostic(reference.declaration, "Project source type reference requires a declaration name resolved by TSTS."));
     return invalidCsharpType("project source type reference");

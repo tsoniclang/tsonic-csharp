@@ -31,6 +31,7 @@ export interface CsharpSourceOutputIdentityPlannerHost {
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];
   readonly paths: TargetCompilationPaths;
+  readonly generatedTypeNames: readonly string[];
 }
 
 export function createCsharpSourceOutputIdentityPlanner(
@@ -69,6 +70,8 @@ function buildSourceOutputIdentityPlan(
   const byClassName = new Map<string, string>();
   const byArtifactPath = new Map<string, string>();
   const diagnostics: TargetDiagnostic[] = [];
+  const reservedNames = new Set([...host.generatedTypeNames,
+    ...host.sourceFiles.flatMap(sourceFile => [...topLevelTypeNames(host.ast, sourceFile)])]);
   for (const sourceFile of host.sourceFiles) {
     const fileName = host.ast.getFileName(sourceFile);
     if (sourceFile.IsDeclarationFile || fileName.startsWith("tsts-provider://")) {
@@ -85,7 +88,7 @@ function buildSourceOutputIdentityPlan(
     const baseClassName = sourceFileModuleClassName(relativeName);
     const className = allocateSourceFileModuleClassName(
       baseClassName,
-      topLevelTypeNames(host.ast, sourceFile),
+      reservedNames,
     );
     const artifactPath = sourceFileModuleArtifactPath(
       relativeName,

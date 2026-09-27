@@ -58,9 +58,9 @@ export function createCsharpProjectTypeCatalog(
     return name;
   };
   for (const definition of definitions.filter(definition => definition.local).sort((left, right) => left.id.localeCompare(right.id))) {
-    const sourceName = allocate(definition.sourceName);
-    const selected = Object.freeze({ ...definition, sourceName, factoryName: allocate(`${sourceName}Factory`),
-      factoryIdentityName: allocate(`I${sourceName}Instance`) });
+    const scopeName = allocate(`${definition.sourceName}Scope`);
+    const selected = Object.freeze({ ...definition, scopeName, factoryName: allocate(`${scopeName}Factory`),
+      factoryIdentityName: allocate(`I${scopeName}Instance`) });
     definitions[definitions.indexOf(definition)] = selected;
     byDeclaration.set(definition.declaration, selected);
     byId.set(definition.id, selected);
