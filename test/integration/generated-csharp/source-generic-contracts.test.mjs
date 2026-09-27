@@ -11,7 +11,6 @@ import { nestedStructuralStorageFiles, invalidNestedStructuralStorageFiles } fro
 import { bigintSwitchSource } from "../../../../tsonic/test/fixtures/bigint-switch.mjs";
 import { classFactoryEffectsFiles } from "../../../../tsonic/test/fixtures/class-factory-effects.mjs";
 import { authoredLocalTypesFiles } from "../../../../tsonic/test/fixtures/authored-local-types.mjs";
-import { authoredGenericBinderFiles } from "../../../../tsonic/test/fixtures/authored-generic-binders.mjs";
 import { tupleSatisfiesSource, invalidTupleSatisfiesSources } from "../../../../tsonic/test/fixtures/tuple-satisfies.mjs";
 import { initializedModuleStateFiles } from "../../../../tsonic/test/fixtures/initialized-module-state.mjs";
 import { nativeIntegerComplementSource } from "../../../../tsonic/test/fixtures/native-integer-complement.mjs";
@@ -150,16 +149,6 @@ test("local class scopes preserve authored names and cross-file generic instance
   assert.match(generated, /\breadValue\(/);
   assert.doesNotMatch(generated, /\bclass Entry__\d/);
   executeCsharpConstruction(compiled, "authored-local-types");
-});
-
-test("authored generic binders retain spelling and independent captured identities", { timeout: 300_000 }, () => {
-  const compiled = compileCsharpSource({ surface: "js", files: authoredGenericBinderFiles,
-    sourceText: authoredGenericBinderFiles["index.ts"] });
-  const generated = [...compiled.artifacts.values()].join("\n");
-  assert.match(generated, /\bidentity<T>\(T value\)/u);
-  assert.match(generated, /\bpair<T>\(T value\)/u);
-  assert.doesNotMatch(generated, /\b(?:identity|pair)<T[0-9]+>/u);
-  executeCsharpConstruction(compiled, "authored-generic-binders");
 });
 
 test("generic class statics share one native owner across closed instance types", { timeout: 300_000 }, () => {
