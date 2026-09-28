@@ -5,11 +5,11 @@ import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../../
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../../../../target-model/types/index.js";
 import type { Node } from "@tsonic/tsts";
-import type { ResolvedSourceCallInfo } from "../../../../../analysis/operations/index.js";
+import type { ResolvedSourceSignatureCallInfo } from "../../../../../analysis/operations/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 export function sourceCalleeRequiresExactTargetArity(
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   input: CsharpPlanningContext,
 ): boolean {
   const declaration = source.sourceCallee.selectedDeclaration;
@@ -78,7 +78,7 @@ export function renderCsharpTargetTypeArguments(
 
 export function sourceCallIsOptional(
   input: CsharpPlanningContext,
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
 ): boolean {
   const access = source.sourceCalleeAccess?.expression;
   if (access === undefined || !input.program.source.ast.is.IsPropertyAccessExpression(access)) {

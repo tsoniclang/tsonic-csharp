@@ -13,7 +13,7 @@ import type {
   CsharpSelectedCallArgument,
   CsharpSelectedTargetCall,
   CsharpProviderArgumentMapping,
-  ResolvedSourceCallInfo,
+  ResolvedSourceSignatureCallInfo,
 } from "../../../../../analysis/operations/index.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/roslyn/index.js";
@@ -24,7 +24,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 export function translateSelectedTargetArguments(
   node: Node,
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   selection: CsharpSelectedTargetCall,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,

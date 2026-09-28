@@ -9,14 +9,14 @@ import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
-import type { CsharpSelectedTargetCall, ResolvedSourceCallInfo } from "../../../../../analysis/operations/index.js";
+import type { CsharpSelectedTargetCall, ResolvedSourceSignatureCallInfo } from "../../../../../analysis/operations/index.js";
 import type { CsharpTargetMember, CsharpObjectShapeProjection } from "../../../../../target-model/types/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 export function translateSelectedTargetCall(
   node: Node,
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   selection: CsharpSelectedTargetCall,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
@@ -393,7 +393,7 @@ function nativeBinaryOperatorExpression(
 
 function translateNativeEventSubscription(
   node: Node,
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   member: CsharpTargetMember,
@@ -454,7 +454,7 @@ function translateNativeEventSubscription(
 
 function translateNativeIndexerCall(
   node: Node,
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   member: CsharpTargetMember,
@@ -534,7 +534,7 @@ function translateNativeIndexerCall(
 
 function translateEcmascriptProtocolDispatch(
   node: Node,
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   member: CsharpTargetMember,
@@ -676,7 +676,7 @@ function translateEcmascriptProtocolDispatch(
 
 function registerSelectedCallArtifacts(
   node: Node,
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   member: CsharpTargetMember,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
@@ -813,7 +813,7 @@ function translateObjectShapeProjectionCall(
 }
 function translateSelectedTargetCallee(
   node: Node,
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   selection: CsharpSelectedTargetCall,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,

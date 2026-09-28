@@ -1,4 +1,4 @@
-import type { ResolvedSourceCallInfo, CsharpSourceCallArgumentClassification } from "../../../../../analysis/operations/index.js";
+import type { ResolvedSourceSignatureCallInfo, CsharpSourceCallArgumentClassification } from "../../../../../analysis/operations/index.js";
 import type { TargetTypeRef } from "../../../../../target-model/types/model.js";
 
 export interface CsharpSourceArgumentGroup {
@@ -9,7 +9,7 @@ export interface CsharpSourceArgumentGroup {
 }
 
 export function csharpSourceArgumentGroups(
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   classification: CsharpSourceCallArgumentClassification,
   exactArity = false,
 ): readonly CsharpSourceArgumentGroup[] | undefined {

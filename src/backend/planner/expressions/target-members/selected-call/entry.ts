@@ -7,7 +7,7 @@ import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-pl
 import type { CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { ResolvedSourceCallInfo } from "../../../../../analysis/operations/index.js";
+import type { ResolvedSourceSignatureCallInfo } from "../../../../../analysis/operations/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 export function translateCsharpCallExpression(
@@ -208,7 +208,7 @@ type JsValueCallShape =
 
 function jsValueCallShape(
   input: CsharpPlanningContext,
-  source: ResolvedSourceCallInfo | undefined,
+  source: ResolvedSourceSignatureCallInfo | undefined,
 ): JsValueCallShape {
   const access = source?.sourceCalleeAccess;
   if (
