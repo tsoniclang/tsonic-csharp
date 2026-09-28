@@ -1,5 +1,6 @@
 import {
   targetSourceProfileDeclaration,
+  typescriptNoLibCallableDeclarations,
   typescriptNoLibUtilityDeclarations,
 } from "@tsonic/target-api/provider";
 import type {
@@ -19,9 +20,6 @@ const sharedNoLibDeclarations = `
 type PropertyKey = string | number | symbol;
 
 interface Object {}
-interface Function {}
-interface CallableFunction extends Function {}
-interface NewableFunction extends Function {}
 interface IArguments {
   readonly Length: number;
   [index: number]: unknown;
@@ -532,6 +530,7 @@ export function csharpSourceProfileContributions(context: TargetCompilationSessi
   }
   return {
     declarations: [
+      targetSourceProfileDeclaration("typescript-callables.d.ts", typescriptNoLibCallableDeclarations),
       targetSourceProfileDeclaration(
         "typescript-utilities.d.ts",
         typescriptNoLibUtilityDeclarations,
@@ -544,6 +543,7 @@ export function csharpSourceProfileContributions(context: TargetCompilationSessi
 export function csharpJsSurfaceSourceProfileContributions(): TargetSourceProfileContributions {
   return {
     declarations: [
+      targetSourceProfileDeclaration("typescript-callables.d.ts", typescriptNoLibCallableDeclarations),
       targetSourceProfileDeclaration(
         "typescript-utilities.d.ts",
         typescriptNoLibUtilityDeclarations,
