@@ -2,7 +2,6 @@ import type {
   Node,
   Type,
 } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type {
   CsharpProviderTargetRelation,
   CsharpTargetReceiverRelation,
@@ -16,9 +15,7 @@ import type {
   TargetTypeRef,
 } from "../../../types/index.js";
 
-export type ResolvedSourceCallInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["call"]>
->;
+export type { ResolvedSourceSignatureCallInfo } from "@tsonic/tsts";
 
 export interface CsharpSelectedCallArgument {
   readonly sourceArgumentIndex: number;

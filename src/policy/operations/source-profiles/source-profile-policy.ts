@@ -26,7 +26,7 @@ import type {
   CsharpSelectedCallArgument,
   CsharpSelectedTargetCall,
   CsharpTargetElementInvocation,
-  ResolvedSourceCallInfo,
+  ResolvedSourceSignatureCallInfo,
 } from "../members/selection/selection-types.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
@@ -47,7 +47,7 @@ export interface CsharpSourceProfileIdentitySelector {
 
 export interface CsharpSourceProfileCallPolicyContext {
   readonly host: CsharpProviderCallSelectionHost;
-  readonly source: ResolvedSourceCallInfo;
+  readonly source: ResolvedSourceSignatureCallInfo;
   readonly sourceFile: SourceFile;
   readonly identity: CsharpSourceProfileDeclarationIdentity;
 }
@@ -148,7 +148,7 @@ export function resolveCsharpSelectedSourceValue(
 
 export function selectCsharpSourceProfileCallPolicy(
   host: CsharpProviderCallSelectionHost,
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   sourceFile: SourceFile,
   policies: readonly CsharpSourceProfileCallPolicy[],
 ): CsharpSourceProfileCallPolicyResult | undefined {
@@ -282,7 +282,7 @@ export function selectCsharpSourceProfileElementPolicy(
 }
 
 export function csharpSourceProfileCall(
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   targetMember: CsharpTargetMember,
   receiver: CsharpTargetReceiverRelation,
   targetMethodTypeArguments: readonly TargetTypeRef[] = [],

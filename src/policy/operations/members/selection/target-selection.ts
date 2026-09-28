@@ -41,7 +41,7 @@ import {
 import type {
   CsharpSelectedTargetCall,
   CsharpTargetElementInvocation,
-  ResolvedSourceCallInfo,
+  ResolvedSourceSignatureCallInfo,
 } from "./selection-types.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
@@ -54,12 +54,12 @@ type ResolvedSourceElementAccessInfo = NonNullable<
 export type CsharpTargetCallSelection =
   | {
       readonly kind: "resolved";
-      readonly source: ResolvedSourceCallInfo;
+      readonly source: ResolvedSourceSignatureCallInfo;
       readonly call: CsharpSelectedTargetCall;
     }
   | {
       readonly kind: "source-owned";
-      readonly source: ResolvedSourceCallInfo;
+      readonly source: ResolvedSourceSignatureCallInfo;
       readonly reason: string;
     }
   | {

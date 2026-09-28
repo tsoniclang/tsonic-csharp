@@ -1,7 +1,7 @@
 import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
-import type { ResolvedSourceCallInfo, CsharpScopedTypePolicyResult, CsharpTypeResolutionState } from "./model.js";
+import type { ResolvedSourceSignatureCallInfo, CsharpScopedTypePolicyResult, CsharpTypeResolutionState } from "./model.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
@@ -318,7 +318,7 @@ export function resolveTypedLocationOperationPointeeWithState(
 
 export function resolveSourceCallTypeArguments(
   { host, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   sourceFile: SourceFile,
 ): readonly TargetTypeRef[] | undefined {
   const callable = host.representations.sourceCallable(source, sourceFile);
@@ -334,7 +334,7 @@ export function resolveSourceCallTypeArguments(
 
 export function resolveSourceCallParameter(
   { host, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch, sourceCallCalleeDelegateSignature }: CsharpTypeResolutionScope,
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   parameterIndex: number,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
@@ -381,7 +381,7 @@ export function resolveSourceCallParameter(
 
 export function resolveSourceCallParameters(
   scope: CsharpTypeResolutionScope,
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   sourceFile: SourceFile,
 ): readonly import("../../../target-model/types/model.js").CsharpTargetParameter[] | undefined {
   const callable = scope.host.representations.sourceCallable(source, sourceFile);
@@ -406,8 +406,8 @@ export function resolveSourceCallParameters(
 
 export function resolveSourceCallArgumentParameter(
   { host, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch, sourceCallCalleeDelegateSignature }: CsharpTypeResolutionScope,
-  source: ResolvedSourceCallInfo,
-  binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
+  source: ResolvedSourceSignatureCallInfo,
+  binding: ResolvedSourceSignatureCallInfo["sourceArgumentBindings"][number],
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
   const parameter = source.sourceSelectedSignatureParameters[
@@ -472,7 +472,7 @@ export function resolveSourceCallArgumentParameter(
 
 export function resolveSourceCallResult(
   { resolveSourceCallResultWithState }: CsharpTypeResolutionScope,
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
   return resolveSourceCallResultWithState(
@@ -485,7 +485,7 @@ export function resolveSourceCallResult(
 
 export function resolveSourceCallResultWithState(
   { host, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch, sourceCallCalleeDelegateSignature, sourceCallSelectedDeclaration }: CsharpTypeResolutionScope,
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {

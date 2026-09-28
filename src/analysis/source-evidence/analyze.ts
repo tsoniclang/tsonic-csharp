@@ -387,7 +387,7 @@ export function analyzeCsharpSourceEvidence(
     const wellKnownSymbol = semantics.operations.wellKnownSymbol(node);
     wellKnownSymbols.set(node, wellKnownSymbol ?? missing);
     const call = semantics.operations.call(node);
-    if (call !== undefined) {
+    if (call !== undefined && call.outcome !== "intrinsic") {
       signatureDeclarations.set(
         call.selectedSignature,
         semantics.declarations.signatureDeclaration(call.selectedSignature) ?? missing,

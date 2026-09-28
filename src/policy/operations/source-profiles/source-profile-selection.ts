@@ -35,7 +35,7 @@ import {
   selectCsharpSourceProfilePropertyPolicy,
 } from "./source-profile-policy.js";
 import type {
-  ResolvedSourceCallInfo,
+  ResolvedSourceSignatureCallInfo,
 } from "../members/selection/selection-types.js";
 type ResolvedSourcePropertyAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
@@ -65,7 +65,7 @@ const elementPolicies = Object.freeze([
 
 export function selectCsharpComposedSourceProfileCall(
   host: CsharpProviderCallSelectionHost,
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   sourceFile: SourceFile,
 ): CsharpSourceProfileCallPolicyResult | undefined {
   return selectCsharpSourceProfileCallPolicy(

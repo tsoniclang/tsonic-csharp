@@ -1,4 +1,4 @@
-import type { Node, ResolvedSourceCallInfo, SourceFile } from "@tsonic/tsts";
+import type { Node, ResolvedSourceSignatureCallInfo, SourceFile } from "@tsonic/tsts";
 import { asSourceNode } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/runtime-carriers.js";
@@ -22,7 +22,7 @@ export type CsharpUnionCallClassification =
 
 export function classifyCsharpUnionCall(
   policy: CsharpPolicyContext,
-  source: ResolvedSourceCallInfo | undefined,
+  source: ResolvedSourceSignatureCallInfo | undefined,
   sourceFile: SourceFile,
 ): CsharpUnionCallClassification {
   if (source === undefined || !policy.ast.is.IsPropertyAccessExpression(source.sourceCallee.expression)) return { kind: "not-union" };

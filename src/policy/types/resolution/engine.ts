@@ -14,7 +14,7 @@ import type { CsharpSourceCallableContract } from "../callables/source-callable-
 import { resolveCsharpPointerReturnContract } from "../callables/pointer-return.js";
 import type { CsharpPointerReturnContract } from "../callables/pointer-return.js";
 import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
-import type { ResolvedSourceCallInfo, CsharpRecursiveTypeResolver, CsharpTypePolicyHost, CsharpScopedTypePolicyResult, CsharpTypePolicy, CsharpTypeResolutionState } from "./model.js";
+import type { ResolvedSourceSignatureCallInfo, CsharpRecursiveTypeResolver, CsharpTypePolicyHost, CsharpScopedTypePolicyResult, CsharpTypePolicy, CsharpTypeResolutionState } from "./model.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
@@ -179,29 +179,29 @@ export interface CsharpTypeResolutionScope {
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
   resolveSourceCallTypeArguments(
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   sourceFile: SourceFile,
 ): readonly TargetTypeRef[] | undefined;
   resolveSourceCallParameter(
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   parameterIndex: number,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined;
   resolveSourceCallParameters(
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   sourceFile: SourceFile,
 ): readonly import("../../../target-model/types/model.js").CsharpTargetParameter[] | undefined;
   resolveSourceCallArgumentParameter(
-  source: ResolvedSourceCallInfo,
-  binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
+  source: ResolvedSourceSignatureCallInfo,
+  binding: ResolvedSourceSignatureCallInfo["sourceArgumentBindings"][number],
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined;
   resolveSourceCallResult(
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined;
   resolveSourceCallResultWithState(
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
@@ -346,7 +346,7 @@ export interface CsharpTypeResolutionScope {
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
   resolveSourceCallInstantiation(
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
   expectedTypeParameterNames?: readonly string[],
@@ -358,7 +358,7 @@ export interface CsharpTypeResolutionScope {
     }
   | undefined;
   resolveSourceCallSelectedType(
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   declaration: Node | undefined,
   authoredTypeNode: Node | undefined,
   selectedType: Type | undefined,
@@ -366,34 +366,34 @@ export interface CsharpTypeResolutionScope {
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
   resolveSourceCallableContractType(
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   callable: CsharpSourceCallableContract,
   type: TargetTypeRef,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
   inferSourceCallTargetTypeArguments(
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   callable: CsharpSourceCallableContract,
   sourceFile: SourceFile,
   parameterNames: ReadonlySet<string>,
   state: CsharpTypeResolutionState,
 ): ReadonlyMap<string, TargetTypeRef> | undefined;
   sourceCallSelectedDeclaration(
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
 ): Node | undefined;
   resolveSourceCallReceiverTargetType(
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
   sourceCallCalleeDelegateSignature(
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): ReturnType<typeof getCsharpDelegateSignature>;
   sourceCallableTypeParametersMatch(
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   callable: CsharpSourceCallableContract,
 ): boolean;
   sourceValueDeclaration(

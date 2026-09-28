@@ -50,7 +50,7 @@ export function resolveCsharpProviderCallRelations(
 ): CsharpProviderOperationResolution {
   const semantics = host.semantics(sourceFile);
   const source = semantics.operations.call(call);
-  if (source === undefined) {
+  if (source === undefined || source.outcome === "intrinsic") {
     return {
       kind: "missing",
       reason: "The checker did not resolve an exact source call.",

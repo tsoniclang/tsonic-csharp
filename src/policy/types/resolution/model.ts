@@ -4,6 +4,7 @@ import type {
   Node,
   ReadonlySourceFactResolver,
   SourceFile,
+  ResolvedSourceSignatureCallInfo,
   Type,
 } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
@@ -22,16 +23,14 @@ import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapePolicy } from "../objects/object-shape-policy.js";
 
-export type ResolvedSourceCallInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["call"]>
->;
+export type { ResolvedSourceSignatureCallInfo } from "@tsonic/tsts";
 
 export interface CsharpPlanningRepresentationQueries {
   genericProjections?(declaration: Node): readonly import("../../../target-model/types/projections.js").CsharpProjectedType[];
   requiresClosedStructuralContract(type: TargetTypeRef): boolean;
   scopedTargetType(node: Node): TargetTypeRef | undefined;
   sourceCallable(
-    source: ResolvedSourceCallInfo,
+    source: ResolvedSourceSignatureCallInfo,
     sourceFile: SourceFile,
   ): CsharpSourceCallableContract | undefined;
 }
@@ -123,25 +122,25 @@ export interface CsharpTypePolicy {
     sourceFile: SourceFile,
   ): TargetTypeRef | undefined;
   resolveSourceCallTypeArguments(
-    source: ResolvedSourceCallInfo,
+    source: ResolvedSourceSignatureCallInfo,
     sourceFile: SourceFile,
   ): readonly TargetTypeRef[] | undefined;
   resolveSourceCallParameter(
-    source: ResolvedSourceCallInfo,
+    source: ResolvedSourceSignatureCallInfo,
     parameterIndex: number,
     sourceFile: SourceFile,
   ): TargetTypeRef | undefined;
   resolveSourceCallParameters(
-    source: ResolvedSourceCallInfo,
+    source: ResolvedSourceSignatureCallInfo,
     sourceFile: SourceFile,
   ): readonly import("../../../target-model/types/model.js").CsharpTargetParameter[] | undefined;
   resolveSourceCallArgumentParameter(
-    source: ResolvedSourceCallInfo,
-    binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
+    source: ResolvedSourceSignatureCallInfo,
+    binding: ResolvedSourceSignatureCallInfo["sourceArgumentBindings"][number],
     sourceFile: SourceFile,
   ): TargetTypeRef | undefined;
   resolveSourceCallResult(
-    source: ResolvedSourceCallInfo,
+    source: ResolvedSourceSignatureCallInfo,
     sourceFile: SourceFile,
   ): TargetTypeRef | undefined;
   withSourceTargetBindings(

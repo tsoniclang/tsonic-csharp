@@ -31,7 +31,7 @@ import type {
   CsharpPlanningRepresentationQueries,
 } from "../../policy/types/index.js";
 import type {
-  ResolvedSourceCallInfo,
+  ResolvedSourceSignatureCallInfo,
 } from "../operations/index.js";
 import {
   createCsharpAttributeApplicationFactIndex,
@@ -441,7 +441,7 @@ function analyzeIteration(
 
 function sourceCallableContract(
   input: CsharpTargetAnalysisRequest["input"],
-  source: ResolvedSourceCallInfo,
+  source: ResolvedSourceSignatureCallInfo,
   sourceFile: SourceFile,
   typeSystem: CsharpTypeSystem | undefined,
   callables: CsharpCallableContractIndex | undefined,

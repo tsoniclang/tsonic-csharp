@@ -29,7 +29,7 @@ export type {
   CsharpTargetCallSelection,
   CsharpTargetElementSelection,
   CsharpTargetPropertySelection,
-  ResolvedSourceCallInfo,
+  ResolvedSourceSignatureCallInfo,
 } from "../../policy/operations/members/index.js";
 export type {
   CsharpJsValueOperationSelection,
