@@ -21,8 +21,8 @@ import {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpAttribute, CsharpAttributeTargetSpecifier } from "../../../target-ast/roslyn/index.js";
 import type {
-  CsharpAttributeApplication,
-} from "../../../../analysis/attributes/application-index.js";
+  TsonicAttributeApplicationFact,
+} from "@tsonic/source-core/facts";
 import { planExpression } from "../../expressions/index.js";
 import {
   collectAttributeFactsForSubject,
@@ -64,7 +64,7 @@ export function isErasedAttributeExpressionStatement(
 }
 
 function planAttribute(
-  attribute: CsharpAttributeApplication,
+  attribute: TsonicAttributeApplicationFact,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
@@ -94,7 +94,7 @@ function planAttribute(
 }
 
 function attributeApplicationMemberKindIsValid(
-  attribute: CsharpAttributeApplication,
+  attribute: TsonicAttributeApplicationFact,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
@@ -118,7 +118,7 @@ function attributeApplicationMemberKindIsValid(
 }
 
 function planAttributeTargetSpecifier(
-  attribute: CsharpAttributeApplication,
+  attribute: TsonicAttributeApplicationFact,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],

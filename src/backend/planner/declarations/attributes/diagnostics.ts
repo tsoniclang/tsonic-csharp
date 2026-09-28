@@ -1,10 +1,10 @@
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
-  CsharpAttributeApplication,
-} from "../../../../analysis/attributes/application-index.js";
+  TsonicAttributeApplicationFact,
+} from "@tsonic/source-core/facts";
 
 export function attributeApplicationDiagnostic(
-  _attribute: CsharpAttributeApplication,
+  _attribute: TsonicAttributeApplicationFact,
   message: string,
 ): TargetDiagnostic {
   return {

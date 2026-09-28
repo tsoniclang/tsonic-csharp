@@ -7,8 +7,8 @@ import {
 } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type {
-  CsharpAttributeApplication,
-} from "../../../../analysis/attributes/application-index.js";
+  TsonicAttributeApplicationFact,
+} from "@tsonic/source-core/facts";
 
 export interface AttributeApplicationResolution {
   readonly applicationTarget?: Node;
@@ -18,7 +18,7 @@ export interface AttributeApplicationResolution {
 }
 
 export function resolveAttributeApplication(
-  attribute: CsharpAttributeApplication,
+  attribute: TsonicAttributeApplicationFact,
   _contextSourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): AttributeApplicationResolution {
@@ -62,17 +62,17 @@ export function attributeSubjectDescription(
 }
 
 export function directAttributeFactAppliesToSubject(
-  attribute: CsharpAttributeApplication | undefined,
-): attribute is CsharpAttributeApplication {
-  return attribute?.kind === "csharp-attribute-application";
+  attribute: TsonicAttributeApplicationFact | undefined,
+): attribute is TsonicAttributeApplicationFact {
+  return attribute?.kind === "application";
 }
 
 export function attributeFactForNodeOrSymbol(
   subject: Node,
   input: CsharpPlanningContext,
-): CsharpAttributeApplication | undefined {
+): TsonicAttributeApplicationFact | undefined {
   const operation = input.program.attributeApplications.forSubject(subject);
-  return operation?.kind === "csharp-attribute-application"
+  return operation?.kind === "application"
     ? operation
     : undefined;
 }

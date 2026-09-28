@@ -1,8 +1,8 @@
 import type { CsharpPlanningContext } from "../../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type {
-  CsharpAttributeApplication,
-} from "../../../../analysis/attributes/application-index.js";
+  TsonicAttributeApplicationFact,
+} from "@tsonic/source-core/facts";
 import {
   attributeFactForNodeOrSymbol,
   directAttributeFactAppliesToSubject,
@@ -13,11 +13,11 @@ export function collectAttributeFactsForSubject(
   subject: Node | undefined,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
-): readonly CsharpAttributeApplication[] {
+): readonly TsonicAttributeApplicationFact[] {
   if (subject === undefined) {
     return [];
   }
-  const facts: CsharpAttributeApplication[] = [];
+  const facts: TsonicAttributeApplicationFact[] = [];
   const direct = attributeFactForNodeOrSymbol(subject, input);
   if (directAttributeFactAppliesToSubject(direct)) {
     facts.push(direct);
@@ -30,19 +30,19 @@ export function collectAttributeFactsForSubject(
   return facts;
 }
 
-export function collectAttributeApplicationFacts(input: CsharpPlanningContext): readonly CsharpAttributeApplication[] {
+export function collectAttributeApplicationFacts(input: CsharpPlanningContext): readonly TsonicAttributeApplicationFact[] {
   return input.program.attributeApplications.all;
 }
 
 export function collectAttributeApplicationFactsForSourceFile(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
-): readonly CsharpAttributeApplication[] {
+): readonly TsonicAttributeApplicationFact[] {
   return input.program.attributeApplications.forSourceFile(sourceFile);
 }
 
 function attributeApplicationTargetsSubject(
-  attribute: CsharpAttributeApplication,
+  attribute: TsonicAttributeApplicationFact,
   subject: Node,
   contextSourceFile: SourceFile,
   input: CsharpPlanningContext,

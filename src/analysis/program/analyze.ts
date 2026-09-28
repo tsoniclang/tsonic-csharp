@@ -34,8 +34,8 @@ import type {
   ResolvedSourceSignatureCallInfo,
 } from "../operations/index.js";
 import {
-  createCsharpAttributeApplicationFactIndex,
-} from "../attributes/application-index.js";
+  createTsonicAttributeApplicationFactIndex,
+} from "@tsonic/source-core/facts";
 import { diagnoseCsharpAttributeTypeValues } from "../attributes/type-validation.js";
 import {
   createCsharpSafetyApplicationFactIndex,
@@ -254,7 +254,7 @@ export function analyzeCsharpTargetProgram(
     request.binaryExecutionDriver,
     operationBinaryExecutionDriver,
   );
-  const attributeApplications = createCsharpAttributeApplicationFactIndex({
+  const attributeApplications = createTsonicAttributeApplicationFactIndex({
     ast: source.ast,
     sourceFiles: source.navigation.sourceFiles,
     sourceFacts: source.sourceFacts,

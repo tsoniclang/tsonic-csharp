@@ -1,10 +1,10 @@
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { isAstNode, type TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpAttributeApplicationFactIndex } from "./application-index.js";
+import type { TsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";
 
 export function diagnoseCsharpAttributeTypeValues(
   source: TargetSourceProgram,
-  applications: CsharpAttributeApplicationFactIndex,
+  applications: TsonicAttributeApplicationFactIndex,
 ): readonly TargetDiagnostic[] {
   const diagnostics: TargetDiagnostic[] = [];
   for (const application of applications.all) {

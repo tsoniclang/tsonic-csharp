@@ -18,8 +18,8 @@ import {
   sourceMayReadBeforeInitialization,
 } from "@tsonic/target-api/source";
 import type {
-  CsharpAttributeApplicationFactIndex,
-} from "../attributes/application-index.js";
+  TsonicAttributeApplicationFactIndex,
+} from "@tsonic/source-core/facts";
 import type {
   CsharpSafetyApplicationFactIndex,
 } from "../safety/application-index.js";
@@ -35,7 +35,7 @@ interface CsharpModuleInitializationAnalysisInput {
   readonly sourceFiles: readonly SourceFile[];
   readonly projectRoot: string;
   readonly entryPoint: string;
-  readonly attributeApplications: CsharpAttributeApplicationFactIndex;
+  readonly attributeApplications: TsonicAttributeApplicationFactIndex;
   readonly safetyApplications: CsharpSafetyApplicationFactIndex;
 }
 
