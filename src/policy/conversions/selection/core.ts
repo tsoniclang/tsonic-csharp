@@ -60,6 +60,10 @@ export function selectCsharpConversion(
   if (jsValueConversion !== undefined) {
     return jsValueConversion;
   }
+  const nullable = selectNullableConversion(input, source, target, mode);
+  if (nullable !== undefined) {
+    return nullable;
+  }
   if (
     getCsharpTaskResultTargetType(source) !== undefined ||
     getCsharpTaskResultTargetType(target) !== undefined
@@ -67,12 +71,8 @@ export function selectCsharpConversion(
     return {
       kind: "rejected",
       reason:
-        "Task carriers cannot be unwrapped, reinterpreted, or changed in arity without an exact target conversion relation.",
+        `Task carriers cannot be unwrapped, reinterpreted, or changed in arity without an exact target conversion relation: '${targetTypeRefKey(source)}' to '${targetTypeRefKey(target)}'.`,
     };
-  }
-  const nullable = selectNullableConversion(input, source, target, mode);
-  if (nullable !== undefined) {
-    return nullable;
   }
   const sourceMethod = getCsharpGenericMethodValue(source);
   const targetMethod = getCsharpGenericMethodValue(target);

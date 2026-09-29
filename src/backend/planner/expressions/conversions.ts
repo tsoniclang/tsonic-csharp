@@ -49,6 +49,7 @@ import {
 } from "./js-value-operations.js";
 import { planCsharpEmptyRecordConversion } from "./empty-record-conversion.js";
 import { runtimeUnionArmProjection } from "./runtime-union-projections.js";
+import { planCsharpVoidReturn } from "../statements/statement-output.js";
 
 export function readCsharpConversionClassification(
   node: Node,
@@ -623,7 +624,9 @@ function applyDelegateAdapter(
     callee: callableExpression,
     arguments: arguments_,
   };
-  const body = applyCsharpConversionSelection(
+  const body = selection.returnConversion.kind === "void-return"
+    ? { kind: "Block" as const, statements: planCsharpVoidReturn(invocation, "absence") }
+    : applyCsharpConversionSelection(
     node,
     sourceFile,
     input,

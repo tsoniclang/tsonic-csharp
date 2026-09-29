@@ -64,7 +64,7 @@ export type CsharpConversionSelection =
   | {
       readonly kind: "delegate-adapter";
       readonly parameterConversions: readonly CsharpConversionSelection[];
-      readonly returnConversion: CsharpConversionSelection;
+      readonly returnConversion: CsharpConversionSelection | { readonly kind: "void-return" };
     }
   | {
       readonly kind: "provider-argument-adapter";

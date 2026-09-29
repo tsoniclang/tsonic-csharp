@@ -20,6 +20,9 @@ import {
   targetTypeRefKey,
   targetTypeRefEquals,
   csharpBigIntegerTargetType,
+  isCsharpVoidTargetType,
+  isCsharpAbsenceTargetType,
+  getCsharpTaskResultTargetType,
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpReferenceDefaultNeedsNullableParameter } from "../../target-model/types/reference-default.js";
@@ -86,7 +89,7 @@ export function analyzeCsharpDeclarations(
     if (isCallableDeclaration(policy, node)) {
       returnContracts.set(
         node,
-        classifyReturnContract(policy, evidence, operations, node),
+        withAbsenceCompletion(policy, evidence, node, classifyReturnContract(policy, evidence, operations, node)),
       );
     }
     policy.ast.forEachChild(node, (child) => {
@@ -95,6 +98,28 @@ export function analyzeCsharpDeclarations(
       }
     });
   }
+}
+
+function withAbsenceCompletion(
+  policy: CsharpPolicyContext,
+  evidence: CsharpSourceEvidenceIndex,
+  declaration: Node,
+  contract: CsharpReturnTargetContract,
+): CsharpReturnTargetContract {
+  if (contract.kind !== "resolved") return contract;
+  const asynchronous = HasSyntacticModifier(policy.ast, declaration, ModifierFlagsAsync);
+  const contextual = getCsharpDelegateSignature(evidence.contextualTargetType(declaration))?.returnType;
+  const type = !asynchronous && Node_Type(policy.ast, declaration) === undefined &&
+    isCsharpVoidTargetType(contract.type) && getCsharpNullableElementTargetType(contextual) !== undefined
+    ? contextual! : contract.type;
+  const value = asynchronous ? getCsharpTaskResultTargetType(type) : type;
+  if (!isCsharpAbsenceTargetType(value) && getCsharpNullableElementTargetType(value) === undefined) return contract;
+  const completion = policy.semanticsFor(declaration).operations.callableCompletion(declaration);
+  if (policy.ast.body(declaration) !== undefined && completion === undefined) {
+    return { kind: "rejected", reason: "An absence-bearing callable requires exact source completion evidence." };
+  }
+  return Object.freeze({ kind: "resolved", type, undefinedReturn: true,
+    fallthroughUndefined: completion?.canFallThrough === true });
 }
 
 function classifyReturnContract(

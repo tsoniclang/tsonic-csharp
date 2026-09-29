@@ -11,6 +11,14 @@ export function expressionStatement(expression: CsharpExpression): CsharpStateme
   };
 }
 
+export function planCsharpVoidReturn(expression: CsharpExpression, completion: "void" | "absence"): readonly CsharpStatement[] {
+  return [
+    expressionStatement(expression),
+    { kind: "ReturnStatement", ...(completion === "absence"
+      ? { expression: { kind: "LiteralExpression" as const, value: null } } : {}) },
+  ];
+}
+
 export function isVoidCsharpType(type: CsharpTypeNode): boolean {
   return type.kind === "PredefinedType" && type.name === "void";
 }

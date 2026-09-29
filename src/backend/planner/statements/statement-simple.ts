@@ -62,7 +62,9 @@ import {
   isVoidCsharpType,
   planDiscardedExpression,
   planExplicitlyDiscardedExpression,
+  planCsharpVoidReturn,
 } from "./statement-output.js";
+import { csharpVoidReturnCompletion } from "../../../target-model/types/index.js";
 import {
   convertCsharpYieldResumeExpression,
   planCsharpYieldValue,
@@ -195,6 +197,12 @@ export function planReturnStatement(
   const expectedReturnExpressionType = state.currentReturnExpressionType ?? state.currentReturnType;
   const expectedReturnExpressionTypeSubject = state.currentReturnExpressionTypeSubject ?? state.currentReturnTypeSubject;
   const expectedReturnExpressionTargetType = state.currentReturnExpressionTargetType;
+  const completion = statement.Expression === undefined ? undefined : csharpVoidReturnCompletion(
+    input.types.classifications.resolveNode(statement.Expression, sourceFile), expectedReturnExpressionTargetType);
+  if (completion !== undefined && statement.Expression !== undefined) {
+    const value = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
+    return value === undefined ? [] : planCsharpVoidReturn(value, completion);
+  }
   const expression = statement.Expression === undefined
     ? state.currentUndefinedReturn ? { kind: "LiteralExpression" as const, value: null } : undefined
     : expectedReturnExpressionType === undefined

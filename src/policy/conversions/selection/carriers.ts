@@ -1,5 +1,6 @@
 import {
   csharpBaseTargetTypeFromBinding,
+  csharpVoidReturnCompletion,
   csharpTargetBindingFact,
   getCsharpDelegateSignature,
   getCsharpNullableElementTargetType,
@@ -208,7 +209,8 @@ export function selectDelegateConversion(
       "implicit",
     ),
   );
-  const returnConversion = selectCsharpConversion(
+  const returnConversion = csharpVoidReturnCompletion(sourceSignature.returnType, targetSignature.returnType) === "absence"
+    ? { kind: "void-return" as const } : selectCsharpConversion(
     input,
     sourceSignature.returnType,
     targetSignature.returnType,
@@ -218,7 +220,7 @@ export function selectDelegateConversion(
     parameterConversions.some((conversion) =>
       !csharpConversionIsApplicable(conversion, "implicit")
     ) ||
-    !csharpConversionIsApplicable(returnConversion, "implicit")
+    returnConversion.kind !== "void-return" && !csharpConversionIsApplicable(returnConversion, "implicit")
   ) {
     return rejectedDelegateConversion(source, target);
   }

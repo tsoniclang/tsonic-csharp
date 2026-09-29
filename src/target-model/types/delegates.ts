@@ -9,6 +9,7 @@ import type {
 import {
   isCsharpVoidTargetType,
 } from "./identity.js";
+import { isCsharpAbsenceTargetType } from "./runtime-carriers.js";
 import {
   csharpQualifiedTypeRenderShape,
 } from "./render-shapes.js";
@@ -18,6 +19,7 @@ import {
 import {
   csharpTargetNamedType,
 } from "./factories.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "./nullable.js";
 
 export function csharpDelegateTargetType(
   kind: "System.Action" | "System.Func",
@@ -79,6 +81,19 @@ export function getCsharpTaskResultTargetType(type: TargetTypeRef | undefined): 
   return type?.kind === "target-named"
     ? (type as Partial<CsharpTaskTargetTypeRef>).csharpTaskResultType
     : undefined;
+}
+
+export function getCsharpAwaitResultTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
+  const result = getCsharpTaskResultTargetType(type);
+  return result === undefined || isCsharpVoidTargetType(result) || getCsharpNullableElementTargetType(type) === undefined
+    ? result : csharpNullableTargetType(result);
+}
+
+export function csharpVoidReturnCompletion(source: TargetTypeRef | undefined, target: TargetTypeRef | undefined): "void" | "absence" | undefined {
+  if (!isCsharpVoidTargetType(source)) return undefined;
+  if (isCsharpVoidTargetType(target)) return "void";
+  return getCsharpNullableElementTargetType(target) !== undefined || isCsharpAbsenceTargetType(target)
+    ? "absence" : undefined;
 }
 
 export function getCsharpDelegateSignature(type: TargetTypeRef | undefined): CsharpDelegateSignatureShape | undefined {

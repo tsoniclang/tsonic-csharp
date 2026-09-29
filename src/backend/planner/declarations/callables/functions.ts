@@ -65,6 +65,7 @@ export function planFunctionDeclaration(
   const async = isAsyncNode(input.program.source.ast, node);
   state.currentReturnType = declaredReturnType;
   state.currentReturnTypeSubject = declaration.Type;
+  state.currentReturnExpressionTargetType = declaredReturnTargetType;
   if (async) {
     const returnExpressionType = getAsyncReturnExpressionExpectedType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
     state.currentReturnExpressionType = returnExpressionType?.type;

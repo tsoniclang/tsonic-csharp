@@ -50,6 +50,7 @@ import type {
 } from "./expression-planner-types.js";
 import {
   getCsharpTaskResultTargetType,
+  csharpVoidReturnCompletion,
   isCsharpVoidTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
@@ -66,6 +67,7 @@ import {
 } from "../statements/generators.js";
 import { planLambdaParameterStorage } from "./lambda-parameter-storage.js";
 import { planCsharpFrameClosureReference } from "../bindings/capture-closures.js";
+import { planCsharpVoidReturn } from "../statements/statement-output.js";
 
 export interface LambdaTargetContext {
   readonly type: CsharpTypeNode;
@@ -146,7 +148,9 @@ export function planArrowFunctionExpression(
     ...parameterIdentityDeclarations,
     ...planCsharpCaptureEntryBindings(expression.Body, scopedInput, plannerState),
   ];
-  const body = returnContext !== undefined && planExpressionWithExpectedType !== undefined
+  const completion = expression.Body === undefined ? undefined : csharpVoidReturnCompletion(
+    input.types.classifications.resolveNode(expression.Body, sourceFile), returnContext?.returnExpressionTargetType);
+  const body = completion === undefined && returnContext !== undefined && planExpressionWithExpectedType !== undefined
     ? planExpressionWithExpectedType(
       expression.Body!,
       sourceFile,
@@ -165,7 +169,9 @@ export function planArrowFunctionExpression(
     kind: "LambdaExpression",
     ...(isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}),
     parameters,
-    body: entryPrelude.length === 0
+    body: completion !== undefined
+      ? { kind: "Block", statements: [...entryPrelude, ...planCsharpVoidReturn(body, completion)] }
+      : entryPrelude.length === 0
       ? body
       : {
           kind: "Block",
