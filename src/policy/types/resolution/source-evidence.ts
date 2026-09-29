@@ -11,6 +11,22 @@ import type {
 } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
+import type { CsharpTypeResolutionScope } from "./engine.js";
+import type { CsharpTypeResolutionState } from "./model.js";
+import { nextState } from "./state.js";
+
+export function resolveCsharpUnionMemberCarrier(
+  scope: CsharpTypeResolutionScope,
+  carrier: TargetTypeRef,
+  selectedType: Type,
+  queries: SourceFileSemantics,
+  state: CsharpTypeResolutionState,
+): TargetTypeRef | undefined {
+  const selected = scope.sourceUnions.select(carrier, selectedType, queries);
+  return selected.kind === "unavailable"
+    ? scope.resolveTypeWithState(selectedType, queries.sourceFile, nextState(state))
+    : selected.kind === "resolved" ? selected.carrier : undefined;
+}
 
 export function sourceFactSubjectsForNode(
   node: Node,

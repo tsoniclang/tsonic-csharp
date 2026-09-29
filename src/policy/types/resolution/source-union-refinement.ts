@@ -4,7 +4,6 @@ import type { CsharpObjectShapeFact, CsharpRuntimeUnionTargetTypeRef, TargetType
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import { csharpAbsenceTargetType, csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms, getCsharpGenericOptionalParts } from "../../../target-model/types/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
 
 export function sourceRefinementOnlyRemovesNullish(
   declaredType: Type,
@@ -69,18 +68,11 @@ export function selectCsharpAuthoredUnionRefinement(
       ...queries.declarations.symbolDeclarations(property.symbol),
       ...property.rootSymbols.flatMap(symbol => queries.declarations.symbolDeclarations(symbol)),
     ]));
+    const resolved = resolveType(member);
     const matches = arms.flatMap((arm, index) => {
       const shape = shapes[index];
       if (shape === undefined) {
-        const resolved = resolveType(member);
-        if (resolved === undefined) return [];
-        if (targetTypeRefEquals(arm, resolved)) return [index];
-        const primitiveKind = queries.types.isNumberLike(member) ? "number"
-          : queries.types.isBigIntLike(member) ? "bigint"
-          : queries.types.isStringLike(member) ? "string"
-          : queries.types.isBooleanLike(member) ? "boolean" : undefined;
-        return arm.kind === "source-primitive" && primitiveKind !== undefined &&
-          getCsharpTypeofRuntimeKind(arm) === primitiveKind ? [index] : [];
+        return resolved !== undefined && targetTypeRefEquals(arm, resolved) ? [index] : [];
       }
       if (shape.members.length !== properties.length || declarations.some(nodes => nodes.size === 0)) return [];
       const matched = new Set<number>();

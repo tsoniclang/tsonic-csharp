@@ -303,7 +303,7 @@ export function generatorResultProtocol(
 
 
 export function resolveUnionType(
-  { host, resolveTypeWithState }: CsharpTypeResolutionScope,
+  { host, resolveTypeWithState, sourceUnions }: CsharpTypeResolutionScope,
   type: Type,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -321,10 +321,10 @@ export function resolveUnionType(
   if (resolved.some((member) => member === undefined)) {
     return undefined;
   }
-  return retainCsharpUnionObjectShapes(
+  return sourceUnions.retain(retainCsharpUnionObjectShapes(
     combineCsharpTargetUnionMembers(resolved as readonly TargetTypeRef[]),
     host.structuralTypes.resolveTarget,
-  );
+  ), resolved.map((carrier, index) => ({ source: sourceMembers[index]!, carrier: carrier! })), queries, state);
 }
 
 

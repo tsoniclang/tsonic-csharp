@@ -119,12 +119,13 @@ export function resolveNodeWithState(
         nextState(state),
       )
     );
-    return members.some((member) => member === undefined)
+    const sourceMembers = host.ast.children(node).map(member => member === undefined ? undefined : queries.types.authoredType(member));
+    return members.some((member) => member === undefined) || sourceMembers.some(member => member === undefined)
       ? undefined
-      : retainCsharpUnionObjectShapes(
+      : scope.sourceUnions.retain(retainCsharpUnionObjectShapes(
           combineCsharpTargetUnionMembers(members as readonly TargetTypeRef[]),
           host.structuralTypes.resolveTarget,
-        );
+        ), members.map((carrier, index) => ({ source: sourceMembers[index]!, carrier: carrier! })), queries, state);
   }
   if (host.ast.is.IsNamedTupleMember(node)) {
     return resolveNodeWithState(

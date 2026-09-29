@@ -15,20 +15,21 @@ import { ObjectLiteralProperty_Value } from "@tsonic/target-api/source";
 import { selectCsharpObjectLiteralUnionShape } from "../objects/object-shape-policy/union-construction.js";
 import { csharpNumericLiteralValue, csharpBigIntLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
 import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
-import { resolveTypeParameter } from "./source-evidence.js";
+import { resolveTypeParameter, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { getCsharpGenericMethodValue } from "../../../target-model/types/generic-method-values.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";
 
 export function resolveAuthoredAndSelectedSourceType(
-  { host, resolveNodeWithState, resolveTypeWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   authoredTypeNode: Node | undefined,
   authoredSourceFile: SourceFile,
   selectedType: Type | undefined,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const { host, resolveNodeWithState, resolveTypeWithState } = scope;
   const authoredQueries = host.hasSemantics(authoredSourceFile)
     ? host.semantics(authoredSourceFile)
     : undefined;
@@ -64,7 +65,7 @@ export function resolveAuthoredAndSelectedSourceType(
   }
   const unionRefinement = selectCsharpAuthoredUnionRefinement(
     authored, authoredSemanticType, selectedType, selectedQueries,
-    type => resolveTypeWithState(type, selectedSourceFile, nextState(state)),
+    type => resolveCsharpUnionMemberCarrier(scope, authored, type, selectedQueries, state),
     host.structuralTypes.resolveTarget,
   );
   if (unionRefinement.kind !== "not-applicable") {

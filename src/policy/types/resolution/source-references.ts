@@ -13,7 +13,7 @@ import { csharpSourceTypeParameter } from "../../../target-model/names/type-para
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/collections.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import { nextState } from "./state.js";
-import { sourceFactSubjectsForNode, definedValues } from "./source-evidence.js";
+import { sourceFactSubjectsForNode, definedValues, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { sourcePrimitiveFactKey } from "@tsonic/tsts";
 import {
   sourceTransformedTypeFactEvidenceNodes,
@@ -476,12 +476,13 @@ export function collectTargetSourcePrimitiveNames(
 
 
 export function resolveSourceValueDeclaration(
-  { host, resolveAuthoredAndSelectedSourceType, resolveDirectSourceFacts, resolveNodeWithState, resolveSelectedExpressionType, resolveTypeWithState, sourceValueDeclaration, sourceValueDeclarationSyntax }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   selectedType?: Type,
 ): TargetTypeRef | undefined {
+  const { host, resolveAuthoredAndSelectedSourceType, resolveDirectSourceFacts, resolveNodeWithState, resolveSelectedExpressionType, resolveTypeWithState, sourceValueDeclaration, sourceValueDeclarationSyntax } = scope;
   const reference = host.navigation.referenceFor(node);
   const declaration = sourceValueDeclaration(node, reference?.declaration);
   if (declaration === undefined) {
@@ -568,7 +569,7 @@ export function resolveSourceValueDeclaration(
     selectedValueType,
   );
   const selectedUnion = selectCsharpAuthoredUnionRefinement(initializerTarget, declaredType, selectedValueType,
-    declarationQueries, type => resolveTypeWithState(type, sourceFile, nextState(state)), host.structuralTypes.resolveTarget);
+    declarationQueries, type => resolveCsharpUnionMemberCarrier(scope, initializerTarget, type, declarationQueries, state), host.structuralTypes.resolveTarget);
   if (selectedUnion.kind !== "not-applicable") return selectedUnion.kind === "resolved" ? selectedUnion.type : undefined;
   if (refinement.kind === "ambiguous") {
     return undefined;

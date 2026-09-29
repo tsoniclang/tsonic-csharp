@@ -19,6 +19,7 @@ import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
+import { createCsharpSourceUnionIndex, type CsharpSourceUnionIndex } from "./source-unions.js";
 import { createCsharpFixedArrayTypeQuery } from "./source-markers.js";
 
 import {
@@ -121,6 +122,7 @@ export interface CsharpTypeResolutionScope {
     state: CsharpTypeResolutionState,
   ): CsharpPointerReturnContract | undefined;
   readonly host: CsharpTypePolicyHost;
+  readonly sourceUnions: CsharpSourceUnionIndex;
   readonly activeNodes: WeakSet<Node>;
   readonly policy: CsharpTypePolicy;
   readonly createCsharpTypePolicy: typeof createCsharpTypePolicy;
@@ -727,6 +729,7 @@ export function createCsharpTypeResolutionServices(
   } satisfies CsharpTypePolicy);
   scope = Object.freeze({
     host,
+    sourceUnions: createCsharpSourceUnionIndex(),
     activeNodes: new WeakSet<Node>(),
     policy,
     createCsharpTypePolicy,

@@ -17,6 +17,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpJsArrayTargetType } from "./surface-types.js";
 import { selectedCsharpSourceProfileOwner } from "./source-profile.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
+import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { selectCsharpConditionalNumericCarrier } from "../conditional-numeric-carrier.js";
 
 export function resolveSelectedExpressionType(
@@ -316,11 +317,12 @@ export function resolvePropertyAccessTargetType(
 
 
 export function resolveNonNullExpressionType(
-  { host, resolveNodeWithState, resolveTypeWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const { host, resolveNodeWithState } = scope;
   const expression = host.ast.as.AsNonNullExpression(node)?.Expression;
   if (expression === undefined) {
     return undefined;
@@ -344,7 +346,7 @@ export function resolveNonNullExpressionType(
   }
   const refinement = selectCsharpAuthoredUnionRefinement(
     sourceTarget, sourceType, selectedType, queries,
-    type => resolveTypeWithState(type, queries.sourceFile, nextState(state)),
+    type => resolveCsharpUnionMemberCarrier(scope, sourceTarget, type, queries, state),
     host.structuralTypes.resolveTarget,
   );
   return refinement.kind === "resolved" ? refinement.type : undefined;

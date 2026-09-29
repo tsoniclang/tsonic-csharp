@@ -12,6 +12,7 @@ import { getCsharpDelegateSignature } from "../../../target-model/types/delegate
 import { nextState } from "./state.js";
 import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
+import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 
 export function resolveNode(
   { resolveNodeWithState }: CsharpTypeResolutionScope,
@@ -131,12 +132,13 @@ export function resolveSelectedValue(
 
 
 export function resolveSelectedValueWithState(
-  { host, resolveNodeWithState, resolvePropertyAccessTargetType, resolveSourceValueDeclaration, resolveTypeWithState, sourceValueDeclaration }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   node: Node,
   selectedType: Type,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const { host, resolveNodeWithState, resolvePropertyAccessTargetType, resolveSourceValueDeclaration, resolveTypeWithState, sourceValueDeclaration } = scope;
   const reference = host.navigation.referenceFor(node);
   const declaration = sourceValueDeclaration(node, reference?.declaration);
   const scopedTarget = host.representations.scopedTargetType(
@@ -149,7 +151,7 @@ export function resolveSelectedValueWithState(
     if (declaredType !== undefined) {
       const refinement = selectCsharpAuthoredUnionRefinement(
         scopedTarget, declaredType, selectedType, queries,
-        type => resolveTypeWithState(type, sourceFile, nextState(state)),
+        type => resolveCsharpUnionMemberCarrier(scope, scopedTarget, type, queries, state),
         host.structuralTypes.resolveTarget,
       );
       if (refinement.kind !== "not-applicable") {
