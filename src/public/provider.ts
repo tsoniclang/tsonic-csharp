@@ -9,6 +9,7 @@ export type {
   TargetTypeRef,
 } from "../target-model/types/model.js";
 export { csharpTargetNamedType } from "../target-model/types/factories.js";
+export { csharpReadOnlyListTargetType } from "../target-model/types/collections.js";
 export {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
