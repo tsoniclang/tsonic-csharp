@@ -179,7 +179,8 @@ export function planExpressionWithExpectedTypeCore(
   }
   if (HasSourceKind(input.program.source.ast, node, KindObjectLiteralExpression)) {
     const dictionaryDiagnosticsStart = diagnostics.length;
-    const dictionaryLiteral = tryPlanRecordDictionaryLiteralWithExpectedType(node, sourceFile, input, diagnostics, expectedTypeSubject, planners.planExpressionWithExpectedType);
+    const dictionaryLiteral = tryPlanRecordDictionaryLiteralWithExpectedType(node, sourceFile, input, diagnostics,
+      expectedTypeSubject, planners.planExpressionWithExpectedType, effectiveExpectedTargetType);
     if (dictionaryLiteral !== undefined) {
       return expectedRepresentation(dictionaryLiteral);
     }

@@ -1,6 +1,7 @@
 import type { ExtensionFactSubject, Node } from "@tsonic/tsts";
 import type { CsharpSwitchSelection } from "../../policy/operations/control-flow/switch.js";
 import type { CsharpMemoryBindingSelection } from "../../policy/operations/memory-bindings.js";
+import type { CsharpElementDeletionSelection } from "../../policy/operations/collections/element-deletion.js";
 import type {
   CsharpJsValueOperationSelection,
 } from "../../policy/js-value-operations/index.js";
@@ -161,6 +162,7 @@ export interface CsharpTargetOperationClassifications {
   jsVoid(node: Node): CsharpJsValueOperationSelection | undefined;
   jsObjectLiteral(node: Node): CsharpJsValueOperationSelection | undefined;
   jsArrayMutation(node: Node): CsharpJsArrayMutationSelection | undefined;
+  elementDeletion(node: Node): CsharpElementDeletionSelection | undefined;
   jsStringConversion(node: Node): CsharpJsStringConversionSelection | undefined;
   providerValue(node: Node): CsharpProviderValueSelection | undefined;
   regularExpression(node: Node): CsharpRegularExpressionLiteralSelection | undefined;

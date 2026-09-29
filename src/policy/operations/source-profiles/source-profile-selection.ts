@@ -2,6 +2,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import { selectCsharpArrayUnionElement, selectCsharpArrayUnionProperty } from "./js/array-unions.js";
+import { selectCsharpIndexedRecordElement } from "../collections/indexed-records.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type {
   CsharpProviderCallSelectionHost,
@@ -98,6 +99,8 @@ export function selectCsharpComposedSourceProfileElement(
 ): CsharpSourceProfileElementPolicyResult | undefined {
   const union = selectCsharpArrayUnionElement(host, source, sourceFile);
   if (union !== undefined) return union;
+  const record = selectCsharpIndexedRecordElement(host, source, sourceFile);
+  if (record !== undefined) return record;
   return selectCsharpSourceProfileElementPolicy(
     host,
     source,

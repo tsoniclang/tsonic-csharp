@@ -13,7 +13,6 @@ import {
   getCsharpJsMapTargetTypes,
   getCsharpJsSetElementTargetType,
   getCsharpNullableElementTargetType,
-  isCsharpRecordDictionaryTargetType,
   isCsharpValueTypeTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
@@ -22,7 +21,6 @@ import type {
   CsharpSourceProfileCallPolicy,
   CsharpSourceProfileCallPolicyContext,
   CsharpSourceProfileCallPolicyResult,
-  CsharpSourceProfileElementPolicy,
   CsharpSourceProfilePropertyPolicy,
 } from "../source-profile-policy.js";
 import {
@@ -34,15 +32,12 @@ import {
   instanceMethod,
   jsCallPolicy,
   jsConstructIdentity,
-  jsElementPolicy,
-  jsIndexerIdentity,
   jsMemberIdentity,
   jsPropertyPolicy,
   jsRuntimeTargetType,
   staticMethod,
   targetParameter,
   targetProperty,
-  targetIndexer,
 } from "./common.js";
 
 const intType = csharpSourcePrimitiveTargetType("int32");
@@ -174,45 +169,6 @@ export const csharpJsCollectionPropertyPolicies:
         },
         instanceReceiver,
       )
-    ),
-  ]);
-
-export const csharpJsCollectionElementPolicies:
-  readonly CsharpSourceProfileElementPolicy[] = Object.freeze([
-    jsElementPolicy(
-      jsIndexerIdentity("Record"),
-      (context) => {
-        const receiver = resolveCsharpSelectedSourceValue(
-          context,
-          context.source.receiver,
-        );
-        const index = resolveCsharpSelectedSourceValue(
-          context,
-          context.source.argument,
-        );
-        const keyType = receiver?.kind === "target-named"
-          ? receiver.typeArguments?.[0]
-          : undefined;
-        const valueType = receiver?.kind === "target-named"
-          ? receiver.typeArguments?.[1]
-          : undefined;
-        if (
-          !isCsharpRecordDictionaryTargetType(receiver) ||
-          keyType === undefined ||
-          valueType === undefined ||
-          index === undefined ||
-          !targetTypeRefEquals(index, keyType)
-        ) {
-          return undefined;
-        }
-        return targetIndexer(
-          `Tsonic.CSharp.Js.Record.indexer:${targetTypeRefKey(receiver)}`,
-          receiver,
-          keyType,
-          valueType,
-          false,
-        );
-      },
     ),
   ]);
 

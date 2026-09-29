@@ -3,6 +3,7 @@ import {
   AsObjectLiteralExpression,
   AsPropertyAssignment,
   AsShorthandPropertyAssignment,
+  SpreadAssignment_Expression,
   HasSourceKind,
   KindIdentifier,
   KindMethodDeclaration,
@@ -25,6 +26,8 @@ import {
   csharpSourcePrimitiveRuntimeKind,
   isCsharpRecordDictionaryTargetType,
   isCsharpStringTargetType,
+  targetTypeRefEquals,
+  getCsharpNullableElementTargetType,
 } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
@@ -41,18 +44,9 @@ import {
 import {
   getTargetTypeRefForNode,
 } from "../types/runtime-carriers.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
-
-type ExpectedExpressionPlanner = (
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  expectedType: CsharpTypeNode,
-  expectedTypeSubject?: Node,
-) => CsharpExpression | undefined;
+import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpRecordOperation } from "../objects/indexed-records.js";
+import type { ExpectedExpressionPlanner } from "./expression-planner-types.js";
 
 export function tryPlanRecordDictionaryLiteralWithExpectedType(
   node: Node,
@@ -61,11 +55,12 @@ export function tryPlanRecordDictionaryLiteralWithExpectedType(
   diagnostics: TargetDiagnostic[],
   expectedTypeSubject: Node | undefined,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
+  expectedTargetType?: TargetTypeRef,
 ): CsharpExpression | undefined {
   if (!HasSourceKind(input.program.source.ast, node, KindObjectLiteralExpression)) {
     return undefined;
   }
-  const dictionaryType = getExpectedRecordDictionaryTargetType(node, expectedTypeSubject, sourceFile, input);
+  const dictionaryType = getExpectedRecordDictionaryTargetType(node, expectedTypeSubject, sourceFile, input, expectedTargetType);
   if (dictionaryType === undefined) {
     return undefined;
   }
@@ -104,17 +99,31 @@ function planRecordDictionaryLiteral(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Record dictionary object literal values require a renderable finalized value target type before C# emission."));
     return undefined;
   }
-  const collectionInitializers = properties
-    .map((property) => planRecordDictionaryInitializer(property, keyType, valueType, valueCsharpType, sourceFile, input, diagnostics, planExpressionWithExpectedType))
-    .filter((initializer): initializer is CsharpCollectionInitializerElement => initializer !== undefined);
-  if (collectionInitializers.length !== properties.length) {
-    return undefined;
+  let result: CsharpExpression = { kind: "ObjectCreationExpression", type, collectionInitializers: [] };
+  for (const property of properties) {
+    if (HasSourceKind(input.program.source.ast, property, KindSpreadAssignment)) {
+      const expression = SpreadAssignment_Expression(input.program.source.ast, property);
+      const sourceType = getTargetTypeRefForNode(input, expression, sourceFile);
+      if (expression === undefined || sourceType === undefined || !targetTypeRefEquals(sourceType, dictionaryType)) {
+        diagnostics.push(unsupportedNodeDiagnostic(property, "Indexed-record spread requires the exact finalized source and destination dictionary carriers."));
+        return undefined;
+      }
+      const spread = planExpressionWithExpectedType(expression, sourceFile, input, diagnostics, type, expression);
+      if (spread === undefined) return undefined;
+      result = result.kind === "ObjectCreationExpression" && result.collectionInitializers?.length === 0
+        ? { kind: "ObjectCreationExpression", type, arguments: [{ kind: "Argument", expression: spread }] }
+        : csharpRecordOperation("Extend", [result, spread]);
+      continue;
+    }
+    const initializer = planRecordDictionaryInitializer(property, keyType, valueType, valueCsharpType,
+      sourceFile, input, diagnostics, planExpressionWithExpectedType);
+    if (initializer === undefined) return undefined;
+    result = result.kind === "ObjectCreationExpression" && result.assignments === undefined
+      ? { kind: "ObjectCreationExpression", type: result.type, arguments: result.arguments,
+          collectionInitializers: [...result.collectionInitializers ?? [], initializer] }
+      : csharpRecordOperation("Set", [result, initializer.arguments[0]!, initializer.expression]);
   }
-  return {
-    kind: "ObjectCreationExpression",
-    type,
-    collectionInitializers,
-  };
+  return result;
 }
 
 function planRecordDictionaryInitializer(
@@ -170,9 +179,6 @@ function planRecordDictionaryInitializer(
         expression,
       };
     }
-    case KindSpreadAssignment:
-      diagnostics.push(unsupportedNodeDiagnostic(property, "Record dictionary object literal spread requires finalized provider dictionary-spread semantics before C# emission."));
-      return undefined;
     case KindMethodDeclaration:
       diagnostics.push(unsupportedNodeDiagnostic(property, "Record dictionary object literal methods require finalized callable value carrier facts before C# emission."));
       return undefined;
@@ -194,7 +200,7 @@ function planRecordDictionaryValue(
   if (isCsharpRecordDictionaryTargetType(valueType) && HasSourceKind(input.program.source.ast, valueNode, KindObjectLiteralExpression)) {
     return planRecordDictionaryLiteral(valueNode, sourceFile, input, diagnostics, valueType, planExpressionWithExpectedType);
   }
-  return planExpressionWithExpectedType(valueNode, sourceFile, input, diagnostics, valueCsharpType, valueNode);
+  return planExpressionWithExpectedType(valueNode, sourceFile, input, diagnostics, valueCsharpType, valueNode, valueType);
 }
 
 function planRecordDictionaryKey(
@@ -234,11 +240,14 @@ function getExpectedRecordDictionaryTargetType(
   expectedTypeSubject: Node | undefined,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
+  explicitType?: TargetTypeRef,
 ) {
-  const expectedType = getTargetTypeRefForNode(input, expectedTypeSubject, sourceFile);
+  const expected = explicitType ?? getTargetTypeRefForNode(input, expectedTypeSubject, sourceFile);
+  const expectedType = getCsharpNullableElementTargetType(expected) ?? expected;
   if (isCsharpRecordDictionaryTargetType(expectedType)) {
     return expectedType;
   }
-  const contextualType = getTargetTypeRefForNode(input, node, sourceFile);
+  const contextual = getTargetTypeRefForNode(input, node, sourceFile);
+  const contextualType = getCsharpNullableElementTargetType(contextual) ?? contextual;
   return isCsharpRecordDictionaryTargetType(contextualType) ? contextualType : undefined;
 }

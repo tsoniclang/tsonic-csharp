@@ -19,58 +19,6 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
 
-export function tryPlanJsArrayDeleteExpression(
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
-  planCallArgument: CallArgumentPlanner,
-): CsharpExpression | undefined {
-  const selection = input.program.operations.jsArrayMutation(node);
-  if (selection === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "C# planning received an array mutation without a sealed operation classification.",
-    ));
-    return undefined;
-  }
-  if (selection.kind !== "delete-element") {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      selection.kind === "rejected"
-        ? selection.reason
-        : "C# delete requires an exact target mutation policy.",
-    ));
-    return undefined;
-  }
-  const receiver = planExpression(
-    selection.receiver,
-    sourceFile,
-    input,
-    diagnostics,
-  );
-  const argument = planMutationArgument(
-    selection.index,
-    sourceFile,
-    input,
-    diagnostics,
-    planCallArgument,
-  );
-  if (receiver === undefined || argument === undefined) {
-    return undefined;
-  }
-  return {
-    kind: "InvocationExpression",
-    callee: {
-      kind: "SimpleMemberAccessExpression",
-      receiver,
-      name: selection.targetMemberName,
-    },
-    arguments: [argument],
-  };
-}
-
 export function tryPlanJsArrayMutationExpression(
   node: Node,
   sourceFile: SourceFile,

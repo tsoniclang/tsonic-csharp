@@ -10,7 +10,6 @@ import {
 } from "./arrays.js";
 import {
   csharpJsCollectionCallPolicies,
-  csharpJsCollectionElementPolicies,
   csharpJsCollectionPropertyPolicies,
 } from "./collections.js";
 import {
@@ -86,7 +85,6 @@ export const csharpJsSourceProfilePropertyPolicies:
 export const csharpJsSourceProfileElementPolicies:
   readonly CsharpSourceProfileElementPolicy[] = Object.freeze([
     ...csharpJsArrayElementPolicies,
-    ...csharpJsCollectionElementPolicies,
     ...csharpJsRegExpElementPolicies,
     ...csharpJsStringElementPolicies,
     ...csharpJsBinaryElementPolicies,

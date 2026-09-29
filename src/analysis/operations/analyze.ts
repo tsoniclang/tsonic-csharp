@@ -3,6 +3,7 @@ import { getCsharpGenericMethodValue } from "../../target-model/types/generic-me
 import { getCsharpClassFactory } from "../../target-model/types/class-factories.js";
 import { classifyCsharpOptionalCallReceiver } from "./optional-calls.js";
 import { selectCsharpMemoryBinding } from "../../policy/operations/memory-bindings.js";
+import { selectCsharpElementDeletion } from "../../policy/operations/collections/element-deletion.js";
 import { selectCsharpSwitch } from "../../policy/operations/control-flow/switch.js";
 import {
   createTargetClassificationBuilder,
@@ -88,6 +89,7 @@ const callKey = createTargetClassificationKey<CsharpCallClassification>(
   "csharp.operation.call",
 );
 const memoryBindingKey = createTargetClassificationKey<ReturnType<typeof selectCsharpMemoryBinding>>("csharp.operation.memory-binding");
+const elementDeletionKey = createTargetClassificationKey<ReturnType<typeof selectCsharpElementDeletion>>("csharp.operation.element-deletion");
 const constructionKey = createTargetClassificationKey<CsharpConstructionClassification>(
   "csharp.operation.construction",
 );
@@ -194,6 +196,7 @@ export function analyzeCsharpTargetOperations(
     jsVoid: (node) => facts.get(node, jsVoidKey),
     jsObjectLiteral: (node) => facts.get(node, jsObjectLiteralKey),
     jsArrayMutation: (node) => facts.get(node, jsArrayMutationKey),
+    elementDeletion: (node) => facts.get(node, elementDeletionKey),
     jsStringConversion: (node) => facts.get(node, jsStringConversionKey),
     providerValue: (node) => facts.get(node, providerValueKey),
     regularExpression: (node) => facts.get(node, regularExpressionKey),
@@ -277,7 +280,10 @@ function visit(
       selectCsharpJsStringConversion(policy, node, sourceFile),
     );
   }
-  if (ast.is.IsDeleteExpression(node) || ast.is.IsBinaryExpression(node) ||
+  if (ast.is.IsDeleteExpression(node)) {
+    setClassification(builder, node, elementDeletionKey, selectCsharpElementDeletion(policy, node, sourceFile));
+  }
+  if (ast.is.IsBinaryExpression(node) ||
     ast.is.IsPrefixUnaryExpression(node) || ast.is.IsPostfixUnaryExpression(node)) {
     setClassification(
       builder,

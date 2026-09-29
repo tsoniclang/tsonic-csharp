@@ -42,6 +42,7 @@ import {
 import {
   translateCsharpSelectedReceiver,
 } from "../receivers.js";
+import { csharpRecordOperation } from "../../objects/indexed-records.js";
 
 export function translateCsharpElementAccess(
   node: Node,
@@ -290,6 +291,23 @@ function translateSelectedElement(
       ));
     }
     return undefined;
+  }
+  if (selection.invocation.kind === "record-optional-read") {
+    if (selection.source.accessMode !== "read") return undefined;
+    if (selection.source.optionalChain) {
+      const owner = selection.targetMember.declaringType;
+      const type = owner === undefined ? undefined
+        : csharpTypeFromTargetTypeRef(getCsharpNullableElementTargetType(owner) ?? owner, input.scope.typeParameterNames);
+      const returnType = selection.targetMember.returnType;
+      const result = returnType === undefined ? undefined
+        : csharpTypeFromTargetTypeRef(csharpNullableTargetType(returnType), input.scope.typeParameterNames);
+      if (type === undefined || result === undefined) return undefined;
+      const name = input.names.temporaryName(`__tsonic_record_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`);
+      return { kind: "ConditionalExpression", condition: { kind: "IsPatternExpression", expression: receiver, type, designation: name },
+        whenTrue: csharpRecordOperation("GetOrDefault", [{ kind: "IdentifierName", name }, argument.expression]),
+        whenFalse: { kind: "DefaultExpression", type: result } };
+    }
+    return csharpRecordOperation("GetOrDefault", [receiver, argument.expression]);
   }
   if (selection.invocation.kind === "array-like") {
     const projection = selection.invocation.projection;

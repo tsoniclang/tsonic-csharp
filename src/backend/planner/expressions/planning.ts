@@ -73,9 +73,9 @@ import {
   planPrefixUnaryExpression,
 } from "./expression-unary.js";
 import {
-  tryPlanJsArrayDeleteExpression,
   tryPlanJsArrayMutationExpression,
 } from "./expression-js-array-mutations.js";
+import { planCsharpElementDeletion } from "./expression-element-deletion.js";
 import {
   tryPlanSourceSyntaxExpression,
 } from "./expression-source-syntax.js";
@@ -309,7 +309,7 @@ function planExpressionCore(
     case KindVoidExpression:
       return planVoidExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     case KindDeleteExpression:
-      return tryPlanJsArrayDeleteExpression(
+      return planCsharpElementDeletion(
         node,
         sourceFile,
         input,

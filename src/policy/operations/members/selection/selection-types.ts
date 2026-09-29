@@ -102,6 +102,7 @@ export type CsharpSelectedTargetMethodTypeArgument =
 
 export type CsharpTargetElementInvocation =
   | { readonly kind: "indexer" }
+  | { readonly kind: "record-optional-read" }
   | { readonly kind: "array-like"; readonly projection: import("../../../conversions/selection/model.js").CsharpArrayLikeUnionProjection }
   | {
       readonly kind: "method";

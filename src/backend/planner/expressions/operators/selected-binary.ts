@@ -249,8 +249,8 @@ export function planSelectedCsharpBinaryOperation(
       { ...input, storageExpression },
       diagnostics,
     );
-    const expectedRightType = csharpTypeFromTargetTypeRef(selection.leftType, input.scope.typeParameterNames);
-    const right = selection.sourceOperator === "=" && expectedRightType !== undefined
+    const expectedRightType = csharpTypeFromTargetTypeRef(selection.rightInputType, input.scope.typeParameterNames);
+    const right = expectedRightType !== undefined
       ? planExpressionWithExpectedType(
           selection.right,
           sourceFile,
@@ -258,7 +258,7 @@ export function planSelectedCsharpBinaryOperation(
           diagnostics,
           expectedRightType,
           undefined,
-          selection.leftType,
+          selection.rightInputType,
         )
       : planExpression(
           selection.right,

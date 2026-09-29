@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { csharpBigIntegerTargetType } from "../../../dist/target-model/types/scalar-types.js";
 
 import {
   csharpSourcePrimitiveTargetType,
@@ -22,6 +23,7 @@ const ast = {
   },
   elements: (node) => node.elements ?? [],
   kindName: (node) => node.kindName,
+  authoredRange: () => ({ kind: "synthetic" }),
   operatorKindName: (node) => node.operator,
   text: (node) => node.text,
 };
@@ -109,6 +111,17 @@ test("C# numeric promotion honors an exact enclosing result type only for repres
     ),
     promoted("float64"),
   );
+});
+
+test("C# native integer operands retain exact bigint literal bounds", () => {
+  for (const [name, text] of [["uint64", "9007199254740993"], ["uint64", "18446744073709551615"], ["int64", "9223372036854775807"]]) {
+    assert.deepEqual(selectCsharpNumericBinaryPromotion(input, value, primitive(name),
+      { kind: "bigint", kindName: "KindBigIntLiteral", text: `${text}n` }, csharpBigIntegerTargetType()), promoted(name));
+  }
+  for (const [name, text] of [["uint64", "18446744073709551616"], ["int64", "9223372036854775808"]]) {
+    assert.equal(selectCsharpNumericBinaryPromotion(input, value, primitive(name),
+      { kind: "bigint", kindName: "KindBigIntLiteral", text: `${text}n` }, csharpBigIntegerTargetType()), undefined);
+  }
 });
 
 function assertPromotion(left, right, result) {
