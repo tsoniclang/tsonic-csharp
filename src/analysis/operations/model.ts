@@ -19,7 +19,7 @@ import type {
   CsharpTargetCallSelection,
   CsharpTargetElementSelection,
   CsharpTargetPropertySelection,
-  ResolvedSourceSignatureCallInfo,
+  ResolvedSourceCallInfo,
 } from "../../policy/operations/members/index.js";
 import type {
   resolveCsharpJsValueObjectShapeProperty,
@@ -69,7 +69,7 @@ export interface CsharpCallClassification
     readonly conversion?: CsharpConversionSelection;
   };
   readonly unionCall: import("./union-calls.js").CsharpUnionCallClassification;
-  readonly source?: ResolvedSourceSignatureCallInfo;
+  readonly source?: ResolvedSourceCallInfo;
   readonly sourceFlow: CsharpSourceFlowCallSelection;
   readonly jsValue: CsharpJsValueOperationSelection;
   readonly target?: CsharpTargetCallSelection;

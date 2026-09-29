@@ -1,4 +1,4 @@
-import type { Node, ResolvedSourceSignatureCallInfo, SourceFile } from "@tsonic/tsts";
+import type { Node, ResolvedSourceCallInfo, SourceFile } from "@tsonic/tsts";
 import { asSourceNode } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/runtime-carriers.js";
@@ -7,6 +7,7 @@ import { getCsharpNullableElementTargetType } from "../../target-model/types/nul
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpSourceArgumentPassingMode } from "../../policy/operations/members/selection/argument-selection.js";
 import { substituteTargetTypeParameters } from "../../policy/types/callables/substitution.js";
+import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 
 export type CsharpUnionCallClassification =
   | { readonly kind: "not-union" }
@@ -22,7 +23,7 @@ export type CsharpUnionCallClassification =
 
 export function classifyCsharpUnionCall(
   policy: CsharpPolicyContext,
-  source: ResolvedSourceSignatureCallInfo | undefined,
+  source: ResolvedSourceCallInfo | undefined,
   sourceFile: SourceFile,
 ): CsharpUnionCallClassification {
   if (source === undefined || !policy.ast.is.IsPropertyAccessExpression(source.sourceCallee.expression)) return { kind: "not-union" };
@@ -72,11 +73,11 @@ export function classifyCsharpUnionCall(
     const name = policy.ast.name(declaration);
     const parameters = policy.ast.parameters(declaration);
     if (!policy.ast.is.IsIdentifier(name) || parameters.length !== parameterTypes.length) return undefined;
-    const typeParameters = policy.ast.typeParameters(declaration);
-    if (typeParameters.length !== typeArguments.length || typeParameters.some(parameter =>
-      parameter === undefined || !policy.ast.is.IsIdentifier(policy.ast.name(parameter)))) return undefined;
+    const typeParameters = policy.ast.typeParameters(declaration).map(parameter =>
+      parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast));
+    if (typeParameters.length !== typeArguments.length || typeParameters.some(parameter => parameter === undefined)) return undefined;
     const substitutions = new Map(typeParameters.map((parameter, index) =>
-      [policy.ast.text(policy.ast.name(parameter)), typeArguments[index]!] as const));
+      [parameter!.identity, typeArguments[index]!] as const));
     const instantiate = (member: Node, type: TargetTypeRef | undefined) => {
       if (type === undefined) return undefined;
       const value = policy.projectTypes.instantiateMemberType(member, arm,

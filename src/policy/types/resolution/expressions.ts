@@ -1,6 +1,6 @@
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
-import type { Node, ResolvedSourceSignatureCallInfo, Type } from "@tsonic/tsts";
+import type { Node, ResolvedSourceCallInfo, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
@@ -406,7 +406,7 @@ export function resolveProjectThisTargetType(
 
 export function resolveSourceOwnedCallResult(
   { resolveSourceCallResultWithState }: CsharpTypeResolutionScope,
-  source: ResolvedSourceSignatureCallInfo,
+  source: ResolvedSourceCallInfo,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
@@ -464,7 +464,7 @@ export function resolveSelectedReceiverTargetType(
 export function resolveSourceOwnedConstructionResult(
   { host, projectSourceDeclarationTargetType, resolveAuthoredAndSelectedSourceType, resolveSourceOwnedCallResult,
     resolveNodeWithState, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
-  source: ResolvedSourceSignatureCallInfo,
+  source: ResolvedSourceCallInfo,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {

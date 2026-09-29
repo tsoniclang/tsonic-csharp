@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { join } from "node:path";
-import { checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { optionalIndexedArgumentsSource } from "../../../../tsonic/test/fixtures/optional-indexed-arguments.mjs";
 import { unionCallContractsFiles, incompatibleUnionCalls } from "../../../../tsonic/test/fixtures/union-call-contracts.mjs";
 import { classStructuralConversionFiles, invalidClassStructuralConversions } from "../../../../tsonic/test/fixtures/class-structural-conversions.mjs";
@@ -144,6 +144,7 @@ test("class factories retain distinct evaluation and constructor exception bound
 test("local class scopes preserve authored names and cross-file generic instance identities", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", files: authoredLocalTypesFiles,
     sourceText: authoredLocalTypesFiles["index.ts"] });
+  assertCsharpCompilationSucceeded(compiled);
   const generated = [...compiled.artifacts.values()].join("\n");
   assert.equal([...generated.matchAll(/\bclass Entry\b/g)].length, 4);
   assert.match(generated, /\breadValue\(/);

@@ -10,9 +10,9 @@ function model(members) {
 }
 
 test("C# source declaration diagnostics consume the shared member identity owner", () => {
-  const first = { id: "First", name: "select", kind: "intrinsic" };
+  const first = { id: "First", name: "select", kind: "property", type: { kind: "number" } };
   for (const second of [
-    { id: "Second", name: "select", kind: "intrinsic" },
+    { id: "Second", name: "select", kind: "property", type: { kind: "number" } },
     { id: "Second", name: { kind: "string-literal", text: "select" }, kind: "property", type: { kind: "number" } },
     { id: "Second", name: { kind: "identifier", text: "select" }, kind: "method", signatures: [{ id: "Second.Call", parameters: [], returnType: { kind: "void" } }] },
   ]) {

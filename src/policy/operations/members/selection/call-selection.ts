@@ -2,7 +2,7 @@ import type {
   ExtensionDiagnostic,
   Node,
   SourceFile,
-  ResolvedSourceSignatureCallInfo,
+  ResolvedSourceCallInfo,
 } from "@tsonic/tsts";
 import type {
   SourceProgramNavigation,
@@ -27,12 +27,12 @@ import {
 export type CsharpProviderCallSelection =
   | {
       readonly kind: "resolved";
-      readonly source: ResolvedSourceSignatureCallInfo;
+      readonly source: ResolvedSourceCallInfo;
       readonly call: CsharpInstantiatedProviderCall;
     }
   | {
       readonly kind: "not-provider";
-      readonly source: ResolvedSourceSignatureCallInfo;
+      readonly source: ResolvedSourceCallInfo;
       readonly reason: string;
     }
   | {
@@ -67,7 +67,7 @@ export function selectCsharpProviderCall(
   const source = host.semantics(sourceFile).operations.call(
     call,
   );
-  if (source === undefined || source.outcome === "intrinsic") {
+  if (source === undefined) {
     return {
       kind: "missing",
       reason: "The checker did not resolve an exact source call.",
@@ -132,7 +132,7 @@ export function selectCsharpProviderCall(
 
 function selectResolvedProviderCall(
   host: CsharpProviderCallSelectionHost,
-  source: ResolvedSourceSignatureCallInfo,
+  source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   resolution: Extract<
     CsharpProviderOperationResolution,

@@ -36,7 +36,7 @@ import {
 } from "../../policy/operations/members/index.js";
 import type {
   CsharpSelectedTargetCall,
-  ResolvedSourceSignatureCallInfo,
+  ResolvedSourceCallInfo,
 } from "../../policy/operations/members/index.js";
 import {
   selectCsharpBinaryOperation,
@@ -328,7 +328,6 @@ function visit(
   if (ast.is.IsCallExpression(node)) {
     const expression = ast.as.AsCallExpression(node);
     const source = policy.semantics(sourceFile).operations.call(node);
-    if (source?.outcome === "intrinsic") return;
     const callee = source?.sourceCallee.expression ?? expression?.Expression;
     const shape = jsValueCallShape(policy, source);
     const jsValue = selectCsharpJsValueCallOperation(
@@ -828,7 +827,7 @@ type JsValueCallShape =
 
 function jsValueCallShape(
   policy: CsharpPolicyContext,
-  source: ResolvedSourceSignatureCallInfo | undefined,
+  source: ResolvedSourceCallInfo | undefined,
 ): JsValueCallShape {
   const access = source?.sourceCalleeAccess;
   if (

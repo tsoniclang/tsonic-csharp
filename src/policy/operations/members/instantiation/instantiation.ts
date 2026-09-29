@@ -56,7 +56,7 @@ import type {
   CsharpProviderArgumentMapping,
   CsharpSelectedTargetMethodTypeArgument,
   CsharpSelectedTargetCall,
-  ResolvedSourceSignatureCallInfo,
+  ResolvedSourceCallInfo,
 } from "../selection/selection-types.js";
 
 type CsharpProviderSignatureRelation = Extract<
@@ -94,7 +94,7 @@ export interface CsharpProviderCallInstantiationHost {
 export function instantiateCsharpProviderCall(
   host: CsharpProviderCallInstantiationHost,
   relation: CsharpProviderSignatureRelation,
-  source: ResolvedSourceSignatureCallInfo,
+  source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
 ): CsharpProviderCallInstantiation {
   const relationError = validateProviderCallRelation(
@@ -274,7 +274,7 @@ export function compareInstantiatedProviderCalls(
 function resolveProviderBindingTypeArguments(
   host: CsharpProviderCallInstantiationHost,
   relation: CsharpProviderSignatureRelation,
-  source: ResolvedSourceSignatureCallInfo,
+  source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
 ): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
   if (
@@ -343,7 +343,7 @@ function resolveProviderBindingTypeArguments(
 function validateProviderCallRelation(
   sourceFacts: ReadonlySourceFactResolver | undefined,
   relation: CsharpProviderSignatureRelation,
-  source: ResolvedSourceSignatureCallInfo,
+  source: ResolvedSourceCallInfo,
 ): string | undefined {
   const sourceParameters = source.sourceSelectedSignatureParameters;
   if (
@@ -412,7 +412,7 @@ function validateProviderCallRelation(
 function resolveMethodTypeArguments(
   host: CsharpProviderCallInstantiationHost,
   relation: CsharpProviderSignatureRelation,
-  source: ResolvedSourceSignatureCallInfo,
+  source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   bindingArguments: readonly TargetTypeRef[],
 ): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
@@ -474,7 +474,7 @@ function resolveMethodTypeArguments(
 function resolveInvocationTypeArguments(
   types: CsharpTypePolicy,
   relation: CsharpProviderSignatureRelation,
-  source: ResolvedSourceSignatureCallInfo,
+  source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
 ): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
   const targetArity = relation.targetMember.csharpInvocation?.kind ===
@@ -580,7 +580,7 @@ function targetTypeParameterSubstitutions(
 function relateCallArguments(
   relation: CsharpProviderSignatureRelation,
   targetMember: CsharpTargetMember,
-  source: ResolvedSourceSignatureCallInfo,
+  source: ResolvedSourceCallInfo,
 ): readonly CsharpSelectedCallArgument[] | undefined {
   const parameterBySource = new Map(
     relation.parameters.map((parameter) => [
@@ -624,7 +624,7 @@ function validateArgumentsTargetSelectedParameters(
   host: CsharpProviderCallInstantiationHost,
   relation: CsharpProviderSignatureRelation,
   targetMember: CsharpTargetMember,
-  source: ResolvedSourceSignatureCallInfo,
+  source: ResolvedSourceCallInfo,
   arguments_: readonly CsharpSelectedCallArgument[],
   sourceFile: SourceFile,
 ): CsharpProviderArgumentValidation {

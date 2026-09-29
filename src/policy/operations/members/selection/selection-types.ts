@@ -15,7 +15,7 @@ import type {
   TargetTypeRef,
 } from "../../../types/index.js";
 
-export type { ResolvedSourceSignatureCallInfo } from "@tsonic/tsts";
+export type { ResolvedSourceCallInfo } from "@tsonic/tsts";
 
 export interface CsharpSelectedCallArgument {
   readonly sourceArgumentIndex: number;

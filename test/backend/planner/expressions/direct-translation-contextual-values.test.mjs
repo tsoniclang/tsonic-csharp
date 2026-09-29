@@ -103,11 +103,11 @@ test("direct C# translation preserves authored primitive aliases through structu
 {
     public static class Index
     {
-        public static ObjectShape_bec4e12bebdc<int> nextId
+        public static ObjectShape_eea9450c666d<int> nextId
         {
             get;
             private set;
-        } = default(ObjectShape_bec4e12bebdc<int>)!;
+        } = default(ObjectShape_eea9450c666d<int>)!;
         public static int takeNext()
         {
             int id = nextId.value;
@@ -117,7 +117,7 @@ test("direct C# translation preserves authored primitive aliases through structu
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
         {
-            nextId = new ObjectShape_06017e56da48
+            nextId = new ObjectShape_7ab1a9d04905
             {
                 value = 1,
             };
@@ -134,7 +134,7 @@ test("direct C# translation preserves authored primitive aliases through structu
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public class ObjectShape_06017e56da48 : ObjectShape_bec4e12bebdc<int>
+    public class ObjectShape_7ab1a9d04905 : ObjectShape_eea9450c666d<int>
     {
         public required int value
         {
@@ -142,7 +142,7 @@ test("direct C# translation preserves authored primitive aliases through structu
             set;
         }
     }
-    public interface ObjectShape_bec4e12bebdc<Property0>
+    public interface ObjectShape_eea9450c666d<Property0>
     {
         Property0 value { get; set; }
     }

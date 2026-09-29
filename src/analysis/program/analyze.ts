@@ -31,12 +31,9 @@ import type {
   CsharpPlanningRepresentationQueries,
 } from "../../policy/types/index.js";
 import type {
-  ResolvedSourceSignatureCallInfo,
+  ResolvedSourceCallInfo,
 } from "../operations/index.js";
-import {
-  createTsonicAttributeApplicationFactIndex,
-} from "@tsonic/source-core/facts";
-import { diagnoseCsharpAttributeTypeValues } from "../attributes/type-validation.js";
+import { analyzeCsharpAttributeApplications } from "../attributes/application-index.js";
 import {
   createCsharpSafetyApplicationFactIndex,
 } from "../safety/application-index.js";
@@ -254,13 +251,9 @@ export function analyzeCsharpTargetProgram(
     request.binaryExecutionDriver,
     operationBinaryExecutionDriver,
   );
-  const attributeApplications = createTsonicAttributeApplicationFactIndex({
-    ast: source.ast,
-    sourceFiles: source.navigation.sourceFiles,
-    sourceFacts: source.sourceFacts,
-  });
-  const attributeIssues = diagnoseCsharpAttributeTypeValues(source, attributeApplications);
-  if (attributeIssues.length > 0) return rejectedTargetStage(attributeIssues);
+  const attributes = analyzeCsharpAttributeApplications(source, source.navigation.sourceFiles);
+  if (attributes.diagnostics.length > 0) return rejectedTargetStage(attributes.diagnostics);
+  const attributeApplications = attributes.index;
   const safetyApplications = createCsharpSafetyApplicationFactIndex({
     ast: source.ast,
     sourceFiles: source.navigation.sourceFiles,
@@ -441,7 +434,7 @@ function analyzeIteration(
 
 function sourceCallableContract(
   input: CsharpTargetAnalysisRequest["input"],
-  source: ResolvedSourceSignatureCallInfo,
+  source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   typeSystem: CsharpTypeSystem | undefined,
   callables: CsharpCallableContractIndex | undefined,

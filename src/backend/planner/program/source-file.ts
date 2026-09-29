@@ -37,7 +37,7 @@ import type {
   CsharpTypeMember,
   CsharpTypeNode,
 } from "../../target-ast/roslyn/index.js";
-import { diagnoseUnresolvedAttributeApplications, isErasedAttributeExpressionStatement } from "../declarations/attributes.js";
+import { isErasedAttributeExpressionStatement } from "../declarations/attributes.js";
 import {
   getCsharpTypeForNode,
   predefined,
@@ -186,7 +186,6 @@ export function planSourceFile(
       return topLevelStatements;
     },
   );
-  diagnoseUnresolvedAttributeApplications(sourceFile, input, diagnostics);
   diagnoseCsharpSafetyApplications(sourceFile, input, diagnostics);
   if (hasModuleInitializer) {
     const initializationStatements = [

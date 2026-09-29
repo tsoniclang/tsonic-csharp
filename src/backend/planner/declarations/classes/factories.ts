@@ -12,7 +12,7 @@ import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { planExpression, planExpressionWithExpectedType } from "../../expressions/index.js";
 import { planClassMembers } from "./members.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
-import { planOuterTypeParameters, planTypeParameters } from "../../types/type-parameters.js";
+import { createCsharpTypeParameterPlanningContext, planOuterTypeParameters, planTypeParameters } from "../../types/type-parameters.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { planClassStaticBlockDeclaration } from "./constructors.js";
 
@@ -134,8 +134,9 @@ export function completeLocalClassConstructor(
 
 export function planClassFactoryDeclaration(
   factory: CsharpClassFactory, instanceDeclaration: CsharpClassDeclaration,
-  input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
+  outerInput: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration {
+  const input = createCsharpTypeParameterPlanningContext(factory.declaration, outerInput);
   const slots = captureSlots(factory, input, diagnostics);
   const context = classFactoryContext(factory, { kind: "IdentifierName", name: "this" }, input, diagnostics, "factory");
   const staticNodes = input.program.source.ast.members(factory.declaration).filter(node => node !== undefined &&
@@ -187,9 +188,10 @@ export function planClassFactoryDeclaration(
 }
 
 export function planClassFactoryIdentity(
-  factory: CsharpClassFactory, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
+  factory: CsharpClassFactory, outerInput: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceDeclaration | undefined {
   if (factory.identity === undefined) return undefined;
+  const input = createCsharpTypeParameterPlanningContext(factory.declaration, outerInput);
   return { kind: "InterfaceDeclaration", name: factory.identity.name, modifiers: ["public"],
     typeParameters: planOuterTypeParameters(factory.declaration, input, diagnostics),
     members: [{ kind: "PropertyDeclaration", name: factory.environmentName,

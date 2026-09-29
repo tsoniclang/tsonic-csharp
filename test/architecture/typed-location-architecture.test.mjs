@@ -23,7 +23,7 @@ const neutralFactReaders = new Map([
   ["tsonicNativePointerOperationFactKey", ["src/policy/operations/pointers/source-native-pointers.ts"]],
   ["tsonicSafetyBuilderFactKey", ["src/policy/operations/safety/explicit.ts"]],
   ["tsonicUnsafeContextFactKey", ["src/policy/operations/safety/explicit.ts"]],
-  ["tsonicAttributeBuilderFactKey", ["src/analysis/attributes/application-index.ts"]],
+  ["createTsonicAttributeApplicationFactIndex", ["src/analysis/attributes/application-index.ts"]],
 ]);
 
 function sourceFiles(directory) {
@@ -68,6 +68,7 @@ test("C# backend consumes target-owned marker models only", () => {
     "StructFact",
     "TsonicAttributeApplicationFact",
     "TsonicAttributeBuilderFact",
+    "tsonicAttributeBuilderFactKey",
     "TsonicNativePointerOperationFact",
     "TsonicSafetyApplicationFact",
     "TsonicSafetyBuilderFact",

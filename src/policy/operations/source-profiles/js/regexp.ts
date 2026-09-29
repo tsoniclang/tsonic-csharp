@@ -557,7 +557,7 @@ function regexpReceiverHasNativeExecution(
   if (!ast.is.IsNewExpression(origin)) return false;
   const semantics = context.host.semantics(ast.getSourceFile(origin) ?? context.sourceFile);
   const selected = semantics.operations.call(origin);
-  const identity = selected === undefined || selected.outcome === "intrinsic" ? undefined : csharpSourceProfileDeclarationIdentity(
+  const identity = selected === undefined ? undefined : csharpSourceProfileDeclarationIdentity(
     ast, semantics, context.host.sourceFacts,
     semantics.declarations.signatureDeclaration(selected.selectedSignature),
   );

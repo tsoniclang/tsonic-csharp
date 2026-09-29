@@ -8,7 +8,7 @@ import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/ro
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { CsharpTargetParameter } from "../../../../../target-model/types/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { ResolvedSourceSignatureCallInfo } from "../../../../../analysis/operations/index.js";
+import type { ResolvedSourceCallInfo } from "../../../../../analysis/operations/index.js";
 import type { CsharpCallClassification } from "../../../../../analysis/operations/index.js";
 import type { CsharpSourceCallArgumentClassification } from "../../../../../analysis/operations/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -16,7 +16,7 @@ import { csharpSourceArgumentGroups } from "./source-argument-groups.js";
 
 export function translateSourceOwnedCall(
   node: Node,
-  source: ResolvedSourceSignatureCallInfo,
+  source: ResolvedSourceCallInfo,
   classification: CsharpCallClassification,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
@@ -98,7 +98,7 @@ export function translateSourceOwnedCall(
 
 export function translateSourceOwnedArguments(
   node: Node,
-  source: ResolvedSourceSignatureCallInfo,
+  source: ResolvedSourceCallInfo,
   classification: CsharpSourceCallArgumentClassification,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
@@ -116,7 +116,7 @@ export function translateSourceOwnedArguments(
   const restIndex = nativeParameters.findIndex(parameter => parameter.paramsArray === true);
   const bindingsBySourceArgument = new Map<
     number,
-    ResolvedSourceSignatureCallInfo["sourceArgumentBindings"]
+    ResolvedSourceCallInfo["sourceArgumentBindings"]
   >();
   for (const binding of source.sourceArgumentBindings) {
     const existing = bindingsBySourceArgument.get(binding.sourceArgumentIndex) ??

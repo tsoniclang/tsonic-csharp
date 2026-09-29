@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import { csharpSourceTypeParameters } from "../../../../../target-model/names/type-parameters.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpCallClassification, ResolvedSourceSignatureCallInfo } from "../../../../../analysis/operations/index.js";
+import type { CsharpCallClassification, ResolvedSourceCallInfo } from "../../../../../analysis/operations/index.js";
 import { isCsharpVoidTargetType } from "../../../../../target-model/types/identity.js";
 import type { CsharpArgument, CsharpExpression, CsharpMethodDeclaration, CsharpStatement } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
@@ -14,7 +14,7 @@ import { csharpSourceArgumentGroups } from "./source-argument-groups.js";
 
 export function planCsharpUnionDispatcherCall(
   node: Node,
-  source: ResolvedSourceSignatureCallInfo,
+  source: ResolvedSourceCallInfo,
   classification: CsharpCallClassification,
   receiver: CsharpExpression,
   arguments_: readonly CsharpArgument[],
