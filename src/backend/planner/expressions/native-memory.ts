@@ -4,11 +4,12 @@ import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { csharpRuntimeNativeLayoutTargetType, csharpRuntimeNativeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/runtime-carriers.js";
 
 export function planCsharpNativeMemoryCall(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   method: "Allocate" | "ToRaw" | "Reinterpret", value: CsharpExpression, layout: CsharpNativeMemoryLayout,
 ): CsharpExpression | undefined {
-  const pointee = csharpTypeFromTargetTypeRef(layout.pointeeType);
-  const owner = csharpTypeFromTargetTypeRef(csharpRuntimeNativeLocationTargetType());
-  const codec = planCsharpNativeLayout(layout);
+  const pointee = csharpTypeFromTargetTypeRef(layout.pointeeType, typeParameterNames);
+  const owner = csharpTypeFromTargetTypeRef(csharpRuntimeNativeLocationTargetType(), typeParameterNames);
+  const codec = planCsharpNativeLayout(typeParameterNames, layout);
   if (pointee === undefined || owner === undefined || codec === undefined) return undefined;
   return { kind: "InvocationExpression", callee: {
     kind: "SimpleMemberAccessExpression",
@@ -17,16 +18,16 @@ export function planCsharpNativeMemoryCall(
   }, arguments: [value, codec].map(expression => ({ kind: "Argument", expression })) };
 }
 
-export function planCsharpNativeArray(initial: CsharpExpression, layout: CsharpNativeMemoryLayout, stride: number): CsharpExpression | undefined {
-  const type = csharpTypeFromTargetTypeRef(csharpRuntimeNativeArrayTargetType(layout.pointeeType));
-  const codec = planCsharpNativeLayout(layout);
+export function planCsharpNativeArray(typeParameterNames: ReadonlyMap<string, string> | undefined, initial: CsharpExpression, layout: CsharpNativeMemoryLayout, stride: number): CsharpExpression | undefined {
+  const type = csharpTypeFromTargetTypeRef(csharpRuntimeNativeArrayTargetType(layout.pointeeType), typeParameterNames);
+  const codec = planCsharpNativeLayout(typeParameterNames, layout);
   return type === undefined || codec === undefined ? undefined : { kind: "ObjectCreationExpression", type,
     arguments: [initial, codec, numeric(stride)].map(expression => ({ kind: "Argument", expression })) };
 }
 
-function planCsharpNativeLayout(layout: CsharpNativeMemoryLayout): CsharpExpression | undefined {
-  const pointee = csharpTypeFromTargetTypeRef(layout.pointeeType);
-  const owner = csharpTypeFromTargetTypeRef(csharpRuntimeNativeLayoutTargetType(layout.kind === "scalar" ? undefined : layout.pointeeType));
+function planCsharpNativeLayout(typeParameterNames: ReadonlyMap<string, string> | undefined, layout: CsharpNativeMemoryLayout): CsharpExpression | undefined {
+  const pointee = csharpTypeFromTargetTypeRef(layout.pointeeType, typeParameterNames);
+  const owner = csharpTypeFromTargetTypeRef(csharpRuntimeNativeLayoutTargetType(layout.kind === "scalar" ? undefined : layout.pointeeType), typeParameterNames);
   if (pointee === undefined || owner === undefined) return undefined;
   const dimensions: CsharpExpression[] = [
     { kind: "NumericLiteralExpression" as const, value: layout.size },
@@ -49,7 +50,7 @@ function planCsharpNativeLayout(layout: CsharpNativeMemoryLayout): CsharpExpress
     current: CsharpNativeMemoryLayout, destination: CsharpExpression, source: CsharpExpression,
     offset: CsharpExpression, alignment: number, depth: number,
   ): { readonly read: readonly CsharpStatement[]; readonly write: readonly CsharpStatement[] } | undefined => {
-    const type = csharpTypeFromTargetTypeRef(current.pointeeType);
+    const type = csharpTypeFromTargetTypeRef(current.pointeeType, typeParameterNames);
     if (type === undefined) return undefined;
     if (current.kind === "array") {
       if (type.kind !== "ArrayType" || !/^(0|[1-9][0-9]*)$/u.test(current.length) ||

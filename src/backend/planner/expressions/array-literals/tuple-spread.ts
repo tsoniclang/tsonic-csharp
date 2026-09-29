@@ -60,7 +60,7 @@ export function planTupleSpreadArrayExpression(
       diagnostics.push(unsupportedNodeDiagnostic(spreadNode, `Tuple spread element ${index} requires a finalized tuple element carrier before C# emission.`));
       return undefined;
     }
-    if (!tupleElementMatchesTarget(tupleElement, elementTargetType, elementType)) {
+    if (!tupleElementMatchesTarget(input.scope.typeParameterNames, tupleElement, elementTargetType, elementType)) {
       diagnostics.push(unsupportedNodeDiagnostic(spreadNode, `Tuple spread element ${index} requires matching finalized tuple and target array element carriers before C# emission.`));
       return undefined;
     }
@@ -78,6 +78,7 @@ export function planTupleSpreadArrayExpression(
 }
 
 function tupleElementMatchesTarget(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   tupleElement: TargetTypeRef,
   elementTargetType: TargetTypeRef | undefined,
   elementType: CsharpTypeNode,
@@ -85,6 +86,6 @@ function tupleElementMatchesTarget(
   if (elementTargetType !== undefined) {
     return targetTypeRefEquals(tupleElement, elementTargetType);
   }
-  const tupleElementType = csharpTypeFromTargetTypeRef(tupleElement);
+  const tupleElementType = csharpTypeFromTargetTypeRef(tupleElement, typeParameterNames);
   return tupleElementType !== undefined && sameCsharpType(tupleElementType, elementType);
 }

@@ -211,6 +211,7 @@ function planJsValueObjectLiteral(
     return undefined;
   }
   return translateCsharpJsValueInvocation(
+    input.scope.typeParameterNames,
     operation,
     undefined,
     arguments_,

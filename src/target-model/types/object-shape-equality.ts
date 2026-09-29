@@ -10,7 +10,7 @@ export function csharpObjectShapesEqual(
   const leftMembers = canonicalCsharpObjectShapeMembers(left.members);
   const rightMembers = canonicalCsharpObjectShapeMembers(right.members);
   return targetTypeRefEquals(left.targetType, right.targetType) &&
-    JSON.stringify(left.covariantTypeParameters ?? []) === JSON.stringify(right.covariantTypeParameters ?? []) &&
+    JSON.stringify(left.covariantTypeParameterIdentities ?? []) === JSON.stringify(right.covariantTypeParameterIdentities ?? []) &&
     left.methodImplementation?.identity === right.methodImplementation?.identity &&
     left.methodImplementation?.declaration === right.methodImplementation?.declaration &&
     (left.methodImplementation?.captures.length ?? 0) === (right.methodImplementation?.captures.length ?? 0) &&

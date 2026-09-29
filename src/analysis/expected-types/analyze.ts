@@ -780,7 +780,7 @@ export function analyzeCsharpExpectedTypes(
       kind: "declaration",
       declaration: expression,
     });
-    if (callable === undefined || callable.methodTypeParameterNames.length > 0) {
+    if (callable === undefined || callable.methodTypeParameterIdentities.length > 0) {
       return declaredExpectedType;
     }
     return csharpCallableValueType(callable) ?? declaredExpectedType;

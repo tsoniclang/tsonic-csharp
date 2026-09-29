@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { join } from "node:path";
-import { checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { optionalIndexedArgumentsSource } from "../../../../tsonic/test/fixtures/optional-indexed-arguments.mjs";
 import { unionCallContractsFiles, incompatibleUnionCalls } from "../../../../tsonic/test/fixtures/union-call-contracts.mjs";
 import { classStructuralConversionFiles, invalidClassStructuralConversions } from "../../../../tsonic/test/fixtures/class-structural-conversions.mjs";
@@ -10,6 +10,7 @@ import { nestedArrayRestSource } from "../../../../tsonic/test/fixtures/nested-a
 import { nestedStructuralStorageFiles, invalidNestedStructuralStorageFiles } from "../../../../tsonic/test/fixtures/nested-structural-storage.mjs";
 import { bigintSwitchSource } from "../../../../tsonic/test/fixtures/bigint-switch.mjs";
 import { classFactoryEffectsFiles } from "../../../../tsonic/test/fixtures/class-factory-effects.mjs";
+import { authoredLocalTypesFiles } from "../../../../tsonic/test/fixtures/authored-local-types.mjs";
 import { tupleSatisfiesSource, invalidTupleSatisfiesSources } from "../../../../tsonic/test/fixtures/tuple-satisfies.mjs";
 import { initializedModuleStateFiles } from "../../../../tsonic/test/fixtures/initialized-module-state.mjs";
 import { nativeIntegerComplementSource } from "../../../../tsonic/test/fixtures/native-integer-complement.mjs";
@@ -138,6 +139,17 @@ test("checked satisfies tuples preserve distinct optional elements and evaluatio
 test("class factories retain distinct evaluation and constructor exception boundaries", { timeout: 300_000 }, () => {
   executeCsharpConstruction(compileCsharpSource({ surface: "js", files: classFactoryEffectsFiles,
     sourceText: classFactoryEffectsFiles["index.ts"] }), "class-factory-effects");
+});
+
+test("local class scopes preserve authored names and cross-file generic instance identities", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", files: authoredLocalTypesFiles,
+    sourceText: authoredLocalTypesFiles["index.ts"] });
+  assertCsharpCompilationSucceeded(compiled);
+  const generated = [...compiled.artifacts.values()].join("\n");
+  assert.equal([...generated.matchAll(/\bclass Entry\b/g)].length, 4);
+  assert.match(generated, /\breadValue\(/);
+  assert.doesNotMatch(generated, /\bclass Entry__\d/);
+  executeCsharpConstruction(compiled, "authored-local-types");
 });
 
 test("generic class statics share one native owner across closed instance types", { timeout: 300_000 }, () => {

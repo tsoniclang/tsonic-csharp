@@ -31,11 +31,13 @@ export function planClassHeritage(
   const baseType = heritage.baseType === undefined
     ? undefined
     : planHeritageType(
+        input.scope.typeParameterNames,
         heritage.baseType,
         classDeclaration,
         diagnostics,
       );
   const interfaces = planHeritageTypes(
+    input.scope.typeParameterNames,
     heritage.interfaces,
     classDeclaration,
     diagnostics,
@@ -59,6 +61,7 @@ export function planInterfaceHeritage(
     return [];
   }
   return planHeritageTypes(
+    input.scope.typeParameterNames,
     heritage.interfaces,
     interfaceDeclaration,
     diagnostics,
@@ -66,12 +69,14 @@ export function planInterfaceHeritage(
 }
 
 function planHeritageTypes(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   types: readonly TargetTypeRef[],
   declaration: Node,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeNode[] {
   return types.flatMap((type) => {
     const planned = planHeritageType(
+      typeParameterNames,
       type,
       declaration,
       diagnostics,
@@ -81,11 +86,12 @@ function planHeritageTypes(
 }
 
 function planHeritageType(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   type: TargetTypeRef,
   declaration: Node,
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
-  const planned = csharpTypeFromTargetTypeRef(type);
+  const planned = csharpTypeFromTargetTypeRef(type, typeParameterNames);
   if (planned === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       declaration,

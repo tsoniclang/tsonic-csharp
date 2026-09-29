@@ -462,7 +462,7 @@ function mapArrayMember(
     shape.receiver,
     [targetParameter("callbackfn", callback)],
     resultType,
-  ), typeParameters: [{ name: "U" }] };
+  ), typeParameters: [{ identity: "Tsonic.CSharp.Js.JSArray.map::0", name: "U" }] };
 }
 
 function forEachArrayMember(

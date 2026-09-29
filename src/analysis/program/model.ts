@@ -15,8 +15,8 @@ import type {
   CsharpProviderBinaryExecutionDriver,
 } from "../../providers/model/provider-policy-contribution.js";
 import type {
-  CsharpAttributeApplicationFactIndex,
-} from "../attributes/application-index.js";
+  CsharpAttributeApplicationIndex,
+} from "../attributes/model.js";
 import type {
   CsharpSafetyApplicationFactIndex,
 } from "../safety/application-index.js";
@@ -80,7 +80,7 @@ export interface CsharpTargetProgram {
   readonly source: TargetSourceSyntaxProgram;
   readonly sourceNavigation: TargetPlanningSourceNavigation;
   readonly sourceFiles: readonly SourceFile[];
-  readonly attributeApplications: CsharpAttributeApplicationFactIndex;
+  readonly attributeApplications: CsharpAttributeApplicationIndex;
   readonly safetyApplications: CsharpSafetyApplicationFactIndex;
   readonly projectTypes: CsharpProjectTypeClassifications;
   readonly objectShapes: CsharpObjectShapeClassifications;

@@ -229,7 +229,7 @@ export function planExpressionWithExpectedTypeCore(
         input,
         diagnostics,
         planners,
-        csharpTypeFromTargetTypeRef(expectedTargetType),
+        csharpTypeFromTargetTypeRef(expectedTargetType, input.scope.typeParameterNames),
         expectedTargetType,
       ),
     );

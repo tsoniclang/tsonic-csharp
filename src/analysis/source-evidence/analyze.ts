@@ -30,7 +30,7 @@ import {
   csharpTargetTypeComponents,
 } from "../../target-model/types/components.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { csharpSourceTypeParameterName } from "../../target-model/names/type-parameters.js";
+import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import type {
   TargetTypeRef,
 } from "../../target-model/types/model.js";
@@ -183,14 +183,14 @@ export function analyzeCsharpSourceEvidence(
     const symbol = semantics.declarations.typeSymbol(type);
     const typeParameters = symbol === undefined ? [] : semantics.declarations.symbolDeclarations(symbol)
       .filter(declaration => source.ast.is.IsTypeParameterDeclaration(declaration));
-    const typeParameterName = typeParameters.length === 1
-      ? csharpSourceTypeParameterName(typeParameters[0]!, source.ast) : undefined;
+    const typeParameter = typeParameters.length === 1
+      ? csharpSourceTypeParameter(typeParameters[0]!, source.ast) : undefined;
     const classification = Object.freeze({
       intrinsic,
       ...(arrayElementDefault === undefined ? {} : { arrayElementDefault }),
       nullish: semantics.types.isNullish(type),
       ...(targetType === undefined ? {} : { targetType }),
-      ...(typeParameterName === undefined ? {} : { typeParameterName }),
+      ...(typeParameter === undefined ? {} : { typeParameter }),
     });
     bySourceFile ??= new Map();
     bySourceFile.set(sourceFile, classification);
@@ -427,13 +427,13 @@ export function analyzeCsharpSourceEvidence(
     if (pointerReturn !== undefined) pointerReturns.set(node, pointerReturn);
     inferredReturns.set(node, recordTargetType(pointerReturn?.type ?? inferredReturn) ?? missing);
     if (source.ast.is.IsTypeParameterDeclaration(node)) {
-      const name = csharpSourceTypeParameterName(node, source.ast);
-      if (name !== undefined) {
+      const parameter = csharpSourceTypeParameter(node, source.ast);
+      if (parameter !== undefined) {
         typeParameterConstraints.set(
           node,
           resolveCsharpTypeParameterConstraints(
             node,
-            name,
+            parameter,
             sourceFile,
             { ast: source.ast, types },
           ),

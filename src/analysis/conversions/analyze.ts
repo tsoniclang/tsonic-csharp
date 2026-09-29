@@ -35,7 +35,7 @@ import type {
   CsharpConversionIssue,
 } from "./model.js";
 import { substituteTargetTypeParameters } from "../../policy/types/callables/substitution.js";
-import { csharpSourceTypeParameterName } from "../../target-model/names/type-parameters.js";
+import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import { selectCsharpIntegerTruncationConversion } from "../../policy/conversions/selection/integer-truncation.js";
 import { selectCsharpExactIntegerConversion } from "../../policy/conversions/selection/exact-integer.js";
 
@@ -345,8 +345,8 @@ export function analyzeCsharpConversions(
       });
       const substitutions = new Map(parameters.flatMap((parameter, index) => {
         const type = classification.sourceTypeArguments?.[index];
-        const name = parameter === undefined ? undefined : csharpSourceTypeParameterName(parameter, policy.ast);
-        return name === undefined || type === undefined ? [] : [[name, type] as const];
+        const identity = parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast)?.identity;
+        return identity === undefined || type === undefined ? [] : [[identity, type] as const];
       }));
       for (const [index, argument] of selectedArguments.entries()) {
         const parameter = parameters[index];

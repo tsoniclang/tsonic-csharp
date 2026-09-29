@@ -11,6 +11,8 @@ import type {
   CsharpTypeParameterConstraint,
 } from "../../../target-model/declarations/generic-constraints.js";
 import type { CsharpProjectedType } from "../../../target-model/types/projections.js";
+import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
+import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
 
 export function planTypeParameters(
   nodes: readonly (Node | undefined)[],
@@ -21,7 +23,7 @@ export function planTypeParameters(
   const projections = owner === undefined ? [] : input.program.typeProjections.get(owner);
   return [...nodes
     .filter((node): node is Node => node !== undefined)
-    .map((node) => planTypeParameter(node, input, diagnostics)), ...planProjectedTypeParameters(projections, owner, diagnostics)];
+    .map((node) => planTypeParameter(node, input, diagnostics)), ...planProjectedTypeParameters(projections, owner, input, diagnostics)];
 }
 
 export function planOuterTypeParameters(
@@ -30,17 +32,17 @@ export function planOuterTypeParameters(
   const definition = input.types.projectTypes.definitionContainingDeclaration(owner);
   return definition === undefined ? [] : [
     ...definition.outerTypeParameters.map(parameter => planTypeParameter(parameter, input, diagnostics)),
-    ...planProjectedTypeParameters(definition.outerTypeProjections, owner, diagnostics),
+    ...planProjectedTypeParameters(definition.outerTypeProjections, owner, input, diagnostics),
   ];
 }
 
 function planProjectedTypeParameters(
-  projections: readonly CsharpProjectedType[], owner: Node | undefined, diagnostics: TargetDiagnostic[],
+  projections: readonly CsharpProjectedType[], owner: Node | undefined, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeParameter[] {
   return projections.map(parameter => ({
-      name: parameter.name,
+      name: sanitizeIdentifier(input.scope.typeParameterNames?.get(parameter.identity) ?? parameter.name),
       constraints: parameter.csharpProjectionConstraints.flatMap(constraint => {
-        const selected = csharpGenericConstraintFromTargetTypeParameterConstraint(constraint, owner!, diagnostics);
+        const selected = csharpGenericConstraintFromTargetTypeParameterConstraint(input.scope.typeParameterNames, constraint, owner!, diagnostics);
         return selected === undefined ? [] : [selected];
       }),
     }));
@@ -52,7 +54,10 @@ export function planTypeParameter(
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeParameter {
   const declaration = AsTypeParameterDeclaration(input.program.source.ast, node)!;
-  const name = planIdentifierName(declaration.name, "T", input, diagnostics, "Type parameter name");
+  const parameter = csharpSourceTypeParameter(node, input.program.source.ast);
+  const selectedName = parameter === undefined ? undefined : input.scope.typeParameterNames?.get(parameter.identity);
+  const name = selectedName === undefined ? planIdentifierName(declaration.name, "T", input, diagnostics, "Type parameter name")
+    : sanitizeIdentifier(selectedName);
   const constraints = planTypeParameterConstraints(node, input, diagnostics);
   if (declaration.Expression !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Expression-based generic type parameters are outside the current C# planning surface."));
@@ -90,6 +95,7 @@ function planTypeParameterConstraints(
   return resolution.constraints
     .map((constraint) =>
       csharpGenericConstraintFromTargetTypeParameterConstraint(
+        input.scope.typeParameterNames,
         constraint,
         node,
         diagnostics,
@@ -101,12 +107,13 @@ function planTypeParameterConstraints(
 }
 
 export function csharpGenericConstraintFromTargetTypeParameterConstraint(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   constraint: CsharpTypeParameterConstraint,
   sourceNode: Node,
   diagnostics: TargetDiagnostic[],
 ): CsharpGenericConstraint | undefined {
   if (constraint.kind === "type") {
-    const csharpType = csharpTypeFromTargetTypeRef(constraint.type);
+    const csharpType = csharpTypeFromTargetTypeRef(constraint.type, typeParameterNames);
     if (csharpType !== undefined) {
       return { kind: "TypeConstraint", type: csharpType };
     }

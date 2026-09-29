@@ -392,10 +392,7 @@ export function resolveProjectThisTargetType(
         ? undefined
         : host.projectTypeCatalog.targetTypeForDeclaration(
             owner.declaration,
-            owner.typeParameterNames.map((name) => ({
-              kind: "type-parameter" as const,
-              name,
-            })),
+            owner.typeParameterBindings,
           );
     }
     if (host.ast.kindName(current) === "KindClassStaticBlockDeclaration") {
@@ -461,10 +458,7 @@ export function resolveSelectedReceiverTargetType(
     ? undefined
     : host.projectTypeCatalog.targetTypeForDeclaration(
         owner.declaration,
-        owner.typeParameterNames.map((name) => ({
-          kind: "type-parameter" as const,
-          name,
-        })),
+        owner.typeParameterBindings,
       );
 }
 

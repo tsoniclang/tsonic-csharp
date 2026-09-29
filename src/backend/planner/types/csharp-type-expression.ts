@@ -70,7 +70,7 @@ function getCsharpTypeForExpressionReference(
   const targetType = input.types.classifications.resolveNode(node, sourceFile);
   const csharpType = targetType === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(targetType);
+    : csharpTypeFromTargetTypeRef(targetType, input.scope.typeParameterNames);
   if (csharpType !== undefined) {
     return csharpType;
   }

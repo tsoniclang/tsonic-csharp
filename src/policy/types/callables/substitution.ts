@@ -23,7 +23,7 @@ export function substituteTargetTypeParameters(
 ): TargetTypeRef {
   switch (type.kind) {
     case "type-parameter":
-      const substitution = substitutions.get(type.name);
+      const substitution = substitutions.get(type.identity);
       if (substitution === undefined) {
         return type;
       }
@@ -140,7 +140,7 @@ export function substituteTargetTypeParameters(
 export function inferCsharpTargetTypeParameterBindings(
   pattern: TargetTypeRef,
   actual: TargetTypeRef,
-  parameterNames: ReadonlySet<string>,
+  parameterIdentities: ReadonlySet<string>,
 ): ReadonlyMap<string, TargetTypeRef> | undefined {
   const bindings = new Map<string, TargetTypeRef>();
   return match(pattern, actual) ? bindings : undefined;
@@ -150,10 +150,10 @@ export function inferCsharpTargetTypeParameterBindings(
     if (optional !== undefined) {
       return match(optional.element, getCsharpGenericOptionalParts(right)?.element ?? getCsharpNullableElementTargetType(right) ?? right);
     }
-    if (left.kind === "type-parameter" && parameterNames.has(left.name)) {
-      const existing = bindings.get(left.name);
+    if (left.kind === "type-parameter" && parameterIdentities.has(left.identity)) {
+      const existing = bindings.get(left.identity);
       if (existing === undefined) {
-        bindings.set(left.name, right);
+        bindings.set(left.identity, right);
         return true;
       }
       return targetTypeRefEquals(existing, right);
@@ -165,7 +165,7 @@ export function inferCsharpTargetTypeParameterBindings(
     const patternArms = getCsharpRuntimeUnionArms(left);
     if (patternArms !== undefined && getCsharpRuntimeUnionArms(right) === undefined) {
       const candidates = patternArms.flatMap(arm => {
-        const selected = inferCsharpTargetTypeParameterBindings(arm, right, parameterNames);
+        const selected = inferCsharpTargetTypeParameterBindings(arm, right, parameterIdentities);
         return selected === undefined ? [] : [selected];
       });
       if (candidates.length !== 1) return false;
@@ -266,9 +266,9 @@ export function substituteObjectShapeFactTargetTypeParameters(
           },
         }),
         members: objectShape.members.map(member => {
-          const boundNames = new Set(member.typeParameters?.map(parameter => parameter.name));
-          const freeSubstitutions = boundNames.size === 0 ? substitutions
-            : new Map([...substitutions].filter(([name]) => !boundNames.has(name)));
+          const boundParameters = new Set(member.typeParameters?.map(parameter => parameter.identity));
+          const freeSubstitutions = boundParameters.size === 0 ? substitutions
+            : new Map([...substitutions].filter(([identity]) => !boundParameters.has(identity)));
           return { ...member,
             type: substituteTargetTypeParameters(member.type, freeSubstitutions),
             ...(member.methodStorageType === undefined ? {} : {

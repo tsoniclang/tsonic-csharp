@@ -45,9 +45,9 @@ export function planNativeCollectionArrayLiteralExpression(
   planner: ArrayLiteralPlanner,
 ): CsharpExpression | undefined {
   const literal = AsArrayLiteralExpression(input.program.source.ast, node)!;
-  const elementType = csharpTypeFromTargetTypeRef(elementCarrier);
+  const elementType = csharpTypeFromTargetTypeRef(elementCarrier, input.scope.typeParameterNames);
   const constructionCarrier = getCsharpArrayLiteralConstructionTargetType(carrier);
-  const collectionType = constructionCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(constructionCarrier);
+  const collectionType = constructionCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(constructionCarrier, input.scope.typeParameterNames);
   if (elementType === undefined || collectionType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires renderable provider collection element and array-literal construction type metadata before C# emission."));
     return undefined;

@@ -26,5 +26,5 @@ export function selectCsharpGenericMethodValue(
   if (environment === undefined) return undefined;
   const identity = JSON.stringify(csharpSourceMemberKeyParts(member.member.sourceKey));
   return csharpGenericMethodValueType(environment, member.member.targetName, identity,
-    member.member.type, member.member.typeParameters!.map(parameter => parameter.name));
+    member.member.type, member.member.typeParameters!.map(parameter => parameter.identity));
 }

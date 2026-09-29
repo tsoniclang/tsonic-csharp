@@ -53,6 +53,7 @@ export interface CsharpPlanningTypeView {
 }
 
 export interface CsharpPlanningScope {
+  readonly typeParameterNames?: ReadonlyMap<string, string>;
   readonly classValues?: ReadonlyMap<Node, CsharpExpression>;
   readonly capturedBindings?: ReadonlyMap<Node, CsharpExpression>;
   readonly captureFrames?: ReadonlyMap<Node, CsharpExpression>;
@@ -103,6 +104,9 @@ export function createCsharpPlanningContext(
     ast: program.source.ast,
     sourceFiles: program.sourceFiles,
     paths: program.host.paths,
+    generatedTypeNames: program.classFactories.factories.flatMap(factory => [
+      factory.instanceScope, factory.factoryName, ...(factory.identity === undefined ? [] : [factory.identity.name]),
+    ]),
   });
   const names = program.names;
   return Object.freeze({

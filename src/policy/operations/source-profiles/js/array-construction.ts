@@ -45,7 +45,7 @@ export function arrayConstructionMember(
       kind: "static-factory-construction",
       factoryType: arrayStaticsType,
     },
-    typeParameters: [{ name: "T" }],
+    typeParameters: [{ identity: "Tsonic.CSharp.Js.JSArrayStatics.of:construction::0", name: "T" }],
   } satisfies CsharpTargetMember);
 }
 

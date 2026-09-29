@@ -110,7 +110,7 @@ export function applyCsharpConversionSelection(
   }
   switch (selection.kind) {
     case "never": {
-      const type = renderRequiredTargetType(node, targetType, diagnostics);
+      const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
       return type === undefined ? undefined : {
         kind: "InvocationExpression",
         callee: { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Value", typeArguments: [type] },
@@ -118,15 +118,15 @@ export function applyCsharpConversionSelection(
       };
     }
     case "checked-native-integer": {
-      const type = renderRequiredTargetType(node, targetType, diagnostics);
+      const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
       return type === undefined ? undefined : {
         kind: "CheckedExpression",
         expression: { kind: "CastExpression", type, expression },
       };
     }
     case "exact-integer": {
-      const source = renderRequiredTargetType(node, selection.input, diagnostics);
-      const target = renderRequiredTargetType(node, selection.output, diagnostics);
+      const source = renderRequiredTargetType(input.scope.typeParameterNames, node, selection.input, diagnostics);
+      const target = renderRequiredTargetType(input.scope.typeParameterNames, node, selection.output, diagnostics);
       return source === undefined || target === undefined ? undefined : {
         kind: "InvocationExpression",
         callee: {
@@ -139,7 +139,7 @@ export function applyCsharpConversionSelection(
       };
     }
     case "integer-truncation": {
-      const type = renderRequiredTargetType(node, targetType, diagnostics);
+      const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
       if (type === undefined) return undefined;
       if (expression.kind !== "InvocationExpression" || expression.arguments.length !== 2) {
         diagnostics.push(unsupportedNodeDiagnostic(node,
@@ -161,7 +161,7 @@ export function applyCsharpConversionSelection(
     case "identity":
       return expression;
     case "array-like-union": {
-      const type = renderRequiredTargetType(node, targetType, diagnostics);
+      const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
       if (type === undefined) return undefined;
       return {
         kind: "InvocationExpression",
@@ -176,7 +176,7 @@ export function applyCsharpConversionSelection(
       };
     }
     case "empty-record":
-      return planCsharpEmptyRecordConversion(selection, sourceType, targetType, expression);
+      return planCsharpEmptyRecordConversion(input.scope.typeParameterNames, selection, sourceType, targetType, expression);
     case "implicit":
       if (selection.proof === "literal") {
         const literal = planCsharpExactLiteralConversion(input, node, targetType);
@@ -230,8 +230,8 @@ export function applyCsharpConversionSelection(
           "Nullable conversion requires its exact sealed source and destination element carriers."));
         return undefined;
       }
-      const presentType = renderRequiredTargetType(node, sourceElement, diagnostics);
-      const resultType = renderRequiredTargetType(node, targetType, diagnostics);
+      const presentType = renderRequiredTargetType(input.scope.typeParameterNames, node, sourceElement, diagnostics);
+      const resultType = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
       if (presentType === undefined || resultType === undefined) return undefined;
       const name = input.names.temporaryName(`__tsonic_present_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`);
       const present = applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
@@ -255,7 +255,7 @@ export function applyCsharpConversionSelection(
           "Runtime-union reference projection conflicts with its exact selected arms and destination."));
         return undefined;
       }
-      const type = renderRequiredTargetType(node, getCsharpNullableElementTargetType(targetType) ?? targetType, diagnostics);
+      const type = renderRequiredTargetType(input.scope.typeParameterNames, node, getCsharpNullableElementTargetType(targetType) ?? targetType, diagnostics);
       return type === undefined ? undefined : {
         kind: "InvocationExpression",
         callee: { kind: "SimpleMemberAccessExpression", receiver: expression, name: "AsReference", typeArguments: [type] },
@@ -263,7 +263,7 @@ export function applyCsharpConversionSelection(
       };
     }
     case "cast": {
-      const type = renderRequiredTargetType(node, targetType, diagnostics);
+      const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
       return type === undefined
         ? undefined
         : {
@@ -314,6 +314,7 @@ export function applyCsharpConversionSelection(
       );
     case "js-value-cast":
       return invokeStaticGeneric(
+        input.scope.typeParameterNames,
         selection.runtimeUnionArms === undefined
           ? csharpTsValueTargetType()
           : csharpTsUnionTargetType(),
@@ -371,10 +372,10 @@ function applyLiftedProviderArgumentAdapter(
     ));
     return undefined;
   }
-  const sourceElement = csharpTypeFromTargetTypeRef(sourceElementType);
-  const targetElement = csharpTypeFromTargetTypeRef(targetElementType);
+  const sourceElement = csharpTypeFromTargetTypeRef(sourceElementType, input.scope.typeParameterNames);
+  const targetElement = csharpTypeFromTargetTypeRef(targetElementType, input.scope.typeParameterNames);
   const declaringType = csharpTypeFromTargetTypeRef(
-    selection.adapter.declaringType,
+    selection.adapter.declaringType, input.scope.typeParameterNames,
   );
   if (
     sourceElement === undefined ||
@@ -450,7 +451,7 @@ function applyProviderArgumentAdapter(
     return undefined;
   }
   const declaringType = csharpTypeFromTargetTypeRef(
-    selection.adapter.declaringType,
+    selection.adapter.declaringType, input.scope.typeParameterNames,
   );
   if (declaringType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -499,7 +500,7 @@ function applyRuntimeUnionArmConversion(
   const optional = getCsharpGenericOptionalParts(targetType);
   const declaringType = unionType === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(optional?.operations ?? unionType);
+    : csharpTypeFromTargetTypeRef(optional?.operations ?? unionType, input.scope.typeParameterNames);
   if (
     selectedArm === undefined ||
     !targetTypeRefEquals(selectedArm, selection.armType) ||
@@ -560,7 +561,7 @@ function applyDelegateAdapter(
     return undefined;
   }
   const parameters = targetSignature.parameters.map((parameterType, index) => {
-    const type = csharpTypeFromTargetTypeRef(parameterType);
+    const type = csharpTypeFromTargetTypeRef(parameterType, input.scope.typeParameterNames);
     return type === undefined
       ? undefined
       : {
@@ -603,7 +604,7 @@ function applyDelegateAdapter(
       ));
       return undefined;
     }
-    const sourceDelegateType = csharpTypeFromTargetTypeRef(sourceType);
+    const sourceDelegateType = csharpTypeFromTargetTypeRef(sourceType, input.scope.typeParameterNames);
     if (sourceDelegateType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
@@ -643,6 +644,7 @@ function applyDelegateAdapter(
 }
 
 function invokeStaticGeneric(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   declaringTargetType: TargetTypeRef,
   memberName: string,
   targetTypeArguments: readonly TargetTypeRef[],
@@ -650,8 +652,8 @@ function invokeStaticGeneric(
   node: Node,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  const declaringType = csharpTypeFromTargetTypeRef(declaringTargetType);
-  const typeArguments = targetTypeArguments.map(csharpTypeFromTargetTypeRef);
+  const declaringType = csharpTypeFromTargetTypeRef(declaringTargetType, typeParameterNames);
+  const typeArguments = targetTypeArguments.map(type => csharpTypeFromTargetTypeRef(type, typeParameterNames));
   if (
     declaringType === undefined ||
     typeArguments.some((type) => type === undefined)
@@ -677,13 +679,14 @@ function invokeStaticGeneric(
 }
 
 function renderRequiredTargetType(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   node: Node,
   targetType: TargetTypeRef | undefined,
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
   const type = targetType === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(targetType);
+    : csharpTypeFromTargetTypeRef(targetType, typeParameterNames);
   if (type === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,

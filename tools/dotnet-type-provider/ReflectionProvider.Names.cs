@@ -201,6 +201,16 @@ sealed partial class ReflectionProvider
         return rank == 1 ? "[*]" : $"[{new string(',', rank - 1)}]";
     }
 
+    static string GenericParameterIdentity(Type parameter)
+    {
+        if (!parameter.IsGenericParameter || parameter.DeclaringType is null)
+        {
+            throw new InvalidOperationException("A generic parameter requires its exact declaring type.");
+        }
+        MemberInfo owner = parameter.DeclaringMethod ?? (MemberInfo)parameter.DeclaringType;
+        return $"{owner.Module.ModuleVersionId:D}:{owner.MetadataToken:x8}:{parameter.GenericParameterPosition}";
+    }
+
     static string MetadataName(Type type)
     {
         var name = type.FullName ?? type.Name;

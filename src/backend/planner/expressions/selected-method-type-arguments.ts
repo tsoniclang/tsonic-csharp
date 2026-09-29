@@ -57,7 +57,7 @@ export function renderSelectedCsharpTargetMethodTypeArguments(
     selection.targetMethodTypeArguments.entries()) {
     const projection = projections.get(index);
     if (projection === undefined) {
-      const targetType = csharpTypeFromTargetTypeRef(argument.targetType);
+      const targetType = csharpTypeFromTargetTypeRef(argument.targetType, input.scope.typeParameterNames);
       if (targetType === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(
           node,
@@ -91,7 +91,7 @@ export function renderSelectedCsharpTargetMethodTypeArguments(
       return undefined;
     }
     if (projected.kind === "unchanged") {
-      const targetType = csharpTypeFromTargetTypeRef(argument.targetType);
+      const targetType = csharpTypeFromTargetTypeRef(argument.targetType, input.scope.typeParameterNames);
       if (targetType === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(
           argument.explicitTypeNode ?? node,

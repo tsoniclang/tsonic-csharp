@@ -38,6 +38,7 @@ import {
 import { renderCsharpStructuralInterfaceMembers } from "./structural-interfaces.js";
 
 export function renderObjectShapeMembers(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   fact: CsharpObjectShapeFact,
   implementsInterface: boolean,
   receiverBoundMethodKeys: ReadonlySet<string>,
@@ -47,11 +48,11 @@ export function renderObjectShapeMembers(
 ): CsharpClassDeclaration["members"] | undefined {
   const members = canonicalCsharpObjectShapeMembers(fact.members).flatMap((member) => {
     if ((member.typeParameters?.length ?? 0) > 0) {
-      if (member.methodStorageType !== undefined) return renderCopiedGenericMethod(fact, member, storage);
+      if (member.methodStorageType !== undefined) return renderCopiedGenericMethod(typeParameterNames, fact, member, storage);
       if (fact.methodImplementation !== undefined) return [];
       return [undefined];
     }
-    const type = csharpTypeFromTargetTypeRef(member.type);
+    const type = csharpTypeFromTargetTypeRef(member.type, typeParameterNames);
     if (type === undefined) {
       if (diagnostics !== undefined && diagnosticSubject !== undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, `Object-shape member '${member.sourceName}' must carry a renderable target carrier type before C# emission.`));
@@ -60,6 +61,7 @@ export function renderObjectShapeMembers(
     }
     if (member.memberKind === "method") {
       return renderObjectShapeMethodMember(
+        typeParameterNames,
         fact,
         member,
         receiverBoundMethodKeys.has(
@@ -71,6 +73,7 @@ export function renderObjectShapeMembers(
     }
     if (member.accessor !== undefined) {
       return renderObjectShapeAccessorMember(
+        typeParameterNames,
         fact,
         member,
         type,
@@ -78,11 +81,11 @@ export function renderObjectShapeMembers(
         diagnosticSubject,
       );
     }
-    if (member.bound === true) return renderBoundRecordMember(fact, member, type);
+    if (member.bound === true) return renderBoundRecordMember(typeParameterNames, fact, member, type);
     const backing = storage.nativeField(fact.targetType, member.targetName);
     if (backing !== undefined) {
-      const locationType = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(member.type));
-      const initializer = planCsharpNativeMemoryCall("Allocate", { kind: "DefaultExpression", type }, backing.layout);
+      const locationType = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(member.type), typeParameterNames);
+      const initializer = planCsharpNativeMemoryCall(typeParameterNames, "Allocate", { kind: "DefaultExpression", type }, backing.layout);
       if (locationType === undefined || initializer === undefined) return [undefined];
       const location: CsharpExpression = { kind: "IdentifierName", name: backing.storageName };
       const access = (name: string, args: readonly CsharpExpression[]): CsharpExpression => ({ kind: "InvocationExpression",
@@ -123,16 +126,17 @@ export function renderObjectShapeMembers(
 }
 
 function renderCopiedGenericMethod(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   shape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number], storage: CsharpStorageClassifications,
 ): readonly (CsharpTypeMember | undefined)[] {
-  const storageType = member.methodStorageType === undefined ? undefined : csharpTypeFromTargetTypeRef(member.methodStorageType);
-  const contract = renderCsharpStructuralInterfaceMembers({ ...shape, members: [member] }, storage, false, []);
+  const storageType = member.methodStorageType === undefined ? undefined : csharpTypeFromTargetTypeRef(member.methodStorageType, typeParameterNames);
+  const contract = renderCsharpStructuralInterfaceMembers(typeParameterNames, { ...shape, members: [member] }, storage, false, []);
   const method = contract?.[0];
   if (storageType === undefined || method?.kind !== "MethodDeclaration") return [undefined];
   const name = objectShapeStorageMemberName(shape, member);
   const call: CsharpExpression = { kind: "InvocationExpression", callee: {
     kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: member.targetName,
-    typeArguments: (member.typeParameters ?? []).map(parameter => csharpTypeFromTargetTypeRef({ kind: "type-parameter", name: parameter.name })!),
+    typeArguments: (member.typeParameters ?? []).map(parameter => csharpTypeFromTargetTypeRef({ kind: "type-parameter", identity: parameter.identity, name: parameter.name }, typeParameterNames)!),
   }, arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name } })) };
   const returnsVoid = getCsharpDelegateSignature(member.type)?.returnType;
   return [{ kind: "FieldDeclaration", name, type: storageType, modifiers: ["public", "required"] },
@@ -141,9 +145,10 @@ function renderCopiedGenericMethod(
 }
 
 export function renderBoundRecordMember(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   shape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number], type: CsharpTypeNode,
 ): readonly (CsharpTypeMember | undefined)[] {
-  const storageType = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(member));
+  const storageType = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(member), typeParameterNames);
   if (storageType === undefined || member.bound !== true) return [undefined];
   const storageName = objectShapeBoundStorageMemberName(shape, member);
   const access: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: storageName }, name: "Value" };
@@ -157,22 +162,23 @@ export function renderBoundRecordMember(
 }
 
 function renderObjectShapeAccessorMember(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   objectShape: CsharpObjectShapeFact,
   member: CsharpObjectShapeFact["members"][number],
   type: CsharpTypeNode,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
 ): readonly (CsharpTypeMember | undefined)[] {
-  const selfType = csharpTypeFromTargetTypeRef(objectShape.targetType);
+  const selfType = csharpTypeFromTargetTypeRef(objectShape.targetType, typeParameterNames);
   const getterType = csharpTypeFromTargetTypeRef(
-    csharpDelegateTargetType("System.Func", [objectShape.targetType], member.type),
+    csharpDelegateTargetType("System.Func", [objectShape.targetType], member.type), typeParameterNames,
   );
   const setterType = member.accessor?.setter === true
     ? csharpTypeFromTargetTypeRef(
         csharpDelegateTargetType(
           "System.Action",
           [objectShape.targetType, member.type],
-        ),
+        ), typeParameterNames,
       )
     : undefined;
   if (selfType === undefined || getterType === undefined ||
@@ -252,13 +258,14 @@ function invokeAccessor(
 }
 
 function renderObjectShapeMethodMember(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   objectShape: CsharpObjectShapeFact,
   member: CsharpObjectShapeFact["members"][number],
   receiverBound: boolean,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
 ): readonly (CsharpTypeMember | undefined)[] {
-  const signature = csharpDelegateSignatureFromTargetTypeRef(member.type);
+  const signature = csharpDelegateSignatureFromTargetTypeRef(typeParameterNames, member.type);
   const storageTargetType = objectShapeMethodStorageTargetType(
     objectShape,
     member,
@@ -266,7 +273,7 @@ function renderObjectShapeMethodMember(
   );
   const storageType = storageTargetType === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(storageTargetType);
+    : csharpTypeFromTargetTypeRef(storageTargetType, typeParameterNames);
   if (signature === undefined || storageType === undefined) {
     if (diagnostics !== undefined && diagnosticSubject !== undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, `Object-shape method '${member.sourceName}' must carry a Func/Action delegate target type with explicit return facts before C# emission.`));
@@ -327,7 +334,7 @@ function renderObjectShapeMethodMember(
   }];
 }
 
-function csharpDelegateSignatureFromTargetTypeRef(type: TargetTypeRef): {
+function csharpDelegateSignatureFromTargetTypeRef(typeParameterNames: ReadonlyMap<string, string> | undefined, type: TargetTypeRef): {
   readonly parameters: readonly CsharpTypeNode[];
   readonly returnType: CsharpTypeNode;
   readonly returnsVoid: boolean;
@@ -361,8 +368,8 @@ function csharpDelegateSignatureFromTargetTypeRef(type: TargetTypeRef): {
   ) {
     return undefined;
   }
-  const parameters = metadata.parameters.map(csharpTypeFromTargetTypeRef);
-  const returnType = csharpTypeFromTargetTypeRef(metadata.returnType);
+  const parameters = metadata.parameters.map(type => csharpTypeFromTargetTypeRef(type, typeParameterNames));
+  const returnType = csharpTypeFromTargetTypeRef(metadata.returnType, typeParameterNames);
   return parameters.some((parameter) => parameter === undefined) || returnType === undefined
     ? undefined
     : {

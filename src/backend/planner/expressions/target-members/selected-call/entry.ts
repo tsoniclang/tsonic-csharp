@@ -122,6 +122,7 @@ function translateCsharpCallExpressionCore(
       return undefined;
     }
     return translateCsharpJsValueInvocation(
+      input.scope.typeParameterNames,
       jsValueOperation,
       receiver,
       invocationArguments,

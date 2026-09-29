@@ -1,4 +1,5 @@
 import { requireNonEmptyString, requireUnique, stringProperty, supportedPassingModes, supportedTypeParameterVariance } from "./support.js";
+import { getProviderMemberSurfaceKey } from "@tsonic/tsts";
 import type {
   ProviderExportDeclaration,
   ProviderHeritageDeclaration,
@@ -44,7 +45,7 @@ function validateProviderMemberList(
     requireUnique(memberIds, member.id, `${memberPath}.id`, collector);
     requireUnique(
       memberSurfaces,
-      providerMemberSurfaceKey(member),
+      getProviderMemberSurfaceKey(member),
       `${memberPath}.name`,
       collector,
     );
@@ -79,36 +80,6 @@ function validateProviderEnumMember(
     collector.add(`${path}.signatures`, "Provider enum members cannot carry signatures.");
   }
 }
-function providerMemberSurfaceKey(member: ProviderMemberDeclaration): string {
-  switch (member.kind) {
-    case "constructor":
-      return "constructor";
-    case "indexer":
-      return "indexer";
-    case "method":
-    case "property":
-    case "field":
-      return JSON.stringify([
-        member.static === true,
-        providerMemberPropertySourceKey(member.name),
-      ]);
-  }
-}
-
-function providerMemberPropertySourceKey(
-  name: ProviderMemberDeclaration["name"],
-): readonly [string, string] {
-  if (typeof name !== "string" && name.kind === "well-known-symbol") {
-    return ["well-known-symbol", name.name];
-  }
-  const text = typeof name === "string"
-    ? name
-    : name.kind === "number-literal"
-      ? String(name.value)
-      : name.text;
-  return ["property-key", text];
-}
-
 function validateProviderSignatureList(
   signatures: readonly ProviderSignatureDeclaration[],
   path: string,

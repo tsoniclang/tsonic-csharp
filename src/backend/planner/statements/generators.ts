@@ -123,13 +123,13 @@ export function planCsharpGeneratorFunction(
     ));
     return undefined;
   }
-  const generatorTypeNode = csharpTypeFromTargetTypeRef(generatorType);
-  const yieldTypeNode = csharpTypeFromTargetTypeRef(protocol.yieldType);
-  const returnTypeNode = csharpTypeFromTargetTypeRef(protocol.returnType);
+  const generatorTypeNode = csharpTypeFromTargetTypeRef(generatorType, input.scope.typeParameterNames);
+  const yieldTypeNode = csharpTypeFromTargetTypeRef(protocol.yieldType, input.scope.typeParameterNames);
+  const returnTypeNode = csharpTypeFromTargetTypeRef(protocol.returnType, input.scope.typeParameterNames);
   const iteratorTargetType = protocol.kind === "sync"
     ? csharpEnumerableTargetType(protocol.yieldType)
     : csharpAsyncEnumerableTargetType(protocol.yieldType);
-  const iteratorTypeNode = csharpTypeFromTargetTypeRef(iteratorTargetType);
+  const iteratorTypeNode = csharpTypeFromTargetTypeRef(iteratorTargetType, input.scope.typeParameterNames);
   if (
     generatorTypeNode === undefined ||
     yieldTypeNode === undefined ||

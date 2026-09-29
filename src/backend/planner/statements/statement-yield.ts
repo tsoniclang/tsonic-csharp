@@ -67,7 +67,7 @@ export function planCsharpYieldValue(
       state,
     );
   }
-  const yieldType = csharpTypeFromTargetTypeRef(generator.protocol.yieldType);
+  const yieldType = csharpTypeFromTargetTypeRef(generator.protocol.yieldType, input.scope.typeParameterNames);
   if (yieldType === undefined) {
     diagnostics.push(yieldDiagnostic(
       "CSHARP_YIELD_TYPE_NOT_RENDERABLE",
@@ -150,9 +150,9 @@ function planCsharpDelegatedYield(
     ));
     return undefined;
   }
-  const delegatedTypeNode = csharpTypeFromTargetTypeRef(delegatedType);
+  const delegatedTypeNode = csharpTypeFromTargetTypeRef(delegatedType, input.scope.typeParameterNames);
   const iteratorResultType = csharpTypeFromTargetTypeRef(
-    csharpIteratorResultTargetType(inner),
+    csharpIteratorResultTargetType(inner), input.scope.typeParameterNames,
   );
   if (
     delegatedTypeNode === undefined ||

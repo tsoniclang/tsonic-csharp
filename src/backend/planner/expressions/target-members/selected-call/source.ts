@@ -72,6 +72,7 @@ export function translateSourceOwnedCall(
     return undefined;
   }
   callee = applyCalleeTypeArguments(
+    input.scope.typeParameterNames,
     callee,
     typeArguments,
     node,

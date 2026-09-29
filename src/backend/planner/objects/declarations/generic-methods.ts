@@ -55,7 +55,7 @@ export function renderCsharpGenericObjectMethods(
   const capturedBindings = new Map<Node, CsharpExpression>();
   const captureFrames = new Map<Node, CsharpExpression>();
   for (const field of objectCaptureFields(shape, input)) {
-    const type = csharpTypeFromTargetTypeRef(field.type);
+    const type = csharpTypeFromTargetTypeRef(field.type, input.scope.typeParameterNames);
     if (type === undefined) return undefined;
     const frame = field.frameScope === undefined ? undefined : input.program.captureStorage.frame(field.frameScope);
     if (frame !== undefined && csharpTypeFromObjectShapeFact(input, frame.shape, diagnostics, implementation.declaration) === undefined) return undefined;
@@ -65,7 +65,7 @@ export function renderCsharpGenericObjectMethods(
     for (const binding of field.declarations) capturedBindings.set(binding.declaration, binding.member === undefined ? receiver
       : { kind: "SimpleMemberAccessExpression", receiver, name: binding.member });
   }
-  const context = createCsharpThisBindingPlanningContext({ ...input, scope: { capturedBindings, captureFrames } }, "this", shape.targetType);
+  const context = createCsharpThisBindingPlanningContext({ ...input, scope: { ...input.scope, capturedBindings, captureFrames } }, "this", shape.targetType);
   for (const member of shape.members) {
     if ((member.typeParameters?.length ?? 0) === 0 || member.methodStorageType !== undefined) continue;
     const declarations = (member.sourceDeclarations ?? []).filter(declaration =>
@@ -92,7 +92,7 @@ export function renderCsharpGenericObjectMethods(
     members.push({ ...method, name: member.targetName });
     members.push(...methodContext.scope.generatedMethods?.values() ?? []);
     if (input.artifacts.objectShapeHasCapability(shape, "method-values")) {
-      const type = csharpTypeFromTargetTypeRef(shape.targetType);
+      const type = csharpTypeFromTargetTypeRef(shape.targetType, input.scope.typeParameterNames);
       if (type === undefined) return undefined;
       members.push({ kind: "PropertyDeclaration", name: objectShapeStorageMemberName(shape, member),
         modifiers: ["public"], type,

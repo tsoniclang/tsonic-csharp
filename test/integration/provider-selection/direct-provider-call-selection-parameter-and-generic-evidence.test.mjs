@@ -261,13 +261,13 @@ test("byref arguments use CLR storage identity across nullable-reference annotat
 test("selected method type arguments close generic target methods directly", () => {
   const selectedType = {};
   const explicitTypeNode = {};
-  const typeParameter = { name: "T" };
+  const typeParameter = { identity: "T", name: "T" };
   const method = providerMethod({
     id: "Fixture.Target.Identity``1(T)",
     parameters: [
-      targetParameter("value", { kind: "type-parameter", name: "T" }),
+      targetParameter("value", { kind: "type-parameter", identity: "T", name: "T" }),
     ],
-    returnType: { kind: "type-parameter", name: "T" },
+    returnType: { kind: "type-parameter", identity: "T", name: "T" },
     typeParameters: [typeParameter],
   });
   const int32 = csharpSourcePrimitiveTargetType("int32");
@@ -317,11 +317,11 @@ test("inferred provider method bounds use one order-independent implicit target"
   ];
   for (const [sourceArgumentTargets, expected, selectedTarget = float64] of cases) {
     const selectedType = {};
-    const parameterType = { kind: "type-parameter", name: "T" };
+    const parameterType = { kind: "type-parameter", identity: "T", name: "T" };
     const method = providerMethod({
       parameters: sourceArgumentTargets.map((_, index) => targetParameter(`value${index}`, parameterType)),
       returnType: parameterType,
-      typeParameters: [{ name: "T" }],
+      typeParameters: [{ identity: "T", name: "T" }],
     });
     const fixture = createCallFixture({
       member: method,
@@ -339,12 +339,12 @@ test("inferred provider method bounds use one order-independent implicit target"
 
 test("inferred provider method bounds cannot widen invariant native carriers", () => {
   const selectedType = {};
-  const parameterType = { kind: "type-parameter", name: "T" };
+  const parameterType = { kind: "type-parameter", identity: "T", name: "T" };
   const invariant = type => csharpTargetNamedType("Fixture.Invariant", [type]);
   const method = providerMethod({
     parameters: [targetParameter("first", invariant(parameterType)), targetParameter("second", invariant(parameterType))],
     returnType: parameterType,
-    typeParameters: [{ name: "T" }],
+    typeParameters: [{ identity: "T", name: "T" }],
   });
   const float64 = csharpSourcePrimitiveTargetType("float64");
   const fixture = createCallFixture({
@@ -363,10 +363,10 @@ test("generic method closure fails when selected type-argument evidence is absen
   const method = providerMethod({
     id: "Fixture.Target.Identity``1(T)",
     parameters: [
-      targetParameter("value", { kind: "type-parameter", name: "T" }),
+      targetParameter("value", { kind: "type-parameter", identity: "T", name: "T" }),
     ],
-    returnType: { kind: "type-parameter", name: "T" },
-    typeParameters: [{ name: "T" }],
+    returnType: { kind: "type-parameter", identity: "T", name: "T" },
+    typeParameters: [{ identity: "T", name: "T" }],
   });
   const fixture = createCallFixture({
     member: method,
@@ -386,16 +386,16 @@ test("receiver evidence closes generic provider bindings before member substitut
   const stringType = csharpStringTargetType();
   const binding = providerBinding({
     id: "Fixture.Box`1",
-    typeParameters: [{ name: "T" }],
+    typeParameters: [{ identity: "T", name: "T" }],
   });
   const method = providerMethod({
     id: "Fixture.Box`1.Get()",
     declaringType: {
       kind: "target-named",
       id: binding.id,
-      typeArguments: [{ kind: "type-parameter", name: "T" }],
+      typeArguments: [{ kind: "type-parameter", identity: "T", name: "T" }],
     },
-    returnType: { kind: "type-parameter", name: "T" },
+    returnType: { kind: "type-parameter", identity: "T", name: "T" },
   });
   const fixture = createCallFixture({
     binding,
@@ -485,14 +485,14 @@ test("generic constructor families close from selected operation type arguments"
   const selectedType = {};
   const binding = providerBinding({
     id: "Fixture.Box`1",
-    typeParameters: [{ name: "T" }],
+    typeParameters: [{ identity: "T", name: "T" }],
   });
   const constructor = providerConstructor({
     id: "Fixture.Box`1..ctor()",
     declaringType: {
       kind: "target-named",
       id: binding.id,
-      typeArguments: [{ kind: "type-parameter", name: "T" }],
+      typeArguments: [{ kind: "type-parameter", identity: "T", name: "T" }],
     },
   });
   const fixture = createCallFixture({

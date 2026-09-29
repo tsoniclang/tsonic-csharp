@@ -40,7 +40,7 @@ export function planCsharpCaptureFrame(
   if (type === undefined) return [];
   const assignments: CsharpObjectInitializerAssignment[] = [];
   for (const binding of frame.bindings) {
-    const bindingType = csharpTypeFromTargetTypeRef(binding.type);
+    const bindingType = csharpTypeFromTargetTypeRef(binding.type, input.scope.typeParameterNames);
     if (bindingType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(binding.declaration,
         "A captured binding requires a renderable sealed physical storage type."));

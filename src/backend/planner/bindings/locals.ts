@@ -108,17 +108,17 @@ export function planLocalDeclaration(
   const requiredStorageType = storageType !== undefined &&
       inferredTargetType !== undefined &&
       !targetTypeRefEquals(storageType, inferredTargetType)
-    ? csharpTypeFromTargetTypeRef(storageType)
+    ? csharpTypeFromTargetTypeRef(storageType, input.scope.typeParameterNames)
     : undefined;
   const type = (nativeRefTargetType === undefined
       ? undefined
-      : csharpTypeFromTargetTypeRef(nativeRefTargetType)) ??
+      : csharpTypeFromTargetTypeRef(nativeRefTargetType, input.scope.typeParameterNames)) ??
     requiredStorageType ??
     inferredLambdaType ??
     explicitType ??
     (storageType === undefined
       ? undefined
-      : csharpTypeFromTargetTypeRef(storageType)) ??
+      : csharpTypeFromTargetTypeRef(storageType, input.scope.typeParameterNames)) ??
     getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
   const name = declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "Local binding name", "LocalDeclarationStatement");
   let initializer: CsharpExpression | undefined;
@@ -155,15 +155,15 @@ export function planLocalDeclaration(
   }
   const nativeArray = input.program.storage.nativeArray(declarationNode);
   if (nativeArray !== undefined && initializer !== undefined) {
-    const nativeType = csharpTypeFromTargetTypeRef(csharpRuntimeNativeArrayTargetType(nativeArray.layout.pointeeType));
+    const nativeType = csharpTypeFromTargetTypeRef(csharpRuntimeNativeArrayTargetType(nativeArray.layout.pointeeType), input.scope.typeParameterNames);
     if (nativeType !== undefined) return { kind: "VariableDeclarator", name, type: nativeType, initializer };
     diagnostics.push(unsupportedNodeDiagnostic(declarationNode, "The sealed native array has no renderable storage type."));
   }
   const nativeBacking = input.program.storage.nativeBacking(declarationNode);
   if (nativeBacking !== undefined && initializer !== undefined) {
-    const nativeType = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(nativeBacking.pointeeType));
+    const nativeType = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(nativeBacking.pointeeType), input.scope.typeParameterNames);
     if (nativeType !== undefined) return { kind: "VariableDeclarator", name, type: nativeType,
-      initializer: planCsharpNativeMemoryCall("Allocate", initializer, nativeBacking) };
+      initializer: planCsharpNativeMemoryCall(input.scope.typeParameterNames, "Allocate", initializer, nativeBacking) };
     diagnostics.push(unsupportedNodeDiagnostic(declarationNode, "The sealed native local backing has no renderable location type."));
   }
   return {

@@ -12,7 +12,7 @@ import { typeIncludesNullish } from "./source-evidence.js";
 import { resolveObjectShapeSourceMemberKey } from "./source-member-identity.js";
 import { resolveCsharpTypeParameterConstraints } from "../../../constraints/type-parameter-constraints.js";
 import { csharpGenericMethodValueCoversContract } from "../../../../target-model/types/generic-method-values.js";
-import { csharpSourceTypeParameterName } from "../../../../target-model/names/type-parameters.js";
+import { csharpSourceTypeParameter } from "../../../../target-model/names/type-parameters.js";
 import { isCsharpIntegralTargetType } from "../../../../target-model/types/scalar-types.js";
 import { csharpNumericLiteralValue } from "../../../../target-model/syntax/numeric-literals.js";
 
@@ -163,13 +163,13 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       ? queries.declarations.signatureDeclaration(signatures[0]!) : undefined;
     const typeParameters = methodDeclaration === undefined ? [] : host.ast.typeParameters(methodDeclaration).map(declaration => {
       if (declaration === undefined) return undefined;
-      const name = csharpSourceTypeParameterName(declaration, host.ast);
-      if (name === undefined) return undefined;
-      const selected = resolveCsharpTypeParameterConstraints(declaration, name, queries.sourceFile, {
+      const parameter = csharpSourceTypeParameter(declaration, host.ast);
+      if (parameter === undefined) return undefined;
+      const selected = resolveCsharpTypeParameterConstraints(declaration, parameter, queries.sourceFile, {
         ast: host.ast,
         types: { resolveNode: (node, sourceFile) => host.typeResolver.resolveNode(node, sourceFile, nextState(state)) },
       });
-      return selected.kind !== "resolved" ? undefined : Object.freeze({ declaration, name,
+      return selected.kind !== "resolved" ? undefined : Object.freeze({ declaration, identity: parameter.identity, name: parameter.name,
         constraints: Object.freeze([...selected.constraints]),
       });
     });

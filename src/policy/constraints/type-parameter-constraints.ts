@@ -5,6 +5,7 @@ import type {
 } from "@tsonic/tsts";
 import type {
   CsharpTypePolicy,
+  TargetTypeRef,
 } from "../types/index.js";
 import {
   csharpQualifiedTypeRenderShape,
@@ -60,7 +61,7 @@ function numericConstraint(constraint: Node, sourceFile: SourceFile, host: Cshar
 
 export function resolveCsharpTypeParameterConstraints(
   typeParameter: Node,
-  typeParameterName: string,
+  parameter: Extract<TargetTypeRef, { readonly kind: "type-parameter" }>,
   sourceFile: SourceFile,
   host: CsharpTypeParameterConstraintPolicyHost,
 ): CsharpTypeParameterConstraintResolution {
@@ -71,7 +72,7 @@ export function resolveCsharpTypeParameterConstraints(
   }
   const resolved = resolveConstraint(
     constraint,
-    typeParameterName,
+    parameter,
     sourceFile,
     host,
   );
@@ -92,7 +93,7 @@ export function resolveCsharpTypeParameterConstraints(
 
 function resolveConstraint(
   constraint: Node,
-  typeParameterName: string,
+  parameter: Extract<TargetTypeRef, { readonly kind: "type-parameter" }>,
   sourceFile: SourceFile,
   host: CsharpTypeParameterConstraintPolicyHost,
 ): CsharpTypeParameterConstraintResolution {
@@ -103,7 +104,7 @@ function resolveConstraint(
           kind: "unsupported",
           reason: "Parenthesized generic constraint has no inner type.",
         }
-      : resolveConstraint(inner, typeParameterName, sourceFile, host);
+      : resolveConstraint(inner, parameter, sourceFile, host);
   }
   if (host.ast.is.IsIntersectionTypeNode(constraint)) {
     const parts = host.ast.as.AsIntersectionTypeNode(constraint)?.Types?.Nodes;
@@ -120,7 +121,7 @@ function resolveConstraint(
       }
       const item = resolveConstraint(
         part,
-        typeParameterName,
+        parameter,
         sourceFile,
         host,
       );
@@ -144,7 +145,7 @@ function resolveConstraint(
         kind: "type",
         type: csharpTargetNamedType(
           "System.Numerics.INumber`1",
-          [{ kind: "type-parameter", name: typeParameterName }],
+          [parameter],
           csharpQualifiedTypeRenderShape(
             "System.Numerics",
             "INumber",

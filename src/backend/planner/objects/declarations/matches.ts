@@ -41,6 +41,7 @@ import { csharpFrozenStorageName } from "../frozen-data-properties.js";
 import { isCsharpEnumerableKeysMember } from "./enumerable-keys.js";
 
 export function objectShapeDeclarationMatches(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   declaration: CsharpClassDeclaration,
   fact: CsharpObjectShapeFact,
   jsonSerializable = false,
@@ -55,11 +56,11 @@ export function objectShapeDeclarationMatches(
   const actualContracts = declaration.members.filter(member =>
     member.kind === "PropertyDeclaration" && member.explicitInterface !== undefined);
   if (JSON.stringify(actualContracts) !== JSON.stringify(methodValueContracts)) return false;
-  const typeParameters = renderObjectShapeTypeParameters(fact, undefined, undefined);
+  const typeParameters = renderObjectShapeTypeParameters(typeParameterNames, fact, undefined, undefined);
   if (typeParameters === undefined || !objectShapeTypeParametersMatch(declaration.typeParameters, typeParameters)) {
     return false;
   }
-  const baseInterfaces = renderObjectShapeInterfaces(fact, undefined, undefined);
+  const baseInterfaces = renderObjectShapeInterfaces(typeParameterNames, fact, undefined, undefined);
   const interfaces = baseInterfaces === undefined
     ? undefined
     : [
@@ -72,8 +73,8 @@ export function objectShapeDeclarationMatches(
   }
   for (const member of fact.members) {
     if (member.bound === true) {
-      const storageType = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(member));
-      const valueType = csharpTypeFromTargetTypeRef(member.type);
+      const storageType = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(member), typeParameterNames);
+      const valueType = csharpTypeFromTargetTypeRef(member.type, typeParameterNames);
       if (storageType === undefined || valueType === undefined || !declaration.members.some(candidate =>
         candidate.kind === "FieldDeclaration" && candidate.name === objectShapeBoundStorageMemberName(fact, member) &&
         sameCsharpType(candidate.type, storageType)) || !declaration.members.some(candidate =>
@@ -93,7 +94,7 @@ export function objectShapeDeclarationMatches(
       );
       const storageType = storageTargetType === undefined
         ? undefined
-        : csharpTypeFromTargetTypeRef(storageTargetType);
+        : csharpTypeFromTargetTypeRef(storageTargetType, typeParameterNames);
       if (storageType === undefined || !declaration.members.some((candidate) =>
         (candidate.kind === "FieldDeclaration" || frozen && candidate.kind === "PropertyDeclaration") &&
         candidate.name === storageName &&
@@ -120,7 +121,7 @@ export function objectShapeDeclarationMatches(
       }
       continue;
     }
-    const renderedType = csharpTypeFromTargetTypeRef(member.type);
+    const renderedType = csharpTypeFromTargetTypeRef(member.type, typeParameterNames);
     const declarationMember = declaration.members
       .filter(isObjectShapeStorageDeclaration)
       .find((candidate) => candidate.name === member.targetName);

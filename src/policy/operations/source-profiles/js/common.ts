@@ -267,6 +267,11 @@ export function closedObjectParameter(
   );
 }
 
+type RuntimeMethodOptions = Pick<CsharpTargetMember,
+  "csharpArtifactRequirements" | "csharpBinaryExecutionDriver" | "csharpInvocation"> & {
+    readonly typeParameters?: readonly Omit<NonNullable<CsharpTargetMember["typeParameters"]>[number], "identity">[];
+  };
+
 export function staticMethod(
   id: string,
   sourceName: string,
@@ -274,13 +279,9 @@ export function staticMethod(
   declaringType: TargetTypeRef,
   parameters: readonly CsharpTargetParameter[],
   returnType: TargetTypeRef,
-  options: Pick<
-    CsharpTargetMember,
-    "typeParameters" | "csharpArtifactRequirements" |
-      "csharpBinaryExecutionDriver" |
-      "csharpInvocation"
-  > = {},
+  options: RuntimeMethodOptions = {},
 ): CsharpTargetMember {
+  const { typeParameters, ...metadata } = options;
   return Object.freeze({
     id,
     sourceName,
@@ -290,7 +291,9 @@ export function staticMethod(
     declaringType,
     parameters: Object.freeze(parameters),
     returnType,
-    ...options,
+    ...metadata,
+    ...(typeParameters === undefined ? {} : { typeParameters: Object.freeze(typeParameters.map((parameter, index) =>
+      Object.freeze({ ...parameter, identity: JSON.stringify([id, index]) }))) }),
   });
 }
 
@@ -321,12 +324,7 @@ export function receiverHelperMethod(
   receiverType: TargetTypeRef,
   parameters: readonly CsharpTargetParameter[],
   returnType: TargetTypeRef,
-  options: Pick<
-    CsharpTargetMember,
-    "typeParameters" | "csharpArtifactRequirements" |
-      "csharpBinaryExecutionDriver" |
-      "csharpInvocation"
-  > = {},
+  options: RuntimeMethodOptions = {},
 ): CsharpTargetMember {
   return Object.freeze({
     ...staticMethod(

@@ -175,7 +175,7 @@ export function planStatements(
     case "KindClassDeclaration": {
       const factory = input.program.classFactories.get(node);
       const initializer = factory === undefined ? undefined : planClassFactoryExpression(factory, sourceFile, input, diagnostics, state);
-      const type = factory === undefined ? undefined : csharpTypeFromTargetTypeRef(factory.factoryType);
+      const type = factory === undefined ? undefined : csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames);
       if (initializer === undefined || type === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "A local class requires a sealed native factory."));
         return [];

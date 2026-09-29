@@ -122,7 +122,7 @@ export function resolveSourceCallInstantiation(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
-  expectedTypeParameterNames?: readonly string[],
+  expectedTypeParameterIdentities?: readonly string[],
   callable?: CsharpSourceCallableContract,
 ):
   | {
@@ -135,24 +135,24 @@ export function resolveSourceCallInstantiation(
   const owner = callable?.sourceDeclaration ?? source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
   const projections = owner === undefined ? [] : host.representations.genericProjections?.(owner) ?? [];
   const queries = host.semantics(sourceFile);
-  const parameterNames = selectedArguments.map(argument => {
+  const parameterIdentities = selectedArguments.map(argument => {
     const parameter = resolveTypeParameter(argument.typeParameter, queries, host.ast);
-    return parameter?.kind === "type-parameter" ? parameter.name : undefined;
+    return parameter?.kind === "type-parameter" ? parameter.identity : undefined;
   });
-  if (parameterNames.some(name => name === undefined)) return undefined;
-  if (expectedTypeParameterNames?.length === 0) {
+  if (parameterIdentities.some(name => name === undefined)) return undefined;
+  if (expectedTypeParameterIdentities?.length === 0) {
     return {
       arguments: Object.freeze([]),
       substitutions: new Map(),
     };
   }
   if (
-    expectedTypeParameterNames !== undefined &&
+    expectedTypeParameterIdentities !== undefined &&
     (
-      selectedArguments.length + projections.length !== expectedTypeParameterNames.length ||
-      parameterNames.some((name, index) =>
-        name !== expectedTypeParameterNames[index]
-      ) || projections.some((projection, index) => projection.name !== expectedTypeParameterNames[selectedArguments.length + index])
+      selectedArguments.length + projections.length !== expectedTypeParameterIdentities.length ||
+      parameterIdentities.some((name, index) =>
+        name !== expectedTypeParameterIdentities[index]
+      ) || projections.some((projection, index) => projection.identity !== expectedTypeParameterIdentities[selectedArguments.length + index])
     )
   ) {
     return undefined;
@@ -163,17 +163,17 @@ export function resolveSourceCallInstantiation(
       substitutions: new Map(),
     };
   }
-  const inferredParameterNames = new Set(
-    selectedArguments.flatMap((argument, index) => argument.explicitTypeNode === undefined ? [parameterNames[index]!] : []),
+  const inferredParameterIdentities = new Set(
+    selectedArguments.flatMap((argument, index) => argument.explicitTypeNode === undefined ? [parameterIdentities[index]!] : []),
   );
   const inferredTargetArguments = callable === undefined ||
-      inferredParameterNames.size === 0
+      inferredParameterIdentities.size === 0
     ? new Map<string, TargetTypeRef>()
     : inferSourceCallTargetTypeArguments(
         source,
         callable,
         sourceFile,
-        inferredParameterNames,
+        inferredParameterIdentities,
         nextState(state),
       );
   if (inferredTargetArguments === undefined) {
@@ -183,16 +183,16 @@ export function resolveSourceCallInstantiation(
   const arguments_: TargetTypeRef[] = [];
   const substitutions = new Map<string, TargetTypeRef>();
   for (const [index, selected] of selectedArguments.entries()) {
-    const parameterName = parameterNames[index]!;
+    const parameterIdentity = parameterIdentities[index]!;
     if (
       selected.typeParameterName.length === 0 ||
       selectedParameters.has(selected.typeParameter) ||
-      substitutions.has(parameterName)
+      substitutions.has(parameterIdentity)
     ) {
       return undefined;
     }
     let targetArgument = selected.explicitTypeNode === undefined
-      ? inferredTargetArguments.get(parameterName) ??
+      ? inferredTargetArguments.get(parameterIdentity) ??
         resolveAuthoredAndSelectedSourceType(
           undefined,
           sourceFile,
@@ -211,14 +211,14 @@ export function resolveSourceCallInstantiation(
       return undefined;
     }
     selectedParameters.add(selected.typeParameter);
-    substitutions.set(parameterName, targetArgument);
+    substitutions.set(parameterIdentity, targetArgument);
     arguments_.push(targetArgument);
   }
   if (owner !== undefined && projections.length > 0) {
     const results = resolveCsharpProjectionArguments(scope, owner, selectedArguments.map(argument => argument.selectedType), arguments_, state, projections);
     if (results === undefined) return undefined;
     for (const [index, result] of results.entries()) {
-      substitutions.set(projections[index]!.name, result);
+      substitutions.set(projections[index]!.identity, result);
       arguments_.push(result);
     }
   }
@@ -307,7 +307,7 @@ export function resolveSourceCallableContractType(
     source,
     selectedSourceFile,
     nextState(state),
-    callable.methodTypeParameterNames,
+    callable.methodTypeParameterIdentities,
     callable,
   );
   if (instantiation === undefined) {
@@ -337,7 +337,7 @@ export function resolveSourceCallableContractType(
   const template = shape?.declarationTemplate?.targetType;
   if (template?.kind !== "target-named" || receiverType === undefined) return substituted;
   const names = new Set((template.typeArguments ?? []).flatMap(argument =>
-    argument.kind === "type-parameter" ? [argument.name] : []));
+    argument.kind === "type-parameter" ? [argument.identity] : []));
   const bindings = inferCsharpTargetTypeParameterBindings(template, receiverType, names);
   return bindings === undefined ? undefined : substituteTargetTypeParameters(substituted, bindings);
 }
@@ -348,7 +348,7 @@ export function inferSourceCallTargetTypeArguments(
   source: ResolvedSourceCallInfo,
   callable: CsharpSourceCallableContract,
   sourceFile: SourceFile,
-  parameterNames: ReadonlySet<string>,
+  parameterIdentities: ReadonlySet<string>,
   state: CsharpTypeResolutionState,
 ): ReadonlyMap<string, TargetTypeRef> | undefined {
   const { host, resolveSelectedValueWithState } = scope;
@@ -385,8 +385,8 @@ export function inferSourceCallTargetTypeArguments(
     if (isNumericLiteral(binding) && csharpLiteralIsRepresentableAs(host, argument.expression,
       substituteTargetTypeParameters(pattern, inferred))) continue;
     const candidates = host.ast.is.IsObjectLiteralExpression(argument.expression)
-      ? inferSourceObjectTypeArguments(scope, argument.expression, pattern, sourceFile, parameterNames, state)
-      : inferCsharpTargetTypeParameterBindings(pattern, actual, parameterNames);
+      ? inferSourceObjectTypeArguments(scope, argument.expression, pattern, sourceFile, parameterIdentities, state)
+      : inferCsharpTargetTypeParameterBindings(pattern, actual, parameterIdentities);
     if (candidates === undefined) {
       continue;
     }
@@ -409,7 +409,7 @@ function inferSourceObjectTypeArguments(
   literal: Node,
   pattern: TargetTypeRef,
   sourceFile: SourceFile,
-  parameterNames: ReadonlySet<string>,
+  parameterIdentities: ReadonlySet<string>,
   state: CsharpTypeResolutionState,
 ): ReadonlyMap<string, TargetTypeRef> | undefined {
   const elements = host.ast.properties(literal).map(element => {
@@ -429,7 +429,7 @@ function inferSourceObjectTypeArguments(
     if (fields.length !== 1) return undefined;
     const actual = resolveNodeWithState(element!.initializer, sourceFile, nextState(state));
     if (actual === undefined) return undefined;
-    const candidates = inferCsharpTargetTypeParameterBindings(fields[0]!.type, actual, parameterNames);
+    const candidates = inferCsharpTargetTypeParameterBindings(fields[0]!.type, actual, parameterIdentities);
     if (candidates === undefined) continue;
     for (const [name, candidate] of candidates) {
       const previous = inferred.get(name);
@@ -509,7 +509,7 @@ export function sourceCallableTypeParametersMatch(
   source: ResolvedSourceCallInfo,
   callable: CsharpSourceCallableContract,
 ): boolean {
-  if (callable.methodTypeParameterNames.length === 0) {
+  if (callable.methodTypeParameterIdentities.length === 0) {
     return true;
   }
   const selected = source.sourceSelectedMethodTypeArguments ?? [];
@@ -518,11 +518,11 @@ export function sourceCallableTypeParametersMatch(
   const queries = host.semantics(file);
   const projections = callable.sourceDeclaration === undefined ? []
     : host.representations.genericProjections?.(callable.sourceDeclaration) ?? [];
-  return selected.length + projections.length === callable.methodTypeParameterNames.length &&
-    projections.every((projection, index) => projection.name === callable.methodTypeParameterNames[selected.length + index]) &&
+  return selected.length + projections.length === callable.methodTypeParameterIdentities.length &&
+    projections.every((projection, index) => projection.identity === callable.methodTypeParameterIdentities[selected.length + index]) &&
     selected.every((argument, index) => {
       const parameter = resolveTypeParameter(argument.typeParameter, queries, host.ast);
-      return parameter?.kind === "type-parameter" && parameter.name === callable.methodTypeParameterNames[index];
+      return parameter?.kind === "type-parameter" && parameter.identity === callable.methodTypeParameterIdentities[index];
     });
 }
 

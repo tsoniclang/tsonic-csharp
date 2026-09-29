@@ -62,9 +62,9 @@ test("advanced .NET API contracts close through provider selection and C# syntax
         ${valueAdapter.sourceName},
       } from "${moduleSpecifier}";
       import {
-        loadPointer,
-        storePointer,
-        unsafeContext,
+        loadptr,
+        storeptr,
+        unsafecontext,
       } from "@tsonic/core/lang.js";
       import type { int32 } from "@tsonic/core/types.js";
       import type { ptr } from "@tsonic/csharp/lang.js";
@@ -82,8 +82,8 @@ test("advanced .NET API contracts close through provider selection and C# syntax
 
       export function references(value: ByRefReturnSignatures): number {
         const slot = value.ValueRef();
-        storePointer(slot, 9);
-        return loadPointer(value.ReadonlyValueRef());
+        storeptr(slot, 9);
+        return loadptr(value.ReadonlyValueRef());
       }
 
       export function functionPointers(value: FunctionPointerSignatures): void {
@@ -91,7 +91,7 @@ test("advanced .NET API contracts close through provider selection and C# syntax
       }
 
       export function nativePointers(value: PointerSignatures): number {
-        unsafeContext();
+        unsafecontext();
         const pointer = value.PointerReturn();
         return value.ReadPointer(pointer);
       }
@@ -100,14 +100,14 @@ test("advanced .NET API contracts close through provider selection and C# syntax
         callback: PointerDelegate,
         pointer: ptr<int32>,
       ): number {
-        unsafeContext();
+        unsafecontext();
         return callback(pointer);
       }
 
       export function refReturnDelegate(callback: RefReturnDelegate): number {
         const slot = callback();
-        storePointer(slot, 11);
-        return loadPointer(slot);
+        storeptr(slot, 11);
+        return loadptr(slot);
       }
 
       export function events(value: EventSignatures, callback: (value: number) => void): void {

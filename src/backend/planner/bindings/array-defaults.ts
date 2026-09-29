@@ -34,7 +34,7 @@ export function planArrayDefaultProjection(
   const defaultOnNull = behavior === "nullable" && nullableElement !== undefined;
   const carrier = defaultOnNull ? nullableElement
     : behavior === "always" ? input.program.sourceEvidence.nodeTargetType(initializer) : sourceCarrier.element;
-  const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
+  const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
   if (carrier === undefined || type === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(initializer, "Array default requires a renderable finalized element carrier."));
     return undefined;

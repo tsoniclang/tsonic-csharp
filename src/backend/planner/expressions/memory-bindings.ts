@@ -25,7 +25,7 @@ export function tryPlanCsharpMemoryBinding(
   const assignments: CsharpObjectInitializerAssignment[] = [];
   for (const field of binding.fields) {
     const pointer = planExpression(field.expression, file, input, diagnostics);
-    const storage = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(field.member));
+    const storage = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(field.member), input.scope.typeParameterNames);
     if (pointer === undefined || storage === undefined) return reject("The bound field has no renderable C# location storage.");
     assignments.push({ kind: "AssignmentExpression", name: objectShapeBoundStorageMemberName(binding.shape, field.member), expression: {
       kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: storage, name: "FromLocation" },

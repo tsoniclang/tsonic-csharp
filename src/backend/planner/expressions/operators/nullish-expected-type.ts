@@ -89,6 +89,7 @@ export function tryPlanBinaryExpressionWithExpectedType(
       : undefined;
   }
   const resultType = selectExpectedResultType(
+    input.scope.typeParameterNames,
     selection.resultType,
     selection.leftType,
     selection.expectedResultCompatible,
@@ -149,12 +150,13 @@ function binaryOperationUsesExpectedNumericType(
 }
 
 function selectExpectedResultType(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   resultTarget: TargetTypeRef,
   leftTarget: TargetTypeRef,
   expectedResultCompatible: boolean,
   expectedType: CsharpTypeNode,
 ): CsharpTypeNode | undefined {
-  const resultType = csharpTypeFromTargetTypeRef(resultTarget);
+  const resultType = csharpTypeFromTargetTypeRef(resultTarget, typeParameterNames);
   if (resultType === undefined) {
     return undefined;
   }
@@ -167,7 +169,7 @@ function selectExpectedResultType(
   if (sameCsharpType(resultType, expectedType)) {
     return resultType;
   }
-  const leftType = csharpTypeFromTargetTypeRef(leftTarget);
+  const leftType = csharpTypeFromTargetTypeRef(leftTarget, typeParameterNames);
   const leftValueType = leftType?.kind === "NullableType"
     ? leftType.inner
     : leftType;

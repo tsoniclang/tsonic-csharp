@@ -14,18 +14,18 @@ export function resolveCsharpTargetTypePatternArguments(
   actual: TargetTypeRef,
   parameters: readonly TargetTypeParameter[],
 ): readonly TargetTypeRef[] | undefined {
-  const parameterNames = new Set<string>();
+  const parameterIdentities = new Set<string>();
   for (const parameter of parameters) {
-    if (parameter.name.length === 0 || parameterNames.has(parameter.name)) {
+    if (parameter.identity.length === 0 || parameterIdentities.has(parameter.identity)) {
       return undefined;
     }
-    parameterNames.add(parameter.name);
+    parameterIdentities.add(parameter.identity);
   }
   const bindings = new Map<string, TargetTypeRef>();
-  if (!matchTargetTypePattern(pattern, actual, parameterNames, bindings)) {
+  if (!matchTargetTypePattern(pattern, actual, parameterIdentities, bindings)) {
     return undefined;
   }
-  const arguments_ = parameters.map((parameter) => bindings.get(parameter.name));
+  const arguments_ = parameters.map((parameter) => bindings.get(parameter.identity));
   return arguments_.every(
       (argument): argument is TargetTypeRef => argument !== undefined,
     )
@@ -36,19 +36,19 @@ export function resolveCsharpTargetTypePatternArguments(
 function matchTargetTypePattern(
   pattern: TargetTypeRef,
   actual: TargetTypeRef,
-  parameterNames: ReadonlySet<string>,
+  parameterIdentities: ReadonlySet<string>,
   bindings: Map<string, TargetTypeRef>,
 ): boolean {
-  if (pattern.kind === "type-parameter" && parameterNames.has(pattern.name)) {
+  if (pattern.kind === "type-parameter" && parameterIdentities.has(pattern.identity)) {
     if (
       isCsharpNullableReferenceTargetType(pattern) &&
       !isCsharpNullableReferenceTargetType(actual)
     ) {
       return false;
     }
-    const existing = bindings.get(pattern.name);
+    const existing = bindings.get(pattern.identity);
     if (existing === undefined) {
-      bindings.set(pattern.name, actual);
+      bindings.set(pattern.identity, actual);
       return true;
     }
     return targetTypeRefEquals(existing, actual);
@@ -71,7 +71,7 @@ function matchTargetTypePattern(
         matchTargetTypePatternList(
           pattern.typeArguments ?? [],
           actual.typeArguments ?? [],
-          parameterNames,
+          parameterIdentities,
           bindings,
         );
     case "target-named":
@@ -80,18 +80,18 @@ function matchTargetTypePattern(
         matchTargetTypePatternList(
           pattern.typeArguments ?? [],
           actual.typeArguments ?? [],
-          parameterNames,
+          parameterIdentities,
           bindings,
         );
     case "type-parameter":
-      return actual.kind === "type-parameter" && pattern.name === actual.name;
+      return actual.kind === "type-parameter" && pattern.identity === actual.identity;
     case "array":
       return actual.kind === "array" &&
         (pattern.rank ?? 1) === (actual.rank ?? 1) &&
         matchTargetTypePattern(
           pattern.element,
           actual.element,
-          parameterNames,
+          parameterIdentities,
           bindings,
         );
     case "tuple":
@@ -99,7 +99,7 @@ function matchTargetTypePattern(
         matchTargetTypePatternList(
           pattern.elements,
           actual.elements,
-          parameterNames,
+          parameterIdentities,
           bindings,
         );
     case "pointer":
@@ -108,7 +108,7 @@ function matchTargetTypePattern(
         matchTargetTypePattern(
           pattern.pointee,
           actual.pointee,
-          parameterNames,
+          parameterIdentities,
           bindings,
         );
     case "function-pointer":
@@ -117,13 +117,13 @@ function matchTargetTypePattern(
         matchTargetTypePatternList(
           pattern.args,
           actual.args,
-          parameterNames,
+          parameterIdentities,
           bindings,
         ) &&
         matchTargetTypePattern(
           pattern.result,
           actual.result,
-          parameterNames,
+          parameterIdentities,
           bindings,
         );
     case "opaque":
@@ -134,7 +134,7 @@ function matchTargetTypePattern(
         matchTargetTypePattern(
           pattern.owner,
           actual.owner,
-          parameterNames,
+          parameterIdentities,
           bindings,
         );
     case "lifetime":
@@ -150,7 +150,7 @@ function matchTargetTypePattern(
 function matchTargetTypePatternList(
   patterns: readonly TargetTypeRef[],
   actuals: readonly TargetTypeRef[],
-  parameterNames: ReadonlySet<string>,
+  parameterIdentities: ReadonlySet<string>,
   bindings: Map<string, TargetTypeRef>,
 ): boolean {
   return patterns.length === actuals.length &&
@@ -158,7 +158,7 @@ function matchTargetTypePatternList(
       matchTargetTypePattern(
         pattern,
         actuals[index]!,
-        parameterNames,
+        parameterIdentities,
         bindings,
       ));
 }

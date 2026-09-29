@@ -43,7 +43,7 @@ export function planCsharpExactLiteralConversion(
         operand: { kind: "NumericLiteralExpression", value: 0, suffix: targetType.name === "float64" ? "D" : "F" },
       };
       if (targetType.name !== "float16") return { kind: "resolved", expression: zero };
-      const halfType = csharpTypeFromTargetTypeRef(targetType);
+      const halfType = csharpTypeFromTargetTypeRef(targetType, input.scope.typeParameterNames);
       return halfType === undefined
         ? { kind: "rejected", reason: "C# Half signed-zero conversion requires an exact renderable target type." }
         : { kind: "resolved", expression: {
@@ -93,7 +93,7 @@ export function planCsharpExactLiteralConversion(
         };
       }
       if (targetType.name === "float16") {
-        const type = csharpTypeFromTargetTypeRef(targetType);
+        const type = csharpTypeFromTargetTypeRef(targetType, input.scope.typeParameterNames);
         return type === undefined
           ? {
               kind: "rejected",
@@ -133,7 +133,7 @@ export function planCsharpExactLiteralConversion(
           reason: `Source bigint literal is outside the exact '${targetType.name}' range.`,
         };
       }
-      const expression = planWideIntegerLiteral(value, targetType);
+      const expression = planWideIntegerLiteral(input.scope.typeParameterNames, value, targetType);
       return expression === undefined
         ? {
             kind: "rejected",
@@ -170,14 +170,15 @@ function classifiedLiteralRepresentation(
 }
 
 function planWideIntegerLiteral(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   value: bigint,
   target: Extract<TargetTypeRef, { readonly kind: "source-primitive" }>,
 ): CsharpExpression | undefined {
   switch (target.name) {
     case "native-int":
     case "native-uint": {
-      const type = csharpTypeFromTargetTypeRef(target);
-      const literal = planWideIntegerLiteral(value, {
+      const type = csharpTypeFromTargetTypeRef(target, typeParameterNames);
+      const literal = planWideIntegerLiteral(typeParameterNames, value, {
         kind: "source-primitive", name: target.name === "native-int" ? "int64" : "uint64",
       });
       return type === undefined || literal === undefined ? undefined : {
@@ -198,7 +199,7 @@ function planWideIntegerLiteral(
       return unsignedInt64Literal(value);
     case "int128":
     case "uint128":
-      return int128Literal(value, target);
+      return int128Literal(typeParameterNames, value, target);
     default:
       return undefined;
   }
@@ -228,10 +229,11 @@ function unsignedInt64Literal(value: bigint): CsharpExpression {
 }
 
 function int128Literal(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   value: bigint,
   target: Extract<TargetTypeRef, { readonly kind: "source-primitive" }>,
 ): CsharpExpression | undefined {
-  const type = csharpTypeFromTargetTypeRef(target);
+  const type = csharpTypeFromTargetTypeRef(target, typeParameterNames);
   if (type === undefined) {
     return undefined;
   }

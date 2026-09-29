@@ -4,7 +4,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import { csharpTypeProjection, getCsharpGenericOptionalParts, type CsharpProjectedType } from "../../target-model/types/projections.js";
 import type { CsharpTargetOperationClassifications } from "../operations/model.js";
-import { csharpSourceTypeParameterName, csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
+import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
 
@@ -27,7 +27,7 @@ export function analyzeCsharpTypeProjections(
   const record = (index: Map<Node, Map<string, CsharpProjectedType>>, owner: Node, projection: CsharpProjectedType): void => {
     let parameters = index.get(owner);
     if (parameters === undefined) { parameters = new Map(); index.set(owner, parameters); }
-    parameters.set(projection.name, projection);
+    parameters.set(projection.identity, projection);
   };
   const visit = (node: Node): void => {
     if (ast.is.IsTypeAliasDeclaration(node) || ast.is.IsImportDeclaration(node) || evidence.isCompileTimeMetadata(node)) return;
@@ -49,12 +49,12 @@ export function analyzeCsharpTypeProjections(
       pending.push(...projection.csharpProjection.arguments);
       const optional = getCsharpGenericOptionalParts(projection);
       if (optional !== undefined) pending.push(optional.operations);
-      const free = typeParameterNames(projection.csharpProjection.arguments);
+      const free = typeParameterIdentities(projection.csharpProjection.arguments);
       if (free.size === 0) continue;
       for (let owner: Node | undefined = node; owner !== undefined; owner = ast.parent(owner)) {
         const parameters = csharpSourceTypeParameters(owner, ast).flatMap(parameter => {
-          const name = parameter === undefined ? undefined : csharpSourceTypeParameterName(parameter, ast);
-          return name === undefined ? [] : [name];
+          const identity = parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, ast)?.identity;
+          return identity === undefined ? [] : [identity];
         });
         if (ast.is.IsTypeAliasDeclaration(owner)) break;
         if (parameters.some(name => free.has(name))) {
@@ -66,7 +66,7 @@ export function analyzeCsharpTypeProjections(
           const declared = queries.declarations.declaredType(owner);
           const outer = declared === undefined ? [] : queries.types.typeArgumentBindings(declared)
             ?.filter(binding => binding.scope === "outer")
-            .map(binding => csharpSourceTypeParameterName(binding.declaration, ast)) ?? [];
+            .map(binding => csharpSourceTypeParameter(binding.declaration, ast)?.identity) ?? [];
           if ([...free].every(name => outer.includes(name))) record(outerByDeclaration, owner, projection);
         }
       }
@@ -87,24 +87,24 @@ export function analyzeCsharpTypeProjections(
   });
 }
 
-function typeParameterNames(types: readonly TargetTypeRef[]): ReadonlySet<string> {
-  const names = new Set<string>();
+function typeParameterIdentities(types: readonly TargetTypeRef[]): ReadonlySet<string> {
+  const identities = new Set<string>();
   const pending = [...types];
   for (let index = 0; index < pending.length; index += 1) {
     const type = pending[index]!;
     const projection = csharpTypeProjection(type);
     if (projection !== undefined) pending.push(...projection.csharpProjection.arguments);
-    else if (type.kind === "type-parameter") names.add(type.name);
+    else if (type.kind === "type-parameter") identities.add(type.identity);
     else pending.push(...csharpTargetTypeComponents(type));
   }
-  return names;
+  return identities;
 }
 
 export function csharpTypeProjectionIndexesEqual(left: CsharpGenericProjectionIndex, right: CsharpGenericProjectionIndex): boolean {
   return left.entries.length === right.entries.length && left.entries.every(entry => {
     const parameters = right.get(entry.declaration);
     const outer = right.outer(entry.declaration);
-    return parameters.length === entry.parameters.length && parameters.every((parameter, index) => parameter.name === entry.parameters[index]!.name) &&
-      outer.length === entry.outerParameters.length && outer.every((parameter, index) => parameter.name === entry.outerParameters[index]!.name);
+    return parameters.length === entry.parameters.length && parameters.every((parameter, index) => parameter.identity === entry.parameters[index]!.identity) &&
+      outer.length === entry.outerParameters.length && outer.every((parameter, index) => parameter.identity === entry.outerParameters[index]!.identity);
   });
 }

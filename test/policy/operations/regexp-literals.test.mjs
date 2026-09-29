@@ -84,6 +84,7 @@ function directInput(node, targetType) {
     sourceFile,
   );
   return {
+    scope: {},
     program: {
       operations: {
         regularExpression: (candidate) =>

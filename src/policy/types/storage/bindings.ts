@@ -51,6 +51,7 @@ export function csharpTargetTypePatternFromBinding(
   }
   const typeArguments = binding.typeParameters?.map((parameter) => ({
     kind: "type-parameter" as const,
+    identity: parameter.identity,
     name: parameter.name,
   }));
   return {
@@ -72,7 +73,7 @@ function targetBindingTypeArgumentMap(
     const parameter = typeParameters[index];
     const argument = typeArguments[index];
     if (parameter !== undefined && argument !== undefined) {
-      substitutions.set(parameter.name, argument);
+      substitutions.set(parameter.identity, argument);
     }
   }
   return substitutions;
@@ -91,7 +92,7 @@ export function csharpBaseTargetTypeFromBinding(
     new Map((binding.typeParameters ?? [])
       .map((parameter, index) => {
         const typeArgument = typeArguments[index];
-        return typeArgument === undefined ? undefined : [parameter.name, typeArgument] as const;
+        return typeArgument === undefined ? undefined : [parameter.identity, typeArgument] as const;
       })
       .filter((entry): entry is readonly [string, TargetTypeRef] => entry !== undefined)),
   );

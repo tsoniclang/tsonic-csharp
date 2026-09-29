@@ -9,6 +9,7 @@ import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../modifiers.js";
 import { csharpReferenceIdentityInterfaceType } from "../../objects/declarations/interfaces.js";
 import { planCsharpStructuralInterfaceMethods } from "../interfaces/structural.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
+import { createCsharpTypeParameterPlanningContext } from "../../names/type-parameters.js";
 import { planOuterTypeParameters, planTypeParameters } from "../../types/type-parameters.js";
 import { planClassMembers } from "./members.js";
 import { csharpJsonValueInterfaceType, objectShapeRequiresJsonSerialization, renderJsonSerializableObjectShapeMethod } from "../../objects/json-object-shapes.js";
@@ -28,21 +29,22 @@ export function planClassDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration {
-  input = createCsharpMemberPlanningContext(input);
+  input = createCsharpTypeParameterPlanningContext(node, createCsharpMemberPlanningContext(input));
   const declaration = input.program.source.ast.is.IsClassExpression(node)
     ? input.program.source.ast.as.AsClassExpression(node)! : AsClassDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "class declaration", diagnostics, ["abstract"]);
   const factory = input.program.classFactories.get(node);
   const staticCompanion = input.types.projectTypes.definitionContainingDeclaration(node)?.staticCompanion === true;
-  const className = factory?.instanceName ?? planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
+  const className = declaration.name === undefined && factory !== undefined ? factory.instanceName
+    : planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
   const heritage = planClassHeritage(node, input, diagnostics);
   const autoPropertyNames = new Set(getImplementedInterfacePropertyNames(node, input));
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
   const structuralInterfaces = objectShape?.implements ?? [];
   const interfaces = [...heritage.interfaces];
-  if (factory?.identity !== undefined) interfaces.push(csharpTypeFromTargetTypeRef(factory.identity.type)!);
+  if (factory?.identity !== undefined) interfaces.push(csharpTypeFromTargetTypeRef(factory.identity.type, input.scope.typeParameterNames)!);
   for (const type of structuralInterfaces) {
-    const rendered = csharpTypeFromTargetTypeRef(type);
+    const rendered = csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames);
     if (rendered === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "An analyzed structural interface has no C# type representation."));
     } else if (!interfaces.some(existing => JSON.stringify(existing) === JSON.stringify(rendered))) {
@@ -103,11 +105,11 @@ export function planClassDeclaration(
       ...[...safetyDefaultConstructors, ...defaultFactoryConstructor].map(member => factory !== undefined && member.kind === "ConstructorDeclaration"
         ? completeLocalClassConstructor(member, factory, input, diagnostics) : member),
       ...(factory?.retainsEnvironment ? [{ kind: "FieldDeclaration" as const, name: factory.environmentName,
-        type: csharpTypeFromTargetTypeRef(factory.factoryType)!,
+        type: csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames)!,
         modifiers: [factory.requiresInstanceTest ? "internal" as const : "private" as const, "readonly" as const] }] : []),
       ...(factory?.identity === undefined ? [] : [{ kind: "PropertyDeclaration" as const,
-        name: factory.environmentName, explicitInterface: csharpTypeFromTargetTypeRef(factory.identity.type)!, modifiers: [],
-        type: csharpTypeFromTargetTypeRef(factory.factoryType)!,
+        name: factory.environmentName, explicitInterface: csharpTypeFromTargetTypeRef(factory.identity.type, input.scope.typeParameterNames)!, modifiers: [],
+        type: csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames)!,
         getter: { kind: "Block" as const, statements: [{ kind: "ReturnStatement" as const, expression: {
           kind: "SimpleMemberAccessExpression" as const, receiver: { kind: "IdentifierName" as const, name: "this" }, name: factory.environmentName,
         } }] },

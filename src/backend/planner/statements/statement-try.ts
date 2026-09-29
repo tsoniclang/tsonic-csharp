@@ -117,7 +117,7 @@ function planCatchClause(
       sourceFile,
     );
     const carrier = probeCarrierFromResolution(carrierResolution);
-    const variableType = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
+    const variableType = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
     const throwable = input.program.operations.throwable(variable.name);
     if (throwable === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(

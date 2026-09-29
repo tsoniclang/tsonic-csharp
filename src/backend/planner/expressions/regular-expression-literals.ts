@@ -27,7 +27,7 @@ export function planRegularExpressionLiteral(
     });
     return undefined;
   }
-  const renderedType = csharpTypeFromTargetTypeRef(selection.targetType);
+  const renderedType = csharpTypeFromTargetTypeRef(selection.targetType, input.scope.typeParameterNames);
   if (renderedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "RegExp literal emission requires a renderable provider constructor result type fact."));
     return undefined;

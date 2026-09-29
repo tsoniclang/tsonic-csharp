@@ -23,7 +23,7 @@ const neutralFactReaders = new Map([
   ["tsonicNativePointerOperationFactKey", ["src/policy/operations/pointers/source-native-pointers.ts"]],
   ["tsonicSafetyBuilderFactKey", ["src/policy/operations/safety/explicit.ts"]],
   ["tsonicUnsafeContextFactKey", ["src/policy/operations/safety/explicit.ts"]],
-  ["tsonicAttributeBuilderFactKey", ["src/analysis/attributes/application-index.ts"]],
+  ["createTsonicAttributeApplicationFactIndex", ["src/analysis/attributes/application-index.ts"]],
 ]);
 
 function sourceFiles(directory) {
@@ -68,6 +68,7 @@ test("C# backend consumes target-owned marker models only", () => {
     "StructFact",
     "TsonicAttributeApplicationFact",
     "TsonicAttributeBuilderFact",
+    "tsonicAttributeBuilderFactKey",
     "TsonicNativePointerOperationFact",
     "TsonicSafetyApplicationFact",
     "TsonicSafetyBuilderFact",
@@ -114,7 +115,7 @@ test("typed-location selection is fact-driven and contains no marker spellings",
   assert.match(selection, /readCsharpSourceTypedLocationOperation/u);
   assert.doesNotMatch(
     selection,
-    /\baddressOf\b|\ballocatePointer\b|\bequalPointer\b|\bloadPointer\b|\bstorePointer\b/u,
+    /\b(?:addressOf|allocatePointer|equalPointer|loadPointer|storePointer|addressof|allocateptr|equalptr|loadptr|storeptr)\b/u,
   );
   assert.doesNotMatch(selection, /getSymbolAtLocation|getResolvedSymbol|\.Text\b|\.TypeArguments\b/u);
 });

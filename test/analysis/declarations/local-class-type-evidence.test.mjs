@@ -35,7 +35,8 @@ test("local class catalogs require exact outer type-parameter evidence", () => {
   assert.ok(definition);
   assert.equal(definition.outerTypeParameters.length, 1);
   assert.equal(definition.sourceTypeParameterCount, 1);
-  assert.equal(definition.typeParameterNames.length, 2);
+  assert.deepEqual(definition.typeParameterBindings.map(parameter => parameter.name), ["Outer", "Inner"]);
+  assert.equal(new Set(definition.typeParameterBindings.map(parameter => parameter.identity)).size, 2);
   assert.equal(projectTypeDefinition({ ...host, semanticsFor: () => ({ ...semantics,
     declarations: { ...semantics.declarations, declaredType: () => undefined },
   }) }, declaration), undefined);

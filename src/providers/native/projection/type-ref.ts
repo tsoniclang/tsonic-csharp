@@ -43,7 +43,7 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
     case "source-primitive":
       return { kind: "source-primitive", name: type.name };
     case "type-parameter":
-      return { kind: "type-parameter", name: type.name };
+      return { kind: "type-parameter", identity: type.identity, name: type.name };
     case "provider-ref":
       throw new Error("Provider-ref is a source declaration shape only and cannot be emitted as a target type.");
     case "named":

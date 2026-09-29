@@ -98,7 +98,7 @@ test("selected type reconciliation preserves closed authored aliases only for th
   const open = {
     kind: "target-named",
     id: "Example.Box`1",
-    typeArguments: [{ kind: "type-parameter", name: "T" }],
+    typeArguments: [{ kind: "type-parameter", identity: "T", name: "T" }],
   };
 
   assert.strictEqual(

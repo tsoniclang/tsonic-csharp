@@ -91,7 +91,7 @@ export function planReturnStatement(
   const statement = AsReturnStatement(input.program.source.ast, node)!;
   if (state.generator !== undefined) {
     const returnType = csharpTypeFromTargetTypeRef(
-      state.generator.protocol.returnType,
+      state.generator.protocol.returnType, input.scope.typeParameterNames,
     );
     if (returnType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(

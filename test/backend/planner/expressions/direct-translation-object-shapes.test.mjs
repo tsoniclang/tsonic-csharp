@@ -47,9 +47,9 @@ test("direct C# translation derives mapped utility shapes from exact project mem
 {
     public static class Index
     {
-        public static ObjectShape_9db935ba1a03<double, string> clone(ObjectShape_576c4989da85<double, string> input)
+        public static ObjectShape_5dbae42552b9<double, string> clone(ObjectShape_a21503fd21dc<double, string> input)
         {
-            return new ObjectShape_630c7f6c610c
+            return new ObjectShape_d2e29a14b094
             {
                 id = input.id,
                 label = input.label,
@@ -62,12 +62,17 @@ test("direct C# translation derives mapped utility shapes from exact project mem
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public interface ObjectShape_576c4989da85<out Property0, out Property1>
+    public interface ObjectShape_5dbae42552b9<Property0, Property1>
+    {
+        Property0 id { get; set; }
+        Property1 label { get; set; }
+    }
+    public interface ObjectShape_a21503fd21dc<out Property0, out Property1>
     {
         Property0 id { get; }
         Property1 label { get; }
     }
-    public class ObjectShape_630c7f6c610c : ObjectShape_9db935ba1a03<double, string>
+    public class ObjectShape_d2e29a14b094 : ObjectShape_5dbae42552b9<double, string>
     {
         public required double id
         {
@@ -79,11 +84,6 @@ test("direct C# translation derives mapped utility shapes from exact project mem
             get;
             set;
         }
-    }
-    public interface ObjectShape_9db935ba1a03<Property0, Property1>
-    {
-        Property0 id { get; set; }
-        Property1 label { get; set; }
     }
 }
 `,
@@ -114,14 +114,14 @@ test("direct C# translation coalesces duplicate structural union carriers withou
 {
     public static class Index
     {
-        public static double score(ObjectShape_1301406ee37c<string, double> result)
+        public static double score(ObjectShape_04de34f1c855<string, double> result)
         {
             if (result.kind == "found")
             {
-                ObjectShape_1301406ee37c<string, double> found = result;
+                ObjectShape_04de34f1c855<string, double> found = result;
                 return found.value + 1;
             }
-            ObjectShape_1301406ee37c<string, double> missing = result;
+            ObjectShape_04de34f1c855<string, double> missing = result;
             return missing.value - 1;
         }
     }
@@ -131,7 +131,7 @@ test("direct C# translation coalesces duplicate structural union carriers withou
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public interface ObjectShape_1301406ee37c<Property0, Property1>
+    public interface ObjectShape_04de34f1c855<Property0, Property1>
     {
         Property0 kind { get; set; }
         Property1 value { get; set; }
@@ -158,11 +158,11 @@ test("structural object-shape identity is independent of source member order", (
 {
     public static class Index
     {
-        public static ObjectShape_69b166f4d8eb<double, string> left(ObjectShape_69b166f4d8eb<double, string> value)
+        public static ObjectShape_bb74cb00240e<double, string> left(ObjectShape_bb74cb00240e<double, string> value)
         {
             return value;
         }
-        public static ObjectShape_69b166f4d8eb<double, string> right(ObjectShape_69b166f4d8eb<double, string> value)
+        public static ObjectShape_bb74cb00240e<double, string> right(ObjectShape_bb74cb00240e<double, string> value)
         {
             return value;
         }
@@ -173,7 +173,7 @@ test("structural object-shape identity is independent of source member order", (
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public interface ObjectShape_69b166f4d8eb<Property0, Property1>
+    public interface ObjectShape_bb74cb00240e<Property0, Property1>
     {
         Property0 alpha { get; set; }
         Property1 zeta { get; set; }

@@ -82,7 +82,7 @@ function planRecordDictionaryLiteral(
 ): CsharpExpression | undefined {
   const properties = (AsObjectLiteralExpression(input.program.source.ast, node)!.Properties?.Nodes ?? [])
     .filter((property): property is Node => property !== undefined);
-  const type = csharpTypeFromTargetTypeRef(dictionaryType);
+  const type = csharpTypeFromTargetTypeRef(dictionaryType, input.scope.typeParameterNames);
   if (type === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Record dictionary object literal emission requires a renderable provider-owned Dictionary target type."));
     return undefined;
@@ -99,7 +99,7 @@ function planRecordDictionaryLiteral(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Record dictionary object literal emission requires finalized key and value target type facts before C# emission."));
     return undefined;
   }
-  const valueCsharpType = csharpTypeFromTargetTypeRef(valueType);
+  const valueCsharpType = csharpTypeFromTargetTypeRef(valueType, input.scope.typeParameterNames);
   if (valueCsharpType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Record dictionary object literal values require a renderable finalized value target type before C# emission."));
     return undefined;

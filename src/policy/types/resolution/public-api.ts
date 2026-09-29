@@ -326,7 +326,7 @@ export function resolveSourceCallTypeArguments(
     source,
     sourceFile,
     { depth: 0 },
-    callable?.methodTypeParameterNames,
+    callable?.methodTypeParameterIdentities,
     callable,
   )?.arguments;
 }

@@ -44,7 +44,7 @@ export function planCsharpOptionalReceiverChain(
     return { handled: true };
   }
   const result = chain[0]?.classification.selectedResultType;
-  const resultType = result === undefined ? undefined : csharpTypeFromTargetTypeRef(result);
+  const resultType = result === undefined ? undefined : csharpTypeFromTargetTypeRef(result, input.scope.typeParameterNames);
   const receiver = planExpression(current, sourceFile, input, diagnostics);
   if (resultType === undefined || receiver === undefined) return { handled: true };
   chain.reverse();
@@ -53,7 +53,7 @@ export function planCsharpOptionalReceiverChain(
     const entry = chain[index];
     if (entry === undefined) return value;
     const selected = entry.classification.optionalReceiver!;
-    const type = csharpTypeFromTargetTypeRef(selected.type);
+    const type = csharpTypeFromTargetTypeRef(selected.type, input.scope.typeParameterNames);
     if (type === undefined) return undefined;
     const name = input.names.temporaryName(`__tsonic_optionalReceiver_${Math.max(0, input.program.source.ast.pos(entry.node))}_${Math.max(0, input.program.source.ast.end(entry.node))}`);
     const present: CsharpExpression = selected.guard ? { kind: "IdentifierName", name } : value;

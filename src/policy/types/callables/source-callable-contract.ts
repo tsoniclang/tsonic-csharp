@@ -14,7 +14,7 @@ export interface CsharpSourceCallableParameterContract {
 
 export interface CsharpSourceCallableContract {
   readonly sourceDeclaration: Node;
-  readonly methodTypeParameterNames: readonly string[];
+  readonly methodTypeParameterIdentities: readonly string[];
   readonly receiverTypeOwner?: Node;
   readonly parameters: readonly CsharpSourceCallableParameterContract[];
   readonly returnType: TargetTypeRef;

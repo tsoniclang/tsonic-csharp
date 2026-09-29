@@ -157,7 +157,7 @@ function planArrayAssignmentElement(
     index,
     false,
   );
-  const projectedType = elementCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(elementCarrier);
+  const projectedType = elementCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(elementCarrier, input.scope.typeParameterNames);
   if (projectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, "Array destructuring assignment element requires a renderable provider element carrier type before C# emission."));
     return [];
@@ -169,7 +169,7 @@ function planArrayAssignmentElement(
         getCsharpNullableElementTargetType(elementCarrier);
       if (defaultedElementCarrier !== undefined) {
         const defaultedElementType = csharpTypeFromTargetTypeRef(
-          defaultedElementCarrier,
+          defaultedElementCarrier, input.scope.typeParameterNames,
         );
         if (defaultedElementType === undefined) {
           diagnostics.push(unsupportedNodeDiagnostic(
@@ -233,7 +233,7 @@ function planArrayAssignmentRestElement(
   if (sourceCarrier.kind !== "array") {
     return planTupleAssignmentRestElement(element, sourceExpression, index, sourceCarrier, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
   }
-  const projectedType = csharpTypeFromTargetTypeRef(sourceCarrier.restCarrier);
+  const projectedType = csharpTypeFromTargetTypeRef(sourceCarrier.restCarrier, input.scope.typeParameterNames);
   if (projectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, "Array rest destructuring assignment requires a renderable provider array carrier type before C# emission."));
     return [];
@@ -273,7 +273,7 @@ function planTupleAssignmentRestElement(
     diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, "Tuple rest destructuring assignment requires an exact tuple-slice carrier."));
     return [];
   }
-  const projectedType = csharpTypeFromTargetTypeRef(restCarrier);
+  const projectedType = csharpTypeFromTargetTypeRef(restCarrier, input.scope.typeParameterNames);
   if (projectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, "Tuple rest destructuring assignment requires a renderable provider tuple carrier type before C# emission."));
     return [];
@@ -413,7 +413,7 @@ function planObjectAssignmentElement(
     return [];
   }
   const member = memberLookup.member;
-  const projectedType = csharpTypeFromTargetTypeRef(member.type);
+  const projectedType = csharpTypeFromTargetTypeRef(member.type, input.scope.typeParameterNames);
   if (projectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, `Object-shape member '${member.sourceName}' must carry a renderable target type before C# emission.`));
     return [];

@@ -65,7 +65,7 @@ export function createCsharpStructuralUnionDefinitions(
       host.typeResolver.resolveType(binding.parameter, sourceFile, nextState(state)));
     if (parameters.some(parameter => parameter?.kind !== "type-parameter")) return { kind: "rejected" };
     const bindings = new Map(parameters.map((parameter, index) =>
-      [(parameter as Extract<TargetTypeRef, { kind: "type-parameter" }>).name, typeArguments[index]!]));
+      [(parameter as Extract<TargetTypeRef, { kind: "type-parameter" }>).identity, typeArguments[index]!]));
     const key = JSON.stringify([identities, typeArguments.map(targetTypeRefKey)]);
     let definition = definitions.get(key);
     const existing = definition !== undefined;

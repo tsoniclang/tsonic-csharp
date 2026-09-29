@@ -16,7 +16,7 @@ test(".NET target parameters preserve MaybeNull output flow as explicit C# metad
     namespaceName: "System.Collections.Generic",
     targetId: testTargetId("System.Collections.Generic.Dictionary`2"),
     metadataName: "System.Collections.Generic.Dictionary`2",
-    typeParameters: [{ name: "TKey" }, { name: "TValue" }],
+    typeParameters: [{ identity: "TKey", name: "TKey" }, { identity: "TValue", name: "TValue" }],
     members: [{
       kind: "method",
       sourceName: "TryGetValue",
@@ -28,11 +28,11 @@ test(".NET target parameters preserve MaybeNull output flow as explicit C# metad
         sourceId: testTargetId("System.Collections.Generic.Dictionary`2.TryGetValue(TKey,out TValue)"),
         parameters: [{
           name: "key",
-          type: { kind: "type-parameter", name: "TKey" },
+          type: { kind: "type-parameter", identity: "TKey", name: "TKey" },
           passingMode: "by-value",
         }, {
           name: "value",
-          type: { kind: "type-parameter", name: "TValue" },
+          type: { kind: "type-parameter", identity: "TValue", name: "TValue" },
           passingMode: "byref-writeonly-must-init",
           attributes: [{
             id: "test:MaybeNullWhen",

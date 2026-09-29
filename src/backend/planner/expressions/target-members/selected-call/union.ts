@@ -24,12 +24,12 @@ export function planCsharpUnionDispatcherCall(
   const union = classification.unionCall;
   if (union.kind !== "resolved") return undefined;
   const methods = input.scope.generatedMethods;
-  const receiverType = csharpTypeFromTargetTypeRef(union.receiverType);
-  const resultType = csharpTypeFromTargetTypeRef(union.resultType);
+  const receiverType = csharpTypeFromTargetTypeRef(union.receiverType, input.scope.typeParameterNames);
+  const resultType = csharpTypeFromTargetTypeRef(union.resultType, input.scope.typeParameterNames);
   const selectedTypeArguments = classification.sourceTypeArguments === undefined ? undefined
-    : renderCsharpTargetTypeArguments(classification.sourceTypeArguments, node, diagnostics);
+    : renderCsharpTargetTypeArguments(input.scope.typeParameterNames, classification.sourceTypeArguments, node, diagnostics);
   const groups = csharpSourceArgumentGroups(source, classification);
-  const argumentTypes = groups?.map(group => csharpTypeFromTargetTypeRef(group.type));
+  const argumentTypes = groups?.map(group => csharpTypeFromTargetTypeRef(group.type, input.scope.typeParameterNames));
   if (methods === undefined || receiverType === undefined || resultType === undefined ||
     selectedTypeArguments === undefined || argumentTypes === undefined || arguments_.length !== argumentTypes.length || argumentTypes.some(type => type === undefined)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "A closed union dispatcher requires exact native receiver, argument, result and containing-type contracts."));

@@ -192,6 +192,7 @@ test("direct C# translation selects exact provider overloads and source-core att
       ObsoleteAttribute,
       SerializableAttribute,
     } from "@tsonic/dotnet/System.js";
+    import { InAttribute } from "@tsonic/dotnet/System.Runtime.InteropServices.js";
 
     export class User {
       constructor(id: string) {}
@@ -200,12 +201,12 @@ test("direct C# translation selects exact provider overloads and source-core att
       save(route: string): void {}
     }
 
-    attribute<User>().add(SerializableAttribute);
-    attribute<User>().add(ObsoleteAttribute, "class");
-    attribute<User>().constructor().add(ObsoleteAttribute, "constructor");
-    attribute<User>().constructor().parameter("id").add(ObsoleteAttribute, "id");
-    attribute<User>().property((target) => target.name).add(ObsoleteAttribute, "field");
-    attribute<User>().method((target) => target.save).add(ObsoleteAttribute, "method");
+    attribute<User>().add(() => new SerializableAttribute());
+    attribute<User>().add(() => new ObsoleteAttribute("class"));
+    attribute<User>().constructor().add(() => new ObsoleteAttribute("constructor"));
+    attribute<User>().constructor().parameter("id").add(() => new InAttribute());
+    attribute<User>().property((target) => target.name).add(() => new ObsoleteAttribute("field"));
+    attribute<User>().method((target) => target.save).add(() => new ObsoleteAttribute("method"));
 
     export function report(path: string): number {
       const parts = path.Split("/");
@@ -245,7 +246,7 @@ test("direct C# translation selects exact provider overloads and source-core att
     public class User
     {
         [System.ObsoleteAttribute("constructor")]
-        public User([System.ObsoleteAttribute("id")] string id)
+        public User([System.Runtime.InteropServices.InAttribute] string id)
         {
         }
         [System.ObsoleteAttribute("field")]
@@ -372,17 +373,17 @@ test("direct C# translation closes structural aliases, literals, and destructure
 {
     public static class Index
     {
-        public static ObjectShape_016e3d2ca239<int, string> make(int age)
+        public static ObjectShape_f4bbc5d8a5d0<int, string> make(int age)
         {
-            return new ObjectShape_de3df72b998d
+            return new ObjectShape_9b7842f65cf3
             {
                 name = "Ada",
                 age = age,
             };
         }
-        public static int total(ObjectShape_016e3d2ca239<int, string> user)
+        public static int total(ObjectShape_f4bbc5d8a5d0<int, string> user)
         {
-            ObjectShape_016e3d2ca239<int, string> __tsonic_destructure0 = user;
+            ObjectShape_f4bbc5d8a5d0<int, string> __tsonic_destructure0 = user;
             int age = __tsonic_destructure0.age;
             return age;
         }
@@ -393,12 +394,7 @@ test("direct C# translation closes structural aliases, literals, and destructure
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public interface ObjectShape_016e3d2ca239<Property0, Property1>
-    {
-        Property0 age { get; set; }
-        Property1 name { get; set; }
-    }
-    public class ObjectShape_de3df72b998d : ObjectShape_016e3d2ca239<int, string>
+    public class ObjectShape_9b7842f65cf3 : ObjectShape_f4bbc5d8a5d0<int, string>
     {
         public required int age
         {
@@ -410,6 +406,11 @@ test("direct C# translation closes structural aliases, literals, and destructure
             get;
             set;
         }
+    }
+    public interface ObjectShape_f4bbc5d8a5d0<Property0, Property1>
+    {
+        Property0 age { get; set; }
+        Property1 name { get; set; }
     }
 }
 `,

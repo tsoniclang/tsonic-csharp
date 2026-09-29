@@ -9,6 +9,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileType, selectedCsharpSourceProfileOwner } from "./source-profile.js";
 import { csharpJsArrayTargetType } from "./surface-types.js";
 import { csharpSourceTypeArgumentNodes } from "../../../target-model/syntax/type-arguments.js";
+import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/collections.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import { nextState } from "./state.js";
@@ -391,29 +392,21 @@ export function resolveCompositionalSourceTypeAlias(
       authoredRoot !== undefined && host.ast.is.IsTypeReferenceNode(authoredRoot) ? authoredRoot : target);
     return type === undefined ? { kind: "rejected" } : { kind: "resolved", type };
   }
+  const substitutions = new Map<string, TargetTypeRef>();
+  for (const [index, declaration] of parameters.entries()) {
+    const parameter = declaration === undefined ? undefined : csharpSourceTypeParameter(declaration, host.ast);
+    const argument = typeArguments[index];
+    if (parameter === undefined || argument === undefined || substitutions.has(parameter.identity)) return { kind: "rejected" };
+    substitutions.set(parameter.identity, argument);
+  }
   if (selectedType !== undefined && host.ast.is.IsUnionTypeNode(target)) {
     const definitionType = host.semantics(reference.sourceFile).types.authoredType(target);
     const structural = definitionType === undefined ? { kind: "not-applicable" as const }
       : host.structuralTypes.resolveUnion(definitionType, reference.sourceFile, state);
     if (structural.kind === "rejected") return structural;
     if (structural.kind === "resolved") {
-      const bindings = new Map(parameters.map((parameter, index) => [host.ast.text(host.ast.name(parameter)), typeArguments[index]!]));
-      return { kind: "resolved", type: substituteTargetTypeParameters(structural.type, bindings) };
+      return { kind: "resolved", type: substituteTargetTypeParameters(structural.type, substitutions) };
     }
-  }
-  const substitutions = new Map<string, TargetTypeRef>();
-  for (let index = 0; index < parameters.length; index += 1) {
-    const parameter = parameters[index];
-    const name = host.ast.name(parameter);
-    const argument = typeArguments[index];
-    if (parameter === undefined || name === undefined || argument === undefined) {
-      return { kind: "rejected" };
-    }
-    const key = host.ast.text(name);
-    if (substitutions.has(key)) {
-      return { kind: "rejected" };
-    }
-    substitutions.set(key, argument);
   }
   const resolved = target === undefined
     ? undefined

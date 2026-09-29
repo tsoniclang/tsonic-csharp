@@ -16,6 +16,7 @@ export type CsharpInterfaceMember =
 
 export interface CsharpInterfaceMethodDeclaration {
   readonly kind: "MethodDeclaration";
+  readonly shadowsEnclosingTypeParameter?: true;
   readonly name: string;
   readonly attributes?: readonly CsharpAttribute[];
   readonly modifiers?: readonly CsharpModifier[];
@@ -65,6 +66,7 @@ export interface CsharpStaticConstructorDeclaration {
 
 export interface CsharpMethodDeclaration {
   readonly kind: "MethodDeclaration";
+  readonly shadowsEnclosingTypeParameter?: true;
   readonly explicitInterface?: CsharpTypeNode;
   readonly name: string;
   readonly modifiers: readonly CsharpModifier[];

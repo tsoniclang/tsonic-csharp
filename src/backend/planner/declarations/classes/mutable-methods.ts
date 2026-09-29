@@ -12,7 +12,7 @@ export function planCsharpMutableMethod(
   write: NonNullable<ReturnType<CsharpDeclarationClassifications["methodWrite"]>>,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeMember[] {
-  const type = csharpTypeFromTargetTypeRef(write.type);
+  const type = csharpTypeFromTargetTypeRef(write.type, input.scope.typeParameterNames);
   const owner = input.program.source.ast.parent(node);
   const heritage = owner === undefined ? undefined : input.program.sourceNavigation.declaredHeritage(owner);
   if (type === undefined || (method.typeParameters?.length ?? 0) > 0 ||

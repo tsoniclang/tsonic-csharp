@@ -1,173 +1,97 @@
-import type {
-  AstReader,
-  ExtensionFactSubject,
-  Node,
-  ReadonlySourceFactResolver,
-  SourceFile,
-} from "@tsonic/tsts";
-import {
-  tsonicAttributeBuilderFactKey,
-  type TsonicAttributeBuilderFact,
-} from "@tsonic/source-core/facts";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import { isAstNode, type TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { createTsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";
+import { diagnoseCsharpAttributeTypeValues } from "./type-validation.js";
+import type { CsharpAttributeApplication, CsharpAttributeApplicationIndex } from "./model.js";
 
-export interface CsharpAttributeApplicationFactIndex {
-  readonly all: readonly CsharpAttributeApplication[];
-  forSourceFile(sourceFile: SourceFile): readonly CsharpAttributeApplication[];
-  forSubject(subject: Node): CsharpAttributeBuilderOperation | undefined;
-}
+const emptyApplications: readonly CsharpAttributeApplication[] = Object.freeze([]);
 
-export interface CsharpAttributeBuilderState {
-  readonly kind: "csharp-attribute-builder-state";
-  readonly applicationTarget: ExtensionFactSubject;
-  readonly selectedMember?: ExtensionFactSubject;
-  readonly applicationMemberKind?: "property" | "method";
-  readonly applicationPlacement?: "declaration" | "constructor";
-  readonly applicationParameterName?: string;
-  readonly applicationTargetSpecifier?: string;
-}
-
-export interface CsharpAttributeApplication {
-  readonly kind: "csharp-attribute-application";
-  readonly attributeType: ExtensionFactSubject;
-  readonly arguments: readonly ExtensionFactSubject[];
-  readonly applicationTarget: ExtensionFactSubject;
-  readonly selectedMember?: ExtensionFactSubject;
-  readonly applicationMemberKind?: "property" | "method";
-  readonly applicationPlacement?: "declaration" | "constructor";
-  readonly applicationParameterName?: string;
-  readonly applicationTargetSpecifier?: string;
-}
-
-export type CsharpAttributeBuilderOperation =
-  | CsharpAttributeBuilderState
-  | CsharpAttributeApplication;
-
-export interface CsharpAttributeApplicationFactIndexInput {
-  readonly ast: AstReader;
-  readonly sourceFiles: readonly SourceFile[];
-  readonly sourceFacts?: ReadonlySourceFactResolver;
-}
-
-export function createCsharpAttributeApplicationFactIndex(
-  input: CsharpAttributeApplicationFactIndexInput,
-): CsharpAttributeApplicationFactIndex {
-  if (input.sourceFacts === undefined) {
-    return emptyAttributeApplicationFactIndex;
-  }
-  const all: CsharpAttributeApplication[] = [];
-  const bySourceFile = new Map<SourceFile, readonly CsharpAttributeApplication[]>();
-  const bySubject = new Map<Node, CsharpAttributeBuilderOperation>();
-  for (const sourceFile of input.sourceFiles) {
-    const indexed = collectSourceFileAttributeBuilderOperations(
-      sourceFile,
-      input.ast,
-      input.sourceFacts,
-    );
-    const applications = Object.freeze(indexed.flatMap((entry) =>
-      entry.operation.kind === "csharp-attribute-application"
-        ? [entry.operation]
-        : []
-    ));
-    bySourceFile.set(sourceFile, applications);
-    all.push(...applications);
-    for (const entry of indexed) {
-      bySubject.set(entry.sourceSubject, entry.operation);
+export function analyzeCsharpAttributeApplications(
+  source: TargetSourceProgram,
+  sourceFiles: readonly SourceFile[],
+): { readonly index: CsharpAttributeApplicationIndex; readonly diagnostics: readonly TargetDiagnostic[] } {
+  const applications = createTsonicAttributeApplicationFactIndex({
+    ast: source.ast, sourceFiles, sourceFacts: source.sourceFacts,
+  });
+  const diagnostics = [...diagnoseCsharpAttributeTypeValues(source, applications)];
+  const byDeclaration = new Map<Node, CsharpAttributeApplication[]>();
+  const reject = (message: string, subject?: Node): void => {
+    diagnostics.push({ code: "CSHARP_UNSUPPORTED_ATTRIBUTE_APPLICATION", category: "error", source: "tsonic-csharp",
+      message: `C# attribute application ${message}`, ...(subject === undefined ? {} : { sourceNode: subject }) });
+  };
+  for (const application of applications.all) {
+    const invocation = isAstNode(source.ast, application.invocation) ? application.invocation : undefined;
+    const target = isAstNode(source.ast, application.applicationTarget) ? application.applicationTarget : undefined;
+    if (target === undefined) {
+      reject("must carry an AST application target from finalized TSTS facts before C# emission.", invocation);
+      continue;
     }
+    const selected = isAstNode(source.ast, application.selectedMember) ? application.selectedMember
+      : source.navigation.referenceFor(target)?.declaration ?? source.navigation.declarationFor(target);
+    if (selected === undefined) {
+      reject("target must resolve to a project source declaration from finalized TSTS facts before C# emission.", invocation);
+      continue;
+    }
+    const selectedKind = source.ast.kindName(selected);
+    const memberKind = application.applicationMemberKind;
+    if (memberKind !== undefined && !memberKindMatches(memberKind, selectedKind)) {
+      reject(`uses a ${memberKind} selector whose exact selected declaration is ${selectedKind}.`, invocation);
+      continue;
+    }
+    const declaration = application.applicationPlacement !== "constructor" || source.ast.is.IsConstructorDeclaration(selected)
+      ? selected : source.ast.members(selected).find(member => member !== undefined && source.ast.is.IsConstructorDeclaration(member));
+    if (declaration === undefined) {
+      reject("requires an explicit source constructor declaration; implicit default constructors have no finalized source declaration to attach attributes to.", invocation);
+      continue;
+    }
+    const subject = application.applicationParameterName === undefined ? declaration
+      : source.ast.parameters(declaration).find(parameter => parameter !== undefined &&
+        source.ast.text(source.ast.name(parameter)) === application.applicationParameterName);
+    if (subject === undefined) {
+      reject(`could not find parameter '${application.applicationParameterName}' on the finalized source declaration target.`, invocation);
+      continue;
+    }
+    const specifier = application.applicationTargetSpecifier;
+    if (specifier !== undefined && !isTargetSpecifier(specifier)) {
+      reject(`uses unsupported explicit target specifier '${specifier}'. Supported C# attribute target specifiers are 'field', 'property', 'param', and 'return'.`, invocation);
+      continue;
+    }
+    if (specifier !== undefined && !targetSpecifierSupportsSubject(specifier, source.ast.kindName(subject))) {
+      reject(`uses explicit target specifier '${specifier}' on ${source.ast.kindName(subject)}, which is outside the finalized C# attribute placement surface.`, invocation);
+      continue;
+    }
+    if (invocation === undefined) continue;
+    const applicationFact = Object.freeze({ invocation, ...(specifier === undefined ? {} : { targetSpecifier: specifier }) });
+    const selectedApplications = byDeclaration.get(subject);
+    if (selectedApplications === undefined) byDeclaration.set(subject, [applicationFact]);
+    else selectedApplications.push(applicationFact);
   }
-  const frozenAll = Object.freeze(all);
+  for (const selectedApplications of byDeclaration.values()) Object.freeze(selectedApplications);
   return Object.freeze({
-    all: frozenAll,
-    forSourceFile(sourceFile: SourceFile): readonly CsharpAttributeApplication[] {
-      return bySourceFile.get(sourceFile) ?? emptyAttributeApplications;
-    },
-    forSubject(subject: Node): CsharpAttributeBuilderOperation | undefined {
-      return bySubject.get(subject);
-    },
+    diagnostics: Object.freeze(diagnostics),
+    index: Object.freeze({
+      forDeclaration: (declaration: Node) => byDeclaration.get(declaration) ?? emptyApplications,
+      isErasedSubject: (subject: Node) => applications.forSubject(subject) !== undefined,
+    }),
   });
 }
 
-interface IndexedCsharpAttributeBuilderOperation {
-  readonly sourceSubject: Node;
-  readonly operation: CsharpAttributeBuilderOperation;
+function memberKindMatches(member: "property" | "method", kind: string): boolean {
+  return member === "property"
+    ? kind === "KindPropertyDeclaration" || kind === "KindPropertySignature" || kind === "KindGetAccessor" || kind === "KindSetAccessor"
+    : kind === "KindMethodDeclaration" || kind === "KindMethodSignature" || kind === "KindFunctionDeclaration";
 }
 
-function collectSourceFileAttributeBuilderOperations(
-  sourceFile: SourceFile,
-  ast: AstReader,
-  sourceFacts: ReadonlySourceFactResolver,
-): readonly IndexedCsharpAttributeBuilderOperation[] {
-  const facts: IndexedCsharpAttributeBuilderOperation[] = [];
-  const pending: Node[] = [sourceFile];
-  while (pending.length > 0) {
-    const node = pending.pop();
-    if (node === undefined) {
-      continue;
-    }
-    const fact = sourceFacts.getFact(node, tsonicAttributeBuilderFactKey);
-    if (fact !== undefined) {
-      facts.push({
-        sourceSubject: node,
-        operation: csharpAttributeBuilderOperation(fact),
-      });
-    }
-    const children: Node[] = [];
-    ast.forEachChild(node, (child) => {
-      if (child !== undefined) {
-        children.push(child);
-      }
-    });
-    for (let index = children.length - 1; index >= 0; index -= 1) {
-      const child = children[index];
-      if (child !== undefined) {
-        pending.push(child);
-      }
-    }
+function isTargetSpecifier(specifier: string): specifier is NonNullable<CsharpAttributeApplication["targetSpecifier"]> {
+  return specifier === "field" || specifier === "property" || specifier === "param" || specifier === "return";
+}
+
+function targetSpecifierSupportsSubject(specifier: NonNullable<CsharpAttributeApplication["targetSpecifier"]>, kind: string): boolean {
+  switch (specifier) {
+    case "field": return kind === "KindPropertyDeclaration";
+    case "property": return memberKindMatches("property", kind);
+    case "param": return kind === "KindParameter";
+    case "return": return memberKindMatches("method", kind);
   }
-  return Object.freeze(facts);
 }
-
-function csharpAttributeBuilderOperation(
-  fact: TsonicAttributeBuilderFact,
-): CsharpAttributeBuilderOperation {
-  const common = {
-    applicationTarget: fact.applicationTarget,
-    ...(fact.selectedMember === undefined
-      ? {}
-      : { selectedMember: fact.selectedMember }),
-    ...(fact.applicationMemberKind === undefined
-      ? {}
-      : { applicationMemberKind: fact.applicationMemberKind }),
-    ...(fact.applicationPlacement === undefined
-      ? {}
-      : { applicationPlacement: fact.applicationPlacement }),
-    ...(fact.applicationParameterName === undefined
-      ? {}
-      : { applicationParameterName: fact.applicationParameterName }),
-    ...(fact.applicationTargetSpecifier === undefined
-      ? {}
-      : { applicationTargetSpecifier: fact.applicationTargetSpecifier }),
-  };
-  return fact.kind === "builder-state"
-    ? Object.freeze({
-        kind: "csharp-attribute-builder-state",
-        ...common,
-      })
-    : Object.freeze({
-        kind: "csharp-attribute-application",
-        attributeType: fact.attributeType,
-        arguments: Object.freeze([...fact.arguments]),
-        ...common,
-      });
-}
-
-const emptyAttributeApplications = Object.freeze([]) as readonly CsharpAttributeApplication[];
-
-const emptyAttributeApplicationFactIndex: CsharpAttributeApplicationFactIndex = Object.freeze({
-  all: emptyAttributeApplications,
-  forSourceFile(): readonly CsharpAttributeApplication[] {
-    return emptyAttributeApplications;
-  },
-  forSubject(): CsharpAttributeBuilderOperation | undefined {
-    return undefined;
-  },
-});

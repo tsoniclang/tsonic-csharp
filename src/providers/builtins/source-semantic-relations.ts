@@ -28,7 +28,7 @@ export interface CsharpBuiltInProviderPolicy {
 
 const nativePointerType: TargetTypeRef = Object.freeze({
   kind: "pointer",
-  pointee: Object.freeze({ kind: "type-parameter", name: "T" }),
+  pointee: Object.freeze({ kind: "type-parameter", identity: "tsonic.csharp.native-pointer::0", name: "T" }),
   mutability: "mut",
 });
 
@@ -38,7 +38,7 @@ const nativePointerBinding: CsharpTargetBindingFact = Object.freeze({
   targetName: "pointer",
   target: "csharp",
   kind: "opaque",
-  typeParameters: [{ name: "T" }],
+  typeParameters: [{ identity: "tsonic.csharp.native-pointer::0", name: "T" }],
   csharpType: nativePointerType,
 });
 
@@ -75,6 +75,7 @@ function rankedArrayRelations(
 ): readonly CsharpProviderTargetRelation[] {
   const elementType: TargetTypeRef = Object.freeze({
     kind: "type-parameter",
+    identity: `tsonic.csharp.ranked-array.${descriptor.rank}::0`,
     name: "T",
   });
   const arrayType: TargetTypeRef = Object.freeze({
@@ -97,7 +98,7 @@ function rankedArrayRelations(
     targetName: `${descriptor.exportName}<T>`,
     target: "csharp",
     kind: "opaque",
-    typeParameters: [{ name: "T" }],
+    typeParameters: [{ identity: `tsonic.csharp.ranked-array.${descriptor.rank}::0`, name: "T" }],
     csharpType: arrayType,
   });
   const indexParameters = descriptor.indexParameterNames.map((name) =>

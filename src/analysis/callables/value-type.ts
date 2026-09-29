@@ -4,7 +4,7 @@ import type { CsharpSourceCallableContract, TargetTypeRef } from "../../policy/t
 export function csharpCallableValueType(
   callable: CsharpSourceCallableContract,
 ): TargetTypeRef | undefined {
-  if (callable.methodTypeParameterNames.length !== 0) return undefined;
+  if (callable.methodTypeParameterIdentities.length !== 0) return undefined;
   const parameters = callable.parameters.map(parameter => parameter.targetParameter.type);
   const optionalParameterIndexes = callable.parameters.flatMap((parameter, index) =>
     parameter.targetParameter.optional === true ? [index] : []);

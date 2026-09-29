@@ -86,7 +86,7 @@ export function planArrayLiteralExpressionWithCarrier(
     return rejectSparseArrayLiteralElision(node, diagnostics);
   }
   if (constructionCarrier?.kind === "array") {
-    const elementType = csharpTypeFromTargetTypeRef(constructionCarrier.element);
+    const elementType = csharpTypeFromTargetTypeRef(constructionCarrier.element, input.scope.typeParameterNames);
     if (elementType !== undefined) {
       return planArrayLiteralExpression(node, sourceFile, input, diagnostics, elementType, planner, constructionCarrier.element);
     }
@@ -97,8 +97,8 @@ export function planArrayLiteralExpressionWithCarrier(
     constructionCarrier,
   );
   if (constructionCarrier !== undefined && collectionElementCarrier !== undefined) {
-    const collectionType = csharpTypeFromTargetTypeRef(constructionCarrier);
-    const elementType = csharpTypeFromTargetTypeRef(collectionElementCarrier);
+    const collectionType = csharpTypeFromTargetTypeRef(constructionCarrier, input.scope.typeParameterNames);
+    const elementType = csharpTypeFromTargetTypeRef(collectionElementCarrier, input.scope.typeParameterNames);
     if (collectionType === undefined || elementType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires renderable provider collection and element carrier types before C# emission."));
       return undefined;
@@ -124,7 +124,7 @@ export function planArrayLiteralExpressionWithCarrier(
       input,
       diagnostics,
       planner,
-      csharpTypeFromTargetTypeRef(constructionCarrier),
+      csharpTypeFromTargetTypeRef(constructionCarrier, input.scope.typeParameterNames),
       constructionCarrier,
     );
   }

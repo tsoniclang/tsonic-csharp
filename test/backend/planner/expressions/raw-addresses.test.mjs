@@ -41,10 +41,10 @@ test("raw address integers preserve every bit through nested native byte offsets
 test("32-bit address ABI retains its exact native unsigned result", () => {
   const compiled = compileCsharpSource({ capabilities: [memoryAbiCapability("csharp", 32)], sourceText: `
 import { abi } from "test:abi";
-import { addressIntegerToRawPointer, rawPointerToAddressInteger } from "@tsonic/core/lang.js";
+import { addressintegertorawptr, rawptrtoaddressinteger } from "@tsonic/core/lang.js";
 import type { uint32 } from "@tsonic/core/types.js";
 export function roundTrip(bits: uint32): uint32 {
-  return rawPointerToAddressInteger<uint32>(addressIntegerToRawPointer(bits, abi), abi);
+  return rawptrtoaddressinteger<uint32>(addressintegertorawptr(bits, abi), abi);
 }
 ` });
   assert.equal(compiled.sourceDiagnosticsText, "");
@@ -59,9 +59,9 @@ export function roundTrip(bits: uint32): uint32 {
 test("layout descriptors cannot escape into ordinary runtime returns", () => {
   const compiled = compileCsharpSource({ capabilities: [memoryAbiCapability("csharp")], sourceText: `
 import { abi } from "test:abi";
-import { memoryLayout } from "@tsonic/core/lang.js";
+import { memorylayout } from "@tsonic/core/lang.js";
 import type { uint32 } from "@tsonic/core/types.js";
-export function escape() { const layout = memoryLayout<uint32>(abi, 4, 4, 4); return layout; }
+export function escape() { const layout = memorylayout<uint32>({ datalayout: abi, bytesize: 4, bytealignment: 4, stride: 4, fields: [] }); return layout; }
 ` });
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);

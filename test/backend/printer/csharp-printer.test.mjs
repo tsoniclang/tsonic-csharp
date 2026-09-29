@@ -678,6 +678,7 @@ test("object shape methods require explicit delegate signature metadata", () => 
   };
   assert.equal(
     renderObjectShapeMembers(
+      undefined,
       rawDelegateShape,
       false,
       new Set(),
@@ -696,6 +697,7 @@ test("object shape methods require explicit delegate signature metadata", () => 
     }],
   };
   const members = renderObjectShapeMembers(
+    undefined,
     metadataBackedShape,
     false,
     new Set(),
@@ -727,6 +729,7 @@ test("object shape methods require explicit delegate signature metadata", () => 
   const diagnostics = [];
   assert.equal(
     renderObjectShapeMembers(
+      undefined,
       missingReturnFactShape,
       false,
       new Set(),
@@ -764,6 +767,7 @@ test("object shape declarations enforce required members while leaving optional 
   };
 
   const fields = renderObjectShapeMembers(
+    undefined,
     shape,
     false,
     new Set(),
@@ -776,6 +780,7 @@ test("object shape declarations enforce required members while leaving optional 
     requiredValue: ["public", "required"],
   });
   const properties = renderObjectShapeMembers(
+    undefined,
     shape,
     true,
     new Set(),

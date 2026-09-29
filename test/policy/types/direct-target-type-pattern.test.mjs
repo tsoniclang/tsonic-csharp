@@ -9,8 +9,8 @@ import {
 
 const int32 = csharpSourcePrimitiveTargetType("int32");
 const string = csharpStringTargetType();
-const parameters = [{ name: "T" }];
-const parameter = { kind: "type-parameter", name: "T" };
+const parameters = [{ identity: "T", name: "T" }];
+const parameter = { kind: "type-parameter", identity: "T", name: "T" };
 
 test("target type patterns close structural array bindings", () => {
   assert.deepEqual(

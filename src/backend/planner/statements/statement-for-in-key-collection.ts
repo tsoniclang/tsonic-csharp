@@ -52,7 +52,7 @@ export function planKeyCollectionForInStatement(
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
-  const keyType = getForInKeyType(selectedIteration, statementNode, diagnostics);
+  const keyType = getForInKeyType(input.scope.typeParameterNames, selectedIteration, statementNode, diagnostics);
   if (keyType === undefined) {
     return [];
   }
@@ -70,6 +70,7 @@ export function planKeyCollectionForInStatement(
     return [];
   }
   const collectionType = getCsharpTypeForForInCollection(
+    input.scope.typeParameterNames,
     selectedIteration,
     statement.Expression,
     diagnostics,

@@ -91,6 +91,7 @@ export function translateCsharpConstruction(
       return undefined;
     }
     return translateCsharpJsValueInvocation(
+      input.scope.typeParameterNames,
       jsValueOperation,
       callee,
       arguments_ as readonly CsharpExpression[],
@@ -197,7 +198,7 @@ function translateSelectedConstruction(
   }
   if (member.csharpInvocation?.kind === "static-factory-construction") {
     const factoryType = csharpTypeFromTargetTypeRef(
-      member.csharpInvocation.factoryType,
+      member.csharpInvocation.factoryType, input.scope.typeParameterNames,
     );
     const typeArguments = renderSelectedCsharpTargetMethodTypeArguments(
       selection.call,
@@ -271,7 +272,7 @@ function translateSelectedConstruction(
         : argument);
     const type = member.declaringType === undefined
       ? undefined
-      : csharpTypeFromTargetTypeRef(member.declaringType);
+      : csharpTypeFromTargetTypeRef(member.declaringType, input.scope.typeParameterNames);
     if (type === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
@@ -294,7 +295,7 @@ function translateSelectedConstruction(
   }
   const type = member.declaringType === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(member.declaringType);
+    : csharpTypeFromTargetTypeRef(member.declaringType, input.scope.typeParameterNames);
   if (type === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -340,7 +341,7 @@ function translateSourceOwnedConstruction(
   const targetType = input.types.classifications.resolveNode(node, sourceFile);
   const type = targetType === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(targetType);
+    : csharpTypeFromTargetTypeRef(targetType, input.scope.typeParameterNames);
   if (type === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -364,7 +365,7 @@ function translateSourceOwnedConstruction(
   if (arguments_ !== undefined && factory !== undefined) {
     const callee = planExpression(calleeNode, sourceFile, input, diagnostics);
     const typeArguments = targetType?.kind === "target-named" ?
-      (targetType.typeArguments ?? []).slice(factory.outerTypeParameterCount).map(csharpTypeFromTargetTypeRef) : [];
+      (targetType.typeArguments ?? []).slice(factory.outerTypeParameterCount).map(type => csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames)) : [];
     if (typeArguments.some(argument => argument === undefined)) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "A generic class construction requires its exact native type arguments."));
       return undefined;

@@ -156,6 +156,7 @@ sealed partial class ReflectionProvider
         }
         return new
         {
+            identity = GenericParameterIdentity(parameter),
             name = genericParameters.SourceName(parameter),
             constraints = constraints.Count == 0 ? null : constraints,
             unsupportedConstraints = unsupportedConstraints.Count == 0 ? null : unsupportedConstraints,

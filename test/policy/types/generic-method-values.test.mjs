@@ -8,10 +8,10 @@ import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types
 import { retainCsharpMethodValueContracts, csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/object-shape-policy/method-values.js";
 import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/callables/substitution.js";
 
-const owner = { kind: "target-named", id: "tsonic.shape:owner", typeArguments: [{ kind: "type-parameter", name: "Outer" }],
+const owner = { kind: "target-named", id: "tsonic.shape:owner", typeArguments: [{ kind: "type-parameter", identity: "Outer", name: "Outer" }],
   csharpRender: { kind: "named", name: "Owner" } };
 function contract(name) {
-  const type = { kind: "type-parameter", name };
+  const type = { kind: "type-parameter", identity: name, name };
   return csharpDelegateTargetType("System.Func", [type], type);
 }
 const methodValue = (name, method = "identity") => csharpGenericMethodValueType(owner, method, method, contract(name), [name]);
@@ -47,7 +47,7 @@ test("method references require exact native reference ownership and unique quan
 
 test("copied generic methods retain only the exact original environment and minimal method contract", () => {
   const member = { sourceKey: { kind: "property", name: "identity" }, sourceName: "identity", targetName: "identity",
-    memberKind: "method", type: contract("Item"), typeParameters: [{ name: "Item", declaration: {}, constraints: [] }] };
+    memberKind: "method", type: contract("Item"), typeParameters: [{ identity: "Item", name: "Item", declaration: {}, constraints: [] }] };
   const recorded = [];
   const shape = retainCsharpMethodValueContracts({ targetType: owner, members: [member],
     methodImplementation: { declaration: {}, identity: "body", captures: [] } }, fact => { recorded.push(fact); return fact; });

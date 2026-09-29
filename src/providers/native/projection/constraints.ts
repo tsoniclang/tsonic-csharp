@@ -52,6 +52,7 @@ export function dotnetTypeParameterToTargetTypeParameter(parameter: DotnetTypePa
   const unsupportedConstraints = parameter.unsupportedConstraints?.map(dotnetUnsupportedConstraintToTargetConstraint) ?? [];
   const supportedConstraints = parameter.constraints?.map(dotnetConstraintToTargetConstraint) ?? [];
   return {
+    identity: parameter.identity,
     name: parameter.name,
     ...(supportedConstraints.length > 0 || unsupportedConstraints.length > 0
       ? { constraints: [...supportedConstraints, ...unsupportedConstraints] }

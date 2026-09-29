@@ -61,7 +61,7 @@ export function translateSelectedTargetCall(
   }
   if (selection.targetMember.csharpInvocation?.kind === "numeric-conversion") {
     const type = selection.targetMember.returnType === undefined ? undefined
-      : csharpTypeFromTargetTypeRef(selection.targetMember.returnType);
+      : csharpTypeFromTargetTypeRef(selection.targetMember.returnType, input.scope.typeParameterNames);
     const argument = arguments_[0];
     if (type === undefined || selection.targetMember.parameters.length !== 1 || arguments_.length !== 1 || argument?.passing !== undefined || argument === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "The selected numeric conversion requires one exact value and a renderable result type."));
@@ -72,7 +72,7 @@ export function translateSelectedTargetCall(
   }
   if (selection.targetMember.kind === "constructor") {
     const type = selection.targetMember.declaringType === undefined ? undefined
-      : csharpTypeFromTargetTypeRef(selection.targetMember.declaringType);
+      : csharpTypeFromTargetTypeRef(selection.targetMember.declaringType, input.scope.typeParameterNames);
     if (type === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "Selected constructor call has no exact declaring type."));
       return undefined;
@@ -81,6 +81,7 @@ export function translateSelectedTargetCall(
   }
   if (selection.targetMember.csharpInvocation?.kind === "array-creation") {
     return translateArrayCreationCall(
+      input.scope.typeParameterNames,
       node,
       selection.targetMember,
       arguments_,
@@ -201,7 +202,7 @@ function translateStaticMemberCall(
       ?.targetType;
   const receiverType = receiverTargetType === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(receiverTargetType);
+    : csharpTypeFromTargetTypeRef(receiverTargetType, input.scope.typeParameterNames);
   const expectedInvocationArity = invocation.receiver.kind ===
       "invocation-type-argument"
     ? 1
@@ -418,7 +419,7 @@ function translateNativeEventSubscription(
   const receiver = member.static === true
     ? member.declaringType === undefined
       ? undefined
-      : csharpTypeFromTargetTypeRef(member.declaringType)
+      : csharpTypeFromTargetTypeRef(member.declaringType, input.scope.typeParameterNames)
     : source.sourceReceiver === undefined
       ? undefined
       : translateCsharpSelectedReceiver(
@@ -546,7 +547,7 @@ function translateEcmascriptProtocolDispatch(
     : -1;
   const declaringType = member.declaringType === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(member.declaringType);
+    : csharpTypeFromTargetTypeRef(member.declaringType, input.scope.typeParameterNames);
   const protocolType = member.parameters[protocolIndex]?.type;
   const resultType = member.returnType;
   const forwardedParameters = member.parameters.slice(protocolIndex + 1);
@@ -580,7 +581,7 @@ function translateEcmascriptProtocolDispatch(
     protocolType,
     ...selectedForwardedParameters.map((parameter) => parameter.type),
     resultType,
-  ].map(csharpTypeFromTargetTypeRef);
+  ].map(type => csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames));
   if (genericTypes.some((type) => type === undefined)) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -632,14 +633,14 @@ function translateEcmascriptProtocolDispatch(
   if (!sourceCallIsOptional(input, source)) {
     return invocationExpression;
   }
-  const receiverType = csharpTypeFromTargetTypeRef(member.parameters[0]!.type);
+  const receiverType = csharpTypeFromTargetTypeRef(member.parameters[0]!.type, input.scope.typeParameterNames);
   const optionalResult = input.types.classifications.resolveNode(
     node,
     sourceFile,
   );
   const optionalResultType = optionalResult === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(optionalResult);
+    : csharpTypeFromTargetTypeRef(optionalResult, input.scope.typeParameterNames);
   if (receiverType === undefined || optionalResultType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -859,7 +860,7 @@ function translateSelectedTargetCallee(
   }
   const declaringType = selection.targetMember.declaringType === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(selection.targetMember.declaringType);
+    : csharpTypeFromTargetTypeRef(selection.targetMember.declaringType, input.scope.typeParameterNames);
   if (declaringType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,

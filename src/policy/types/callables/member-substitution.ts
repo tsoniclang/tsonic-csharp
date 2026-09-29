@@ -18,7 +18,7 @@ export function csharpTargetBindingSubstitutions(
   }
   return new Map(
     parameters.map((parameter, index) => [
-      parameter.name,
+      parameter.identity,
       arguments_[index]!,
     ]),
   );

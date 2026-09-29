@@ -56,7 +56,7 @@ test("generic class unions retain optional pointer results, exceptions and call 
     surface: "js",
     files: { "backing.ts": `
 import type { Pointer, uint8 } from "@tsonic/core/types.js";
-import { loadPointer } from "@tsonic/core/lang.js";
+import { loadptr } from "@tsonic/core/lang.js";
 export class OptionalBacking {
   value: Pointer<uint8>;
   constructor(value: Pointer<uint8>) { this.value = value; }
@@ -86,7 +86,7 @@ export type Backing = RequiredBacking | GenericBacking<Pointer<uint8>> | Optiona
 export function read(backing: Backing, fail: boolean): uint8 {
   const pointer = backing.read(fail);
   if (pointer === undefined) return 0;
-  return loadPointer(pointer);
+  return loadptr(pointer);
 }
 export class Calls {
   order: string = "";
@@ -96,22 +96,22 @@ export class Calls {
 export function evaluate(calls: Calls, value: Backing): uint8 {
   const pointer = calls.source(value).read(calls.argument());
   if (pointer === undefined) return 0;
-  return loadPointer(pointer);
+  return loadptr(pointer);
 }
 ` },
     sourceText: `
 import type { Pointer, uint8 } from "@tsonic/core/types.js";
-import { allocatePointer, storePointer } from "@tsonic/core/lang.js";
+import { allocateptr, storeptr } from "@tsonic/core/lang.js";
 import { OptionalBacking, RequiredBacking, GenericBacking, Calls, evaluate, read } from "./backing.js";
 
 export function run(): boolean {
   const byte: uint8 = 29;
-  const pointer = allocatePointer<uint8>(byte);
+  const pointer = allocateptr<uint8>(byte);
   const first = new OptionalBacking(pointer);
   const second = new RequiredBacking(pointer);
   const third = new GenericBacking<Pointer<uint8>>(pointer);
   const initial = read(first, false) === 29 && read(second, false) === 29 && read(third, false) === 29 && read(first, true) === 0;
-  storePointer(pointer, 31);
+  storeptr(pointer, 31);
   const retained = read(first, false) === 31 && read(second, false) === 31 && read(third, false) === 31;
   let caught = false;
   try { read(second, true); } catch { caught = true; }
@@ -237,24 +237,24 @@ test("open objects cannot silently use a closed frozen carrier", () => {
 test("generic object aliases retain exact pointer and byte arguments across nullable transport", { timeout: 300_000 }, () => {
   executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: `
     import type { Pointer, uint8 } from "@tsonic/core/types.js";
-    import { allocatePointer, loadPointer, storePointer } from "@tsonic/core/lang.js";
+    import { allocateptr, loadptr, storeptr } from "@tsonic/core/lang.js";
     type Region<Element> = { readonly kind: "value"; readonly value: Element }
       | { readonly kind: "pointer"; readonly at: () => Pointer<Element> };
     function retain<Item>(region: Region<Item> | undefined): Region<Item> | undefined { return region; }
     function read(region: Region<uint8> | undefined): uint8 {
       if (region === undefined) return 0;
       if (region.kind === "value") return region.value;
-      return loadPointer(region.at());
+      return loadptr(region.at());
     }
     function nested<Value>(value: Value): () => () => Value { return () => () => value; }
     export function run(): boolean {
       const byte: uint8 = 29;
-      const pointer = allocatePointer<uint8>(byte);
+      const pointer = allocateptr<uint8>(byte);
       const first: Region<uint8> = { kind: "value", value: byte };
       const second: Region<uint8> = { kind: "pointer", at: () => pointer };
       const callback = nested("retained")();
       const inline = retain({ kind: "pointer", at: () => pointer });
-      storePointer(pointer, 31);
+      storeptr(pointer, 31);
       return read(retain(first)) === byte && read(retain(second)) === 31 &&
         read(inline) === 31 && read(retain<uint8>(undefined)) === 0 && callback() === "retained" && callback() === "retained";
     }

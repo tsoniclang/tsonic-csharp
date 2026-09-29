@@ -23,7 +23,7 @@ import type { CsharpDeclarationClassifications } from "../declarations/index.js"
 import type { CsharpSourceNameResolver } from "../names/index.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpCallableContractIndex } from "./model.js";
-import { csharpSourceTypeParameterName } from "../../target-model/names/type-parameters.js";
+import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import type { CsharpGenericProjectionIndex } from "../declarations/type-projections.js";
 
 export function analyzeCsharpCallableContracts(
@@ -124,22 +124,22 @@ function sourceCallableContract(
     }
     parameters.push(parameter);
   }
-  const methodTypeParameterNames = policy.ast.typeParameters(declaration).map(
-    (parameter) => parameter === undefined ? undefined : csharpSourceTypeParameterName(parameter, policy.ast),
+  const methodTypeParameterIdentities = policy.ast.typeParameters(declaration).map(
+    (parameter) => parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast)?.identity,
   );
   if (
-    methodTypeParameterNames.some((name) =>
+    methodTypeParameterIdentities.some((name) =>
       name === undefined || name.length === 0
     ) ||
-    new Set(methodTypeParameterNames).size !== methodTypeParameterNames.length
+    new Set(methodTypeParameterIdentities).size !== methodTypeParameterIdentities.length
   ) {
     return undefined;
   }
   const owner = sourceCallableReceiverTypeOwner(policy, declaration);
   return Object.freeze({
     sourceDeclaration: declaration,
-    methodTypeParameterNames: Object.freeze(
-      [...methodTypeParameterNames as string[], ...projections.get(declaration).map(parameter => parameter.name)],
+    methodTypeParameterIdentities: Object.freeze(
+      [...methodTypeParameterIdentities as string[], ...projections.get(declaration).map(parameter => parameter.identity)],
     ),
     ...(owner === undefined ? {} : { receiverTypeOwner: owner }),
     parameters: Object.freeze(parameters),
@@ -241,7 +241,7 @@ function projectConstructorContract(
   return Object.freeze({
     sourceDeclaration:
       constructor.source.declaration ?? constructor.definition.declaration,
-    methodTypeParameterNames: Object.freeze([]),
+    methodTypeParameterIdentities: Object.freeze([]),
     receiverTypeOwner: constructor.definition.declaration,
     parameters: Object.freeze(constructor.source.parameters.map(
       (parameter, index) => Object.freeze({
@@ -271,8 +271,8 @@ function callableContractEquals(
   return left.sourceDeclaration === right.sourceDeclaration &&
     left.receiverTypeOwner === right.receiverTypeOwner &&
     stringArraysEqual(
-      left.methodTypeParameterNames,
-      right.methodTypeParameterNames,
+      left.methodTypeParameterIdentities,
+      right.methodTypeParameterIdentities,
     ) &&
     targetTypeRefEquals(left.returnType, right.returnType) &&
     left.parameters.length === right.parameters.length &&

@@ -19,24 +19,29 @@ test(".NET target policy projects only exact JsonSerializer.Deserialize result t
         metadataName: "System.Text.Json.JsonSerializer.Deserialize",
         returnType: {
           kind: "nullable-reference",
-          elementType: { kind: "type-parameter", name: "TValue" },
+          elementType: { kind: "type-parameter", identity: "exact:0", name: "TValue" },
         },
       }),
       deserializeMember({
         id: "different-owner",
         metadataName: "Example.JsonSerializer.Deserialize",
-        returnType: { kind: "type-parameter", name: "TValue" },
+        returnType: { kind: "type-parameter", identity: "different-owner:0", name: "TValue" },
       }),
       deserializeMember({
         id: "different-result",
         metadataName: "System.Text.Json.JsonSerializer.Deserialize",
         returnType: { kind: "string" },
       }),
+      deserializeMember({
+        id: "different-binding",
+        metadataName: "System.Text.Json.JsonSerializer.Deserialize",
+        returnType: { kind: "type-parameter", identity: "outer:0", name: "TValue" },
+      }),
       {
         ...deserializeMember({
           id: "instance",
           metadataName: "System.Text.Json.JsonSerializer.Deserialize",
-          returnType: { kind: "type-parameter", name: "TValue" },
+          returnType: { kind: "type-parameter", identity: "instance:0", name: "TValue" },
         }),
         static: false,
       },
@@ -64,6 +69,7 @@ test(".NET target policy projects only exact JsonSerializer.Deserialize result t
     members.get("instance")?.csharpMethodTypeArgumentProjections,
     undefined,
   );
+  assert.equal(members.get("different-binding")?.csharpMethodTypeArgumentProjections, undefined);
 });
 
 function deserializeMember({ id, metadataName, returnType }) {
@@ -77,7 +83,7 @@ function deserializeMember({ id, metadataName, returnType }) {
     signatures: [{
       id,
       sourceId: id,
-      typeParameters: [{ name: "TValue" }],
+      typeParameters: [{ identity: `${id}:0`, name: "TValue" }],
       parameters: [{
         name: "json",
         type: { kind: "string" },

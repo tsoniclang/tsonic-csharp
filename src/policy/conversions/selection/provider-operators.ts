@@ -17,7 +17,7 @@ export function targetBindingSubstitutions(
       const argument = arguments_[index];
       return argument === undefined
         ? []
-        : [[parameter.name, argument] as const];
+        : [[parameter.identity, argument] as const];
     }),
   );
 }

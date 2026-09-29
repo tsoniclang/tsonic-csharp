@@ -27,8 +27,8 @@ export function planTypedArrayMutation(
     arguments: args.map(expression => ({ kind: "Argument", expression })),
   });
   if (selection.kind === "update-typed-element") {
-    const type = csharpTypeFromTargetTypeRef(selection.resultType);
-    const indexType = csharpTypeFromTargetTypeRef(selection.indexType);
+    const type = csharpTypeFromTargetTypeRef(selection.resultType, input.scope.typeParameterNames);
+    const indexType = csharpTypeFromTargetTypeRef(selection.indexType, input.scope.typeParameterNames);
     if (type === undefined || indexType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "Typed array update has no sealed native result type."));
       return undefined;
@@ -44,7 +44,7 @@ export function planTypedArrayMutation(
     const value = planExpression(selection.value, sourceFile, input, diagnostics);
     return value === undefined ? undefined : invoke(receiver, "Set", [index, value]);
   }
-  const type = csharpTypeFromTargetTypeRef(selection.resultType);
+  const type = csharpTypeFromTargetTypeRef(selection.resultType, input.scope.typeParameterNames);
   if (state === undefined || type === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Typed array mutation requires its sealed result type and hygienic scope."));
     return undefined;

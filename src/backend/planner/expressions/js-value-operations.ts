@@ -67,7 +67,7 @@ export function planCsharpJsValueBox(
     sourceType?.kind === "source-primitive" &&
     (input.program.source.ast.is.IsNumericLiteral(node) || input.program.source.ast.is.IsPrefixUnaryExpression(node))
   ) {
-    const type = csharpTypeFromTargetTypeRef(sourceType);
+    const type = csharpTypeFromTargetTypeRef(sourceType, input.scope.typeParameterNames);
     if (type === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
@@ -81,7 +81,7 @@ export function planCsharpJsValueBox(
       expression,
     };
   }
-  const type = csharpTypeFromTargetTypeRef(csharpTsValueTargetType());
+  const type = csharpTypeFromTargetTypeRef(csharpTsValueTargetType(), input.scope.typeParameterNames);
   return type === undefined
     ? undefined
     : {
@@ -96,6 +96,7 @@ export function planCsharpJsValueBox(
 }
 
 export function translateCsharpJsValueInvocation(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
   selection: Extract<
     CsharpJsValueOperationSelection,
     { readonly kind: "resolved" }
@@ -105,7 +106,7 @@ export function translateCsharpJsValueInvocation(
 ): CsharpExpression | undefined {
   const dispatchReceiver = selection.dispatch === "instance"
     ? receiver
-    : csharpTypeFromTargetTypeRef(csharpTsValueTargetType());
+    : csharpTypeFromTargetTypeRef(csharpTsValueTargetType(), typeParameterNames);
   return dispatchReceiver === undefined
     ? undefined
     : {

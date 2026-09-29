@@ -57,7 +57,7 @@ export function planObjectShapeForInStatement(
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
-  const keyType = getForInKeyType(selectedIteration, statementNode, diagnostics);
+  const keyType = getForInKeyType(input.scope.typeParameterNames, selectedIteration, statementNode, diagnostics);
   if (keyType === undefined) {
     return [];
   }
@@ -82,7 +82,7 @@ export function planObjectShapeForInStatement(
     diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, requirement.reason));
     return [];
   }
-  const collectionType = csharpTypeFromTargetTypeRef(objectShape.targetType);
+  const collectionType = csharpTypeFromTargetTypeRef(objectShape.targetType, input.scope.typeParameterNames);
   if (collectionType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Object-shape for-in requires a renderable object-shape target type before C# emission."));
     return [];

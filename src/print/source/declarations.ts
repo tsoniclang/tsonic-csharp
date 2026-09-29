@@ -120,7 +120,9 @@ function printInterfaceMemberLines(
       const parameters = member.parameters.map(context.printParameter).join(", ");
       return [
         ...context.printAttributes(member.attributes),
+        ...typeParameterShadowingPragma(member, "disable"),
         `${modifiers}${context.printType(member.returnType)} ${member.name}${typeParameters}(${parameters})${constraints};`,
+        ...typeParameterShadowingPragma(member, "restore"),
       ];
     }
     case "PropertyDeclaration":
@@ -198,16 +200,25 @@ function printMethodLines(method: CsharpMethodDeclaration, context: CsharpPrintC
   if (method.body === undefined) {
     const header = `${modifiers}${context.printType(method.returnType)} ${qualifier}${method.name}${typeParameters}(${parameters})`;
     const signature = [header, ...constraintLines];
-    return [...context.printAttributes(method.attributes), ...signature.slice(0, -1), `${signature[signature.length - 1]};`];
+    return [...context.printAttributes(method.attributes), ...typeParameterShadowingPragma(method, "disable"),
+      ...signature.slice(0, -1), `${signature[signature.length - 1]};`, ...typeParameterShadowingPragma(method, "restore")];
   }
   return [
     ...context.printAttributes(method.attributes),
+    ...typeParameterShadowingPragma(method, "disable"),
     `${modifiers}${context.printType(method.returnType)} ${qualifier}${method.name}${typeParameters}(${parameters})`,
     ...constraintLines,
+    ...typeParameterShadowingPragma(method, "restore"),
     "{",
     ...indentLines(context.printStatements(method.body.statements)),
     "}",
   ];
+}
+
+function typeParameterShadowingPragma(
+  method: { readonly shadowsEnclosingTypeParameter?: true }, action: "disable" | "restore",
+): readonly string[] {
+  return method.shadowsEnclosingTypeParameter === true ? [`#pragma warning ${action} CS0693`] : [];
 }
 
 function printPropertyLines(property: CsharpPropertyDeclaration, context: CsharpPrintContext): string[] {

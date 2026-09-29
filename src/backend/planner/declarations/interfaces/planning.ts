@@ -84,7 +84,7 @@ export function planInterfaceDeclaration(
   if (objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "method-values")) {
     const storageNames = new Set(objectShape.members.filter(member => member.memberKind === "method")
       .map(member => objectShapeStorageMemberName(objectShape, member)));
-    const rendered = renderCsharpStructuralInterfaceMembers(objectShape, input.program.storage, true, []);
+    const rendered = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, objectShape, input.program.storage, true, []);
     if (rendered === undefined) diagnostics.push(unsupportedNodeDiagnostic(node, "An interface method value requires its exact native callable storage contract."));
     else members.push(...rendered.filter(member => member.kind === "PropertyDeclaration" && storageNames.has(member.name)));
   }

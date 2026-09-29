@@ -32,10 +32,10 @@ test("target operations can consume selected method type arguments as structural
   const int32 = csharpSourcePrimitiveTargetType("int32");
   const explicitTypeNode = {};
   const selectedType = {};
-  const typeParameter = { kind: "type-parameter", name: "T" };
+  const typeParameter = { kind: "type-parameter", identity: "T", name: "T" };
   const binding = providerBinding({
     id: "Fixture.Array`1",
-    typeParameters: [{ name: "T" }],
+    typeParameters: [{ identity: "T", name: "T" }],
     csharpType: { kind: "array", element: typeParameter },
   });
   const method = Object.freeze({

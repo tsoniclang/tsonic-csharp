@@ -18,8 +18,8 @@ import {
   sourceMayReadBeforeInitialization,
 } from "@tsonic/target-api/source";
 import type {
-  CsharpAttributeApplicationFactIndex,
-} from "../attributes/application-index.js";
+  CsharpAttributeApplicationIndex,
+} from "../attributes/model.js";
 import type {
   CsharpSafetyApplicationFactIndex,
 } from "../safety/application-index.js";
@@ -35,7 +35,7 @@ interface CsharpModuleInitializationAnalysisInput {
   readonly sourceFiles: readonly SourceFile[];
   readonly projectRoot: string;
   readonly entryPoint: string;
-  readonly attributeApplications: CsharpAttributeApplicationFactIndex;
+  readonly attributeApplications: CsharpAttributeApplicationIndex;
   readonly safetyApplications: CsharpSafetyApplicationFactIndex;
 }
 
@@ -155,7 +155,7 @@ function isErasedCompileTimeStatement(
     return false;
   }
   if (input.sourceEvidence.isCompileTimeMetadata(expression)) return true;
-  if (input.attributeApplications.forSubject(expression) !== undefined) {
+  if (input.attributeApplications.isErasedSubject(expression)) {
     return true;
   }
   const safety = input.safetyApplications.operationForSubject(expression);

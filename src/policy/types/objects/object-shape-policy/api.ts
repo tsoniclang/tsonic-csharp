@@ -163,7 +163,7 @@ export function createCsharpObjectShapePolicy(
     const template = genericShapes.get(type.id);
     if (template?.targetType.kind === "target-named") {
       const parameters = new Set((template.targetType.typeArguments ?? []).flatMap(argument =>
-        argument.kind === "type-parameter" ? [argument.name] : []));
+        argument.kind === "type-parameter" ? [argument.identity] : []));
       const bindings = inferCsharpTargetTypeParameterBindings(template.targetType, type, parameters);
       const selected = bindings === undefined ? undefined : substituteObjectShapeFactTargetTypeParameters(template, bindings);
       if (selected !== undefined && targetTypeRefEquals(selected.targetType, type)) {
@@ -513,7 +513,7 @@ export function createCsharpObjectShapePolicy(
       const existingTemplate = genericShapes.get(canonical.targetType.id);
       if (existingTemplate?.targetType.kind === "target-named") {
         const parameters = new Set((existingTemplate.targetType.typeArguments ?? []).flatMap(argument =>
-          argument.kind === "type-parameter" ? [argument.name] : []));
+          argument.kind === "type-parameter" ? [argument.identity] : []));
         const bindings = inferCsharpTargetTypeParameterBindings(existingTemplate.targetType, canonical.targetType, parameters);
         const instantiated = bindings === undefined ? undefined : substituteObjectShapeFactTargetTypeParameters(existingTemplate, bindings);
         if (instantiated === undefined || !csharpObjectShapesEqual(instantiated, canonical)) {
@@ -751,7 +751,7 @@ export function createCsharpObjectShapePolicy(
     const typeArguments = targetType.typeArguments ?? [];
     if (
       (definition?.kind !== "interface" && definition?.kind !== "class") ||
-      typeArguments.length !== definition.typeParameterNames.length
+      typeArguments.length !== definition.typeParameterBindings.length
     ) {
       return undefined;
     }
@@ -772,8 +772,8 @@ export function createCsharpObjectShapePolicy(
       return undefined;
     }
     const substitutions = new Map(
-      definition.typeParameterNames.map((name, index) => [
-        name,
+      definition.typeParameterBindings.map((parameter, index) => [
+        parameter.identity,
         typeArguments[index]!,
       ]),
     );

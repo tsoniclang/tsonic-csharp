@@ -5,7 +5,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import { sourceNodeIdentity } from "@tsonic/target-api/source";
-import { csharpSourceTypeParameterName } from "../../../target-model/names/type-parameters.js";
+import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import type {
   CsharpProviderRelationResolver,
@@ -50,7 +50,7 @@ export interface CsharpProjectTypeDefinition {
   readonly sourceFile: SourceFile;
   readonly sourceName: string;
   readonly kind: "class" | "interface" | "enum" | "struct";
-  readonly typeParameterNames: readonly string[];
+  readonly typeParameterBindings: readonly Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[];
   readonly typeProjections: readonly import("../../../target-model/types/projections.js").CsharpProjectedType[];
   readonly outerTypeProjections: readonly import("../../../target-model/types/projections.js").CsharpProjectedType[];
   readonly outerTypeParameters: readonly Node[];
@@ -60,6 +60,7 @@ export interface CsharpProjectTypeDefinition {
   readonly abstract: boolean;
   readonly publicParameterlessConstructor: boolean;
   readonly local: boolean;
+  readonly scopeName?: string;
   readonly factoryName?: string;
   readonly factoryIdentityName?: string;
 }
@@ -176,7 +177,7 @@ export function createCsharpProjectTypePolicy(
     const arguments_ = type.kind === "target-named"
       ? type.typeArguments ?? []
       : [];
-    if (arguments_.length !== definition.typeParameterNames.length) {
+    if (arguments_.length !== definition.typeParameterBindings.length) {
       return Object.freeze([]);
     }
     const heritage = heritageById.get(definition.id);
@@ -184,8 +185,8 @@ export function createCsharpProjectTypePolicy(
       return Object.freeze([]);
     }
     const substitutions = new Map(
-      definition.typeParameterNames.map((name, index) => [
-        name,
+      definition.typeParameterBindings.map((parameter, index) => [
+        parameter.identity,
         arguments_[index]!,
       ]),
     );
@@ -211,7 +212,7 @@ export function createCsharpProjectTypePolicy(
     if (owner === undefined) {
       return { kind: "not-project-member" };
     }
-    if (owner.typeParameterNames.length === 0) {
+    if (owner.typeParameterBindings.length === 0) {
       return { kind: "resolved", type: declaredType };
     }
     if (receiver === undefined) {
@@ -250,19 +251,19 @@ export function createCsharpProjectTypePolicy(
     const arguments_ = selectedOwner.kind === "target-named"
       ? selectedOwner.typeArguments ?? []
       : [];
-    if (arguments_.length !== owner.typeParameterNames.length) {
+    if (arguments_.length !== owner.typeParameterBindings.length) {
       return {
         kind: "unresolved",
         reason:
-          `The selected receiver instantiates project declaration '${owner.sourceName}' with ${arguments_.length} target type arguments instead of ${owner.typeParameterNames.length}.`,
+          `The selected receiver instantiates project declaration '${owner.sourceName}' with ${arguments_.length} target type arguments instead of ${owner.typeParameterBindings.length}.`,
       };
     }
     return {
       kind: "resolved",
       type: substituteTargetTypeParameters(
         declaredType,
-        new Map(owner.typeParameterNames.map((name, index) => [
-          name,
+        new Map(owner.typeParameterBindings.map((parameter, index) => [
+          parameter.identity,
           arguments_[index]!,
         ])),
       ),
@@ -361,12 +362,12 @@ export function projectTypeDefinition(
   const typeParameters = rawTypeParameters.filter(
     (parameter): parameter is Node => parameter !== undefined,
   );
-  const typeParameterNames = [...outerTypeParameters, ...typeParameters].map((parameter) =>
-    csharpSourceTypeParameterName(parameter, host.ast)
+  const typeParameterBindings = [...outerTypeParameters, ...typeParameters].map((parameter) =>
+    csharpSourceTypeParameter(parameter, host.ast)
   );
   if (
     typeParameters.length !== rawTypeParameters.length ||
-    typeParameterNames.some((parameter) => parameter === undefined)
+    typeParameterBindings.some((parameter) => parameter === undefined)
   ) {
     return undefined;
   }
@@ -374,9 +375,7 @@ export function projectTypeDefinition(
     id: `tsonic.source:${identity}`,
     declaration,
     sourceFile,
-    sourceName: kind === "class" && !host.ast.is.IsSourceFile(host.ast.parent(declaration)!)
-      ? `${name === undefined ? "AnonymousClass" : host.ast.text(name)}__${host.ast.pos(declaration)}`
-      : host.ast.text(name),
+    sourceName: name === undefined ? "AnonymousClass" : host.ast.text(name),
     local,
     kind,
     sourceTypeParameterCount: typeParameters.length,
@@ -384,11 +383,11 @@ export function projectTypeDefinition(
     outerTypeProjections: Object.freeze([]),
     outerTypeParameters: Object.freeze(outerTypeParameters),
     typeParameters: Object.freeze(typeParameters),
-    staticCompanion: kind === "class" && typeParameterNames.length > 0 &&
+    staticCompanion: kind === "class" && typeParameterBindings.length > 0 &&
       host.ast.is.IsSourceFile(host.ast.parent(declaration)!) && host.ast.members(declaration).some(member =>
         member !== undefined && (host.ast.hasModifierKind(member, "static") || host.ast.is.IsClassStaticBlockDeclaration(member))),
-    typeParameterNames: Object.freeze(
-      typeParameterNames as readonly string[],
+    typeParameterBindings: Object.freeze(
+      typeParameterBindings as readonly Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[],
     ),
     abstract:
       kind === "class" && host.ast.hasModifierKind(declaration, "abstract"),
@@ -564,7 +563,8 @@ export function projectDefinitionTargetType(
   return csharpTargetNamedType(
     definition.id,
     typeArguments,
-    { kind: "named", name: definition.sourceName },
+    { kind: "named", name: definition.sourceName,
+      ...(definition.scopeName === undefined ? {} : { namespace: [definition.scopeName] }) },
     { sourceDeclarationKind: definition.kind },
   );
 }

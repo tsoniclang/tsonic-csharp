@@ -66,8 +66,8 @@ export function tryPlanCsharpTypedLocationOperation(
     ));
     return { handled: true };
   }
-  const pointeeType = csharpTypeFromTargetTypeRef(operation.pointeeType);
-  const locationType = csharpTypeFromTargetTypeRef(operation.locationType);
+  const pointeeType = csharpTypeFromTargetTypeRef(operation.pointeeType, input.scope.typeParameterNames);
+  const locationType = csharpTypeFromTargetTypeRef(operation.locationType, input.scope.typeParameterNames);
   if (pointeeType === undefined || locationType === undefined) {
     diagnostics.push(typedLocationDiagnostic(
       node,
@@ -78,7 +78,7 @@ export function tryPlanCsharpTypedLocationOperation(
   }
   switch (operation.kind) {
     case "location-hash": {
-      const parameterType = csharpTypeFromTargetTypeRef(operation.parameterType);
+      const parameterType = csharpTypeFromTargetTypeRef(operation.parameterType, input.scope.typeParameterNames);
       if (parameterType === undefined) return { handled: true };
       const pointer = planExpressionWithExpectedType(
         operation.locationExpression,
@@ -97,13 +97,13 @@ export function tryPlanCsharpTypedLocationOperation(
     case "location-view":
     case "location-project": {
       const args = operation.arguments.map(argument => {
-        const type = csharpTypeFromTargetTypeRef(argument.type);
+        const type = csharpTypeFromTargetTypeRef(argument.type, input.scope.typeParameterNames);
         return type === undefined ? undefined : planExpressionWithExpectedType(
           argument.expression, sourceFile, input, diagnostics,
           type, undefined, argument.type,
         );
       });
-      const typeArguments = operation.typeArguments.map(csharpTypeFromTargetTypeRef);
+      const typeArguments = operation.typeArguments.map(type => csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames));
       return { handled: true, ...(args.some(value => value === undefined) ||
         typeArguments.some(value => value === undefined) ? {} : {
           expression: invokeMember(locationType, operation.method,
@@ -170,7 +170,7 @@ export function tryPlanCsharpTypedLocationOperation(
       );
       const backing = input.program.storage.nativeBacking(node);
       if (backing !== undefined) return { handled: true, expression: initial === undefined
-        ? undefined : planCsharpNativeMemoryCall("Allocate", initial, backing) };
+        ? undefined : planCsharpNativeMemoryCall(input.scope.typeParameterNames, "Allocate", initial, backing) };
       return {
         handled: true,
         ...(initial === undefined
@@ -230,7 +230,7 @@ export function tryPlanCsharpTypedLocationOperation(
       };
     }
     case "location-equal": {
-      const parameterType = csharpTypeFromTargetTypeRef(operation.parameterType);
+      const parameterType = csharpTypeFromTargetTypeRef(operation.parameterType, input.scope.typeParameterNames);
       if (parameterType === undefined) return { handled: true };
       const left = planExpressionWithExpectedType(
         operation.leftExpression,
@@ -281,7 +281,7 @@ export function planCsharpProjectedFieldWrite(
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
   }
-  const type = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(selection.storage.valueType));
+  const type = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(selection.storage.valueType), input.scope.typeParameterNames);
   if (type === undefined || state === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "A bound value-field write requires its exact location type and owner identity scope."));
     return undefined;
@@ -405,9 +405,9 @@ function planValuePropertyLocation(
     return undefined;
   }
   const ownerLocationType = csharpTypeFromTargetTypeRef(
-    csharpRuntimeLocationTargetType(storage.receiverStorage.valueType),
+    csharpRuntimeLocationTargetType(storage.receiverStorage.valueType), input.scope.typeParameterNames,
   );
-  const projectedType = csharpTypeFromTargetTypeRef(storage.valueType);
+  const projectedType = csharpTypeFromTargetTypeRef(storage.valueType, input.scope.typeParameterNames);
   if (ownerLocationType === undefined || projectedType === undefined) {
     diagnostics.push(typedLocationDiagnostic(
       storage.expression,
@@ -458,7 +458,7 @@ function boundRecordStorage(node: Node, input: CsharpPlanningContext): { readonl
   const shape = selected?.objectShape;
   const field = selected?.shapeMember?.kind === "resolved" ? selected.shapeMember.member : undefined;
   if (shape === undefined || field?.bound !== true) return undefined;
-  const type = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(field));
+  const type = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(field), input.scope.typeParameterNames);
   return type === undefined ? undefined : { type, name: objectShapeBoundStorageMemberName(shape, field) };
 }
 

@@ -11,6 +11,7 @@ import type { CsharpOutputPlan } from "../../artifact-model/output.js";
 import { planCsharpStartupSourceFile } from "./startup.js";
 import { reconstructCsharpSourceFiles } from "../artifacts/source-file-reconstruction.js";
 import { planCsharpProject } from "../project/project-artifacts.js";
+import { preserveCsharpAuthoredNames } from "../../target-ast/normalization/authored-names.js";
 import {
   sourceFileArtifactPath,
   validateSourceFileOutputIdentities,
@@ -80,7 +81,7 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
     project,
     sources: Object.freeze(sources.map((source, index) => Object.freeze({
       ...source,
-      unit: normalizedUnits[index]!,
+      unit: preserveCsharpAuthoredNames(normalizedUnits[index]!),
     }))),
   });
   return resolvedTargetStage(plan);

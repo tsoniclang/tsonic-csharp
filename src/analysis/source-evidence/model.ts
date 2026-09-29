@@ -41,7 +41,7 @@ export type CsharpSourceArgumentClassification =
 export interface CsharpSemanticTypeClassification {
   readonly arrayElementDefault?: "never" | "nullable" | "always";
   readonly targetType?: TargetTypeRef;
-  readonly typeParameterName?: string;
+  readonly typeParameter?: Extract<TargetTypeRef, { readonly kind: "type-parameter" }>;
   readonly nullish: boolean;
   readonly intrinsic:
     | "any"

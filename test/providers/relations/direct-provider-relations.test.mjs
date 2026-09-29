@@ -467,7 +467,7 @@ test("provider type-parameter relations must cover exact target arity", () => {
   const declaration = providerDeclaration();
   const binding = providerBinding({
     id: "Fixture.Target`1",
-    typeParameters: [{ name: "T" }],
+    typeParameters: [{ identity: "T", name: "T" }],
   });
   const relation = signatureRelation({
     declaration,
@@ -476,7 +476,7 @@ test("provider type-parameter relations must cover exact target arity", () => {
       declaringType: {
         kind: "target-named",
         id: binding.id,
-        typeArguments: [{ kind: "type-parameter", name: "T" }],
+        typeArguments: [{ kind: "type-parameter", identity: "T", name: "T" }],
       },
     }),
     bindingTypeParameters: [],
