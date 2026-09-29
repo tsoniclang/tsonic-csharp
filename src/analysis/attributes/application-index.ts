@@ -21,7 +21,6 @@ export function analyzeCsharpAttributeApplications(
       message: `C# attribute application ${message}`, ...(subject === undefined ? {} : { sourceNode: subject }) });
   };
   for (const application of applications.all) {
-    if (application.applicationPlacement === "module") continue;
     const invocation = isAstNode(source.ast, application.invocation) ? application.invocation : undefined;
     const target = isAstNode(source.ast, application.applicationTarget) ? application.applicationTarget : undefined;
     if (target === undefined) {

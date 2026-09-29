@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  assertCsharpCheckingSucceeded,
   compileCsharpSource,
 } from "../../helpers/direct-csharp-session.mjs";
 
 for (const moduleSpecifier of ["@tsonic/core/lang.js", "@tsonic/csharp/lang.js"]) {
   for (const placement of ["", '.target("inner")', '.target("outer")']) {
-    test(`module attributes from ${moduleSpecifier} with ${placement || "no target"} reach the precise C# placement boundary`, () => {
+    test(`deferred module attributes from ${moduleSpecifier} with ${placement || "no target"} are not exposed`, () => {
       const compiled = compileCsharpSource({
         sourceText: `
           import { attribute as annotate } from "${moduleSpecifier}";
@@ -15,10 +14,7 @@ for (const moduleSpecifier of ["@tsonic/core/lang.js", "@tsonic/csharp/lang.js"]
           annotate.module()${placement}.add(() => new SerializableAttribute());
         `,
       });
-      assertCsharpCheckingSucceeded(compiled);
-      assert.deepEqual(compiled.targetDiagnostics.map(diagnostic => diagnostic.code), [
-        "CSHARP_ATTRIBUTE_MODULE_NOT_SUPPORTED",
-      ]);
+      assert.match(compiled.sourceDiagnosticsText, /TS2339/);
       assert.deepEqual([...compiled.artifacts], []);
     });
   }

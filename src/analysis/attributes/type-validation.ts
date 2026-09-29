@@ -9,16 +9,6 @@ export function diagnoseCsharpAttributeTypeValues(
   const diagnostics: TargetDiagnostic[] = [];
   for (const application of applications.all) {
     const node = application.invocation;
-    if (application.applicationPlacement === "module") {
-      diagnostics.push({
-        code: "CSHARP_ATTRIBUTE_MODULE_NOT_SUPPORTED",
-        category: "error",
-        source: "tsonic-csharp",
-        message: "A source-module attribute has no corresponding C# source-module declaration; it does not implicitly select an assembly or CLR module.",
-        ...(isAstNode(source.ast, node) ? { sourceNode: node } : {}),
-      });
-      continue;
-    }
     const semantics = isAstNode(source.ast, node) ? source.semantics.forNode(node) : undefined;
     if (isAstNode(source.ast, node) && source.ast.is.IsNewExpression(node) &&
       semantics?.operations.call(node)?.outcome === "applicable") continue;
