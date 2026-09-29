@@ -74,6 +74,8 @@ export function csharpTaskTargetType(resultType: TargetTypeRef): CsharpTaskTarge
     ...(targetType.typeArguments !== undefined ? { typeArguments: targetType.typeArguments } : {}),
     ...(targetType.csharpRender !== undefined ? { csharpRender: targetType.csharpRender } : {}),
     csharpTaskResultType: resultType,
+    ...(!isCsharpVoidTargetType(resultType)
+      ? { csharpBaseType: csharpTaskTargetType(csharpVoidTargetType()) } : {}),
   } satisfies CsharpTaskTargetTypeRef;
 }
 

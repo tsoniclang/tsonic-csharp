@@ -68,6 +68,9 @@ export function selectCsharpConversion(
     getCsharpTaskResultTargetType(source) !== undefined ||
     getCsharpTaskResultTargetType(target) !== undefined
   ) {
+    if (namedTargetTypeImplicitlyAccepts(input, source, target, new Set())) {
+      return { kind: "implicit", proof: "reference" };
+    }
     return {
       kind: "rejected",
       reason:
