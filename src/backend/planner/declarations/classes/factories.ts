@@ -12,7 +12,8 @@ import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { planExpression, planExpressionWithExpectedType } from "../../expressions/index.js";
 import { planClassMembers } from "./members.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
-import { createCsharpTypeParameterPlanningContext, planOuterTypeParameters, planTypeParameters } from "../../types/type-parameters.js";
+import { createCsharpTypeParameterPlanningContext } from "../../names/type-parameters.js";
+import { planOuterTypeParameters, planTypeParameters } from "../../types/type-parameters.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { planClassStaticBlockDeclaration } from "./constructors.js";
 
