@@ -4,7 +4,6 @@ import type {
   Node,
   ReadonlySourceFactResolver,
   SourceFile,
-  ResolvedSourceCallInfo,
   Type,
 } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
@@ -23,7 +22,9 @@ import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapePolicy } from "../objects/object-shape-policy.js";
 
-export type { ResolvedSourceCallInfo } from "@tsonic/tsts";
+export type ResolvedSourceCallInfo = NonNullable<
+  ReturnType<SourceFileSemantics["operations"]["call"]>
+>;
 
 export interface CsharpPlanningRepresentationQueries {
   genericProjections?(declaration: Node): readonly import("../../../target-model/types/projections.js").CsharpProjectedType[];

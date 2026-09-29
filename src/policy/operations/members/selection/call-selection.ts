@@ -2,9 +2,9 @@ import type {
   ExtensionDiagnostic,
   Node,
   SourceFile,
-  ResolvedSourceCallInfo,
 } from "@tsonic/tsts";
 import type {
+  SourceFileSemantics,
   SourceProgramNavigation,
 } from "@tsonic/target-api/source";
 import type {
@@ -23,6 +23,10 @@ import {
   compareInstantiatedProviderCalls,
   instantiateCsharpProviderCall,
 } from "../instantiation/instantiation.js";
+
+type ResolvedSourceCallInfo = NonNullable<
+  ReturnType<SourceFileSemantics["operations"]["call"]>
+>;
 
 export type CsharpProviderCallSelection =
   | {
