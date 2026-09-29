@@ -84,15 +84,26 @@ function promiseResolveMember(
         )
       : undefined;
   }
-  return argument === undefined || isCsharpVoidTargetType(task.result)
-    ? undefined
-    : staticMethod(
-        `Tsonic.CSharp.Js.PromiseRuntime.Resolve:${targetIdentity(task.result)}:${targetIdentity(argument)}`,
+  if (argument === undefined) return undefined;
+  const explicit = context.source.sourceSelectedMethodTypeArguments?.[0];
+  const inputResult = getCsharpTaskResultTargetType(argument);
+  if (inputResult === undefined && explicit?.explicitTypeNode === undefined) {
+    const types = context.host.semantics(context.sourceFile).types;
+    if (explicit === undefined || !targetTypeRefEquals(argument, task.result) &&
+      types.relationship(context.source.sourceArguments[0]!.type, explicit.selectedType) !== "identical") return undefined;
+  }
+  const result = explicit?.explicitTypeNode === undefined
+    ? inputResult ?? argument
+    : context.host.types.resolveSelectedType(explicit.explicitTypeNode, explicit.selectedType, context.sourceFile);
+  if (result === undefined || inputResult !== undefined && !targetTypeRefEquals(inputResult, result)) return undefined;
+  const parameter = inputResult === undefined ? result : argument;
+  return staticMethod(
+        `Tsonic.CSharp.Js.PromiseRuntime.Resolve:${targetIdentity(result)}:${targetIdentity(parameter)}`,
         "resolve",
-        "Resolve",
-        runtime,
-        [targetParameter("value", argument)],
-        task.task,
+        inputResult === undefined ? "Resolved" : "Resolve",
+        promiseRuntimeType(result),
+        [targetParameter("value", parameter)],
+        csharpTaskTargetType(result),
       );
 }
 
