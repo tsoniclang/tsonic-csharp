@@ -8,6 +8,7 @@ import {
   type TargetTypeRef,
 } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { CsharpConversionSelection } from "../../../policy/conversions/selection/model.js";
 import type {
   CsharpExpression,
 } from "../../target-ast/roslyn/index.js";
@@ -98,7 +99,10 @@ export function runtimeUnionArmProjection(
   baseExpression: CsharpExpression,
   armIndex: number,
   carrier?: TargetTypeRef,
+  retainsAbsence = false,
 ): CsharpExpression {
+  if (retainsAbsence) return { kind: "InvocationExpression",
+    callee: { kind: "ConditionalAccessExpression", receiver: baseExpression, name: `As${armIndex + 1}` }, arguments: [] };
   const optional = getCsharpGenericOptionalParts(carrier);
   const receiver: CsharpExpression = getCsharpNullableElementTargetType(carrier) === undefined
     ? baseExpression
@@ -114,6 +118,29 @@ export function runtimeUnionArmProjection(
     },
     arguments: optional === undefined ? [] : [{ kind: "Argument", expression: baseExpression }],
   };
+}
+
+export function planCsharpRuntimeUnionProjection(
+  node: Node,
+  sourceType: TargetTypeRef | undefined,
+  targetType: TargetTypeRef | undefined,
+  selection: Extract<CsharpConversionSelection, { readonly kind: "runtime-union-projection" }>,
+  expression: CsharpExpression,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression | undefined {
+  const sourceElement = getCsharpNullableElementTargetType(sourceType);
+  const targetElement = getCsharpNullableElementTargetType(targetType);
+  const declared = getCsharpRuntimeUnionArms(sourceElement ?? sourceType)?.[selection.armIndex];
+  const selectedType = selection.retainsAbsence ? targetElement : targetType;
+  if (typeof selection.retainsAbsence !== "boolean" || !Number.isInteger(selection.armIndex) ||
+    declared === undefined || selectedType === undefined || !targetTypeRefEquals(declared, selection.armType) ||
+    !targetTypeRefEquals(selection.armType, selectedType) ||
+    selection.retainsAbsence && (sourceElement === undefined || targetElement === undefined)) {
+    diagnostics.push(unsupportedNodeDiagnostic(node,
+      "Union projection requires exact sealed payload and absence correspondence."));
+    return undefined;
+  }
+  return runtimeUnionArmProjection(expression, selection.armIndex, sourceType, selection.retainsAbsence);
 }
 
 export function runtimeUnionArmTest(

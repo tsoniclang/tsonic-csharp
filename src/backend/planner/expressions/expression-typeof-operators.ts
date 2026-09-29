@@ -29,6 +29,9 @@ import {
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
+import { createDestructuringPlannerState, type DestructuringPlannerState } from "../bindings/binding-state.js";
+import { planCsharpRuntimeCategory } from "./runtime-category.js";
+import { evaluatedConstant } from "./csharp-expression-builders.js";
 import {
   tryPlanRuntimeUnionTypeTest,
 } from "./runtime-union-projections.js";
@@ -42,6 +45,7 @@ export function planTypeofExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
+  state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   if (!input.program.source.ast.is.IsTypeOfExpression(node)) {
     return undefined;
@@ -84,7 +88,14 @@ export function planTypeofExpression(
     ));
     return undefined;
   }
-  return { kind: "LiteralExpression", value: runtimeKind };
+  const carrier = input.types.classifications.resolveNode(operand, sourceFile);
+  const expression = planExpression(operand, sourceFile, input, diagnostics);
+  const result = carrier === undefined || expression === undefined ? undefined : planCsharpRuntimeCategory(
+    expression, carrier, runtimeKind, input, state ?? createDestructuringPlannerState(sourceFile, input.program.source.ast),
+  );
+  if (result === undefined) diagnostics.push(unsupportedNodeDiagnostic(node,
+    "C# typeof translation requires a runtime category consistent with its sealed native carrier."));
+  return result;
 }
 
 export function tryPlanTypeTestExpression(
@@ -230,9 +241,6 @@ export function tryPlanTypeofComparisonExpression(
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
   }
-  if (selection.kind === "constant") {
-    return { kind: "LiteralExpression", value: selection.value };
-  }
   const planned = planExpression(
     comparison.operand,
     sourceFile,
@@ -242,6 +250,7 @@ export function tryPlanTypeofComparisonExpression(
   if (planned === undefined) {
     return undefined;
   }
+  if (selection.kind === "constant") return evaluatedConstant(planned, selection.value);
   if (selection.kind === "runtime-union-arm-test") {
     return tryPlanRuntimeUnionTypeTest(
       comparison.operand,

@@ -156,11 +156,18 @@ function expressionContainsUnsafe(
         mode,
       ) || (mode === "context" && csharpTypeRequiresUnsafe(expression.type));
     case "NullPatternExpression":
+    case "ThrowExpression":
       return expressionContainsUnsafe(
         expression.expression,
         blockContainsUnsafe,
         mode,
       );
+    case "SwitchExpression":
+      return expressionContainsUnsafe(expression.expression, blockContainsUnsafe, mode) || expression.arms.some(arm =>
+        (arm.pattern.kind === "DeclarationPattern" && mode === "context" && csharpTypeRequiresUnsafe(arm.pattern.type)) ||
+        (arm.pattern.kind === "ConstantPattern" && expressionContainsUnsafe(arm.pattern.expression, blockContainsUnsafe, mode)) ||
+        (arm.when !== undefined && expressionContainsUnsafe(arm.when, blockContainsUnsafe, mode)) ||
+        expressionContainsUnsafe(arm.expression, blockContainsUnsafe, mode));
     case "PrefixUnaryExpression":
       return expression.operatorToken.kind === "AsteriskToken" ||
         expressionContainsUnsafe(

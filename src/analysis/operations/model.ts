@@ -1,4 +1,5 @@
 import type { ExtensionFactSubject, Node } from "@tsonic/tsts";
+import type { CsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
 import type { CsharpSwitchSelection } from "../../policy/operations/control-flow/switch.js";
 import type { CsharpMemoryBindingSelection } from "../../policy/operations/memory-bindings.js";
 import type { CsharpElementDeletionSelection } from "../../policy/operations/collections/element-deletion.js";
@@ -159,7 +160,7 @@ export interface CsharpTargetOperationClassifications {
   nativeRefReturn(node: Node): CsharpNativeRefReturnSelection | undefined;
   jsCondition(node: Node): CsharpJsValueOperationSelection | undefined;
   jsTypeof(node: Node): CsharpJsValueOperationSelection | undefined;
-  typeofRuntimeKind(node: Node): CsharpTypeofRuntimeKind | undefined;
+  typeofRuntimeKind(node: Node): CsharpTypeofResult | undefined;
   jsVoid(node: Node): CsharpJsValueOperationSelection | undefined;
   jsObjectLiteral(node: Node): CsharpJsValueOperationSelection | undefined;
   jsArrayMutation(node: Node): CsharpJsArrayMutationSelection | undefined;

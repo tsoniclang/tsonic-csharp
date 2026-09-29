@@ -60,6 +60,7 @@ export type CsharpConversionSelection =
       readonly kind: "runtime-union-projection";
       readonly armIndex: number;
       readonly armType: TargetTypeRef;
+      readonly retainsAbsence: boolean;
     }
   | {
       readonly kind: "delegate-adapter";

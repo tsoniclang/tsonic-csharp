@@ -7,6 +7,7 @@ import type {
   CsharpInterpolatedStringPart,
   CsharpLambdaParameter,
   CsharpObjectInitializerAssignment,
+  CsharpPattern,
   CsharpPostfixUnaryOperatorToken,
   CsharpPrefixUnaryOperatorToken,
   CsharpTypeNode,
@@ -54,7 +55,7 @@ export function printCsharpExpression(
     case "InvocationExpression":
       return `${printPostfixOperand(expression.callee, context)}(${expression.arguments.map(context.printArgument).join(", ")})`;
     case "AwaitExpression":
-      return `await ${context.printExpression(expression.expression)}`;
+      return `await ${printPostfixOperand(expression.expression, context)}`;
     case "UnsafeExpression":
       return `unsafe(${context.printExpression(expression.expression)})`;
     case "CheckedExpression":
@@ -81,11 +82,17 @@ export function printCsharpExpression(
     case "NullPatternExpression":
       return `${context.printExpression(expression.expression)} is ${expression.negated ? "not " : ""}null`;
     case "PrefixUnaryExpression":
-      return `${printCsharpPrefixUnaryOperatorToken(expression.operatorToken)}${context.printExpression(expression.operand)}`;
+      return `${printCsharpPrefixUnaryOperatorToken(expression.operatorToken)}${printPostfixOperand(expression.operand, context)}`;
     case "PostfixUnaryExpression":
       return `${printPostfixOperand(expression.operand, context)}${printCsharpPostfixUnaryOperatorToken(expression.operatorToken)}`;
     case "ConditionalExpression":
       return `${context.printExpression(expression.condition)} ? ${context.printExpression(expression.whenTrue)} : ${context.printExpression(expression.whenFalse)}`;
+    case "SwitchExpression":
+      return `(${context.printExpression(expression.expression)}) switch { ${expression.arms.map(arm =>
+        `${printCsharpPattern(arm.pattern, context)}${arm.when === undefined ? "" : ` when ${context.printExpression(arm.when)}`} => ${context.printExpression(arm.expression)}`
+      ).join(", ")} }`;
+    case "ThrowExpression":
+      return `throw ${context.printExpression(expression.expression)}`;
     case "ArrayCreationExpression": {
       if (expression.size !== undefined) {
         return expression.elementType === undefined
@@ -115,6 +122,8 @@ function castOperandRequiresParentheses(expression: CsharpExpression): boolean {
     case "BinaryExpression":
     case "AssignmentExpression":
     case "ConditionalExpression":
+    case "SwitchExpression":
+    case "ThrowExpression":
     case "IsPatternExpression":
     case "NullPatternExpression":
     case "LambdaExpression":
@@ -151,6 +160,8 @@ function postfixOperandRequiresParentheses(
     case "NullPatternExpression":
     case "PrefixUnaryExpression":
     case "ConditionalExpression":
+    case "SwitchExpression":
+    case "ThrowExpression":
     case "LambdaExpression":
       return true;
     case "PostfixUnaryExpression":
@@ -173,6 +184,16 @@ function postfixOperandRequiresParentheses(
     case "DefaultExpression":
       return false;
   }
+}
+
+function printCsharpPattern(pattern: CsharpPattern, context: CsharpPrintContext): string {
+  switch (pattern.kind) {
+    case "ConstantPattern": return context.printExpression(pattern.expression);
+    case "DeclarationPattern": return `${context.printType(pattern.type)} ${pattern.designation}`;
+    case "VarPattern": return `var ${pattern.designation}`;
+    case "DiscardPattern": return "_";
+  }
+  return failUnsupportedCsharpSyntax(pattern, "pattern");
 }
 
 function printMemberName(

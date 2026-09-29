@@ -30,6 +30,8 @@ export type CsharpExpression =
   | { readonly kind: "PrefixUnaryExpression"; readonly operatorToken: CsharpPrefixUnaryOperatorToken; readonly operand: CsharpExpression }
   | { readonly kind: "PostfixUnaryExpression"; readonly operand: CsharpExpression; readonly operatorToken: CsharpPostfixUnaryOperatorToken }
   | { readonly kind: "ConditionalExpression"; readonly condition: CsharpExpression; readonly whenTrue: CsharpExpression; readonly whenFalse: CsharpExpression }
+  | { readonly kind: "SwitchExpression"; readonly expression: CsharpExpression; readonly arms: readonly CsharpSwitchExpressionArm[] }
+  | { readonly kind: "ThrowExpression"; readonly expression: CsharpExpression }
   | { readonly kind: "ArrayCreationExpression"; readonly elements: readonly CsharpExpression[]; readonly elementType?: CsharpTypeNode; readonly size?: CsharpExpression }
   | { readonly kind: "CollectionExpression"; readonly elements: readonly {
       readonly kind: "ExpressionElement" | "SpreadElement";
@@ -38,6 +40,18 @@ export type CsharpExpression =
   | { readonly kind: "TupleExpression"; readonly elements: readonly CsharpExpression[] }
   | { readonly kind: "DefaultExpression"; readonly type: CsharpTypeNode; readonly nullForgiving?: boolean }
   | { readonly kind: "LambdaExpression"; readonly async?: boolean; readonly parameters: readonly CsharpLambdaParameter[]; readonly body: CsharpExpression | CsharpBlock };
+
+export type CsharpPattern =
+  | { readonly kind: "ConstantPattern"; readonly expression: CsharpExpression }
+  | { readonly kind: "DeclarationPattern"; readonly type: CsharpTypeNode; readonly designation: string }
+  | { readonly kind: "VarPattern"; readonly designation: string }
+  | { readonly kind: "DiscardPattern" };
+
+export interface CsharpSwitchExpressionArm {
+  readonly pattern: CsharpPattern;
+  readonly when?: CsharpExpression;
+  readonly expression: CsharpExpression;
+}
 
 export type CsharpBinaryOperatorToken =
   | { readonly kind: "AmpersandAmpersandToken" }

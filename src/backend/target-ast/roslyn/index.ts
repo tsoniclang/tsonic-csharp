@@ -50,6 +50,8 @@ export type {
   CsharpLambdaParameter,
   CsharpObjectCreationExpression,
   CsharpObjectInitializerAssignment,
+  CsharpPattern,
+  CsharpSwitchExpressionArm,
   CsharpPostfixUnaryOperatorToken,
   CsharpPrefixUnaryOperatorToken,
 } from "./expressions.js";

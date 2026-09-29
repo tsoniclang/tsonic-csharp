@@ -75,6 +75,7 @@ export function selectRuntimeUnionConversion(
       return {
         kind: "runtime-union-projection",
         ...matchingArms[0]!,
+        retainsAbsence: false,
       };
     }
     return {

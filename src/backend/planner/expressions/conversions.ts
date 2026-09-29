@@ -48,7 +48,7 @@ import {
   planCsharpJsValueBox,
 } from "./js-value-operations.js";
 import { planCsharpEmptyRecordConversion } from "./empty-record-conversion.js";
-import { runtimeUnionArmProjection } from "./runtime-union-projections.js";
+import { planCsharpRuntimeUnionProjection } from "./runtime-union-projections.js";
 import { planCsharpVoidReturn } from "../statements/statement-output.js";
 
 export function readCsharpConversionClassification(
@@ -220,7 +220,7 @@ export function applyCsharpConversionSelection(
         name: "Value",
       };
     case "runtime-union-projection":
-      return runtimeUnionArmProjection(expression, selection.armIndex, sourceType);
+      return planCsharpRuntimeUnionProjection(node, sourceType, targetType, selection, expression, diagnostics);
     case "nullable-map": {
       const sourceElement = getCsharpNullableElementTargetType(sourceType);
       const targetElement = getCsharpNullableElementTargetType(targetType);

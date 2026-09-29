@@ -1,4 +1,5 @@
 import { classifyCsharpUnionCall } from "./union-calls.js";
+import { getCsharpTypeofResult, type CsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
 import { getCsharpGenericMethodValue } from "../../target-model/types/generic-method-values.js";
 import { getCsharpClassFactory } from "../../target-model/types/class-factories.js";
 import { classifyCsharpOptionalCallReceiver } from "./optional-calls.js";
@@ -43,7 +44,6 @@ import {
   selectCsharpBinaryOperation,
   selectCsharpDestructuringAssignmentOperation,
   selectCsharpTypeofComparison,
-  getCsharpTypeofRuntimeKind,
   selectCsharpIteration,
   selectCsharpNativePointerOperation,
   selectCsharpResourceManagement,
@@ -126,7 +126,7 @@ const jsConditionKey = createTargetClassificationKey<ReturnType<typeof selectCsh
 const jsTypeofKey = createTargetClassificationKey<ReturnType<typeof selectCsharpJsTypeofOperation>>(
   "csharp.operation.js-typeof",
 );
-const typeofRuntimeKindKey = createTargetClassificationKey<CsharpTypeofRuntimeKind>(
+const typeofRuntimeKindKey = createTargetClassificationKey<CsharpTypeofResult>(
   "csharp.operation.typeof-runtime-kind",
 );
 const jsVoidKey = createTargetClassificationKey<ReturnType<typeof selectCsharpJsValueVoidOperation>>(
@@ -232,16 +232,10 @@ function visit(
     jsTypeofKey,
     selectCsharpJsTypeofOperation(policy, node, sourceFile),
   );
-  const typeofRuntimeKind = getCsharpTypeofRuntimeKind(
-    policy.types.resolveNode(node, sourceFile),
-  );
-  if (typeofRuntimeKind !== undefined) {
-    setClassification(
-      builder,
-      node,
-      typeofRuntimeKindKey,
-      typeofRuntimeKind,
-    );
+  if (ast.is.IsTypeOfExpression(node)) {
+    const operand = ast.as.AsTypeOfExpression(node)?.Expression;
+    const selected = operand === undefined ? undefined : getCsharpTypeofResult(policy.types.resolveNode(operand, sourceFile));
+    if (operand !== undefined && selected !== undefined) setClassification(builder, operand, typeofRuntimeKindKey, selected);
   }
   if (ast.is.IsIdentifier(node)) {
     setClassification(

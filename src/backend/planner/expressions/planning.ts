@@ -305,6 +305,7 @@ function planExpressionCore(
         input,
         diagnostics,
         scopedPlanExpression,
+        state,
       );
     case KindVoidExpression:
       return planVoidExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
