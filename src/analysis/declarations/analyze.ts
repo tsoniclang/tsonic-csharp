@@ -336,6 +336,7 @@ function isCallableDeclaration(
     policy.ast.is.IsFunctionExpression(node) ||
     policy.ast.is.IsArrowFunction(node) ||
     policy.ast.is.IsMethodDeclaration(node) ||
+    policy.ast.is.IsMethodSignatureDeclaration(node) ||
     policy.ast.is.IsGetAccessorDeclaration(node) ||
     policy.ast.is.IsSetAccessorDeclaration(node);
 }

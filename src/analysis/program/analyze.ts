@@ -2,6 +2,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import { analyzeCsharpCaptureStorage } from "../callables/capture-storage.js";
+import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-adapters.js";
 import { analyzeCsharpClassFactories } from "../project-types/class-factories.js";
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual, type CsharpGenericProjectionIndex } from "../declarations/type-projections.js";
 import { csharpCallableValueType } from "../callables/value-type.js";
@@ -211,7 +212,9 @@ export function analyzeCsharpTargetProgram(
       ]),
     }]);
   }
+  const callableAdapters = analyzeCsharpProjectCallableAdapters(analysis.policy, analysis.callables);
   const analysisIssues = [
+    ...callableAdapters.issues,
     ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
     ...analysis.sourceEvidence.memoryMetadataIssues,
     ...analysis.sourceEvidence.typeOnlyIssues,
@@ -286,6 +289,7 @@ export function analyzeCsharpTargetProgram(
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));
   const program: CsharpTargetProgram = Object.freeze({
+    callableAdapters,
     typeProjections: analysis.typeProjections,
     classFactories,
     captureStorage,
@@ -419,6 +423,7 @@ function analyzeIteration(
   const sealedObjectShapes = objectShapes.seal();
   const storage = sealCsharpStorage(policy, sourceEvidence, operations, sealedObjectShapes, storageRepresentations);
   return Object.freeze({
+    policy,
     typeProjections,
     typeSystem,
     sourceEvidence,

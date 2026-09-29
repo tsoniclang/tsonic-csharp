@@ -33,6 +33,7 @@ import {
 } from "./properties.js";
 import { planCsharpMutableMethod } from "./mutable-methods.js";
 import { classFactoryContext } from "./factories.js";
+import { planCsharpProjectCallableAdapters } from "./callable-adapters.js";
 
 export function planClassMembers(
   members: readonly (Node | undefined)[],
@@ -69,6 +70,7 @@ export function planClassMembers(
           const method = planMethodDeclaration(member, sourceFile, memberInput, diagnostics);
           const write = input.program.declarations.methodWrite(member);
           planned.push(...(write === undefined ? [method] : planCsharpMutableMethod(member, method, write, input, diagnostics)));
+          planned.push(...planCsharpProjectCallableAdapters(member, method, sourceFile, memberInput, diagnostics));
         }
         break;
       case KindPropertyDeclaration:

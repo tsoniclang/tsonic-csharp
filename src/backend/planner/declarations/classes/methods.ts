@@ -69,7 +69,7 @@ export function planMethodDeclaration(
   );
   const declaredReturnType = getExplicitReturnType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics);
   const modifiers = withCsharpSafetyModifiers(
-    planMethodModifiers(node, declaration.name, sourceFile, input),
+    planMethodModifiers(node, declaration.name, sourceFile, input, diagnostics),
     node,
     "declaration",
     input,

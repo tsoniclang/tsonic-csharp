@@ -5,6 +5,8 @@ import type {
   CsharpPropertyDeclaration,
 } from "../../../target-ast/roslyn/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 
 import {
   HasSourceKind,
@@ -23,10 +25,13 @@ export function planClassMemberModifiers(node: Node, name: Node | undefined, inp
     : [access];
 }
 
-export function planMethodModifiers(node: Node, name: Node | undefined, _sourceFile: SourceFile, input: CsharpPlanningContext): CsharpMethodDeclaration["modifiers"] {
+export function planMethodModifiers(node: Node, name: Node | undefined, _sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[]): CsharpMethodDeclaration["modifiers"] {
   const modifiers: CsharpMethodDeclaration["modifiers"][number][] = [...planClassMemberModifiers(node, name, input)];
-  addDispatchModifiers(modifiers, input.program.sourceNavigation.memberDispatch(node),
-    input.program.source.ast.hasModifierKind(node, "abstract"));
+  if (!modifiers.includes("static")) {
+    const dispatch = input.program.callableAdapters.get(node);
+    if (dispatch === undefined) diagnostics.push(unsupportedNodeDiagnostic(node, "A method has no sealed native dispatch contract."));
+    else addDispatchModifiers(modifiers, dispatch, input.program.source.ast.hasModifierKind(node, "abstract"));
+  }
   if (isAsyncNode(input.program.source.ast, node)) {
     modifiers.push("async");
   }
