@@ -711,7 +711,8 @@ function runtimeKindLiteral(
   return value === "string" ||
       value === "number" ||
       value === "boolean" ||
-      value === "bigint"
+      value === "bigint" ||
+      value === "function"
     ? value
     : undefined;
 }

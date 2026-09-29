@@ -8,6 +8,19 @@ import {
   getCsharpTypeofRuntimeKind,
   selectCsharpTypeofComparison,
 } from "../../../dist/policy/index.js";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/delegates.js";
+
+test("C# typeof recognizes callable contracts without name guesses or extra category hints", () => {
+  const callable = csharpDelegateTargetType("System.Func", [], csharpStringTargetType());
+  assert.equal(getCsharpTypeofRuntimeKind(callable), "function");
+  const { csharpDelegateSignature, ...withoutContract } = callable;
+  assert.equal(getCsharpTypeofRuntimeKind(withoutContract), undefined);
+  assert.equal(getCsharpTypeofRuntimeKind({ ...callable, id: "renamed:exact-delegate" }), "function");
+  assert.equal(getCsharpTypeofRuntimeKind(csharpNullableTargetType(callable)), undefined);
+  assert.deepEqual(selectCsharpTypeofComparison(csharpNullableTargetType(callable), "function", false), {
+    kind: "target-type-test", targetType: callable, negated: false,
+  });
+});
 
 test("C# typeof policy distinguishes an exact runtime kind from a nullable carrier", () => {
   const stringType = csharpStringTargetType();

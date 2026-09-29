@@ -1,10 +1,12 @@
 import type { CsharpTargetNamedTypeRef, CsharpTypeofRuntimeKind, TargetTypeRef } from "./model.js";
 import { getCsharpNullableElementTargetType } from "./nullable.js";
 import { isCsharpAbsenceTargetType } from "./runtime-carriers.js";
+import { getCsharpDelegateSignature } from "./delegates.js";
 
 export function getCsharpTypeofRuntimeKind(type: TargetTypeRef | undefined): CsharpTypeofRuntimeKind | undefined {
   if (isCsharpAbsenceTargetType(type)) return "object";
   if (type === undefined || getCsharpNullableElementTargetType(type) !== undefined) return undefined;
+  if (type.kind === "function-pointer" || getCsharpDelegateSignature(type) !== undefined) return "function";
   if (type.kind === "target-named") return (type as CsharpTargetNamedTypeRef).csharpTypeofRuntimeKind;
   if (type.kind !== "source-primitive") return undefined;
   if (type.name === "bool") return "boolean";

@@ -16,9 +16,6 @@ import {
 } from "../diagnostics.js";
 import {
   isAstNode,
-  HasSourceKind,
-  KindArrowFunction,
-  KindFunctionExpression,
 } from "@tsonic/target-api/source";
 import type {
   DestructuringPlannerState,
@@ -27,10 +24,6 @@ import type {
   ExpectedExpressionPlanner,
   ExpressionPlanner,
 } from "./expression-planner-types.js";
-import {
-  planArrowFunctionExpression,
-  planFunctionExpression,
-} from "./expression-lambdas.js";
 
 export function planCallArgumentCore(
   node: Node,
@@ -130,14 +123,6 @@ function planCallArgumentExpression(
   conversionExpectedTargetType?: TargetTypeRef,
   state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
-  if (expectedType !== undefined && conversionExpectedTargetType !== undefined) {
-    if (HasSourceKind(input.program.source.ast, node, KindArrowFunction)) {
-      return planArrowFunctionExpression(node, sourceFile, input, diagnostics, planExpression, expectedType, state, conversionExpectedTargetType, planExpressionWithExpectedType);
-    }
-    if (HasSourceKind(input.program.source.ast, node, KindFunctionExpression)) {
-      return planFunctionExpression(node, sourceFile, input, diagnostics, expectedType, state, conversionExpectedTargetType);
-    }
-  }
   if (expectedType !== undefined) {
     return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state);
   }

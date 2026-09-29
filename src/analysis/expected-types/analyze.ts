@@ -17,6 +17,8 @@ import {
   csharpSourceArgumentExpectedType,
   csharpTargetParameterValueType,
   getCsharpDelegateSignature,
+  getCsharpNullableElementTargetType,
+  getCsharpRuntimeUnionArms,
   getCsharpArrayLiteralElementTargetType,
   getCsharpGeneratorProtocol,
   getCsharpTaskResultTargetType,
@@ -109,10 +111,7 @@ export function analyzeCsharpExpectedTypes(
     if (expression === undefined || targetType === undefined) {
       return;
     }
-    if (
-      isCallableBoundary(expression) &&
-      getCsharpDelegateSignature(targetType) !== undefined
-    ) {
+    if (isCallableBoundary(expression)) {
       contextualCallables.add(expression);
     }
     const key = targetTypeRefKey(targetType);
@@ -237,15 +236,19 @@ export function analyzeCsharpExpectedTypes(
     for (const declaration of contextualCallables) {
       const contextualTargets = [
         ...(byExpression.get(declaration)?.values() ?? []),
-      ].filter((use) =>
-        getCsharpDelegateSignature(use.targetType) !== undefined);
+      ].flatMap((use) => {
+        const targetType = callableContextTarget(declaration, use.targetType);
+        return targetType === undefined ? [] : [{ ...use, targetType }];
+      });
       const requiredTargets = contextualTargets.filter((use) =>
         use.strength === "required");
       const effectiveTargets = requiredTargets.length > 0
         ? requiredTargets
         : contextualTargets;
-      const targetType = effectiveTargets.length === 1
-        ? effectiveTargets[0]!.targetType
+      const distinctTargets = new Map(effectiveTargets.map((use) =>
+        [targetTypeRefKey(use.targetType), use.targetType]));
+      const targetType = distinctTargets.size === 1
+        ? [...distinctTargets.values()][0]
         : undefined;
       const previousTarget = callableTargets.get(declaration);
       if (
@@ -284,6 +287,18 @@ export function analyzeCsharpExpectedTypes(
       }
     }
     return changed;
+  }
+
+  function callableContextTarget(declaration: Node, target: TargetTypeRef): TargetTypeRef | undefined {
+    const value = getCsharpNullableElementTargetType(target) ?? target;
+    if (getCsharpDelegateSignature(value) !== undefined) return value;
+    const arms = getCsharpRuntimeUnionArms(value);
+    if (arms === undefined) return undefined;
+    const callable = callables.get({ kind: "declaration", declaration });
+    const selected = callable === undefined ? undefined : csharpCallableValueType(callable);
+    if (selected === undefined) return undefined;
+    const candidates = arms.filter((arm) => targetTypeRefEquals(arm, selected));
+    return candidates.length === 1 ? candidates[0] : undefined;
   }
 
   function visit(node: Node, sourceFile: SourceFile): void {

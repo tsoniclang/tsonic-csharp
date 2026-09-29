@@ -54,6 +54,7 @@ import {
 import {
   csharpAbsenceTargetType,
   getCsharpRuntimeUnionArms,
+  getCsharpDelegateSignature,
   getCsharpArrayLiteralInputCarrierTargetType,
   targetTypeRefEquals,
 } from "../../../target-model/types/index.js";
@@ -167,12 +168,12 @@ export function planExpressionWithExpectedTypeCore(
     });
   }
   if (HasSourceKind(input.program.source.ast, node, KindArrowFunction)) {
-    return expectedRepresentation(
+    return (getCsharpDelegateSignature(effectiveExpectedTargetType) === undefined ? sourceRepresentation : expectedRepresentation)(
       planArrowFunctionExpression(node, sourceFile, input, diagnostics, planners.planExpression, expectedType, state, effectiveExpectedTargetType, planners.planExpressionWithExpectedType),
     );
   }
   if (HasSourceKind(input.program.source.ast, node, KindFunctionExpression)) {
-    return expectedRepresentation(
+    return (getCsharpDelegateSignature(effectiveExpectedTargetType) === undefined ? sourceRepresentation : expectedRepresentation)(
       planFunctionExpression(node, sourceFile, input, diagnostics, expectedType, state, effectiveExpectedTargetType),
     );
   }
