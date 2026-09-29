@@ -198,12 +198,6 @@ export const csharpJsObjectCallPolicies:
       (context) => promiseAllMember(context),
       noReceiver,
     ),
-    ...["then", "catch"].map((name) =>
-      jsUnsupportedCallPolicy(
-        jsMemberIdentity("Promise", name),
-        `Promise.${name} requires a closed continuation and scheduler policy; no target-side inference or callback reconstruction is permitted.`,
-      )
-    ),
     jsUnsupportedCallPolicy(
       jsConstructIdentity("FunctionConstructor"),
       "Function construction compiles source text at runtime and has no closed C# source-to-source representation.",

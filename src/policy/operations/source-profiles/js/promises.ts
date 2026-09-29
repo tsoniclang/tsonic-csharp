@@ -6,9 +6,11 @@ import {
   csharpDelegateTargetType,
   csharpEnumerableTargetType,
   csharpObjectTargetType,
+  csharpNullableTargetType,
   csharpTaskTargetType,
   getCsharpCollectionElementTargetType,
   getCsharpTaskResultTargetType,
+  getCsharpDelegateSignature,
   isCsharpVoidTargetType,
   targetTypeRefEquals,
 } from "../../../types/index.js";
@@ -30,6 +32,7 @@ import {
 import { csharpTargetNamedType } from "../../../types/index.js";
 
 const objectType = csharpObjectTargetType();
+const rejectionType = csharpNullableTargetType(objectType);
 const actionType = csharpDelegateTargetType("System.Action", []);
 const noReceiver = { kind: "none" } as const;
 const firstParameterReceiver = {
@@ -61,7 +64,57 @@ export const csharpJsPromiseCallPolicies:
       promiseFinallyMember,
       firstParameterReceiver,
     ),
+    jsCallPolicy(
+      jsMemberIdentity("Promise", "then"),
+      context => promiseContinuationMember(context, "then"),
+      firstParameterReceiver,
+      { targetMethodTypeArguments: context => {
+        const result = getCsharpTaskResultTargetType(promiseContinuationMember(context, "then")?.returnType);
+        return result === undefined ? undefined : isCsharpVoidTargetType(result) ? [] : [result];
+      } },
+    ),
+    jsCallPolicy(
+      jsMemberIdentity("Promise", "catch"),
+      context => promiseContinuationMember(context, "catch"),
+      firstParameterReceiver,
+    ),
   ]);
+
+function promiseContinuationMember(
+  context: CsharpSourceProfileCallPolicyContext,
+  name: "then" | "catch",
+): CsharpTargetMember | undefined {
+  const receiver = resolveCsharpSelectedSourceValue(context, context.source.sourceReceiver);
+  const input = getCsharpTaskResultTargetType(receiver);
+  const output = resolveResultTask(context);
+  if (receiver === undefined || input === undefined || output === undefined) return undefined;
+  if (name === "catch" && !targetTypeRefEquals(input, output.result)) return undefined;
+  const callbackResults = context.source.sourceArguments.map(argument =>
+    getCsharpDelegateSignature(resolveCsharpSelectedSourceValue(context, argument))?.returnType);
+  const asynchronous = name === "then" && callbackResults[0] !== undefined &&
+    getCsharpTaskResultTargetType(callbackResults[0]) !== undefined;
+  const selected = context.source.sourceSelectedMethodTypeArguments?.[0];
+  const result = name === "catch" ? input : selected?.explicitTypeNode !== undefined
+    ? context.host.types.resolveSelectedType(selected.explicitTypeNode, selected.selectedType, context.sourceFile)
+    : getCsharpTaskResultTargetType(callbackResults[0]) ?? callbackResults[0];
+  if (result === undefined) return undefined;
+  const callbackResult = asynchronous ? csharpTaskTargetType(result) : result;
+  const delegate = (parameters: readonly TargetTypeRef[]) => isCsharpVoidTargetType(callbackResult)
+    ? csharpDelegateTargetType("System.Action", parameters)
+    : csharpDelegateTargetType("System.Func", parameters, callbackResult);
+  return receiverHelperMethod(
+    `Tsonic.CSharp.Js.PromiseRuntime.${name}:${targetIdentity(input)}:${targetIdentity(callbackResult)}`,
+    name, name === "catch" ? "Catch" : asynchronous ? "ThenAsync" : "Then",
+    promiseRuntimeType(input), receiver,
+    name === "catch"
+      ? [targetParameter("rejected", delegate([rejectionType]))]
+      : [targetParameter("fulfilled", delegate(isCsharpVoidTargetType(input) ? [] : [input])),
+          targetParameter("rejected", delegate([rejectionType]), { optional: true })],
+    csharpTaskTargetType(result),
+    name === "then" && !isCsharpVoidTargetType(result)
+      ? { typeParameters: [{ name: "TResult" }] } : {},
+  );
+}
 
 function promiseResolveMember(
   context: CsharpSourceProfileCallPolicyContext,
