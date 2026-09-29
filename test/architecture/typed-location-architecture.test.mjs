@@ -115,7 +115,7 @@ test("typed-location selection is fact-driven and contains no marker spellings",
   assert.match(selection, /readCsharpSourceTypedLocationOperation/u);
   assert.doesNotMatch(
     selection,
-    /\baddressOf\b|\ballocatePointer\b|\bequalPointer\b|\bloadPointer\b|\bstorePointer\b/u,
+    /\b(?:addressOf|allocatePointer|equalPointer|loadPointer|storePointer|addressof|allocateptr|equalptr|loadptr|storeptr)\b/u,
   );
   assert.doesNotMatch(selection, /getSymbolAtLocation|getResolvedSymbol|\.Text\b|\.TypeArguments\b/u);
 });
