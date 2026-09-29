@@ -355,7 +355,7 @@ export function resolveProjectThisTargetType(
   { host }: CsharpTypeResolutionScope,
   node: Node,
 ): TargetTypeRef | undefined {
-  if (host.ast.kindName(node) !== "KindThisKeyword") {
+  if (host.ast.kindName(node) !== "KindThisKeyword" && !host.ast.is.IsThisTypeNode(node)) {
     return undefined;
   }
   let current = host.ast.parent(node);
