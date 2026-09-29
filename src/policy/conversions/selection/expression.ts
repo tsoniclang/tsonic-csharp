@@ -15,6 +15,7 @@ import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpProviderArgumentAdapter } from "../../../providers/relations/index.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../types/index.js";
+import { selectCsharpUnionArmMapping } from "../../../target-model/types/union-relations.js";
 
 export function selectCsharpExpressionConversion(
   input: Pick<
@@ -174,6 +175,10 @@ export function selectCsharpFlowReadConversion(
   }
   const runtimeUnionArms = getCsharpRuntimeUnionArms(nullableElement ?? storageType);
   if (runtimeUnionArms !== undefined) {
+    const targetElement = getCsharpNullableElementTargetType(selectedReadType);
+    const mapping = targetElement !== undefined && nullableElement === undefined ? undefined
+      : selectCsharpUnionArmMapping(nullableElement ?? storageType, targetElement ?? selectedReadType, "target");
+    if (mapping !== undefined) return { kind: "union-map", coverage: "target", arms: mapping };
     const selectedElement = nullableElement === undefined ? undefined : getCsharpNullableElementTargetType(selectedReadType);
     const matchingArms = runtimeUnionArms.flatMap((armType, armIndex) =>
       targetTypeRefEquals(armType, selectedElement ?? selectedReadType)
@@ -222,6 +227,7 @@ export function csharpConversionIsApplicable(
 ): boolean {
   if (selection.kind === "nullable-map") return csharpConversionIsApplicable(selection.conversion, mode);
   return selection.kind === "identity" ||
+    selection.kind === "union-map" && (selection.coverage === "source" || mode === "explicit") ||
     selection.kind === "never" ||
     selection.kind === "checked-native-integer" ||
     selection.kind === "exact-integer" ||

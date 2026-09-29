@@ -1,5 +1,6 @@
 import type { CsharpProviderArgumentAdapter } from "../../../providers/relations/index.js";
 import type { TargetTypeRef } from "../../types/index.js";
+import type { CsharpUnionArmMapping } from "../../../target-model/types/union-relations.js";
 
 export type CsharpConversionMode = "implicit" | "explicit";
 
@@ -10,6 +11,7 @@ export interface CsharpArrayLikeUnionProjection {
 }
 
 export type CsharpConversionSelection =
+  | { readonly kind: "union-map"; readonly coverage: "source" | "target"; readonly arms: readonly CsharpUnionArmMapping[] }
   | { readonly kind: "never" }
   | { readonly kind: "checked-native-integer" }
   | { readonly kind: "exact-integer"; readonly input: TargetTypeRef; readonly output: TargetTypeRef; readonly nullable: boolean }

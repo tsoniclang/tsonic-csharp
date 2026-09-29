@@ -24,6 +24,7 @@ import type {
 } from "../../types/index.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "./model.js";
 import type { CsharpPolicyContext } from "../../model/context.js";
+import { selectCsharpUnionArmMapping } from "../../../target-model/types/union-relations.js";
 
 export function selectJsValueConversion(
   source: TargetTypeRef,
@@ -55,6 +56,10 @@ export function selectRuntimeUnionConversion(
   mode: CsharpConversionMode,
 ): CsharpConversionSelection | undefined {
   const sourceArms = getCsharpRuntimeUnionArms(source);
+  const widening = selectCsharpUnionArmMapping(source, target, "source");
+  if (widening !== undefined) return { kind: "union-map", coverage: "source", arms: widening };
+  const narrowing = mode === "explicit" ? selectCsharpUnionArmMapping(source, target, "target") : undefined;
+  if (narrowing !== undefined) return { kind: "union-map", coverage: "target", arms: narrowing };
   const referenceTarget = getCsharpNullableElementTargetType(target) ?? target;
   if (sourceArms !== undefined && referenceTarget.kind === "target-named" &&
     !isCsharpValueTypeTargetType(referenceTarget) && sourceArms.every(arm =>

@@ -49,6 +49,7 @@ import {
 } from "./js-value-operations.js";
 import { planCsharpEmptyRecordConversion } from "./empty-record-conversion.js";
 import { planCsharpRuntimeUnionProjection } from "./runtime-union-projections.js";
+import { planCsharpUnionMapping } from "./union-mappings.js";
 import { planCsharpVoidReturn } from "../statements/statement-output.js";
 
 export function readCsharpConversionClassification(
@@ -110,6 +111,8 @@ export function applyCsharpConversionSelection(
     return undefined;
   }
   switch (selection.kind) {
+    case "union-map":
+      return planCsharpUnionMapping(node, expression, sourceType, targetType, selection, input, diagnostics);
     case "never": {
       const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
       return type === undefined ? undefined : {

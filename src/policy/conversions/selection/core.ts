@@ -198,6 +198,7 @@ export function conversionIsImplicitlyApplicable(
 ): boolean {
   if (selection.kind === "nullable-map") return conversionIsImplicitlyApplicable(selection.conversion);
   return selection.kind === "identity" ||
+    selection.kind === "union-map" && selection.coverage === "source" ||
     selection.kind === "integer-truncation" ||
     selection.kind === "empty-record" ||
     selection.kind === "implicit" ||

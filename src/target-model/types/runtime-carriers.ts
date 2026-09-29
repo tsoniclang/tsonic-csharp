@@ -18,6 +18,7 @@ import {
 import {
   csharpNullableTargetType,
   csharpNullableReferenceTargetType,
+  getCsharpNullableElementTargetType,
 } from "./nullable.js";
 import { csharpOptionalStorageProjection, getCsharpGenericOptionalParts } from "./projections.js";
 import { isCsharpVoidTargetType } from "./identity.js";
@@ -142,7 +143,16 @@ export function combineCsharpTargetUnionMembers(
 ): TargetTypeRef | undefined {
   const valueUnion = members.some(member => !isCsharpVoidTargetType(member));
   const byIdentity = new Map<string, TargetTypeRef>();
-  for (const member of members) {
+  const pending = [...members];
+  while (pending.length > 0) {
+    const member = pending.pop()!;
+    const optional = getCsharpNullableElementTargetType(member);
+    const arms = getCsharpRuntimeUnionArms(optional ?? member);
+    if (arms !== undefined) {
+      pending.push(...arms);
+      if (optional !== undefined) pending.push(csharpAbsenceTargetType());
+      continue;
+    }
     const value = valueUnion && isCsharpVoidTargetType(member) ? csharpAbsenceTargetType() : member;
     byIdentity.set(targetTypeRefKey(value), value);
   }
