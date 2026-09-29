@@ -90,12 +90,6 @@ export function classifySourceOwnedProperty(
     "property-read",
     selection.source.optionalChain,
   );
-  const receiverShape = policy.objectShapes.resolveNode(
-    selection.source.receiver.expression,
-    sourceFile,
-  );
-  const objectShape = policy.projectTypes.catalog.definitionForTarget(receiverShape?.targetType)?.kind === "class"
-    ? undefined : receiverShape;
   const selectedSubjects = semantics.facts.selectedSubjects(
     selection.source.selectedSymbol,
     selection.source.selectedDeclaration,
@@ -105,16 +99,17 @@ export function classifySourceOwnedProperty(
     selection.source.receiver.type,
     sourceFile,
   );
+  const objectShape = policy.projectTypes.catalog.definitionForTarget(selectedReceiverType)?.kind === "class"
+    ? undefined
+    : policy.objectShapes.resolveNode(selection.source.receiver.expression, sourceFile);
   const runtimeUnionProperty = resolveCsharpRuntimeUnionObjectShapeProperty(
     policy.objectShapes,
     selectedReceiverType,
     selectedSubjects,
   );
   const jsValueProperty = resolveCsharpJsValueObjectShapeProperty(
-    policy.objectShapes,
-    semantics,
-    selection,
-    sourceFile,
+    objectShape,
+    selectedSubjects,
   );
   const shapeMember = jsValueProperty.kind === "resolved"
     ? {
