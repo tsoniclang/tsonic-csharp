@@ -362,6 +362,9 @@ function visit(
       ...(optionalReceiver === undefined ? {} : { optionalReceiver }),
       unionCall: classifyCsharpUnionCall(policy, source, sourceFile),
       ...(source === undefined ? {} : { source }),
+      ...(target?.kind !== "source-owned" || source === undefined ? {} : {
+        sourceResult: policy.types.resolveSourceCallResult(source, sourceFile),
+      }),
       sourceFlow: selectCsharpSourceFlowCall(policy, node),
       jsValue,
       ...(target === undefined ? {} : { target }),

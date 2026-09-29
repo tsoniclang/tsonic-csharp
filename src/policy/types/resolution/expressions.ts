@@ -416,7 +416,7 @@ export function resolveSourceOwnedCallResult(
     source,
     queries.sourceFile,
     state,
-  );
+  )?.selectedType;
 }
 
 

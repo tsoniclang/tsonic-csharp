@@ -47,7 +47,7 @@ export function classifyCsharpUnionCall(
       return node !== undefined && policy.navigation.isProjectDeclaration(node) ? [node] : [];
     });
   const parameterTypes = source.sourceSelectedSignatureParameters.map((_, index) => policy.types.resolveSourceCallParameter(source, index, sourceFile));
-  const resultType = policy.types.resolveSourceCallResult(source, sourceFile);
+  const resultType = policy.types.resolveSourceCallResult(source, sourceFile)?.selectedType;
   const typeArguments = policy.types.resolveSourceCallTypeArguments(source, sourceFile);
   if (resultType === undefined || typeArguments === undefined || parameterTypes.some(type => type === undefined)) return reject("Closed class-union call arguments and result require exact target carriers.");
   const methods = arms.map(arm => {

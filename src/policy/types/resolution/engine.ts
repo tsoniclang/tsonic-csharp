@@ -199,12 +199,12 @@ export interface CsharpTypeResolutionScope {
   resolveSourceCallResult(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
-): TargetTypeRef | undefined;
+): import("./model.js").CsharpSourceCallResult | undefined;
   resolveSourceCallResultWithState(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
-): TargetTypeRef | undefined;
+): import("./model.js").CsharpSourceCallResult | undefined;
   withSourceTargetBindings(
   bindings: readonly CsharpSourceTargetTypeBinding[],
 ): CsharpScopedTypePolicyResult;

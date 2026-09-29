@@ -56,7 +56,7 @@ export function resolveSelectedSymbolType(
 
 
 export function resolveProjectSourceSemanticType(
-  { projectSourceDeclarationTargetType }: CsharpTypeResolutionScope,
+  { host, projectSourceDeclarationTargetType, resolveTypeWithState }: CsharpTypeResolutionScope,
   type: Type,
   queries: SourceFileSemantics,
   typeArguments: readonly TargetTypeRef[],
@@ -69,6 +69,13 @@ export function resolveProjectSourceSemanticType(
   for (const symbol of symbols) {
     if (symbol === undefined) {
       continue;
+    }
+    if (!queries.types.isTypeReference(type) && queries.declarations.symbolDeclarations(symbol).some(declaration =>
+      host.ast.is.IsClassDeclaration(declaration) || host.ast.is.IsClassExpression(declaration) || host.ast.is.IsInterfaceDeclaration(declaration))) {
+      const apparent = queries.types.apparentType(type);
+      if (apparent !== undefined && apparent !== type && queries.declarations.typeSymbol(apparent) === symbol) {
+        return resolveTypeWithState(apparent, queries.sourceFile, nextState(state));
+      }
     }
     for (const declaration of definedValues(
       queries.declarations.symbolDeclarations(symbol),

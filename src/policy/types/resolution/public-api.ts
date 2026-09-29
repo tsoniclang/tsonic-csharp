@@ -1,7 +1,8 @@
 import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
-import type { ResolvedSourceCallInfo, CsharpScopedTypePolicyResult, CsharpTypeResolutionState } from "./model.js";
+import type { ResolvedSourceCallInfo, CsharpScopedTypePolicyResult, CsharpTypeResolutionState, CsharpSourceCallResult } from "./model.js";
+import { selectCsharpSourceCallResult } from "./call-results.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
@@ -474,7 +475,7 @@ export function resolveSourceCallResult(
   { resolveSourceCallResultWithState }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
-): TargetTypeRef | undefined {
+): CsharpSourceCallResult | undefined {
   return resolveSourceCallResultWithState(
     source,
     sourceFile,
@@ -484,24 +485,28 @@ export function resolveSourceCallResult(
 
 
 export function resolveSourceCallResultWithState(
-  { host, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch, sourceCallCalleeDelegateSignature, sourceCallSelectedDeclaration }: CsharpTypeResolutionScope,
+  { host, resolveTypeWithState, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch, sourceCallCalleeDelegateSignature, sourceCallSelectedDeclaration }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
-): TargetTypeRef | undefined {
+): CsharpSourceCallResult | undefined {
   const declaration = sourceCallSelectedDeclaration(source);
   const callable = host.representations.sourceCallable(source, sourceFile);
+  const result = host.semantics(sourceFile).operations.callResult(source);
+  const retain = (nativeType: TargetTypeRef | undefined): CsharpSourceCallResult | undefined =>
+    selectCsharpSourceCallResult(host, nativeType, () =>
+      resolveTypeWithState(result?.selectedReturnType, sourceFile, nextState(state)));
   if (callable !== undefined) {
     if (!sourceCallableTypeParametersMatch(source, callable)) {
       return undefined;
     }
-    return resolveSourceCallableContractType(
+    return retain(resolveSourceCallableContractType(
       source,
       callable,
       callable.returnType,
       sourceFile,
       state,
-    );
+    ));
   }
   const delegateResult = sourceCallCalleeDelegateSignature(
     source,
@@ -509,20 +514,19 @@ export function resolveSourceCallResultWithState(
     nextState(state),
   )?.returnType;
   if (delegateResult !== undefined) {
-    return delegateResult;
+    return retain(delegateResult);
   }
-  const result = host.semantics(sourceFile).operations.callResult(source);
   if (result === undefined) {
     return undefined;
   }
-  return resolveSourceCallSelectedType(
+  return retain(resolveSourceCallSelectedType(
     source,
     declaration,
     result.authoredTypeNode,
     result.selectedReturnType,
     sourceFile,
     state,
-  );
+  ));
 }
 
 

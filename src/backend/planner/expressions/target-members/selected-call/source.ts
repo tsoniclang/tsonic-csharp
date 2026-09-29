@@ -13,6 +13,8 @@ import type { CsharpCallClassification } from "../../../../../analysis/operation
 import type { CsharpSourceCallArgumentClassification } from "../../../../../analysis/operations/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { csharpSourceArgumentGroups } from "./source-argument-groups.js";
+import { targetTypeRefEquals } from "../../../../../target-model/types/equality.js";
+import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 
 export function translateSourceOwnedCall(
   node: Node,
@@ -91,9 +93,12 @@ export function translateSourceOwnedCall(
     planExpression,
     planCallArgument,
   );
-  return arguments_ === undefined
-    ? undefined
-    : { kind: "InvocationExpression", callee, arguments: arguments_ };
+  const result = classification.sourceResult;
+  if (arguments_ === undefined || result === undefined) return undefined;
+  const invocation: CsharpExpression = { kind: "InvocationExpression", callee, arguments: arguments_ };
+  if (targetTypeRefEquals(result.nativeType, result.selectedType)) return invocation;
+  const type = csharpTypeFromTargetTypeRef(result.selectedType, input.scope.typeParameterNames);
+  return type === undefined ? undefined : { kind: "CastExpression", type, expression: invocation };
 }
 
 export function translateSourceOwnedArguments(
