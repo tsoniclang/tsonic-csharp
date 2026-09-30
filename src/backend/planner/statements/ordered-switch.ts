@@ -51,7 +51,8 @@ export function planOrderedSwitch(
   }
   const sections = selection.clauses.map((clause, index) => ({
     kind: "SwitchSection" as const,
-    label: { kind: "CaseSwitchLabel" as const, expression: { kind: "LiteralExpression" as const, value: index } },
+    label: index === selection.defaultIndex ? { kind: "DefaultSwitchLabel" as const }
+      : { kind: "CaseSwitchLabel" as const, expression: { kind: "LiteralExpression" as const, value: index } },
     statements: planBody(clause.node),
   }));
   return { kind: "Block", body: { kind: "Block", statements: [
