@@ -4,7 +4,7 @@ import type {
   ReadonlySourceFactResolver,
   SourceFile,
 } from "@tsonic/tsts";
-import { sourceNodeIdentity } from "@tsonic/target-api/source";
+import { sourceNodeIdentity, sourceCallableInterface } from "@tsonic/target-api/source";
 import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../../target-model/types/generic-references.js";
 import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
@@ -360,6 +360,7 @@ export function projectTypeDefinition(
   }
   const local = kind === "class" && !host.ast.is.IsSourceFile(host.ast.parent(declaration)!);
   const semantics = host.semanticsFor(declaration);
+  if (kind === "interface" && sourceCallableInterface(semantics.declarations.declaredType(declaration), semantics, host.ast) !== undefined) return undefined;
   const declaredType = local ? semantics.declarations.declaredType(declaration) : undefined;
   if (local && declaredType === undefined) return undefined;
   const bindings = declaredType === undefined ? undefined : semantics.types.typeArgumentBindings(declaredType);

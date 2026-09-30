@@ -148,10 +148,15 @@ export function resolveSelectedValueWithState(
   ) ?? host.representations.scopedTargetType(node) ??
     (declaration !== undefined && host.ast.is.IsBindingElement(declaration)
       ? resolveNodeWithState(node, sourceFile, nextState(state)) : undefined);
+  const declaredType = declaration === undefined ? undefined : host.semanticsFor(declaration)
+    .declarations.declaredValueType(declaration);
+  const queries = host.semantics(sourceFile);
+  if (declaredType !== undefined && declaredType !== selectedType &&
+    queries.types.apparentType(declaredType) === selectedType) {
+    const storage = scopedTarget ?? resolveNodeWithState(declaration, sourceFile, nextState(state));
+    if (storage?.kind === "type-parameter") return storage;
+  }
   if (scopedTarget !== undefined) {
-    const declaredType = declaration === undefined ? undefined : host.semanticsFor(declaration)
-      .declarations.declaredValueType(declaration);
-    const queries = host.semantics(sourceFile);
     if (declaredType !== undefined) {
       const payload = getCsharpNullableElementTargetType(scopedTarget);
       if (payload !== undefined && declaration !== undefined && host.ast.is.IsBindingElement(declaration) &&
@@ -205,11 +210,10 @@ export function resolveSelectedValueWithState(
     sourceFile,
     nextState(state),
   );
-  const queries = host.semantics(sourceFile);
-  const declaredType = queries.types.expressionType(node);
-  if (resolved !== undefined && declaredType !== undefined) {
+  const expressionType = queries.types.expressionType(node);
+  if (resolved !== undefined && expressionType !== undefined) {
     const refinement = selectCsharpAuthoredUnionRefinement(
-      resolved, declaredType, selectedType, queries,
+      resolved, expressionType, selectedType, queries,
       type => resolveCsharpUnionMemberCarrier(scope, resolved, type, queries, state),
       host.structuralTypes.resolveTarget, host.typeDefinitions,
     );

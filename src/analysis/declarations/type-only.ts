@@ -1,5 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { sourceClassFieldIsTypeOnly, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { sourceCallableInterface, sourceClassFieldIsTypeOnly, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpStorageIssue } from "../storage/model.js";
 
 export function analyzeCsharpTypeOnlyDeclarations(source: TargetSourceProgram, sourceFiles: readonly SourceFile[]): {
@@ -40,7 +40,13 @@ export function analyzeCsharpTypeOnlyDeclarations(source: TargetSourceProgram, s
       }
       continue;
     }
-    if (!ast.is.IsInterfaceDeclaration(statement) || ast.extendsHeritageElements(statement).length !== 0) continue;
+    if (!ast.is.IsInterfaceDeclaration(statement)) continue;
+    const semantics = source.semantics.forNode(statement);
+    if (sourceCallableInterface(semantics.declarations.declaredType(statement), semantics, ast) !== undefined) {
+      declarations.add(statement);
+      continue;
+    }
+    if (ast.extendsHeritageElements(statement).length !== 0) continue;
     const members = ast.members(statement);
     if (members.length === 0 || members.some(member => member === undefined || ast.kindName(member) !== "KindPropertySignature" ||
       !ast.is.IsComputedPropertyName(ast.name(member)))) continue;

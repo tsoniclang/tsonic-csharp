@@ -79,7 +79,9 @@ export function resolveAuthoredAndSelectedSourceType(
   if (authoredSelection.kind === "authored-members") {
     const selectedMembers = authoredSelection.nodes.map((node) =>
       node === authoredTypeNode
-        ? authored
+        ? reconcileCsharpSelectedTargetType(authored,
+            resolveTypeWithState(selectedType, selectedSourceFile, nextState(state)),
+            selectedQueries.types.relationship(authoredSemanticType, selectedType))
         : resolveNodeWithState(
             node,
             authoredSourceFile,

@@ -334,7 +334,8 @@ export function resolveCallableType(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   const callable = queries.types.callable(type);
-  return callable === undefined
+  return callable === undefined || queries.types.propertyInfos(type).length !== 0 ||
+    queries.types.indexInfos(type).length !== 0 || queries.types.constructSignatures(type).length !== 0
     ? undefined
     : resolveCallableEvidence(callable, queries, state);
 }
