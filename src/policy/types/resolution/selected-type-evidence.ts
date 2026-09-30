@@ -24,6 +24,7 @@ export function reconcileCsharpSelectedTargetType(
   if (authored === undefined || selected === undefined) {
     return authored ?? selected;
   }
+  if (selected.kind === "opaque" && selected.id === "never") return authored;
   const retained = retainCsharpBroadValueCarrier(authored, selected);
   if (retained !== undefined) return retained;
   if (

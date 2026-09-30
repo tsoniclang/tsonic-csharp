@@ -191,24 +191,6 @@ export function analyzeCsharpStorage(
       ? undefined
       : getCsharpDelegateSignature(callableTarget);
     const signatures = selectedSignature === undefined ? [] : [selectedSignature];
-    if (signatures.length === 0) {
-      for (const parameter of parameters) {
-        const declaration = policy.ast.as.AsParameterDeclaration(parameter);
-        const authored = declaration?.Type === undefined
-          ? undefined
-          : evidence.nodeTargetType(declaration.Type);
-        if (authored !== undefined) {
-          requireTargetType(
-            parameter,
-            parameter,
-            policy.ast.questionToken(parameter) === undefined
-              ? authored
-              : csharpNullableTargetType(authored),
-          );
-        }
-      }
-      return;
-    }
     for (const signature of signatures) {
       if (parameters.length > signature.parameters.length) {
         issues.push(issue(

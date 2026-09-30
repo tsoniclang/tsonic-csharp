@@ -5,6 +5,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import { sourceNodeIdentity } from "@tsonic/target-api/source";
+import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../../target-model/types/generic-references.js";
 import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import type {
@@ -258,14 +259,22 @@ export function createCsharpProjectTypePolicy(
           `The selected receiver instantiates project declaration '${owner.sourceName}' with ${arguments_.length} target type arguments instead of ${owner.typeParameterBindings.length}.`,
       };
     }
+    const bindings = new Map(owner.typeParameterBindings.map((parameter, index) => [parameter.identity, arguments_[index]!]));
+    let missingProjection = false;
+    visitCsharpTargetTypeParameters(declaredType, parameter => {
+      const projection = parameter.csharpProjection;
+      if (projection === undefined || bindings.has(parameter.identity)) return;
+      const dependencies = csharpFreeTypeParameterIdentities(projection.arguments);
+      if (owner.typeParameterBindings.some(binding => dependencies.has(binding.identity))) missingProjection = true;
+    });
+    if (missingProjection) {
+      return { kind: "unresolved", reason: "The selected project owner has not finalized every required generic projection binding." };
+    }
     return {
       kind: "resolved",
       type: substituteTargetTypeParameters(
         declaredType,
-        new Map(owner.typeParameterBindings.map((parameter, index) => [
-          parameter.identity,
-          arguments_[index]!,
-        ])),
+        bindings,
       ),
     };
   };

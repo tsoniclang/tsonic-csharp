@@ -15,6 +15,15 @@ import { retainCsharpBroadValueCarrier } from "../../../dist/policy/types/resolu
 const int32 = csharpSourcePrimitiveTargetType("int32");
 const string = csharpStringTargetType();
 
+test("flow-unreachable reads retain their declared carrier without changing genuine never expressions", () => {
+  const never = { kind: "opaque", id: "never" };
+  for (const stored of [int32, string, csharpTsValueTargetType()]) {
+    assert.equal(reconcileCsharpSelectedTargetType(stored, never, "unrelated"), stored);
+  }
+  assert.equal(reconcileCsharpSelectedTargetType(undefined, never, "unrelated"), never);
+  assert.equal(reconcileCsharpSelectedTargetType(never, never, "identical"), never);
+});
+
 test("non-nullish broad values do not become empty object identities", () => {
   const broad = csharpTsValueTargetType();
   const empty = csharpEmptyObjectTargetType();

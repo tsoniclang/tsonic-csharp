@@ -169,6 +169,12 @@ export function selectCsharpBinaryOperands(
     );
   }
   if (isEquality(sourceOperator)) {
+    if (isCsharpAbsenceTargetType(rightType)) {
+      leftType = resolveNullishOperandStorage(input, left, leftType);
+    }
+    if (isCsharpAbsenceTargetType(leftType)) {
+      rightType = resolveNullishOperandStorage(input, right, rightType);
+    }
     const leftNullable = getCsharpNullableElementTargetType(leftType);
     const rightNullable = getCsharpNullableElementTargetType(rightType);
     const leftArms = getCsharpRuntimeUnionArms(leftNullable ?? leftType) ?? (leftNullable === undefined ? [] : [leftNullable]);
@@ -431,6 +437,19 @@ function selectBinaryOperationTypes(
     rightInputType: rightType,
     resultType: selectedResultType,
   };
+}
+
+function resolveNullishOperandStorage(
+  input: CsharpPolicyContext,
+  node: Node,
+  selected: TargetTypeRef,
+): TargetTypeRef {
+  const storage = input.types.resolveReadStorage(node);
+  return storage !== undefined &&
+    (getCsharpNullableElementTargetType(storage) !== undefined ||
+      getCsharpRuntimeUnionArms(storage)?.some(isCsharpAbsenceTargetType))
+    ? storage
+    : selected;
 }
 
 function resolveBinaryOperandType(

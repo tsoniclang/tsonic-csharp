@@ -6,7 +6,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { nextState } from "./state.js";
 import { readCsharpSourceField } from "./source-markers.js";
 import { sourceRefinementOnlyRemovesNullish } from "./source-union-refinement.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/runtime-carriers.js";
 
 export function resolveSelectedDeclarationResult(
@@ -53,13 +53,15 @@ export function resolveSelectedDeclarationResult(
     queries.types.relationship(declaredMemberType, semanticType) === "identical";
   const removesNullish = !unchanged && declaredMemberType !== undefined && semanticType !== undefined &&
     sourceRefinementOnlyRemovesNullish(declaredMemberType, semanticType, queries);
-  const selected = resolveAuthoredAndSelectedSourceType(
+  const authored = resolveAuthoredAndSelectedSourceType(
     declarationType,
     declarationSourceFile,
     declarationType !== undefined && (unchanged || removesNullish) ? undefined : semanticType,
     queries.sourceFile,
     state,
   );
+  const selected = authored !== undefined && declaration !== undefined && host.ast.questionToken(declaration) !== undefined
+    ? csharpNullableTargetType(authored) : authored;
   let result = selected;
   if (selected !== undefined) {
     const instantiated = host.projectTypes().instantiateMemberType(

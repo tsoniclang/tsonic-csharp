@@ -1,5 +1,23 @@
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "./model.js";
 import { targetTypeRefKey } from "./equality.js";
+import { csharpTargetTypeComponents } from "./components.js";
+import { csharpTypeProjection } from "./projections.js";
+
+export function csharpFreeTypeParameterIdentities(types: readonly TargetTypeRef[]): ReadonlySet<string> {
+  const identities = new Set<string>();
+  const pending = [...types];
+  const visited = new Set<TargetTypeRef>();
+  for (let index = 0; index < pending.length; index += 1) {
+    const type = pending[index]!;
+    if (visited.has(type)) continue;
+    visited.add(type);
+    const projection = csharpTypeProjection(type);
+    if (projection !== undefined) pending.push(...projection.csharpProjection.arguments);
+    else if (type.kind === "type-parameter") identities.add(type.identity);
+    else pending.push(...csharpTargetTypeComponents(type));
+  }
+  return identities;
+}
 
 export function visitCsharpTargetTypeParameters(
   type: TargetTypeRef,

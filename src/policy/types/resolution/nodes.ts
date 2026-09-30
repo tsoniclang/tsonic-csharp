@@ -55,6 +55,15 @@ export function resolveNodeWithState(
   if (syntaxFact !== undefined) {
     return syntaxFact;
   }
+  if (host.ast.is.IsPropertyDeclaration(node) || host.ast.is.IsPropertySignatureDeclaration(node) ||
+    host.ast.is.IsParameterDeclaration(node)) {
+    const typeNode = host.ast.typeNode(node);
+    if (typeNode !== undefined) {
+      const declared = resolveNodeWithState(typeNode, queries.sourceFile, nextState(state));
+      return declared === undefined || host.ast.questionToken(node) === undefined
+        ? declared : csharpNullableTargetType(declared);
+    }
+  }
   const selectedExpression = resolveSelectedExpressionType(
     node,
     queries,

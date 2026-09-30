@@ -31,7 +31,6 @@ import {
 import {
   getCsharpTypeForNode,
   invalidCsharpType,
-  nullableCsharpType,
 } from "../../types/index.js";
 import {
   targetPolicyDiagnostic,
@@ -96,16 +95,13 @@ export function planPropertyDeclaration(
       type,
     };
   }
-  const declaredType = getCsharpTypeForNode(
-    declaration.Type ?? declaration.name,
+  const type = getCsharpTypeForNode(
+    node,
     sourceFile,
     input,
     invalidCsharpType("property type"),
     diagnostics,
   );
-  const type = input.program.source.ast.questionToken(node) === undefined
-    ? declaredType
-    : nullableCsharpType(declaredType);
   const propertyName = planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name");
   const modifiers = planClassMemberModifiers(node, declaration.name, input);
   if (input.program.source.ast.hasModifierKind(node, "abstract")) {

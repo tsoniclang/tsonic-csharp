@@ -4,7 +4,7 @@ import { targetTypeRefEquals, targetTypeRefKey, scopedTargetTypeRefKey } from ".
 import { csharpTargetStorageIdentityEquals } from "../../../dist/policy/types/storage/storage-identity.js";
 import { substituteTargetTypeParameters, inferCsharpTargetTypeParameterBindings } from "../../../dist/policy/types/callables/substitution.js";
 import { csharpGeneratedTypeParameterNames } from "../../../dist/target-model/names/type-parameters.js";
-import { csharpObjectShapeTypeParameters } from "../../../dist/target-model/types/generic-references.js";
+import { csharpFreeTypeParameterIdentities, csharpObjectShapeTypeParameters } from "../../../dist/target-model/types/generic-references.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-types.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/delegates.js";
 import { csharpObjectShapeMemberTypeKey } from "../../../dist/target-model/types/object-shape-identity.js";
@@ -15,6 +15,16 @@ import { csharpNullableTargetType } from "../../../dist/target-model/types/nulla
 const outer = Object.freeze({ kind: "type-parameter", identity: "source:outer/0", name: "T" });
 const inner = Object.freeze({ kind: "type-parameter", identity: "source:inner/0", name: "T" });
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
+
+test("projection dependencies retain exact free identities through nested optional carriers", () => {
+  const optional = csharpNullableTargetType(outer);
+  const nested = csharpNullableTargetType(optional);
+  const carrier = { kind: "tuple", elements: [optional, { kind: "array", element: inner }, nested, integer] };
+  assert.deepEqual(csharpFreeTypeParameterIdentities([carrier]), new Set([outer.identity, inner.identity]));
+  assert.deepEqual(csharpFreeTypeParameterIdentities([integer]), new Set());
+  assert.deepEqual(csharpFreeTypeParameterIdentities([csharpDelegateTargetType("System.Func", [optional], inner)]),
+    new Set([outer.identity, inner.identity]));
+});
 
 test("generic semantic and storage identity never collapse equal spellings", () => {
   const renamed = { ...outer, name: "CapturedT" };

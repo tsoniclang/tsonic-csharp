@@ -281,7 +281,7 @@ export function resolvePropertyAccessTargetType(
   if (host.projectTypeCatalog.definitionContainingDeclaration(selection.source.selectedDeclaration) !== undefined) {
     const member = resolveSelectedDeclarationResult(selection.source.selectedDeclaration, selectedSourceType ?? declaredMemberType, queries, state, receiverType,
       declaredMemberType);
-    if (member !== undefined) return optionalAccessTargetType(member, selection.source.optionalChain);
+    return member === undefined ? undefined : optionalAccessTargetType(member, selection.source.optionalChain);
   }
   const structuralMemberType = host.structuralTypes.resolveSelectedProperty(
     receiverType,

@@ -1,11 +1,11 @@
 import type { Node } from "@tsonic/tsts";
 import { IsTypeSyntaxNode, type TargetSourceProgram } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import { csharpTypeProjection, getCsharpGenericOptionalParts, type CsharpProjectedType } from "../../target-model/types/projections.js";
 import type { CsharpTargetOperationClassifications } from "../operations/model.js";
 import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
+import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
 
 export interface CsharpGenericProjectionIndex {
@@ -50,7 +50,7 @@ export function analyzeCsharpTypeProjections(
       pending.push(...projection.csharpProjection.arguments);
       const optional = getCsharpGenericOptionalParts(projection);
       if (optional !== undefined) pending.push(optional.operations);
-      const free = typeParameterIdentities(projection.csharpProjection.arguments);
+      const free = csharpFreeTypeParameterIdentities(projection.csharpProjection.arguments);
       if (free.size === 0) continue;
       for (let owner: Node | undefined = node; owner !== undefined; owner = ast.parent(owner)) {
         const parameters = csharpSourceTypeParameters(owner, ast).flatMap(parameter => {
@@ -86,19 +86,6 @@ export function analyzeCsharpTypeProjections(
     get: (declaration: Node) => index.get(declaration)?.parameters ?? [],
     outer: (declaration: Node) => index.get(declaration)?.outerParameters ?? [],
   });
-}
-
-function typeParameterIdentities(types: readonly TargetTypeRef[]): ReadonlySet<string> {
-  const identities = new Set<string>();
-  const pending = [...types];
-  for (let index = 0; index < pending.length; index += 1) {
-    const type = pending[index]!;
-    const projection = csharpTypeProjection(type);
-    if (projection !== undefined) pending.push(...projection.csharpProjection.arguments);
-    else if (type.kind === "type-parameter") identities.add(type.identity);
-    else pending.push(...csharpTargetTypeComponents(type));
-  }
-  return identities;
 }
 
 export function csharpTypeProjectionIndexesEqual(left: CsharpGenericProjectionIndex, right: CsharpGenericProjectionIndex): boolean {

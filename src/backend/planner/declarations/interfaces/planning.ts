@@ -22,7 +22,6 @@ import { planAttributesForSubject } from "../attributes.js";
 import {
   getCsharpTypeForNode,
   invalidCsharpType,
-  nullableCsharpType,
 } from "../../types/index.js";
 import { getExplicitReturnType } from "../callables/return-types.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
@@ -159,7 +158,7 @@ function planInterfacePropertyDeclaration(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Interface property initializers have no direct C# interface equivalent."));
   }
   const type = getCsharpTypeForNode(
-    declaration.Type ?? declaration.name,
+    node,
     sourceFile,
     input,
     invalidCsharpType("interface property type"),
@@ -192,9 +191,7 @@ function planInterfacePropertyDeclaration(
     ),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     writable,
-    type: input.program.source.ast.questionToken(node) === undefined
-      ? type
-      : nullableCsharpType(type),
+    type,
   };
 }
 
