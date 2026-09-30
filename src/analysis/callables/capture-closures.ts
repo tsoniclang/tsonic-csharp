@@ -27,9 +27,12 @@ export function selectCsharpFrameClosures(
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   for (const file of source.navigation.sourceFiles) visit(file);
-  const captures = candidates.map(declaration => ({ declaration,
-    selected: sourceLexicalCaptures(declaration, [declaration], source.ast, source.navigation),
-  }));
+  const captures = candidates.map(declaration => {
+    const lexical = sourceLexicalCaptures(declaration, [declaration], source.ast, source.navigation);
+    return { declaration, selected: { ...lexical,
+      captures: lexical.captures.filter(capture => !evidence.isCompileTimeMetadata(capture.declaration)),
+    } };
+  });
   const selected = new Map<Node, CsharpFrameClosure>();
   let changed = true;
   while (changed) {

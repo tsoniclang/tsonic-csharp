@@ -52,8 +52,8 @@ export function csharpTargetTypeComponents(
     addDefined(components, target.csharpReadOnlyIndexableElementType);
     addDefined(components, target.csharpDenseMutableElementType);
     addDefined(components, target.csharpBaseType);
-    addDefined(components, target.csharpGenericMethodValue?.owner);
-    addDefined(components, target.csharpGenericMethodValue?.contract);
+    addDefined(components, target.csharpMethodValue?.owner);
+    addDefined(components, target.csharpMethodValue?.contract);
     addDefined(components, target.csharpClassFactory?.instance);
     addDefined(components, target.csharpTaskResultType);
     addDefined(components, target.csharpGeneratorProtocol?.yieldType);

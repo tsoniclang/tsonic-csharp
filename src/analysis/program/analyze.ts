@@ -105,6 +105,7 @@ import {
 import {
   analyzeCsharpModuleInitialization,
 } from "../module-initialization/index.js";
+import { createCsharpSourceProfileCallableAliasQuery } from "../../policy/operations/source-profiles/callable-aliases.js";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -138,6 +139,7 @@ export function analyzeCsharpTargetProgram(
     sourceIdentities,
   });
   const typeHost = {
+    callOnlyAlias: createCsharpSourceProfileCallableAliasQuery(source),
     ast: source.ast,
     sourceFiles,
     sourceFacts: source.sourceFacts,
@@ -370,6 +372,7 @@ function analyzeIteration(
     representations,
   );
   const policy = createCsharpAnalysisPolicyContext({
+    callOnlyAlias: typeHost.callOnlyAlias,
     input,
     sourceFiles,
     providers,

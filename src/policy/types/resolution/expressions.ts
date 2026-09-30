@@ -1,7 +1,7 @@
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { sourcePresentCallableType, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
 import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
@@ -9,7 +9,7 @@ import { nextState } from "./state.js";
 import { resolveBinaryTargetRepresentation, commonTargetRepresentation, getTaskResultType } from "./representation.js";
 import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../operations/members/selection/target-selection.js";
 import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
-import { selectCsharpGenericMethodValue } from "../objects/generic-method-values.js";
+import { selectCsharpMethodValue } from "../objects/method-values.js";
 import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";
 import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/collections.js";
@@ -248,16 +248,17 @@ export function resolvePropertyAccessTargetType(
     node,
     queries.sourceFile,
   );
-  if ((selection.kind === "resolved" || selection.kind === "source-owned") &&
-    !selection.source.callCallee && selection.source.accessMode === "read" &&
-    selection.source.sourceReadType !== undefined &&
-    queries.types.callSignatures(selection.source.sourceReadType).some(signature => {
+  const presentCallable = selection.kind === "resolved" || selection.kind === "source-owned"
+    ? sourcePresentCallableType(selection.source.sourceReadType, queries) : undefined;
+  if ((selection.kind === "resolved" || selection.kind === "source-owned") && selection.source.accessMode === "read" &&
+    presentCallable !== undefined && (queries.types.relationship(presentCallable, selection.source.sourceReadType!) !== "identical" ||
+    queries.types.callSignatures(presentCallable).some(signature => {
       const declaration = queries.declarations.signatureDeclaration(signature);
       return declaration !== undefined && host.ast.typeParameters(declaration).length > 0;
-    })) {
+    }))) {
     const receiverType = resolveSelectedReceiverTargetType(selection.source.receiver, queries, state);
-    const methodValue = selectCsharpGenericMethodValue(receiverType, queries.facts.selectedSubjects(
-      selection.source.selectedSymbol, selection.source.selectedDeclaration), host);
+    const methodValue = selectCsharpMethodValue(receiverType, queries.facts.selectedSubjects(
+      selection.source.selectedSymbol, selection.source.selectedDeclaration), host, selection.source.callCallee);
     if (methodValue !== undefined) return optionalAccessTargetType(methodValue, selection.source.optionalChain);
   }
   if (selection.kind === "resolved") {

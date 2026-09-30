@@ -21,7 +21,7 @@ import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-c
 import type { CsharpConversionMode, CsharpConversionSelection } from "./model.js";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
-import { getCsharpGenericMethodValue, csharpGenericMethodValueContractsEqual } from "../../../target-model/types/generic-method-values.js";
+import { getCsharpMethodValue, csharpMethodValueContractsEqual } from "../../../target-model/types/method-values.js";
 
 export function selectCsharpConversion(
   input: Pick<
@@ -78,10 +78,10 @@ export function selectCsharpConversion(
         `Task carriers cannot be unwrapped, reinterpreted, or changed in arity without an exact target conversion relation: '${targetTypeRefKey(source)}' to '${targetTypeRefKey(target)}'.`,
     };
   }
-  const sourceMethod = getCsharpGenericMethodValue(source);
-  const targetMethod = getCsharpGenericMethodValue(target);
+  const sourceMethod = getCsharpMethodValue(source);
+  const targetMethod = getCsharpMethodValue(target);
   if (sourceMethod !== undefined && targetMethod !== undefined) {
-    if (!csharpGenericMethodValueContractsEqual(source, target)) return {
+    if (!csharpMethodValueContractsEqual(source, target)) return {
       kind: "rejected", reason: "Generic method values require the same exact method identity and quantified native contract.",
     };
     const owner = selectCsharpConversion(input, sourceMethod.owner, targetMethod.owner, mode);

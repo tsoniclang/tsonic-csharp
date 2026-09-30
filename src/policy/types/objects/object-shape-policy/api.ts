@@ -44,7 +44,7 @@ import {
 import { resolveProviderObjectLiteralShape } from "./provider-construction.js";
 import { createCsharpStructuralUnionDefinitions } from "./union-definitions.js";
 import { selectCsharpObjectMethodImplementation } from "./method-implementations.js";
-import { csharpCopiedObjectShapeMembers, csharpGenericMethodEnvironment, retainCsharpMethodValueContracts } from "./method-values.js";
+import { csharpCopiedObjectShapeMembers, csharpMethodEnvironment, retainCsharpMethodValueContracts } from "./method-values.js";
 import { parameterizeCsharpStructuralContract } from "./structural-contracts.js";
 
 import type {
@@ -257,13 +257,14 @@ export function createCsharpObjectShapePolicy(
           (expectedShape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true)
       ? [expectedShape.targetType]
       : expectedShape.implements;
-    const genericMethodLiteral = host.ast.properties(objectLiteral).some(property => property !== undefined &&
-      host.ast.is.IsMethodDeclaration(property) && host.ast.typeParameters(property).length > 0);
+    const nativeMethodLiteral = host.ast.properties(objectLiteral).some(property => property !== undefined &&
+      host.ast.is.IsMethodDeclaration(property) && (host.ast.typeParameters(property).length > 0 ||
+        expectedShape.members.some(member => member.optional === true && member.sourceSubjects?.includes(property))));
     const copiedMethods = host.ast.properties(objectLiteral).some(property => property !== undefined &&
-      host.ast.is.IsSpreadAssignment(property)) && expectedShape.members.some(member => (member.typeParameters?.length ?? 0) > 0);
+      host.ast.is.IsSpreadAssignment(property)) && expectedShape.members.some(member => member.methodValueContract !== undefined);
     const ownsImplementation = expectedShape.methodImplementation?.declaration === objectLiteral;
     if (accessors.kind === "none" && implemented === expectedShape.implements &&
-      (!genericMethodLiteral || ownsImplementation) && !copiedMethods) {
+      (!nativeMethodLiteral || ownsImplementation) && !copiedMethods) {
       return { kind: "resolved", shape: expectedShape };
     }
     const members = [...retainLiteralMemberEvidence(expectedShape.members, objectLiteral, host.semantics(sourceFile))];
@@ -275,7 +276,7 @@ export function createCsharpObjectShapePolicy(
         if (source === undefined) return { kind: "rejected", subject: property,
           reason: "Copied generic methods require an exact source object environment." };
         for (const sourceMember of source.members) {
-          const environment = csharpGenericMethodEnvironment(source, sourceMember);
+          const environment = csharpMethodEnvironment(source, sourceMember);
           if (environment === undefined) continue;
           const index = members.findIndex(member => csharpSourceMemberKeysEqual(member.sourceKey, sourceMember.sourceKey));
           if (index < 0) continue;
@@ -366,9 +367,9 @@ export function createCsharpObjectShapePolicy(
       }
     }
     const methodImplementation = selectCsharpObjectMethodImplementation(members, host, { depth: 0 }, objectLiteral);
-    if (genericMethodLiteral && methodImplementation === undefined) return {
+    if (nativeMethodLiteral && methodImplementation === undefined) return {
       kind: "rejected", subject: objectLiteral,
-      reason: "Generic object methods require one exact authored implementation and closed lexical capture types.",
+      reason: "Native object methods require one exact authored implementation and closed lexical capture types.",
     };
     const shape = rememberTargetShape({
       targetType: createStructuralObjectShapeTarget(
@@ -494,7 +495,7 @@ export function createCsharpObjectShapePolicy(
     ) {
       return shape;
     }
-    shape = retainCsharpMethodValueContracts(shape, rememberTargetShape);
+    shape = retainCsharpMethodValueContracts(shape, rememberTargetShape, host.ast);
     if (shape.declarationTemplate !== undefined) rememberTargetShape(shape.declarationTemplate);
     const key = targetTypeRefKey(shape.targetType);
     const existing = targetShapes.get(key);
@@ -777,12 +778,15 @@ export function createCsharpObjectShapePolicy(
         typeArguments[index]!,
       ]),
     );
+    const implemented = definition.kind === "interface" ? host.projectTypes().directSupertypes(targetType) : [];
+    if (implemented === undefined) return undefined;
     return {
       targetType,
       members: Object.freeze(declaredMembers.map((member) => ({
         ...member,
         type: substituteTargetTypeParameters(member.type, substitutions),
       }))),
+      ...(implemented.length === 0 ? {} : { implements: implemented }),
     };
   }
 

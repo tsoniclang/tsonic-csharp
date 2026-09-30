@@ -1,7 +1,7 @@
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
 import type { CsharpReferenceEquality } from "../../../target-model/operations/binary.js";
-import { getCsharpGenericMethodValue } from "../../../target-model/types/generic-method-values.js";
+import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import {
   getCsharpNullableElementTargetType, isCsharpStringTargetType, isCsharpValueTypeTargetType,
   targetTypeRefEquals, type TargetTypeRef,
@@ -14,8 +14,8 @@ export function selectCsharpReferenceEquality(
   input: CsharpPolicyContext,
 ): CsharpReferenceEquality | undefined {
   if (operator !== "===" && operator !== "!==" && operator !== "==" && operator !== "!=") return undefined;
-  const leftMethod = getCsharpGenericMethodValue(left);
-  const rightMethod = getCsharpGenericMethodValue(right);
+  const leftMethod = getCsharpMethodValue(left);
+  const rightMethod = getCsharpMethodValue(right);
   if (leftMethod !== undefined && rightMethod !== undefined) {
     return { kind: "reference-identity", negated: operator === "!==" || operator === "!=",
       ...(leftMethod.identity === rightMethod.identity ? {} : { distinctMethodValues: true }) };

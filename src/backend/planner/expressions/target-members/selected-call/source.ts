@@ -15,6 +15,9 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { csharpSourceArgumentGroups } from "./source-argument-groups.js";
 import { targetTypeRefEquals } from "../../../../../target-model/types/equality.js";
 import { applyCsharpConversionSelection } from "../../conversions.js";
+import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
+import { isCsharpVoidTargetType } from "../../../../../target-model/types/identity.js";
+import { planCsharpAbsentValue } from "../../optional-storage.js";
 
 export function translateSourceOwnedCall(
   node: Node,
@@ -53,17 +56,28 @@ export function translateSourceOwnedCall(
     return receiver === undefined || arguments_ === undefined ? undefined
       : planCsharpUnionDispatcherCall(node, source, classification, receiver, arguments_, input, diagnostics);
   }
-  let callee = planExpression(
+  const selectedCallee = planExpression(
     source.sourceCallee.expression,
     sourceFile,
     input,
     diagnostics,
   );
-  if (callee === undefined) {
+  if (selectedCallee === undefined) {
     return undefined;
   }
+  let callee: CsharpExpression = selectedCallee;
+  const optionalCallee = classification.optionalCallee;
+  const result = classification.sourceResult;
+  const optionalVoid = result !== undefined && isCsharpVoidTargetType(result.nativeType);
+  const guardedValue = callee;
+  const guardedName = optionalCallee === undefined || optionalVoid ? undefined
+    : input.names.temporaryName(`__tsonic_optionalCallee_${Math.max(0, input.program.source.ast.pos(node))}_${Math.max(0, input.program.source.ast.end(node))}`);
+  if (guardedName !== undefined) callee = { kind: "IdentifierName", name: guardedName };
   if (classification.sourceMethodValue !== undefined) {
-    callee = { kind: "SimpleMemberAccessExpression", receiver: callee, name: classification.sourceMethodValue.method };
+    callee = { kind: optionalCallee !== undefined && optionalVoid ? "ConditionalAccessExpression" : "SimpleMemberAccessExpression",
+      receiver: callee, name: classification.sourceMethodValue.method };
+  } else if (optionalCallee !== undefined) {
+    callee = { kind: optionalVoid ? "ConditionalAccessExpression" : "SimpleMemberAccessExpression", receiver: callee, name: "Invoke" };
   }
   const typeArguments = classification.sourceTypeArguments;
   if (typeArguments === undefined) {
@@ -73,14 +87,14 @@ export function translateSourceOwnedCall(
     ));
     return undefined;
   }
-  callee = applyCalleeTypeArguments(
+  const genericCallee = applyCalleeTypeArguments(
     input.scope.typeParameterNames,
     callee,
     typeArguments,
     node,
     diagnostics,
   );
-  if (callee === undefined) {
+  if (genericCallee === undefined) {
     return undefined;
   }
   const arguments_ = translateSourceOwnedArguments(
@@ -93,17 +107,30 @@ export function translateSourceOwnedCall(
     planExpression,
     planCallArgument,
   );
-  const result = classification.sourceResult;
   if (arguments_ === undefined || result === undefined) return undefined;
-  const invocation: CsharpExpression = { kind: "InvocationExpression", callee, arguments: arguments_ };
-  if (targetTypeRefEquals(result.nativeType, result.selectedType)) return invocation;
-  const conversion = input.program.conversions.select(result.nativeType, result.selectedType, "explicit");
-  if (conversion === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "A source call result has no sealed native-to-selected conversion."));
+  const invocation: CsharpExpression = { kind: "InvocationExpression", callee: genericCallee, arguments: arguments_ };
+  let selectedInvocation: CsharpExpression = invocation;
+  if (!targetTypeRefEquals(result.nativeType, result.selectedType)) {
+    const conversion = input.program.conversions.select(result.nativeType, result.selectedType, "explicit");
+    if (conversion === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "A source call result has no sealed native-to-selected conversion."));
+      return undefined;
+    }
+    const converted = applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
+      result.nativeType, result.selectedType, conversion, invocation);
+    if (converted === undefined) return undefined;
+    selectedInvocation = converted;
+  }
+  if (optionalCallee === undefined || guardedName === undefined) return selectedInvocation;
+  const presentType = csharpTypeFromTargetTypeRef(optionalCallee, input.scope.typeParameterNames);
+  const absent = planCsharpAbsentValue(result.selectedType, input.scope.typeParameterNames);
+  if (presentType === undefined || absent === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "An optional source callee requires its exact native presence and result storage types."));
     return undefined;
   }
-  return applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
-    result.nativeType, result.selectedType, conversion, invocation);
+  return { kind: "ConditionalExpression",
+    condition: { kind: "IsPatternExpression", expression: guardedValue, type: presentType, designation: guardedName },
+    whenTrue: selectedInvocation, whenFalse: absent };
 }
 
 export function translateSourceOwnedArguments(

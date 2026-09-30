@@ -3,9 +3,9 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
 import { selectCsharpArrayTypeTest } from "../../policy/operations/source-profiles/js/type-tests.js";
 import { getCsharpTypeofResult, type CsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
-import { getCsharpGenericMethodValue } from "../../target-model/types/generic-method-values.js";
+import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { getCsharpClassFactory } from "../../target-model/types/class-factories.js";
-import { classifyCsharpOptionalCallReceiver } from "./optional-calls.js";
+import { classifyCsharpOptionalCallCallee, classifyCsharpOptionalCallReceiver } from "./optional-calls.js";
 import { selectCsharpMemoryBinding } from "../../policy/operations/memory-bindings.js";
 import { selectCsharpElementDeletion } from "../../policy/operations/collections/element-deletion.js";
 import { selectCsharpSwitch } from "../../policy/operations/control-flow/switch.js";
@@ -354,12 +354,14 @@ function visit(
       ? jsValue.resultType
       : policy.types.resolveNode(node, sourceFile);
     const optionalReceiver = classifyCsharpOptionalCallReceiver(policy, source, target, sourceFile);
+    const optionalCallee = classifyCsharpOptionalCallCallee(policy, source, sourceFile);
     const sourceMethodValue = source === undefined ? undefined
-      : getCsharpGenericMethodValue(policy.types.resolveNode(source.sourceCallee.expression, sourceFile));
+      : getCsharpMethodValue(policy.types.resolveNode(source.sourceCallee.expression, sourceFile));
     setClassification(builder, node, callKey, Object.freeze({
       ...(typeTest === undefined ? {} : { typeTest }),
       ...(sourceMethodValue === undefined ? {} : { sourceMethodValue }),
       ...(optionalReceiver === undefined ? {} : { optionalReceiver }),
+      ...(optionalCallee === undefined ? {} : { optionalCallee }),
       unionCall: classifyCsharpUnionCall(policy, source, sourceFile),
       ...(source === undefined ? {} : { source }),
       ...(target?.kind !== "source-owned" || source === undefined ? {} : {

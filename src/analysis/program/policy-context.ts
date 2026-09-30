@@ -6,6 +6,7 @@ import type { CsharpSourceIdentityPolicy } from "../../policy/identities/source-
 import type { CsharpTypeSystem } from "../../policy/types/model/system.js";
 
 export interface CsharpAnalysisPolicyContextInput {
+  readonly callOnlyAlias: CsharpPolicyContext["callOnlyAlias"];
   readonly input: TargetCompileInput;
   readonly sourceFiles: readonly SourceFile[];
   readonly providers: CsharpProviderRelationResolver;
@@ -19,6 +20,7 @@ export function createCsharpAnalysisPolicyContext(
   const { input, sourceFiles, providers, sourceIdentities, typeSystem } = context;
   const source = input.source;
   return Object.freeze({
+    callOnlyAlias: context.callOnlyAlias,
     ast: source.ast,
     sourceFiles,
     sourceFacts: source.sourceFacts,

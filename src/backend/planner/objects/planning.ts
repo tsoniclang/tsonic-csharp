@@ -58,7 +58,7 @@ import { renderCsharpStructuralInterfaceMembers } from "./declarations/structura
 import { renderCsharpMethodValueContracts } from "./declarations/method-values.js";
 import { csharpReferenceIdentityInterfaceType } from "./declarations/interfaces.js";
 import { csharpEnumerableKeysContract, isCsharpEnumerableKeysMember, renderCsharpEnumerableKeys } from "./declarations/enumerable-keys.js";
-import { renderCsharpGenericObjectMethods } from "./declarations/generic-methods.js";
+import { renderCsharpAuthoredObjectMethods } from "./declarations/authored-methods.js";
 import { renderCsharpCaptureFrameMethods } from "./declarations/capture-methods.js";
 import { csharpAuthoredTypeParameterNames, csharpGeneratedTypeParameterNames } from "../../../target-model/names/type-parameters.js";
 
@@ -309,9 +309,10 @@ function renderObjectShapeDeclaration(
     undefined,
     undefined,
     input.program.storage,
+    input.program.source.ast,
   );
   const methodValues = renderCsharpMethodValueContracts(fact, input);
-  const genericMethods = renderCsharpGenericObjectMethods(fact, input, diagnostics);
+  const genericMethods = renderCsharpAuthoredObjectMethods(fact, input, diagnostics);
   const captureMethods = renderCsharpCaptureFrameMethods(fact, input, diagnostics);
   const enumerableKeys = capabilities.includes("enumerable-keys") ? renderCsharpEnumerableKeys(fact, input) : [];
   if (

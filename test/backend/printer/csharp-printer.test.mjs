@@ -26,6 +26,21 @@ import {
 
 const unbackedObjectStorage = Object.freeze({ nativeField: () => undefined });
 
+test("generated native expressions retain precedence and exact association at printing", () => {
+  const name = value => ({ kind: "IdentifierName", name: value });
+  const binary = (left, operator, right) => ({ kind: "BinaryExpression", left, operatorToken: { kind: operator }, right });
+  const conditional = { kind: "ConditionalExpression", condition: name("ready"), whenTrue: name("first"), whenFalse: name("second") };
+  assert.equal(printCsharpExpression(binary(conditional, "EqualsEqualsToken", name("value"))), "(ready ? first : second) == value");
+  assert.equal(printCsharpExpression(binary(name("value"), "EqualsEqualsToken", conditional)), "value == (ready ? first : second)");
+  assert.equal(printCsharpExpression({ kind: "NullPatternExpression", expression: conditional, negated: false }), "(ready ? first : second) is null");
+  assert.equal(printCsharpExpression(binary(binary(name("left"), "PlusToken", name("middle")), "AsteriskToken", name("right"))), "(left + middle) * right");
+  assert.equal(printCsharpExpression(binary(name("left"), "MinusToken", binary(name("middle"), "MinusToken", name("right")))), "left - (middle - right)");
+  assert.equal(printCsharpExpression(binary(name("left"), "PlusToken", binary(name("middle"), "PlusToken", name("right")))), "left + (middle + right)");
+  assert.equal(printCsharpExpression(binary(binary(name("left"), "QuestionQuestionToken", name("middle")), "QuestionQuestionToken", name("right"))), "(left ?? middle) ?? right");
+  assert.equal(printCsharpExpression(binary(name("left"), "QuestionQuestionToken", binary(name("middle"), "QuestionQuestionToken", name("right")))), "left ?? middle ?? right");
+  assert.equal(printCsharpExpression({ ...conditional, condition: conditional }), "(ready ? first : second) ? first : second");
+});
+
 test("null-forgiving expressions retain precedence and compose with member reads", () => {
   const assertion = operand => ({ kind: "PostfixUnaryExpression", operand, operatorToken: { kind: "ExclamationToken" } });
   const value = { kind: "IdentifierName", name: "value" };

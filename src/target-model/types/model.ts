@@ -222,7 +222,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpPropertyKeyIteration?: CsharpPropertyKeyIterationPolicy;
   readonly csharpDelegateSignature?: CsharpDelegateSignatureShape;
   readonly csharpClassFactory?: import("./class-factories.js").CsharpClassFactoryType;
-  readonly csharpGenericMethodValue?: {
+  readonly csharpMethodValue?: {
     readonly owner: TargetTypeRef;
     readonly method: string;
     readonly identity: string;

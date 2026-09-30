@@ -8,16 +8,19 @@ import { objectShapeStorageMemberName } from "../object-shape-storage.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeParameter } from "../../../target-ast/roslyn/index.js";
 import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../../types/type-parameters.js";
+import { csharpNullableTargetType } from "../../../../target-model/types/nullable.js";
 
 export function renderCsharpStructuralInterfaceMembers(typeParameterNames: ReadonlyMap<string, string> | undefined, shape: CsharpObjectShapeFact, storage: CsharpStorageClassifications, methodValues: boolean, inherited: readonly CsharpObjectShapeFact[]): readonly CsharpInterfaceMember[] | undefined {
   const result: CsharpInterfaceMember[] = [];
   for (const member of shape.members) {
     if (member.memberKind === "method") {
-      if (methodValues) {
-        const valueType = (member.typeParameters?.length ?? 0) === 0 ? member.type : member.methodValueContract;
-        const type = valueType === undefined ? undefined : csharpTypeFromTargetTypeRef(valueType, typeParameterNames);
+      if (methodValues || member.optional === true) {
+        const valueType = member.methodValueContract ?? member.type;
+        const type = valueType === undefined ? undefined : csharpTypeFromTargetTypeRef(
+          member.optional === true ? csharpNullableTargetType(valueType) : valueType, typeParameterNames);
         if (type === undefined) return undefined;
         result.push({ kind: "PropertyDeclaration", name: objectShapeStorageMemberName(shape, member), type, writable: false });
+        if (member.optional === true) continue;
       }
       const signature = getCsharpDelegateSignature(member.type);
       if (signature === undefined) return undefined;

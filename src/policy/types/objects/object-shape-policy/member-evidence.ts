@@ -1,5 +1,5 @@
 import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
-import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourcePropertyTypeEvidenceNodes, sourceTransformedTypeFactEvidenceNodes, type SourceFileSemantics } from "@tsonic/target-api/source";
+import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourcePropertyTypeEvidenceNodes, sourceTransformedTypeFactEvidenceNodes, sourcePresentCallableType, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpTypeResolutionState } from "../../resolution/model.js";
@@ -11,7 +11,7 @@ import { objectShapeMemberTargetNameForKey } from "./construction.js";
 import { typeIncludesNullish } from "./source-evidence.js";
 import { resolveObjectShapeSourceMemberKey } from "./source-member-identity.js";
 import { resolveCsharpTypeParameterConstraints } from "../../../constraints/type-parameter-constraints.js";
-import { csharpGenericMethodValueCoversContract } from "../../../../target-model/types/generic-method-values.js";
+import { csharpMethodValueCoversContract } from "../../../../target-model/types/method-values.js";
 import { csharpSourceTypeParameter } from "../../../../target-model/names/type-parameters.js";
 import { isCsharpIntegralTargetType } from "../../../../target-model/types/scalar-types.js";
 import { csharpNumericLiteralValue } from "../../../../target-model/syntax/numeric-literals.js";
@@ -156,9 +156,10 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       const value = host.ast.is.IsPropertyAssignment(declaration) || host.ast.is.IsShorthandPropertyAssignment(declaration)
         ? ObjectLiteralProperty_Value(host.ast, declaration) : undefined;
       const storage = value === undefined ? undefined : host.typeResolver.resolveNode(value, queries.sourceFile, nextState(state));
-      if (storage !== undefined && csharpGenericMethodValueCoversContract(storage, memberType)) memberType = storage;
+      if (storage !== undefined && csharpMethodValueCoversContract(storage, memberType)) memberType = storage;
     }
-    const signatures = method ? queries.types.callSignatures(sourceType) : [];
+    const callableType = method ? sourcePresentCallableType(sourceType, queries) : undefined;
+    const signatures = callableType === undefined ? [] : queries.types.callSignatures(callableType);
     const methodDeclaration = signatures.length === 1
       ? queries.declarations.signatureDeclaration(signatures[0]!) : undefined;
     const typeParameters = methodDeclaration === undefined ? [] : host.ast.typeParameters(methodDeclaration).map(declaration => {

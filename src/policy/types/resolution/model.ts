@@ -42,6 +42,7 @@ export interface CsharpPlanningRepresentationQueries {
 }
 
 export interface CsharpTypePolicyBaseHost {
+  callOnlyAlias(declaration: Node): import("@tsonic/target-api/source").SourceCallOnlyAlias | undefined;
   readonly typeDefinitions?: import("../../../target-model/types/source-union-definitions.js").CsharpTypeDefinitionWriter;
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];

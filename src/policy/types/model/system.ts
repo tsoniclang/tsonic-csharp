@@ -62,6 +62,10 @@ export function createCsharpTypeSystem(
   let objectShapes: CsharpRecursiveObjectShapePolicy | undefined;
   let bindingProjections: CsharpBindingProjectionPolicy | undefined;
   let projectTypes: CsharpProjectTypePolicy | undefined;
+  const requireProjectTypes = (): CsharpProjectTypePolicy => {
+    if (projectTypes === undefined) throw new Error("C# project heritage was requested before the type system was fully initialized.");
+    return projectTypes;
+  };
   const createTypeResolution = (
     representations: CsharpPlanningRepresentationQueries,
   ) => createCsharpTypeResolutionServices({
@@ -78,14 +82,7 @@ export function createCsharpTypeSystem(
         }
         return objectShapes;
       },
-      projectTypes() {
-        if (projectTypes === undefined) {
-          throw new Error(
-            "C# project heritage was requested before the type system was fully initialized.",
-          );
-        }
-        return projectTypes;
-      },
+      projectTypes: requireProjectTypes,
       targetTypeComponents(type) {
         return csharpTargetTypeComponents(
           type,
@@ -184,6 +181,7 @@ export function createCsharpTypeSystem(
     ...host,
     representations,
     projectTypeCatalog,
+    projectTypes: requireProjectTypes,
     typeResolver: typeResolution.recursive,
   });
   bindingProjections = createCsharpBindingProjectionPolicy({

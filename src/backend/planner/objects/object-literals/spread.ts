@@ -56,7 +56,7 @@ export function planObjectShapeSpreadAssignments(
     diagnostics.push(unsupportedNodeDiagnostic(spreadNode, "Object literal spread requires finalized provider object-shape facts for the spread expression before C# emission."));
     return undefined;
   }
-  if (sourceShape.members.some(member => (member.typeParameters?.length ?? 0) > 0)) {
+  if (sourceShape.members.some(member => member.methodValueContract !== undefined)) {
     const required = input.artifacts.requireObjectShapeCapability(undefined, sourceShape.targetType, sourceFile, "method-values", "object-shape");
     if (required.kind === "rejected") {
       diagnostics.push(unsupportedNodeDiagnostic(spreadNode, required.reason));

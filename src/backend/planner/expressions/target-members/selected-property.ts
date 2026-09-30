@@ -37,7 +37,7 @@ import {
 } from "../flow-read-projections.js";
 import { applyCsharpConversionSelection } from "../conversions.js";
 import { objectShapeStorageMemberName } from "../../objects/object-shape-storage.js";
-import { getCsharpGenericMethodValue } from "../../../../target-model/types/generic-method-values.js";
+import { getCsharpMethodValue } from "../../../../target-model/types/method-values.js";
 import type { CsharpTargetNamedTypeRef } from "../../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
@@ -300,8 +300,8 @@ function translateSourceOwnedProperty(
       : input.program.source.ast.text(syntaxName);
   const nameNode = input.program.source.ast.name(declaration) ?? syntaxName;
   const methodValue = objectShape !== undefined && shapeMember?.kind === "resolved" &&
-    shapeMember.member.memberKind === "method" && !selection.source.callCallee;
-  const genericMethodValue = getCsharpGenericMethodValue(rawReadType);
+    shapeMember.member.memberKind === "method" && (!selection.source.callCallee || shapeMember.member.optional === true);
+  const genericMethodValue = getCsharpMethodValue(rawReadType);
   if (methodValue) {
     const required = input.artifacts.requireObjectShapeCapability(undefined, objectShape.targetType,
       sourceFile, "method-values", "object-shape");

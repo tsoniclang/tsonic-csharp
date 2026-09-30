@@ -27,6 +27,7 @@ import type {
 } from "../identities/source-nodes.js";
 
 export interface CsharpPolicyContext extends CsharpProviderCallSelectionHost {
+  callOnlyAlias(declaration: Node): import("@tsonic/target-api/source").SourceCallOnlyAlias | undefined;
   readonly typeDefinitions?: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];

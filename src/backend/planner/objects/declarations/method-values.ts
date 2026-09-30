@@ -4,6 +4,9 @@ import { csharpObjectShapeMemberContractKey, targetTypeRefKey } from "../../../.
 import type { CsharpTypeMember } from "../../../target-ast/roslyn/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { objectShapeStorageMemberName } from "../object-shape-storage.js";
+import { csharpNullableTargetType } from "../../../../target-model/types/nullable.js";
+import { csharpObjectShapeMethodDeclaration } from "../../../../policy/types/objects/object-shape-policy/method-implementations.js";
+import { csharpPresentObjectShapeMethod } from "../../../../target-model/types/method-values.js";
 
 export function renderCsharpMethodValueContracts(
   shape: CsharpObjectShapeFact,
@@ -25,16 +28,23 @@ export function renderCsharpMethodValueContracts(
     if (explicitInterface === undefined) return undefined;
     for (const required of contract.members) {
       if (required.memberKind !== "method") continue;
-      const generic = (required.typeParameters?.length ?? 0) > 0;
-      const exact = shape.members.filter(candidate =>
-        csharpObjectShapeMemberContractKey(candidate) === csharpObjectShapeMemberContractKey(required));
+      const nativeMethod = required.methodValueContract !== undefined;
+      const requiredSignature = csharpPresentObjectShapeMethod(required);
+      const exact = shape.members.filter(candidate => {
+        const signature = csharpPresentObjectShapeMethod(candidate);
+        return signature !== undefined && requiredSignature !== undefined &&
+          csharpObjectShapeMemberContractKey(signature) === csharpObjectShapeMemberContractKey(requiredSignature);
+      });
       const selected = exact.length === 1 ? exact[0] : undefined;
-      const valueType = generic ? required.methodValueContract : selected?.type;
-      const memberType = valueType === undefined ? undefined : csharpTypeFromTargetTypeRef(valueType, input.scope.typeParameterNames);
+      const valueType = nativeMethod ? required.methodValueContract : selected?.type;
+      const memberType = valueType === undefined ? undefined : csharpTypeFromTargetTypeRef(
+        required.optional === true ? csharpNullableTargetType(valueType) : valueType, input.scope.typeParameterNames);
       if (selected === undefined || memberType === undefined || input.artifacts.objectShapeMethodUsesReceiver(shape, selected)) return undefined;
       members.push({ kind: "PropertyDeclaration", name: objectShapeStorageMemberName(contract, required),
         explicitInterface, modifiers: [], type: memberType, getter: { kind: "Block", statements: [{
-          kind: "ReturnStatement", expression: { kind: "IdentifierName", name: generic && selected.methodStorageType === undefined ? "this" : objectShapeStorageMemberName(shape, selected) },
+          kind: "ReturnStatement", expression: { kind: "IdentifierName", name: nativeMethod && selected.methodStorageType === undefined &&
+            csharpObjectShapeMethodDeclaration(shape, selected, input.program.source.ast) !== undefined
+            ? "this" : objectShapeStorageMemberName(shape, selected) },
         }] } });
     }
   }

@@ -5,7 +5,7 @@ import type {
   CsharpSourceMemberKey,
   TargetTypeRef,
 } from "../../../../target-model/types/model.js";
-import type { CsharpProjectTypeCatalog } from "../../project/project-types.js";
+import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../project/project-types.js";
 import type {
   CsharpPlanningRepresentationQueries,
   CsharpRecursiveTypeResolver,
@@ -21,6 +21,7 @@ export type CsharpStructuralUnionResolution =
 export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
   readonly representations: CsharpPlanningRepresentationQueries;
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
+  projectTypes(): CsharpProjectTypePolicy;
   readonly typeResolver: CsharpRecursiveTypeResolver;
 }
 

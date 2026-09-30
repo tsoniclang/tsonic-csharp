@@ -13,7 +13,8 @@ import { nextState } from "./state.js";
 import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
 import { Node_Expression } from "@tsonic/target-api/source";
 
 export function resolveNode(
@@ -517,9 +518,13 @@ export function resolveSourceCallResultWithState(
   const declaration = sourceCallSelectedDeclaration(source);
   const callable = host.representations.sourceCallable(source, sourceFile);
   const result = host.semantics(sourceFile).operations.callResult(source);
-  const retain = (nativeType: TargetTypeRef | undefined): CsharpSourceCallResult | undefined =>
-    selectCsharpSourceCallResult(host, nativeType, () =>
+  const retain = (nativeType: TargetTypeRef | undefined): CsharpSourceCallResult | undefined => {
+    const selected = selectCsharpSourceCallResult(host, nativeType, () =>
       resolveTypeWithState(result?.selectedReturnType, sourceFile, nextState(state)));
+    return selected === undefined || host.ast.as.AsCallExpression(source.call)?.QuestionDotToken === undefined ||
+      isCsharpVoidTargetType(selected.selectedType) ? selected
+      : Object.freeze({ ...selected, selectedType: csharpNullableTargetType(selected.selectedType) });
+  };
   if (callable !== undefined) {
     if (!sourceCallableTypeParametersMatch(source, callable)) {
       return undefined;

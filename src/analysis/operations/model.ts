@@ -56,7 +56,7 @@ import type {
 
 export interface CsharpSourceCallArgumentClassification {
   readonly sourceNativeParameters?: readonly import("../../target-model/types/model.js").CsharpTargetParameter[];
-  readonly sourceMethodValue?: NonNullable<import("../../target-model/types/model.js").CsharpTargetNamedTypeRef["csharpGenericMethodValue"]>;
+  readonly sourceMethodValue?: NonNullable<import("../../target-model/types/model.js").CsharpTargetNamedTypeRef["csharpMethodValue"]>;
   readonly sourceParameterTypes?: readonly (TargetTypeRef | undefined)[];
   readonly sourceArgumentParameterTypes?: readonly (TargetTypeRef | undefined)[];
 }
@@ -65,6 +65,7 @@ export interface CsharpCallClassification
   extends CsharpSourceCallArgumentClassification {
   readonly typeTest?: import("../../target-model/operations/type-tests.js").CsharpClosedTypeTest;
   readonly sourceResult?: import("../../policy/types/resolution/model.js").CsharpSourceCallResult;
+  readonly optionalCallee?: TargetTypeRef;
   readonly optionalReceiver?: {
     readonly expression: Node;
     readonly type: TargetTypeRef;

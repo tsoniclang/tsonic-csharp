@@ -4,7 +4,7 @@ import type {
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import { csharpTupleType } from "./csharp-tuples.js";
-import { getCsharpGenericMethodValue } from "../../../target-model/types/generic-method-values.js";
+import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { sanitizeIdentifier, tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import type {
   CsharpTargetTypeRenderShape,
@@ -24,7 +24,7 @@ export function csharpTypeFromTargetTypeRef(
   if (isCsharpNeverTargetType(type)) {
     return { kind: "IdentifierName", name: "Never", requiredUsingNamespace: "Tsonic.CSharp.Runtime" };
   }
-  const method = getCsharpGenericMethodValue(type);
+  const method = getCsharpMethodValue(type);
   if (method !== undefined) return csharpTypeFromTargetTypeRef(method.owner, typeParameterNames);
   const rendered = csharpTypeFromEnrichedTargetTypeRef(type, typeParameterNames);
   return rendered === undefined

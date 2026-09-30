@@ -27,7 +27,7 @@ import type {
 } from "./model.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { classifyCsharpBoundFieldWrite } from "./bound-field-writes.js";
-import { getCsharpGenericMethodValue } from "../../target-model/types/generic-method-values.js";
+import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 
 export function classifyCsharpMemberReceiver(
@@ -145,8 +145,11 @@ export function classifySourceOwnedProperty(
       ? jsValueOperation.resultType
       : shapeMember.member.type
     : policy.types.resolveReadStorage(selection.source.expression, sourceFile);
-  const methodValueType = selection.source.callCallee ? undefined : policy.types.resolveReadStorage(selection.source.expression, sourceFile);
-  const selectedMethodValue = getCsharpGenericMethodValue(methodValueType) === undefined ? undefined : methodValueType;
+  const optionalMethod = shapeMember?.kind === "resolved" && shapeMember.member.memberKind === "method" &&
+    shapeMember.member.optional === true;
+  const methodValueType = selection.source.callCallee && !optionalMethod ? undefined
+    : policy.types.resolveReadStorage(selection.source.expression, sourceFile);
+  const selectedMethodValue = getCsharpMethodValue(methodValueType) === undefined ? undefined : methodValueType;
   const rawReadType = optionalResultType(
     selectedMethodValue ?? rawMemberReadType,
     selection.source.optionalChain,

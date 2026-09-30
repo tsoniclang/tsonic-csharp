@@ -2,8 +2,19 @@ import type { SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpTargetCallSelection, ResolvedSourceCallInfo } from "../../policy/operations/members/index.js";
 import { selectCsharpConversion } from "../../policy/conversions/index.js";
-import { getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
+import { getCsharpDelegateSignature, getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
+import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import type { CsharpCallClassification } from "./model.js";
+
+export function classifyCsharpOptionalCallCallee(
+  policy: CsharpPolicyContext, source: ResolvedSourceCallInfo | undefined, sourceFile: SourceFile,
+): CsharpCallClassification["optionalCallee"] {
+  if (source === undefined || policy.ast.as.AsCallExpression(source.call)?.QuestionDotToken === undefined) return undefined;
+  const selected = policy.types.resolveNode(source.sourceCallee.expression, sourceFile);
+  if (selected === undefined) return undefined;
+  const type = getCsharpNullableElementTargetType(selected) ?? selected;
+  return getCsharpDelegateSignature(type) === undefined && getCsharpMethodValue(type) === undefined ? undefined : type;
+}
 
 export function classifyCsharpOptionalCallReceiver(
   policy: CsharpPolicyContext,

@@ -12,8 +12,8 @@ import type { DestructuringPlannerState } from "../../bindings/binding-state.js"
 import { getCsharpLocalBindingName } from "../../bindings/binding-state.js";
 import { csharpCapturedBindingExpression, csharpCaptureFrameExpression } from "../../bindings/capture-storage.js";
 import { requireCsharpIdentifier } from "../../../../target-model/names/identifiers.js";
-import { sourceCallableUsesLexicalThis } from "@tsonic/target-api/source";
 import { objectShapeStorageMemberName } from "../object-shape-storage.js";
+import { csharpObjectShapeMethodDeclaration } from "../../../../policy/types/objects/object-shape-policy/method-implementations.js";
 
 interface ObjectCaptureField {
   readonly name: string;
@@ -46,7 +46,7 @@ function objectCaptureFields(shape: CsharpObjectShapeFact, input: CsharpPlanning
   return fields;
 }
 
-export function renderCsharpGenericObjectMethods(
+export function renderCsharpAuthoredObjectMethods(
   shape: CsharpObjectShapeFact, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeMember[] | undefined {
   const implementation = shape.methodImplementation;
@@ -67,24 +67,16 @@ export function renderCsharpGenericObjectMethods(
   }
   const context = createCsharpThisBindingPlanningContext({ ...input, scope: { ...input.scope, capturedBindings, captureFrames } }, "this", shape.targetType);
   for (const member of shape.members) {
-    if ((member.typeParameters?.length ?? 0) === 0 || member.methodStorageType !== undefined) continue;
-    const declarations = (member.sourceDeclarations ?? []).filter(declaration =>
-      input.program.source.ast.parent(declaration) === implementation.declaration && input.program.source.ast.body(declaration) !== undefined);
-    if (declarations.length !== 1) {
-      diagnostics.push(unsupportedNodeDiagnostic(implementation.declaration, "A native generic object method requires its exact authored implementation."));
+    if (member.memberKind !== "method" || member.methodValueContract === undefined || member.methodStorageType !== undefined) continue;
+    const declaration = csharpObjectShapeMethodDeclaration(shape, member, input.program.source.ast);
+    if (declaration === undefined) {
+      if (member.optional === true) continue;
+      diagnostics.push(unsupportedNodeDiagnostic(implementation.declaration, "A native object method requires its exact authored implementation."));
       return undefined;
-    }
-    const declaration = declarations[0]!;
-    if (sourceCallableUsesLexicalThis(input.program.source.ast, declaration)) {
-      const selected = input.artifacts.requireObjectShapeMethodReceiver(shape, member);
-      if (selected.kind === "rejected") {
-        diagnostics.push(unsupportedNodeDiagnostic(declaration, selected.reason));
-        return undefined;
-      }
     }
     const sourceFile = input.program.source.ast.getSourceFile(declaration);
     if (sourceFile === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(declaration, "A generic object method requires its exact checked source file."));
+      diagnostics.push(unsupportedNodeDiagnostic(declaration, "A native object method requires its exact checked source file."));
       return undefined;
     }
     const methodContext = createCsharpMemberPlanningContext(context);

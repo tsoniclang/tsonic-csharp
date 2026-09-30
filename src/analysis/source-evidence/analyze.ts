@@ -192,6 +192,13 @@ export function analyzeCsharpSourceEvidence(
   }
 
   function visit(node: Node, sourceFile: SourceFile, typeOnly = false): void {
+    if (source.ast.is.IsVariableDeclaration(node)) {
+      const alias = policy.callOnlyAlias(node);
+      if (alias !== undefined) {
+        for (const declaration of alias.declarations) compileTimeMetadata.add(declaration);
+        return;
+      }
+    }
     pointerBacking.record(node);
     const declaration = memoryMetadata.declaration(node);
     if (declaration !== undefined || memoryMetadata.isCompileTimeExpression(node)) {

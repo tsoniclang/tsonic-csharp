@@ -4,14 +4,7 @@ import { getCsharpGenericOptionalParts, isCsharpAbsenceTargetType, isCsharpJsVal
 import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "./binding-state.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-
-function optionalOperation(storage: TargetTypeRef, method: string, value: CsharpExpression): CsharpExpression {
-  const optional = getCsharpGenericOptionalParts(storage);
-  if (optional === undefined) throw new Error("Optional operation requires a finalized generic storage contract.");
-  return { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
-    receiver: { kind: "IdentifierName", name: optional.operations.name }, name: method },
-    arguments: [{ kind: "Argument", expression: value }] };
-}
+import { planCsharpOptionalStorageOperation } from "../expressions/optional-storage.js";
 
 export function planCsharpArrayBindingPresence(source: CsharpExpression, index: number, lengthMember: string): CsharpExpression {
   return { kind: "BinaryExpression",
@@ -26,9 +19,9 @@ export function planCsharpCheckedBindingValue(
   const generic = getCsharpGenericOptionalParts(storage);
   const wrap = generic !== undefined && getCsharpGenericOptionalParts(element) === undefined;
   return { kind: "ConditionalExpression", condition: present,
-    whenTrue: wrap ? optionalOperation(storage, "From2", value) : value,
+    whenTrue: wrap ? planCsharpOptionalStorageOperation(storage, "From2", value) : value,
     whenFalse: generic === undefined ? { kind: "DefaultExpression", type: storageType }
-      : optionalOperation(storage, "From1", { kind: "LiteralExpression", value: null }) };
+      : planCsharpOptionalStorageOperation(storage, "From1", { kind: "LiteralExpression", value: null }) };
 }
 
 export function planCsharpBindingDefaultValue(
@@ -46,14 +39,14 @@ export function planCsharpBindingDefaultValue(
   const name = allocateExpressionTemp(state);
   const reference: CsharpExpression = { kind: "IdentifierName", name };
   const stored = generic !== undefined && getCsharpGenericOptionalParts(carrier) === undefined
-    ? optionalOperation(storage, "From2", value) : value;
+    ? planCsharpOptionalStorageOperation(storage, "From2", value) : value;
   const absent: CsharpExpression = broad ? { kind: "InvocationExpression",
     callee: { kind: "SimpleMemberAccessExpression", receiver: reference, name: "isUndefined" }, arguments: [] }
-    : optionalOperation(storage, "Is1", reference);
+    : planCsharpOptionalStorageOperation(storage, "Is1", reference);
   return { kind: "ConditionalExpression", condition: {
     kind: "BinaryExpression", operatorToken: { kind: "AmpersandAmpersandToken" },
     left: { kind: "IsPatternExpression", expression: stored, type: { kind: "IdentifierName", name: "var" }, designation: name },
     right: absent,
   }, whenTrue: defaultValue, whenFalse: broad || targetTypeRefEquals(storage, resultCarrier)
-    ? reference : optionalOperation(storage, "As2", reference) };
+    ? reference : planCsharpOptionalStorageOperation(storage, "As2", reference) };
 }

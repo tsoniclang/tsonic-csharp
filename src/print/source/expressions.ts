@@ -23,6 +23,7 @@ import {
   printNumericLiteral,
 } from "./format.js";
 import { isCsharpTypeSyntax } from "./types.js";
+import { csharpExpressionPrecedence } from "./precedence.js";
 
 export function printCsharpExpression(
   expression: CsharpExpression,
@@ -73,20 +74,23 @@ export function printCsharpExpression(
         ? `(${context.printType(expression.type)})(${printedExpression})`
         : `(${context.printType(expression.type)})${printedExpression}`;
     }
-    case "BinaryExpression":
-      return `${context.printExpression(expression.left)} ${printCsharpBinaryOperatorToken(expression.operatorToken)} ${context.printExpression(expression.right)}`;
+    case "BinaryExpression": {
+      const precedence = csharpExpressionPrecedence(expression);
+      const rightAssociative = expression.operatorToken.kind === "QuestionQuestionToken";
+      return `${printOperand(expression.left, precedence, rightAssociative, context)} ${printCsharpBinaryOperatorToken(expression.operatorToken)} ${printOperand(expression.right, precedence, !rightAssociative, context)}`;
+    }
     case "AssignmentExpression":
-      return `${context.printExpression(expression.left)} ${printCsharpAssignmentOperatorToken(expression.operatorToken)} ${context.printExpression(expression.right)}`;
+      return `${printOperand(expression.left, 1, true, context)} ${printCsharpAssignmentOperatorToken(expression.operatorToken)} ${context.printExpression(expression.right)}`;
     case "IsPatternExpression":
-      return `${context.printExpression(expression.expression)} is ${expression.negated === true ? "not " : ""}${context.printType(expression.type)}${expression.designation === undefined ? "" : ` ${expression.designation}`}`;
+      return `${printOperand(expression.expression, 10, false, context)} is ${expression.negated === true ? "not " : ""}${context.printType(expression.type)}${expression.designation === undefined ? "" : ` ${expression.designation}`}`;
     case "NullPatternExpression":
-      return `${context.printExpression(expression.expression)} is ${expression.negated ? "not " : ""}null`;
+      return `${printOperand(expression.expression, 10, false, context)} is ${expression.negated ? "not " : ""}null`;
     case "PrefixUnaryExpression":
       return `${printCsharpPrefixUnaryOperatorToken(expression.operatorToken)}${printPostfixOperand(expression.operand, context)}`;
     case "PostfixUnaryExpression":
       return `${printPostfixOperand(expression.operand, context)}${printCsharpPostfixUnaryOperatorToken(expression.operatorToken)}`;
     case "ConditionalExpression":
-      return `${context.printExpression(expression.condition)} ? ${context.printExpression(expression.whenTrue)} : ${context.printExpression(expression.whenFalse)}`;
+      return `${printOperand(expression.condition, 2, true, context)} ? ${context.printExpression(expression.whenTrue)} : ${context.printExpression(expression.whenFalse)}`;
     case "SwitchExpression":
       return `(${context.printExpression(expression.expression)}) switch { ${expression.arms.map(arm =>
         `${printCsharpPattern(arm.pattern, context)}${arm.when === undefined ? "" : ` when ${context.printExpression(arm.when)}`} => ${context.printExpression(arm.expression)}`
@@ -117,20 +121,14 @@ export function printCsharpExpression(
   return failUnsupportedCsharpSyntax(expression, "expression");
 }
 
+function printOperand(expression: CsharpExpression, precedence: number, equal: boolean, context: CsharpPrintContext): string {
+  const printed = context.printExpression(expression);
+  const selected = csharpExpressionPrecedence(expression);
+  return selected < precedence || equal && selected === precedence ? `(${printed})` : printed;
+}
+
 function castOperandRequiresParentheses(expression: CsharpExpression): boolean {
-  switch (expression.kind) {
-    case "BinaryExpression":
-    case "AssignmentExpression":
-    case "ConditionalExpression":
-    case "SwitchExpression":
-    case "ThrowExpression":
-    case "IsPatternExpression":
-    case "NullPatternExpression":
-    case "LambdaExpression":
-      return true;
-    default:
-      return false;
-  }
+  return csharpExpressionPrecedence(expression) < 14 || expression.kind === "SwitchExpression";
 }
 
 function printPostfixOperand(

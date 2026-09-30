@@ -16,7 +16,7 @@ import { selectCsharpObjectLiteralUnionShape } from "../objects/object-shape-pol
 import { csharpNumericLiteralValue, csharpBigIntLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
 import { getCsharpArrayLiteralElementTargetType } from "../../../target-model/types/collections.js";
 import { resolveTypeParameter, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
-import { getCsharpGenericMethodValue } from "../../../target-model/types/generic-method-values.js";
+import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";
@@ -495,7 +495,7 @@ export function sourceCallCalleeDelegateSignature(
     [source.sourceCallee.selectedDeclaration, source.sourceCallee.declaration, source.sourceCallee.selectedSymbol, source.sourceCallee.symbol]
       .filter(subject => subject !== undefined));
   const selected = member?.kind === "resolved" ? member.member.type : carrier;
-  const contract = getCsharpGenericMethodValue(selected)?.contract ?? selected;
+  const contract = getCsharpMethodValue(selected)?.contract ?? selected;
   if (getCsharpDelegateSignature(contract) === undefined) return undefined;
   const instantiation = resolveSourceCallInstantiation(source, sourceFile, nextState(state));
   return contract === undefined || instantiation === undefined ? undefined

@@ -25,7 +25,7 @@ import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpTypeNod
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/index.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
-import { planCsharpObjectCaptureAssignments } from "../declarations/generic-methods.js";
+import { planCsharpObjectCaptureAssignments } from "../declarations/authored-methods.js";
 import { csharpConstructibleTypeFromObjectShapeFact } from "../index.js";
 import {
   translateCsharpJsValueInvocation,
