@@ -19,11 +19,12 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../types/index.js";
 import { selectCsharpUnionArmMapping } from "../../../target-model/types/union-relations.js";
 import { selectCsharpRuntimeUnionProjection } from "./carriers.js";
+import { selectCsharpGuardedIntegerConversion } from "../integer-refinement.js";
 
 export function selectCsharpExpressionConversion(
   input: Pick<
     CsharpPolicyContext,
-    "ast" | "typeDefinitions" | "projectTypes" | "providers" | "target"
+    "ast" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "navigation" | "sourceFacts"
   > & Pick<Partial<CsharpPolicyContext>, "objectShapes">,
   expression: Node,
   source: TargetTypeRef | undefined,
@@ -34,6 +35,8 @@ export function selectCsharpExpressionConversion(
   if (selected.kind !== "rejected" || target === undefined) {
     return selected;
   }
+  const refined = selectCsharpGuardedIntegerConversion(input, expression, source, target);
+  if (refined !== undefined) return refined;
   const objectShape = input.objectShapes?.resolveNode(expression) ??
     input.objectShapes?.resolveTarget(source);
   if (
@@ -85,7 +88,7 @@ export function selectCsharpExpressionConversion(
 export function selectCsharpProviderArgumentConversion(
   input: Pick<
     CsharpPolicyContext,
-    "ast" | "typeDefinitions" | "projectTypes" | "providers" | "target"
+    "ast" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "navigation" | "sourceFacts"
   > & Pick<Partial<CsharpPolicyContext>, "objectShapes">,
   expression: Node,
   source: TargetTypeRef | undefined,
@@ -215,6 +218,7 @@ export function csharpConversionIsApplicable(
     selection.kind === "never" ||
     selection.kind === "checked-native-integer" ||
     selection.kind === "exact-integer" ||
+    selection.kind === "integer-refinement" ||
     selection.kind === "integer-truncation" ||
     selection.kind === "array-like-union" ||
     selection.kind === "runtime-union-reference" ||

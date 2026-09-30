@@ -1,6 +1,7 @@
 import type { CsharpProviderArgumentAdapter } from "../../../providers/relations/index.js";
 import type { TargetTypeRef } from "../../types/index.js";
 import type { CsharpUnionArmMapping } from "../../../target-model/types/union-relations.js";
+import type { CsharpIntegerRefinementConversion } from "../../../target-model/conversions/integer-refinement.js";
 
 export type CsharpConversionMode = "implicit" | "explicit";
 
@@ -11,6 +12,7 @@ export interface CsharpArrayLikeUnionProjection {
 }
 
 export type CsharpConversionSelection =
+  | CsharpIntegerRefinementConversion
   | { readonly kind: "union-map"; readonly coverage: "source" | "target"; readonly arms: readonly CsharpUnionArmMapping[] }
   | { readonly kind: "never" }
   | { readonly kind: "checked-native-integer" }

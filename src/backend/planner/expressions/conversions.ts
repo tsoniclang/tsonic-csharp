@@ -51,6 +51,7 @@ import { planCsharpEmptyRecordConversion } from "./empty-record-conversion.js";
 import { planCsharpRuntimeUnionProjection } from "./runtime-union-projections.js";
 import { planCsharpUnionMapping } from "./union-mappings.js";
 import { planCsharpVoidReturn } from "../statements/statement-output.js";
+import { csharpUnsignedIntegerCounterpart } from "../../../target-model/conversions/integer-refinement.js";
 
 export function readCsharpConversionClassification(
   node: Node,
@@ -265,6 +266,16 @@ export function applyCsharpConversionSelection(
         callee: { kind: "SimpleMemberAccessExpression", receiver: expression, name: "AsReference", typeArguments: [type] },
         arguments: [],
       };
+    }
+    case "integer-refinement": {
+      if (sourceType?.kind !== "source-primitive" || targetType?.kind !== "source-primitive" ||
+        sourceType.name !== selection.source || targetType.name !== selection.target ||
+        selection.proof !== "nonnegative" || csharpUnsignedIntegerCounterpart(selection.source) !== selection.target) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "Integer refinement conflicts with its exact native carriers."));
+        return undefined;
+      }
+      const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
+      return type === undefined ? undefined : { kind: "CastExpression", type, expression };
     }
     case "cast": {
       const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);

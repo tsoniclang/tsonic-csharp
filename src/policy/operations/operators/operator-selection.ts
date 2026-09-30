@@ -1,5 +1,6 @@
 import { validateBinaryTargetSemantics, validateUnaryTargetSemantics, isCsharpReferenceCarrier, isEquality, isRelational, isShift, isBitwise, isArithmetic } from "./operator-validation.js";
 import { Node_Expression } from "@tsonic/target-api/source";
+import { selectCsharpGuardedIntegerPromotion } from "../numeric/guarded.js";
 import type { CsharpReferenceEquality, CsharpUnionEqualityArm } from "../../../target-model/operations/binary.js";
 import { csharpReferenceIdentityCarrier, selectCsharpReferenceEquality } from "./reference-equality.js";
 import { selectCsharpUnionEquality } from "./union-equality.js";
@@ -262,7 +263,7 @@ export function selectCsharpBinaryOperands(
     right,
     rightType,
     expectedResultType,
-  );
+  ) ?? selectCsharpGuardedIntegerPromotion(input, left, right, leftType, rightType);
   const numericPromotionRequired = operatorRequiresNumericPromotion(
     sourceOperator,
     leftType,

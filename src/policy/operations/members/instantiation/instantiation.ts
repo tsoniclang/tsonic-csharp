@@ -8,7 +8,7 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import type {
   CsharpProviderRelationResolver,
 } from "../../../../providers/model/relation-resolver.js";
@@ -82,6 +82,7 @@ export type CsharpProviderCallInstantiation =
 
 export interface CsharpProviderCallInstantiationHost {
   readonly ast: AstReader;
+  readonly navigation: SourceProgramNavigation;
   readonly sourceFacts?: ReadonlySourceFactResolver;
   readonly providers: CsharpProviderRelationResolver;
   readonly objectShapes?: CsharpObjectShapePolicy;
