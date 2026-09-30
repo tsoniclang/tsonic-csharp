@@ -18,8 +18,10 @@ import {
   isAsyncNode,
 } from "../modifiers.js";
 
-export function planClassMemberModifiers(node: Node, name: Node | undefined, input: CsharpPlanningContext): readonly ("public" | "private" | "static")[] {
-  const access = HasSourceKind(input.program.source.ast, name, KindPrivateIdentifier) ? "private" : "public";
+export function planClassMemberModifiers(node: Node, name: Node | undefined, input: CsharpPlanningContext): readonly ("public" | "private" | "protected" | "static")[] {
+  const ast = input.program.source.ast;
+  const access = HasSourceKind(ast, name, KindPrivateIdentifier) || ast.hasModifierKind(node, "private") ? "private"
+    : ast.hasModifierKind(node, "protected") ? "protected" : "public";
   return HasSyntacticModifier(input.program.source.ast, node, ModifierFlagsStatic)
     ? [access, "static"]
     : [access];

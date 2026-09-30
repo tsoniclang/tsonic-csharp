@@ -72,7 +72,7 @@ export function planPropertyDeclaration(
   const declaration = AsPropertyDeclaration(input.program.source.ast, node)!;
   const owner = input.program.source.ast.parent(node);
   const localClass = owner !== undefined && input.program.classFactories.get(owner) !== undefined;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "property declaration", diagnostics, ["readonly", "abstract"]);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "property declaration", diagnostics, ["public", "private", "protected", "readonly", "abstract", "override"]);
   const sourceField = getClassPropertySourceField(node, declaration, input);
   if (sourceField !== undefined) {
     diagnoseUnavailableCsharpSafetyAccessors(
@@ -192,7 +192,7 @@ export function mergeAccessorProperty(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): void {
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "accessor declaration", diagnostics, ["abstract"]);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "accessor declaration", diagnostics, ["public", "private", "protected", "abstract", "override"]);
   const accessor = HasSourceKind(input.program.source.ast, node, KindGetAccessor)
     ? AsGetAccessorDeclaration(input.program.source.ast, node)!
     : AsSetAccessorDeclaration(input.program.source.ast, node)!;

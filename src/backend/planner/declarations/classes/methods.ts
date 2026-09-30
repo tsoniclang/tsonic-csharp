@@ -58,7 +58,7 @@ export function planMethodDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpMethodDeclaration {
   const declaration = AsMethodDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "method declaration", diagnostics, ["abstract"]);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "method declaration", diagnostics, ["public", "private", "protected", "abstract", "override"]);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
   const callable = input.program.callableAdapters.get(node)?.implementation;
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);

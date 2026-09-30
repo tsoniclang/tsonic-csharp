@@ -40,6 +40,7 @@ import {
 import {
   withCsharpSafetyModifiers,
 } from "../../safety/explicit-safety.js";
+import { planClassMemberModifiers } from "./modifiers.js";
 
 export function planClassStaticBlockDeclaration(
   node: Node,
@@ -70,7 +71,7 @@ export function planConstructorDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpConstructorDeclaration {
   const declaration = AsConstructorDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "constructor declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "constructor declaration", diagnostics, ["public", "private", "protected"]);
   const bodyStatements = AsBlock(input.program.source.ast, declaration.Body)?.Statements?.Nodes ?? [];
   const leadingSuperCall = getLeadingSuperCall(bodyStatements, input);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
@@ -83,7 +84,7 @@ export function planConstructorDeclaration(
       kind: "ConstructorDeclaration",
       name: className,
       modifiers: withCsharpSafetyModifiers(
-        ["public"],
+        planClassMemberModifiers(node, undefined, input),
         node,
         "constructor",
         input,
@@ -100,7 +101,7 @@ export function planConstructorDeclaration(
     kind: "ConstructorDeclaration",
     name: className,
     modifiers: withCsharpSafetyModifiers(
-      ["public"],
+      planClassMemberModifiers(node, undefined, input),
       node,
       "constructor",
       input,
