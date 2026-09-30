@@ -3,6 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import { planCsharpNativeMemoryCall } from "./native-memory.js";
+import { planCsharpIndexedLocation } from "./indexed-locations.js";
 import { objectShapeBoundStorageMemberName, objectShapeBoundStorageTargetType } from "../objects/object-shape-storage.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
@@ -311,6 +312,8 @@ function planCsharpTypedLocationStorage(
     return undefined;
   }
   switch (storage.kind) {
+    case "reference-indexed-storage":
+      return planCsharpIndexedLocation(storage, planned, input, diagnostics);
     case "direct-storage":
       return planDirectLocation(
         storage,

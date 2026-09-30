@@ -1,5 +1,7 @@
 import {
   csharpBaseTargetTypeFromBinding,
+} from "../../types/storage/bindings.js";
+import {
   csharpVoidReturnCompletion,
   csharpTargetBindingFact,
   getCsharpDelegateSignature,
@@ -9,10 +11,12 @@ import {
   isCsharpNullableReferenceTargetType,
   isCsharpAbsenceTargetType,
   isCsharpValueTypeTargetType,
-  substituteTargetTypeParameters,
   targetTypeRefEquals,
   targetTypeRefKey,
-} from "../../types/index.js";
+} from "../../../target-model/types/index.js";
+import {
+  substituteTargetTypeParameters,
+} from "../../../target-model/types/substitution.js";
 import { conversionIsImplicitlyApplicable, selectCsharpConversion } from "./core.js";
 import { csharpConversionIsApplicable } from "./expression.js";
 import { targetBindingSubstitutions } from "./provider-operators.js";

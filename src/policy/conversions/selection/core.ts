@@ -10,7 +10,7 @@ import {
   isCsharpVoidTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
-} from "../../types/index.js";
+} from "../../../target-model/types/index.js";
 import { csharpConversionIsApplicable } from "./expression.js";
 import { namedTargetTypeImplicitlyAccepts, namedTargetTypesAreRelated, selectDelegateConversion, selectJsValueConversion, selectNullableConversion, selectRuntimeUnionConversion } from "./carriers.js";
 import { selectProviderConversionOperator } from "./provider-operators.js";

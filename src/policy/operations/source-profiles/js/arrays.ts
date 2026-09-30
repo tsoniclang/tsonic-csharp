@@ -7,7 +7,6 @@ import type {
 import {
   csharpDelegateTargetType,
   csharpEnumerableTargetType,
-  csharpJsArrayTargetType,
   csharpNullableTargetType,
   csharpNullableValueTargetType,
   csharpObjectTargetType,
@@ -18,12 +17,12 @@ import {
   getCsharpDelegateSignature,
   getCsharpIndexableLengthMemberName,
   getCsharpJsArrayElementTargetType,
-  getCsharpJsArrayMutationPolicy,
   getCsharpReadOnlyIndexableCollectionElementTargetType,
   isCsharpDenseMutableCollectionTargetType,
   isCsharpValueTypeTargetType,
   targetTypeRefEquals,
-} from "../../../types/index.js";
+} from "../../../../target-model/types/index.js";
+import { csharpJsArrayTargetType, getCsharpJsArrayMutationPolicy } from "../../../types/resolution/surface-types.js";
 import type {
   CsharpSourceProfileCallPolicy,
   CsharpSourceProfileElementPolicy,
@@ -333,6 +332,12 @@ export const csharpJsArrayElementPolicies:
                 readonly,
               );
         },
+        (context) => ({
+          kind: "indexer",
+          ...(declaringName === "Array" && getCsharpJsArrayElementTargetType(
+            resolveCsharpSelectedSourceValue(context, context.source.receiver),
+          ) !== undefined ? { indexedLocationMethod: "elementLocation" } : {}),
+        }),
       )
     ),
   );

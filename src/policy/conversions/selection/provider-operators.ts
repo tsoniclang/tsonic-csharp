@@ -1,9 +1,11 @@
 import {
   csharpTargetBindingFact,
-  substituteTargetTypeParameters,
   targetTypeRefEquals,
   targetTypeRefKey,
-} from "../../types/index.js";
+} from "../../../target-model/types/index.js";
+import {
+  substituteTargetTypeParameters,
+} from "../../../target-model/types/substitution.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "./model.js";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpTargetBindingFact, CsharpTargetConversionOperatorFact, TargetTypeRef } from "../../types/index.js";

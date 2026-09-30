@@ -1,4 +1,7 @@
-import { getCsharpNullableElementTargetType, isCsharpIntegralTargetType } from "../../types/index.js";
+import {
+  getCsharpNullableElementTargetType,
+  isCsharpIntegralTargetType,
+} from "../../../target-model/types/index.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpConversionSelection } from "./model.js";
 

@@ -2,7 +2,7 @@ import type { CsharpSourceProfileCallPolicyContext } from "../source-profile-pol
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import {
   getCsharpJsArrayElementTargetType,
-} from "../../../types/index.js";
+} from "../../../../target-model/types/index.js";
 import type { TargetTypeRef } from "../../../types/index.js";
 import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../../../target-model/types/array-like.js";
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/runtime-carriers.js";

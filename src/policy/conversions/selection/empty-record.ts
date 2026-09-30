@@ -1,7 +1,9 @@
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
 import { isCsharpEmptyObjectTargetType } from "../../../target-model/types/runtime-carriers.js";
-import { targetTypeRefEquals } from "../../types/index.js";
+import {
+  targetTypeRefEquals,
+} from "../../../target-model/types/index.js";
 import type { CsharpConversionSelection } from "./model.js";
 
 export function selectCsharpEmptyRecordConversion(

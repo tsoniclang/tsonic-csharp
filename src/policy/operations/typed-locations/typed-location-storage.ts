@@ -40,6 +40,14 @@ export type CsharpTypedLocationStorage =
       readonly kind: "reference-element-storage";
       readonly expression: Node;
       readonly valueType: TargetTypeRef;
+    }
+  | {
+      readonly kind: "reference-indexed-storage";
+      readonly expression: Node;
+      readonly valueType: TargetTypeRef;
+      readonly receiverType: TargetTypeRef;
+      readonly indexType: TargetTypeRef;
+      readonly method: string;
     };
 
 export type CsharpTypedLocationDirectIdentity =
@@ -240,6 +248,21 @@ function selectCsharpElementStorage(
     );
   }
   if (receiverType.kind !== "array" || receiverKind !== "reference") {
+    const index = selection.kind === "resolved"
+      ? selection.targetMember.parameters[selection.targetParameterIndex] : undefined;
+    if (receiverKind === "reference" && selection.kind === "resolved" &&
+      selection.invocation.kind === "indexer" && selection.invocation.indexedLocationMethod !== undefined &&
+      /^[A-Za-z_][A-Za-z0-9_]*$/u.test(selection.invocation.indexedLocationMethod) &&
+      selection.receiver.kind === "instance" && selection.targetMember.kind === "indexer" &&
+      selection.targetMember.readonly !== true && index !== undefined &&
+      selection.targetMember.parameters.length === 1 && index.passingMode === "by-value" &&
+      selection.targetMember.returnType !== undefined &&
+      targetTypeRefEquals(selection.targetMember.returnType, valueType)) {
+      return { kind: "resolved", storage: {
+        kind: "reference-indexed-storage", expression, valueType, receiverType, indexType: index.type,
+        method: selection.invocation.indexedLocationMethod,
+      } };
+    }
     return storageRejected(
       "C# typed-location element storage requires the exact built-in array representation; provider and project indexers require an explicit canonical location-identity policy.",
     );

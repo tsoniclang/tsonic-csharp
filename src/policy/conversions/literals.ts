@@ -17,7 +17,7 @@ import {
   getCsharpArrayLiteralElementTargetType,
   getCsharpNullableElementTargetType,
   isCsharpStringTargetType,
-} from "../types/index.js";
+} from "../../target-model/types/index.js";
 
 export function csharpLiteralIsRepresentableAs(
   input: Pick<CsharpPolicyContext, "ast">,

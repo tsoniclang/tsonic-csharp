@@ -1,5 +1,6 @@
 import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
-import { csharpJsArrayTargetType, csharpSourcePrimitiveTargetType, getCsharpJsArrayElementTargetType } from "../../../types/index.js";
+import { csharpSourcePrimitiveTargetType, getCsharpJsArrayElementTargetType } from "../../../../target-model/types/index.js";
+import { csharpJsArrayTargetType } from "../../../types/resolution/surface-types.js";
 import type { CsharpSourceProfileCallPolicy } from "../source-profile-policy.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { jsRuntimeTargetType, staticMethod, targetParameter } from "./common.js";
