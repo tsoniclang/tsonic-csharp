@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { targetTypeRefEquals, targetTypeRefKey, scopedTargetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpTargetStorageIdentityEquals } from "../../../dist/policy/types/storage/storage-identity.js";
-import { substituteTargetTypeParameters, inferCsharpTargetTypeParameterBindings } from "../../../dist/policy/types/callables/substitution.js";
+import { substituteTargetTypeParameters, inferCsharpTargetTypeParameterBindings } from "../../../dist/target-model/types/substitution.js";
 import { csharpGeneratedTypeParameterNames } from "../../../dist/target-model/names/type-parameters.js";
 import { csharpFreeTypeParameterIdentities, csharpObjectShapeTypeParameters } from "../../../dist/target-model/types/generic-references.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-types.js";

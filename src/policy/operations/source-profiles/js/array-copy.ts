@@ -18,8 +18,8 @@ export function selectCsharpArrayCopy(
 ): CsharpArrayCopySelection | undefined {
   const argument = context.source.sourceArguments[0];
   const sourceType = resolveCsharpSelectedSourceValue(context, argument);
-  if (getCsharpRuntimeUnionArms(sourceType) !== undefined) {
-    const element = csharpArrayLikeElement(sourceType);
+  if (getCsharpRuntimeUnionArms(sourceType, context.host.typeDefinitions) !== undefined) {
+    const element = csharpArrayLikeElement(sourceType, context.host.typeDefinitions);
     return argument !== undefined && element !== undefined
       ? { method: "CopyDense", sourceType: csharpArrayLikeTargetType(element), typeArguments: [element] } : undefined;
   }

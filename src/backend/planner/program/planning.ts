@@ -9,6 +9,7 @@ import type {
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpOutputPlan } from "../../artifact-model/output.js";
 import { planCsharpStartupSourceFile } from "./startup.js";
+import { planCsharpSourceUnionFile } from "../objects/source-unions.js";
 import { reconstructCsharpSourceFiles } from "../artifacts/source-file-reconstruction.js";
 import { planCsharpProject } from "../project/project-artifacts.js";
 import { preserveCsharpAuthoredNames } from "../../target-ast/normalization/authored-names.js";
@@ -50,6 +51,7 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
     return rejectedTargetStage(diagnostics);
   }
   const generatedHelpers = planCsharpGeneratedHelperSourceFile(input);
+  const sourceUnions = planCsharpSourceUnionFile(input);
   const startup = planCsharpStartupSourceFile(
     input,
     plannedSources,
@@ -62,7 +64,7 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
   const project = planCsharpProject(input, {
     allowUnsafeBlocks:
       plannedSources.some((source) => source.requiresUnsafe) ||
-      objectShapes?.requiresUnsafe === true,
+      objectShapes?.requiresUnsafe === true || sourceUnions?.requiresUnsafe === true,
   });
   const sources = [
     ...plannedSources.map((source) => ({
@@ -71,6 +73,7 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
     })),
     ...(objectShapes === undefined ? [] : [objectShapes.source]),
     ...(generatedHelpers === undefined ? [] : [generatedHelpers]),
+    ...(sourceUnions === undefined ? [] : [sourceUnions.source]),
     ...(startup === undefined ? [] : [startup]),
   ];
   const normalizedUnits = applyCsharpObjectShapeDisplayNames(

@@ -9,7 +9,7 @@ import { csharpRuntimeUnionTargetType } from "../../../../target-model/types/run
 import { csharpStructuralObjectShapeIdPrefix } from "../../../../target-model/types/object-shape-identity.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import { nextState } from "../../resolution/state.js";
-import { substituteTargetTypeParameters } from "../../callables/substitution.js";
+import { substituteTargetTypeParameters } from "../../../../target-model/types/substitution.js";
 
 interface Definition {
   readonly arms: readonly TargetTypeRef[];

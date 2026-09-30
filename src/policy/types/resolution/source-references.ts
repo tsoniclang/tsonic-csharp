@@ -21,7 +21,7 @@ import {
   sourceTypeSyntaxIsCompositional,
   sourceIntegerInduction,
 } from "@tsonic/target-api/source";
-import { substituteTargetTypeParameters } from "../callables/substitution.js";
+import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from "./selected-type-evidence.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
@@ -411,6 +411,9 @@ export function resolveCompositionalSourceTypeAlias(
     if (structural.kind === "resolved") {
       return { kind: "resolved", type: substituteTargetTypeParameters(structural.type, substitutions) };
     }
+    const template = resolveNodeWithState(target, reference.sourceFile, nextState(state));
+    return template === undefined ? { kind: "rejected" }
+      : { kind: "resolved", type: substituteTargetTypeParameters(template, substitutions) };
   }
   const resolved = target === undefined
     ? undefined
@@ -573,7 +576,8 @@ export function resolveSourceValueDeclaration(
     selectedValueType,
   );
   const selectedUnion = selectCsharpAuthoredUnionRefinement(initializerTarget, declaredType, selectedValueType,
-    declarationQueries, type => resolveCsharpUnionMemberCarrier(scope, initializerTarget, type, declarationQueries, state), host.structuralTypes.resolveTarget);
+    declarationQueries, type => resolveCsharpUnionMemberCarrier(scope, initializerTarget, type, declarationQueries, state),
+    host.structuralTypes.resolveTarget, host.typeDefinitions);
   if (selectedUnion.kind !== "not-applicable") return selectedUnion.kind === "resolved" ? selectedUnion.type : undefined;
   if (refinement.kind === "ambiguous") {
     return undefined;

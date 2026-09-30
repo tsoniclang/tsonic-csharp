@@ -36,8 +36,9 @@ export function resolveCsharpRuntimeUnionObjectShapeProperty(
   objectShapes: CsharpObjectShapePolicy,
   receiverType: TargetTypeRef | undefined,
   selectedSubjects: readonly unknown[],
+  definitions?: import("../../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions,
 ): CsharpRuntimeUnionObjectShapePropertyResolution {
-  const arms = getCsharpRuntimeUnionArms(receiverType);
+  const arms = getCsharpRuntimeUnionArms(receiverType, definitions);
   if (arms === undefined) {
     return { kind: "not-runtime-union" };
   }

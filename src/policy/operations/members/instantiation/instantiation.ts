@@ -39,7 +39,7 @@ import {
 } from "../../../conversions/index.js";
 import { csharpSourceArgumentPassingMode } from "../selection/argument-selection.js";
 import { selectCsharpProviderPointerResult } from "../../pointers/provider-result.js";
-import { inferCsharpTargetTypeParameterBindings } from "../../../types/callables/substitution.js";
+import { inferCsharpTargetTypeParameterBindings } from "../../../../target-model/types/substitution.js";
 import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/runtime-carriers.js";
 import {
   mergeCsharpTypeParameterSubstitutions,

@@ -14,6 +14,7 @@ export interface CsharpExpectedTypeClassifications {
   requiresExactIntegerConversion(expression: Node, targetType: TargetTypeRef): boolean;
   storageTypesForExpression(expression: Node): readonly TargetTypeRef[];
   callableTarget(expression: Node): TargetTypeRef | undefined;
+  arrayLiteralCarrier(expression: Node, targetType: TargetTypeRef): TargetTypeRef | undefined;
   binaryExpected(
     expression: Node,
     targetType: TargetTypeRef,

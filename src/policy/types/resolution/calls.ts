@@ -6,7 +6,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { combineCsharpTargetUnionMembers } from "../../../target-model/types/runtime-carriers.js";
 import { csharpTargetParameterValueType } from "../../../target-model/types/member-facts.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
-import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../callables/substitution.js";
+import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { nextState } from "./state.js";
 import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
@@ -67,6 +67,7 @@ export function resolveAuthoredAndSelectedSourceType(
     authored, authoredSemanticType, selectedType, selectedQueries,
     type => resolveCsharpUnionMemberCarrier(scope, authored, type, selectedQueries, state),
     host.structuralTypes.resolveTarget,
+    host.typeDefinitions,
   );
   if (unionRefinement.kind !== "not-applicable") {
     return unionRefinement.kind === "resolved" ? unionRefinement.type : undefined;

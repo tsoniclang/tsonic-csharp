@@ -23,7 +23,7 @@ import type {
 } from "../resolution/index.js";
 import {
   substituteTargetTypeParameters,
-} from "../callables/substitution.js";
+} from "../../../target-model/types/substitution.js";
 import { readCsharpSourceStruct } from "../resolution/source-markers.js";
 import {
   targetTypeRefKey,

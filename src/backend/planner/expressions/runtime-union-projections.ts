@@ -1,4 +1,5 @@
 import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 import type {
   Node,
   SourceFile,
@@ -35,7 +36,7 @@ export function tryPlanRuntimeUnionTypeTest(
   if (receiverCarrier === undefined) {
     return undefined;
   }
-  const armIndex = runtimeUnionArmIndex(receiverCarrier, targetType);
+  const armIndex = runtimeUnionArmIndex(receiverCarrier, targetType, input.program.typeDefinitions);
   if (armIndex === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -65,7 +66,7 @@ export function tryPlanRuntimeUnionProjectionToTargetType(
   if (storageCarrier === undefined) {
     return undefined;
   }
-  const armIndex = runtimeUnionArmIndex(storageCarrier, targetType);
+  const armIndex = runtimeUnionArmIndex(storageCarrier, targetType, input.program.typeDefinitions);
   if (armIndex === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -82,7 +83,7 @@ function getRuntimeUnionStorageCarrier(
   input: CsharpPlanningContext,
 ): TargetTypeRef | undefined {
   const storageCarrier = input.types.classifications.resolveStorage(node, sourceFile);
-  return getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(storageCarrier) ?? storageCarrier) !== undefined
+  return getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(storageCarrier) ?? storageCarrier, input.program.typeDefinitions) !== undefined
     ? storageCarrier
     : undefined;
 }
@@ -90,8 +91,9 @@ function getRuntimeUnionStorageCarrier(
 function runtimeUnionArmIndex(
   unionCarrier: TargetTypeRef,
   targetType: TargetTypeRef,
+  definitions: CsharpTypeDefinitions,
 ): number | undefined {
-  const armIndex = getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(unionCarrier) ?? unionCarrier)
+  const armIndex = getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(unionCarrier) ?? unionCarrier, definitions)
     ?.findIndex((arm) => targetTypeRefEquals(arm, targetType));
   return armIndex === undefined || armIndex < 0 ? undefined : armIndex;
 }
@@ -132,7 +134,7 @@ export function planCsharpRuntimeUnionProjection(
 ): CsharpExpression | undefined {
   const sourceElement = getCsharpNullableElementTargetType(sourceType);
   const targetElement = getCsharpNullableElementTargetType(targetType);
-  const declared = getCsharpRuntimeUnionArms(sourceElement ?? sourceType)?.[selection.armIndex];
+  const declared = getCsharpRuntimeUnionArms(sourceElement ?? sourceType, input.program.typeDefinitions)?.[selection.armIndex];
   const selectedType = selection.retainsAbsence ? targetElement : targetType;
   if (!input.program.conversions.matchesUnionProjection(sourceType, targetType, selection) ||
     typeof selection.retainsAbsence !== "boolean" || !Number.isInteger(selection.armIndex) ||

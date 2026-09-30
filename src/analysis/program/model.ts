@@ -70,6 +70,7 @@ export interface CsharpPlanningHost {
 }
 
 export interface CsharpTargetProgram {
+  readonly typeDefinitions: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
   readonly callableAdapters: import("../project-types/callable-adapters.js").CsharpProjectCallableAdapters;
   readonly typeProjections: import("../declarations/type-projections.js").CsharpGenericProjectionIndex;
   readonly classFactories: import("../project-types/class-factories.js").CsharpClassFactoryIndex;

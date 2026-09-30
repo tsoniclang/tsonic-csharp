@@ -3,7 +3,7 @@ import test from "node:test";
 import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
-import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/callables/substitution.js";
+import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeFactTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 import { selectCsharpAuthoredUnionRefinement, sourceRefinementOnlyRemovesNullish } from "../../../dist/policy/types/resolution/source-union-refinement.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/selection/core.js";
 import { selectCsharpObjectLiteralUnionShape } from "../../../dist/policy/types/objects/object-shape-policy/union-construction.js";

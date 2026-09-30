@@ -24,6 +24,7 @@ import type {
 import {
   csharpSourceProfileCall,
   csharpSourceProfileDiagnostic,
+  resolveCsharpSelectedSourceValue,
 } from "./source-profile-policy.js";
 import {
   csharpTargetId,
@@ -113,13 +114,7 @@ export const csharpNativeSourceProfilePropertyPolicies:
       select(
         context: CsharpSourceProfilePropertyPolicyContext,
       ): CsharpSourceProfilePropertyPolicyResult {
-        const declaringType = context.host.types.resolveNode(
-          context.source.receiver.expression,
-          context.sourceFile,
-        ) ?? context.host.types.resolveType(
-          context.source.receiver.type,
-          context.sourceFile,
-        );
+        const declaringType = resolveCsharpSelectedSourceValue(context, context.source.receiver);
         const resultType = context.host.types.resolveType(
           context.source.sourceReadType ?? context.source.sourceWriteType,
           context.sourceFile,
@@ -164,13 +159,7 @@ export const csharpNativeSourceProfileElementPolicies:
       select(
         context: CsharpSourceProfileElementPolicyContext,
       ): CsharpSourceProfileElementPolicyResult {
-        const declaringType = context.host.types.resolveNode(
-          context.source.receiver.expression,
-          context.sourceFile,
-        ) ?? context.host.types.resolveType(
-          context.source.receiver.type,
-          context.sourceFile,
-        );
+        const declaringType = resolveCsharpSelectedSourceValue(context, context.source.receiver);
         const selectedSourceResult =
           context.source.sourceReadType ?? context.source.sourceWriteType;
         const indexType = context.host.types.resolveNode(

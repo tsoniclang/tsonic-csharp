@@ -11,7 +11,7 @@ import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetPr
 import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 import { selectCsharpGenericMethodValue } from "../objects/generic-method-values.js";
 import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";
-import { substituteTargetTypeParameters } from "../callables/substitution.js";
+import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/collections.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpJsArrayTargetType } from "./surface-types.js";
@@ -352,6 +352,7 @@ export function resolveNonNullExpressionType(
     sourceTarget, sourceType, selectedType, queries,
     type => resolveCsharpUnionMemberCarrier(scope, sourceTarget, type, queries, state),
     host.structuralTypes.resolveTarget,
+    host.typeDefinitions,
   );
   return refinement.kind === "resolved" ? refinement.type : undefined;
 }

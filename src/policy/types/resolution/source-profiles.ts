@@ -303,7 +303,7 @@ export function generatorResultProtocol(
 
 
 export function resolveUnionType(
-  { host, resolveTypeWithState, sourceUnions }: CsharpTypeResolutionScope,
+  { host, resolveTypeWithState, sourceUnions, sourceUnionDefinitions }: CsharpTypeResolutionScope,
   type: Type,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -315,16 +315,15 @@ export function resolveUnionType(
   if (sourceMembers.length !== rawSourceMembers.length) {
     return undefined;
   }
-  const resolved = sourceMembers.map((member) =>
-    resolveTypeWithState(member, queries.sourceFile, nextState(state))
-  );
-  if (resolved.some((member) => member === undefined)) {
-    return undefined;
-  }
-  return sourceUnions.retain(retainCsharpUnionObjectShapes(
-    combineCsharpTargetUnionMembers(resolved as readonly TargetTypeRef[]),
-    host.structuralTypes.resolveTarget,
-  ), resolved.map((carrier, index) => ({ source: sourceMembers[index]!, carrier: carrier! })), queries, state);
+  let resolved: readonly (TargetTypeRef | undefined)[] = [];
+  const carrier = sourceUnionDefinitions.resolve(type, queries, state, () => {
+    resolved = sourceMembers.map(member => resolveTypeWithState(member, queries.sourceFile, nextState(state)));
+    if (resolved.some(member => member === undefined)) return { carrier: undefined, arms: [] };
+    const arms = resolved as readonly TargetTypeRef[];
+    return { carrier: retainCsharpUnionObjectShapes(combineCsharpTargetUnionMembers(arms),
+      host.structuralTypes.resolveTarget), arms };
+  });
+  return sourceUnions.retain(carrier, resolved.map((arm, index) => ({ source: sourceMembers[index]!, carrier: arm! })), queries, state);
 }
 
 

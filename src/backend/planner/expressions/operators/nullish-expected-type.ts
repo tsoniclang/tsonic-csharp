@@ -43,7 +43,6 @@ export function tryPlanBinaryExpressionWithExpectedType(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
-  expectedTypeSubject: Node | undefined,
   expectedTargetType: TargetTypeRef | undefined,
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
@@ -108,14 +107,16 @@ export function tryPlanBinaryExpressionWithExpectedType(
     input,
     diagnostics,
   );
-  const right = planExpressionWithExpectedType(
+  const rightType = csharpTypeFromTargetTypeRef(selection.rightInputType, input.scope.typeParameterNames);
+  const right = rightType === undefined ? undefined : planExpressionWithExpectedType(
     selection.right,
     sourceFile,
     input,
     diagnostics,
-    resultType,
-    expectedTypeSubject,
-    expectedTargetType,
+    rightType,
+    undefined,
+    selection.rightInputType,
+    state,
   );
   return left === undefined || right === undefined
     ? undefined

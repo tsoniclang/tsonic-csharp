@@ -1,7 +1,7 @@
 import {
-  freezeContributionValue,
   nonEmptyContributionString,
 } from "../model/contribution-values.js";
+import { snapshotCsharpMetadata } from "../../target-model/metadata/immutable.js";
 import {
   csharpProviderPolicyContributionKind,
   validateCsharpProviderPolicyContribution,
@@ -20,7 +20,7 @@ export function snapshotCsharpProviderPackage(
     providerModuleId: module.providerModuleId,
     getExports: module.getExports,
   })));
-  const moduleSpecifiers = freezeContributionValue(definition.moduleSpecifiers);
+  const moduleSpecifiers = snapshotCsharpMetadata(definition.moduleSpecifiers);
   const modulesBySpecifier = new Map(modules.map((module) => [module.moduleSpecifier, module]));
   const moduleIds = new Set(modules.map((module) => module.providerModuleId));
   if (modulesBySpecifier.size !== modules.length || moduleIds.size !== modules.length) {
@@ -60,7 +60,7 @@ export function snapshotCsharpProviderPackage(
   ) {
     fail("virtual declaration filename, module diagnostic and policy callbacks are required.");
   }
-  const providerIdentity = freezeContributionValue(definition.providerIdentity);
+  const providerIdentity = snapshotCsharpMetadata(definition.providerIdentity);
   const createPolicy = definition.createPolicy;
   const packageId = definition.id;
   const policies = new Map<string, CsharpProviderPolicyContribution>();
@@ -101,11 +101,11 @@ export function snapshotCsharpProviderPackage(
     moduleDiagnostic: definition.moduleDiagnostic,
     ...(definition.resolutionEvidence === undefined
       ? {}
-      : { resolutionEvidence: freezeContributionValue(definition.resolutionEvidence) }),
+      : { resolutionEvidence: snapshotCsharpMetadata(definition.resolutionEvidence) }),
     ...(definition.declarationEvidence === undefined
       ? {}
-      : { declarationEvidence: freezeContributionValue(definition.declarationEvidence) }),
+      : { declarationEvidence: snapshotCsharpMetadata(definition.declarationEvidence) }),
     createPolicy: selectedPolicy,
-    runtime: freezeContributionValue(definition.runtime),
+    runtime: snapshotCsharpMetadata(definition.runtime),
   });
 }

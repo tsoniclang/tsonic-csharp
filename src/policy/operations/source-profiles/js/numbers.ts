@@ -8,7 +8,7 @@ import {
   csharpObjectTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
-  isCsharpRuntimeUnionTargetType,
+  getCsharpRuntimeUnionArms,
   targetTypeRefEquals,
 } from "../../../types/index.js";
 import type {
@@ -151,6 +151,7 @@ export const csharpJsNumberCallPolicies:
       jsCallIdentity("NumberConstructor"),
       (context) => {
         const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+        const union = argument !== undefined && getCsharpRuntimeUnionArms(argument, context.host.typeDefinitions) !== undefined;
         if (argument !== undefined && (
           argument.kind === "source-primitive" && argument.name !== "bool" && argument.name !== "char" ||
           targetTypeRefEquals(argument, csharpBigIntegerTargetType())
@@ -171,9 +172,9 @@ export const csharpJsNumberCallPolicies:
           "Number",
           globalsType,
           [
-            targetParameter("value", isCsharpRuntimeUnionTargetType(argument) ? argument : csharpObjectTargetType(), {
+            targetParameter("value", union ? argument : csharpObjectTargetType(), {
               optional: true,
-              ...(isCsharpRuntimeUnionTargetType(argument) ? {} : { csharpAcceptsClosedSourceArgument: true }),
+              ...(union ? {} : { csharpAcceptsClosedSourceArgument: true }),
             }),
           ],
           numberType,

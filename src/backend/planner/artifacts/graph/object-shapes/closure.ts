@@ -213,7 +213,7 @@ export function collectJsonType(
       }
       return collectJsonType(valueType, undefined, state);
     }
-    const unionArms = getCsharpRuntimeUnionArms(type);
+    const unionArms = getCsharpRuntimeUnionArms(type, host.typeDefinitions);
     if (unionArms !== undefined) {
       for (const arm of unionArms) {
         const failure = collectJsonType(arm, undefined, state);

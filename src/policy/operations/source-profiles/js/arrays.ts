@@ -623,7 +623,7 @@ function arrayFromMember(
   }
   const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
   const isJsArray = getCsharpJsArrayElementTargetType(argument) !== undefined;
-  const isArrayUnion = getCsharpRuntimeUnionArms(argument) !== undefined;
+  const isArrayUnion = getCsharpRuntimeUnionArms(argument, context.host.typeDefinitions) !== undefined;
   const copy = isJsArray || isArrayUnion ? selectCsharpArrayCopy(context) : undefined;
   if ((isJsArray || isArrayUnion) && copy === undefined) return undefined;
   if (copy?.method === "CopyDense" && context.source.sourceSelectedSignatureParameters.length !== 1) return undefined;
@@ -743,7 +743,7 @@ function arrayFromShape(
   );
   const sourceElement = sourceIsString(context)
     ? stringType
-    : getCsharpCollectionElementTargetType(sourceArgument) ?? csharpArrayLikeElement(sourceArgument);
+    : getCsharpCollectionElementTargetType(sourceArgument) ?? csharpArrayLikeElement(sourceArgument, context.host.typeDefinitions);
   if (sourceElement === undefined) {
     return undefined;
   }

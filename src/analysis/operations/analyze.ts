@@ -83,6 +83,7 @@ import type {
 import { classifyExactUnmodifiedCatchRethrow } from "./catch-rethrow.js";
 import {
   classifySourceOwnedProperty,
+  classifyCsharpMemberReceiver,
   elementSelectedTypes,
   optionalResultType,
 } from "./member-access.js";
@@ -236,7 +237,7 @@ function visit(
   );
   if (ast.is.IsTypeOfExpression(node)) {
     const operand = ast.as.AsTypeOfExpression(node)?.Expression;
-    const selected = operand === undefined ? undefined : getCsharpTypeofResult(policy.types.resolveNode(operand, sourceFile));
+    const selected = operand === undefined ? undefined : getCsharpTypeofResult(policy.types.resolveNode(operand, sourceFile), undefined, policy.typeDefinitions);
     if (operand !== undefined && selected !== undefined) setClassification(builder, operand, typeofRuntimeKindKey, selected);
   }
   if (ast.is.IsIdentifier(node)) {
@@ -457,12 +458,15 @@ function visit(
     }));
   } else if (ast.is.IsPropertyAccessExpression(node)) {
     const selection = selectCsharpTargetProperty(policy, node, sourceFile);
+    const receiverProjection = selection.kind === "resolved" || selection.kind === "source-owned"
+      ? classifyCsharpMemberReceiver(policy, selection.source, sourceFile) : undefined;
     setClassification(
       builder,
       node,
       propertyKey,
       Object.freeze({
         selection,
+        ...(receiverProjection === undefined ? {} : { receiverProjection }),
         ...(selection.kind === "source-owned"
           ? {
               sourceOwned: classifySourceOwnedProperty(
@@ -477,6 +481,7 @@ function visit(
   } else if (ast.is.IsElementAccessExpression(node)) {
     const expression = ast.as.AsElementAccessExpression(node);
     const source = policy.semantics(sourceFile).operations.elementAccess(node);
+    const receiverProjection = source === undefined ? undefined : classifyCsharpMemberReceiver(policy, source, sourceFile);
     const jsValue = selectCsharpJsValueReceiverExpressionOperation(
       policy,
       expression?.Expression,
@@ -486,6 +491,7 @@ function visit(
     );
     setClassification(builder, node, elementKey, Object.freeze({
       jsValue,
+      ...(receiverProjection === undefined ? {} : { receiverProjection }),
       ...(source === undefined
         ? {}
         : elementSelectedTypes(policy, source, sourceFile)),
@@ -540,7 +546,7 @@ function visit(
     const instanceSource = sourceOperator === "instanceof" && expression?.Left !== undefined
       ? evidence.nodeTargetType(expression.Left) : undefined;
     const instancePlan = instanceSource === undefined || instanceType === undefined ? undefined
-      : selectCsharpClosedTypeTestPlan(instanceSource, instanceType);
+      : selectCsharpClosedTypeTestPlan(instanceSource, instanceType, undefined, policy.typeDefinitions);
     setClassification(
       builder,
       node,
@@ -714,6 +720,7 @@ function classifyTypeofComparison(
       policy.types.resolveNode(operand, sourceFile),
       runtimeKind,
       sourceOperator === "!==" || sourceOperator === "!=",
+      policy.typeDefinitions,
     ),
   });
 }

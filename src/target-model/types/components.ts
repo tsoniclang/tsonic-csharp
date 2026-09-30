@@ -33,8 +33,10 @@ export function csharpTargetTypeComponents(
     case "associated-type":
       components.push(type.owner);
       break;
-    case "source-primitive":
     case "type-parameter":
+      components.push(...type.csharpProjection?.arguments ?? []);
+      break;
+    case "source-primitive":
     case "opaque":
     case "lifetime":
     case "target-specific":
@@ -51,8 +53,14 @@ export function csharpTargetTypeComponents(
     addDefined(components, target.csharpDenseMutableElementType);
     addDefined(components, target.csharpBaseType);
     addDefined(components, target.csharpGenericMethodValue?.owner);
+    addDefined(components, target.csharpGenericMethodValue?.contract);
     addDefined(components, target.csharpClassFactory?.instance);
     addDefined(components, target.csharpTaskResultType);
+    addDefined(components, target.csharpGeneratorProtocol?.yieldType);
+    addDefined(components, target.csharpGeneratorProtocol?.returnType);
+    addDefined(components, target.csharpGeneratorProtocol?.nextType);
+    addDefined(components, target.csharpIteratorResultProtocol?.yieldType);
+    addDefined(components, target.csharpIteratorResultProtocol?.returnType);
     components.push(...target.csharpDelegateSignature?.parameters ?? []);
     addDefined(components, target.csharpDelegateSignature?.returnType);
     const union = target as Partial<CsharpRuntimeUnionTargetTypeRef>;

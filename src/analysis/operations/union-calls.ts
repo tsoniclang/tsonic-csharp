@@ -6,7 +6,7 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/
 import { getCsharpNullableElementTargetType } from "../../target-model/types/nullable.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpSourceArgumentPassingMode } from "../../policy/operations/members/selection/argument-selection.js";
-import { substituteTargetTypeParameters } from "../../policy/types/callables/substitution.js";
+import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 
 export type CsharpUnionCallClassification =
@@ -31,7 +31,7 @@ export function classifyCsharpUnionCall(
   const property = semantics.operations.propertyAccess(source.sourceCallee.expression);
   if (property === undefined) return { kind: "not-union" };
   const receiverType = policy.types.resolveSelectedValue(property.receiver.expression, property.receiver.type, sourceFile);
-  const arms = getCsharpRuntimeUnionArms(receiverType);
+  const arms = getCsharpRuntimeUnionArms(receiverType, policy.typeDefinitions);
   if (arms === undefined || receiverType === undefined ||
     arms.some(arm => policy.projectTypes.catalog.definitionForTarget(arm)?.kind !== "class")) return { kind: "not-union" };
   const reject = (reason: string): CsharpUnionCallClassification => ({ kind: "rejected", reason });

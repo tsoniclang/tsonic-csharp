@@ -14,11 +14,11 @@ export function selectCsharpUnionEquality(
   right: TargetTypeRef,
   input: CsharpPolicyContext,
 ): readonly CsharpUnionEqualityArm[] | undefined {
-  const leftUnion = getCsharpRuntimeUnionArms(left);
-  const rightUnion = getCsharpRuntimeUnionArms(right);
+  const leftUnion = getCsharpRuntimeUnionArms(left, input.typeDefinitions);
+  const rightUnion = getCsharpRuntimeUnionArms(right, input.typeDefinitions);
   if (leftUnion === undefined && rightUnion === undefined) return undefined;
-  const leftLeaves = leftUnion === undefined ? [{ carrier: left, path: Object.freeze([]) }] : csharpUnionLeaves(left);
-  const rightLeaves = rightUnion === undefined ? [{ carrier: right, path: Object.freeze([]) }] : csharpUnionLeaves(right);
+  const leftLeaves = leftUnion === undefined ? [{ carrier: left, path: Object.freeze([]) }] : csharpUnionLeaves(left, input.typeDefinitions);
+  const rightLeaves = rightUnion === undefined ? [{ carrier: right, path: Object.freeze([]) }] : csharpUnionLeaves(right, input.typeDefinitions);
   if (leftLeaves === undefined || rightLeaves === undefined) return undefined;
   const arms: CsharpUnionEqualityArm[] = [];
   for (const left of leftLeaves) for (const right of rightLeaves) {

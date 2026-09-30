@@ -13,6 +13,8 @@ import type {
 import type {
   CsharpPlanningContext,
 } from "../context.js";
+import type { CsharpMemberReceiverProjection } from "../../../analysis/operations/index.js";
+import { applyCsharpConversionSelection } from "./conversions.js";
 
 export interface CsharpSelectedReceiverEvidence {
   readonly expression: Node;
@@ -25,11 +27,15 @@ export function translateCsharpSelectedReceiver(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
+  projection?: CsharpMemberReceiverProjection,
 ): CsharpExpression | undefined {
-  return planExpression(
+  const expression = planExpression(
     receiver.expression,
     sourceFile,
     input,
     diagnostics,
+  );
+  return expression === undefined || projection === undefined ? expression : applyCsharpConversionSelection(
+    receiver.expression, sourceFile, input, diagnostics, projection.source, projection.target, projection.conversion, expression,
   );
 }

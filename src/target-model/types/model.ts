@@ -234,6 +234,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpIteratorResultProtocol?: CsharpIteratorResultProtocol;
   readonly csharpFlowRefinementRepresentation?: "identity";
   readonly csharpRuntimeUnionArms?: readonly TargetTypeRef[];
+  readonly csharpSourceUnionIdentity?: string;
   readonly csharpRuntimeUnionObjectShapes?: readonly (CsharpObjectShapeFact | undefined)[];
   readonly csharpJsSurfaceKind?:
     | "map"

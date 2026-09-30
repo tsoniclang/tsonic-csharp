@@ -6,7 +6,7 @@ import type {
 } from "../../../target-model/types/model.js";
 import {
   substituteTargetTypeParameters,
-} from "./substitution.js";
+} from "../../../target-model/types/substitution.js";
 
 export function csharpTargetBindingSubstitutions(
   binding: CsharpTargetBindingFact,

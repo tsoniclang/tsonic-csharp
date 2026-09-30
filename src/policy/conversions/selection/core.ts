@@ -26,7 +26,7 @@ import { getCsharpGenericMethodValue, csharpGenericMethodValueContractsEqual } f
 export function selectCsharpConversion(
   input: Pick<
     CsharpPolicyContext,
-    "projectTypes" | "providers" | "target"
+    "typeDefinitions" | "projectTypes" | "providers" | "target"
   > & Pick<Partial<CsharpPolicyContext>, "objectShapes">,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
@@ -45,9 +45,9 @@ export function selectCsharpConversion(
   if (isCsharpNeverTargetType(source) && !isCsharpVoidTargetType(target)) {
     return { kind: "never" };
   }
-  const arrayElement = csharpArrayLikeElement(source);
+  const arrayElement = csharpArrayLikeElement(source, input.typeDefinitions);
   if (arrayElement !== undefined && targetTypeRefEquals(target, csharpArrayLikeTargetType(arrayElement))) {
-    const arms = getCsharpRuntimeUnionArms(source);
+    const arms = getCsharpRuntimeUnionArms(source, input.typeDefinitions);
     return arms === undefined ? { kind: "implicit", proof: "collection-interface" }
       : { kind: "array-like-union", arms };
   }
@@ -56,6 +56,7 @@ export function selectCsharpConversion(
   const jsValueConversion = selectJsValueConversion(
     source,
     target,
+    input.typeDefinitions,
   );
   if (jsValueConversion !== undefined) {
     return jsValueConversion;
@@ -151,7 +152,7 @@ export function selectCsharpConversion(
 function selectTupleConversion(
   input: Pick<
     CsharpPolicyContext,
-    "projectTypes" | "providers" | "target"
+    "typeDefinitions" | "projectTypes" | "providers" | "target"
   >,
   source: TargetTypeRef,
   target: TargetTypeRef,

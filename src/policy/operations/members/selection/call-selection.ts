@@ -61,6 +61,7 @@ export interface CsharpProviderCallSelectionHost
   extends CsharpProviderOperationHost,
     CsharpProviderCallInstantiationHost {
   readonly navigation: SourceProgramNavigation;
+  readonly typeDefinitions?: import("../../../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
 }
 
 export function selectCsharpProviderCall(

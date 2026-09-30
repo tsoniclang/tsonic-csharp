@@ -20,6 +20,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 import { createCsharpSourceUnionIndex, type CsharpSourceUnionIndex } from "./source-unions.js";
+import { createCsharpSourceUnionDefinitions } from "./union-definitions.js";
 import { createCsharpFixedArrayTypeQuery } from "./source-markers.js";
 
 import {
@@ -123,6 +124,7 @@ export interface CsharpTypeResolutionScope {
   ): CsharpPointerReturnContract | undefined;
   readonly host: CsharpTypePolicyHost;
   readonly sourceUnions: CsharpSourceUnionIndex;
+  readonly sourceUnionDefinitions: ReturnType<typeof createCsharpSourceUnionDefinitions>;
   readonly activeNodes: WeakSet<Node>;
   readonly policy: CsharpTypePolicy;
   readonly createCsharpTypePolicy: typeof createCsharpTypePolicy;
@@ -579,7 +581,8 @@ export function createCsharpTypeResolutionServices(
         if (!host.ast.is.IsTypeReferenceNode(node) && !host.ast.is.IsUnionTypeNode(node) && !host.ast.is.IsTypeLiteralNode(node)) return undefined;
         const queries = sourceFile === undefined ? host.semanticsFor(node) : host.semantics(sourceFile);
         const type = queries.types.authoredType(node);
-        return type === undefined ? undefined : host.structuralTypes.resolveReference(type);
+        return type === undefined ? undefined
+          : scope.sourceUnionDefinitions.reference(type) ?? host.structuralTypes.resolveReference(type);
       }
       scope.activeNodes.add(node);
       try {
@@ -667,7 +670,7 @@ export function createCsharpTypeResolutionServices(
       if (type === undefined) {
         return undefined;
       }
-      const reference = host.structuralTypes.resolveReference(type);
+      const reference = scope.sourceUnionDefinitions.reference(type) ?? host.structuralTypes.resolveReference(type);
       if (reference !== undefined) return reference;
       if (activeTypes.has(type)) return undefined;
       activeTypes.add(type);
@@ -730,7 +733,8 @@ export function createCsharpTypeResolutionServices(
   } satisfies CsharpTypePolicy);
   scope = Object.freeze({
     host,
-    sourceUnions: createCsharpSourceUnionIndex(),
+    sourceUnions: createCsharpSourceUnionIndex(host.typeDefinitions),
+    sourceUnionDefinitions: createCsharpSourceUnionDefinitions(host, methods.resolveTypeWithState),
     activeNodes: new WeakSet<Node>(),
     policy,
     createCsharpTypePolicy,

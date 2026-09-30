@@ -14,7 +14,7 @@ export function planCsharpRuntimeCategory(
   input: CsharpPlanningContext,
   state: DestructuringPlannerState,
 ): CsharpExpression | undefined {
-  const expected = getCsharpTypeofResult(carrier);
+  const expected = getCsharpTypeofResult(carrier, undefined, input.program.typeDefinitions);
   if (expected === undefined || !csharpTypeofResultsEqual(expected, category)) return undefined;
   return planRuntimeCategory(expression, category, input, state);
 }

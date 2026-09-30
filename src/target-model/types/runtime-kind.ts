@@ -3,6 +3,7 @@ import { getCsharpNullableElementTargetType } from "./nullable.js";
 import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "./runtime-carriers.js";
 import { getCsharpDelegateSignature } from "./delegates.js";
 import { targetTypeRefEquals } from "./equality.js";
+import type { CsharpTypeDefinitions } from "./source-union-definitions.js";
 
 export type CsharpTypeofResult = CsharpTypeofRuntimeKind
   | { readonly kind: "optional"; readonly sourceCarrier: TargetTypeRef; readonly element: TargetTypeRef; readonly value: CsharpTypeofResult }
@@ -12,6 +13,7 @@ export type CsharpTypeofResult = CsharpTypeofRuntimeKind
 export function getCsharpTypeofResult(
   type: TargetTypeRef | undefined,
   active: ReadonlySet<TargetTypeRef> = new Set(),
+  definitions?: CsharpTypeDefinitions,
 ): CsharpTypeofResult | undefined {
   if (type === undefined || active.has(type)) return undefined;
   const literal = getCsharpTypeofRuntimeKind(type);
@@ -19,11 +21,11 @@ export function getCsharpTypeofResult(
   const nested = new Set(active).add(type);
   const optional = getCsharpNullableElementTargetType(type);
   if (optional !== undefined) {
-    const value = getCsharpTypeofResult(optional, nested);
+    const value = getCsharpTypeofResult(optional, nested, definitions);
     return value === undefined ? undefined : { kind: "optional", sourceCarrier: type, element: optional, value };
   }
-  const arms = getCsharpRuntimeUnionArms(type)?.map(carrier => {
-    const result = getCsharpTypeofResult(carrier, nested);
+  const arms = getCsharpRuntimeUnionArms(type, definitions)?.map(carrier => {
+    const result = getCsharpTypeofResult(carrier, nested, definitions);
     return result === undefined ? undefined : { carrier, result };
   });
   return arms === undefined || arms.some(arm => arm === undefined) ? undefined

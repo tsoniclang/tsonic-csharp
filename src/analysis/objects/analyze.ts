@@ -21,7 +21,7 @@ import { mergeCsharpObjectShapeSubjects } from "../../policy/types/objects/objec
 import { getCsharpNullableElementTargetType } from "../../target-model/types/nullable.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import type { CsharpStructuralInterfaceImplementation } from "../../target-model/types/model.js";
-import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../policy/types/callables/substitution.js";
+import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 
 const noExpectedShape = "<none>";
 const maximumObjectShapeClassifications = 131_072;
@@ -138,14 +138,14 @@ export function analyzeCsharpObjectShapes(
   >();
   const literalUnionShapes = new WeakMap<Node, ReadonlyMap<string, CsharpObjectShapeFact>>();
   const unionTypes = evidence.targetTypes.filter(type =>
-    getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(type) ?? type) !== undefined);
+    getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(type) ?? type, policy.typeDefinitions) !== undefined);
   for (const [literal, sourceFile] of objectLiterals) {
     const unionShapes = new Map<string, CsharpObjectShapeFact>();
     const elements = policy.ast.properties(literal).map(element => element === undefined
       ? undefined : policy.semantics(sourceFile).operations.objectLiteralElement(element));
     for (const type of unionTypes) {
       reserveClassification();
-      const shape = selectCsharpObjectLiteralUnionShape(type, elements, policy.objectShapes.resolveTarget);
+      const shape = selectCsharpObjectLiteralUnionShape(type, elements, policy.objectShapes.resolveTarget, policy.typeDefinitions);
       if (shape !== undefined) {
         unionShapes.set(targetTypeRefKey(type), shape);
         rememberShape(shape);

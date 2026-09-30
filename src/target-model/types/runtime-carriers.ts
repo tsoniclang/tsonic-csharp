@@ -22,6 +22,7 @@ import {
 } from "./nullable.js";
 import { csharpOptionalStorageProjection, getCsharpGenericOptionalParts } from "./projections.js";
 import { isCsharpVoidTargetType } from "./identity.js";
+import { emptyCsharpTypeDefinitions, type CsharpTypeDefinitions } from "./source-union-definitions.js";
 
 export function csharpAnyTargetType(): CsharpTargetNamedTypeRef {
   return csharpTsValueTargetType();
@@ -221,12 +222,14 @@ export function isCsharpRuntimeUnionTargetType(type: TargetTypeRef | undefined):
     arms.length <= 8;
 }
 
-export function getCsharpRuntimeUnionArms(type: TargetTypeRef | undefined): readonly TargetTypeRef[] | undefined {
+export function getCsharpRuntimeUnionArms(
+  type: TargetTypeRef | undefined, definitions: CsharpTypeDefinitions = emptyCsharpTypeDefinitions,
+): readonly TargetTypeRef[] | undefined {
   const optional = getCsharpGenericOptionalParts(type);
   if (optional !== undefined) return [csharpAbsenceTargetType(), optional.element];
   return isCsharpRuntimeUnionTargetType(type)
     ? type.csharpRuntimeUnionArms
-    : undefined;
+    : type === undefined ? undefined : definitions.sourceUnionArms(type);
 }
 
 export { getCsharpGenericOptionalParts } from "./projections.js";

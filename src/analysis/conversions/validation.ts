@@ -5,7 +5,7 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 export function csharpRuntimeUnionProjectionMatches(
-  policy: Pick<CsharpPolicyContext, "projectTypes" | "providers">,
+  policy: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">,
   source: TargetTypeRef | undefined, target: TargetTypeRef | undefined,
   selection: Extract<CsharpConversionSelection, { readonly kind: "runtime-union-projection" }>,
 ): boolean {

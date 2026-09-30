@@ -248,7 +248,7 @@ export function applyCsharpConversionSelection(
       };
     }
     case "runtime-union-reference": {
-      const arms = getCsharpRuntimeUnionArms(sourceType);
+      const arms = getCsharpRuntimeUnionArms(sourceType, input.program.typeDefinitions);
       if (targetType === undefined || arms === undefined || arms.length !== selection.arms.length ||
         !arms.every((arm, index) => {
           const selected = selection.arms[index];
@@ -499,7 +499,7 @@ function applyRuntimeUnionArmConversion(
   expression: CsharpExpression,
 ): CsharpExpression | undefined {
   const unionType = getCsharpNullableElementTargetType(targetType) ?? targetType;
-  const arms = getCsharpRuntimeUnionArms(unionType);
+  const arms = getCsharpRuntimeUnionArms(unionType, input.program.typeDefinitions);
   const selectedArm = arms?.[selection.armIndex];
   const optional = getCsharpGenericOptionalParts(targetType);
   const declaringType = unionType === undefined

@@ -7,11 +7,11 @@ import type {
   CsharpTargetBinaryExecutionDriver,
 } from "../../target-model/types/model.js";
 import {
-  freezeContributionValue,
   hasExactContributionFields,
   isContributionRecord,
   nonEmptyContributionString,
 } from "./contribution-values.js";
+import { snapshotCsharpMetadata } from "../../target-model/metadata/immutable.js";
 import {
   canonicalProviderValue,
 } from "./canonical-value.js";
@@ -64,7 +64,7 @@ export function csharpProviderPolicyContribution(
   rejections: readonly CsharpProviderTargetRejection[],
   binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver,
 ): CsharpProviderPolicyContribution {
-  return freezeContributionValue({
+  return snapshotCsharpMetadata({
     kind: csharpProviderPolicyContributionKind,
     providerId,
     providerVersion,
@@ -100,7 +100,7 @@ export function validateCsharpProviderPolicyContribution(
       `C# target capability '${capabilityId}' supplied an invalid '${csharpProviderPolicyContributionKind}' contribution.`,
     );
   }
-  const snapshot = freezeContributionValue(contribution) as unknown as
+  const snapshot = snapshotCsharpMetadata(contribution) as unknown as
     CsharpProviderPolicyContribution;
   for (const relation of snapshot.relations) {
     validateCsharpProviderRelation(

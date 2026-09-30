@@ -8,7 +8,7 @@ import type {
 } from "../../../target-model/types/model.js";
 import {
   substituteTargetTypeParameters,
-} from "../callables/substitution.js";
+} from "../../../target-model/types/substitution.js";
 import {
   csharpTargetNamedType,
 } from "../../../target-model/types/factories.js";

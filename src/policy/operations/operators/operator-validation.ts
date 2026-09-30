@@ -187,8 +187,8 @@ function supportsIntrinsicEquality(
     return true;
   }
   if (
-    runtimeUnionSupportsArmEquality(left, right) ||
-    runtimeUnionSupportsArmEquality(right, left)
+    runtimeUnionSupportsArmEquality(left, right, input) ||
+    runtimeUnionSupportsArmEquality(right, left, input)
   ) {
     return true;
   }
@@ -214,8 +214,9 @@ function supportsIntrinsicEquality(
 function runtimeUnionSupportsArmEquality(
   union: TargetTypeRef,
   arm: TargetTypeRef,
+  input: CsharpPolicyContext,
 ): boolean {
-  return getCsharpRuntimeUnionArms(union)?.some((candidate) =>
+  return getCsharpRuntimeUnionArms(union, input.typeDefinitions)?.some((candidate) =>
     targetTypeRefEquals(candidate, arm)
   ) === true;
 }

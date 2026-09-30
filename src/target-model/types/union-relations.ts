@@ -1,6 +1,7 @@
 import type { TargetTypeRef } from "./model.js";
 import { targetTypeRefEquals } from "./equality.js";
 import { getCsharpRuntimeUnionArms } from "./runtime-carriers.js";
+import type { CsharpTypeDefinitions } from "./source-union-definitions.js";
 
 export interface CsharpUnionPathStep {
   readonly union: TargetTypeRef;
@@ -13,12 +14,12 @@ export interface CsharpUnionArmMapping {
   readonly target: readonly CsharpUnionPathStep[];
 }
 
-export function csharpUnionLeaves(carrier: TargetTypeRef):
+export function csharpUnionLeaves(carrier: TargetTypeRef, definitions?: CsharpTypeDefinitions):
   readonly { readonly carrier: TargetTypeRef; readonly path: readonly CsharpUnionPathStep[] }[] | undefined {
   const leaves: { readonly carrier: TargetTypeRef; readonly path: readonly CsharpUnionPathStep[] }[] = [];
   const visit = (current: TargetTypeRef, path: readonly CsharpUnionPathStep[]): boolean => {
     if (path.some(step => targetTypeRefEquals(step.union, current))) return false;
-    const alternatives = getCsharpRuntimeUnionArms(current);
+    const alternatives = getCsharpRuntimeUnionArms(current, definitions);
     if (alternatives === undefined) {
       if (path.length === 0) return false;
       leaves.push(Object.freeze({ carrier: current, path }));
@@ -34,10 +35,11 @@ export function selectCsharpUnionArmMapping(
   source: TargetTypeRef,
   target: TargetTypeRef,
   coverage: "source" | "target",
+  definitions?: CsharpTypeDefinitions,
 ): readonly CsharpUnionArmMapping[] | undefined {
   if (coverage !== "source" && coverage !== "target") return undefined;
-  const sourceArms = csharpUnionLeaves(source);
-  const targetArms = csharpUnionLeaves(target);
+  const sourceArms = csharpUnionLeaves(source, definitions);
+  const targetArms = csharpUnionLeaves(target, definitions);
   if (sourceArms === undefined || targetArms === undefined) return undefined;
   const mappings: CsharpUnionArmMapping[] = [];
   const selectedTargets = new Set<readonly CsharpUnionPathStep[]>();
@@ -72,7 +74,8 @@ export function csharpUnionArmMappingsMatch(
   target: TargetTypeRef,
   coverage: "source" | "target",
   mappings: readonly CsharpUnionArmMapping[],
+  definitions?: CsharpTypeDefinitions,
 ): boolean {
-  const contract = selectCsharpUnionArmMapping(source, target, coverage);
+  const contract = selectCsharpUnionArmMapping(source, target, coverage, definitions);
   return contract !== undefined && Array.isArray(mappings) && csharpUnionArmMappingsEqual(contract, mappings);
 }

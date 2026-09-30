@@ -55,7 +55,6 @@ import {
   csharpAbsenceTargetType,
   getCsharpRuntimeUnionArms,
   getCsharpDelegateSignature,
-  getCsharpArrayLiteralInputCarrierTargetType,
   targetTypeRefEquals,
 } from "../../../target-model/types/index.js";
 import {
@@ -210,7 +209,6 @@ export function planExpressionWithExpectedTypeCore(
       input,
       diagnostics,
       expectedType,
-      expectedTypeSubject,
       effectiveExpectedTargetType,
       planners.planExpression,
       planners.planExpressionWithExpectedType,
@@ -256,11 +254,7 @@ export function planExpressionWithExpectedTypeCore(
     HasSourceKind(input.program.source.ast, node, KindArrayLiteralExpression) &&
     effectiveExpectedTargetType !== undefined
   ) {
-    const sourceCarrier = getCsharpArrayLiteralInputCarrierTargetType(
-      effectiveExpectedTargetType,
-      getTargetTypeRefForNode(input, node, sourceFile) ??
-        input.types.classifications.resolveNode(node, sourceFile),
-    );
+    const sourceCarrier = input.program.expectedTypes.arrayLiteralCarrier(node, effectiveExpectedTargetType);
     const conversion = readCsharpConversionClassification(
       node,
       input,
@@ -282,7 +276,10 @@ export function planExpressionWithExpectedTypeCore(
           sourceCarrier,
           effectiveExpectedTargetType,
           conversion,
-          planArrayLiteralExpressionWithCarrier(
+          sourceCarrier?.kind === "tuple" ? planTupleLiteralExpression(
+            node, sourceFile, input, diagnostics, planners,
+            csharpTypeFromTargetTypeRef(sourceCarrier, input.scope.typeParameterNames), sourceCarrier,
+          ) : planArrayLiteralExpressionWithCarrier(
             node,
             sourceFile,
             input,
@@ -293,29 +290,12 @@ export function planExpressionWithExpectedTypeCore(
         ),
       );
     }
+    return undefined;
   }
   if (HasSourceKind(input.program.source.ast, node, KindArrayLiteralExpression) && expectedType.kind === "ArrayType") {
     return expectedRepresentation(
       planArrayLiteralExpression(node, sourceFile, input, diagnostics, expectedType.elementType, planners, expectedTargetType?.kind === "array" ? expectedTargetType.element : undefined),
     );
-  }
-  if (HasSourceKind(input.program.source.ast, node, KindArrayLiteralExpression) && expectedTargetType !== undefined && expectedTargetType.kind !== "array" && expectedTargetType.kind !== "tuple") {
-    return expectedRepresentation(
-      planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, expectedTargetType, planners),
-    );
-  }
-  if (HasSourceKind(input.program.source.ast, node, KindArrayLiteralExpression) && expectedTargetType?.kind === "array") {
-    return expectedRepresentation(
-      planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, expectedTargetType, planners),
-    );
-  }
-  if (HasSourceKind(input.program.source.ast, node, KindArrayLiteralExpression) && expectedTypeSubject !== undefined) {
-    const expectedCarrier = getTargetTypeRefForNode(input, expectedTypeSubject, sourceFile);
-    if (expectedCarrier !== undefined && expectedCarrier.kind !== "array" && expectedCarrier.kind !== "tuple") {
-      return expectedRepresentation(
-        planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, expectedCarrier, planners),
-      );
-    }
   }
   if (HasSourceKind(input.program.source.ast, node, KindConditionalExpression)) {
     const expression = AsConditionalExpression(input.program.source.ast, node)!;
@@ -377,7 +357,7 @@ function planExpectedRuntimeNullishLiteral(
   }
   const absence = csharpAbsenceTargetType();
   if (
-    targetAcceptsRuntimeCarrier(effectiveExpectedTargetType, absence) &&
+    targetAcceptsRuntimeCarrier(effectiveExpectedTargetType, absence, input) &&
     (HasSourceKind(input.program.source.ast, node, KindNullKeyword) || isGlobalUndefinedLiteral(node, sourceFile, input))
   ) {
     return { kind: "LiteralExpression", value: null };
@@ -385,9 +365,9 @@ function planExpectedRuntimeNullishLiteral(
   return undefined;
 }
 
-function targetAcceptsRuntimeCarrier(expectedTargetType: TargetTypeRef, carrier: TargetTypeRef): boolean {
+function targetAcceptsRuntimeCarrier(expectedTargetType: TargetTypeRef, carrier: TargetTypeRef, input: CsharpPlanningContext): boolean {
   return targetTypeRefEquals(expectedTargetType, carrier) ||
-    (getCsharpRuntimeUnionArms(expectedTargetType)?.some((arm) => targetTypeRefEquals(arm, carrier)) === true);
+    (getCsharpRuntimeUnionArms(expectedTargetType, input.program.typeDefinitions)?.some((arm) => targetTypeRefEquals(arm, carrier)) === true);
 }
 
 function isGlobalUndefinedLiteral(

@@ -65,7 +65,7 @@ export type {
   CsharpProviderValueSourceIdentity,
   CsharpTargetReceiverRelation,
 } from "../providers/relations/index.js";
-export { substituteTargetTypeParameters } from "../policy/types/callables/substitution.js";
+export { substituteTargetTypeParameters } from "../target-model/types/substitution.js";
 export { csharpApplyExternAliasToTargetBinding } from "../policy/types/project/extern-aliases.js";
 export { csharpProviderVersion } from "../target-model/identities/source.js";
 export { createCsharpProviderPackage } from "../providers/packages/package.js";

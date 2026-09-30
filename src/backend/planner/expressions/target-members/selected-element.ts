@@ -190,6 +190,7 @@ function translateProjectIndexerElement(
     input,
     diagnostics,
     planExpression,
+    input.program.operations.element(node)?.receiverProjection,
   );
   const argument = planCallArgument(
     selection.source.argument.expression,
@@ -272,6 +273,7 @@ function translateSelectedElement(
     input,
     diagnostics,
     planExpression,
+    input.program.operations.element(node)?.receiverProjection,
   );
   const argument = planCallArgument(
     selection.source.argument.expression,
@@ -393,6 +395,7 @@ function translateSourceOwnedElement(
       input,
       diagnostics,
       planExpression,
+      input.program.operations.element(node)?.receiverProjection,
     );
     return receiver === undefined
       ? undefined
@@ -436,6 +439,7 @@ function translateSourceOwnedElement(
     input,
     diagnostics,
     planExpression,
+    input.program.operations.element(node)?.receiverProjection,
   );
   const argument = planExpression(
     selection.source.argument.expression,

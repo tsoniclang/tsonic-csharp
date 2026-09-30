@@ -23,10 +23,24 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type {
   CsharpElementClassification,
   CsharpPropertyClassification,
+  CsharpMemberReceiverProjection,
 } from "./model.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { classifyCsharpBoundFieldWrite } from "./bound-field-writes.js";
 import { getCsharpGenericMethodValue } from "../../target-model/types/generic-method-values.js";
+import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+
+export function classifyCsharpMemberReceiver(
+  policy: CsharpPolicyContext,
+  source: Pick<ResolvedSourceElementAccessInfo, "receiver" | "optionalChain">,
+  sourceFile: SourceFile,
+): CsharpMemberReceiverProjection | undefined {
+  const raw = policy.types.resolveNode(source.receiver.expression, sourceFile);
+  const selected = policy.types.resolveSelectedValue(source.receiver.expression, source.receiver.type, sourceFile);
+  const target = optionalResultType(selected, source.optionalChain);
+  if (raw === undefined || target === undefined || targetTypeRefEquals(raw, target)) return undefined;
+  return Object.freeze({ source: raw, target, conversion: selectCsharpFlowReadConversion(policy, raw, target) });
+}
 
 export function elementSelectedTypes(
   policy: CsharpPolicyContext,
@@ -106,6 +120,7 @@ export function classifySourceOwnedProperty(
     policy.objectShapes,
     selectedReceiverType,
     selectedSubjects,
+    policy.typeDefinitions,
   );
   const jsValueProperty = resolveCsharpJsValueObjectShapeProperty(
     objectShape,

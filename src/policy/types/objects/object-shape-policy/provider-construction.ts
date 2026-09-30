@@ -15,7 +15,7 @@ import {
 } from "../../storage/bindings.js";
 import {
   substituteTargetTypeParameters,
-} from "../../callables/substitution.js";
+} from "../../../../target-model/types/substitution.js";
 import type {
   CsharpRecursiveTypeResolver,
   CsharpTypePolicyBaseHost,

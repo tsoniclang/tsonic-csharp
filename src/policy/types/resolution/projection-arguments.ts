@@ -2,7 +2,7 @@ import type { Node, Type } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpProjectedType } from "../../../target-model/types/projections.js";
 import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
-import { substituteTargetTypeParameters } from "../callables/substitution.js";
+import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { csharpBoundSourceType, csharpSourceBindings } from "./type-bindings.js";

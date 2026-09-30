@@ -29,6 +29,7 @@ import { selectCsharpUnionArmMapping } from "../../../target-model/types/union-r
 export function selectJsValueConversion(
   source: TargetTypeRef,
   target: TargetTypeRef,
+  definitions?: import("../../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions,
 ): CsharpConversionSelection | undefined {
   const sourceJsValue = isCsharpJsValueTargetType(source);
   const targetJsValue = isCsharpJsValueTargetType(target);
@@ -43,27 +44,27 @@ export function selectJsValueConversion(
   }
   return {
     kind: "js-value-cast",
-    ...(getCsharpRuntimeUnionArms(target) === undefined
+    ...(getCsharpRuntimeUnionArms(target, definitions) === undefined
       ? {}
-      : { runtimeUnionArms: getCsharpRuntimeUnionArms(target) }),
+      : { runtimeUnionArms: getCsharpRuntimeUnionArms(target, definitions) }),
   };
 }
 
 export function selectRuntimeUnionConversion(
-  input: Pick<CsharpPolicyContext, "projectTypes" | "providers">,
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">,
   source: TargetTypeRef,
   target: TargetTypeRef,
   mode: CsharpConversionMode,
 ): CsharpConversionSelection | undefined {
   const sourceElement = getCsharpNullableElementTargetType(source);
-  if (mode === "explicit" && sourceElement !== undefined && getCsharpRuntimeUnionArms(sourceElement) !== undefined &&
-    getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(target) ?? target) === undefined) {
+  if (mode === "explicit" && sourceElement !== undefined && getCsharpRuntimeUnionArms(sourceElement, input.typeDefinitions) !== undefined &&
+    getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(target) ?? target, input.typeDefinitions) === undefined) {
     return selectCsharpRuntimeUnionProjection(input, source, target);
   }
-  const sourceArms = getCsharpRuntimeUnionArms(source);
-  const widening = selectCsharpUnionArmMapping(source, target, "source");
+  const sourceArms = getCsharpRuntimeUnionArms(source, input.typeDefinitions);
+  const widening = selectCsharpUnionArmMapping(source, target, "source", input.typeDefinitions);
   if (widening !== undefined) return { kind: "union-map", coverage: "source", arms: widening };
-  const narrowing = mode === "explicit" ? selectCsharpUnionArmMapping(source, target, "target") : undefined;
+  const narrowing = mode === "explicit" ? selectCsharpUnionArmMapping(source, target, "target", input.typeDefinitions) : undefined;
   if (narrowing !== undefined) return { kind: "union-map", coverage: "target", arms: narrowing };
   const referenceTarget = getCsharpNullableElementTargetType(target) ?? target;
   if (sourceArms !== undefined && referenceTarget.kind === "target-named" &&
@@ -78,7 +79,7 @@ export function selectRuntimeUnionConversion(
   if (sourceArms !== undefined && mode === "explicit") {
     return selectCsharpRuntimeUnionProjection(input, source, target);
   }
-  const targetArms = getCsharpRuntimeUnionArms(target);
+  const targetArms = getCsharpRuntimeUnionArms(target, input.typeDefinitions);
   if (targetArms === undefined) {
     return undefined;
   }
@@ -109,7 +110,7 @@ export function selectRuntimeUnionConversion(
 }
 
 export function selectCsharpRuntimeUnionProjection(
-  input: Pick<CsharpPolicyContext, "projectTypes" | "providers">,
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">,
   source: TargetTypeRef, target: TargetTypeRef,
 ): CsharpConversionSelection {
   const sourceElement = getCsharpNullableElementTargetType(source);
@@ -118,7 +119,7 @@ export function selectCsharpRuntimeUnionProjection(
     kind: "rejected", reason: "A union payload cannot retain absence that its source does not carry.",
   };
   const selected = targetElement ?? target;
-  const arms = getCsharpRuntimeUnionArms(sourceElement ?? source) ?? [];
+  const arms = getCsharpRuntimeUnionArms(sourceElement ?? source, input.typeDefinitions) ?? [];
   const exact = arms.flatMap((armType, armIndex) => targetTypeRefEquals(armType, selected) ? [{ armIndex, armType }] : []);
   const related = exact.length > 0 ? exact : arms.flatMap((armType, armIndex) =>
     selected.kind === "target-named" && armType.kind === "target-named" &&
@@ -134,7 +135,7 @@ export function selectCsharpRuntimeUnionProjection(
 export function selectNullableConversion(
   input: Pick<
     CsharpPolicyContext,
-    "projectTypes" | "providers" | "target"
+    "typeDefinitions" | "projectTypes" | "providers" | "target"
   >,
   source: TargetTypeRef,
   target: TargetTypeRef,
@@ -200,7 +201,7 @@ export function selectNullableConversion(
 export function selectDelegateConversion(
   input: Pick<
     CsharpPolicyContext,
-    "projectTypes" | "providers" | "target"
+    "typeDefinitions" | "projectTypes" | "providers" | "target"
   >,
   source: TargetTypeRef,
   target: TargetTypeRef,
@@ -271,7 +272,7 @@ function numberListsEqual(
 }
 
 export function namedTargetTypesAreRelated(
-  input: Pick<CsharpPolicyContext, "projectTypes" | "providers">,
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">,
   source: TargetTypeRef,
   target: TargetTypeRef,
 ): boolean {
@@ -280,7 +281,7 @@ export function namedTargetTypesAreRelated(
 }
 
 export function namedTargetTypeImplicitlyAccepts(
-  input: Pick<CsharpPolicyContext, "projectTypes" | "providers">,
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">,
   source: TargetTypeRef,
   target: TargetTypeRef,
   visited: Set<string>,
@@ -361,7 +362,7 @@ export function namedTargetTypeImplicitlyAccepts(
 }
 
 function constructedNamedTargetTypeImplicitlyAccepts(
-  input: Pick<CsharpPolicyContext, "projectTypes" | "providers">,
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">,
   source: CsharpTargetNamedTypeRef,
   target: CsharpTargetNamedTypeRef,
   visited: Set<string>,
@@ -392,7 +393,7 @@ function constructedNamedTargetTypeImplicitlyAccepts(
 }
 
 function typeArgumentImplicitlyAccepts(
-  input: Pick<CsharpPolicyContext, "projectTypes" | "providers">,
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">,
   source: TargetTypeRef,
   target: TargetTypeRef,
   parameter: TargetTypeParameter | undefined,

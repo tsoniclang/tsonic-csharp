@@ -152,6 +152,7 @@ function translateSelectedProperty(
       input,
       diagnostics,
       planExpression,
+      input.program.operations.property(node)?.receiverProjection,
     );
     if (receiver === undefined) {
       return undefined;
@@ -193,6 +194,7 @@ function translateSelectedProperty(
         input,
         diagnostics,
         planExpression,
+        input.program.operations.property(node)?.receiverProjection,
       );
   if (receiver === undefined) {
     return undefined;
@@ -339,6 +341,7 @@ function translateSourceOwnedProperty(
     input,
     diagnostics,
     planExpression,
+    input.program.operations.property(node)?.receiverProjection,
   );
   if (receiver === undefined) {
     return undefined;
@@ -449,6 +452,7 @@ function translateRuntimeUnionObjectShapeProperty(
     input,
     diagnostics,
     planExpression,
+    input.program.operations.property(node)?.receiverProjection,
   );
   if (receiver === undefined) {
     return undefined;

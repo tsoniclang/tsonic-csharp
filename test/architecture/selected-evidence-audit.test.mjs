@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
+import { maskNonCode } from "./source-code-mask.mjs";
 import {
   buildSelectedEvidenceAuditRows,
   collectSelectedEvidenceFindings,
@@ -65,11 +66,24 @@ test("semantic product code contains no forbidden reconstruction mechanism", () 
   const forbiddenRuleIds = new Set(
     selectedEvidenceForbiddenRules.map((rule) => rule.id),
   );
-  const violations = collectSelectedEvidenceFindings(repoRoot)
-    .filter((finding) => forbiddenRuleIds.has(finding.ruleId))
+  const findings = collectSelectedEvidenceFindings(repoRoot).filter((finding) => forbiddenRuleIds.has(finding.ruleId));
+  const metadata = findings.filter(finding => finding.file === "src/target-model/metadata/immutable.ts" && finding.ruleId === "raw-ownKeys");
+  assert.equal(metadata.length, 1);
+  assert.match(metadata[0].snippet, /Reflect\.ownKeys\(descriptors\)/u);
+  const violations = findings
+    .filter(finding => !metadata.includes(finding))
     .map((finding) =>
       `${finding.file}:${finding.line}: ${finding.ruleId}: ${finding.snippet}`);
   assert.deepEqual(violations, []);
+});
+
+test("metadata validation stays independent of compiler subjects and semantic reconstruction", () => {
+  const metadata = readFileSync(join(repoRoot, "src/target-model/metadata/immutable.ts"), "utf8");
+  assert.doesNotMatch(maskNonCode(metadata), /\bimport\b|\b(?:node|subject|symbol|signature|checker|semantics|sourceType)\b/u);
+  const probe = 'const result = Reflect.ownKeys(node);';
+  for (const file of ["src/analysis/project-types/type-definitions.ts", "src/target-model/types/snapshot.ts", "src/policy/example.ts"]) {
+    assert.deepEqual(collectSelectedEvidenceFindingsForSource(file, probe).map(finding => finding.ruleId), ["raw-ownKeys"]);
+  }
 });
 
 test("semantic product paths do not catch checker failures and continue", () => {
@@ -166,6 +180,7 @@ test("generic method type arguments come only from shared selected call evidence
     ["src/policy/operations/members/instantiation/instantiation.ts", 4],
     ["src/policy/operations/source-profiles/js/array-construction.ts", 1],
     ["src/policy/operations/source-profiles/js/arrays.ts", 4],
+    ["src/policy/operations/source-profiles/js/promises.ts", 2],
     ["src/policy/operations/source-profiles/js/regexp-protocol.ts", 1],
     ["src/policy/types/resolution/calls.ts", 2],
     ["src/policy/types/resolution/expressions.ts", 1],

@@ -26,6 +26,7 @@ export function createCsharpAnalysisPolicyContext(
     target: input.target,
     providers,
     types: typeSystem.analysisTypes,
+    typeDefinitions: typeSystem.typeDefinitions,
     objectShapes: typeSystem.objectShapes,
     projectTypes: typeSystem.projectTypes,
     sourceIdentities,

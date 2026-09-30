@@ -33,7 +33,7 @@ import {
   substituteTargetTypeParameters,
   inferCsharpTargetTypeParameterBindings,
   substituteObjectShapeFactTargetTypeParameters,
-} from "../../callables/substitution.js";
+} from "../../../../target-model/types/substitution.js";
 import {
   isCsharpJsValueTargetType,
 } from "../../../../target-model/types/runtime-carriers.js";

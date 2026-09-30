@@ -3,6 +3,7 @@ export type { CsharpSwitchSelection } from "../../policy/operations/control-flow
 export type { CsharpTypedArrayMutation, CsharpTypedArrayUpdate } from "../../policy/operations/collections/typed-array-mutations.js";
 export type {
   CsharpCallClassification,
+  CsharpMemberReceiverProjection,
   CsharpBinaryClassification,
   CsharpConstructionClassification,
   CsharpElementClassification,

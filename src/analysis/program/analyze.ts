@@ -9,6 +9,7 @@ import { csharpCallableValueType } from "../callables/value-type.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { analyzeCsharpNumericRepresentations } from "../numeric/representations.js";
 import { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
+import { createCsharpTypeDefinitionRegistry } from "../project-types/type-definitions.js";
 import { createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
 import {
   rejectedTargetStage,
@@ -289,6 +290,7 @@ export function analyzeCsharpTargetProgram(
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));
   const program: CsharpTargetProgram = Object.freeze({
+    typeDefinitions: analysis.typeDefinitions.seal(),
     callableAdapters,
     typeProjections: analysis.typeProjections,
     classFactories,
@@ -361,8 +363,9 @@ function analyzeIteration(
     },
   };
   const representations = Object.freeze(planningRepresentations);
+  const typeDefinitions = createCsharpTypeDefinitionRegistry();
   typeSystem = createCsharpTypeSystem(
-    typeHost,
+    { ...typeHost, typeDefinitions },
     createCsharpProjectTypeCatalog(typeHost, previous?.typeProjections),
     representations,
   );
@@ -424,6 +427,7 @@ function analyzeIteration(
   const storage = sealCsharpStorage(policy, sourceEvidence, operations, sealedObjectShapes, storageRepresentations);
   return Object.freeze({
     policy,
+    typeDefinitions,
     typeProjections,
     typeSystem,
     sourceEvidence,

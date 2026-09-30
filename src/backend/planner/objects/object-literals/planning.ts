@@ -57,7 +57,7 @@ export function planObjectLiteralExpressionWithExpectedType(
 ): CsharpExpression | undefined {
   const unionShape = expectedTargetType === undefined ? undefined
     : input.types.objectShapes.resolveObjectLiteralUnionShape(node, expectedTargetType);
-  if (getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(expectedTargetType) ?? expectedTargetType) !== undefined && unionShape === undefined) {
+  if (getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(expectedTargetType) ?? expectedTargetType, input.program.typeDefinitions) !== undefined && unionShape === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal requires one exact sealed union-arm construction contract."));
     return undefined;
   }

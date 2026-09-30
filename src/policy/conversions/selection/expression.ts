@@ -21,7 +21,7 @@ import { selectCsharpRuntimeUnionProjection } from "./carriers.js";
 export function selectCsharpExpressionConversion(
   input: Pick<
     CsharpPolicyContext,
-    "ast" | "projectTypes" | "providers" | "target"
+    "ast" | "typeDefinitions" | "projectTypes" | "providers" | "target"
   > & Pick<Partial<CsharpPolicyContext>, "objectShapes">,
   expression: Node,
   source: TargetTypeRef | undefined,
@@ -44,7 +44,7 @@ export function selectCsharpExpressionConversion(
   ) {
     return { kind: "implicit", proof: "object-shape-interface" };
   }
-  const runtimeUnionArms = getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(target) ?? target);
+  const runtimeUnionArms = getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(target) ?? target, input.typeDefinitions);
   if (runtimeUnionArms !== undefined) {
     const candidates = runtimeUnionArms.flatMap((armType, armIndex) => {
       const sourceToArm = selectCsharpExpressionConversion(
@@ -83,7 +83,7 @@ export function selectCsharpExpressionConversion(
 export function selectCsharpProviderArgumentConversion(
   input: Pick<
     CsharpPolicyContext,
-    "ast" | "projectTypes" | "providers" | "target"
+    "ast" | "typeDefinitions" | "projectTypes" | "providers" | "target"
   > & Pick<Partial<CsharpPolicyContext>, "objectShapes">,
   expression: Node,
   source: TargetTypeRef | undefined,
@@ -162,7 +162,7 @@ export function selectCsharpProviderArgumentConversion(
 export function selectCsharpFlowReadConversion(
   input: Pick<
     CsharpPolicyContext,
-    "projectTypes" | "providers" | "target"
+    "typeDefinitions" | "projectTypes" | "providers" | "target"
   >,
   storageType: TargetTypeRef,
   selectedReadType: TargetTypeRef,
@@ -174,11 +174,11 @@ export function selectCsharpFlowReadConversion(
       ? { kind: "implicit", proof: "nullable" }
       : { kind: "nullable-value", asserted: false };
   }
-  const runtimeUnionArms = getCsharpRuntimeUnionArms(nullableElement ?? storageType);
+  const runtimeUnionArms = getCsharpRuntimeUnionArms(nullableElement ?? storageType, input.typeDefinitions);
   if (runtimeUnionArms !== undefined) {
     const targetElement = getCsharpNullableElementTargetType(selectedReadType);
     const mapping = targetElement !== undefined && nullableElement === undefined ? undefined
-      : selectCsharpUnionArmMapping(nullableElement ?? storageType, targetElement ?? selectedReadType, "target");
+      : selectCsharpUnionArmMapping(nullableElement ?? storageType, targetElement ?? selectedReadType, "target", input.typeDefinitions);
     if (mapping !== undefined) return { kind: "union-map", coverage: "target", arms: mapping };
     return selectCsharpRuntimeUnionProjection(input, storageType, selectedReadType);
   }

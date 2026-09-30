@@ -4,6 +4,7 @@ import type { CsharpObjectShapeFact, CsharpRuntimeUnionTargetTypeRef, TargetType
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import { csharpAbsenceTargetType, csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms, getCsharpGenericOptionalParts } from "../../../target-model/types/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 
 export function sourceRefinementOnlyRemovesNullish(
   declaredType: Type,
@@ -40,6 +41,7 @@ export function selectCsharpAuthoredUnionRefinement(
   queries: SourceFileSemantics,
   resolveType: (type: Type) => TargetTypeRef | undefined,
   resolveShape: (type: TargetTypeRef) => CsharpObjectShapeFact | undefined,
+  definitions?: CsharpTypeDefinitions,
 ): { readonly kind: "not-applicable" } | { readonly kind: "rejected" } |
   { readonly kind: "resolved"; readonly type: TargetTypeRef } {
   const nullableElement = getCsharpNullableElementTargetType(authored);
@@ -48,9 +50,12 @@ export function selectCsharpAuthoredUnionRefinement(
   if ((nullableElement !== undefined || optional !== undefined) &&
     sourceRefinementOnlyRemovesNullish(declaredType, selectedType, queries)) {
     const type = nullableElement ?? optional?.element;
-    if (type !== undefined) return { kind: "resolved", type };
+    if (type !== undefined) {
+      const presentArms = getCsharpRuntimeUnionArms(type, definitions);
+      return { kind: "resolved", type: presentArms?.length === 1 ? presentArms[0]! : type };
+    }
   }
-  const arms = getCsharpRuntimeUnionArms(base);
+  const arms = getCsharpRuntimeUnionArms(base, definitions);
   if (arms === undefined) return { kind: "not-applicable" };
   const refinement = queries.types.refinement(declaredType, selectedType);
   const shapes = arms.map(resolveShape);

@@ -7,6 +7,7 @@ import {
   getCsharpRuntimeUnionArms,
 } from "../../types/index.js";
 import { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
+import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 export { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
 
 export type CsharpTypeofComparisonSelection =
@@ -33,6 +34,7 @@ export function selectCsharpTypeofComparison(
   operandType: TargetTypeRef | undefined,
   runtimeKind: CsharpTypeofRuntimeKind,
   negated: boolean,
+  definitions?: CsharpTypeDefinitions,
 ): CsharpTypeofComparisonSelection {
   if (operandType === undefined) {
     return rejected(
@@ -47,7 +49,7 @@ export function selectCsharpTypeofComparison(
     };
   }
   const nullableElement = getCsharpNullableElementTargetType(operandType);
-  if (nullableElement !== undefined && getCsharpRuntimeUnionArms(nullableElement) === undefined) {
+  if (nullableElement !== undefined && getCsharpRuntimeUnionArms(nullableElement, definitions) === undefined) {
     const valueRuntimeKind = getCsharpTypeofRuntimeKind(nullableElement);
     if (valueRuntimeKind === undefined) {
       return rejected(
@@ -70,7 +72,7 @@ export function selectCsharpTypeofComparison(
           value: negated,
         };
   }
-  const matchingArms = (getCsharpRuntimeUnionArms(nullableElement ?? operandType) ?? [])
+  const matchingArms = (getCsharpRuntimeUnionArms(nullableElement ?? operandType, definitions) ?? [])
     .filter((arm) => getCsharpTypeofRuntimeKind(arm) === runtimeKind);
   if (matchingArms.length === 1) {
     return {

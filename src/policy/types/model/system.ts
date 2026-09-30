@@ -4,6 +4,7 @@ import type {
   SourceFile,
   Type,
 } from "@tsonic/tsts";
+import { emptyCsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 import type {
   CsharpObjectShapePolicy,
 } from "../objects/object-shape-policy.js";
@@ -46,6 +47,7 @@ import type {
 } from "../../../target-model/types/model.js";
 
 export interface CsharpTypeSystem {
+  readonly typeDefinitions: import("../../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
   readonly analysisTypes: CsharpTypePolicy;
   readonly objectShapes: CsharpObjectShapePolicy;
   readonly projectTypes: CsharpProjectTypePolicy;
@@ -194,6 +196,7 @@ export function createCsharpTypeSystem(
     projectTypeCatalog,
   );
   return Object.freeze({
+    typeDefinitions: host.typeDefinitions ?? emptyCsharpTypeDefinitions,
     analysisTypes: types,
     objectShapes,
     projectTypes,

@@ -121,20 +121,17 @@ export function resolveNodeWithState(
     const structural = selected === undefined ? { kind: "not-applicable" as const }
       : host.structuralTypes.resolveUnion(selected, queries.sourceFile, state);
     if (structural.kind !== "not-applicable") return structural.kind === "resolved" ? structural.type : undefined;
-    const members = host.ast.children(node).map((member) =>
-      resolveNodeWithState(
-        member,
-        queries.sourceFile,
-        nextState(state),
-      )
-    );
     const sourceMembers = host.ast.children(node).map(member => member === undefined ? undefined : queries.types.authoredType(member));
-    return members.some((member) => member === undefined) || sourceMembers.some(member => member === undefined)
-      ? undefined
-      : scope.sourceUnions.retain(retainCsharpUnionObjectShapes(
-          combineCsharpTargetUnionMembers(members as readonly TargetTypeRef[]),
-          host.structuralTypes.resolveTarget,
-        ), members.map((carrier, index) => ({ source: sourceMembers[index]!, carrier: carrier! })), queries, state);
+    if (selected === undefined || sourceMembers.some(member => member === undefined)) return undefined;
+    let members: readonly (TargetTypeRef | undefined)[] = [];
+    const carrier = scope.sourceUnionDefinitions.resolve(selected, queries, state, () => {
+      members = host.ast.children(node).map(member => resolveNodeWithState(member, queries.sourceFile, nextState(state)));
+      if (members.some(member => member === undefined)) return { carrier: undefined, arms: [] };
+      const arms = members as readonly TargetTypeRef[];
+      return { carrier: retainCsharpUnionObjectShapes(combineCsharpTargetUnionMembers(arms), host.structuralTypes.resolveTarget), arms };
+    });
+    return scope.sourceUnions.retain(carrier,
+      members.map((member, index) => ({ source: sourceMembers[index]!, carrier: member! })), queries, state);
   }
   if (host.ast.is.IsNamedTupleMember(node)) {
     return resolveNodeWithState(

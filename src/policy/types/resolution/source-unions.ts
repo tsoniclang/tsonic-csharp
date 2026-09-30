@@ -5,6 +5,7 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/typ
 import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import type { CsharpTypeResolutionState } from "./model.js";
+import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 
 interface CsharpSourceUnionMember {
   readonly source: Type;
@@ -23,19 +24,19 @@ export interface CsharpSourceUnionIndex {
     { readonly kind: "unavailable" | "rejected" } | { readonly kind: "resolved"; readonly carrier: TargetTypeRef };
 }
 
-export function createCsharpSourceUnionIndex(): CsharpSourceUnionIndex {
+export function createCsharpSourceUnionIndex(definitions?: CsharpTypeDefinitions): CsharpSourceUnionIndex {
   const membersByCarrier = new Map<string, readonly CsharpSourceUnionMember[]>();
   return {
     retain(carrier, members, queries, state) {
       if (carrier === undefined) return undefined;
       const present = getCsharpNullableElementTargetType(carrier) ?? carrier;
-      if (getCsharpRuntimeUnionArms(present) === undefined) return carrier;
+      if (getCsharpRuntimeUnionArms(present, definitions) === undefined) return carrier;
       const key = targetTypeRefKey(present);
       const entries = [...membersByCarrier.get(key) ?? []];
       const bindings = new Map([...state.sourceBindings ?? []].map(([node, binding]) => [node, binding.sourceType]));
       for (const member of members) {
         const inner = getCsharpNullableElementTargetType(member.carrier) ?? member.carrier;
-        const nested = getCsharpRuntimeUnionArms(inner) === undefined ? undefined
+        const nested = getCsharpRuntimeUnionArms(inner, definitions) === undefined ? undefined
           : membersByCarrier.get(targetTypeRefKey(inner));
         const sources = queries.types.isUnion(member.source)
           ? queries.types.unionOrIntersectionTypes(member.source) : [member.source];

@@ -22,8 +22,8 @@ function project(
 ): CsharpArrayLikeUnionProjection | undefined {
   if (!host.semantics(sourceFile).types.isUnion(receiver.type)) return undefined;
   const source = host.types.resolveSelectedValue(receiver.expression, receiver.type, sourceFile);
-  const arms = getCsharpRuntimeUnionArms(source);
-  const element = csharpArrayLikeElement(source);
+  const arms = getCsharpRuntimeUnionArms(source, host.typeDefinitions);
+  const element = csharpArrayLikeElement(source, host.typeDefinitions);
   return source === undefined || arms === undefined || element === undefined || !targetTypeRefEquals(element, numberType)
     ? undefined : { source, target: csharpArrayLikeTargetType(element), conversion: { kind: "array-like-union", arms } };
 }

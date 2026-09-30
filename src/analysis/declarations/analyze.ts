@@ -223,9 +223,9 @@ function uncoveredBaselineReturnAlternatives(
   observed: readonly TargetTypeRef[],
 ): readonly TargetTypeRef[] {
   const alternatives = new Map<string, TargetTypeRef>();
-  collectTargetContractAlternatives(baseline, alternatives);
+  collectTargetContractAlternatives(baseline, alternatives, policy);
   const observedAlternatives = new Map<string, TargetTypeRef>();
-  observed.forEach(source => collectTargetContractAlternatives(source, observedAlternatives));
+  observed.forEach(source => collectTargetContractAlternatives(source, observedAlternatives, policy));
   const observedSources = [...observedAlternatives.values()];
   return [...alternatives.values()].filter((alternative) =>
     !observedSources.some((source) =>
@@ -276,17 +276,18 @@ function observedNumericCarrierCoversBaseline(
 function collectTargetContractAlternatives(
   type: TargetTypeRef,
   alternatives: Map<string, TargetTypeRef>,
+  policy: CsharpPolicyContext,
 ): void {
-  const union = getCsharpRuntimeUnionArms(type);
+  const union = getCsharpRuntimeUnionArms(type, policy.typeDefinitions);
   if (union !== undefined) {
     union.forEach((member) =>
-      collectTargetContractAlternatives(member, alternatives)
+      collectTargetContractAlternatives(member, alternatives, policy)
     );
     return;
   }
   const nullableElement = getCsharpNullableElementTargetType(type);
   if (nullableElement !== undefined) {
-    collectTargetContractAlternatives(nullableElement, alternatives);
+    collectTargetContractAlternatives(nullableElement, alternatives, policy);
     const undefinedType = csharpAbsenceTargetType();
     alternatives.set(targetTypeRefKey(undefinedType), undefinedType);
     return;

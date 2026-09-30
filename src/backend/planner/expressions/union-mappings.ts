@@ -24,7 +24,7 @@ export function planCsharpUnionMapping(
   const targetUnion = targetElement ?? target;
   const resultType = target === undefined ? undefined : csharpTypeFromTargetTypeRef(target, input.scope.typeParameterNames);
   if (sourceUnion === undefined || targetUnion === undefined || resultType === undefined ||
-    !csharpUnionArmMappingsMatch(sourceUnion, targetUnion, selection.coverage, selection.arms) ||
+    !csharpUnionArmMappingsMatch(sourceUnion, targetUnion, selection.coverage, selection.arms, input.program.typeDefinitions) ||
     selection.coverage === "target" && targetElement !== undefined && sourceElement === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node,
       "Union conversion requires exact sealed arm coverage and native absence correspondence."));

@@ -11,7 +11,6 @@ import type {
 import {
   csharpAbsenceTargetType,
   getCsharpGeneratorProtocol,
-  getCsharpArrayLiteralInputCarrierTargetType,
   getCsharpJsArrayElementTargetType,
   isSourceOwnedCallableRuntimeCarrierSubject,
   targetTypeRefKey,
@@ -34,7 +33,7 @@ import type {
   CsharpConversionClassifications,
   CsharpConversionIssue,
 } from "./model.js";
-import { substituteTargetTypeParameters } from "../../policy/types/callables/substitution.js";
+import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import { selectCsharpIntegerTruncationConversion } from "../../policy/conversions/selection/integer-truncation.js";
 import { selectCsharpExactIntegerConversion } from "../../policy/conversions/selection/exact-integer.js";
@@ -136,7 +135,6 @@ export function analyzeCsharpConversions(
     if (evidence.isCompileTimeMetadata(node)) return;
     const sourceTypes = exactSourceTypes(node, operations, storage);
     const sourceType = sourceTypes[0];
-    const effectiveSourceType = storage.type(node) ?? sourceType;
     for (const candidate of sourceTypes) {
       classifyPair(candidate, candidate, "implicit", node);
     }
@@ -145,7 +143,7 @@ export function analyzeCsharpConversions(
         classifyExpression(node, candidate, targetType, "implicit",
           expectedTypes.requiresExactIntegerConversion(node, targetType));
       }
-      classifyArrayCarrier(node, effectiveSourceType, targetType);
+      classifyArrayCarrier(node, targetType, expectedTypes);
     }
     if (
       sourceType !== undefined &&
@@ -233,14 +231,14 @@ export function analyzeCsharpConversions(
 
   function classifyArrayCarrier(
     node: Node,
-    sourceType: TargetTypeRef | undefined,
     targetType: TargetTypeRef,
+    expectedTypes: CsharpExpectedTypeClassifications,
   ): void {
     if (!policy.ast.is.IsArrayLiteralExpression(node)) {
       return;
     }
     classifyPair(
-      getCsharpArrayLiteralInputCarrierTargetType(targetType, sourceType),
+      expectedTypes.arrayLiteralCarrier(node, targetType),
       targetType,
       "implicit",
       node,

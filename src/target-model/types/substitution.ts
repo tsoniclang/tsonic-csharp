@@ -1,21 +1,21 @@
 import type {
   TargetTypeRef,
-} from "../../../target-model/types/model.js";
+} from "./model.js";
 import type {
   CsharpObjectShapeFact,
   CsharpRuntimeUnionTargetTypeRef,
   CsharpTargetNamedTypeRef,
   CsharpTaskTargetTypeRef,
-} from "../../../target-model/types/model.js";
+} from "./model.js";
 import {
   csharpNullableTargetType,
   isCsharpNullableReferenceTargetType,
   getCsharpNullableElementTargetType,
-} from "../../../target-model/types/nullable.js";
-import { getCsharpRuntimeUnionArms, getCsharpGenericOptionalParts, isCsharpAbsenceTargetType } from "../../../target-model/types/runtime-carriers.js";
+} from "./nullable.js";
+import { getCsharpRuntimeUnionArms, getCsharpGenericOptionalParts, isCsharpAbsenceTargetType } from "./runtime-carriers.js";
 import {
   targetTypeRefEquals,
-} from "../../../target-model/types/equality.js";
+} from "./equality.js";
 
 export function substituteTargetTypeParameters(
   type: TargetTypeRef,

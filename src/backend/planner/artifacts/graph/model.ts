@@ -104,6 +104,7 @@ export interface CsharpArtifactGraph {
 export interface CsharpArtifactGraphHost {
   readonly ast: AstReader;
   readonly objectShapes: CsharpObjectShapeClassifications;
+  readonly typeDefinitions?: import("../../../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
 }
 
 export interface MutableObjectShapeArtifact {

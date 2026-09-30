@@ -1,5 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { csharpCallableValueType } from "../callables/value-type.js";
+import { selectCsharpArrayLiteralCarrier } from "../../policy/types/collections/literal-construction.js";
 import {
   HasSourceKind,
   HasSyntacticModifier,
@@ -93,6 +94,7 @@ export function analyzeCsharpExpectedTypes(
   let expectedTargetUseCount = 0;
   const callableReturnTargets = new WeakMap<Node, TargetTypeRef>();
   const contextualCallables = new Set<Node>();
+  const arrayCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
 
   for (const callable of callables.declarationContracts) {
     const targetType = returnExpressionTarget(callable);
@@ -194,6 +196,9 @@ export function analyzeCsharpExpectedTypes(
     callableTarget(expression) {
       return callableTargets.get(expression);
     },
+    arrayLiteralCarrier(expression, targetType) {
+      return arrayCarriers.get(expression)?.get(targetTypeRefKey(targetType));
+    },
     binaryExpected(expression, targetType) {
       return binaryFacts.get(
         expectedBinaryUse(expression, targetType),
@@ -291,7 +296,7 @@ export function analyzeCsharpExpectedTypes(
   function callableContextTarget(declaration: Node, target: TargetTypeRef): TargetTypeRef | undefined {
     const value = getCsharpNullableElementTargetType(target) ?? target;
     if (getCsharpDelegateSignature(value) !== undefined) return value;
-    const arms = getCsharpRuntimeUnionArms(value);
+    const arms = getCsharpRuntimeUnionArms(value, policy.typeDefinitions);
     if (arms === undefined) return undefined;
     const callable = callables.get({ kind: "declaration", declaration });
     const selected = callable === undefined ? undefined : csharpCallableValueType(callable);
@@ -713,20 +718,29 @@ export function analyzeCsharpExpectedTypes(
     targetType: TargetTypeRef,
     strength: ExpectedTypeStrength,
   ): void {
+    const carrier = selectCsharpArrayLiteralCarrier(targetType,
+      operations.resultType(expression) ?? evidence.nodeTargetType(expression), policy.typeDefinitions);
+    if (carrier === undefined) return;
+    let carriers = arrayCarriers.get(expression);
+    if (carriers === undefined) {
+      carriers = new Map();
+      arrayCarriers.set(expression, carriers);
+    }
+    carriers.set(targetTypeRefKey(targetType), carrier);
     const elements = policy.ast.elements(expression);
-    if (targetType.kind === "tuple") {
+    if (carrier.kind === "tuple") {
       for (let index = 0; index < elements.length; index += 1) {
         const element = elements[index];
         if (
           element !== undefined &&
           !policy.ast.is.IsSpreadElement(element)
         ) {
-          record(element, targetType.elements[index], strength);
+          record(element, carrier.elements[index], strength);
         }
       }
       return;
     }
-    const elementTarget = getCsharpArrayLiteralElementTargetType(targetType);
+    const elementTarget = getCsharpArrayLiteralElementTargetType(carrier);
     if (elementTarget === undefined) {
       return;
     }

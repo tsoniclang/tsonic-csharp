@@ -6,7 +6,7 @@ import { csharpObjectShapeMemberTypeKey } from "../../target-model/types/object-
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType } from "../../target-model/types/nullable.js";
 import { getCsharpDelegateSignature } from "../../target-model/types/delegates.js";
-import { substituteTargetTypeParameters } from "../../policy/types/callables/substitution.js";
+import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 
 export function selectCsharpStructuralInterface(
   policy: CsharpPolicyContext, expression: Node,

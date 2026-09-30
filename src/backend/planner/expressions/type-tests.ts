@@ -16,7 +16,7 @@ export function planCsharpClosedTypeTest(
   input: CsharpPlanningContext,
   state: DestructuringPlannerState,
 ): CsharpExpression | undefined {
-  if (!csharpClosedTypeTestMatches(fact)) return undefined;
+  if (!csharpClosedTypeTestMatches(fact, input.program.typeDefinitions)) return undefined;
   const target = csharpTypeFromTargetTypeRef(fact.targetCarrier, input.scope.typeParameterNames);
   if (target === undefined) return undefined;
   return planTest(expression, fact.sourceCarrier, fact.test, target, input, state);

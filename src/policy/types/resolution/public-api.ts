@@ -170,6 +170,7 @@ export function resolveSelectedValueWithState(
         scopedTarget, declaredType, selectedType, queries,
         type => resolveCsharpUnionMemberCarrier(scope, scopedTarget, type, queries, state),
         host.structuralTypes.resolveTarget,
+        host.typeDefinitions,
       );
       if (refinement.kind !== "not-applicable") {
         return refinement.kind === "resolved" ? refinement.type : undefined;
@@ -199,11 +200,22 @@ export function resolveSelectedValueWithState(
     }
     return undefined;
   }
-  return resolveNodeWithState(
+  const resolved = resolveNodeWithState(
     node,
     sourceFile,
     nextState(state),
-  ) ?? resolveTypeWithState(
+  );
+  const queries = host.semantics(sourceFile);
+  const declaredType = queries.types.expressionType(node);
+  if (resolved !== undefined && declaredType !== undefined) {
+    const refinement = selectCsharpAuthoredUnionRefinement(
+      resolved, declaredType, selectedType, queries,
+      type => resolveCsharpUnionMemberCarrier(scope, resolved, type, queries, state),
+      host.structuralTypes.resolveTarget, host.typeDefinitions,
+    );
+    if (refinement.kind !== "not-applicable") return refinement.kind === "resolved" ? refinement.type : undefined;
+  }
+  return resolved ?? resolveTypeWithState(
     selectedType,
     sourceFile,
     nextState(state),

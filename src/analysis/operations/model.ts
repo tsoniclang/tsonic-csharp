@@ -90,6 +90,7 @@ export interface CsharpConstructionClassification
 }
 
 export interface CsharpElementClassification {
+  readonly receiverProjection?: CsharpMemberReceiverProjection;
   readonly jsValue: CsharpJsValueOperationSelection;
   readonly target?: CsharpTargetElementSelection;
   readonly receiverType?: TargetTypeRef;
@@ -116,8 +117,15 @@ export interface CsharpSourceOwnedPropertyClassification {
 }
 
 export interface CsharpPropertyClassification {
+  readonly receiverProjection?: CsharpMemberReceiverProjection;
   readonly selection: CsharpTargetPropertySelection;
   readonly sourceOwned?: CsharpSourceOwnedPropertyClassification;
+}
+
+export interface CsharpMemberReceiverProjection {
+  readonly source: TargetTypeRef;
+  readonly target: TargetTypeRef;
+  readonly conversion: CsharpConversionSelection;
 }
 
 export interface CsharpBinaryClassification {
