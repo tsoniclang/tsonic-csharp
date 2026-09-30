@@ -2,14 +2,14 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpSourceCallableContract } from "../../policy/types/callables/source-callable-contract.js";
 import { isCsharpSourceCallableArtifactDeclaration } from "../../policy/types/callables/source-callable-contract.js";
-import { substituteTargetTypeParameters } from "../../policy/types/callables/substitution.js";
-import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpCallableContractIndex } from "../callables/model.js";
-import { selectCsharpCallableParameterAdapters, selectCsharpCallableValueAdapter,
+import { selectCsharpCallableParameterAdapters, selectCsharpCallableResultAdapter,
   type CsharpCallableParameterAdapter, type CsharpCallableValueAdapter } from "../callables/adapters.js";
 import type { CsharpProjectTypeIssue } from "../../policy/types/project/project-types.js";
+import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } from "../callables/instantiation.js";
+import { namedTargetTypeImplicitlyAccepts } from "../../policy/conversions/selection/carriers.js";
 
 export interface CsharpProjectCallableAdapter {
   readonly contract: CsharpSourceCallableContract;
@@ -64,7 +64,7 @@ export function analyzeCsharpProjectCallableAdapters(
       const contractOwner = policy.projectTypes.catalog.definitionForDeclaration(policy.ast.parent(contractDeclaration));
       if (contractOwner === undefined) continue;
       if (contractOwner.kind === "class") hasProjectBaseContract = true;
-      const contract = instantiateContract(policy, original, implementation, receiver);
+      const contract = instantiateCsharpInheritedCallable(policy, original, implementation, receiver);
       if (contract === undefined) { reject(declaration, "An inherited callable has no exact instantiated native signature."); continue; }
       const interfaceType = contractOwner.kind !== "interface" ? undefined : policy.projectTypes.catalog.targetTypeForDeclaration(
         contractOwner.declaration, contractOwner.typeParameterBindings);
@@ -72,15 +72,17 @@ export function analyzeCsharpProjectCallableAdapters(
         contractOwner.declaration, receiver, interfaceType);
       const selectedInterface = instantiatedInterface?.kind === "resolved" ? instantiatedInterface.type : undefined;
       if (interfaceType !== undefined && selectedInterface === undefined) { reject(declaration, "An interface callable has no exact native owner."); continue; }
+      const heritage = owner === undefined ? undefined : policy.projectTypes.heritageForDeclaration(owner.declaration);
+      if (selectedInterface !== undefined && heritage?.baseType !== undefined &&
+        !heritage.interfaces.some(type => namedTargetTypeImplicitlyAccepts(policy, type, selectedInterface, new Set())) &&
+        namedTargetTypeImplicitlyAccepts(policy, heritage.baseType, selectedInterface, new Set())) continue;
       const key = `${selectedInterface === undefined ? "class" : targetTypeRefKey(selectedInterface)}:${contract.parameters.map(parameter =>
         `${parameter.targetParameter.passingMode}:${targetTypeRefKey(parameter.targetParameter.type)}`).join(";")}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      const sameParameters = contract.parameters.length === implementation.parameters.length && contract.parameters.every((parameter, index) =>
-        parameter.targetParameter.passingMode === implementation.parameters[index]!.targetParameter.passingMode &&
-        targetTypeRefEquals(parameter.targetParameter.type, implementation.parameters[index]!.targetParameter.type));
-      const result = selectCsharpCallableValueAdapter(policy, implementation.returnType, contract.returnType);
-      if (sameParameters) {
+      const sameParameters = csharpCallableParametersEqual(contract, implementation);
+      const result = selectCsharpCallableResultAdapter(policy, implementation, contract.returnType);
+      if (sameParameters && (selectedInterface === undefined || targetTypeRefEquals(contract.returnType, implementation.returnType))) {
         const nativeReturn = result?.conversion.kind === "identity" || result?.conversion.kind === "implicit" &&
           result.conversion.proof === "reference";
         if (!nativeReturn) reject(declaration, "An inherited callable requires a native return adaptation without a distinct parameter signature.");
@@ -107,28 +109,4 @@ export function analyzeCsharpProjectCallableAdapters(
   function reject(node: Node, message: string): void {
     issues.push(Object.freeze({ node, code: "CSHARP_PROJECT_CALLABLE_ADAPTER_NOT_PROVEN", message }));
   }
-}
-
-function instantiateContract(
-  policy: CsharpPolicyContext, source: CsharpSourceCallableContract, implementation: CsharpSourceCallableContract,
-  receiver: TargetTypeRef | undefined,
-): CsharpSourceCallableContract | undefined {
-  if (source.methodTypeParameterIdentities.length !== implementation.methodTypeParameterIdentities.length) return undefined;
-  const typeParameters = policy.ast.typeParameters(implementation.sourceDeclaration).map(parameter => parameter === undefined ? undefined
-    : csharpSourceTypeParameter(parameter, policy.ast));
-  if (typeParameters.length !== source.methodTypeParameterIdentities.length || typeParameters.some(parameter => parameter === undefined)) return undefined;
-  const substitutions = new Map(source.methodTypeParameterIdentities.map((identity, index) => [identity, typeParameters[index]!]));
-  const instantiate = (type: TargetTypeRef): TargetTypeRef | undefined => {
-    const selected = policy.projectTypes.instantiateMemberType(source.sourceDeclaration, receiver, type);
-    return selected.kind === "resolved" ? substituteTargetTypeParameters(selected.type, substitutions) : undefined;
-  };
-  const result = instantiate(source.returnType);
-  const parameters = source.parameters.map(parameter => {
-    const type = instantiate(parameter.targetParameter.type);
-    return type === undefined ? undefined : Object.freeze({ ...parameter, targetParameter: Object.freeze({ ...parameter.targetParameter, type }) });
-  });
-  return result === undefined || parameters.some(parameter => parameter === undefined) ? undefined : Object.freeze({
-    ...source, methodTypeParameterIdentities: implementation.methodTypeParameterIdentities, returnType: result,
-    parameters: Object.freeze(parameters as CsharpSourceCallableContract["parameters"][number][]),
-  });
 }

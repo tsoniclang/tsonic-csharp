@@ -55,6 +55,11 @@ export function selectRuntimeUnionConversion(
   target: TargetTypeRef,
   mode: CsharpConversionMode,
 ): CsharpConversionSelection | undefined {
+  const sourceElement = getCsharpNullableElementTargetType(source);
+  if (mode === "explicit" && sourceElement !== undefined && getCsharpRuntimeUnionArms(sourceElement) !== undefined &&
+    getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(target) ?? target) === undefined) {
+    return selectCsharpRuntimeUnionProjection(input, source, target);
+  }
   const sourceArms = getCsharpRuntimeUnionArms(source);
   const widening = selectCsharpUnionArmMapping(source, target, "source");
   if (widening !== undefined) return { kind: "union-map", coverage: "source", arms: widening };
@@ -71,25 +76,7 @@ export function selectRuntimeUnionConversion(
     return { kind: "runtime-union-reference", arms: sourceArms, target };
   }
   if (sourceArms !== undefined && mode === "explicit") {
-    const matchingArms = sourceArms.flatMap((armType, armIndex) =>
-      targetTypeRefEquals(armType, target)
-        ? [{ armIndex, armType }]
-        : []
-    );
-    if (matchingArms.length === 1) {
-      return {
-        kind: "runtime-union-projection",
-        ...matchingArms[0]!,
-        retainsAbsence: false,
-      };
-    }
-    return {
-      kind: "rejected",
-      reason:
-        matchingArms.length === 0
-          ? "Explicit C# runtime-union projection requires the target representation to match one exact union arm."
-          : "Explicit C# runtime-union projection matched more than one structurally identical union arm.",
-    };
+    return selectCsharpRuntimeUnionProjection(input, source, target);
   }
   const targetArms = getCsharpRuntimeUnionArms(target);
   if (targetArms === undefined) {
@@ -100,21 +87,48 @@ export function selectRuntimeUnionConversion(
       ? [{ armIndex, armType }]
       : []
   );
-  if (matchingArms.length === 1) {
+  const candidates = matchingArms.length > 0 ? matchingArms : targetArms.flatMap((armType, armIndex) =>
+    source.kind === "target-named" && armType.kind === "target-named" &&
+    !isCsharpValueTypeTargetType(source) && !isCsharpValueTypeTargetType(armType) &&
+    namedTargetTypeImplicitlyAccepts(input, source, armType, new Set()) ? [{ armIndex, armType }] : []);
+  if (candidates.length === 1) {
     return {
       kind: "implicit",
       proof: "runtime-union-arm",
-      ...matchingArms[0]!,
-      sourceToArm: { kind: "identity" },
+      ...candidates[0]!,
+      sourceToArm: matchingArms.length === 1 ? { kind: "identity" } : { kind: "implicit", proof: "reference" },
     };
   }
   return {
     kind: "rejected",
     reason:
-      matchingArms.length === 0
+      candidates.length === 0
         ? "C# runtime-union conversion requires the source representation to match one exact union arm."
         : "C# runtime-union conversion matched more than one structurally identical union arm.",
   };
+}
+
+export function selectCsharpRuntimeUnionProjection(
+  input: Pick<CsharpPolicyContext, "projectTypes" | "providers">,
+  source: TargetTypeRef, target: TargetTypeRef,
+): CsharpConversionSelection {
+  const sourceElement = getCsharpNullableElementTargetType(source);
+  const targetElement = getCsharpNullableElementTargetType(target);
+  if (targetElement !== undefined && sourceElement === undefined) return {
+    kind: "rejected", reason: "A union payload cannot retain absence that its source does not carry.",
+  };
+  const selected = targetElement ?? target;
+  const arms = getCsharpRuntimeUnionArms(sourceElement ?? source) ?? [];
+  const exact = arms.flatMap((armType, armIndex) => targetTypeRefEquals(armType, selected) ? [{ armIndex, armType }] : []);
+  const related = exact.length > 0 ? exact : arms.flatMap((armType, armIndex) =>
+    selected.kind === "target-named" && armType.kind === "target-named" &&
+    !isCsharpValueTypeTargetType(selected) && !isCsharpValueTypeTargetType(armType) &&
+    namedTargetTypeImplicitlyAccepts(input, selected, armType, new Set())
+      ? [{ armIndex, armType, refinement: selected }] : []);
+  return related.length === 1 ? { kind: "runtime-union-projection", ...related[0]!, retainsAbsence: targetElement !== undefined }
+    : { kind: "rejected", reason: related.length === 0
+      ? "Explicit C# runtime-union projection requires one exact payload or nominal refinement."
+      : "Explicit C# runtime-union projection has ambiguous native payloads." };
 }
 
 export function selectNullableConversion(

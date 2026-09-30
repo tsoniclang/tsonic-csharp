@@ -223,7 +223,7 @@ export function applyCsharpConversionSelection(
         name: "Value",
       };
     case "runtime-union-projection":
-      return planCsharpRuntimeUnionProjection(node, sourceType, targetType, selection, expression, diagnostics);
+      return planCsharpRuntimeUnionProjection(node, sourceType, targetType, selection, expression, diagnostics, input);
     case "nullable-map": {
       const sourceElement = getCsharpNullableElementTargetType(sourceType);
       const targetElement = getCsharpNullableElementTargetType(targetType);

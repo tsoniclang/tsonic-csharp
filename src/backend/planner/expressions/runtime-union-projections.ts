@@ -9,6 +9,7 @@ import {
 } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionSelection } from "../../../analysis/conversions/index.js";
+import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type {
   CsharpExpression,
 } from "../../target-ast/roslyn/index.js";
@@ -127,20 +128,30 @@ export function planCsharpRuntimeUnionProjection(
   selection: Extract<CsharpConversionSelection, { readonly kind: "runtime-union-projection" }>,
   expression: CsharpExpression,
   diagnostics: TargetDiagnostic[],
+  input: CsharpPlanningContext,
 ): CsharpExpression | undefined {
   const sourceElement = getCsharpNullableElementTargetType(sourceType);
   const targetElement = getCsharpNullableElementTargetType(targetType);
   const declared = getCsharpRuntimeUnionArms(sourceElement ?? sourceType)?.[selection.armIndex];
   const selectedType = selection.retainsAbsence ? targetElement : targetType;
-  if (typeof selection.retainsAbsence !== "boolean" || !Number.isInteger(selection.armIndex) ||
+  if (!input.program.conversions.matchesUnionProjection(sourceType, targetType, selection) ||
+    typeof selection.retainsAbsence !== "boolean" || !Number.isInteger(selection.armIndex) ||
     declared === undefined || selectedType === undefined || !targetTypeRefEquals(declared, selection.armType) ||
-    !targetTypeRefEquals(selection.armType, selectedType) ||
+    !targetTypeRefEquals(selection.refinement ?? selection.armType, selectedType) ||
     selection.retainsAbsence && (sourceElement === undefined || targetElement === undefined)) {
     diagnostics.push(unsupportedNodeDiagnostic(node,
       "Union projection requires exact sealed payload and absence correspondence."));
     return undefined;
   }
-  return runtimeUnionArmProjection(expression, selection.armIndex, sourceType, selection.retainsAbsence);
+  const value = runtimeUnionArmProjection(expression, selection.armIndex, sourceType, selection.retainsAbsence);
+  if (selection.refinement === undefined) return value;
+  const type = targetType === undefined ? undefined
+    : csharpTypeFromTargetTypeRef(targetType, input.scope.typeParameterNames);
+  if (type === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Union payload refinement has no exact native target type."));
+    return undefined;
+  }
+  return { kind: "CastExpression", type, expression: value };
 }
 
 export function runtimeUnionArmTest(

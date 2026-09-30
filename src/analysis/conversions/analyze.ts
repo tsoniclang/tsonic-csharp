@@ -38,6 +38,7 @@ import { substituteTargetTypeParameters } from "../../policy/types/callables/sub
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import { selectCsharpIntegerTruncationConversion } from "../../policy/conversions/selection/integer-truncation.js";
 import { selectCsharpExactIntegerConversion } from "../../policy/conversions/selection/exact-integer.js";
+import { csharpRuntimeUnionProjectionMatches } from "./validation.js";
 
 const unavailableConversion: CsharpConversionSelection = Object.freeze({
   kind: "rejected",
@@ -62,6 +63,7 @@ export function analyzeCsharpConversions(
 
   const openClassifications: CsharpConversionClassifications = {
     issues,
+    matchesUnionProjection: (source, target, selection) => csharpRuntimeUnionProjectionMatches(policy, source, target, selection),
     select(source, target, mode) {
       if (source === undefined || target === undefined) {
         return unavailableConversion;
@@ -102,6 +104,7 @@ export function analyzeCsharpConversions(
       const sealedIssues = Object.freeze([...issues]);
       const sealed: CsharpConversionClassifications = {
         issues: sealedIssues,
+        matchesUnionProjection: openClassifications.matchesUnionProjection,
         select(source, target, mode) {
           if (source === undefined || target === undefined) {
             return unavailableConversion;
@@ -328,6 +331,9 @@ export function analyzeCsharpConversions(
     const classification = operations.call(node);
     if (classification === undefined) {
       return;
+    }
+    if (classification.sourceResult !== undefined) {
+      classifyPair(classification.sourceResult.nativeType, classification.sourceResult.selectedType, "explicit", node);
     }
     const source = classification.source ?? (
       classification.target?.kind === "resolved"

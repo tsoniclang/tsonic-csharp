@@ -18,6 +18,7 @@ export interface CsharpSourceCallableContract {
   readonly receiverTypeOwner?: Node;
   readonly parameters: readonly CsharpSourceCallableParameterContract[];
   readonly returnType: TargetTypeRef;
+  readonly sourceReturnType?: TargetTypeRef;
 }
 
 export type CsharpSourceCallableArtifactIdentity =

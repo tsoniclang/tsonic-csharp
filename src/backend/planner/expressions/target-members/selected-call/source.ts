@@ -14,7 +14,7 @@ import type { CsharpSourceCallArgumentClassification } from "../../../../../anal
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { csharpSourceArgumentGroups } from "./source-argument-groups.js";
 import { targetTypeRefEquals } from "../../../../../target-model/types/equality.js";
-import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
+import { applyCsharpConversionSelection } from "../../conversions.js";
 
 export function translateSourceOwnedCall(
   node: Node,
@@ -97,8 +97,13 @@ export function translateSourceOwnedCall(
   if (arguments_ === undefined || result === undefined) return undefined;
   const invocation: CsharpExpression = { kind: "InvocationExpression", callee, arguments: arguments_ };
   if (targetTypeRefEquals(result.nativeType, result.selectedType)) return invocation;
-  const type = csharpTypeFromTargetTypeRef(result.selectedType, input.scope.typeParameterNames);
-  return type === undefined ? undefined : { kind: "CastExpression", type, expression: invocation };
+  const conversion = input.program.conversions.select(result.nativeType, result.selectedType, "explicit");
+  if (conversion === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "A source call result has no sealed native-to-selected conversion."));
+    return undefined;
+  }
+  return applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
+    result.nativeType, result.selectedType, conversion, invocation);
 }
 
 export function translateSourceOwnedArguments(

@@ -25,6 +25,7 @@ import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpCallableContractIndex } from "./model.js";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import type { CsharpGenericProjectionIndex } from "../declarations/type-projections.js";
+import { closeCsharpProjectCallableContracts } from "../project-types/callable-contracts.js";
 
 export function analyzeCsharpCallableContracts(
   policy: CsharpPolicyContext,
@@ -39,6 +40,11 @@ export function analyzeCsharpCallableContracts(
   const declarationContracts: CsharpSourceCallableContract[] = [];
   for (const sourceFile of policy.sourceFiles) {
     visit(sourceFile, sourceFile);
+  }
+  const nativeDeclarations = closeCsharpProjectCallableContracts(policy, declarationContracts);
+  for (const [index, contract] of nativeDeclarations.entries()) {
+    byDeclaration.set(contract.sourceDeclaration, contract);
+    contracts[index] = contract;
   }
   for (const definition of policy.projectTypes.catalog.definitions) {
     for (
@@ -56,7 +62,7 @@ export function analyzeCsharpCallableContracts(
   }
   return Object.freeze({
     contracts: Object.freeze(contracts),
-    declarationContracts: Object.freeze(declarationContracts),
+    declarationContracts: nativeDeclarations,
     get(identity: CsharpSourceCallableArtifactIdentity) {
       return identity.kind === "declaration"
         ? byDeclaration.get(identity.declaration)
@@ -275,6 +281,8 @@ function callableContractEquals(
       right.methodTypeParameterIdentities,
     ) &&
     targetTypeRefEquals(left.returnType, right.returnType) &&
+    (left.sourceReturnType === undefined ? right.sourceReturnType === undefined
+      : right.sourceReturnType !== undefined && targetTypeRefEquals(left.sourceReturnType, right.sourceReturnType)) &&
     left.parameters.length === right.parameters.length &&
     left.parameters.every((parameter, index) => {
       const other = right.parameters[index];

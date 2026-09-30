@@ -508,6 +508,12 @@ export function resolveSourceCallResultWithState(
     if (!sourceCallableTypeParametersMatch(source, callable)) {
       return undefined;
     }
+    if (callable.sourceReturnType !== undefined) {
+      const nativeType = resolveSourceCallableContractType(source, callable, callable.returnType, sourceFile, state);
+      const selected = retain(resolveSourceCallableContractType(source, callable, callable.sourceReturnType, sourceFile, state));
+      return nativeType === undefined || selected === undefined ? undefined
+        : Object.freeze({ nativeType, selectedType: selected.selectedType });
+    }
     return retain(resolveSourceCallableContractType(
       source,
       callable,

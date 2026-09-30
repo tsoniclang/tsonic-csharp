@@ -60,14 +60,21 @@ export function planMethodDeclaration(
   const declaration = AsMethodDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "method declaration", diagnostics, ["abstract"]);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
+  const callable = input.program.callableAdapters.get(node)?.implementation;
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
-  const declaredReturnTargetType = getDeclarationReturnTargetType(
+  const declaredReturnTargetType = callable?.returnType ?? getDeclarationReturnTargetType(
     declaration.Type,
     node,
     sourceFile,
     input,
   );
-  const declaredReturnType = getExplicitReturnType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics);
+  const declaredReturnType = declaredReturnTargetType === undefined
+    ? getExplicitReturnType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics)
+    : csharpTypeFromTargetTypeRef(declaredReturnTargetType, input.scope.typeParameterNames) ??
+      getExplicitReturnType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics);
+  if (callable !== undefined && csharpTypeFromTargetTypeRef(callable.returnType, input.scope.typeParameterNames) === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "A method's sealed native return contract is not renderable."));
+  }
   const modifiers = withCsharpSafetyModifiers(
     planMethodModifiers(node, declaration.name, sourceFile, input, diagnostics),
     node,
@@ -134,9 +141,9 @@ export function planMethodDeclaration(
       returnContract.reason,
     ));
   }
-  const effectiveReturnTargetType = returnContract?.kind === "resolved"
+  const effectiveReturnTargetType = callable?.returnType ?? (returnContract?.kind === "resolved"
     ? returnContract.type
-    : declaredReturnTargetType;
+    : declaredReturnTargetType);
   const returnType = effectiveReturnTargetType === undefined
     ? declaredReturnType
     : csharpTypeFromTargetTypeRef(effectiveReturnTargetType, input.scope.typeParameterNames) ??

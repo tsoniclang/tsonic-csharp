@@ -3,6 +3,8 @@ import { csharpConversionIsApplicable, selectCsharpConversion, type CsharpConver
 import type { CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpJsArrayElementTargetType } from "../../target-model/types/collections.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
+import { selectCsharpFlowReadConversion } from "../../policy/conversions/selection/expression.js";
+import type { CsharpSourceCallableContract } from "../../policy/types/callables/source-callable-contract.js";
 
 export interface CsharpCallableValueAdapter {
   readonly source: TargetTypeRef;
@@ -31,6 +33,17 @@ export function selectCsharpCallableValueAdapter(
   const conversion = selectCsharpConversion(policy, source, target, "implicit");
   return csharpConversionIsApplicable(conversion, "implicit")
     ? Object.freeze({ source, target, conversion }) : undefined;
+}
+
+export function selectCsharpCallableResultAdapter(
+  policy: CsharpPolicyContext, implementation: CsharpSourceCallableContract, target: TargetTypeRef,
+): CsharpCallableValueAdapter | undefined {
+  if (implementation.sourceReturnType === undefined) return selectCsharpCallableValueAdapter(policy, implementation.returnType, target);
+  const sourceContract = selectCsharpCallableValueAdapter(policy, implementation.sourceReturnType, target);
+  if (sourceContract === undefined) return undefined;
+  const conversion = selectCsharpFlowReadConversion(policy, implementation.returnType, target);
+  return csharpConversionIsApplicable(conversion, "explicit")
+    ? Object.freeze({ source: implementation.returnType, target, conversion }) : undefined;
 }
 
 export function selectCsharpCallableParameterAdapters(

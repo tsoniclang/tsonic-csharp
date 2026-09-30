@@ -63,6 +63,7 @@ export type CsharpConversionSelection =
       readonly armIndex: number;
       readonly armType: TargetTypeRef;
       readonly retainsAbsence: boolean;
+      readonly refinement?: TargetTypeRef;
     }
   | {
       readonly kind: "delegate-adapter";

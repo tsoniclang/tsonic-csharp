@@ -16,6 +16,7 @@ import type { CsharpProviderArgumentAdapter } from "../../../providers/relations
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../types/index.js";
 import { selectCsharpUnionArmMapping } from "../../../target-model/types/union-relations.js";
+import { selectCsharpRuntimeUnionProjection } from "./carriers.js";
 
 export function selectCsharpExpressionConversion(
   input: Pick<
@@ -179,26 +180,7 @@ export function selectCsharpFlowReadConversion(
     const mapping = targetElement !== undefined && nullableElement === undefined ? undefined
       : selectCsharpUnionArmMapping(nullableElement ?? storageType, targetElement ?? selectedReadType, "target");
     if (mapping !== undefined) return { kind: "union-map", coverage: "target", arms: mapping };
-    const selectedElement = nullableElement === undefined ? undefined : getCsharpNullableElementTargetType(selectedReadType);
-    const matchingArms = runtimeUnionArms.flatMap((armType, armIndex) =>
-      targetTypeRefEquals(armType, selectedElement ?? selectedReadType)
-        ? [{ armIndex, armType }]
-        : []
-    );
-    if (matchingArms.length === 1) {
-      return {
-        kind: "runtime-union-projection",
-        ...matchingArms[0]!,
-        retainsAbsence: selectedElement !== undefined,
-      };
-    }
-    return {
-      kind: "rejected",
-      reason:
-        matchingArms.length === 0
-          ? `The exact source flow narrows '${targetTypeRefKey(storageType)}' to '${targetTypeRefKey(selectedReadType)}', which is not an exact runtime-union arm.`
-          : `The exact source flow narrows '${targetTypeRefKey(storageType)}' to '${targetTypeRefKey(selectedReadType)}', which matches more than one runtime-union arm.`,
-    };
+    return selectCsharpRuntimeUnionProjection(input, storageType, selectedReadType);
   }
   if (
     targetTypeRefEquals(storageType, csharpExceptionTargetType()) &&
