@@ -39,6 +39,7 @@ import type {
   CsharpStorageRepresentationClassifications,
   CsharpStorageIssue,
 } from "./model.js";
+import { canConstructCsharpStorageLiteral } from "./literal-construction.js";
 
 interface MutableStorageContract {
   readonly declaration: Node;
@@ -338,11 +339,9 @@ export function analyzeCsharpStorage(
         return;
       }
       const initializer = variable.Initializer;
-      if (policy.ast.is.IsObjectLiteralExpression(initializer)) {
-        const shape = objectShapes.resolveTarget(requiredStorageType);
-        const construction = shape === undefined ? undefined
-          : objectShapes.resolveObjectLiteralTargetShape(shape, initializer);
-        if (construction?.kind !== "resolved") return;
+      if (policy.ast.is.IsObjectLiteralExpression(initializer) || policy.ast.is.IsArrayLiteralExpression(initializer)) {
+        if (!canConstructCsharpStorageLiteral(initializer, requiredStorageType,
+          policy, evidence, objectShapes, conversions)) return;
         break;
       }
       const initializerConversion = conversions.selectExpression(initializer,
