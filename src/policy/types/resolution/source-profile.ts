@@ -224,7 +224,7 @@ export function classifyCsharpSourceProfileType(
       continue;
     }
     for (const declaration of semantics.declarations.symbolDeclarations(symbol)) {
-      const identity = classifySourceProfileDeclaration(declaration, ast);
+      const identity = classifyCsharpSourceProfileDeclaration(declaration, ast);
       if (identity !== undefined) {
         return identity;
       }
@@ -233,7 +233,7 @@ export function classifyCsharpSourceProfileType(
   return undefined;
 }
 
-function classifySourceProfileDeclaration(
+export function classifyCsharpSourceProfileDeclaration(
   declaration: Parameters<AstReader["name"]>[0],
   ast: AstReader,
 ): CsharpSourceProfileTypeIdentity | undefined {

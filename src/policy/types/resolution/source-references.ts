@@ -6,7 +6,7 @@ import type {
   SourceFileSemantics,
 } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { classifyCsharpSourceProfileType, selectedCsharpSourceProfileOwner } from "./source-profile.js";
+import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType, selectedCsharpSourceProfileOwner } from "./source-profile.js";
 import { csharpJsArrayTargetType } from "./surface-types.js";
 import { csharpSourceTypeArgumentNodes } from "../../../target-model/syntax/type-arguments.js";
 import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
@@ -94,10 +94,14 @@ export function resolveTypeReferenceNode(
   if (providerType !== undefined) {
     return providerType;
   }
-  const sourceProfileType = semanticType === undefined
+  const selectedDeclaration = host.navigation.sourceReferenceFor(typeName)?.declaration;
+  const profileIdentity = selectedDeclaration === undefined
+    ? semanticType === undefined ? undefined : classifyCsharpSourceProfileType(semanticType, queries, host.ast)
+    : classifyCsharpSourceProfileDeclaration(selectedDeclaration, host.ast);
+  const sourceProfileType = profileIdentity === undefined
     ? undefined
     : resolveSourceProfileType(
-        classifyCsharpSourceProfileType(semanticType, queries, host.ast),
+        profileIdentity,
         typeArguments as readonly TargetTypeRef[],
       );
   if (sourceProfileType !== undefined) {

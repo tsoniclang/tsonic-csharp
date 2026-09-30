@@ -23,6 +23,7 @@ import {
   getCsharpGeneratorProtocol,
   getCsharpTaskResultTargetType,
   isCsharpJsValueTargetType,
+  isCsharpRecordDictionaryTargetType,
   csharpPropertySourceMemberKey,
   csharpWellKnownSymbolSourceMemberKey,
   resolveCsharpObjectShapeMemberBySourceKey,
@@ -613,7 +614,11 @@ export function analyzeCsharpExpectedTypes(
       return;
     }
     if (policy.ast.is.IsObjectLiteralExpression(expression)) {
-      if (isCsharpJsValueTargetType(targetType)) {
+      const carrier = getCsharpNullableElementTargetType(targetType) ?? targetType;
+      const indexedValueType = isCsharpJsValueTargetType(carrier) ? carrier
+        : isCsharpRecordDictionaryTargetType(carrier) && carrier.kind === "target-named"
+        ? carrier.typeArguments?.[1] : undefined;
+      if (indexedValueType !== undefined) {
         for (const property of policy.ast.properties(expression)) {
           if (property === undefined) {
             continue;
@@ -621,11 +626,11 @@ export function analyzeCsharpExpectedTypes(
           if (policy.ast.is.IsPropertyAssignment(property)) {
             record(
               policy.ast.as.AsPropertyAssignment(property)?.Initializer,
-              targetType,
+              indexedValueType,
               strength,
             );
           } else if (policy.ast.is.IsShorthandPropertyAssignment(property)) {
-            record(policy.ast.name(property), targetType, strength);
+            record(policy.ast.name(property), indexedValueType, strength);
           }
         }
         return;
