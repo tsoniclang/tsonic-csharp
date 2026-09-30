@@ -1,8 +1,8 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpConversionSelection } from "../../../policy/conversions/selection/model.js";
+import type { CsharpConversionSelection } from "../../../analysis/conversions/index.js";
 import { getCsharpNullableElementTargetType, type TargetTypeRef } from "../../../target-model/types/index.js";
-import { csharpUnionArmMappingsEqual, selectCsharpUnionArmMapping } from "../../../target-model/types/union-relations.js";
+import { csharpUnionArmMappingsMatch } from "../../../target-model/types/union-relations.js";
 import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
@@ -22,18 +22,16 @@ export function planCsharpUnionMapping(
   const targetElement = getCsharpNullableElementTargetType(target);
   const sourceUnion = sourceElement ?? source;
   const targetUnion = targetElement ?? target;
-  const mappings = sourceUnion === undefined || targetUnion === undefined ? undefined
-    : selectCsharpUnionArmMapping(sourceUnion, targetUnion, selection.coverage);
   const resultType = target === undefined ? undefined : csharpTypeFromTargetTypeRef(target, input.scope.typeParameterNames);
-  if (mappings === undefined || resultType === undefined ||
-    !csharpUnionArmMappingsEqual(mappings, selection.arms) ||
+  if (sourceUnion === undefined || targetUnion === undefined || resultType === undefined ||
+    !csharpUnionArmMappingsMatch(sourceUnion, targetUnion, selection.coverage, selection.arms) ||
     selection.coverage === "target" && targetElement !== undefined && sourceElement === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node,
       "Union conversion requires exact sealed arm coverage and native absence correspondence."));
     return undefined;
   }
   const arms: CsharpSwitchExpressionArm[] = [];
-  for (const [index, mapping] of mappings.entries()) {
+  for (const [index, mapping] of selection.arms.entries()) {
     const designation = input.names.temporaryName(`__tsonic_union_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}_${index}`);
     const receiver: CsharpExpression = { kind: "IdentifierName", name: designation };
     const projection = planCsharpUnionPattern(receiver, mapping.source, source);

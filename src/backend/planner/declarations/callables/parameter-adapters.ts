@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter } from "../../../../analysis/callables/adapters.js";
-import type { CsharpSourceCallableContract } from "../../../../policy/types/callables/source-callable-contract.js";
+import type { CsharpSourceCallableContract } from "../../../../analysis/callables/index.js";
 import { getCsharpIndexableLengthMemberName, getCsharpJsArrayElementTargetType } from "../../../../target-model/types/collections.js";
 import type { CsharpExpression, CsharpParameter, CsharpStatement } from "../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../context.js";

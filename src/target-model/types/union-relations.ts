@@ -66,3 +66,13 @@ export function csharpUnionArmMappingsEqual(left: readonly CsharpUnionArmMapping
       samePath(arm.source, selected.source) && samePath(arm.target, selected.target);
   });
 }
+
+export function csharpUnionArmMappingsMatch(
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+  coverage: "source" | "target",
+  mappings: readonly CsharpUnionArmMapping[],
+): boolean {
+  const contract = selectCsharpUnionArmMapping(source, target, coverage);
+  return contract !== undefined && Array.isArray(mappings) && csharpUnionArmMappingsEqual(contract, mappings);
+}

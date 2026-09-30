@@ -32,12 +32,12 @@ export function planCsharpCheckedBindingValue(
 }
 
 export function planCsharpBindingDefaultValue(
-  value: CsharpExpression, carrier: TargetTypeRef, fallback: CsharpExpression, resultCarrier: TargetTypeRef, state: DestructuringPlannerState,
+  value: CsharpExpression, carrier: TargetTypeRef, defaultValue: CsharpExpression, resultCarrier: TargetTypeRef, state: DestructuringPlannerState,
 ): CsharpExpression {
   if (isCsharpAbsenceTargetType(carrier)) return { kind: "SimpleMemberAccessExpression",
-    receiver: { kind: "TupleExpression", elements: [value, fallback] }, name: "Item2" };
+    receiver: { kind: "TupleExpression", elements: [value, defaultValue] }, name: "Item2" };
   if (getCsharpNullableElementTargetType(carrier) !== undefined) return {
-    kind: "BinaryExpression", left: value, operatorToken: { kind: "QuestionQuestionToken" }, right: fallback,
+    kind: "BinaryExpression", left: value, operatorToken: { kind: "QuestionQuestionToken" }, right: defaultValue,
   };
   const storage = csharpNullableTargetType(carrier);
   const generic = getCsharpGenericOptionalParts(storage);
@@ -54,6 +54,6 @@ export function planCsharpBindingDefaultValue(
     kind: "BinaryExpression", operatorToken: { kind: "AmpersandAmpersandToken" },
     left: { kind: "IsPatternExpression", expression: stored, type: { kind: "IdentifierName", name: "var" }, designation: name },
     right: absent,
-  }, whenTrue: fallback, whenFalse: broad || targetTypeRefEquals(storage, resultCarrier)
+  }, whenTrue: defaultValue, whenFalse: broad || targetTypeRefEquals(storage, resultCarrier)
     ? reference : optionalOperation(storage, "As2", reference) };
 }

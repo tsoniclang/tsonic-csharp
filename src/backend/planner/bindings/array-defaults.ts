@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpArrayBindingCarrier, TargetTypeRef } from "../../../target-model/types/index.js";
-import { csharpBindingDefaultCarrier } from "../../../policy/types/binding-normalization.js";
+import { csharpBindingDefaultCarrier } from "../../../target-model/types/binding-normalization.js";
 import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
@@ -22,8 +22,8 @@ export function planArrayDefaultProjection(
   state: DestructuringPlannerState,
   planDefaultExpression: BindingDefaultExpressionPlanner,
 ): { readonly expression: CsharpExpression; readonly carrier: TargetTypeRef; readonly type: CsharpTypeNode } | undefined {
-  const fallback = input.program.sourceEvidence.nodeTargetType(initializer);
-  const carrier = fallback === undefined ? undefined : csharpBindingDefaultCarrier(sourceCarrier.element, fallback);
+  const defaultCarrier = input.program.sourceEvidence.nodeTargetType(initializer);
+  const carrier = defaultCarrier === undefined ? undefined : csharpBindingDefaultCarrier(sourceCarrier.element, defaultCarrier);
   const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
   if (carrier === undefined || type === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(initializer, "Array default requires a renderable finalized element carrier."));

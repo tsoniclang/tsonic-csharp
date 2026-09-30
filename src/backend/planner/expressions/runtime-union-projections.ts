@@ -8,7 +8,7 @@ import {
   type TargetTypeRef,
 } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpConversionSelection } from "../../../policy/conversions/selection/model.js";
+import type { CsharpConversionSelection } from "../../../analysis/conversions/index.js";
 import type {
   CsharpExpression,
 } from "../../target-ast/roslyn/index.js";

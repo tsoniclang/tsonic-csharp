@@ -5,7 +5,7 @@ import type {
 } from "@tsonic/tsts";
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
-import { csharpBindingDefaultCarrier } from "../binding-normalization.js";
+import { csharpBindingDefaultCarrier } from "../../../target-model/types/binding-normalization.js";
 import {
   resolveCsharpObjectShapeMemberBySourceContract,
 } from "../../../target-model/types/object-shape-members.js";
@@ -86,9 +86,9 @@ export function createCsharpBindingProjectionPolicy(
       const declaration = host.ast.as.AsBindingElement(binding);
       if (declaration?.Initializer === undefined) return Object.freeze({ storageCarrier: projected, bindingCarrier: projected });
       const storageCarrier = csharpNullableTargetType(projected);
-      const fallback = host.typeResolver.resolveNode(declaration.Initializer, sourceFile, nextState(state));
-      if (fallback === undefined) return undefined;
-      const bindingCarrier = csharpBindingDefaultCarrier(projected, fallback);
+      const defaultValue = host.typeResolver.resolveNode(declaration.Initializer, sourceFile, nextState(state));
+      if (defaultValue === undefined) return undefined;
+      const bindingCarrier = csharpBindingDefaultCarrier(projected, defaultValue);
       return Object.freeze({ storageCarrier, bindingCarrier });
     } finally {
       activeBindings.delete(binding);
