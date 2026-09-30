@@ -90,6 +90,7 @@ export function tryPlanBinaryExpression(
     input,
     diagnostics,
     planExpression,
+    state,
   );
   if (typeTest !== undefined || diagnostics.length > typeTestStart) {
     return typeTest;

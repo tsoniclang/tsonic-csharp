@@ -1,4 +1,6 @@
 import { classifyCsharpUnionCall } from "./union-calls.js";
+import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
 import { getCsharpTypeofResult, type CsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
 import { getCsharpGenericMethodValue } from "../../target-model/types/generic-method-values.js";
 import { getCsharpClassFactory } from "../../target-model/types/class-factories.js";
@@ -535,6 +537,10 @@ function visit(
       ? resolveInstanceType(policy, expression.Right, sourceFile) : undefined;
     const instanceFactory = sourceOperator === "instanceof" && expression?.Right !== undefined
       ? evidence.nodeTargetType(expression.Right) : undefined;
+    const instanceSource = sourceOperator === "instanceof" && expression?.Left !== undefined
+      ? evidence.nodeTargetType(expression.Left) : undefined;
+    const instancePlan = instanceSource === undefined || instanceType === undefined ? undefined
+      : selectCsharpClosedTypeTestPlan(instanceSource, instanceType);
     setClassification(
       builder,
       node,
@@ -560,7 +566,8 @@ function visit(
         ...(propertyWrite === undefined ? {} : { propertyWrite }),
         ...(elementWrite === undefined ? {} : { elementWrite }),
         ...(typeofComparison === undefined ? {} : { typeofComparison }),
-        ...(instanceType === undefined ? {} : { instanceType }),
+        ...(instancePlan === undefined || instanceSource === undefined || instanceType === undefined ? {}
+          : { instanceTest: Object.freeze({ sourceCarrier: instanceSource, targetCarrier: instanceType, test: instancePlan }) }),
         ...(getCsharpClassFactory(instanceFactory) === undefined ? {} : { instanceFactory }),
       }),
     );
@@ -670,9 +677,12 @@ function resolveInstanceType(policy: CsharpPolicyContext, expression: Node, sour
   const semantics = policy.semantics(sourceFile);
   const type = semantics.types.expressionType(expression);
   const signatures = type === undefined ? [] : semantics.types.constructSignatures(type);
-  if (signatures.length !== 1) return undefined;
-  const instance = semantics.types.returnType(signatures[0]!);
-  return instance === undefined ? undefined : policy.types.resolveType(instance, sourceFile);
+  const instances = signatures.map(signature => {
+    const instance = semantics.types.returnType(signature);
+    return instance === undefined ? undefined : policy.types.resolveType(instance, sourceFile);
+  });
+  const selected = instances[0];
+  return selected !== undefined && instances.every(instance => instance !== undefined && targetTypeRefEquals(selected, instance)) ? selected : undefined;
 }
 
 function classifyTypeofComparison(

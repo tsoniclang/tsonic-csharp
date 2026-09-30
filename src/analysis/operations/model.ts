@@ -121,7 +121,7 @@ export interface CsharpPropertyClassification {
 }
 
 export interface CsharpBinaryClassification {
-  readonly instanceType?: TargetTypeRef;
+  readonly instanceTest?: import("../../target-model/operations/type-tests.js").CsharpClosedTypeTest;
   readonly instanceFactory?: TargetTypeRef;
   readonly jsValue: CsharpJsValueOperationSelection;
   readonly target: CsharpOperationSelection<CsharpResolvedBinaryOperation>;

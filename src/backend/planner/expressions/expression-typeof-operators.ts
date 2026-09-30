@@ -7,19 +7,13 @@ import { getCsharpClassFactory } from "../../../target-model/types/class-factori
 import {
   sourceOperatorFromKindName,
 } from "../../../target-model/syntax/operators.js";
-import {
-  csharpTsValueTargetType,
-  isCsharpJsValueTargetType,
-} from "../../../target-model/types/index.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
 import type {
   CsharpExpression,
 } from "../../target-ast/roslyn/index.js";
-import {
-  expressionToCsharpType,
-} from "../types/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -32,6 +26,7 @@ import type {
 import { createDestructuringPlannerState, type DestructuringPlannerState } from "../bindings/binding-state.js";
 import { planCsharpRuntimeCategory } from "./runtime-category.js";
 import { evaluatedConstant } from "./csharp-expression-builders.js";
+import { planCsharpClosedTypeTest } from "./type-tests.js";
 import {
   tryPlanRuntimeUnionTypeTest,
 } from "./runtime-union-projections.js";
@@ -104,6 +99,7 @@ export function tryPlanTypeTestExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
+  state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   if (
     !input.program.source.ast.is.IsBinaryExpression(node) ||
@@ -121,7 +117,7 @@ export function tryPlanTypeTestExpression(
     ));
     return undefined;
   }
-  const planned = planExpression(left, sourceFile, input, diagnostics);
+  const planned = planExpression(left, sourceFile, input, diagnostics, state);
   const factoryType = input.program.operations.binary(node)?.instanceFactory;
   const factory = getCsharpClassFactory(factoryType);
   if (factory !== undefined) {
@@ -137,37 +133,14 @@ export function tryPlanTypeTestExpression(
       { kind: "Argument", expression: planned }, { kind: "Argument", expression: receiver },
     ] };
   }
-  const instanceType = input.program.operations.binary(node)?.instanceType;
-  const targetType = instanceType === undefined
-    ? expressionToCsharpType(right, sourceFile, input, diagnostics)
-    : csharpTypeFromTargetTypeRef(instanceType, input.scope.typeParameterNames);
-  if (planned === undefined || targetType === undefined) {
-    return undefined;
-  }
-  if (isCsharpJsValueTargetType(input.types.classifications.resolveNode(left, sourceFile))) {
-    const runtimeType = csharpTypeFromTargetTypeRef(csharpTsValueTargetType(), input.scope.typeParameterNames);
-    return runtimeType === undefined
-      ? undefined
-      : {
-          kind: "InvocationExpression",
-          callee: {
-            kind: "SimpleMemberAccessExpression",
-            receiver: runtimeType,
-            name: "IsDynamicInstanceOf",
-            typeArguments: [targetType],
-          },
-          arguments: [{ kind: "Argument", expression: planned }],
-        };
-  }
-  return {
-    kind: "IsPatternExpression",
-    expression: {
-      kind: "CastExpression",
-      type: { kind: "NullableType", inner: { kind: "PredefinedType", name: "object" } },
-      expression: planned,
-    },
-    type: targetType,
-  };
+  const fact = input.program.operations.binary(node)?.instanceTest;
+  const sourceCarrier = input.types.classifications.resolveNode(left, sourceFile);
+  const result = planned === undefined || fact === undefined || sourceCarrier === undefined ||
+    !targetTypeRefEquals(fact.sourceCarrier, sourceCarrier) ? undefined
+    : planCsharpClosedTypeTest(planned, fact, input, state ?? createDestructuringPlannerState(sourceFile, input.program.source.ast));
+  if (result === undefined) diagnostics.push(unsupportedNodeDiagnostic(node,
+    "Nominal type test requires its exact sealed source, constructor and native payload test."));
+  return result;
 }
 
 export function tryPlanTypeofComparisonExpression(
