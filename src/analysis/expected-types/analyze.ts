@@ -53,6 +53,7 @@ import {
 import type {
   CsharpTargetBinaryOperation,
 } from "../../policy/operations/index.js";
+import { csharpUnionEqualityArmsEqual } from "../../target-model/operations/binary.js";
 import type {
   CsharpTargetCallSelection,
 } from "../../policy/operations/members/index.js";
@@ -865,6 +866,8 @@ function csharpBinaryTargetOperationsEqual(
       return right.kind === "nullish-equality" && left.value === right.value;
     case "union-coalesce":
       return right.kind === "union-coalesce" && left.valueArmIndex === right.valueArmIndex && left.retainCarrier === right.retainCarrier;
+    case "union-equality":
+      return right.kind === "union-equality" && left.negated === right.negated && csharpUnionEqualityArmsEqual(left.arms, right.arms);
     case "operator":
       return right.kind === "operator" && left.operator === right.operator;
     case "string-ordinal-relational":

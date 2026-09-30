@@ -34,7 +34,11 @@ export function getCsharpTypeofRuntimeKind(type: TargetTypeRef | undefined): Csh
   if (isCsharpAbsenceTargetType(type)) return "object";
   if (type === undefined || getCsharpNullableElementTargetType(type) !== undefined) return undefined;
   if (type.kind === "function-pointer" || getCsharpDelegateSignature(type) !== undefined) return "function";
-  if (type.kind === "target-named") return (type as CsharpTargetNamedTypeRef).csharpTypeofRuntimeKind;
+  if (type.kind === "array") return "object";
+  if (type.kind === "target-named") {
+    const named = type as CsharpTargetNamedTypeRef;
+    return named.csharpTypeofRuntimeKind ?? (named.csharpSourceDeclarationKind === "class" ? "object" : undefined);
+  }
   if (type.kind !== "source-primitive") return undefined;
   if (type.name === "bool") return "boolean";
   if (type.name === "char") return "string";

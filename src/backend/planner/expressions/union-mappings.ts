@@ -7,7 +7,7 @@ import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-a
 import type { CsharpPlanningContext } from "../context.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import { runtimeUnionArmProjection, runtimeUnionArmTest } from "./runtime-union-projections.js";
+import { planCsharpUnionPattern } from "./union-patterns.js";
 
 export function planCsharpUnionMapping(
   node: Node,
@@ -36,15 +36,9 @@ export function planCsharpUnionMapping(
   for (const [index, mapping] of mappings.entries()) {
     const designation = input.names.temporaryName(`__tsonic_union_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}_${index}`);
     const receiver: CsharpExpression = { kind: "IdentifierName", name: designation };
-    let value: CsharpExpression = receiver;
-    let when: CsharpExpression | undefined;
-    for (const [depth, step] of mapping.source.entries()) {
-      const carrier = depth === 0 ? source : step.union;
-      const test = runtimeUnionArmTest(value, step.index, carrier);
-      when = when === undefined ? test : { kind: "BinaryExpression", left: when,
-        operatorToken: { kind: "AmpersandAmpersandToken" }, right: test };
-      value = runtimeUnionArmProjection(value, step.index, carrier);
-    }
+    const projection = planCsharpUnionPattern(receiver, mapping.source, source);
+    let value = projection.value;
+    const when = projection.condition;
     for (const step of [...mapping.target].reverse()) {
       const type = csharpTypeFromTargetTypeRef(step.union, input.scope.typeParameterNames);
       if (type === undefined) return undefined;

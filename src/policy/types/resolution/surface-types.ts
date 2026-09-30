@@ -32,6 +32,7 @@ export function csharpJsArrayTargetType(
       denseMutableElementType: elementType,
       indexableLengthMemberName: "length",
       collectionSemantics: "js-array",
+      typeofRuntimeKind: "object",
     },
   );
   return {

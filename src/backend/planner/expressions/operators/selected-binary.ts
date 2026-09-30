@@ -38,6 +38,7 @@ import { planCsharpBigIntCall } from "./bigint-call.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { allocateExpressionTemp } from "../../bindings/binding-state.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "../runtime-union-projections.js";
+import { planCsharpUnionEquality } from "../union-equality.js";
 
 export function planSelectedCsharpBinaryOperation(
   node: Node,
@@ -49,6 +50,9 @@ export function planSelectedCsharpBinaryOperation(
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
+  if (selection.targetOperation.kind === "union-equality") {
+    return planCsharpUnionEquality(node, selection, sourceFile, input, diagnostics, planExpression, state);
+  }
   if (selection.targetOperation.kind === "bigint-call") {
     return planCsharpBigIntCall(node, selection, sourceFile, input, diagnostics, planExpression, state);
   }

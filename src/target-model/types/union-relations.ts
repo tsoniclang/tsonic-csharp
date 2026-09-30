@@ -13,7 +13,7 @@ export interface CsharpUnionArmMapping {
   readonly target: readonly CsharpUnionPathStep[];
 }
 
-function csharpUnionLeaves(carrier: TargetTypeRef):
+export function csharpUnionLeaves(carrier: TargetTypeRef):
   readonly { readonly carrier: TargetTypeRef; readonly path: readonly CsharpUnionPathStep[] }[] | undefined {
   const leaves: { readonly carrier: TargetTypeRef; readonly path: readonly CsharpUnionPathStep[] }[] = [];
   const visit = (current: TargetTypeRef, path: readonly CsharpUnionPathStep[]): boolean => {

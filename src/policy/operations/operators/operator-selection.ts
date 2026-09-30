@@ -1,6 +1,8 @@
 import { validateBinaryTargetSemantics, validateUnaryTargetSemantics, isCsharpReferenceCarrier, isEquality, isRelational, isShift, isBitwise, isArithmetic } from "./operator-validation.js";
 import { Node_Expression } from "@tsonic/target-api/source";
-import { getCsharpGenericMethodValue } from "../../../target-model/types/generic-method-values.js";
+import type { CsharpReferenceEquality, CsharpUnionEqualityArm } from "../../../target-model/operations/binary.js";
+import { csharpReferenceIdentityCarrier, selectCsharpReferenceEquality } from "./reference-equality.js";
+import { selectCsharpUnionEquality } from "./union-equality.js";
 import type {
   Node,
   SourceFile,
@@ -20,7 +22,6 @@ import {
   isCsharpNeverTargetType,
   isCsharpAbsenceTargetType,
   isCsharpStringTargetType,
-  isCsharpValueTypeTargetType,
   targetTypeRefEquals,
 } from "../../types/index.js";
 import {
@@ -67,6 +68,7 @@ export type CsharpTargetBinaryOperation =
   | { readonly kind: "array-index-presence" }
   | { readonly kind: "nullish-equality"; readonly value: boolean }
   | { readonly kind: "union-coalesce"; readonly valueArmIndex: number; readonly retainCarrier: boolean }
+  | { readonly kind: "union-equality"; readonly negated: boolean; readonly arms: readonly CsharpUnionEqualityArm[] }
   | {
       readonly kind: "operator";
       readonly operator: string;
@@ -81,11 +83,7 @@ export type CsharpTargetBinaryOperation =
       readonly negated: boolean;
       readonly unionArmIndexes?: readonly number[];
     }
-  | {
-      readonly kind: "reference-identity";
-      readonly negated: boolean;
-      readonly distinctMethodValues?: true;
-    };
+  | CsharpReferenceEquality;
 
 export interface CsharpResolvedUnaryOperation {
   readonly kind: "resolved";
@@ -203,7 +201,7 @@ export function selectCsharpBinaryOperands(
       return {
         kind: "resolved", sourceOperator,
         targetOperation: { kind: "bigint-call", method, assignment: isCsharpAssignmentOperator(sourceOperator),
-          location: direct ? "direct" : receiverType !== undefined && referenceIdentityCarrier(receiverType, input) !== undefined
+          location: direct ? "direct" : receiverType !== undefined && csharpReferenceIdentityCarrier(receiverType, input) !== undefined
             ? "reference-receiver" : "unsupported" },
         left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType,
         resultType: leftType, expectedResultCompatible: expectedResultType !== undefined && targetTypeRefEquals(leftType, expectedResultType),
@@ -223,12 +221,22 @@ export function selectCsharpBinaryOperands(
     };
   }
   const nullishTest = selectNullishTest(sourceOperator, leftType, rightType);
+  if (nullishTest === undefined && (sourceOperator === "===" || sourceOperator === "!==") &&
+    (getCsharpRuntimeUnionArms(leftType) !== undefined || getCsharpRuntimeUnionArms(rightType) !== undefined)) {
+    const arms = selectCsharpUnionEquality(leftType, rightType, input);
+    if (arms === undefined) return rejected("Union equality requires exact native comparison evidence for every leaf pair.");
+    const resultType = csharpSourcePrimitiveTargetType("bool");
+    return Object.freeze({ kind: "resolved", sourceOperator,
+      targetOperation: Object.freeze({ kind: "union-equality", negated: sourceOperator === "!==", arms }),
+      left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType, resultType,
+      expectedResultCompatible: expectedResultType !== undefined && targetTypeRefEquals(resultType, expectedResultType) });
+  }
   const stringRelational = selectStringRelational(
     sourceOperator,
     leftType,
     rightType,
   );
-  const referenceIdentity = selectStrictReferenceIdentity(
+  const referenceIdentity = selectCsharpReferenceEquality(
     sourceOperator,
     leftType,
     rightType,
@@ -316,58 +324,6 @@ export function selectCsharpBinaryOperands(
           ),
       }
     : rejected(incompatibility);
-}
-
-function selectStrictReferenceIdentity(
-  operator: CsharpSourceOperator,
-  left: TargetTypeRef,
-  right: TargetTypeRef,
-  input: CsharpPolicyContext,
-): Extract<CsharpTargetBinaryOperation, { readonly kind: "reference-identity" }> |
-    undefined {
-  if (operator !== "===" && operator !== "!==" && operator !== "==" && operator !== "!=") {
-    return undefined;
-  }
-  const leftMethod = getCsharpGenericMethodValue(left);
-  const rightMethod = getCsharpGenericMethodValue(right);
-  if (leftMethod !== undefined && rightMethod !== undefined) {
-    return { kind: "reference-identity", negated: operator === "!==" || operator === "!=",
-      ...(leftMethod.identity === rightMethod.identity ? {} : { distinctMethodValues: true }) };
-  }
-  if (operator !== "===" && operator !== "!==") return undefined;
-  const leftIdentity = referenceIdentityCarrier(left, input);
-  const rightIdentity = referenceIdentityCarrier(right, input);
-  return leftIdentity !== undefined && rightIdentity !== undefined &&
-      (targetTypeRefEquals(leftIdentity, rightIdentity) ||
-        input.objectShapes.resolveTarget(leftIdentity) !== undefined &&
-        input.objectShapes.resolveTarget(rightIdentity) !== undefined)
-    ? { kind: "reference-identity", negated: operator === "!==" }
-    : undefined;
-}
-
-function referenceIdentityCarrier(
-  type: TargetTypeRef,
-  input: CsharpPolicyContext,
-): TargetTypeRef | undefined {
-  const providerKind = type.kind === "target-named"
-    ? input.providers.findTargetBindingByTargetId(type.id)?.kind
-    : undefined;
-  if (
-    isCsharpStringTargetType(type) ||
-    isCsharpValueTypeTargetType(type) ||
-    providerKind === "enum" ||
-    providerKind === "struct"
-  ) {
-    return undefined;
-  }
-  const nullableElement = getCsharpNullableElementTargetType(type);
-  const carrier = nullableElement !== undefined &&
-      !isCsharpValueTypeTargetType(nullableElement)
-    ? nullableElement
-    : type;
-  return carrier.kind === "target-named" || carrier.kind === "array"
-    ? carrier
-    : undefined;
 }
 
 export function selectCsharpDestructuringAssignmentOperation(

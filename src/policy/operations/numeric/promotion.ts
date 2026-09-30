@@ -68,10 +68,15 @@ export function selectCsharpNumericBinaryPromotion(
   );
   const effectiveLeft = adaptedLeft ?? selectedLeft;
   const effectiveRight = adaptedRight ?? selectedRight;
-  const resultKind = promotedPrimitiveKind(
-    effectiveLeft.name,
-    effectiveRight.name,
-  );
+  return selectCsharpNumericCarrierPromotion(effectiveLeft, effectiveRight);
+}
+
+export function selectCsharpNumericCarrierPromotion(
+  left: TargetTypeRef,
+  right: TargetTypeRef,
+): CsharpNumericBinaryPromotion | undefined {
+  if (!isNumericPrimitive(left) || !isNumericPrimitive(right)) return undefined;
+  const resultKind = promotedPrimitiveKind(left.name, right.name);
   if (resultKind === undefined) {
     return undefined;
   }
