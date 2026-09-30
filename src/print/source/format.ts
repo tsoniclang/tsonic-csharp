@@ -16,7 +16,7 @@ export function printLiteral(
     }
     return `"${escapeCsharpStringText(value, false)}"`;
   }
-  return String(value);
+  return typeof value === "number" ? printNumericLiteral(value, undefined) : String(value);
 }
 
 function printRawStringLiteral(value: string): string {
@@ -35,7 +35,17 @@ function printRawStringLiteral(value: string): string {
 }
 
 export function printNumericLiteral(value: number, suffix: "F" | "D" | "M" | undefined): string {
-  return `${String(value)}${suffix ?? ""}`;
+  if (!Number.isFinite(value)) {
+    throw new Error("C# numeric literals require finite values.");
+  }
+  const text = Object.is(value, -0) ? "-0" : String(value);
+  if (suffix !== undefined) return `${text}${suffix}`;
+  if (Object.is(value, -0)) return "-0D";
+  if (/^-?[0-9]+$/u.test(text)) {
+    const integer = BigInt(text);
+    if (integer < -(1n << 63n) || integer >= 1n << 64n) return `${text}D`;
+  }
+  return text;
 }
 
 export function printIntegerLiteral(value: string, suffix: "L" | "UL"): string {

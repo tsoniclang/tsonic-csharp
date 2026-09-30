@@ -109,6 +109,24 @@ test("casts retain the complete lower-precedence operand inside checked expressi
   } }), "(int)(offset = size - 8L)");
 });
 
+test("numeric tokens retain floating values beyond the native integer literal range", () => {
+  for (const kind of ["LiteralExpression", "NumericLiteralExpression"]) {
+    for (const [value, expected] of [
+      [18446744073709551616, "18446744073709552000D"],
+      [-18446744073709551616, "-18446744073709552000D"],
+      [1e20, "100000000000000000000D"],
+      [1e21, "1e+21"],
+      [42, "42"],
+      [1.5, "1.5"],
+      [-0, "-0D"],
+    ]) assert.equal(printCsharpExpression({ kind, value }), expected);
+    for (const value of [NaN, Infinity, -Infinity]) {
+      assert.throws(() => printCsharpExpression({ kind, value }), /finite values/u);
+    }
+  }
+  assert.equal(printCsharpExpression({ kind: "NumericLiteralExpression", value: 1e20, suffix: "M" }), "100000000000000000000M");
+});
+
 test("printer preserves exact 64-bit integer literal digits", () => {
   assert.equal(
     printCsharpExpression({
