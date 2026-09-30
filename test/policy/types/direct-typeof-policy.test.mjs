@@ -9,6 +9,12 @@ import {
   selectCsharpTypeofComparison,
 } from "../../../dist/policy/index.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/delegates.js";
+import { getCsharpTypeofResult } from "../../../dist/target-model/types/runtime-kind.js";
+import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
+
+function categorySelection(sourceCarrier, runtimeKind, negated) {
+  return { kind: "runtime-category-test", sourceCarrier, category: getCsharpTypeofResult(sourceCarrier), runtimeKind, negated };
+}
 
 test("C# typeof recognizes callable contracts without name guesses or extra category hints", () => {
   const callable = csharpDelegateTargetType("System.Func", [], csharpStringTargetType());
@@ -17,9 +23,8 @@ test("C# typeof recognizes callable contracts without name guesses or extra cate
   assert.equal(getCsharpTypeofRuntimeKind(withoutContract), undefined);
   assert.equal(getCsharpTypeofRuntimeKind({ ...callable, id: "renamed:exact-delegate" }), "function");
   assert.equal(getCsharpTypeofRuntimeKind(csharpNullableTargetType(callable)), undefined);
-  assert.deepEqual(selectCsharpTypeofComparison(csharpNullableTargetType(callable), "function", false), {
-    kind: "target-type-test", targetType: callable, negated: false,
-  });
+  assert.deepEqual(selectCsharpTypeofComparison(csharpNullableTargetType(callable), "function", false),
+    categorySelection(csharpNullableTargetType(callable), "function", false));
 });
 
 test("C# typeof policy distinguishes an exact runtime kind from a nullable carrier", () => {
@@ -30,19 +35,11 @@ test("C# typeof policy distinguishes an exact runtime kind from a nullable carri
   assert.equal(getCsharpTypeofRuntimeKind(nullableString), undefined);
   assert.deepEqual(
     selectCsharpTypeofComparison(nullableString, "string", false),
-    {
-      kind: "target-type-test",
-      targetType: stringType,
-      negated: false,
-    },
+    categorySelection(nullableString, "string", false),
   );
   assert.deepEqual(
     selectCsharpTypeofComparison(nullableString, "string", true),
-    {
-      kind: "target-type-test",
-      targetType: stringType,
-      negated: true,
-    },
+    categorySelection(nullableString, "string", true),
   );
 });
 
@@ -53,11 +50,7 @@ test("C# typeof policy handles nullable value aliases without guessing from sour
   assert.equal(getCsharpTypeofRuntimeKind(nullableFloat64), undefined);
   assert.deepEqual(
     selectCsharpTypeofComparison(nullableFloat64, "number", false),
-    {
-      kind: "target-type-test",
-      targetType: float64Type,
-      negated: false,
-    },
+    categorySelection(nullableFloat64, "number", false),
   );
   assert.deepEqual(
     selectCsharpTypeofComparison(nullableFloat64, "string", false),
@@ -67,4 +60,20 @@ test("C# typeof policy handles nullable value aliases without guessing from sour
     selectCsharpTypeofComparison(nullableFloat64, "string", true),
     { kind: "constant", value: true },
   );
+});
+
+test("closed typeof comparisons retain repeated categories, nested absence and mismatches", () => {
+  const first = csharpSourcePrimitiveTargetType("int32");
+  const second = csharpSourcePrimitiveTargetType("uint32");
+  const allNumbers = csharpRuntimeUnionTargetType([first, second]);
+  assert.deepEqual(selectCsharpTypeofComparison(allNumbers, "number", false), { kind: "constant", value: true });
+  assert.deepEqual(selectCsharpTypeofComparison(allNumbers, "string", false), { kind: "constant", value: false });
+  assert.deepEqual(selectCsharpTypeofComparison(allNumbers, "string", true), { kind: "constant", value: true });
+  const value = csharpNullableTargetType(csharpRuntimeUnionTargetType([allNumbers, csharpStringTargetType()]));
+  for (const kind of ["object", "number", "string"]) {
+    assert.deepEqual(selectCsharpTypeofComparison(value, kind, false), categorySelection(value, kind, false));
+    assert.deepEqual(selectCsharpTypeofComparison(value, kind, true), categorySelection(value, kind, true));
+  }
+  assert.equal(selectCsharpTypeofComparison(undefined, "number", false).kind, "rejected");
+  assert.equal(selectCsharpTypeofComparison({ kind: "target-named", id: "opaque", name: "Opaque" }, "object", false).kind, "rejected");
 });

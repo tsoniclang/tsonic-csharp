@@ -28,9 +28,6 @@ import { planCsharpRuntimeCategory } from "./runtime-category.js";
 import { evaluatedConstant } from "./csharp-expression-builders.js";
 import { planCsharpClosedTypeTest } from "./type-tests.js";
 import {
-  tryPlanRuntimeUnionTypeTest,
-} from "./runtime-union-projections.js";
-import {
   translateCsharpJsValueInvocation,
 } from "./js-value-operations.js";
 
@@ -149,6 +146,7 @@ export function tryPlanTypeofComparisonExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
+  state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   if (!input.program.source.ast.is.IsBinaryExpression(node)) {
     return undefined;
@@ -224,29 +222,11 @@ export function tryPlanTypeofComparisonExpression(
     return undefined;
   }
   if (selection.kind === "constant") return evaluatedConstant(planned, selection.value);
-  if (selection.kind === "runtime-union-arm-test") {
-    return tryPlanRuntimeUnionTypeTest(
-      comparison.operand,
-      selection.targetType,
-      sourceFile,
-      input,
-      diagnostics,
-      planned,
-      selection.negated,
-    );
-  }
-  const targetType = csharpTypeFromTargetTypeRef(selection.targetType, input.scope.typeParameterNames);
-  if (targetType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "The selected nullable typeof comparison target type is not renderable in C#.",
-    ));
-    return undefined;
-  }
-  return {
-    kind: "IsPatternExpression",
-    expression: planned,
-    type: targetType,
-    negated: selection.negated,
-  };
+  const sourceCarrier = input.types.classifications.resolveNode(comparison.operand, sourceFile);
+  const result = sourceCarrier === undefined || !targetTypeRefEquals(sourceCarrier, selection.sourceCarrier)
+    ? undefined : planCsharpRuntimeCategory(planned, sourceCarrier, selection.category, input,
+      state ?? createDestructuringPlannerState(sourceFile, input.program.source.ast), selection);
+  if (result === undefined) diagnostics.push(unsupportedNodeDiagnostic(node,
+    "The selected typeof comparison must retain its exact native carrier and closed category contract."));
+  return result;
 }

@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpTypeofRuntimeKind, TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTypeofResultsEqual, getCsharpTypeofResult, type CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
 import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../context.js";
@@ -7,16 +7,22 @@ import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "./runtime-union-projections.js";
 import { evaluatedConstant } from "./csharp-expression-builders.js";
 
+interface CsharpRuntimeCategoryComparison {
+  readonly runtimeKind: CsharpTypeofRuntimeKind;
+  readonly negated: boolean;
+}
+
 export function planCsharpRuntimeCategory(
   expression: CsharpExpression,
   carrier: TargetTypeRef,
   category: CsharpTypeofResult,
   input: CsharpPlanningContext,
   state: DestructuringPlannerState,
+  comparison?: CsharpRuntimeCategoryComparison,
 ): CsharpExpression | undefined {
   const expected = getCsharpTypeofResult(carrier, undefined, input.program.typeDefinitions);
   if (expected === undefined || !csharpTypeofResultsEqual(expected, category)) return undefined;
-  return planRuntimeCategory(expression, category, input, state);
+  return planRuntimeCategory(expression, category, input, state, comparison);
 }
 
 function planRuntimeCategory(
@@ -24,24 +30,28 @@ function planRuntimeCategory(
   category: CsharpTypeofResult,
   input: CsharpPlanningContext,
   state: DestructuringPlannerState,
+  comparison: CsharpRuntimeCategoryComparison | undefined,
 ): CsharpExpression | undefined {
-  if (typeof category === "string") return evaluatedConstant(expression, category);
+  const literal = (value: CsharpTypeofRuntimeKind): Extract<CsharpExpression, { readonly kind: "LiteralExpression" }> => ({
+    kind: "LiteralExpression", value: comparison === undefined ? value : (value === comparison.runtimeKind) !== comparison.negated,
+  });
+  if (typeof category === "string") return evaluatedConstant(expression, literal(category).value);
   const arms: CsharpSwitchExpressionArm[] = [];
   if (category.kind === "optional") {
     const designation = allocateExpressionTemp(state);
     const type = csharpTypeFromTargetTypeRef(category.element, input.scope.typeParameterNames);
-    const nested = typeof category.value === "string" ? { kind: "LiteralExpression" as const, value: category.value }
-      : planRuntimeCategory({ kind: "IdentifierName", name: designation }, category.value, input, state);
+    const nested = typeof category.value === "string" ? literal(category.value)
+      : planRuntimeCategory({ kind: "IdentifierName", name: designation }, category.value, input, state, comparison);
     if (type === undefined || nested === undefined) return undefined;
     arms.push({ pattern: { kind: "ConstantPattern", expression: { kind: "LiteralExpression", value: null } },
-      expression: { kind: "LiteralExpression", value: "object" } },
+      expression: literal("object") },
     { pattern: { kind: "DeclarationPattern", type, designation }, expression: nested });
   } else {
     for (const [index, arm] of category.arms.entries()) {
       const designation = allocateExpressionTemp(state);
       const receiver: CsharpExpression = { kind: "IdentifierName", name: designation };
-      const nested = typeof arm.result === "string" ? { kind: "LiteralExpression" as const, value: arm.result }
-        : planRuntimeCategory(runtimeUnionArmProjection(receiver, index, category.sourceCarrier), arm.result, input, state);
+      const nested = typeof arm.result === "string" ? literal(arm.result)
+        : planRuntimeCategory(runtimeUnionArmProjection(receiver, index, category.sourceCarrier), arm.result, input, state, comparison);
       if (nested === undefined) return undefined;
       arms.push({ pattern: { kind: "VarPattern", designation }, when: runtimeUnionArmTest(receiver, index, category.sourceCarrier),
         expression: nested });

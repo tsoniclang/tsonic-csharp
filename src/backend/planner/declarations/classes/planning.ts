@@ -2,7 +2,7 @@ import type { CsharpPlanningContext } from "../../context.js";
 import { AsClassDeclaration, AsInterfaceDeclaration, AsPropertySignatureDeclaration, KindInterfaceDeclaration, KindPropertySignature, SourceKind } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpClassDeclaration } from "../../../target-ast/roslyn/index.js";
+import type { CsharpClassDeclaration, CsharpConstructorDeclaration } from "../../../target-ast/roslyn/index.js";
 import { planAttributesForSubject } from "../attributes.js";
 import { planClassHeritage } from "./heritage.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../modifiers.js";
@@ -22,6 +22,7 @@ import { csharpSafetyModifiersForDeclaration } from "../../safety/explicit-safet
 import { guardCsharpFrozenDataProperties } from "../../objects/frozen-data-properties.js";
 import { createCsharpMemberPlanningContext } from "../../context.js";
 import { completeLocalClassConstructor } from "./factories.js";
+import { planClassInitializers } from "./initializers.js";
 
 export function planClassDeclaration(
   node: Node,
@@ -76,7 +77,13 @@ export function planClassDeclaration(
       implicitConstructors.length > 0
     ? []
     : defaultSafetyConstructors(node, className, input);
-  const defaultFactoryConstructor = factory === undefined || members.some(member => member.kind === "ConstructorDeclaration") ||
+  const requiresConstructor = input.program.classInitialization.requiresConstructor(node);
+  const instanceInitializers = factory !== undefined || !requiresConstructor ? []
+    : planClassInitializers(node, sourceFile, className, false, input, diagnostics);
+  const completeConstructor = (constructor: CsharpConstructorDeclaration): CsharpConstructorDeclaration => factory !== undefined
+    ? completeLocalClassConstructor(constructor, factory, input, diagnostics)
+    : { ...constructor, body: { kind: "Block", statements: [...instanceInitializers, ...constructor.body.statements] } };
+  const defaultInitializationConstructor = !requiresConstructor || members.some(member => member.kind === "ConstructorDeclaration") ||
     implicitConstructors.length !== 0 || safetyDefaultConstructors.length !== 0 ? [] : [{
       kind: "ConstructorDeclaration" as const, name: className, modifiers: ["public" as const],
       parameters: [], body: { kind: "Block" as const, statements: [] },
@@ -101,9 +108,9 @@ export function planClassDeclaration(
           ],
         }),
     members: [
-      ...implicitConstructors.map(constructor => factory === undefined ? constructor : completeLocalClassConstructor(constructor, factory, input, diagnostics)),
-      ...[...safetyDefaultConstructors, ...defaultFactoryConstructor].map(member => factory !== undefined && member.kind === "ConstructorDeclaration"
-        ? completeLocalClassConstructor(member, factory, input, diagnostics) : member),
+      ...implicitConstructors.map(completeConstructor),
+      ...[...safetyDefaultConstructors, ...defaultInitializationConstructor].map(member => member.kind === "ConstructorDeclaration"
+        ? completeConstructor(member) : member),
       ...(factory?.retainsEnvironment ? [{ kind: "FieldDeclaration" as const, name: factory.environmentName,
         type: csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames)!,
         modifiers: [factory.requiresInstanceTest ? "internal" as const : "private" as const, "readonly" as const] }] : []),
@@ -117,7 +124,7 @@ export function planClassDeclaration(
       ...(objectShape === undefined ? [] : planCsharpStructuralInterfaceMethods(objectShape, node, input, diagnostics)),
       ...(objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "js-freeze")
         ? guardCsharpFrozenDataProperties(objectShape, members, input, diagnostics) : members).map(member =>
-          factory !== undefined && member.kind === "ConstructorDeclaration" ? completeLocalClassConstructor(member, factory, input, diagnostics) : member),
+          member.kind === "ConstructorDeclaration" ? completeConstructor(member) : member),
       ...(jsonSerializable && objectShape !== undefined
         ? renderJsonSerializableObjectShapeMethod(objectShape)
         : []),

@@ -9,13 +9,12 @@ import { csharpCaptureFrameExpression, csharpCapturedBindingExpression } from ".
 import { getCsharpLocalBindingName } from "../../bindings/binding-state.js";
 import { csharpTypeFromObjectShapeFact } from "../../objects/planning.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { planExpression, planExpressionWithExpectedType } from "../../expressions/index.js";
+import { planExpression } from "../../expressions/index.js";
 import { planClassMembers } from "./members.js";
-import { planIdentifierName } from "../../names/source-identifiers.js";
 import { createCsharpTypeParameterPlanningContext } from "../../names/type-parameters.js";
 import { planOuterTypeParameters, planTypeParameters } from "../../types/type-parameters.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
-import { planClassStaticBlockDeclaration } from "./constructors.js";
+import { planClassInitializers } from "./initializers.js";
 
 interface CaptureSlot {
   readonly name: string;
@@ -96,29 +95,6 @@ export function planClassFactoryExpression(
     arguments: arguments_.map(expression => ({ kind: "Argument", expression: expression! })) };
 }
 
-export function planClassInitializers(
-  factory: CsharpClassFactory, isStatic: boolean, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
-): readonly CsharpStatement[] {
-  return input.program.source.ast.members(factory.declaration).flatMap(node => {
-    if (node !== undefined && isStatic && input.program.source.ast.is.IsClassStaticBlockDeclaration(node)) {
-      return planClassStaticBlockDeclaration(node, factory.factoryName, factory.sourceFile, input, diagnostics).body.statements;
-    }
-    if (node === undefined || input.program.source.ast.hasModifierKind(node, "static") !== isStatic ||
-      !input.program.source.ast.is.IsPropertyDeclaration(node)) return [];
-    const property = input.program.source.ast.as.AsPropertyDeclaration(node)!;
-    if (property.Initializer === undefined) return [];
-    const target = input.types.classifications.resolveNode(property.Type ?? property.name);
-    const type = target === undefined ? undefined : csharpTypeFromTargetTypeRef(target, input.scope.typeParameterNames);
-    const value = type === undefined ? undefined : planExpressionWithExpectedType(property.Initializer, factory.sourceFile,
-      input, diagnostics, type, property.Type ?? property.name);
-    if (value === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "A class initializer requires its exact native value contract."));
-      return [];
-    }
-    return [assignment({ kind: "IdentifierName", name: "this" }, planIdentifierName(property.name, "Field", input, diagnostics, "Class field"), value)];
-  });
-}
-
 export function completeLocalClassConstructor(
   constructor: CsharpConstructorDeclaration, factory: CsharpClassFactory,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
@@ -129,7 +105,7 @@ export function completeLocalClassConstructor(
   return { ...constructor, parameters: [{ name: factory.environmentName, type }, ...constructor.parameters],
     body: { kind: "Block", statements: [
       ...(factory.retainsEnvironment ? [assignment({ kind: "IdentifierName", name: "this" }, factory.environmentName, environment)] : []),
-      ...planClassInitializers(factory, false, context, diagnostics), ...constructor.body.statements,
+      ...planClassInitializers(factory.declaration, factory.sourceFile, factory.instanceName, false, context, diagnostics), ...constructor.body.statements,
     ] } };
 }
 
@@ -158,7 +134,7 @@ export function planClassFactoryDeclaration(
     parameters: slots.map(slot => ({ name: slot.name, type: slot.type })),
     body: { kind: "Block", statements: [
       ...slots.map(slot => assignment({ kind: "IdentifierName", name: "this" }, slot.name, { kind: "IdentifierName", name: slot.name })),
-      ...planClassInitializers(factory, true, context, diagnostics),
+      ...planClassInitializers(factory.declaration, factory.sourceFile, factory.factoryName, true, context, diagnostics),
     ] } });
   const instance = csharpTypeFromTargetTypeRef(factory.contract.instance, input.scope.typeParameterNames)!;
   if (factory.requiresInstanceTest) {

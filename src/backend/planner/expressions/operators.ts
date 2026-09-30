@@ -155,6 +155,7 @@ export function tryPlanBinaryExpression(
     input,
     diagnostics,
     planExpression,
+    state,
   );
   if (typeofComparison !== undefined || diagnostics.length > typeofStart) {
     return typeofComparison;

@@ -4,6 +4,7 @@ import type {
 import { analyzeCsharpCaptureStorage } from "../callables/capture-storage.js";
 import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-adapters.js";
 import { analyzeCsharpClassFactories } from "../project-types/class-factories.js";
+import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual, type CsharpGenericProjectionIndex } from "../declarations/type-projections.js";
 import { csharpCallableValueType } from "../callables/value-type.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
@@ -296,6 +297,7 @@ export function analyzeCsharpTargetProgram(
     callableAdapters,
     typeProjections: analysis.typeProjections,
     classFactories,
+    classInitialization: analyzeCsharpClassInitialization(source, classFactories),
     captureStorage,
     numericRepresentations: analyzeCsharpNumericRepresentations({ source, sourceFiles,
       evidence: analysis.sourceEvidence, operations: analysis.operations }),
