@@ -16,6 +16,9 @@ import { getCsharpRuntimeUnionArms, getCsharpGenericOptionalParts, isCsharpAbsen
 import {
   targetTypeRefEquals,
 } from "./equality.js";
+import { csharpTypeProjection, type CsharpOptionalTypeProjection } from "./projections.js";
+import { resolveCsharpOptionalStorage } from "./optional-storage.js";
+import { csharpFreeTypeParameterIdentities } from "./generic-references.js";
 
 export function substituteTargetTypeParameters(
   type: TargetTypeRef,
@@ -25,6 +28,15 @@ export function substituteTargetTypeParameters(
     case "type-parameter":
       const substitution = substitutions.get(type.identity);
       if (substitution === undefined) {
+        const projection = csharpTypeProjection(type)?.csharpProjection;
+        if (projection?.kind === "optional") {
+          const element = substituteTargetTypeParameters(projection.arguments[0], substitutions);
+          if (!targetTypeRefEquals(element, projection.arguments[0])) {
+            const selected = resolveCsharpOptionalStorage(projection, element);
+            if (selected === undefined) throw new Error("A substituted optional carrier has no native storage representation.");
+            return selected;
+          }
+        }
         return type;
       }
       return isCsharpNullableReferenceTargetType(type)
@@ -143,7 +155,22 @@ export function inferCsharpTargetTypeParameterBindings(
   parameterIdentities: ReadonlySet<string>,
 ): ReadonlyMap<string, TargetTypeRef> | undefined {
   const bindings = new Map<string, TargetTypeRef>();
-  return match(pattern, actual) ? bindings : undefined;
+  const projections: { readonly contract: CsharpOptionalTypeProjection; readonly actual: TargetTypeRef }[] = [];
+  if (!match(pattern, actual)) return undefined;
+  for (const projection of projections) {
+    if (projection.contract.part !== "storage" || isCsharpAbsenceTargetType(projection.actual)) continue;
+    const element = projection.contract.arguments[0];
+    const unresolved = [...csharpFreeTypeParameterIdentities([element])]
+      .some(identity => parameterIdentities.has(identity) && !bindings.has(identity));
+    if (unresolved && !match(element, getCsharpGenericOptionalParts(projection.actual)?.element ??
+      getCsharpNullableElementTargetType(projection.actual) ?? projection.actual)) return undefined;
+  }
+  for (const projection of projections) {
+    const element = substituteTargetTypeParameters(projection.contract.arguments[0], bindings);
+    const selected = resolveCsharpOptionalStorage(projection.contract, element);
+    if (selected === undefined || !targetTypeRefEquals(selected, projection.actual)) return undefined;
+  }
+  return bindings;
 
   function match(left: TargetTypeRef, right: TargetTypeRef): boolean {
     if (left.kind === "type-parameter" && parameterIdentities.has(left.identity)) {
@@ -153,6 +180,11 @@ export function inferCsharpTargetTypeParameterBindings(
         return true;
       }
       return targetTypeRefEquals(existing, right);
+    }
+    const projection = csharpTypeProjection(left)?.csharpProjection;
+    if (projection?.kind === "optional" && projection.part === "operations") {
+      projections.push({ contract: projection, actual: right });
+      return true;
     }
     const optional = getCsharpGenericOptionalParts(left)?.element ?? getCsharpNullableElementTargetType(left);
     if (optional !== undefined) {
@@ -230,8 +262,14 @@ export function inferCsharpTargetTypeParameterBindings(
     const leftArguments = left ?? [];
     const rightArguments = right ?? [];
     return leftArguments.length === rightArguments.length &&
-      leftArguments.every((argument, index) =>
-        match(argument, rightArguments[index]!));
+      leftArguments.every((argument, index) => {
+        const projection = csharpTypeProjection(argument);
+        if (projection?.csharpProjection.kind === "optional" && !parameterIdentities.has(projection.identity)) {
+          projections.push({ contract: projection.csharpProjection, actual: rightArguments[index]! });
+          return true;
+        }
+        return match(argument, rightArguments[index]!);
+      });
   }
 }
 

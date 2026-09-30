@@ -11,6 +11,8 @@ import { csharpObjectShapeMemberTypeKey } from "../../../dist/target-model/types
 import { dotnetTypeRefKey } from "../../../dist/providers/native/model/type-refs.js";
 import { csharpAbsenceTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
+import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
+import { resolveCsharpOptionalStorage } from "../../../dist/target-model/types/optional-storage.js";
 
 const outer = Object.freeze({ kind: "type-parameter", identity: "source:outer/0", name: "T" });
 const inner = Object.freeze({ kind: "type-parameter", identity: "source:inner/0", name: "T" });
@@ -101,4 +103,35 @@ test("generated generic scopes reserve authored binders and render nested refere
   });
   assert.equal(outer.name, "T");
   assert.equal(inner.name, "T");
+});
+
+test("native generic binding validates derived optional arguments after binding their payload", () => {
+  const storage = csharpNullableTargetType(outer);
+  const operations = csharpProjectedType({ kind: "optional", part: "operations", arguments: [outer] });
+  const box = typeArguments => ({ kind: "target-named", id: "test.Box", typeArguments });
+  const pattern = box([operations, storage, outer]);
+  const identities = new Set([outer.identity]);
+  const carriers = [integer, csharpNullableTargetType(integer), { kind: "source-primitive", name: "string" }, inner];
+  for (const element of carriers) {
+    const selectedOperations = resolveCsharpOptionalStorage(operations.csharpProjection, element);
+    const selectedStorage = resolveCsharpOptionalStorage(storage.csharpProjection, element);
+    assert.deepEqual(substituteTargetTypeParameters(pattern, new Map([[outer.identity, element]])),
+      box([selectedOperations, selectedStorage, element]));
+    assert.deepEqual(inferCsharpTargetTypeParameterBindings(pattern,
+      box([selectedOperations, selectedStorage, element]), identities), new Map([[outer.identity, element]]));
+    assert.equal(inferCsharpTargetTypeParameterBindings(pattern,
+      box([selectedStorage, selectedOperations, element]), identities), undefined);
+  }
+  const actual = box([
+    resolveCsharpOptionalStorage(operations.csharpProjection, integer),
+    csharpNullableTargetType(integer),
+    { kind: "source-primitive", name: "int64" },
+  ]);
+  assert.equal(inferCsharpTargetTypeParameterBindings(pattern, actual, identities), undefined);
+  assert.equal(inferCsharpTargetTypeParameterBindings(pattern,
+    { ...actual, id: "test.DifferentBox" }, identities), undefined);
+  assert.deepEqual(inferCsharpTargetTypeParameterBindings(box([storage]),
+    box([csharpNullableTargetType(integer)]), identities), new Map([[outer.identity, integer]]));
+  assert.equal(inferCsharpTargetTypeParameterBindings(box([storage]), box([csharpAbsenceTargetType()]), identities), undefined);
+  assert.equal(inferCsharpTargetTypeParameterBindings(box([storage]), box([integer]), identities), undefined);
 });

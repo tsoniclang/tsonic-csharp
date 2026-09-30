@@ -6,7 +6,8 @@ import { csharpObjectShapeMemberTypeKey } from "../../target-model/types/object-
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType } from "../../target-model/types/nullable.js";
 import { getCsharpDelegateSignature } from "../../target-model/types/delegates.js";
-import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
+import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
+import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
 
 export function selectCsharpStructuralInterface(
   policy: CsharpPolicyContext, expression: Node,
@@ -25,6 +26,8 @@ export function selectCsharpStructuralInterface(
     selected.destination.indexes.length > 0 || selected.members.length !== destination.members.length) return undefined;
   const template = source.declarationTemplate ?? source;
   const destinationTemplate = destination.declarationTemplate;
+  const parameterIdentities = destinationTemplate === undefined ? new Set<string>()
+    : csharpFreeTypeParameterIdentities([destinationTemplate.targetType]);
   const arguments_ = new Map<string, TargetTypeRef>();
   const methods: CsharpStructuralInterfaceImplementation["methods"][number][] = [];
   for (const pair of selected.members) {
@@ -44,8 +47,14 @@ export function selectCsharpStructuralInterface(
       if (!targetTypeRefEquals(read.member.type, write.member.type) && !referenceWidening) return undefined;
       if (destinationTemplate !== undefined) {
         const member = resolveCsharpObjectShapeMemberBySelectedSubject(destinationTemplate, destinationSubjects);
-        if (member.kind !== "resolved" || member.member.type.kind !== "type-parameter") return undefined;
-        arguments_.set(member.member.type.identity, open.member.type);
+        if (member.kind !== "resolved") return undefined;
+        const bindings = inferCsharpTargetTypeParameterBindings(member.member.type, open.member.type, parameterIdentities);
+        if (bindings === undefined) return undefined;
+        for (const [identity, type] of bindings) {
+          const existing = arguments_.get(identity);
+          if (existing !== undefined && !targetTypeRefEquals(existing, type)) return undefined;
+          arguments_.set(identity, type);
+        }
       } else if (!targetTypeRefEquals(open.member.type, read.member.type)) return undefined;
       continue;
     }
@@ -68,9 +77,11 @@ export function selectCsharpStructuralInterface(
     }
     methods.push({ sourceName: read.member.targetName, declaration, member: write.member, defaultArguments: Object.freeze(defaults) });
   }
-  return Object.freeze({ sourceType: template.targetType,
-    interfaceType: destinationTemplate === undefined ? destination.targetType
-      : substituteTargetTypeParameters(destinationTemplate.targetType, arguments_), methods: Object.freeze(methods) });
+  const interfaceType = destinationTemplate === undefined ? destination.targetType
+    : substituteTargetTypeParameters(destinationTemplate.targetType, arguments_);
+  const sourceParameters = csharpFreeTypeParameterIdentities([template.targetType]);
+  if ([...csharpFreeTypeParameterIdentities([interfaceType])].some(identity => !sourceParameters.has(identity))) return undefined;
+  return Object.freeze({ sourceType: template.targetType, interfaceType, methods: Object.freeze(methods) });
 }
 
 export interface CsharpStructuralInterfaceRegistration {

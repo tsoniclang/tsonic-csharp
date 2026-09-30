@@ -10,7 +10,7 @@ import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters 
 import { nextState } from "./state.js";
 import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
+import { selectCsharpAuthoredUnionRefinement, sourceRefinementOnlyRemovesNullish } from "./source-union-refinement.js";
 import { Node_Expression, ObjectLiteralProperty_Value } from "@tsonic/target-api/source";
 import { selectCsharpObjectLiteralUnionShape } from "../objects/object-shape-policy/union-construction.js";
 import { csharpNumericLiteralValue, csharpBigIntLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
@@ -77,9 +77,11 @@ export function resolveAuthoredAndSelectedSourceType(
     selectedType,
   );
   if (authoredSelection.kind === "authored-members") {
+    const onlyAddedAbsence = authoredSelection.selectedNullishTypes.length > 0 &&
+      sourceRefinementOnlyRemovesNullish(selectedType, authoredSemanticType, selectedQueries);
     const selectedMembers = authoredSelection.nodes.map((node) =>
       node === authoredTypeNode
-        ? reconcileCsharpSelectedTargetType(authored,
+        ? onlyAddedAbsence ? authored : reconcileCsharpSelectedTargetType(authored,
             resolveTypeWithState(selectedType, selectedSourceFile, nextState(state)),
             selectedQueries.types.relationship(authoredSemanticType, selectedType))
         : resolveNodeWithState(

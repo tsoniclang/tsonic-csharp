@@ -471,7 +471,7 @@ export function resolveSelectedReceiverTargetType(
 
 
 export function resolveSourceOwnedConstructionResult(
-  { host, projectSourceDeclarationTargetType, resolveAuthoredAndSelectedSourceType, resolveSourceOwnedCallResult,
+  { host, projectSourceDeclarationTargetType, resolveSourceOwnedCallResult,
     resolveNodeWithState, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
   source: NonNullable<
     ReturnType<SourceFileSemantics["operations"]["call"]>
@@ -494,23 +494,13 @@ export function resolveSourceOwnedConstructionResult(
     return resolveSourceOwnedCallResult(source, queries, state);
   }
   const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
-  const targetArguments = selectedArguments.map((argument) => {
-    const authoredSourceFile = host.ast.getSourceFile(
-      argument.explicitTypeNode,
-    ) ?? queries.sourceFile;
-    return resolveAuthoredAndSelectedSourceType(
-      argument.explicitTypeNode,
-      authoredSourceFile,
-      argument.selectedType,
-      queries.sourceFile,
-      nextState(state),
-    );
-  });
-  return targetArguments.some((argument) => argument === undefined)
+  const callable = host.representations.sourceCallable(source, queries.sourceFile);
+  const instantiation = resolveSourceCallInstantiation(source, queries.sourceFile, nextState(state), undefined, callable);
+  return instantiation === undefined
     ? undefined
     : projectSourceDeclarationTargetType(
         declaration,
-        targetArguments as readonly TargetTypeRef[],
+        instantiation.arguments,
         selectedArguments.map(argument => argument.selectedType),
         state,
         source.sourceResultType,

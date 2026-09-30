@@ -8,7 +8,7 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import { csharpBoundSourceType, csharpSourceBindings } from "./type-bindings.js";
 import { resolveCsharpConditionalApplication } from "./conditional-types.js";
 import { nextState } from "./state.js";
-import { resolveCsharpOptionalStorage } from "./optional-storage.js";
+import { resolveCsharpOptionalStorage } from "../../../target-model/types/optional-storage.js";
 import { csharpTargetTypeComponents } from "../../../target-model/types/components.js";
 import { csharpTypeProjection } from "../../../target-model/types/projections.js";
 
