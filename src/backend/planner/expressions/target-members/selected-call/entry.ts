@@ -3,6 +3,10 @@ import { translateCsharpJsValueArgumentFactory, translateCsharpJsValueInvocation
 import { translateSelectedTargetCall } from "./target.js";
 import { translateSourceOwnedCall } from "./source.js";
 import { planCsharpOptionalReceiverChain } from "./optional-chain.js";
+import { planCsharpClosedTypeTest } from "../../type-tests.js";
+import { createDestructuringPlannerState } from "../../../bindings/binding-state.js";
+import { targetTypeRefEquals } from "../../../../../target-model/types/equality.js";
+import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
@@ -48,6 +52,20 @@ function translateCsharpCallExpressionCore(
     return undefined;
   }
   const sourceCall = classification.source;
+  if (classification.typeTest !== undefined) {
+    const fact = classification.typeTest;
+    const argument = sourceCall?.sourceArguments[0];
+    const carrier = argument === undefined ? undefined : input.types.classifications.resolveNode(argument.expression, sourceFile);
+    const targetType = csharpTypeFromTargetTypeRef(fact.sourceCarrier, input.scope.typeParameterNames);
+    const value = sourceCall?.sourceArguments.length !== 1 || argument === undefined || carrier === undefined ||
+      targetType === undefined || !targetTypeRefEquals(carrier, fact.sourceCarrier) ? undefined
+      : planCallArgument(argument.expression, sourceFile, input, diagnostics, targetType, undefined, fact.sourceCarrier)?.expression;
+    const result = value === undefined ? undefined : planCsharpClosedTypeTest(value, fact, input,
+      createDestructuringPlannerState(sourceFile, input.program.source.ast));
+    if (result === undefined) diagnostics.push(targetPolicyDiagnostic(node, "CSHARP_CLOSED_TYPE_TEST_INVALID",
+      "Array predicate requires its exact sealed native argument and payload test."));
+    return result;
+  }
   const sourceFlow = classification.sourceFlow;
   if (sourceFlow.kind === "keep-alive") {
     const value = planExpression(sourceFlow.valueExpression, sourceFile, input, diagnostics);

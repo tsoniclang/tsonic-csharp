@@ -1,6 +1,7 @@
 import { classifyCsharpUnionCall } from "./union-calls.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
+import { selectCsharpArrayTypeTest } from "../../policy/operations/source-profiles/js/type-tests.js";
 import { getCsharpTypeofResult, type CsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
 import { getCsharpGenericMethodValue } from "../../target-model/types/generic-method-values.js";
 import { getCsharpClassFactory } from "../../target-model/types/class-factories.js";
@@ -341,7 +342,8 @@ function visit(
       shape.kind,
       expression?.QuestionDotToken !== undefined,
     );
-    const target = jsValue.kind === "not-js-value"
+    const typeTest = selectCsharpArrayTypeTest(policy, source, sourceFile);
+    const target = jsValue.kind === "not-js-value" && typeTest === undefined
       ? selectCsharpTargetCall(policy, node, sourceFile)
       : undefined;
     if (target?.kind === "resolved") {
@@ -355,6 +357,7 @@ function visit(
     const sourceMethodValue = source === undefined ? undefined
       : getCsharpGenericMethodValue(policy.types.resolveNode(source.sourceCallee.expression, sourceFile));
     setClassification(builder, node, callKey, Object.freeze({
+      ...(typeTest === undefined ? {} : { typeTest }),
       ...(sourceMethodValue === undefined ? {} : { sourceMethodValue }),
       ...(optionalReceiver === undefined ? {} : { optionalReceiver }),
       unionCall: classifyCsharpUnionCall(policy, source, sourceFile),
@@ -545,8 +548,9 @@ function visit(
       ? evidence.nodeTargetType(expression.Right) : undefined;
     const instanceSource = sourceOperator === "instanceof" && expression?.Left !== undefined
       ? evidence.nodeTargetType(expression.Left) : undefined;
-    const instancePlan = instanceSource === undefined || instanceType === undefined ? undefined
-      : selectCsharpClosedTypeTestPlan(instanceSource, instanceType, undefined, policy.typeDefinitions);
+    const instancePredicate = instanceType === undefined ? undefined : Object.freeze({ kind: "nominal" as const, targetCarrier: instanceType });
+    const instancePlan = instanceSource === undefined || instancePredicate === undefined ? undefined
+      : selectCsharpClosedTypeTestPlan(instanceSource, instancePredicate, undefined, policy.typeDefinitions);
     setClassification(
       builder,
       node,
@@ -572,8 +576,8 @@ function visit(
         ...(propertyWrite === undefined ? {} : { propertyWrite }),
         ...(elementWrite === undefined ? {} : { elementWrite }),
         ...(typeofComparison === undefined ? {} : { typeofComparison }),
-        ...(instancePlan === undefined || instanceSource === undefined || instanceType === undefined ? {}
-          : { instanceTest: Object.freeze({ sourceCarrier: instanceSource, targetCarrier: instanceType, test: instancePlan }) }),
+        ...(instancePlan === undefined || instanceSource === undefined || instancePredicate === undefined ? {}
+          : { instanceTest: Object.freeze({ sourceCarrier: instanceSource, predicate: instancePredicate, test: instancePlan }) }),
         ...(getCsharpClassFactory(instanceFactory) === undefined ? {} : { instanceFactory }),
       }),
     );

@@ -251,23 +251,6 @@ export const csharpJsArrayCallPolicies:
       ),
     ]),
     jsCallPolicy(
-      jsMemberIdentity("ArrayConstructor", "isArray"),
-      () =>
-        staticMethod(
-          "Tsonic.CSharp.Js.JSArrayStatics.isArray",
-          "isArray",
-          "isArray",
-          arrayStaticsType,
-          [
-            targetParameter("value", csharpObjectTargetType(), {
-              csharpAcceptsClosedSourceArgument: true,
-            }),
-          ],
-          boolType,
-        ),
-      noReceiver,
-    ),
-    jsCallPolicy(
       jsMemberIdentity("ArrayConstructor", "of"),
       (context) => arrayOfMember(context),
       noReceiver,

@@ -36,7 +36,7 @@ function csharpTypeIdentityAt(path: readonly (string | number)[]): boolean {
     tail.length === 4 && tail[1] === "captures" && typeof tail[2] === "number" && (key === "declaration" || key === "reference"));
 }
 
-function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
+export function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
   const active = new Set<object>();
   let count = 0;
   const string = (input: unknown): input is string => typeof input === "string" && input.length > 0;

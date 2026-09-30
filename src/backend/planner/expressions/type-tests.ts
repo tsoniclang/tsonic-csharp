@@ -5,8 +5,9 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "../bindings/binding-state.js";
 import { allocateExpressionTemp } from "../bindings/binding-state.js";
 import { csharpClosedTypeTestMatches } from "../../../analysis/operations/type-tests.js";
-import { csharpTsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { csharpTsValueTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { qualifiedCsharpType } from "../types/index.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "./runtime-union-projections.js";
 import { evaluatedConstant } from "./csharp-expression-builders.js";
 
@@ -17,8 +18,9 @@ export function planCsharpClosedTypeTest(
   state: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   if (!csharpClosedTypeTestMatches(fact, input.program.typeDefinitions)) return undefined;
-  const target = csharpTypeFromTargetTypeRef(fact.targetCarrier, input.scope.typeParameterNames);
-  if (target === undefined) return undefined;
+  const target = fact.predicate.kind === "array" ? undefined
+    : csharpTypeFromTargetTypeRef(fact.predicate.targetCarrier, input.scope.typeParameterNames);
+  if (fact.predicate.kind === "nominal" && target === undefined) return undefined;
   return planTest(expression, fact.sourceCarrier, fact.test, target, input, state);
 }
 
@@ -26,18 +28,24 @@ function planTest(
   expression: CsharpExpression,
   carrier: TargetTypeRef,
   test: CsharpClosedTypeTestPlan,
-  target: CsharpTypeNode,
+  target: CsharpTypeNode | undefined,
   input: CsharpPlanningContext,
   state: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   if (test.kind === "constant") return evaluatedConstant(expression, test.value);
+  if (test.kind === "runtime-array" && isCsharpJsValueTargetType(carrier)) return { kind: "InvocationExpression",
+    callee: { kind: "SimpleMemberAccessExpression", receiver: expression, name: "IsArray" }, arguments: [] };
+  if (test.kind === "runtime-array") return { kind: "InvocationExpression", callee: {
+    kind: "SimpleMemberAccessExpression", receiver: qualifiedCsharpType("Tsonic.CSharp.Js", "JSArrayStatics"), name: "isArray",
+  }, arguments: [{ kind: "Argument", expression }] };
+  if ((test.kind === "native" || test.kind === "js-value") && target === undefined) return undefined;
   if (test.kind === "native") return { kind: "IsPatternExpression",
     expression: { kind: "CastExpression", type: { kind: "NullableType", inner: { kind: "PredefinedType", name: "object" } }, expression },
-    type: target };
+    type: target! };
   if (test.kind === "js-value") {
     const runtime = csharpTypeFromTargetTypeRef(csharpTsValueTargetType(), input.scope.typeParameterNames);
     return runtime === undefined ? undefined : { kind: "InvocationExpression", callee: {
-      kind: "SimpleMemberAccessExpression", receiver: runtime, name: "IsDynamicInstanceOf", typeArguments: [target],
+      kind: "SimpleMemberAccessExpression", receiver: runtime, name: "IsDynamicInstanceOf", typeArguments: [target!],
     }, arguments: [{ kind: "Argument", expression }] };
   }
   const arms: CsharpSwitchExpressionArm[] = [];
