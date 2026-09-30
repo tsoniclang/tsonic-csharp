@@ -9,6 +9,8 @@ import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/delegates.js";
 import { csharpObjectShapeMemberTypeKey } from "../../../dist/target-model/types/object-shape-identity.js";
 import { dotnetTypeRefKey } from "../../../dist/providers/native/model/type-refs.js";
+import { csharpAbsenceTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
 
 const outer = Object.freeze({ kind: "type-parameter", identity: "source:outer/0", name: "T" });
 const inner = Object.freeze({ kind: "type-parameter", identity: "source:inner/0", name: "T" });
@@ -41,6 +43,24 @@ test("quantified signatures remain alpha-equivalent without capturing free param
   const changed = member(other);
   changed.type = csharpDelegateTargetType("System.Func", [other], { kind: "tuple", elements: [inner, other] });
   assert.notEqual(csharpObjectShapeMemberTypeKey(member(inner)), csharpObjectShapeMemberTypeKey(changed));
+});
+
+test("optional absence supplies no generic payload binding", () => {
+  const absence = csharpAbsenceTargetType();
+  const optional = csharpNullableTargetType(outer);
+  const identities = new Set([outer.identity]);
+  assert.deepEqual(inferCsharpTargetTypeParameterBindings(optional, absence, identities), new Map());
+  assert.deepEqual(inferCsharpTargetTypeParameterBindings(csharpNullableTargetType(integer), absence, identities), new Map());
+  assert.deepEqual(inferCsharpTargetTypeParameterBindings(optional, integer, identities), new Map([[outer.identity, integer]]));
+  assert.deepEqual(inferCsharpTargetTypeParameterBindings(optional, csharpNullableTargetType(integer), identities), new Map([[outer.identity, integer]]));
+  assert.deepEqual(inferCsharpTargetTypeParameterBindings(outer, absence, identities), new Map([[outer.identity, absence]]));
+  assert.equal(inferCsharpTargetTypeParameterBindings(integer, absence, identities), undefined);
+  assert.deepEqual(inferCsharpTargetTypeParameterBindings(
+    { kind: "tuple", elements: [optional, outer] },
+    { kind: "tuple", elements: [absence, integer] }, identities), new Map([[outer.identity, integer]]));
+  assert.equal(inferCsharpTargetTypeParameterBindings(
+    { kind: "tuple", elements: [optional, outer] },
+    { kind: "tuple", elements: [integer, { kind: "source-primitive", name: "string" }] }, identities), undefined);
 });
 
 test("generated generic scopes reserve authored binders and render nested references consistently", () => {

@@ -39,7 +39,6 @@ export type CsharpSourceArgumentClassification =
     };
 
 export interface CsharpSemanticTypeClassification {
-  readonly arrayElementDefault?: "never" | "nullable" | "always";
   readonly targetType?: TargetTypeRef;
   readonly typeParameter?: Extract<TargetTypeRef, { readonly kind: "type-parameter" }>;
   readonly nullish: boolean;
@@ -72,6 +71,7 @@ export interface CsharpValueRefinementClassification {
 }
 
 export interface CsharpSourceEvidenceIndex {
+  bindingProjection(node: Node): import("../../policy/types/objects/binding-projection-policy.js").CsharpBindingProjection | undefined;
   closedArrayStorage(node: Node): import("@tsonic/source-core/facts").TsonicClosedArrayStorage;
   readonly memoryMetadataIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
   readonly typeOnlyIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];

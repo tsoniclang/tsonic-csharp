@@ -35,6 +35,7 @@ export function analyzeCsharpTypeProjections(
     const isName = parent !== undefined && ast.name(parent) === node;
     const declarationOnly = ast.is.IsClassDeclaration(node) || ast.is.IsClassExpression(node) || ast.is.IsInterfaceDeclaration(node);
     const pending = isName || declarationOnly ? [] : [evidence.nodeTargetType(node), evidence.storageTargetType(node),
+      evidence.bindingProjection(node)?.storageCarrier,
       ...operations.call(node)?.sourceTypeArguments ?? []];
     const visited = new Set<string>();
     for (let index = 0; index < pending.length; index += 1) {

@@ -11,10 +11,10 @@ import { nextState } from "./state.js";
 import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
-import { ObjectLiteralProperty_Value } from "@tsonic/target-api/source";
+import { Node_Expression, ObjectLiteralProperty_Value } from "@tsonic/target-api/source";
 import { selectCsharpObjectLiteralUnionShape } from "../objects/object-shape-policy/union-construction.js";
 import { csharpNumericLiteralValue, csharpBigIntLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
-import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
+import { getCsharpArrayLiteralElementTargetType } from "../../../target-model/types/collections.js";
 import { resolveTypeParameter, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { getCsharpGenericMethodValue } from "../../../target-model/types/generic-method-values.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
@@ -352,67 +352,66 @@ export function inferSourceCallTargetTypeArguments(
   parameterIdentities: ReadonlySet<string>,
   state: CsharpTypeResolutionState,
 ): ReadonlyMap<string, TargetTypeRef> | undefined {
-  const { host, resolveSelectedValueWithState } = scope;
   const inferred = new Map<string, TargetTypeRef>();
-  const isNumericLiteral = (binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number]): boolean => {
-    const expression = source.sourceArguments[binding.sourceArgumentIndex]?.expression;
-    return expression !== undefined && (csharpNumericLiteralValue(host.ast, expression) !== undefined ||
-      csharpBigIntLiteralValue(host.ast, expression) !== undefined);
-  };
-  const bindings = [
-    ...source.sourceArgumentBindings.filter(binding => !isNumericLiteral(binding)),
-    ...source.sourceArgumentBindings.filter(isNumericLiteral),
-  ];
-  for (const binding of bindings) {
+  for (const binding of source.sourceArgumentBindings) {
     const parameter = callable.parameters[binding.sourceParameterIndex]
       ?.targetParameter;
     const argument = source.sourceArguments[binding.sourceArgumentIndex];
     if (parameter === undefined || argument === undefined) {
       return undefined;
     }
-    const actual = resolveSelectedValueWithState(
-      argument.expression,
-      argument.type,
-      sourceFile,
-      nextState(state),
-    );
-    if (actual === undefined) {
-      continue;
-    }
     const pattern = csharpTargetParameterValueType(
       parameter,
       binding.sourceForm,
     );
-    if (isNumericLiteral(binding) && csharpLiteralIsRepresentableAs(host, argument.expression,
-      substituteTargetTypeParameters(pattern, inferred))) continue;
-    const candidates = host.ast.is.IsObjectLiteralExpression(argument.expression)
-      ? inferSourceObjectTypeArguments(scope, argument.expression, pattern, sourceFile, parameterIdentities, state)
-      : inferCsharpTargetTypeParameterBindings(pattern, actual, parameterIdentities);
-    if (candidates === undefined) {
-      continue;
-    }
-    for (const [name, candidate] of candidates) {
-      const existing = inferred.get(name);
-      if (
-        existing !== undefined &&
-        !targetTypeRefEquals(existing, candidate)
-      ) {
-        return undefined;
+    const pairs = sourceArgumentInferencePairs(scope, argument.expression, pattern, sourceFile, state);
+    if (pairs === undefined) continue;
+    for (const pair of pairs) {
+      const candidates = inferCsharpTargetTypeParameterBindings(pair.pattern, pair.actual, parameterIdentities);
+      if (candidates === undefined) continue;
+      for (const [name, candidate] of candidates) {
+        const existing = inferred.get(name);
+        if (existing !== undefined && !targetTypeRefEquals(existing, candidate)) return undefined;
+        inferred.set(name, candidate);
       }
-      inferred.set(name, candidate);
     }
   }
   return inferred;
 }
 
-function inferSourceObjectTypeArguments(
-  { host, resolveNodeWithState }: CsharpTypeResolutionScope,
+function sourceArgumentInferencePairs(
+  scope: CsharpTypeResolutionScope,
   literal: Node,
   pattern: TargetTypeRef,
   sourceFile: SourceFile,
-  parameterIdentities: ReadonlySet<string>,
   state: CsharpTypeResolutionState,
-): ReadonlyMap<string, TargetTypeRef> | undefined {
+): readonly { readonly pattern: TargetTypeRef; readonly actual: TargetTypeRef }[] | undefined {
+  const { host, resolveSelectedValueWithState } = scope;
+  if (csharpNumericLiteralValue(host.ast, literal) !== undefined || csharpBigIntLiteralValue(host.ast, literal) !== undefined) return [];
+  if (host.ast.is.IsParenthesizedExpression(literal) || host.ast.is.IsSatisfiesExpression(literal)) {
+    const inner = Node_Expression(host.ast, literal);
+    return inner === undefined ? undefined : sourceArgumentInferencePairs(scope, inner, pattern, sourceFile, nextState(state));
+  }
+  if (host.ast.is.IsArrayLiteralExpression(literal)) {
+    const element = getCsharpArrayLiteralElementTargetType(pattern);
+    const pairs: { readonly pattern: TargetTypeRef; readonly actual: TargetTypeRef }[] = [];
+    for (const [index, expression] of host.ast.elements(literal).entries()) {
+      const selected = pattern.kind === "tuple" ? pattern.elements[index] : element;
+      if (expression === undefined || selected === undefined) return undefined;
+      const spread = host.ast.is.IsSpreadElement(expression);
+      const value = spread ? Node_Expression(host.ast, expression) : expression;
+      if (value === undefined || spread && element === undefined) return undefined;
+      const children = sourceArgumentInferencePairs(scope, value, spread ? pattern : selected, sourceFile, nextState(state));
+      if (children === undefined) return undefined;
+      pairs.push(...children);
+    }
+    return pairs;
+  }
+  if (!host.ast.is.IsObjectLiteralExpression(literal)) {
+    const type = host.semantics(sourceFile).types.expressionType(literal);
+    const actual = type === undefined ? undefined : resolveSelectedValueWithState(literal, type, sourceFile, nextState(state));
+    return actual === undefined ? undefined : [{ pattern, actual }];
+  }
   const elements = host.ast.properties(literal).map(element => {
     if (element === undefined) return undefined;
     const initializer = ObjectLiteralProperty_Value(host.ast, element);
@@ -423,22 +422,16 @@ function inferSourceObjectTypeArguments(
   const shape = selectCsharpObjectLiteralUnionShape(pattern, elements.map(element => element!.evidence), host.structuralTypes.resolveTarget)
     ?? host.structuralTypes.resolveTarget(pattern);
   if (shape === undefined) return undefined;
-  const inferred = new Map<string, TargetTypeRef>();
+  const pairs: { readonly pattern: TargetTypeRef; readonly actual: TargetTypeRef }[] = [];
   for (const element of elements) {
     const fields = shape.members.filter(member => member.sourceDeclarations?.some(declaration =>
       element!.evidence.sourceSelectedDeclarations.includes(declaration)) === true);
     if (fields.length !== 1) return undefined;
-    const actual = resolveNodeWithState(element!.initializer, sourceFile, nextState(state));
-    if (actual === undefined) return undefined;
-    const candidates = inferCsharpTargetTypeParameterBindings(fields[0]!.type, actual, parameterIdentities);
-    if (candidates === undefined) continue;
-    for (const [name, candidate] of candidates) {
-      const previous = inferred.get(name);
-      if (previous !== undefined && !targetTypeRefEquals(previous, candidate)) return undefined;
-      inferred.set(name, candidate);
-    }
+    const children = sourceArgumentInferencePairs(scope, element!.initializer, fields[0]!.type, sourceFile, nextState(state));
+    if (children === undefined) return undefined;
+    pairs.push(...children);
   }
-  return inferred;
+  return pairs;
 }
 
 

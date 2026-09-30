@@ -12,7 +12,7 @@ import {
   isCsharpNullableReferenceTargetType,
   getCsharpNullableElementTargetType,
 } from "../../../target-model/types/nullable.js";
-import { getCsharpRuntimeUnionArms, getCsharpGenericOptionalParts } from "../../../target-model/types/runtime-carriers.js";
+import { getCsharpRuntimeUnionArms, getCsharpGenericOptionalParts, isCsharpAbsenceTargetType } from "../../../target-model/types/runtime-carriers.js";
 import {
   targetTypeRefEquals,
 } from "../../../target-model/types/equality.js";
@@ -146,9 +146,10 @@ export function inferCsharpTargetTypeParameterBindings(
   return match(pattern, actual) ? bindings : undefined;
 
   function match(left: TargetTypeRef, right: TargetTypeRef): boolean {
-    const optional = getCsharpGenericOptionalParts(left);
+    const optional = getCsharpGenericOptionalParts(left)?.element ?? getCsharpNullableElementTargetType(left);
     if (optional !== undefined) {
-      return match(optional.element, getCsharpGenericOptionalParts(right)?.element ?? getCsharpNullableElementTargetType(right) ?? right);
+      return isCsharpAbsenceTargetType(right) ||
+        match(optional, getCsharpGenericOptionalParts(right)?.element ?? getCsharpNullableElementTargetType(right) ?? right);
     }
     if (left.kind === "type-parameter" && parameterIdentities.has(left.identity)) {
       const existing = bindings.get(left.identity);
@@ -157,10 +158,6 @@ export function inferCsharpTargetTypeParameterBindings(
         return true;
       }
       return targetTypeRefEquals(existing, right);
-    }
-    const leftElement = getCsharpNullableElementTargetType(left);
-    if (leftElement !== undefined) {
-      return match(leftElement, getCsharpNullableElementTargetType(right) ?? right);
     }
     const patternArms = getCsharpRuntimeUnionArms(left);
     if (patternArms !== undefined && getCsharpRuntimeUnionArms(right) === undefined) {

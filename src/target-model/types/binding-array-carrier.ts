@@ -7,6 +7,7 @@ import {
   getCsharpIndexableLengthMemberName,
   getCsharpReadOnlyIndexableCollectionElementTargetType,
 } from "./collections.js";
+import { csharpNullableTargetType } from "./nullable.js";
 
 export type CsharpArrayBindingCarrier =
   | {
@@ -79,7 +80,8 @@ export function csharpArrayBindingProjectionTarget(
     return undefined;
   }
   if (carrier.kind === "array") {
-    return rest ? carrier.restCarrier : carrier.element;
+    return rest ? carrier.restCarrier : csharpCollectionUsesJsArraySemantics(carrier.carrier)
+      ? csharpNullableTargetType(carrier.element) : carrier.element;
   }
   return rest
     ? { kind: "tuple", elements: carrier.elements.slice(index) }

@@ -1,35 +1,14 @@
 import type { CsharpPlanningContext } from "../../context.js";
-import {
-  AsArrayLiteralExpression,
-  AsSpreadElement,
-  HasSourceKind,
-  KindOmittedExpression,
-  KindSpreadElement,
-} from "@tsonic/target-api/source";
-import type {
-  Node,
-  SourceFile,
-} from "@tsonic/tsts";
-import type {
-  TargetTypeRef,
-} from "../../../../target-model/types/index.js";
+import { AsArrayLiteralExpression, AsSpreadElement, HasSourceKind, KindSpreadElement } from "@tsonic/target-api/source";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpExpression,
-  CsharpTypeNode,
-} from "../../../target-ast/roslyn/index.js";
-import {
-  unsupportedNodeDiagnostic,
-} from "../../diagnostics.js";
-import type {
-  ArrayLiteralPlanner,
-} from "./types.js";
-import {
-  planArrayLiteralExpression,
-} from "./dense-array.js";
-import {
-  planArraySpreadSourceExpression,
-} from "./spread-source.js";
+import type { CsharpExpression, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
+import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import type { ArrayLiteralPlanner } from "./types.js";
+import { planArrayLiteralExpression } from "./dense-array.js";
+import { planArraySpreadSourceExpression } from "./spread-source.js";
+import { arrayLiteralHasElision, rejectSparseArrayLiteralElision } from "./elision.js";
 import { callStatic } from "../csharp-expression-builders.js";
 
 export function planJsArrayLiteralExpression(
@@ -42,145 +21,34 @@ export function planJsArrayLiteralExpression(
   elementTargetType: TargetTypeRef,
   planner: ArrayLiteralPlanner,
 ): CsharpExpression | undefined {
-  const literal = AsArrayLiteralExpression(input.program.source.ast, node)!;
-  const elements = literal.Elements?.Nodes ?? [];
-  const hasSpread = elements.some((element) => HasSourceKind(input.program.source.ast, element, KindSpreadElement));
-  const hasElision = elements.some((element) => HasSourceKind(input.program.source.ast, element, KindOmittedExpression));
-  if (hasElision) {
-    diagnostics.push(unsupportedNodeDiagnostic(node,
-      "Sparse array literals are not supported by native dense arrays; use explicit undefined elements."));
-    return undefined;
+  const elements = AsArrayLiteralExpression(input.program.source.ast, node)!.Elements?.Nodes ?? [];
+  if (arrayLiteralHasElision(node, input)) return rejectSparseArrayLiteralElision(node, diagnostics);
+  if (!elements.some(element => HasSourceKind(input.program.source.ast, element, KindSpreadElement))) {
+    const array = planArrayLiteralExpression(node, sourceFile, input, diagnostics, elementType, planner, elementTargetType);
+    if (array === undefined) return undefined;
+    return array.kind === "ArrayCreationExpression"
+      ? callStatic(collectionType, "of", [{ kind: "CollectionExpression",
+        elements: array.elements.map(expression => ({ kind: "ExpressionElement", expression })) }])
+      : { kind: "ObjectCreationExpression", type: collectionType, arguments: [{ kind: "Argument", expression: array }] };
   }
-  if (!hasSpread) {
-    const arrayExpression = planArrayLiteralExpression(
-      node,
-      sourceFile,
-      input,
-      diagnostics,
-      elementType,
-      planner,
-      elementTargetType,
-    );
-    return arrayExpression === undefined ? undefined : jsArrayFromNativeArray(arrayExpression, collectionType);
-  }
-  const chunks = createJsArrayLiteralChunks(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    collectionType,
-    elementType,
-    elementTargetType,
-    planner,
-  );
-  if (chunks === undefined) {
-    return undefined;
-  }
-  if (chunks.length === 0) {
-    return jsArrayFromNativeArray({ kind: "ArrayCreationExpression", elementType, elements: [] }, collectionType);
-  }
-  if (chunks.length === 1) {
-    return chunks[0]!;
-  }
-  return {
-    kind: "InvocationExpression",
-    callee: {
-      kind: "SimpleMemberAccessExpression",
-      receiver: chunks[0]!,
-      name: "concat",
-    },
-    arguments: chunks.slice(1).map((chunk) => ({
-      kind: "Argument",
-      expression: chunk,
-    })),
-  };
-}
-
-function createJsArrayLiteralChunks(
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  collectionType: CsharpTypeNode,
-  elementType: CsharpTypeNode,
-  elementTargetType: TargetTypeRef,
-  planner: ArrayLiteralPlanner,
-): readonly CsharpExpression[] | undefined {
-  const literal = AsArrayLiteralExpression(input.program.source.ast, node)!;
-  const chunks: CsharpExpression[] = [];
-  let pendingElements: CsharpExpression[] = [];
-  const flushPending = () => {
-    if (pendingElements.length === 0) {
-      return;
-    }
-    chunks.push(jsArrayFromNativeArray({ kind: "ArrayCreationExpression", elementType, elements: pendingElements }, collectionType));
-    pendingElements = [];
-  };
-  for (const element of literal.Elements?.Nodes ?? []) {
+  let result: CsharpExpression = { kind: "ObjectCreationExpression", type: collectionType, arguments: [] };
+  for (const element of elements) {
     if (element === undefined) {
-      continue;
+      diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal contains an undefined source element."));
+      return undefined;
     }
-    if (!HasSourceKind(input.program.source.ast, element, KindSpreadElement)) {
-      const planned = planner.planExpressionWithExpectedType(
-        element,
-        sourceFile,
-        input,
-        diagnostics,
-        elementType,
-        undefined,
-        elementTargetType,
-      );
-      if (planned === undefined) {
-        return undefined;
-      }
-      pendingElements.push(planned);
-      continue;
-    }
-    flushPending();
-    const expression = AsSpreadElement(input.program.source.ast, element)?.Expression;
-    if (expression === undefined) {
+    const spread = HasSourceKind(input.program.source.ast, element, KindSpreadElement);
+    const operand = spread ? AsSpreadElement(input.program.source.ast, element)?.Expression : element;
+    if (operand === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a source expression."));
       return undefined;
     }
-    const planned = planArraySpreadSourceExpression(
-      element,
-      expression,
-      sourceFile,
-      input,
-      diagnostics,
-      elementType,
-      elementTargetType,
-      planner.planExpression,
-    );
-    if (planned === undefined) {
-      return undefined;
-    }
-    chunks.push({
-      kind: "ObjectCreationExpression",
-      type: collectionType,
-      arguments: [{
-        kind: "Argument",
-        expression: planned,
-      }],
-    });
+    const expression = spread
+      ? planArraySpreadSourceExpression(element, operand, sourceFile, input, diagnostics, elementType, elementTargetType, planner.planExpression)
+      : planner.planExpressionWithExpectedType(operand, sourceFile, input, diagnostics, elementType, undefined, elementTargetType);
+    if (expression === undefined) return undefined;
+    result = { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: result,
+      name: spread ? "AppendSequence" : "AppendElement" }, arguments: [{ kind: "Argument", expression }] };
   }
-  flushPending();
-  return chunks;
-}
-
-function jsArrayFromNativeArray(arrayExpression: CsharpExpression, collectionType: CsharpTypeNode): CsharpExpression {
-  if (arrayExpression.kind === "ArrayCreationExpression") {
-    return callStatic(collectionType, "of", [{
-      kind: "CollectionExpression",
-      elements: arrayExpression.elements.map(expression => ({ kind: "ExpressionElement", expression })),
-    }]);
-  }
-  return {
-    kind: "ObjectCreationExpression",
-    type: collectionType,
-    arguments: [{
-      kind: "Argument",
-      expression: arrayExpression,
-    }],
-  };
+  return result;
 }

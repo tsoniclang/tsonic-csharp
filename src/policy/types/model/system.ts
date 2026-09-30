@@ -66,6 +66,10 @@ export function createCsharpTypeSystem(
       ...host,
       representations,
       projectTypeCatalog,
+      bindingProjection(node: Node, sourceFile: SourceFile) {
+        if (bindingProjections === undefined) throw new Error("C# binding projection ran before type-system initialization.");
+        return bindingProjections.resolveProjection(node, sourceFile, { depth: 0 });
+      },
       get objectShapes() {
         if (objectShapes === undefined) {
           throw new Error("C# object-shape selection ran before the type system was fully initialized.");

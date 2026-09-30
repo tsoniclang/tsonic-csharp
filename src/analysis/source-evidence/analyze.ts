@@ -81,6 +81,7 @@ export function analyzeCsharpSourceEvidence(
   const rejectedFixedArrayTypes = new Set<Type>();
   const expressionTypes = new WeakMap<Node, Cached<Type>>();
   const nodeTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
+  const bindingProjections = new WeakMap<Node, import("../../policy/types/objects/binding-projection-policy.js").CsharpBindingProjection>();
   const classConstructorTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const storageTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const readStorageTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
@@ -169,17 +170,6 @@ export function analyzeCsharpSourceEvidence(
                     ? "void"
                     : "other";
     const targetType = recordTargetType(types.resolveType(type, sourceFile));
-    const arrayIndex = semantics.types.isArrayLike(type)
-      ? semantics.types.indexInfos(type).filter(index =>
-          index.keyType !== undefined && semantics.types.isNumberLike(index.keyType))
-      : [];
-    const elementType = arrayIndex.length === 1 ? arrayIndex[0]?.valueType : undefined;
-    const elementMembers = elementType === undefined ? []
-      : semantics.types.isUnion(elementType) ? semantics.types.unionOrIntersectionTypes(elementType) : [elementType];
-    const absentMembers = elementMembers.filter(member => semantics.types.isNullish(member));
-    const arrayElementDefault = elementType === undefined ? undefined
-      : absentMembers.length === 0 ? "never"
-      : absentMembers.length === elementMembers.length ? "always" : "nullable";
     const symbol = semantics.declarations.typeSymbol(type);
     const typeParameters = symbol === undefined ? [] : semantics.declarations.symbolDeclarations(symbol)
       .filter(declaration => source.ast.is.IsTypeParameterDeclaration(declaration));
@@ -187,7 +177,6 @@ export function analyzeCsharpSourceEvidence(
       ? csharpSourceTypeParameter(typeParameters[0]!, source.ast) : undefined;
     const classification = Object.freeze({
       intrinsic,
-      ...(arrayElementDefault === undefined ? {} : { arrayElementDefault }),
       nullish: semantics.types.isNullish(type),
       ...(targetType === undefined ? {} : { targetType }),
       ...(typeParameter === undefined ? {} : { typeParameter }),
@@ -226,6 +215,13 @@ export function analyzeCsharpSourceEvidence(
       return;
     }
     const semantics = source.semantics.forFile(sourceFile);
+    if (source.ast.is.IsBindingElement(node)) {
+      const projection = types.resolveBindingProjection(node, sourceFile);
+      if (projection !== undefined) {
+        recordTargetType(projection.storageCarrier);
+        bindingProjections.set(node, projection);
+      }
+    }
     if (source.ast.is.IsClassDeclaration(node) || source.ast.is.IsClassExpression(node)) {
       const staticType = semantics.declarations.declaredValueType(node);
       classConstructorTypes.set(node, recordTargetType(types.resolveType(staticType, sourceFile)) ?? missing);
@@ -477,6 +473,7 @@ export function analyzeCsharpSourceEvidence(
   }
 
   const index: CsharpSourceEvidenceIndex = {
+    bindingProjection: node => bindingProjections.get(node),
     closedArrayStorage: arrayStorage.resolve,
     pointerBackingDemands: pointerBacking.entries(),
     memoryMetadataIssues: Object.freeze([...memoryMetadataIssues, ...pointerBacking.issues().map(issue => ({

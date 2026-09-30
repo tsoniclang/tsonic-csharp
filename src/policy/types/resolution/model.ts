@@ -56,6 +56,7 @@ export interface CsharpTypePolicyBaseHost {
 }
 
 export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
+  bindingProjection(node: Node, sourceFile: SourceFile): import("../objects/binding-projection-policy.js").CsharpBindingProjection | undefined;
   readonly representations: CsharpPlanningRepresentationQueries;
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
   readonly objectShapes: CsharpObjectShapePolicy;
@@ -97,6 +98,7 @@ export type CsharpScopedTypePolicyResult =
     };
 
 export interface CsharpTypePolicy {
+  resolveBindingProjection(node: Node, sourceFile: SourceFile): import("../objects/binding-projection-policy.js").CsharpBindingProjection | undefined;
   selectFixedArray(type: Type, sourceFile: SourceFile): TsonicFixedArraySelection | undefined;
   resolvePointerReturn(declaration: Node): CsharpPointerReturnContract | undefined;
   resolveNode(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;

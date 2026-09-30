@@ -709,6 +709,7 @@ export function createCsharpTypeResolutionServices(
       projectSourceDeclarationTargetTypeImplementation(scope, ...args),
   };
   const policy: CsharpTypePolicy = Object.freeze({
+    resolveBindingProjection: host.bindingProjection,
     selectFixedArray: createCsharpFixedArrayTypeQuery(host),
     resolveNode: methods.resolveNode,
     resolveStorage: methods.resolveStorage,

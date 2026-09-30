@@ -34,6 +34,8 @@ import {
   resolveCsharpArrayBindingCarrier,
 } from "../../../target-model/types/index.js";
 import { planArrayDefaultProjection } from "./array-defaults.js";
+import { planCsharpArrayBindingPresence, planCsharpCheckedBindingValue } from "./optional-values.js";
+import { csharpCollectionUsesJsArraySemantics } from "../../../target-model/types/collections.js";
 import type {
   CsharpArrayBindingCarrier,
 } from "../../../target-model/types/index.js";
@@ -70,7 +72,7 @@ export function planArrayBindingPattern(
       index,
       false,
     );
-    return planArrayBindingElement(elementNode, sourceExpression, sourceNode, index, elementCarrier, bindingCarrier, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planDefaultExpressionWithExpectedType);
+    return planArrayBindingElement(elementNode, sourceExpression, index, elementCarrier, bindingCarrier, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planDefaultExpressionWithExpectedType);
   });
 }
 
@@ -82,12 +84,12 @@ export type BindingDefaultExpressionPlanner = (
   expectedType: CsharpTypeNode,
   expectedTypeSubject?: Node,
   state?: DestructuringPlannerState,
+  expectedTargetType?: TargetTypeRef,
 ) => CsharpExpression | undefined;
 
 function planArrayBindingElement(
   elementNode: Node,
   sourceExpression: CsharpExpression,
-  sourceNode: Node | undefined,
   index: number,
   elementCarrier: TargetTypeRef | undefined,
   sourceCarrier: CsharpArrayBindingCarrier,
@@ -142,6 +144,7 @@ function planArrayBindingElement(
           defaultedElementType,
           element.Initializer,
           state,
+          defaultedElementCarrier,
         );
         if (whenNull === undefined) {
           return [];
@@ -169,13 +172,16 @@ function planArrayBindingElement(
       diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Array destructuring defaults require the active expression planner before C# emission."));
       return [];
     }
-    const defaultedProjection = planArrayDefaultProjection(sourceExpression, sourceNode, index, projected, sourceCarrier, element.Initializer, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
+    const defaultedProjection = planArrayDefaultProjection(sourceExpression, index, projected, sourceCarrier, element.Initializer, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
     if (defaultedProjection === undefined) {
       return [];
     }
     return planBindingNameFromProjection(name, defaultedProjection.expression, defaultedProjection.type, elementNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier);
   }
-  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
+  const checked = sourceCarrier.kind === "array" && csharpCollectionUsesJsArraySemantics(sourceCarrier.carrier)
+    ? planCsharpCheckedBindingValue(projected, planCsharpArrayBindingPresence(sourceExpression, index, sourceCarrier.lengthMember),
+      sourceCarrier.element, projectedType) : projected;
+  return planBindingNameFromProjection(name, checked, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
 }
 
 function planArrayBindingProjection(

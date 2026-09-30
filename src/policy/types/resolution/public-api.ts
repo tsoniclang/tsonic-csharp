@@ -13,6 +13,8 @@ import { nextState } from "./state.js";
 import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { Node_Expression } from "@tsonic/target-api/source";
 
 export function resolveNode(
   { resolveNodeWithState }: CsharpTypeResolutionScope,
@@ -143,12 +145,27 @@ export function resolveSelectedValueWithState(
   const declaration = sourceValueDeclaration(node, reference?.declaration);
   const scopedTarget = host.representations.scopedTargetType(
     declaration ?? node,
-  ) ?? host.representations.scopedTargetType(node);
+  ) ?? host.representations.scopedTargetType(node) ??
+    (declaration !== undefined && host.ast.is.IsBindingElement(declaration)
+      ? resolveNodeWithState(node, sourceFile, nextState(state)) : undefined);
   if (scopedTarget !== undefined) {
     const declaredType = declaration === undefined ? undefined : host.semanticsFor(declaration)
       .declarations.declaredValueType(declaration);
     const queries = host.semantics(sourceFile);
     if (declaredType !== undefined) {
+      const payload = getCsharpNullableElementTargetType(scopedTarget);
+      if (payload !== undefined && declaration !== undefined && host.ast.is.IsBindingElement(declaration) &&
+        queries.types.refinement(declaredType, selectedType).kind === "exact") {
+        let value = node;
+        let parent = host.ast.parent(value);
+        while (parent !== undefined && (host.ast.is.IsParenthesizedExpression(parent) || host.ast.is.IsSatisfiesExpression(parent)) &&
+          Node_Expression(host.ast, parent) === value) {
+          value = parent;
+          parent = host.ast.parent(value);
+        }
+        const members = queries.types.isUnion(selectedType) ? queries.types.unionOrIntersectionTypes(selectedType) : [selectedType];
+        if (!members.some(member => queries.types.isNullish(member)) && !host.ast.is.IsTypeOfExpression(parent)) return payload;
+      }
       const refinement = selectCsharpAuthoredUnionRefinement(
         scopedTarget, declaredType, selectedType, queries,
         type => resolveCsharpUnionMemberCarrier(scope, scopedTarget, type, queries, state),
@@ -179,17 +196,6 @@ export function resolveSelectedValueWithState(
     );
     if (declared !== undefined) {
       return declared;
-    }
-    if (host.ast.is.IsBindingElement(declaration)) {
-      return resolveNodeWithState(
-        node,
-        sourceFile,
-        nextState(state),
-      ) ?? resolveTypeWithState(
-        selectedType,
-        sourceFile,
-        nextState(state),
-      );
     }
     return undefined;
   }

@@ -49,6 +49,8 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import { planArrayDefaultProjection } from "../array-defaults.js";
+import { planCsharpArrayBindingPresence, planCsharpCheckedBindingValue } from "../optional-values.js";
+import { csharpCollectionUsesJsArraySemantics } from "../../../../target-model/types/collections.js";
 
 export function planAssignmentPatternFromExpression(
   pattern: DestructuringAssignmentPattern,
@@ -133,14 +135,13 @@ function planArrayAssignmentPattern(
     if (element === undefined) {
       return [];
     }
-    return planArrayAssignmentElement(element, sourceExpression, sourceNode, index, bindingCarrier, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
+    return planArrayAssignmentElement(element, sourceExpression, index, bindingCarrier, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
   });
 }
 
 function planArrayAssignmentElement(
   element: DestructuringAssignmentArrayElement,
   sourceExpression: CsharpExpression,
-  sourceNode: Node | undefined,
   index: number,
   sourceCarrier: CsharpArrayBindingCarrier,
   sourceFile: SourceFile,
@@ -186,6 +187,7 @@ function planArrayAssignmentElement(
           defaultedElementType,
           element.initializer,
           state,
+          defaultedElementCarrier,
         );
         if (whenNull === undefined) {
           return [];
@@ -210,13 +212,16 @@ function planArrayAssignmentElement(
       }
       return planAssignmentTargetFromProjection(element.target, projected, projectedType, element.sourceNode, sourceFile, input, diagnostics, state, elementCarrier, planDefaultExpressionWithExpectedType);
     }
-    const defaultedProjection = planArrayDefaultProjection(sourceExpression, sourceNode, index, projected, sourceCarrier, element.initializer, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
+    const defaultedProjection = planArrayDefaultProjection(sourceExpression, index, projected, sourceCarrier, element.initializer, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
     if (defaultedProjection === undefined) {
       return [];
     }
     return planAssignmentTargetFromProjection(element.target, defaultedProjection.expression, defaultedProjection.type, element.sourceNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier, planDefaultExpressionWithExpectedType);
   }
-  return planAssignmentTargetFromProjection(element.target, projected, projectedType, element.sourceNode, sourceFile, input, diagnostics, state, elementCarrier, planDefaultExpressionWithExpectedType);
+  const checked = sourceCarrier.kind === "array" && csharpCollectionUsesJsArraySemantics(sourceCarrier.carrier)
+    ? planCsharpCheckedBindingValue(projected, planCsharpArrayBindingPresence(sourceExpression, index, sourceCarrier.lengthMember),
+      sourceCarrier.element, projectedType) : projected;
+  return planAssignmentTargetFromProjection(element.target, checked, projectedType, element.sourceNode, sourceFile, input, diagnostics, state, elementCarrier, planDefaultExpressionWithExpectedType);
 }
 
 function planArrayAssignmentRestElement(

@@ -19,6 +19,7 @@ import { selectedCsharpSourceProfileOwner } from "./source-profile.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { selectCsharpConditionalNumericCarrier } from "../conditional-numeric-carrier.js";
+import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 
 export function resolveSelectedExpressionType(
   { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveTypeWithState, resolveReadStorage, resolveNonNullExpressionType, resolvePropertyAccessTargetType, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult }: CsharpTypeResolutionScope,
@@ -341,6 +342,9 @@ export function resolveNonNullExpressionType(
   ) {
     return undefined;
   }
+  const genericOptional = getCsharpGenericOptionalParts(sourceTarget);
+  if (genericOptional !== undefined) return genericOptional.element;
+  if (sourceTarget.kind === "type-parameter") return sourceTarget;
   if (queries.types.refinement(sourceType, selectedType).kind === "exact") {
     return sourceTarget;
   }

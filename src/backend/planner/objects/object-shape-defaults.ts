@@ -9,6 +9,8 @@ import type { DestructuringPlannerState } from "../bindings/binding-state.js";
 import type { BindingDefaultExpressionPlanner } from "../bindings/binding-array-patterns.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { planCsharpBindingDefaultValue } from "../bindings/optional-values.js";
+import { csharpBindingDefaultCarrier } from "../../../policy/types/binding-normalization.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/index.js";
 import {
   getCsharpNullableElementTargetType,
@@ -30,29 +32,23 @@ export function planObjectShapeDefaultProjection(
     return undefined;
   }
   const nullableSourceCarrier = getCsharpNullableElementTargetType(member.type);
-  const defaultCarrier = nullableSourceCarrier ?? member.type;
+  const fallback = input.program.sourceEvidence.nodeTargetType(initializer);
+  const defaultCarrier = fallback === undefined ? undefined : csharpBindingDefaultCarrier(member.type, fallback);
   if (member.optional === true && nullableSourceCarrier === undefined && isCsharpValueTypeTargetType(member.type)) {
     diagnostics.push(unsupportedNodeDiagnostic(initializer, `Object-shape member '${member.sourceName}' default requires optional value-type members to carry a nullable target carrier before C# emission.`));
     return undefined;
   }
-  const defaultType = csharpTypeFromTargetTypeRef(defaultCarrier, input.scope.typeParameterNames);
-  if (defaultType === undefined) {
+  const defaultType = defaultCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(defaultCarrier, input.scope.typeParameterNames);
+  if (defaultType === undefined || defaultCarrier === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(initializer, `Object-shape member '${member.sourceName}' default requires a renderable finalized target carrier before C# emission.`));
     return undefined;
   }
-  const whenFalse = planDefaultExpressionWithExpectedType(initializer, sourceFile, input, diagnostics, defaultType, initializer, state);
+  const whenFalse = planDefaultExpressionWithExpectedType(initializer, sourceFile, input, diagnostics, defaultType, initializer, state, defaultCarrier);
   if (whenFalse === undefined) {
     return undefined;
   }
   return {
-    expression: nullableSourceCarrier === undefined && member.optional !== true
-      ? projected
-      : {
-          kind: "BinaryExpression",
-          left: projected,
-          operatorToken: { kind: "QuestionQuestionToken" },
-          right: whenFalse,
-        },
+    expression: planCsharpBindingDefaultValue(projected, member.type, whenFalse, defaultCarrier, state),
     type: defaultType,
     carrier: defaultCarrier,
   };

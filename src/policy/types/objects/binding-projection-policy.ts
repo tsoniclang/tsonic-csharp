@@ -4,10 +4,8 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
-import {
-  getCsharpNullableElementTargetType,
-} from "../../../target-model/types/nullable.js";
-import { isCsharpAbsenceTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
+import { csharpBindingDefaultCarrier } from "../binding-normalization.js";
 import {
   resolveCsharpObjectShapeMemberBySourceContract,
 } from "../../../target-model/types/object-shape-members.js";
@@ -36,6 +34,7 @@ export interface CsharpBindingProjectionPolicyHost {
 }
 
 export interface CsharpBindingProjectionPolicy {
+  resolveProjection(node: Node | undefined, sourceFile: SourceFile | undefined, state: CsharpTypeResolutionState): CsharpBindingProjection | undefined;
   resolveNode(
     node: Node | undefined,
     sourceFile: SourceFile | undefined,
@@ -43,16 +42,21 @@ export interface CsharpBindingProjectionPolicy {
   ): TargetTypeRef | undefined;
 }
 
+export interface CsharpBindingProjection {
+  readonly storageCarrier: TargetTypeRef;
+  readonly bindingCarrier: TargetTypeRef;
+}
+
 export function createCsharpBindingProjectionPolicy(
   host: CsharpBindingProjectionPolicyHost,
 ): CsharpBindingProjectionPolicy {
   const activeBindings = new WeakSet<Node>();
 
-  function resolveNode(
+  function resolveProjection(
     node: Node | undefined,
     sourceFile: SourceFile | undefined,
     state: CsharpTypeResolutionState,
-  ): TargetTypeRef | undefined {
+  ): CsharpBindingProjection | undefined {
     const binding = selectedBindingElement(node, host);
     if (binding === undefined || activeBindings.has(binding)) {
       return undefined;
@@ -69,7 +73,7 @@ export function createCsharpBindingProjectionPolicy(
         sourceFile ?? host.ast.getSourceFile(binding),
         state,
         host,
-        resolveNode,
+        (node, file, state) => resolveProjection(node, file, state)?.bindingCarrier,
       );
       const projected = host.ast.is.IsObjectBindingPattern(pattern)
         ? resolveObjectBindingProjection(binding, ownerType, host)
@@ -80,24 +84,20 @@ export function createCsharpBindingProjectionPolicy(
         return undefined;
       }
       const declaration = host.ast.as.AsBindingElement(binding);
-      if (declaration?.Initializer === undefined) return projected;
-      if (isCsharpAbsenceTargetType(projected)) {
-        return host.typeResolver.resolveNode(declaration.Initializer, sourceFile, nextState(state));
-      }
-      const bindingFile = sourceFile ?? host.ast.getSourceFile(binding);
-      if (bindingFile === undefined || declaration.name === undefined) return undefined;
-      const queries = host.semantics(bindingFile);
-      const selected = queries.types.expressionType(declaration.name);
-      if (selected === undefined) return undefined;
-      const members = queries.types.isUnion(selected) ? queries.types.unionOrIntersectionTypes(selected) : [selected];
-      return members.some(member => queries.types.isNullish(member))
-        ? projected : getCsharpNullableElementTargetType(projected) ?? projected;
+      if (declaration?.Initializer === undefined) return Object.freeze({ storageCarrier: projected, bindingCarrier: projected });
+      const storageCarrier = csharpNullableTargetType(projected);
+      const fallback = host.typeResolver.resolveNode(declaration.Initializer, sourceFile, nextState(state));
+      if (fallback === undefined) return undefined;
+      const bindingCarrier = csharpBindingDefaultCarrier(projected, fallback);
+      return Object.freeze({ storageCarrier, bindingCarrier });
     } finally {
       activeBindings.delete(binding);
     }
   }
 
-  return Object.freeze({ resolveNode });
+  return Object.freeze({ resolveProjection,
+    resolveNode: (node: Node | undefined, sourceFile: SourceFile | undefined, state: CsharpTypeResolutionState) =>
+      resolveProjection(node, sourceFile, state)?.bindingCarrier });
 }
 
 function selectedBindingElement(
