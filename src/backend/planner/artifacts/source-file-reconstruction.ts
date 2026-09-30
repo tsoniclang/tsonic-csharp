@@ -114,7 +114,7 @@ export function reconstructCsharpSourceFiles(
       if (candidateDiagnostics.length > 0) {
         const unpublished = unpublishedDependencies(
           graph,
-          [...moduleDependencies.dependencies, ...captured.dependencies],
+          captured.dependencies,
         );
         if (unpublished.length > 0) {
           return {
