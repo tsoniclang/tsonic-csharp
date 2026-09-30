@@ -38,14 +38,17 @@ export function analyzeCsharpProjectCallableAdapters(
   for (const implementation of callables.declarationContracts) {
     const declaration = implementation.sourceDeclaration;
     if (!policy.ast.is.IsMethodDeclaration(declaration) || policy.ast.hasModifierKind(declaration, "static")) continue;
-    const owner = policy.projectTypes.catalog.definitionContainingDeclaration(declaration);
-    if (owner === undefined) continue;
-    const inherited = policy.navigation.memberContracts(declaration);
+    const parent = policy.ast.parent(declaration);
+    const owner = policy.projectTypes.catalog.definitionForDeclaration(parent);
+    const objectMethod = parent !== undefined && policy.ast.is.IsObjectLiteralExpression(parent);
+    if (owner === undefined && !objectMethod) continue;
+    const inherited = objectMethod ? { kind: "resolved" as const, contracts: [] } : policy.navigation.memberContracts(declaration);
     if (inherited.kind !== "resolved") {
       reject(declaration, inherited.reason);
       continue;
     }
-    const receiver = policy.projectTypes.catalog.targetTypeForDeclaration(owner.declaration, owner.typeParameterBindings);
+    const receiver = owner === undefined ? undefined
+      : policy.projectTypes.catalog.targetTypeForDeclaration(owner.declaration, owner.typeParameterBindings);
     const adapters: CsharpProjectCallableAdapter[] = [];
     const seen = new Set<string>();
     let overridesBase = false;
@@ -58,7 +61,7 @@ export function analyzeCsharpProjectCallableAdapters(
         }
         continue;
       }
-      const contractOwner = policy.projectTypes.catalog.definitionContainingDeclaration(contractDeclaration);
+      const contractOwner = policy.projectTypes.catalog.definitionForDeclaration(policy.ast.parent(contractDeclaration));
       if (contractOwner === undefined) continue;
       if (contractOwner.kind === "class") hasProjectBaseContract = true;
       const contract = instantiateContract(policy, original, implementation, receiver);
@@ -93,7 +96,7 @@ export function analyzeCsharpProjectCallableAdapters(
       adapters.push(Object.freeze({ contract, parameters, result,
         ...(selectedInterface === undefined ? {} : { interfaceType: selectedInterface }) }));
     }
-    const dispatch = policy.navigation.memberDispatch(declaration);
+    const dispatch = objectMethod ? undefined : policy.navigation.memberDispatch(declaration);
     byDeclaration.set(declaration, Object.freeze({ implementation,
       overridesBase: hasProjectBaseContract ? overridesBase : dispatch?.overridesBase === true,
       hasDerivedOverride: dispatch?.hasDerivedOverride === true,

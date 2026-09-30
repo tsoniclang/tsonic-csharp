@@ -26,6 +26,20 @@ test("projection dependencies retain exact free identities through nested option
     new Set([outer.identity, inner.identity]));
 });
 
+test("generic template binding retains declared optional storage identities before value projection", () => {
+  const storage = csharpNullableTargetType(outer);
+  const selectedStorage = csharpNullableTargetType(inner);
+  const pattern = { kind: "tuple", elements: [outer, storage] };
+  const actual = { kind: "tuple", elements: [inner, selectedStorage] };
+  const identities = new Set([outer.identity, storage.identity]);
+  const bindings = inferCsharpTargetTypeParameterBindings(pattern, actual, identities);
+  assert.deepEqual(bindings, new Map([[outer.identity, inner], [storage.identity, selectedStorage]]));
+  assert.deepEqual(substituteTargetTypeParameters(pattern, bindings), actual);
+  assert.equal(inferCsharpTargetTypeParameterBindings({ kind: "tuple", elements: [storage, storage] },
+    { kind: "tuple", elements: [selectedStorage, integer] }, identities), undefined);
+  assert.deepEqual(inferCsharpTargetTypeParameterBindings(storage, csharpAbsenceTargetType(), new Set([outer.identity])), new Map());
+});
+
 test("generic semantic and storage identity never collapse equal spellings", () => {
   const renamed = { ...outer, name: "CapturedT" };
   assert.equal(targetTypeRefEquals(outer, inner), false);

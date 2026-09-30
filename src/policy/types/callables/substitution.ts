@@ -146,11 +146,6 @@ export function inferCsharpTargetTypeParameterBindings(
   return match(pattern, actual) ? bindings : undefined;
 
   function match(left: TargetTypeRef, right: TargetTypeRef): boolean {
-    const optional = getCsharpGenericOptionalParts(left)?.element ?? getCsharpNullableElementTargetType(left);
-    if (optional !== undefined) {
-      return isCsharpAbsenceTargetType(right) ||
-        match(optional, getCsharpGenericOptionalParts(right)?.element ?? getCsharpNullableElementTargetType(right) ?? right);
-    }
     if (left.kind === "type-parameter" && parameterIdentities.has(left.identity)) {
       const existing = bindings.get(left.identity);
       if (existing === undefined) {
@@ -158,6 +153,11 @@ export function inferCsharpTargetTypeParameterBindings(
         return true;
       }
       return targetTypeRefEquals(existing, right);
+    }
+    const optional = getCsharpGenericOptionalParts(left)?.element ?? getCsharpNullableElementTargetType(left);
+    if (optional !== undefined) {
+      return isCsharpAbsenceTargetType(right) ||
+        match(optional, getCsharpGenericOptionalParts(right)?.element ?? getCsharpNullableElementTargetType(right) ?? right);
     }
     const patternArms = getCsharpRuntimeUnionArms(left);
     if (patternArms !== undefined && getCsharpRuntimeUnionArms(right) === undefined) {
