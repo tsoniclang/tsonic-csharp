@@ -186,7 +186,7 @@ export const csharpJsIntlPropertyPolicies:
       jsPropertyPolicy(
         jsMemberIdentity(owner as string, name as string),
         (context) => {
-          const receiver = resolveCsharpSelectedSourceValue(context, context.source.receiver);
+          const receiver = context.receiverType;
           return receiver?.kind === "target-named" && result !== undefined
             ? targetProperty(
                 `Tsonic.CSharp.Js.${owner}.${name}`,

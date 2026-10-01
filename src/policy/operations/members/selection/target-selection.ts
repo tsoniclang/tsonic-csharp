@@ -34,6 +34,7 @@ import {
 import type {
   CsharpTargetPropertyInvocation,
 } from "../../source-profiles/source-profile-policy.js";
+import { selectCsharpUnionProperty, type CsharpUnionProperty } from "../../union-properties.js";
 import {
   selectCsharpSourceCoreFixedArrayElement,
   selectCsharpSourceCoreFixedArrayProperty,
@@ -77,6 +78,7 @@ export type CsharpTargetCallSelection =
     };
 
 export type CsharpTargetPropertySelection =
+  | CsharpUnionProperty
   | {
       readonly kind: "resolved";
       readonly source: ResolvedSourcePropertyAccessInfo;
@@ -196,6 +198,8 @@ export function selectCsharpTargetProperty(
   if (provider.kind !== "not-provider") {
     return provider;
   }
+  const union = selectCsharpUnionProperty(host, provider.source, sourceFile);
+  if (union !== undefined) return union;
   const fixedArray = selectCsharpSourceCoreFixedArrayProperty(
     host,
     provider.source,

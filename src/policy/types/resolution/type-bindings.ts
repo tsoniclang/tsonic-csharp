@@ -2,6 +2,16 @@ import type { Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpTypeResolutionState } from "./model.js";
 
+export function csharpSourceTemplateState(
+  parameters: readonly (Node | undefined)[],
+  state: CsharpTypeResolutionState,
+): CsharpTypeResolutionState {
+  const declarations = new Set(parameters);
+  return { ...state, sourceBindings: new Map(
+    [...state.sourceBindings ?? []].filter(([node]) => !declarations.has(node)),
+  ) };
+}
+
 export function csharpBoundSourceType(
   type: Type, queries: SourceFileSemantics, state: CsharpTypeResolutionState,
 ): { readonly sourceType: Type; readonly targetType: import("../../../target-model/types/model.js").TargetTypeRef } | undefined {

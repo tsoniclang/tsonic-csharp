@@ -114,7 +114,7 @@ export const csharpNativeSourceProfilePropertyPolicies:
       select(
         context: CsharpSourceProfilePropertyPolicyContext,
       ): CsharpSourceProfilePropertyPolicyResult {
-        const declaringType = resolveCsharpSelectedSourceValue(context, context.source.receiver);
+        const declaringType = context.receiverType;
         const resultType = context.host.types.resolveType(
           context.source.sourceReadType ?? context.source.sourceWriteType,
           context.sourceFile,

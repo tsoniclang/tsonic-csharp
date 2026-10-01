@@ -124,6 +124,8 @@ function selectCsharpPropertyStorage(
   active: WeakSet<Node>,
 ): CsharpTypedLocationStorageSelection {
   const selection = selectCsharpTargetProperty(input, expression, sourceFile);
+  if (selection.kind === "union-property") return storageRejected(
+    "A native union operation is not one directly addressable writable property.");
   if (selection.kind !== "resolved" && selection.kind !== "source-owned") {
     const reason = selection.kind === "rejected"
       ? selection.diagnostic.message

@@ -5,18 +5,17 @@ import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-c
 import { selectCsharpClosedTypeTestPlan } from "../../operations/operators/type-tests.js";
 import type { CsharpTypePolicyHost } from "./model.js";
 
-export function selectCsharpNativeFlowRefinement(
+export function selectCsharpNativeFlowMembers(
   host: CsharpTypePolicyHost,
   reference: Node,
   sourceCarrier: TargetTypeRef,
-): TargetTypeRef | undefined {
+): readonly TargetTypeRef[] | undefined {
   const members = getCsharpRuntimeUnionArms(sourceCarrier, host.typeDefinitions);
   if (members === undefined) return undefined;
-  const selected = selectSourceGuardedValueMembers(host, reference, members,
+  return selectSourceGuardedValueMembers(host, reference, members,
     expression => host.closedTypeGuard(expression),
     (member, predicate) => {
       const test = selectCsharpClosedTypeTestPlan(member, predicate, undefined, host.typeDefinitions);
       return test?.kind === "constant" ? test.value : undefined;
     });
-  return selected?.length === 1 ? selected[0] : undefined;
 }

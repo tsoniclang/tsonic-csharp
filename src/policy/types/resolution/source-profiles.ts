@@ -2,6 +2,7 @@ import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-mo
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
+import { sourceTypeSyntaxIsCompositional } from "@tsonic/target-api/source";
 import type {
   SourceCallableTypeEvidence,
   SourceFileSemantics,
@@ -303,11 +304,22 @@ export function generatorResultProtocol(
 
 
 export function resolveUnionType(
-  { host, resolveTypeWithState, sourceUnions, sourceUnionDefinitions }: CsharpTypeResolutionScope,
+  { host, resolveCompositionalSourceTypeAlias, resolveTypeWithState, sourceUnions, sourceUnionDefinitions }: CsharpTypeResolutionScope,
   type: Type,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const application = queries.types.aliasApplication(type);
+  if (application?.kind === "direct" && sourceTypeSyntaxIsCompositional(host.ast, application.typeNode) &&
+    host.navigation.isProjectDeclaration(application.declaration)) {
+    const typeName = host.ast.name(application.declaration);
+    const arguments_ = application.bindings.map(binding => resolveTypeWithState(binding.argument, queries.sourceFile, nextState(state)));
+    const typeArguments = definedValues(arguments_);
+    if (typeName === undefined || typeArguments.length !== arguments_.length) return undefined;
+    const alias = resolveCompositionalSourceTypeAlias(typeName, typeArguments, type, state,
+      application.bindings.map(binding => binding.argument));
+    return alias.kind === "resolved" ? alias.type : undefined;
+  }
   const structural = host.structuralTypes.resolveUnion(type, queries.sourceFile, state);
   if (structural.kind !== "not-applicable") return structural.kind === "resolved" ? structural.type : undefined;
   const rawSourceMembers = queries.types.unionOrIntersectionTypes(type);

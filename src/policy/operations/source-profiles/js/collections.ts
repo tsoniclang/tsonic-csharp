@@ -130,10 +130,7 @@ export const csharpJsCollectionPropertyPolicies:
       jsPropertyPolicy(
         jsMemberIdentity(declaringName, "size"),
         (context) => {
-          const receiver = resolveCsharpSelectedSourceValue(
-            context,
-            context.source.receiver,
-          );
+          const receiver = context.receiverType;
           return getCsharpJsMapTargetTypes(receiver) === undefined
             ? undefined
             : targetProperty(
@@ -152,10 +149,7 @@ export const csharpJsCollectionPropertyPolicies:
       jsPropertyPolicy(
         jsMemberIdentity(declaringName, "size"),
         (context) => {
-          const receiver = resolveCsharpSelectedSourceValue(
-            context,
-            context.source.receiver,
-          );
+          const receiver = context.receiverType;
           return getCsharpJsSetElementTargetType(receiver) === undefined
             ? undefined
             : targetProperty(

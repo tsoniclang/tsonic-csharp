@@ -1,6 +1,7 @@
 import type {
   SourceFile,
 } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { selectCsharpArrayUnionElement, selectCsharpArrayUnionProperty } from "./js/array-unions.js";
 import { selectCsharpIndexedRecordElement, selectCsharpIndexedRecordProperty } from "../collections/indexed-records.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
@@ -86,12 +87,21 @@ export function selectCsharpComposedSourceProfileProperty(
   if (union !== undefined) return union;
   const record = selectCsharpIndexedRecordProperty(host, source, sourceFile);
   if (record !== undefined) return record;
-  return selectCsharpSourceProfilePropertyPolicy(
+  return selectCsharpSourceProfilePropertyForCarrier(
     host,
     source,
     sourceFile,
-    propertyPolicies,
+    host.types.resolveSelectedValue(source.receiver.expression, source.receiver.type, sourceFile),
   );
+}
+
+export function selectCsharpSourceProfilePropertyForCarrier(
+  host: CsharpProviderCallSelectionHost,
+  source: ResolvedSourcePropertyAccessInfo,
+  sourceFile: SourceFile,
+  receiverType: TargetTypeRef | undefined,
+): CsharpSourceProfilePropertyPolicyResult | undefined {
+  return selectCsharpSourceProfilePropertyPolicy(host, source, sourceFile, propertyPolicies, receiverType);
 }
 
 export function selectCsharpComposedSourceProfileElement(

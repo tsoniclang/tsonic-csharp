@@ -8,6 +8,7 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/typ
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-carriers.js";
 import { nextState } from "./state.js";
+import { csharpSourceTemplateState } from "./type-bindings.js";
 
 interface Definition {
   readonly carrier: CsharpTargetNamedTypeRef;
@@ -53,10 +54,7 @@ export function createCsharpSourceUnionDefinitions(
       }
       const name = `__TsonicUnion_${createHash("sha256").update(identity).digest("hex")}`;
       const carrier = csharpSourceUnionTargetType(identity, name, typeArguments);
-      const parameterNodes = new Set(host.ast.typeParameters(application.declaration));
-      const templateState = { ...nextState(state), sourceBindings: new Map(
-        [...state.sourceBindings ?? []].filter(([node]) => !parameterNodes.has(node)),
-      ) };
+      const templateState = csharpSourceTemplateState(host.ast.typeParameters(application.declaration), nextState(state));
       const parameters = application.bindings.map(binding => resolveType(binding.parameter, queries.sourceFile, templateState));
       if (parameters.some(parameter => parameter?.kind !== "type-parameter")) return undefined;
       if (parameters.some((parameter, index) => !targetTypeRefEquals(parameter!, typeArguments[index]!)) &&

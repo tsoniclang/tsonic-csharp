@@ -763,6 +763,7 @@ function operationResultType(
     return construction.selectedResultType;
   }
   const property = facts.get(node, propertyKey);
+  if (property?.selection.kind === "union-property") return property.selection.resultCarrier;
   if (property?.selection.kind === "resolved") {
     return optionalResultType(
       property.selection.targetMember.returnType,

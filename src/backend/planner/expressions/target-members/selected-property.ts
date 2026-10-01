@@ -41,6 +41,8 @@ import { getCsharpMethodValue } from "../../../../target-model/types/method-valu
 import type { CsharpTargetNamedTypeRef } from "../../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { csharpRecordOptionalRead } from "../../objects/indexed-records.js";
+import { planCsharpUnionProperty } from "../union-properties.js";
+import { planCsharpNativeUnionProjection } from "../union-projections.js";
 
 export function translateCsharpPropertyAccess(
   node: Node,
@@ -60,6 +62,8 @@ export function translateCsharpPropertyAccess(
   }
   const selection = classification.selection;
   switch (selection.kind) {
+    case "union-property":
+      return planCsharpUnionProperty(node, selection, sourceFile, input, diagnostics, planExpression);
     case "resolved":
       return translateSelectedProperty(
         node,
@@ -461,32 +465,13 @@ function translateRuntimeUnionObjectShapeProperty(
   if (receiver === undefined) {
     return undefined;
   }
-  const projected: CsharpExpression = {
-    kind: "InvocationExpression",
-    callee: {
-      kind: "SimpleMemberAccessExpression",
-      receiver,
-      name: "Match",
-    },
-    arguments: property.members.map((entry) => {
-      const parameterName = `__tsonic_union_arm${entry.armIndex + 1}`;
-      return {
-        kind: "Argument" as const,
-        expression: {
-          kind: "LambdaExpression" as const,
-          parameters: [{ kind: "Parameter" as const, name: parameterName }],
-          body: {
-            kind: "SimpleMemberAccessExpression" as const,
-            receiver: {
-              kind: "IdentifierName" as const,
-              name: parameterName,
-            },
-            name: entry.member.targetName,
-          },
-        },
-      };
-    }),
-  };
+  const projected = planCsharpNativeUnionProjection(node, receiver, {
+    unionCarrier: classification.selectedReceiverType!,
+    selectedVariantIndexes: property.members.map(entry => entry.armIndex),
+    variants: property.members.map(entry => ({ carrier: entry.armType, member: entry.member })),
+  }, input, diagnostics, variant => variant.member,
+  (payload, member) => ({ kind: "SimpleMemberAccessExpression", receiver: payload, name: member.targetName }));
+  if (projected === undefined) return undefined;
   const selectedReadType = classification.selectedReadType;
   if (selectedReadType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(

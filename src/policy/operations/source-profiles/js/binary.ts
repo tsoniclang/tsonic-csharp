@@ -425,7 +425,7 @@ function arrayBufferViewProperty(
   context: Parameters<CsharpSourceProfilePropertyPolicy["select"]>[0],
   name: string,
 ): CsharpTargetMember | undefined {
-  const receiver = resolveCsharpSelectedSourceValue(context, context.source.receiver);
+  const receiver = context.receiverType;
   if (
     receiver?.kind !== "target-named" ||
     (receiver as CsharpTargetNamedTypeRef).csharpJsSurfaceKind !== "data-view" &&
@@ -478,10 +478,8 @@ function typedArrayAccessReceiver(
     | CsharpSourceProfilePropertyPolicyContext
     | CsharpSourceProfileElementPolicyContext,
 ): CsharpTargetNamedTypeRef | undefined {
-  const receiver = resolveCsharpSelectedSourceValue(
-    context,
-    context.source.receiver,
-  );
+  const receiver = "receiverType" in context ? context.receiverType
+    : resolveCsharpSelectedSourceValue(context, context.source.receiver);
   return receiver?.kind === "target-named" &&
       (receiver as CsharpTargetNamedTypeRef).csharpJsSurfaceKind === "typed-array"
     ? receiver as CsharpTargetNamedTypeRef

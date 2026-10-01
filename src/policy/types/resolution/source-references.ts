@@ -19,13 +19,14 @@ import {
   sourceTransformedTypeFactEvidenceNodes,
   sourceTupleElementTypeEvidenceNodes,
   sourceTypeSyntaxIsCompositional,
+  sourceTypeSyntaxRoot,
   sourceIntegerInduction,
 } from "@tsonic/target-api/source";
 import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from "./selected-type-evidence.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
-import { csharpBoundSourceType, csharpSourceBindings } from "./type-bindings.js";
+import { csharpBoundSourceType, csharpSourceBindings, csharpSourceTemplateState } from "./type-bindings.js";
 import { csharpConditionalDeclaration, resolveCsharpConditionalApplication } from "./conditional-types.js";
 
 export function resolveTypeReferenceNode(
@@ -403,15 +404,17 @@ export function resolveCompositionalSourceTypeAlias(
     if (parameter === undefined || argument === undefined || substitutions.has(parameter.identity)) return { kind: "rejected" };
     substitutions.set(parameter.identity, argument);
   }
-  if (selectedType !== undefined && host.ast.is.IsUnionTypeNode(target)) {
+  const syntaxRoot = sourceTypeSyntaxRoot(host.ast, target);
+  if (selectedType !== undefined && host.ast.is.IsUnionTypeNode(syntaxRoot)) {
+    const templateState = csharpSourceTemplateState(parameters, state);
     const definitionType = host.semantics(reference.sourceFile).types.authoredType(target);
     const structural = definitionType === undefined ? { kind: "not-applicable" as const }
-      : host.structuralTypes.resolveUnion(definitionType, reference.sourceFile, state);
+      : host.structuralTypes.resolveUnion(definitionType, reference.sourceFile, templateState);
     if (structural.kind === "rejected") return structural;
     if (structural.kind === "resolved") {
       return { kind: "resolved", type: substituteTargetTypeParameters(structural.type, substitutions) };
     }
-    const template = resolveNodeWithState(target, reference.sourceFile, nextState(state));
+    const template = resolveNodeWithState(target, reference.sourceFile, nextState(templateState));
     return template === undefined ? { kind: "rejected" }
       : { kind: "resolved", type: substituteTargetTypeParameters(template, substitutions) };
   }

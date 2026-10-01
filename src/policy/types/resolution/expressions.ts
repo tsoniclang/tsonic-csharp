@@ -262,6 +262,7 @@ export function resolvePropertyAccessTargetType(
     node,
     queries.sourceFile,
   );
+  if (selection.kind === "union-property") return selection.resultCarrier;
   const presentCallable = selection.kind === "resolved" || selection.kind === "source-owned"
     ? sourcePresentCallableType(selection.source.sourceReadType, queries) : undefined;
   if ((selection.kind === "resolved" || selection.kind === "source-owned") && selection.source.accessMode === "read" &&

@@ -10,6 +10,7 @@ import type {
   SourceFileSemantics,
   SourceTypeComponentEvidence,
 } from "@tsonic/target-api/source";
+import { sourceTypeSyntaxRoot } from "@tsonic/target-api/source";
 import type { CsharpSourceCallableContract } from "../callables/source-callable-contract.js";
 import { resolveCsharpPointerReturnContract } from "../callables/pointer-return.js";
 import type { CsharpPointerReturnContract } from "../callables/pointer-return.js";
@@ -22,6 +23,7 @@ import { getCsharpDelegateSignature } from "../../../target-model/types/delegate
 import { createCsharpSourceUnionIndex, type CsharpSourceUnionIndex } from "./source-unions.js";
 import { createCsharpSourceUnionDefinitions } from "./union-definitions.js";
 import { createCsharpFixedArrayTypeQuery } from "./source-markers.js";
+import { selectCsharpNativeFlowMembers } from "./native-flow-refinement.js";
 
 import {
   resolveNode as resolveNodeImplementation,
@@ -578,7 +580,8 @@ export function createCsharpTypeResolutionServices(
         return undefined;
       }
       if (scope.activeNodes.has(node)) {
-        if (!host.ast.is.IsTypeReferenceNode(node) && !host.ast.is.IsUnionTypeNode(node) && !host.ast.is.IsTypeLiteralNode(node)) return undefined;
+        const root = sourceTypeSyntaxRoot(host.ast, node);
+        if (!host.ast.is.IsTypeReferenceNode(root) && !host.ast.is.IsUnionTypeNode(root) && !host.ast.is.IsTypeLiteralNode(root)) return undefined;
         const queries = sourceFile === undefined ? host.semanticsFor(node) : host.semantics(sourceFile);
         const type = queries.types.authoredType(node);
         return type === undefined ? undefined
@@ -712,6 +715,7 @@ export function createCsharpTypeResolutionServices(
       projectSourceDeclarationTargetTypeImplementation(scope, ...args),
   };
   const policy: CsharpTypePolicy = Object.freeze({
+    nativeFlowMembers: (reference: Node, sourceCarrier: TargetTypeRef) => selectCsharpNativeFlowMembers(host, reference, sourceCarrier),
     resolveBindingProjection: host.bindingProjection,
     selectFixedArray: createCsharpFixedArrayTypeQuery(host),
     resolveNode: methods.resolveNode,

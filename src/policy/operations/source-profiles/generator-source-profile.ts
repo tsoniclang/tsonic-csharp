@@ -255,17 +255,7 @@ function selectIteratorResultProperty(
   context: CsharpSourceProfilePropertyPolicyContext,
   policy: IteratorResultPropertyPolicySpec,
 ): CsharpSourceProfilePropertyPolicyResult {
-  const receiverType = context.host.types.resolveStorage(
-    context.source.receiver.expression,
-    context.sourceFile,
-  ) ?? context.host.types.resolveNode(
-    context.source.receiver.expression,
-    context.sourceFile,
-  ) ?? context.host.types.resolveSelectedValue(
-      context.source.receiver.expression,
-      context.source.receiver.type,
-      context.sourceFile,
-    );
+  const receiverType = context.receiverType;
   const protocol = getCsharpIteratorResultProtocol(receiverType);
   if (receiverType === undefined || protocol === undefined) {
     return rejectedGeneratorProperty(

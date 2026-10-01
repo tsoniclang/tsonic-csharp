@@ -281,10 +281,7 @@ export const csharpJsArrayPropertyPolicies:
       jsPropertyPolicy(
         jsMemberIdentity(declaringName, "length"),
         (context) => {
-          const receiverType = resolveCsharpSelectedSourceValue(
-            context,
-            context.source.receiver,
-          );
+          const receiverType = context.receiverType;
           const targetName = getCsharpIndexableLengthMemberName(receiverType);
           return receiverType === undefined || targetName === undefined
             ? undefined

@@ -57,6 +57,7 @@ export interface CsharpSourceProfilePropertyPolicyContext {
   readonly source: ResolvedSourcePropertyAccessInfo;
   readonly sourceFile: SourceFile;
   readonly identity: CsharpSourceProfileDeclarationIdentity;
+  readonly receiverType: TargetTypeRef | undefined;
 }
 
 export type CsharpTargetPropertyInvocation =
@@ -180,6 +181,7 @@ export function selectCsharpSourceProfilePropertyPolicy(
   source: ResolvedSourcePropertyAccessInfo,
   sourceFile: SourceFile,
   policies: readonly CsharpSourceProfilePropertyPolicy[],
+  receiverType: TargetTypeRef | undefined,
 ): CsharpSourceProfilePropertyPolicyResult | undefined {
   const identities = sourceProfilePropertyIdentities(
     host,
@@ -198,7 +200,7 @@ export function selectCsharpSourceProfilePropertyPolicy(
     ? undefined
     : selected.kind === "ambiguous"
       ? { kind: "rejected", diagnostic: selected.diagnostic }
-      : selected.policy.select({ host, source, sourceFile, identity });
+      : selected.policy.select({ host, source, sourceFile, identity, receiverType });
 }
 
 function sourceProfilePropertyIdentityMatches(
