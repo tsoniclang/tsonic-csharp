@@ -37,7 +37,8 @@ export function selectCsharpClosedTypeTestPlan(
     if (source.kind === "array" || source.kind === "tuple" || getCsharpJsArrayElementTargetType(source) !== undefined) {
       return Object.freeze({ kind: "constant", value: true });
     }
-    if (getCsharpTypeofRuntimeKind(source) !== undefined) return Object.freeze({ kind: "constant", value: false });
+    const category = getCsharpTypeofRuntimeKind(source, definitions);
+    if (category !== undefined && category !== "object") return Object.freeze({ kind: "constant", value: false });
     return source.kind === "target-named" && !isCsharpValueTypeTargetType(source)
       ? Object.freeze({ kind: "runtime-array" }) : undefined;
   }

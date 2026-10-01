@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetBindingFact, TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import { csharpSourceUnionIdentity, instantiateCsharpSourceUnionArms,
@@ -10,9 +10,22 @@ export interface CsharpTypeDefinitionRegistry extends CsharpTypeDefinitionWriter
   seal(): CsharpTypeDefinitions;
 }
 
-export function createCsharpTypeDefinitionRegistry(): CsharpTypeDefinitionRegistry {
+export function createCsharpTypeDefinitionRegistry(
+  nativeBinding: (id: string) => TargetBindingFact | undefined = () => undefined,
+): CsharpTypeDefinitionRegistry {
   const definitions = new Map<string, CsharpSourceUnionDefinition>();
+  const nativeKinds = new Map<string, TargetBindingFact["kind"] | undefined>();
   let sealed = false;
+  const nativeDeclarationKind: CsharpTypeDefinitions["nativeDeclarationKind"] = carrier => {
+    if (carrier.kind !== "target-named") return undefined;
+    if (nativeKinds.has(carrier.id)) return nativeKinds.get(carrier.id);
+    if (sealed) return undefined;
+    if (nativeKinds.size >= 1_048_576) throw new Error("C# native type definitions exceed their resource bound.");
+    const binding = nativeBinding(carrier.id);
+    const kind = binding?.target === "csharp" && binding.id === carrier.id ? binding.kind : undefined;
+    nativeKinds.set(carrier.id, kind);
+    return kind;
+  };
   const sourceUnionArms: CsharpTypeDefinitions["sourceUnionArms"] = carrier => {
     const identity = csharpSourceUnionIdentity(carrier);
     const definition = identity === undefined ? undefined : definitions.get(identity);
@@ -20,6 +33,7 @@ export function createCsharpTypeDefinitionRegistry(): CsharpTypeDefinitionRegist
   };
   const sourceUnions = (): readonly CsharpSourceUnionDefinition[] => Object.freeze([...definitions.values()]);
   return Object.freeze({
+    nativeDeclarationKind,
     sourceUnionArms,
     sourceUnions,
     registerSourceUnion(definition: CsharpSourceUnionDefinition) {
@@ -58,7 +72,7 @@ export function createCsharpTypeDefinitionRegistry(): CsharpTypeDefinitionRegist
       };
       for (const definition of definitions.values()) for (const arm of definition.arms) visit(arm);
       sealed = true;
-      return Object.freeze({ sourceUnionArms, sourceUnions });
+      return Object.freeze({ nativeDeclarationKind, sourceUnionArms, sourceUnions });
     },
   });
 }

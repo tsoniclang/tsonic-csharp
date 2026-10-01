@@ -367,7 +367,7 @@ function analyzeIteration(
     },
   };
   const representations = Object.freeze(planningRepresentations);
-  const typeDefinitions = createCsharpTypeDefinitionRegistry();
+  const typeDefinitions = createCsharpTypeDefinitionRegistry(id => providers.findTargetBindingByTargetId(id));
   typeSystem = createCsharpTypeSystem(
     { ...typeHost, typeDefinitions },
     createCsharpProjectTypeCatalog(typeHost, previous?.typeProjections),

@@ -2,8 +2,9 @@ import type { Node } from "@tsonic/tsts";
 import { IsTypeSyntaxNode } from "@tsonic/target-api/source";
 import { csharpNativeMemoryLayoutsEqual } from "../../target-model/operations/native-memory.js";
 import {
-  csharpConversionIsApplicable,
-} from "../../policy/conversions/index.js";
+  conversionIsImplicitlyApplicable,
+} from "../../policy/conversions/selection/core.js";
+import { csharpConversionIsApplicable } from "../../policy/conversions/index.js";
 import {
   getCsharpDelegateSignature,
   getCsharpNullableElementTargetType,
@@ -346,7 +347,7 @@ export function analyzeCsharpStorage(
       }
       const initializerConversion = conversions.selectExpression(initializer,
         evidence.nodeTargetType(initializer), requiredStorageType, "implicit");
-      if (initializerConversion !== undefined && csharpConversionIsApplicable(initializerConversion, "implicit")) break;
+      if (initializerConversion !== undefined && conversionIsImplicitlyApplicable(initializerConversion)) break;
       if (!policy.ast.is.IsIdentifier(initializer)) return;
       current = initializer;
     }

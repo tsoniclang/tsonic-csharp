@@ -11,10 +11,39 @@ import {
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/delegates.js";
 import { getCsharpTypeofResult } from "../../../dist/target-model/types/runtime-kind.js";
 import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
+import { createCsharpTypeDefinitionRegistry } from "../../../dist/analysis/project-types/type-definitions.js";
+import { selectCsharpClosedTypeTestPlan } from "../../../dist/policy/operations/operators/type-tests.js";
 
 function categorySelection(sourceCarrier, runtimeKind, negated) {
   return { kind: "runtime-category-test", sourceCarrier, category: getCsharpTypeofResult(sourceCarrier), runtimeKind, negated };
 }
+
+test("native categories retain exact declaration authority after definition sealing", () => {
+  let lookups = 0;
+  let kind = "class";
+  const definitions = createCsharpTypeDefinitionRegistry(id => {
+    lookups++;
+    return id === "native.selected" ? { id, target: "csharp", sourceName: "UnrelatedName", targetName: "UnrelatedName", kind }
+      : id === "native.wrong" ? { id: "native.other", target: "csharp", sourceName: "Selected", targetName: "Selected", kind: "class" }
+      : undefined;
+  });
+  const selected = { kind: "target-named", id: "native.selected" };
+  assert.equal(getCsharpTypeofRuntimeKind(selected, definitions), "object");
+  assert.deepEqual(selectCsharpClosedTypeTestPlan(selected, { kind: "array" }, new Set(), definitions), { kind: "runtime-array" });
+  assert.equal(getCsharpTypeofRuntimeKind({ kind: "target-named", id: "native.wrong" }, definitions), undefined);
+  assert.equal(getCsharpTypeofRuntimeKind({ kind: "target-named", id: "native.missing" }, definitions), undefined);
+  const compound = csharpNullableTargetType(csharpRuntimeUnionTargetType([selected, csharpStringTargetType()]));
+  const category = getCsharpTypeofResult(compound, undefined, definitions);
+  const sealed = definitions.seal();
+  const before = lookups;
+  kind = "interface";
+  assert.deepEqual(getCsharpTypeofResult(compound, undefined, sealed), category);
+  assert.equal(getCsharpTypeofRuntimeKind({ kind: "target-named", id: "native.late" }, sealed), undefined);
+  assert.equal(lookups, before);
+  const other = createCsharpTypeDefinitionRegistry(id => ({ id, target: "csharp", sourceName: "Class", targetName: "Class", kind: "interface" }));
+  assert.equal(getCsharpTypeofRuntimeKind(selected, other), undefined);
+  assert.equal(getCsharpTypeofRuntimeKind({ ...csharpStringTargetType(), id: "native.selected" }, definitions), "string");
+});
 
 test("C# typeof recognizes callable contracts without name guesses or extra category hints", () => {
   const callable = csharpDelegateTargetType("System.Func", [], csharpStringTargetType());

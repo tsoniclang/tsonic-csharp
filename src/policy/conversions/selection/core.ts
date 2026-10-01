@@ -201,6 +201,9 @@ export function conversionIsImplicitlyApplicable(
   selection: CsharpConversionSelection,
 ): boolean {
   if (selection.kind === "nullable-map") return conversionIsImplicitlyApplicable(selection.conversion);
+  if (selection.kind === "implicit" && selection.proof === "runtime-union-arm") {
+    return conversionIsImplicitlyApplicable(selection.sourceToArm);
+  }
   return selection.kind === "identity" ||
     selection.kind === "union-map" && selection.coverage === "source" ||
     selection.kind === "integer-truncation" ||

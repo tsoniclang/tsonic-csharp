@@ -11,9 +11,21 @@ import {
 } from "../../../dist/policy/types/index.js";
 import { csharpEmptyObjectTargetType, csharpTsValueTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
 import { retainCsharpBroadValueCarrier } from "../../../dist/policy/types/resolution/selected-type-evidence.js";
+import { csharpNullableReferenceTargetType } from "../../../dist/target-model/types/nullable.js";
+import { conversionIsImplicitlyApplicable } from "../../../dist/policy/conversions/selection/core.js";
 
 const int32 = csharpSourcePrimitiveTargetType("int32");
 const string = csharpStringTargetType();
+
+test("native construction proof does not inherit source payload extraction through nested conversions", () => {
+  const wrap = conversion => ({ kind: "implicit", proof: "runtime-union-arm", armIndex: 0,
+    armType: string, sourceToArm: { kind: "nullable-map", sourceElement: string, targetElement: string, conversion } });
+  assert.equal(conversionIsImplicitlyApplicable(wrap({ kind: "identity" })), true);
+  for (const conversion of [{ kind: "js-value-cast" }, { kind: "runtime-union-projection", armIndex: 0,
+    armType: string, retainsAbsence: false }, { kind: "js-value-box" }, { kind: "rejected", reason: "no native relation" }]) {
+    assert.equal(conversionIsImplicitlyApplicable(wrap(conversion)), false);
+  }
+});
 
 test("flow-unreachable reads retain their declared carrier without changing genuine never expressions", () => {
   const never = { kind: "opaque", id: "never" };
@@ -29,6 +41,9 @@ test("non-nullish broad values do not become empty object identities", () => {
   const empty = csharpEmptyObjectTargetType();
   assert.equal(retainCsharpBroadValueCarrier(broad, empty), broad);
   assert.equal(reconcileCsharpSelectedTargetType(broad, empty, "unrelated"), broad);
+  const optionalEmpty = csharpNullableReferenceTargetType(empty);
+  assert.equal(retainCsharpBroadValueCarrier(broad, optionalEmpty), broad);
+  assert.equal(reconcileCsharpSelectedTargetType(broad, optionalEmpty, "unrelated"), broad);
   for (const selected of [int32, string, { kind: "target-named", id: "source.Record", csharpSourceDeclarationKind: "class" }]) {
     assert.equal(retainCsharpBroadValueCarrier(broad, selected), undefined);
     assert.equal(reconcileCsharpSelectedTargetType(broad, selected, "unrelated"), selected);

@@ -16,7 +16,7 @@ export function getCsharpTypeofResult(
   definitions?: CsharpTypeDefinitions,
 ): CsharpTypeofResult | undefined {
   if (type === undefined || active.has(type)) return undefined;
-  const literal = getCsharpTypeofRuntimeKind(type);
+  const literal = getCsharpTypeofRuntimeKind(type, definitions);
   if (literal !== undefined) return literal;
   const nested = new Set(active).add(type);
   const optional = getCsharpNullableElementTargetType(type);
@@ -32,14 +32,18 @@ export function getCsharpTypeofResult(
     : { kind: "runtime-union", sourceCarrier: type, arms: arms.map(arm => arm!) };
 }
 
-export function getCsharpTypeofRuntimeKind(type: TargetTypeRef | undefined): CsharpTypeofRuntimeKind | undefined {
+export function getCsharpTypeofRuntimeKind(
+  type: TargetTypeRef | undefined,
+  definitions?: CsharpTypeDefinitions,
+): CsharpTypeofRuntimeKind | undefined {
   if (isCsharpAbsenceTargetType(type)) return "object";
   if (type === undefined || getCsharpNullableElementTargetType(type) !== undefined) return undefined;
   if (type.kind === "function-pointer" || getCsharpDelegateSignature(type) !== undefined) return "function";
   if (type.kind === "array") return "object";
   if (type.kind === "target-named") {
     const named = type as CsharpTargetNamedTypeRef;
-    return named.csharpTypeofRuntimeKind ?? (named.csharpSourceDeclarationKind === "class" ? "object" : undefined);
+    return named.csharpTypeofRuntimeKind ??
+      (named.csharpSourceDeclarationKind === "class" || definitions?.nativeDeclarationKind(type) === "class" ? "object" : undefined);
   }
   if (type.kind !== "source-primitive") return undefined;
   if (type.name === "bool") return "boolean";

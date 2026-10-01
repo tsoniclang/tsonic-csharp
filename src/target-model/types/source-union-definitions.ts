@@ -1,4 +1,4 @@
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
+import type { CsharpTargetNamedTypeRef, TargetBindingFact, TargetTypeRef } from "./model.js";
 import { csharpTargetNamedType } from "./factories.js";
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "./substitution.js";
 import { snapshotCsharpTargetTypes } from "./snapshot.js";
@@ -10,6 +10,7 @@ export interface CsharpSourceUnionDefinition {
 }
 
 export interface CsharpTypeDefinitions {
+  nativeDeclarationKind(carrier: TargetTypeRef): TargetBindingFact["kind"] | undefined;
   sourceUnionArms(carrier: TargetTypeRef): readonly TargetTypeRef[] | undefined;
   sourceUnions(): readonly CsharpSourceUnionDefinition[];
 }
@@ -39,6 +40,7 @@ export function snapshotCsharpSourceUnionDefinition(value: CsharpSourceUnionDefi
 }
 
 export const emptyCsharpTypeDefinitions: CsharpTypeDefinitions = Object.freeze({
+  nativeDeclarationKind: () => undefined,
   sourceUnionArms: () => undefined,
   sourceUnions: () => Object.freeze([]),
 });

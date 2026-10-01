@@ -7,12 +7,14 @@ import {
   targetTypeRefIsClosed,
 } from "../../../target-model/types/equality.js";
 import { isCsharpEmptyObjectTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 
 export function retainCsharpBroadValueCarrier(
   authored: TargetTypeRef | undefined,
   selected: TargetTypeRef | undefined,
 ): TargetTypeRef | undefined {
-  return isCsharpJsValueTargetType(authored) && selected !== undefined && isCsharpEmptyObjectTargetType(selected)
+  return isCsharpJsValueTargetType(authored) && selected !== undefined &&
+    isCsharpEmptyObjectTargetType(getCsharpNullableElementTargetType(selected) ?? selected)
     ? authored : undefined;
 }
 

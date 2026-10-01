@@ -32,8 +32,8 @@ export function selectCsharpUnionEquality(
           rightInputType: promotion?.rightType ?? right.carrier }) }));
       continue;
     }
-    const leftKind = getCsharpTypeofRuntimeKind(left.carrier);
-    const rightKind = getCsharpTypeofRuntimeKind(right.carrier);
+    const leftKind = getCsharpTypeofRuntimeKind(left.carrier, input.typeDefinitions);
+    const rightKind = getCsharpTypeofRuntimeKind(right.carrier, input.typeDefinitions);
     if (leftKind === undefined || rightKind === undefined || leftKind === rightKind) return undefined;
   }
   return Object.freeze(arms);
