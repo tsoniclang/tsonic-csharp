@@ -2,6 +2,7 @@ import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
 import { isCsharpValueTypeTargetType } from "./identity.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "./nullable.js";
 import { isCsharpJsValueTargetType } from "./runtime-carriers.js";
+import { targetTypeRefEquals } from "./equality.js";
 
 export type CsharpRuntimeParameterDefault = {
   readonly kind: "nullable" | "closed-value";
@@ -9,7 +10,12 @@ export type CsharpRuntimeParameterDefault = {
   readonly parameterType: TargetTypeRef;
 };
 
-export function csharpRuntimeParameterDefault(type: TargetTypeRef): CsharpRuntimeParameterDefault | undefined {
+export function csharpRuntimeParameterDefault(type: TargetTypeRef, incomingType?: TargetTypeRef): CsharpRuntimeParameterDefault | undefined {
+  if (incomingType !== undefined) {
+    return getCsharpNullableElementTargetType(type) === undefined &&
+      targetTypeRefEquals(csharpNullableTargetType(type), incomingType)
+      ? Object.freeze({ kind: "nullable", valueType: type, parameterType: incomingType }) : undefined;
+  }
   if (isCsharpJsValueTargetType(type) && type.kind === "target-named" &&
     (type as CsharpTargetNamedTypeRef).csharpAbsorbsNullish === true) {
     return Object.freeze({ kind: "closed-value", valueType: type, parameterType: type });

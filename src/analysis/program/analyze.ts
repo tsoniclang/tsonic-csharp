@@ -421,6 +421,7 @@ function analyzeIteration(
     objectShapes,
     expectedTypes,
     conversionAnalysis.classifications,
+    declarations,
     previous?.storage,
   );
   const conversions = conversionAnalysis.seal({

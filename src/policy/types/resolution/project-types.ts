@@ -13,6 +13,8 @@ import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
+import { sourceCallableInterface } from "@tsonic/target-api/source";
+import { bindCsharpSourceDeclarationArguments } from "./generic-arguments.js";
 
 export function resolveSelectedSymbolType(
   { declarationResultTypeNode, host, resolveAuthoredAndSelectedSourceType }: CsharpTypeResolutionScope,
@@ -134,9 +136,16 @@ export function projectSourceDeclarationTargetType(
   selectedType?: Type,
 ): TargetTypeRef | undefined {
   const { host } = scope;
+  const queries = host.semanticsFor(declaration);
+  const declaredType = host.ast.is.IsInterfaceDeclaration(declaration)
+    ? queries.declarations.declaredType(declaration) : undefined;
+  if (sourceCallableInterface(declaredType, queries, host.ast) !== undefined) {
+    const bound = bindCsharpSourceDeclarationArguments(scope, declaration, typeArguments, sourceArguments, state);
+    return bound === undefined || declaredType === undefined ? undefined
+      : resolveProjectCallableInterface(scope, declaration, declaredType, bound);
+  }
   const definition = host.projectTypeCatalog.definitionForDeclaration(declaration);
   if (definition === undefined) return undefined;
-  const queries = host.semanticsFor(declaration);
   const bindings = selectedType === undefined ? undefined : queries.types.typeArgumentBindings(selectedType);
   const outerSources = definition.outerTypeParameters.map(parameter => selectedType === undefined
     ? queries.types.authoredType(parameter)
@@ -162,4 +171,39 @@ export function projectSourceDeclarationTargetType(
     [...outerArguments as readonly TargetTypeRef[], ...projections.slice(0, outerProjectionCount),
       ...typeArguments, ...projections.slice(outerProjectionCount)],
   );
+}
+
+function resolveProjectCallableInterface(
+  scope: CsharpTypeResolutionScope,
+  declaration: Node,
+  declaredType: Type,
+  state: CsharpTypeResolutionState,
+): TargetTypeRef | undefined {
+  const { host } = scope;
+  const queries = host.semanticsFor(declaration);
+  const symbol = queries.declarations.typeSymbol(declaredType);
+  const declarations = symbol === undefined ? [declaration] : queries.declarations.symbolDeclarations(symbol);
+  if (declarations.length === 0 || declarations.some(candidate =>
+    candidate === undefined || !host.ast.is.IsInterfaceDeclaration(candidate))) return undefined;
+  const inherited: TargetTypeRef[] = [];
+  for (const candidate of declarations as readonly Node[]) {
+    const heritage = host.navigation.declaredHeritage(candidate);
+    if (heritage.kind !== "resolved") return undefined;
+    for (const edge of heritage.edges) {
+      if (edge.kind !== "extends") return undefined;
+      const nativeArguments = edge.typeArguments.map(argument => scope.resolveNodeWithState(
+        argument, host.semanticsFor(argument).sourceFile, nextState(state)));
+      if (nativeArguments.some(argument => argument === undefined)) return undefined;
+      const sourceArguments = edge.typeArguments.map(argument => host.semanticsFor(argument).types.authoredType(argument));
+      const base = projectSourceDeclarationTargetType(scope, edge.target.declaration,
+        nativeArguments as readonly TargetTypeRef[], sourceArguments, nextState(state), edge.selectedType);
+      if (base === undefined) return undefined;
+      inherited.push(base);
+    }
+  }
+  const ownSignature = declarations.some(candidate => host.ast.members(candidate).some(member =>
+    member !== undefined && host.ast.is.IsCallSignatureDeclaration(member)));
+  const selected = ownSignature || inherited.length === 0
+    ? scope.resolveCallableType(declaredType, queries, nextState(state)) : inherited[0];
+  return selected === undefined || inherited.some(base => !targetTypeRefEquals(base, selected)) ? undefined : selected;
 }

@@ -15,7 +15,7 @@ import {
   targetTypeRefKey,
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { csharpRuntimeParameterDefault } from "../../target-model/types/parameter-defaults.js";
+import type { CsharpDeclarationClassifications } from "../declarations/model.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import {
   selectCsharpSourceArgument,
@@ -59,6 +59,7 @@ export function analyzeCsharpStorage(
   objectShapes: CsharpObjectShapeClassifications,
   expectedTypes: CsharpExpectedTypeClassifications,
   conversions: CsharpConversionClassifications,
+  declarations: CsharpDeclarationClassifications,
   previous?: CsharpStorageClassifications,
 ): CsharpStorageRepresentationClassifications {
   const contracts = new Map<Node, MutableStorageContract>();
@@ -213,8 +214,7 @@ export function analyzeCsharpStorage(
             policy.ast.questionToken(parameter) === undefined
           ? authored
           : csharpNullableTargetType(authored);
-        const runtimeDefault = declaration?.Initializer === undefined || effectiveAuthored === undefined
-          ? undefined : csharpRuntimeParameterDefault(effectiveAuthored);
+        const runtimeDefault = declarations.runtimeDefault(parameter);
         if (
           effectiveAuthored !== undefined &&
           !targetTypeRefEquals(effectiveAuthored, targetType) &&
@@ -237,7 +237,7 @@ export function analyzeCsharpStorage(
             continue;
           }
         }
-        requireTargetType(parameter, parameter, effectiveAuthored ?? targetType);
+        requireTargetType(parameter, parameter, runtimeDefault?.valueType ?? effectiveAuthored ?? targetType);
         const contract = contracts.get(parameter);
         if (contract !== undefined) contract.lambdaParameterType = targetType;
       }

@@ -82,7 +82,21 @@ export function analyzeCsharpDeclarations(
       const selected = parameter === undefined ? undefined
         : evidence.nodeTargetType(parameter.Type ?? parameter.name!);
       if (parameter?.Initializer !== undefined && selected !== undefined) {
-        const runtimeDefault = csharpRuntimeParameterDefault(selected);
+        const owner = policy.ast.parent(node);
+        const contextual = owner === undefined ? undefined : evidence.contextualTargetType(owner);
+        const signature = contextual === undefined ? undefined : getCsharpDelegateSignature(contextual);
+        const index = owner === undefined ? -1 : policy.ast.parameters(owner).indexOf(node);
+        const incoming = index < 0 ? undefined : signature?.parameters[index];
+        const value = incoming === undefined ? undefined : getCsharpNullableElementTargetType(incoming);
+        const source = evidence.expressionType(parameter.Initializer);
+        const queries = policy.semanticsFor(node);
+        const members = source === undefined ? [] : queries.types.isUnion(source)
+          ? queries.types.unionOrIntersectionTypes(source) : [source];
+        const presentInitializer = members.length > 0 && members.every(member =>
+          member !== undefined && !queries.types.isNullish(member) && !queries.types.isAny(member) && !queries.types.isUnknown(member));
+        const runtimeDefault = incoming !== undefined && value !== undefined && presentInitializer
+          ? csharpRuntimeParameterDefault(parameter.Type === undefined ? value : selected, incoming)
+          : csharpRuntimeParameterDefault(selected);
         if (runtimeDefault !== undefined) runtimeDefaults.set(node, runtimeDefault);
       }
     }
