@@ -40,6 +40,7 @@ import { objectShapeStorageMemberName } from "../../objects/object-shape-storage
 import { getCsharpMethodValue } from "../../../../target-model/types/method-values.js";
 import type { CsharpTargetNamedTypeRef } from "../../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import { csharpRecordOptionalRead } from "../../objects/indexed-records.js";
 
 export function translateCsharpPropertyAccess(
   node: Node,
@@ -157,15 +158,18 @@ function translateSelectedProperty(
     if (receiver === undefined) {
       return undefined;
     }
+    const key: CsharpExpression = { kind: "LiteralExpression", value: input.program.source.ast.text(sourceName) };
+    if (selection.invocation.optionalRead) {
+      return csharpRecordOptionalRead(receiver, key, selection.source.optionalChain,
+        member.declaringType, member.returnType,
+        `__tsonic_record_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`, input);
+    }
     return {
       kind: selection.source.optionalChain
         ? "ConditionalElementAccessExpression"
         : "ElementAccessExpression",
       receiver,
-      arguments: [{
-        kind: "LiteralExpression",
-        value: input.program.source.ast.text(sourceName),
-      }],
+      arguments: [key],
     };
   }
   if (

@@ -31,14 +31,6 @@ export function validateBinaryTargetSemantics(
   if (isBitwise(operator) && supportsIntrinsicBitwise(left, right, input)) {
     return undefined;
   }
-  if (isProviderOwned(left, input) || isProviderOwned(right, input)) {
-    return `Source operator '${operator}' over a provider-owned type requires an exact provider operator relation.`;
-  }
-  if (operator === "&&" || operator === "||" || operator === "&&=" || operator === "||=") {
-    return isBoolean(left) && isBoolean(right)
-      ? undefined
-      : `C# logical operator '${operator}' requires exact bool operands.`;
-  }
   if (operator === "??=") {
     return getCsharpNullableElementTargetType(left) !== undefined || isCsharpReferenceCarrier(left)
       ? undefined
@@ -48,6 +40,14 @@ export function validateBinaryTargetSemantics(
     return isNullishCapable(left)
       ? undefined
       : `C# nullish operator '${operator}' requires a nullable or runtime-union left operand.`;
+  }
+  if (isProviderOwned(left, input) || isProviderOwned(right, input)) {
+    return `Source operator '${operator}' over a provider-owned type requires an exact provider operator relation.`;
+  }
+  if (operator === "&&" || operator === "||" || operator === "&&=" || operator === "||=") {
+    return isBoolean(left) && isBoolean(right)
+      ? undefined
+      : `C# logical operator '${operator}' requires exact bool operands.`;
   }
   if (isRelational(operator)) {
     return (

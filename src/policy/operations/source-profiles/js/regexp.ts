@@ -240,7 +240,7 @@ export const csharpJsRegExpPropertyPolicies:
           false,
         ),
       instanceReceiver,
-      { kind: "source-name-indexer" },
+      { kind: "source-name-indexer", optionalRead: false },
     ),
     jsPropertyPolicy(
       jsIndexerIdentity(regexpNamedIndicesOwner),
@@ -253,7 +253,7 @@ export const csharpJsRegExpPropertyPolicies:
           false,
         ),
       instanceReceiver,
-      { kind: "source-name-indexer" },
+      { kind: "source-name-indexer", optionalRead: false },
     ),
     jsPropertyPolicy(
       jsMemberIdentity(exactIndicesArrayOwner, regexpResultMembers.groups),
@@ -279,7 +279,7 @@ export const csharpJsRegExpPropertyPolicies:
           false,
         ),
       instanceReceiver,
-      { kind: "source-name-indexer" },
+      { kind: "source-name-indexer", optionalRead: false },
     ),
     jsPropertyPolicy(
       jsIndexerIdentity(exactNamedIndicesOwner),
@@ -292,7 +292,7 @@ export const csharpJsRegExpPropertyPolicies:
           false,
         ),
       instanceReceiver,
-      { kind: "source-name-indexer" },
+      { kind: "source-name-indexer", optionalRead: false },
     ),
   ]);
 
