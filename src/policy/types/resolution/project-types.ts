@@ -136,6 +136,7 @@ export function projectSourceDeclarationTargetType(
   selectedType?: Type,
 ): TargetTypeRef | undefined {
   const { host } = scope;
+  if (!host.navigation.isProjectDeclaration(declaration)) return undefined;
   const queries = host.semanticsFor(declaration);
   const declaredType = host.ast.is.IsInterfaceDeclaration(declaration)
     ? queries.declarations.declaredType(declaration) : undefined;
