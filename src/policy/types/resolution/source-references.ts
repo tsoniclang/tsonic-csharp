@@ -545,28 +545,17 @@ export function resolveSourceValueDeclaration(
     declarationQueries,
     nextState(state),
   );
-  if (
-    host.ast.variableDeclarationKind(declaration) !== "const" &&
-    selectedInitializerTarget === undefined &&
-    declaredTarget !== undefined
-  ) {
-    return declaredTarget;
-  }
   const initializerTarget = selectedInitializerTarget ??
-    resolveNodeWithState(
-      syntax.initializer,
-      sourceFile,
-      nextState(state),
-    );
+    (host.ast.variableDeclarationKind(declaration) !== "const" && declaredTarget !== undefined
+      ? declaredTarget
+      : resolveNodeWithState(syntax.initializer, sourceFile, nextState(state)));
   if (initializerTarget === undefined) {
     return declaredTarget;
   }
   if (node === declaration) {
     return initializerTarget;
   }
-  const declaredType = declarationQueries.types.expressionType(
-    syntax.initializer,
-  );
+  const declaredType = declarationQueries.declarations.declaredValueType(declaration);
   const selectedValueType = selectedType ?? queries.types.expressionType(node);
   if (declaredType === undefined || selectedValueType === undefined) {
     return initializerTarget;
