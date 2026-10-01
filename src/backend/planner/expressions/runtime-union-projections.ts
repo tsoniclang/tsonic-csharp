@@ -1,11 +1,9 @@
 import type { CsharpPlanningContext } from "../context.js";
-import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
 import {
-  targetTypeRefEquals,
   type TargetTypeRef,
 } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -19,9 +17,11 @@ import {
 } from "../diagnostics.js";
 import {
   getCsharpRuntimeUnionArms,
-  getCsharpGenericOptionalParts,
   getCsharpNullableElementTargetType,
 } from "../../../target-model/types/index.js";
+import { csharpUnionProjectionPath } from "../../../target-model/types/union-relations.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { planCsharpUnionPattern } from "./union-patterns.js";
 
 export function tryPlanRuntimeUnionTypeTest(
   node: Node,
@@ -36,15 +36,22 @@ export function tryPlanRuntimeUnionTypeTest(
   if (receiverCarrier === undefined) {
     return undefined;
   }
-  const armIndex = runtimeUnionArmIndex(receiverCarrier, targetType, input.program.typeDefinitions);
-  if (armIndex === undefined) {
+  const path = csharpUnionProjectionPath(getCsharpNullableElementTargetType(receiverCarrier) ?? receiverCarrier,
+    targetType, input.program.typeDefinitions);
+  if (path === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
       "Runtime union type-test emission requires the selected target comparison type to match a finalized runtime-union arm.",
     ));
     return undefined;
   }
-  const test = runtimeUnionArmTest(baseExpression, armIndex, receiverCarrier);
+  const designation = input.names.temporaryName(`__tsonic_union_test_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`);
+  const { condition } = planCsharpUnionPattern({ kind: "IdentifierName", name: designation }, path, receiverCarrier);
+  const test: CsharpExpression = { kind: "SwitchExpression", expression: baseExpression, arms: [
+    { pattern: { kind: "VarPattern", designation }, when: condition,
+      expression: { kind: "LiteralExpression", value: true } },
+    { pattern: { kind: "DiscardPattern" }, expression: { kind: "LiteralExpression", value: false } },
+  ] };
   return negated
     ? {
         kind: "PrefixUnaryExpression",
@@ -66,15 +73,16 @@ export function tryPlanRuntimeUnionProjectionToTargetType(
   if (storageCarrier === undefined) {
     return undefined;
   }
-  const armIndex = runtimeUnionArmIndex(storageCarrier, targetType, input.program.typeDefinitions);
-  if (armIndex === undefined) {
+  const path = csharpUnionProjectionPath(getCsharpNullableElementTargetType(storageCarrier) ?? storageCarrier,
+    targetType, input.program.typeDefinitions);
+  if (path === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
       "Runtime union member projection requires the selected declaring target type to match a finalized runtime-union arm.",
     ));
     return undefined;
   }
-  return runtimeUnionArmProjection(baseExpression, armIndex, storageCarrier);
+  return planCsharpUnionPattern(baseExpression, path, storageCarrier).value;
 }
 
 function getRuntimeUnionStorageCarrier(
@@ -88,41 +96,6 @@ function getRuntimeUnionStorageCarrier(
     : undefined;
 }
 
-function runtimeUnionArmIndex(
-  unionCarrier: TargetTypeRef,
-  targetType: TargetTypeRef,
-  definitions: CsharpTypeDefinitions,
-): number | undefined {
-  const armIndex = getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(unionCarrier) ?? unionCarrier, definitions)
-    ?.findIndex((arm) => targetTypeRefEquals(arm, targetType));
-  return armIndex === undefined || armIndex < 0 ? undefined : armIndex;
-}
-
-export function runtimeUnionArmProjection(
-  baseExpression: CsharpExpression,
-  armIndex: number,
-  carrier?: TargetTypeRef,
-  retainsAbsence = false,
-): CsharpExpression {
-  if (retainsAbsence) return { kind: "InvocationExpression",
-    callee: { kind: "ConditionalAccessExpression", receiver: baseExpression, name: `As${armIndex + 1}` }, arguments: [] };
-  const optional = getCsharpGenericOptionalParts(carrier);
-  const receiver: CsharpExpression = getCsharpNullableElementTargetType(carrier) === undefined
-    ? baseExpression
-    : { kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "PostfixUnaryExpression", operand: baseExpression, operatorToken: { kind: "ExclamationToken" } },
-        name: "Value" };
-  return {
-    kind: "InvocationExpression",
-    callee: {
-      kind: "SimpleMemberAccessExpression",
-      receiver: optional === undefined ? receiver : { kind: "IdentifierName", name: optional.operations.name },
-      name: `As${armIndex + 1}`,
-    },
-    arguments: optional === undefined ? [] : [{ kind: "Argument", expression: baseExpression }],
-  };
-}
-
 export function planCsharpRuntimeUnionProjection(
   node: Node,
   sourceType: TargetTypeRef | undefined,
@@ -134,18 +107,16 @@ export function planCsharpRuntimeUnionProjection(
 ): CsharpExpression | undefined {
   const sourceElement = getCsharpNullableElementTargetType(sourceType);
   const targetElement = getCsharpNullableElementTargetType(targetType);
-  const declared = getCsharpRuntimeUnionArms(sourceElement ?? sourceType, input.program.typeDefinitions)?.[selection.armIndex];
   const selectedType = selection.retainsAbsence ? targetElement : targetType;
   if (!input.program.conversions.matchesUnionProjection(sourceType, targetType, selection) ||
-    typeof selection.retainsAbsence !== "boolean" || !Number.isInteger(selection.armIndex) ||
-    declared === undefined || selectedType === undefined || !targetTypeRefEquals(declared, selection.armType) ||
+    typeof selection.retainsAbsence !== "boolean" || selectedType === undefined ||
     !targetTypeRefEquals(selection.refinement ?? selection.armType, selectedType) ||
     selection.retainsAbsence && (sourceElement === undefined || targetElement === undefined)) {
     diagnostics.push(unsupportedNodeDiagnostic(node,
       "Union projection requires exact sealed payload and absence correspondence."));
     return undefined;
   }
-  const value = runtimeUnionArmProjection(expression, selection.armIndex, sourceType, selection.retainsAbsence);
+  const value = planCsharpUnionPattern(expression, selection.path, sourceType, selection.retainsAbsence).value;
   if (selection.refinement === undefined) return value;
   const type = targetType === undefined ? undefined
     : csharpTypeFromTargetTypeRef(targetType, input.scope.typeParameterNames);
@@ -154,26 +125,4 @@ export function planCsharpRuntimeUnionProjection(
     return undefined;
   }
   return { kind: "CastExpression", type, expression: value };
-}
-
-export function runtimeUnionArmTest(
-  baseExpression: CsharpExpression,
-  armIndex: number,
-  carrier?: TargetTypeRef,
-): CsharpExpression {
-  const optional = getCsharpGenericOptionalParts(carrier);
-  const nullable = getCsharpNullableElementTargetType(carrier) !== undefined;
-  const test: CsharpExpression = {
-    kind: "InvocationExpression",
-    callee: {
-      kind: nullable ? "ConditionalAccessExpression" : "SimpleMemberAccessExpression",
-      receiver: optional === undefined ? baseExpression : { kind: "IdentifierName", name: optional.operations.name },
-      name: `Is${armIndex + 1}`,
-    },
-    arguments: optional === undefined ? [] : [{ kind: "Argument", expression: baseExpression }],
-  };
-  return nullable ? {
-    kind: "BinaryExpression", left: test, operatorToken: { kind: "EqualsEqualsToken" },
-    right: { kind: "LiteralExpression", value: true },
-  } : test;
 }

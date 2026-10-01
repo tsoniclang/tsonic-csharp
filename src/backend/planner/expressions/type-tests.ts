@@ -8,7 +8,7 @@ import { csharpClosedTypeTestMatches } from "../../../analysis/operations/type-t
 import { csharpTsValueTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { qualifiedCsharpType } from "../types/index.js";
-import { runtimeUnionArmProjection, runtimeUnionArmTest } from "./runtime-union-projections.js";
+import { runtimeUnionArmProjection, runtimeUnionArmTest } from "./union-access.js";
 import { evaluatedConstant } from "./csharp-expression-builders.js";
 
 export function planCsharpClosedTypeTest(

@@ -16,13 +16,22 @@ export interface CsharpUnionArmMapping {
 
 export function csharpUnionLeaves(carrier: TargetTypeRef, definitions?: CsharpTypeDefinitions):
   readonly { readonly carrier: TargetTypeRef; readonly path: readonly CsharpUnionPathStep[] }[] | undefined {
+  return collectCsharpUnionPaths(carrier, definitions);
+}
+
+function collectCsharpUnionPaths(carrier: TargetTypeRef, definitions?: CsharpTypeDefinitions, target?: TargetTypeRef):
+  readonly { readonly carrier: TargetTypeRef; readonly path: readonly CsharpUnionPathStep[] }[] | undefined {
   const leaves: { readonly carrier: TargetTypeRef; readonly path: readonly CsharpUnionPathStep[] }[] = [];
   const visit = (current: TargetTypeRef, path: readonly CsharpUnionPathStep[]): boolean => {
     if (path.some(step => targetTypeRefEquals(step.union, current))) return false;
+    if (path.length > 0 && target !== undefined && targetTypeRefEquals(current, target)) {
+      leaves.push(Object.freeze({ carrier: current, path }));
+      return true;
+    }
     const alternatives = getCsharpRuntimeUnionArms(current, definitions);
     if (alternatives === undefined) {
       if (path.length === 0) return false;
-      leaves.push(Object.freeze({ carrier: current, path }));
+      if (target === undefined) leaves.push(Object.freeze({ carrier: current, path }));
       return true;
     }
     return alternatives.length > 0 && alternatives.every((arm, index) =>
@@ -56,16 +65,36 @@ export function selectCsharpUnionArmMapping(
     ? undefined : Object.freeze(mappings);
 }
 
+export function csharpUnionProjectionPath(
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+  definitions?: CsharpTypeDefinitions,
+): readonly CsharpUnionPathStep[] | undefined {
+  const paths = collectCsharpUnionPaths(source, definitions, target);
+  return paths?.length === 1 ? paths[0]!.path : undefined;
+}
+
+export function csharpUnionPathsEqual(source: readonly CsharpUnionPathStep[], target: readonly CsharpUnionPathStep[]): boolean {
+  if (!Array.isArray(target) || source.length !== target.length) return false;
+  const slots = Object.getOwnPropertyDescriptors(target);
+  if (Object.keys(slots).length !== target.length + 1) return false;
+  return source.every((step, index) => {
+    const slot = slots[String(index)];
+    if (slot === undefined || !("value" in slot)) return false;
+    const selected: unknown = slot.value;
+    if (selected === null || typeof selected !== "object" || Array.isArray(selected)) return false;
+    const fields = Object.getOwnPropertyDescriptors(selected);
+    return Object.keys(fields).length === 2 && fields.index !== undefined && "value" in fields.index &&
+      fields.union !== undefined && "value" in fields.union && fields.index.value === step.index &&
+      targetTypeRefEquals(fields.union.value as TargetTypeRef, step.union);
+  });
+}
+
 export function csharpUnionArmMappingsEqual(left: readonly CsharpUnionArmMapping[], right: readonly CsharpUnionArmMapping[]): boolean {
-  const samePath = (source: readonly CsharpUnionPathStep[], target: readonly CsharpUnionPathStep[]): boolean =>
-    Array.isArray(target) && source.length === target.length && source.every((step, index) => {
-      const selected = target[index];
-      return selected !== undefined && selected.index === step.index && targetTypeRefEquals(selected.union, step.union);
-    });
   return left.length === right.length && left.every((arm, index) => {
     const selected = right[index];
     return selected !== undefined && targetTypeRefEquals(selected.carrier, arm.carrier) &&
-      samePath(arm.source, selected.source) && samePath(arm.target, selected.target);
+      csharpUnionPathsEqual(arm.source, selected.source) && csharpUnionPathsEqual(arm.target, selected.target);
   });
 }
 

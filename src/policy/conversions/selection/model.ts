@@ -1,6 +1,6 @@
 import type { CsharpProviderArgumentAdapter } from "../../../providers/relations/index.js";
 import type { TargetTypeRef } from "../../types/index.js";
-import type { CsharpUnionArmMapping } from "../../../target-model/types/union-relations.js";
+import type { CsharpUnionArmMapping, CsharpUnionPathStep } from "../../../target-model/types/union-relations.js";
 import type { CsharpIntegerRefinementConversion } from "../../../target-model/conversions/integer-refinement.js";
 
 export type CsharpConversionMode = "implicit" | "explicit";
@@ -62,7 +62,7 @@ export type CsharpConversionSelection =
     }
   | {
       readonly kind: "runtime-union-projection";
-      readonly armIndex: number;
+      readonly path: readonly CsharpUnionPathStep[];
       readonly armType: TargetTypeRef;
       readonly retainsAbsence: boolean;
       readonly refinement?: TargetTypeRef;

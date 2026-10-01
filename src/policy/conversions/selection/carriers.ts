@@ -28,7 +28,7 @@ import type {
 } from "../../types/index.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "./model.js";
 import type { CsharpPolicyContext } from "../../model/context.js";
-import { selectCsharpUnionArmMapping } from "../../../target-model/types/union-relations.js";
+import { csharpUnionLeaves, csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "../../../target-model/types/union-relations.js";
 
 export function selectJsValueConversion(
   source: TargetTypeRef,
@@ -123,13 +123,13 @@ export function selectCsharpRuntimeUnionProjection(
     kind: "rejected", reason: "A union payload cannot retain absence that its source does not carry.",
   };
   const selected = targetElement ?? target;
-  const arms = getCsharpRuntimeUnionArms(sourceElement ?? source, input.typeDefinitions) ?? [];
-  const exact = arms.flatMap((armType, armIndex) => targetTypeRefEquals(armType, selected) ? [{ armIndex, armType }] : []);
-  const related = exact.length > 0 ? exact : arms.flatMap((armType, armIndex) =>
-    selected.kind === "target-named" && armType.kind === "target-named" &&
-    !isCsharpValueTypeTargetType(selected) && !isCsharpValueTypeTargetType(armType) &&
-    namedTargetTypeImplicitlyAccepts(input, selected, armType, new Set())
-      ? [{ armIndex, armType, refinement: selected }] : []);
+  const path = csharpUnionProjectionPath(sourceElement ?? source, selected, input.typeDefinitions);
+  const related = path !== undefined ? [{ path, armType: selected }]
+    : (csharpUnionLeaves(sourceElement ?? source, input.typeDefinitions) ?? []).flatMap(leaf =>
+      selected.kind === "target-named" && leaf.carrier.kind === "target-named" &&
+      !isCsharpValueTypeTargetType(selected) && !isCsharpValueTypeTargetType(leaf.carrier) &&
+      namedTargetTypeImplicitlyAccepts(input, selected, leaf.carrier, new Set())
+        ? [{ path: leaf.path, armType: leaf.carrier, refinement: selected }] : []);
   return related.length === 1 ? { kind: "runtime-union-projection", ...related[0]!, retainsAbsence: targetElement !== undefined }
     : { kind: "rejected", reason: related.length === 0
       ? "Explicit C# runtime-union projection requires one exact payload or nominal refinement."

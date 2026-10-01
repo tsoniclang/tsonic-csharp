@@ -39,7 +39,7 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
-import { runtimeUnionArmProjection, runtimeUnionArmTest } from "../expressions/runtime-union-projections.js";
+import { runtimeUnionArmProjection, runtimeUnionArmTest } from "../expressions/union-access.js";
 
 type BlockStatementPlanner = () => readonly CsharpStatement[];
 

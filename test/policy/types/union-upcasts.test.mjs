@@ -19,12 +19,12 @@ test("native nominal relations compose with exact union payloads in both directi
   assert.deepEqual(injected, { kind: "implicit", proof: "runtime-union-arm", armIndex: 1, armType: base,
     sourceToArm: { kind: "implicit", proof: "reference" } });
   for (const source of [union, csharpNullableTargetType(union)]) {
-    const selected = { kind: "runtime-union-projection", armIndex: 1, armType: base,
+    const selected = { kind: "runtime-union-projection", path: [{ union, index: 1 }], armType: base,
       refinement: child, retainsAbsence: false };
     assert.deepEqual(selectCsharpConversion(policy, source, child, "explicit"), selected);
     assert.deepEqual(selectCsharpFlowReadConversion(policy, source, child), selected);
     assert.equal(csharpRuntimeUnionProjectionMatches(policy, source, child, selected), true);
-    for (const changed of [{ ...selected, armIndex: 0 }, { ...selected, refinement: undefined },
+    for (const changed of [{ ...selected, path: [{ union, index: 0 }] }, { ...selected, refinement: undefined },
       { ...selected, refinement: other }, { ...selected, armType: child }, { ...selected, retainsAbsence: true }]) {
       assert.equal(csharpRuntimeUnionProjectionMatches(policy, source, child, changed), false);
     }
@@ -40,7 +40,7 @@ test("nominal union selection cannot choose unrelated or ambiguous native payloa
   assert.equal(selectCsharpConversion(multiple, child, union, "implicit").kind, "rejected");
   const exact = csharpRuntimeUnionTargetType([child, base]);
   const selected = selectCsharpFlowReadConversion(policy, exact, child);
-  assert.equal(selected.armIndex, 0);
+  assert.deepEqual(selected.path, [{ union: exact, index: 0 }]);
   assert.equal(selected.refinement, undefined);
   const unrelated = csharpRuntimeUnionTargetType([csharpStringTargetType(), other]);
   assert.equal(selectCsharpFlowReadConversion(policy, unrelated, child).kind, "rejected");

@@ -37,7 +37,7 @@ import { isCsharpAbsenceTargetType } from "../../../../target-model/types/runtim
 import { planCsharpBigIntCall } from "./bigint-call.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { allocateExpressionTemp } from "../../bindings/binding-state.js";
-import { runtimeUnionArmProjection, runtimeUnionArmTest } from "../runtime-union-projections.js";
+import { runtimeUnionArmProjection, runtimeUnionArmTest } from "../union-access.js";
 import { planCsharpUnionEquality } from "../union-equality.js";
 
 export function planSelectedCsharpBinaryOperation(

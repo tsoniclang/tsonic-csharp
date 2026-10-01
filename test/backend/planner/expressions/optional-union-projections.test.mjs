@@ -11,7 +11,7 @@ test("nullable union projections require exact payload and absence facts", () =>
   const source = csharpNullableTargetType(union);
   const target = csharpNullableTargetType(string);
   const input = { kind: "IdentifierName", name: "value" };
-  const selection = { kind: "runtime-union-projection", armIndex: 1, armType: string, retainsAbsence: true };
+  const selection = { kind: "runtime-union-projection", path: [{ union, index: 1 }], armType: string, retainsAbsence: true };
   const diagnostics = [];
   const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined } };
   const context = { scope: { typeParameterNames: new Map() }, program: { conversions: {
@@ -22,8 +22,9 @@ test("nullable union projections require exact payload and absence facts", () =>
   assert.deepEqual(projected, { kind: "InvocationExpression", callee: { kind: "ConditionalAccessExpression", receiver: input, name: "As2" }, arguments: [] });
   for (const [selectedSource, selectedTarget, selected] of [
     [union, target, selection], [source, string, selection], [source, target, { ...selection, retainsAbsence: false }],
-    [source, target, { ...selection, retainsAbsence: undefined }], [source, target, { ...selection, armIndex: 0 }],
-    [source, target, { ...selection, armType: integer }], [source, target, { ...selection, armIndex: "1" }],
+    [source, target, { ...selection, retainsAbsence: undefined }], [source, target, { ...selection, path: [{ union, index: 0 }] }],
+    [source, target, { ...selection, armType: integer }], [source, target, { ...selection, path: [{ union, index: "1" }] }],
+    [source, target, { ...selection, path: [] }], [source, target, { ...selection, path: new Array(1) }],
   ]) {
     diagnostics.length = 0;
     assert.equal(planCsharpRuntimeUnionProjection({}, selectedSource, selectedTarget, selected, input, diagnostics, context), undefined);

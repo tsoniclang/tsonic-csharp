@@ -21,7 +21,7 @@ test("native construction proof does not inherit source payload extraction throu
   const wrap = conversion => ({ kind: "implicit", proof: "runtime-union-arm", armIndex: 0,
     armType: string, sourceToArm: { kind: "nullable-map", sourceElement: string, targetElement: string, conversion } });
   assert.equal(conversionIsImplicitlyApplicable(wrap({ kind: "identity" })), true);
-  for (const conversion of [{ kind: "js-value-cast" }, { kind: "runtime-union-projection", armIndex: 0,
+  for (const conversion of [{ kind: "js-value-cast" }, { kind: "runtime-union-projection", path: [],
     armType: string, retainsAbsence: false }, { kind: "js-value-box" }, { kind: "rejected", reason: "no native relation" }]) {
     assert.equal(conversionIsImplicitlyApplicable(wrap(conversion)), false);
   }

@@ -9,7 +9,7 @@ import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { planTypeParameters } from "../../../types/type-parameters.js";
 import { renderCsharpTargetTypeArguments } from "./helpers.js";
-import { runtimeUnionArmProjection, runtimeUnionArmTest } from "../../runtime-union-projections.js";
+import { runtimeUnionArmProjection, runtimeUnionArmTest } from "../../union-access.js";
 import { csharpSourceArgumentGroups } from "./source-argument-groups.js";
 
 export function planCsharpUnionDispatcherCall(
