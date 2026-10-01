@@ -1,6 +1,6 @@
 import type { Node, Type } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, CsharpStructuralInterfaceImplementation, TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, CsharpStructuralInterfaceImplementation, TargetTypeRef } from "../../target-model/types/model.js";
 import { isCsharpValueTypeTargetType, resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/index.js";
 import { csharpObjectShapeMemberTypeKey } from "../../target-model/types/object-shape-identity.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
@@ -8,6 +8,7 @@ import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType
 import { getCsharpDelegateSignature } from "../../target-model/types/delegates.js";
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
+import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 
 export function selectCsharpStructuralInterface(
   policy: CsharpPolicyContext, expression: Node,
@@ -40,22 +41,22 @@ export function selectCsharpStructuralInterface(
     if (read.kind !== "resolved" || write.kind !== "resolved" || open.kind !== "resolved" ||
       read.member.targetName !== write.member.targetName || read.member.memberKind !== write.member.memberKind ||
       (write.member.readonly !== true && (read.member.readonly === true || read.member.accessor?.setter === false))) return undefined;
+    if (destinationTemplate !== undefined) {
+      const member = resolveCsharpObjectShapeMemberBySelectedSubject(destinationTemplate, destinationSubjects);
+      const bindings = member.kind !== "resolved" ? undefined
+        : inferStructuralMemberTypeArguments(policy, member.member, open.member, parameterIdentities);
+      if (bindings === undefined) return undefined;
+      for (const [identity, type] of bindings) {
+        const existing = arguments_.get(identity);
+        if (existing !== undefined && !targetTypeRefEquals(existing, type)) return undefined;
+        arguments_.set(identity, type);
+      }
+    } else if (!targetTypeRefEquals(open.member.type, read.member.type)) return undefined;
     if (read.member.memberKind === "property") {
       const element = getCsharpNullableElementTargetType(write.member.type);
       const referenceWidening = write.member.readonly === true && isCsharpNullableReferenceTargetType(write.member.type) &&
         element !== undefined && targetTypeRefEquals(read.member.type, element);
       if (!targetTypeRefEquals(read.member.type, write.member.type) && !referenceWidening) return undefined;
-      if (destinationTemplate !== undefined) {
-        const member = resolveCsharpObjectShapeMemberBySelectedSubject(destinationTemplate, destinationSubjects);
-        if (member.kind !== "resolved") return undefined;
-        const bindings = inferCsharpTargetTypeParameterBindings(member.member.type, open.member.type, parameterIdentities);
-        if (bindings === undefined) return undefined;
-        for (const [identity, type] of bindings) {
-          const existing = arguments_.get(identity);
-          if (existing !== undefined && !targetTypeRefEquals(existing, type)) return undefined;
-          arguments_.set(identity, type);
-        }
-      } else if (!targetTypeRefEquals(open.member.type, read.member.type)) return undefined;
       continue;
     }
     if (csharpObjectShapeMemberTypeKey(read.member) === csharpObjectShapeMemberTypeKey(write.member)) continue;
@@ -86,4 +87,25 @@ export function selectCsharpStructuralInterface(
 
 export interface CsharpStructuralInterfaceRegistration {
   registerStructuralInterface(expression: Node, source: TargetTypeRef, destination: TargetTypeRef, sourceType?: Type): boolean;
+}
+
+function inferStructuralMemberTypeArguments(
+  policy: CsharpPolicyContext,
+  pattern: CsharpObjectShapeMemberFact,
+  actual: CsharpObjectShapeMemberFact,
+  parameterIdentities: ReadonlySet<string>,
+): ReadonlyMap<string, TargetTypeRef> | undefined {
+  if (![...csharpFreeTypeParameterIdentities([pattern.type])].some(identity => parameterIdentities.has(identity))) return new Map();
+  const from = actual.typeParameters ?? [];
+  const to = pattern.typeParameters ?? [];
+  if (from.length !== to.length) return undefined;
+  const substitutions = new Map<string, TargetTypeRef>();
+  for (const [index, parameter] of from.entries()) {
+    const target = to[index]!;
+    const type = csharpSourceTypeParameter(target.declaration, policy.ast);
+    if (type === undefined || type.identity !== target.identity) return undefined;
+    substitutions.set(parameter.identity, type);
+  }
+  return inferCsharpTargetTypeParameterBindings(pattern.type,
+    substituteTargetTypeParameters(actual.type, substitutions), parameterIdentities);
 }

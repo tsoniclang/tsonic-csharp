@@ -598,11 +598,11 @@ function inferCallableReturnType(
   if (declarationType === undefined) {
     return undefined;
   }
-  const signatures = semantics.types.callSignatures(declarationType)
+  const signatures = semantics.types.signatureInfos(declarationType, "call")
     .filter((signature) =>
-      semantics.declarations.signatureDeclaration(signature) === declaration);
+      semantics.declarations.signatureDeclaration(signature.signature) === declaration);
   return signatures.length === 1
-    ? types.resolveType(semantics.types.returnType(signatures[0]!), sourceFile)
+    ? types.resolveType(signatures[0]!.returnType, sourceFile)
     : undefined;
 }
 

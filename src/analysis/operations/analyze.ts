@@ -688,9 +688,9 @@ function visit(
 function resolveInstanceType(policy: CsharpPolicyContext, expression: Node, sourceFile: SourceFile): import("../../target-model/types/model.js").TargetTypeRef | undefined {
   const semantics = policy.semantics(sourceFile);
   const type = semantics.types.expressionType(expression);
-  const signatures = type === undefined ? [] : semantics.types.constructSignatures(type);
+  const signatures = type === undefined ? [] : semantics.types.signatureInfos(type, "construct");
   const instances = signatures.map(signature => {
-    const instance = semantics.types.returnType(signature);
+    const instance = signature.returnType;
     return instance === undefined ? undefined : policy.types.resolveType(instance, sourceFile);
   });
   const selected = instances[0];

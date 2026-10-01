@@ -13,17 +13,17 @@ export function resolveCsharpConstructorValueType(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   if (type === undefined) return undefined;
-  const signatures = queries.types.constructSignatures(type);
+  const signatures = queries.types.signatureInfos(type, "construct");
   if (signatures.length === 0 || queries.types.callSignatures(type).length !== 0) return undefined;
   const signature = signatures[0]!;
-  const result = queries.types.returnType(signature);
+  const result = signature.returnType;
   if (result === undefined) return undefined;
   const symbol = queries.declarations.typeSymbol(type);
   const owner = symbol === undefined ? undefined : queries.declarations.symbolDeclarations(symbol)
     .map(candidate => scope.host.projectTypeCatalog.definitionForDeclaration(candidate)).find(candidate => candidate !== undefined);
   if (owner?.local === true) {
     if (!signatures.every(candidate => {
-      const selected = queries.types.returnType(candidate);
+      const selected = candidate.returnType;
       return selected !== undefined && queries.types.isIdentical(result, selected);
     })) return undefined;
     const instance = scope.resolveTypeWithState(result, queries.sourceFile, nextState(state));
@@ -38,13 +38,13 @@ export function resolveCsharpConstructorValueType(
       createMethodName, instanceTestMethodName);
   }
   if (signatures.length !== 1) return undefined;
-  const declaration = queries.declarations.signatureDeclaration(signature);
+  const declaration = queries.declarations.signatureDeclaration(signature.signature);
   if (declaration === undefined || owner?.abstract === true ||
     (owner?.kind !== "class" && !scope.host.ast.is.IsConstructSignatureDeclaration(declaration) &&
       !scope.host.ast.is.IsConstructorTypeNode(declaration))) return undefined;
   const returnNode = scope.host.ast.typeNode(declaration);
   return scope.resolveCallableEvidence({
-    parameters: queries.types.signatureParameterInfos(signature).map(parameter => ({
+    parameters: signature.parameters.map(parameter => ({
       ...parameter,
       omissionKind: parameter.parameterKind === "rest" ? "rest" : parameter.parameterKind === "optional"
         ? "undefined" : parameter.declaration !== undefined && Node_Initializer(scope.host.ast, parameter.declaration) !== undefined
