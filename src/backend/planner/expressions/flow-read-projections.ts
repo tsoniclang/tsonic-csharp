@@ -80,7 +80,9 @@ export function planFlowReadUseSiteProjection(
     ));
     return undefined;
   }
-  if (sourceRefinement.refinement.kind === "exact") {
+  if (sourceRefinement.refinement.kind === "exact" &&
+    (refinementClassification.flowReadTargetType === undefined ||
+      targetTypeRefEquals(storageType, refinementClassification.flowReadTargetType))) {
     return baseExpression;
   }
   if (sourceRefinement.refinement.kind === "ambiguous") {

@@ -6,6 +6,15 @@ import { planCsharpClosedTypeTest } from "../../../../dist/backend/planner/expre
 import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpStringTargetType,
   csharpTargetNamedType } from "../../../../dist/target-model/types/index.js";
 
+test("closed array tests distinguish generated structural carriers from open native references", () => {
+  const structural = csharpTargetNamedType("tsonic.shape:fixture", [], { kind: "named", name: "Record" });
+  const native = csharpTargetNamedType("Fixture.Unknown", [], { kind: "named", name: "Unknown" });
+  assert.deepEqual(selectCsharpClosedTypeTestPlan(structural, { kind: "array" }), { kind: "constant", value: false });
+  assert.deepEqual(selectCsharpClosedTypeTestPlan(native, { kind: "array" }), { kind: "runtime-array" });
+  assert.equal(csharpClosedTypeTestMatches({ sourceCarrier: structural, predicate: { kind: "array" },
+    test: { kind: "constant", value: true } }), false);
+});
+
 for (const kind of ["nominal", "array"]) test(`closed ${kind} tests reject missing, forged and reordered test evidence`, () => {
   const object = csharpTargetNamedType("Fixture.Item", [], { kind: "named", name: "Item" }, { sourceDeclarationKind: "class" });
   const sourceCarrier = csharpNullableTargetType(csharpRuntimeUnionTargetType([

@@ -58,6 +58,7 @@ export interface CsharpTypePolicyBaseHost {
 }
 
 export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
+  closedTypeGuard(node: Node): import("@tsonic/target-api/source").SourceNativeGuard<import("../../../target-model/operations/type-tests.js").CsharpClosedTypePredicate> | undefined;
   bindingProjection(node: Node, sourceFile: SourceFile): import("../objects/binding-projection-policy.js").CsharpBindingProjection | undefined;
   readonly representations: CsharpPlanningRepresentationQueries;
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;

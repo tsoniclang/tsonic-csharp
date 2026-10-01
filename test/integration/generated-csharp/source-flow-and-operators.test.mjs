@@ -138,8 +138,8 @@ for (const surface of [undefined, "js"]) {
     const compiled = compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: nullishMemberStorageSource });
     executeCsharpConstruction(compiled, `nullish-member-storage-${surface ?? "native"}`);
     const output = [...compiled.artifacts.values()].join("\n");
-    assert.match(output, /this\.value = null;/);
-    assert.match(output, /this\.missing = null;/);
+    assert.match(output, /this\.value = default\(object\?\);/);
+    assert.match(output, /this\.missing = default\(object\?\);/);
     assert.doesNotMatch(output, /Runtime\.(?:Null|Undefined)/);
     assert.doesNotMatch(output, /ApplyDynamicBinaryBoolean/);
   });

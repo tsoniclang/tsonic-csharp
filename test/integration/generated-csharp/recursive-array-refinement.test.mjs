@@ -15,5 +15,6 @@ test("recursive array refinement preserves native members and mutable backing id
 test("array and record narrowing retains the exact native member instead of matching its name", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: arrayRecordRefinementSource });
   assertCsharpCompilationSucceeded(compiled);
+  assert.doesNotMatch([...compiled.artifacts.values()].join("\n"), /\.ToArray\(|\.Select\(/u);
   executeCsharpConstruction(compiled, "array-record-refinement");
 });

@@ -195,7 +195,11 @@ export function resolveNodeWithState(
   if (projectThis !== undefined) {
     return projectThis;
   }
-  const declaredValue = resolveSourceValueDeclaration(node, queries, state);
+  const selectedType = host.ast.is.IsIdentifier(node) ? queries.types.expressionType(node) : undefined;
+  const declaration = selectedType === undefined ? undefined : host.navigation.referenceFor(node)?.declaration;
+  const declaredValue = selectedType !== undefined && scope.sourceValueDeclaration(node, declaration) !== undefined
+    ? scope.resolveSelectedValueWithState(node, selectedType, queries.sourceFile, state)
+    : resolveSourceValueDeclaration(node, queries, state);
   if (declaredValue !== undefined) {
     return declaredValue;
   }

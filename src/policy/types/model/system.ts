@@ -5,6 +5,7 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import { emptyCsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
+import { selectCsharpArrayTypeGuard } from "../../operations/source-profiles/js/type-tests.js";
 import type {
   CsharpObjectShapePolicy,
 } from "../objects/object-shape-policy.js";
@@ -72,6 +73,10 @@ export function createCsharpTypeSystem(
       ...host,
       representations,
       projectTypeCatalog,
+      closedTypeGuard(node) {
+        const semantics = host.semanticsFor(node);
+        return selectCsharpArrayTypeGuard(host, semantics.operations.call(node), semantics.sourceFile);
+      },
       bindingProjection(node: Node, sourceFile: SourceFile) {
         if (bindingProjections === undefined) throw new Error("C# binding projection ran before type-system initialization.");
         return bindingProjections.resolveProjection(node, sourceFile, { depth: 0 });

@@ -8,6 +8,7 @@ import { isCsharpJsValueTargetType } from "../../../target-model/types/runtime-c
 import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
+import { csharpStructuralObjectShapeIdentity } from "../../../target-model/types/object-shape-identity.js";
 
 export function selectCsharpClosedTypeTestPlan(
   source: TargetTypeRef,
@@ -36,6 +37,9 @@ export function selectCsharpClosedTypeTestPlan(
   if (predicate.kind === "array") {
     if (source.kind === "array" || source.kind === "tuple" || getCsharpJsArrayElementTargetType(source) !== undefined) {
       return Object.freeze({ kind: "constant", value: true });
+    }
+    if (isCsharpValueTypeTargetType(source) || csharpStructuralObjectShapeIdentity(source) !== undefined) {
+      return Object.freeze({ kind: "constant", value: false });
     }
     const category = getCsharpTypeofRuntimeKind(source, definitions);
     if (category !== undefined && category !== "object") return Object.freeze({ kind: "constant", value: false });

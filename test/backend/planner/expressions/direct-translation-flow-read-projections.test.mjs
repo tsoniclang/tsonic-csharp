@@ -38,11 +38,11 @@ test("direct C# translation projects exact checker flow types for inferred local
             {
                 return ((Derived)value).value;
             }
-            return null;
+            return default(string?);
         }
         public static string? fromArrow(Base value)
         {
-            return (object?)value is Derived ? ((Derived)value).value : null;
+            return (object?)value is Derived ? ((Derived)value).value : default(string?);
         }
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
