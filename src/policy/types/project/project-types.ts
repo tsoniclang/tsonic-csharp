@@ -575,7 +575,9 @@ export function projectDefinitionTargetType(
     typeArguments,
     { kind: "named", name: definition.sourceName,
       ...(definition.scopeName === undefined ? {} : { namespace: [definition.scopeName] }) },
-    { sourceDeclarationKind: definition.kind },
+    { sourceDeclarationKind: definition.kind,
+      ...(definition.kind === "class" || definition.kind === "interface" || definition.kind === "struct"
+        ? { typeofRuntimeKind: "object" as const } : {}) },
   );
 }
 

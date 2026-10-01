@@ -62,7 +62,7 @@ export function csharpJsMapTargetType(
       "Tsonic.CSharp.Js.Map`2",
       [keyType, valueType],
       csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Map"),
-      { enumerableElementType: entryType },
+      { enumerableElementType: entryType, typeofRuntimeKind: "object" },
     ),
     csharpJsSurfaceKind: "map",
   };
@@ -76,7 +76,7 @@ export function csharpJsSetTargetType(
       "Tsonic.CSharp.Js.Set`1",
       [elementType],
       csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Set"),
-      { enumerableElementType: elementType },
+      { enumerableElementType: elementType, typeofRuntimeKind: "object" },
     ),
     csharpJsSurfaceKind: "set",
   };
@@ -91,6 +91,7 @@ export function csharpJsWeakMapTargetType(
       "Tsonic.CSharp.Js.WeakMap`2",
       [keyType, valueType],
       csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "WeakMap"),
+      { typeofRuntimeKind: "object" },
     ),
     csharpJsSurfaceKind: "weak-map",
   };
@@ -104,6 +105,7 @@ export function csharpJsWeakSetTargetType(
       "Tsonic.CSharp.Js.WeakSet`1",
       [elementType],
       csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "WeakSet"),
+      { typeofRuntimeKind: "object" },
     ),
     csharpJsSurfaceKind: "weak-set",
   };
@@ -135,6 +137,7 @@ export function csharpJsSymbolTargetType(): CsharpTargetNamedTypeRef {
       "Tsonic.CSharp.Js.Symbol",
       undefined,
       csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Symbol"),
+      { typeofRuntimeKind: "symbol" },
     ),
     csharpJsSurfaceKind: "symbol",
   };
@@ -151,12 +154,14 @@ export function csharpJsPromiseFulfilledResultTargetType(
       "Tsonic.CSharp.Js.PromiseFulfilledResult",
       undefined,
       csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseFulfilledResult"),
+      { typeofRuntimeKind: "object" },
     );
   }
   return csharpTargetNamedType(
     "Tsonic.CSharp.Js.PromiseFulfilledResult`1",
     [valueType],
     csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseFulfilledResult"),
+    { typeofRuntimeKind: "object" },
   );
 }
 
@@ -165,6 +170,7 @@ export function csharpJsPromiseRejectedResultTargetType(): CsharpTargetNamedType
     "Tsonic.CSharp.Js.PromiseRejectedResult",
     undefined,
     csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseRejectedResult"),
+    { typeofRuntimeKind: "object" },
   );
 }
 
@@ -174,6 +180,7 @@ export function csharpJsArrayBufferTargetType(): CsharpTargetNamedTypeRef {
       "Tsonic.CSharp.Js.ArrayBuffer",
       undefined,
       csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "ArrayBuffer"),
+      { typeofRuntimeKind: "object" },
     ),
     csharpJsSurfaceKind: "array-buffer",
   };
@@ -185,6 +192,7 @@ export function csharpJsDataViewTargetType(): CsharpTargetNamedTypeRef {
       "Tsonic.CSharp.Js.DataView",
       undefined,
       csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "DataView"),
+      { typeofRuntimeKind: "object" },
     ),
     csharpJsSurfaceKind: "data-view",
   };
@@ -215,6 +223,7 @@ export function csharpJsIntlTargetType(
       `Tsonic.CSharp.Js.${name}`,
       undefined,
       csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name),
+      { typeofRuntimeKind: "object" },
     ),
     ...(kind === undefined ? {} : { csharpJsSurfaceKind: kind }),
   } as CsharpTargetNamedTypeRef;
@@ -261,6 +270,7 @@ export function csharpJsTypedArrayTargetType(
         denseMutableElementType: csharpSourcePrimitiveTargetType("float64"),
         indexableLengthMemberName: "length",
         collectionSemantics: "dense",
+        typeofRuntimeKind: "object",
       },
     ),
     csharpJsSurfaceKind: "typed-array",
@@ -315,6 +325,7 @@ export function csharpJsDateTargetType(): CsharpTargetNamedTypeRef {
       "Tsonic.CSharp.Js.Date",
       undefined,
       csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Date"),
+      { typeofRuntimeKind: "object" },
     ),
     csharpJsSurfaceKind: "date",
   };
@@ -326,6 +337,7 @@ export function csharpJsRegExpTargetType(): CsharpTargetNamedTypeRef {
       "Tsonic.CSharp.Js.RegExp",
       undefined,
       csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExp"),
+      { typeofRuntimeKind: "object" },
     ),
     csharpJsSurfaceKind: "regexp",
   };
@@ -369,6 +381,7 @@ export function csharpJsRegExpNamedGroupsTargetType(): CsharpTargetNamedTypeRef 
     "Tsonic.CSharp.Js.RegExpNamedGroups",
     undefined,
     csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedGroups"),
+    { typeofRuntimeKind: "object" },
   );
 }
 
@@ -377,6 +390,7 @@ export function csharpJsRegExpNamedIndicesTargetType(): CsharpTargetNamedTypeRef
     "Tsonic.CSharp.Js.RegExpNamedIndices",
     undefined,
     csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedIndices"),
+    { typeofRuntimeKind: "object" },
   );
 }
 
@@ -385,7 +399,7 @@ export function csharpJsRegExpStringIteratorTargetType(): CsharpTargetNamedTypeR
     "Tsonic.CSharp.Js.RegExpStringIterator",
     undefined,
     csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpStringIterator"),
-    { enumerableElementType: csharpJsRegExpExecArrayTargetType() },
+    { enumerableElementType: csharpJsRegExpExecArrayTargetType(), typeofRuntimeKind: "object" },
   );
 }
 
@@ -417,6 +431,7 @@ export function csharpExactJsRegExpNamedGroupsTargetType(): CsharpTargetNamedTyp
     "Tsonic.CSharp.Js.JsRegExpNamedGroups",
     undefined,
     csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedGroups"),
+    { typeofRuntimeKind: "object" },
   );
 }
 
@@ -425,6 +440,7 @@ export function csharpExactJsRegExpNamedIndicesTargetType(): CsharpTargetNamedTy
     "Tsonic.CSharp.Js.JsRegExpNamedIndices",
     undefined,
     csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedIndices"),
+    { typeofRuntimeKind: "object" },
   );
 }
 
@@ -433,7 +449,7 @@ export function csharpExactJsRegExpStringIteratorTargetType(): CsharpTargetNamed
     "Tsonic.CSharp.Js.JsRegExpStringIterator",
     undefined,
     csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpStringIterator"),
-    { enumerableElementType: csharpExactJsRegExpExecArrayTargetType() },
+    { enumerableElementType: csharpExactJsRegExpExecArrayTargetType(), typeofRuntimeKind: "object" },
   );
 }
 
@@ -480,6 +496,7 @@ function csharpJsArrayLikeTargetType(
       indexableLengthMemberName: "length",
       collectionSemantics: "js-array",
       baseType,
+      typeofRuntimeKind: "object",
     },
   );
   return {

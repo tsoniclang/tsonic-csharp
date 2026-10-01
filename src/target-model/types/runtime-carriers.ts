@@ -30,7 +30,7 @@ export function csharpAnyTargetType(): CsharpTargetNamedTypeRef {
 
 export function csharpEmptyObjectTargetType(): CsharpTargetNamedTypeRef {
   return csharpTargetNamedType("Tsonic.CSharp.Runtime.EmptyObject", undefined,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "EmptyObject"));
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "EmptyObject"), { typeofRuntimeKind: "object" });
 }
 
 export function isCsharpEmptyObjectTargetType(type: TargetTypeRef): boolean {
@@ -58,6 +58,7 @@ export function csharpTsUnionTargetType(): TargetTypeRef {
 export function csharpTsThrownValueExceptionTargetType(): TargetTypeRef {
   return csharpTargetNamedType("Tsonic.CSharp.Runtime.TsThrownValueException", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "TsThrownValueException"), {
     throwable: true,
+    typeofRuntimeKind: "object",
   });
 }
 

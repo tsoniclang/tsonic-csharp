@@ -738,7 +738,10 @@ function runtimeKindLiteral(
       value === "number" ||
       value === "boolean" ||
       value === "bigint" ||
-      value === "function"
+      value === "symbol" ||
+      value === "object" ||
+      value === "function" ||
+      value === "undefined"
     ? value
     : undefined;
 }

@@ -8,7 +8,7 @@ import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../types
 import { targetTypeRefEquals } from "../../../target-model/types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { applyCsharpConversionSelection, readCsharpConversionClassification } from "./conversions.js";
-import { planExpressionWithExpectedType } from "./index.js";
+import { planCsharpRuntimeParameterDefault } from "../declarations/callables/defaults.js";
 
 export function planLambdaParameterStorage(
   nodes: readonly (Node | undefined)[],
@@ -56,24 +56,18 @@ function planParameterValue(
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# lambda parameter storage requires its sealed native and source representations."));
     return undefined;
   }
+  if (input.program.declarations.runtimeDefault(node) !== undefined) {
+    const name = allocateSyntheticParameter(state);
+    const selected = planCsharpRuntimeParameterDefault(node, name, sourceFile, input, diagnostics, state);
+    if (selected === undefined) return undefined;
+    return { parameter: { ...parameter, name }, prelude: [{ kind: "LocalDeclarationStatement", name: parameter.name,
+      type: selected.valueType, initializer: selected.value }] };
+  }
   if (targetTypeRefEquals(nativeType, valueType)) return { parameter, prelude: [] };
   const type = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, valueType, diagnostics, node);
   if (type === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "The sealed lambda parameter storage type has no C# syntax representation."));
     return undefined;
-  }
-  const referenceDefault = input.program.declarations.referenceDefault(node);
-  const sourceParameter = input.program.source.ast.as.AsParameterDeclaration(node);
-  if (referenceDefault !== undefined && sourceParameter?.Initializer !== undefined) {
-    const name = allocateSyntheticParameter(state);
-    const initializer = planExpressionWithExpectedType(
-      sourceParameter.Initializer, sourceFile, input, diagnostics,
-      type, sourceParameter.Type, state,
-    );
-    if (initializer === undefined) return undefined;
-    return { parameter: { ...parameter, name }, prelude: [{ kind: "LocalDeclarationStatement", name: parameter.name, type,
-      initializer: { kind: "BinaryExpression", operatorToken: { kind: "QuestionQuestionToken" },
-        left: { kind: "IdentifierName", name }, right: initializer } }] };
   }
   const selection = readCsharpConversionClassification(node, input, diagnostics, nativeType, valueType, "implicit");
   if (selection === undefined) return undefined;

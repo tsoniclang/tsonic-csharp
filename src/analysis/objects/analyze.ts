@@ -10,6 +10,7 @@ import {
   csharpObjectShapesEqual,
   isCsharpJsValueTargetType,
   targetTypeRefKey,
+  targetTypeRefEquals,
   getCsharpRuntimeUnionArms,
 } from "../../policy/types/index.js";
 import { selectCsharpObjectLiteralUnionShape } from "../../policy/types/objects/object-shape-policy/union-construction.js";
@@ -199,6 +200,9 @@ export function analyzeCsharpObjectShapes(
       destination = getCsharpNullableElementTargetType(destination) ?? destination;
       const sourceShape = byTarget.get(targetTypeRefKey(source)) ?? policy.objectShapes.resolveTarget(source);
       const destinationShape = byTarget.get(targetTypeRefKey(destination)) ?? policy.objectShapes.resolveTarget(destination);
+      if (sourceShape === undefined || destinationShape === undefined ||
+        !targetTypeRefEquals(sourceShape.targetType, source) ||
+        !targetTypeRefEquals(destinationShape.targetType, destination)) return false;
       rememberShape(sourceShape);
       rememberShape(destinationShape);
       const selected = selectCsharpStructuralInterface(policy, expression, sourceShape, destinationShape, sourceType);

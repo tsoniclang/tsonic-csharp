@@ -93,7 +93,7 @@ export function csharpJsStringTargetType(): CsharpTargetNamedTypeRef {
     "Tsonic.CSharp.Js.JsString",
     undefined,
     { kind: "predefined", name: "string" },
-    { jsStringCarrier: true },
+    { jsStringCarrier: true, typeofRuntimeKind: "string" },
   );
 }
 
@@ -147,6 +147,7 @@ export function csharpBigIntegerTargetType(): CsharpTargetNamedTypeRef {
 export function csharpExceptionTargetType(): CsharpTargetNamedTypeRef {
   return csharpTargetNamedType("System.Exception", undefined, csharpQualifiedTypeRenderShape("System", "Exception"), {
     throwable: true,
+    typeofRuntimeKind: "object",
   });
 }
 
@@ -155,7 +156,7 @@ export function csharpRuntimeErrorTargetType(name: CsharpSourceErrorName = "Erro
     `Tsonic.CSharp.Runtime.${name}`,
     undefined,
     csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", name),
-    { throwable: true, baseType: name === "Error" ? csharpExceptionTargetType() : csharpRuntimeErrorTargetType() },
+    { throwable: true, typeofRuntimeKind: "object", baseType: name === "Error" ? csharpExceptionTargetType() : csharpRuntimeErrorTargetType() },
   );
 }
 

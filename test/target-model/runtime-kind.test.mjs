@@ -1,9 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { getCsharpTypeofResult } from "../../dist/target-model/types/runtime-kind.js";
-import { csharpNullableTargetType, csharpStringTargetType, csharpSourcePrimitiveTargetType } from "../../dist/target-model/types/index.js";
+import { csharpNullableTargetType, csharpStringTargetType, csharpSourcePrimitiveTargetType, csharpVoidTargetType, csharpTargetNamedType } from "../../dist/target-model/types/index.js";
+import { projectDefinitionTargetType } from "../../dist/policy/types/project/project-types.js";
 import { planCsharpRuntimeCategory } from "../../dist/backend/planner/expressions/runtime-category.js";
 import { createDestructuringPlannerState } from "../../dist/backend/planner/bindings/binding-state.js";
+import { csharpJsMapTargetType, csharpJsSetTargetType, csharpJsWeakMapTargetType, csharpJsWeakSetTargetType,
+  csharpJsSymbolTargetType, csharpJsPromiseFulfilledResultTargetType, csharpJsPromiseRejectedResultTargetType,
+  csharpJsArrayBufferTargetType, csharpJsDataViewTargetType, csharpJsDateTargetType,
+  csharpJsRegExpTargetType, csharpJsRegExpNamedGroupsTargetType, csharpJsRegExpNamedIndicesTargetType,
+  csharpJsRegExpStringIteratorTargetType, csharpExactJsRegExpNamedGroupsTargetType,
+  csharpExactJsRegExpNamedIndicesTargetType, csharpExactJsRegExpStringIteratorTargetType,
+} from "../../dist/policy/types/resolution/surface-types.js";
 
 test("optional runtime categories preserve their exact present kind and reject forged nested facts", () => {
   for (const [value, kind] of [[csharpStringTargetType(), "string"], [csharpSourcePrimitiveTargetType("uint64"), "bigint"]]) {
@@ -27,4 +35,24 @@ test("optional runtime categories preserve their exact present kind and reject f
     assert.deepEqual(negated.arms[0].expression, { kind: "LiteralExpression", value: true });
     assert.deepEqual(negated.arms[1].expression, { kind: "LiteralExpression", value: false });
   }
+});
+
+test("native profile producer facts retain exact object and symbol categories", () => {
+  const value = csharpStringTargetType();
+  for (const type of [csharpJsMapTargetType(value, value), csharpJsSetTargetType(value),
+    csharpJsWeakMapTargetType(value, value), csharpJsWeakSetTargetType(value),
+    csharpJsPromiseFulfilledResultTargetType(csharpVoidTargetType()), csharpJsPromiseFulfilledResultTargetType(value),
+    csharpJsPromiseRejectedResultTargetType(), csharpJsArrayBufferTargetType(), csharpJsDataViewTargetType(),
+    csharpJsDateTargetType(), csharpJsRegExpTargetType(), csharpJsRegExpNamedGroupsTargetType(),
+    csharpJsRegExpNamedIndicesTargetType(), csharpJsRegExpStringIteratorTargetType(),
+    csharpExactJsRegExpNamedGroupsTargetType(), csharpExactJsRegExpNamedIndicesTargetType(),
+    csharpExactJsRegExpStringIteratorTargetType()]) {
+    assert.equal(getCsharpTypeofResult(type), "object", type.id);
+  }
+  assert.equal(getCsharpTypeofResult(csharpJsSymbolTargetType()), "symbol");
+  for (const kind of ["class", "interface", "struct"]) {
+    assert.equal(getCsharpTypeofResult(projectDefinitionTargetType({ id: `owned-${kind}`, sourceName: "Entry", kind }, [])), "object");
+  }
+  assert.equal(getCsharpTypeofResult(csharpTargetNamedType("external-interface", undefined,
+    { kind: "named", name: "External" }, { sourceDeclarationKind: "interface" })), undefined);
 });

@@ -7,7 +7,7 @@ import type {
   Type,
 } from "@tsonic/tsts";
 
-export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint" | "object" | "function";
+export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint" | "symbol" | "object" | "function" | "undefined";
 
 export type CsharpSourceMemberKey =
   | { readonly kind: "property"; readonly name: string }

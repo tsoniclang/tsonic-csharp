@@ -20,12 +20,12 @@ import type { DestructuringPlannerState } from "../../bindings/index.js";
 import {
   getCsharpTypeForNode,
   invalidCsharpType,
-  nullableCsharpType,
 } from "../../types/index.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { planExpressionWithExpectedType } from "../../expressions/index.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../modifiers.js";
+import { planCsharpRuntimeParameterDefault } from "./defaults.js";
 import {
   planCsharpParameterStorageDeclaration,
 } from "../../bindings/typed-location-identities.js";
@@ -61,17 +61,15 @@ export function planParametersWithPrelude(
     if (HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier)) {
       const typeSubject = getParameterTypeSubject(parameter);
       const type = getParameterType(parameterNode, sourceFile, input, diagnostics);
-      const referenceDefault = input.program.declarations.referenceDefault(parameterNode!);
-      if (referenceDefault !== undefined && parameter.Initializer !== undefined) {
+      if (input.program.declarations.runtimeDefault(parameterNode!) !== undefined) {
         const sourceName = declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Parameter name", "arg");
         const incomingName = allocateSyntheticParameter(state);
-        const initializer = planExpressionWithExpectedType(parameter.Initializer, sourceFile, input, diagnostics, type, typeSubject, state);
-        parameters.push({ name: incomingName, type: nullableCsharpType(type),
+        const selected = planCsharpRuntimeParameterDefault(parameterNode!, incomingName, sourceFile, input, diagnostics, state);
+        if (selected === undefined) continue;
+        parameters.push({ name: incomingName, type: selected.parameterType,
           attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
-          defaultValue: { kind: "LiteralExpression", value: null } });
-        if (initializer !== undefined) prelude.push({ kind: "LocalDeclarationStatement", name: sourceName, type,
-          initializer: { kind: "BinaryExpression", operatorToken: { kind: "QuestionQuestionToken" },
-            left: { kind: "IdentifierName", name: incomingName }, right: initializer } });
+          defaultValue: selected.defaultValue });
+        prelude.push({ kind: "LocalDeclarationStatement", name: sourceName, type: selected.valueType, initializer: selected.value });
         const locationIdentity = planCsharpParameterStorageDeclaration(parameterNode!, input, state, diagnostics);
         if (locationIdentity !== undefined) prelude.push(locationIdentity);
         hasDefaultParameter = true;

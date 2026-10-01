@@ -25,7 +25,7 @@ import {
   getCsharpTaskResultTargetType,
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { csharpReferenceDefaultNeedsNullableParameter } from "../../target-model/types/reference-default.js";
+import { csharpRuntimeParameterDefault, type CsharpRuntimeParameterDefault } from "../../target-model/types/parameter-defaults.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
 import type {
@@ -39,13 +39,13 @@ export function analyzeCsharpDeclarations(
   operations: CsharpTargetOperationClassifications,
 ): CsharpDeclarationClassifications {
   const returnContracts = new WeakMap<Node, CsharpReturnTargetContract>();
-  const referenceDefaults = new WeakMap<Node, TargetTypeRef>();
+  const runtimeDefaults = new WeakMap<Node, CsharpRuntimeParameterDefault>();
   const methodWrites = new WeakMap<Node, { readonly type: TargetTypeRef; readonly storageName: string; readonly implementationName: string }>();
   for (const sourceFile of policy.sourceFiles) {
     visit(sourceFile);
   }
   return Object.freeze({
-    referenceDefault(node: Node) { return referenceDefaults.get(node); },
+    runtimeDefault(node: Node) { return runtimeDefaults.get(node); },
     methodWrite(node: Node) { return methodWrites.get(node); },
     returnContract(node: Node) {
       return returnContracts.get(node);
@@ -81,9 +81,9 @@ export function analyzeCsharpDeclarations(
       const parameter = policy.ast.as.AsParameterDeclaration(node);
       const selected = parameter === undefined ? undefined
         : evidence.nodeTargetType(parameter.Type ?? parameter.name!);
-      if (parameter?.Initializer !== undefined && selected !== undefined &&
-        csharpReferenceDefaultNeedsNullableParameter(selected)) {
-        referenceDefaults.set(node, selected);
+      if (parameter?.Initializer !== undefined && selected !== undefined) {
+        const runtimeDefault = csharpRuntimeParameterDefault(selected);
+        if (runtimeDefault !== undefined) runtimeDefaults.set(node, runtimeDefault);
       }
     }
     if (isCallableDeclaration(policy, node)) {

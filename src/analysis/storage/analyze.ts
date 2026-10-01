@@ -14,7 +14,7 @@ import {
   targetTypeRefKey,
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { csharpReferenceDefaultNeedsNullableParameter } from "../../target-model/types/reference-default.js";
+import { csharpRuntimeParameterDefault } from "../../target-model/types/parameter-defaults.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import {
   selectCsharpSourceArgument,
@@ -212,12 +212,12 @@ export function analyzeCsharpStorage(
             policy.ast.questionToken(parameter) === undefined
           ? authored
           : csharpNullableTargetType(authored);
+        const runtimeDefault = declaration?.Initializer === undefined || effectiveAuthored === undefined
+          ? undefined : csharpRuntimeParameterDefault(effectiveAuthored);
         if (
           effectiveAuthored !== undefined &&
           !targetTypeRefEquals(effectiveAuthored, targetType) &&
-          !(declaration?.Initializer !== undefined &&
-            csharpReferenceDefaultNeedsNullableParameter(effectiveAuthored) &&
-            targetTypeRefEquals(csharpNullableTargetType(effectiveAuthored), targetType))
+          !(runtimeDefault !== undefined && targetTypeRefEquals(runtimeDefault.parameterType, targetType))
         ) {
           const adaptation = conversions.select(
             targetType,

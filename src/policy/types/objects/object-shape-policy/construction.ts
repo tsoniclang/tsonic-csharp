@@ -69,8 +69,9 @@ export function createStructuralObjectShapeTarget(
           absorbsNullish: true,
           jsValueCarrier: true,
           jsObjectShape: true,
+          typeofRuntimeKind: "object",
         }
-      : contract ? { structuralContract: true } : {},
+      : { typeofRuntimeKind: "object", ...(contract ? { structuralContract: true } : {}) },
   );
 }
 

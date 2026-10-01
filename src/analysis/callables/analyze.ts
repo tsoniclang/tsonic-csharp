@@ -176,9 +176,8 @@ function sourceParameterContract(
     return undefined;
   }
   const questionToken = policy.ast.questionToken(parameterNode);
-  const targetType: TargetTypeRef = questionToken === undefined && declarations.referenceDefault(parameterNode) === undefined
-    ? selectedType
-    : csharpNullableTargetType(selectedType);
+  const targetType: TargetTypeRef = declarations.runtimeDefault(parameterNode)?.parameterType ??
+    (questionToken === undefined ? selectedType : csharpNullableTargetType(selectedType));
   const resolvedName = HasSourceKind(
       policy.ast,
       parameter.name,
