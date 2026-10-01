@@ -156,7 +156,15 @@ export function resolveSelectedValueWithState(
   if (declaredType !== undefined && queries.types.isUnion(declaredType)) {
     const storage = scopedTarget ?? resolveNodeWithState(declaration, sourceFile, nextState(state));
     const guarded = storage === undefined ? undefined : selectCsharpNativeFlowMembers(host, node, storage);
-    if (guarded !== undefined && guarded.length > 0) return guarded.length === 1 ? guarded[0] : storage;
+    if (guarded !== undefined && guarded.length > 0) {
+      const symbol = queries.declarations.typeSymbol(selectedType);
+      if (symbol !== undefined && queries.declarations.symbolDeclarations(symbol).some(candidate =>
+        host.navigation.isProjectDeclaration(candidate) && (host.ast.is.IsClassDeclaration(candidate) || host.ast.is.IsClassExpression(candidate)))) {
+        const nominal = resolveTypeWithState(selectedType, sourceFile, nextState(state));
+        if (host.projectTypeCatalog.definitionForTarget(nominal)?.kind === "class") return nominal;
+      }
+      return guarded.length === 1 ? guarded[0] : storage;
+    }
   }
   if (declaredType !== undefined && declaredType !== selectedType &&
     queries.types.apparentType(declaredType) === selectedType) {
