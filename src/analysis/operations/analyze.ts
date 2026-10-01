@@ -1,5 +1,5 @@
 import { classifyCsharpUnionCall } from "./union-calls.js";
-import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { resolveCsharpInstanceType } from "../../policy/types/resolution/instance-tests.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
 import { selectCsharpArrayTypeTest } from "../../policy/operations/source-profiles/js/type-tests.js";
 import { getCsharpTypeofResult, type CsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
@@ -545,7 +545,8 @@ function visit(
       sourceFile,
     );
     const instanceType = sourceOperator === "instanceof" && expression?.Right !== undefined
-      ? resolveInstanceType(policy, expression.Right, sourceFile) : undefined;
+      ? resolveCsharpInstanceType(policy.semantics(sourceFile), expression.Right,
+        type => policy.types.resolveType(type, sourceFile)) : undefined;
     const instanceFactory = sourceOperator === "instanceof" && expression?.Right !== undefined
       ? evidence.nodeTargetType(expression.Right) : undefined;
     const instanceSource = sourceOperator === "instanceof" && expression?.Left !== undefined
@@ -683,18 +684,6 @@ function visit(
       }
     },
   );
-}
-
-function resolveInstanceType(policy: CsharpPolicyContext, expression: Node, sourceFile: SourceFile): import("../../target-model/types/model.js").TargetTypeRef | undefined {
-  const semantics = policy.semantics(sourceFile);
-  const type = semantics.types.expressionType(expression);
-  const signatures = type === undefined ? [] : semantics.types.signatureInfos(type, "construct");
-  const instances = signatures.map(signature => {
-    const instance = signature.returnType;
-    return instance === undefined ? undefined : policy.types.resolveType(instance, sourceFile);
-  });
-  const selected = instances[0];
-  return selected !== undefined && instances.every(instance => instance !== undefined && targetTypeRefEquals(selected, instance)) ? selected : undefined;
 }
 
 function classifyTypeofComparison(

@@ -24,6 +24,8 @@ import { createCsharpSourceUnionIndex, type CsharpSourceUnionIndex } from "./sou
 import { createCsharpSourceUnionDefinitions } from "./union-definitions.js";
 import { createCsharpFixedArrayTypeQuery } from "./source-markers.js";
 import { selectCsharpNativeFlowMembers, selectCsharpNativeFlowTypeMembers } from "./native-flow-refinement.js";
+import { resolveCsharpInstanceType } from "./instance-tests.js";
+import type { SourceNativeValueGuard } from "@tsonic/target-api/source";
 
 import {
   resolveNode as resolveNodeImplementation,
@@ -714,12 +716,17 @@ export function createCsharpTypeResolutionServices(
     projectSourceDeclarationTargetType: (...args: DropScope<Parameters<typeof projectSourceDeclarationTargetTypeImplementation>>) =>
       projectSourceDeclarationTargetTypeImplementation(scope, ...args),
   };
+  const resolveNominal = (guard: Extract<SourceNativeValueGuard, { readonly kind: "nominal" }>): TargetTypeRef | undefined => {
+    const file = host.ast.getSourceFile(guard.sourceConstructor);
+    return file === undefined ? undefined : resolveCsharpInstanceType(host.semanticsFor(guard.sourceConstructor),
+      guard.sourceConstructor, type => methods.resolveType(type, file));
+  };
   const policy: CsharpTypePolicy = Object.freeze({
-    nativeFlowMembers: (reference: Node, sourceCarrier: TargetTypeRef) => selectCsharpNativeFlowMembers(host, reference, sourceCarrier),
+    nativeFlowMembers: (reference: Node, sourceCarrier: TargetTypeRef) => selectCsharpNativeFlowMembers(host, reference, sourceCarrier, resolveNominal),
     nativeFlowTypes: (reference: Node, sourceType: Type) => {
       const file = host.ast.getSourceFile(reference);
       return file === undefined ? undefined : selectCsharpNativeFlowTypeMembers(host, reference, sourceType,
-        type => methods.resolveType(type, file));
+        type => methods.resolveType(type, file), resolveNominal);
     },
     resolveBindingProjection: host.bindingProjection,
     selectFixedArray: createCsharpFixedArrayTypeQuery(host),

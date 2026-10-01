@@ -17,6 +17,7 @@ import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "..
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
 import { Node_Expression } from "@tsonic/target-api/source";
 import { selectCsharpNativeFlowMembers } from "./native-flow-refinement.js";
+import { resolveCsharpInstanceType } from "./instance-tests.js";
 
 export function resolveNode(
   { resolveNodeWithState }: CsharpTypeResolutionScope,
@@ -155,7 +156,12 @@ export function resolveSelectedValueWithState(
   const queries = host.semantics(sourceFile);
   if (declaredType !== undefined && queries.types.isUnion(declaredType)) {
     const storage = scopedTarget ?? resolveNodeWithState(declaration, sourceFile, nextState(state));
-    const guarded = storage === undefined ? undefined : selectCsharpNativeFlowMembers(host, node, storage);
+    const guarded = storage === undefined ? undefined : selectCsharpNativeFlowMembers(host, node, storage,
+      guard => {
+        const semantics = host.semanticsFor(guard.sourceConstructor);
+        return resolveCsharpInstanceType(semantics, guard.sourceConstructor,
+          type => resolveTypeWithState(type, semantics.sourceFile, nextState(state)));
+      });
     if (guarded !== undefined && guarded.length > 0) {
       const symbol = queries.declarations.typeSymbol(selectedType);
       if (symbol !== undefined && queries.declarations.symbolDeclarations(symbol).some(candidate =>

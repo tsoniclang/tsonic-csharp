@@ -1,5 +1,5 @@
 import type { Node, Type } from "@tsonic/tsts";
-import { selectSourceGuardedValueMembers, selectSourceGuardedTypeMembers, selectSourceNativeValueGuard, type SourceNativeGuard } from "@tsonic/target-api/source";
+import { selectSourceGuardedValueMembers, selectSourceGuardedTypeMembers, selectSourceNativeValueGuard, type SourceNativeGuard, type SourceNativeValueGuard } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
 import { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
@@ -15,6 +15,7 @@ export function selectCsharpNativeFlowMembers(
   host: CsharpTypePolicyHost,
   reference: Node,
   sourceCarrier: TargetTypeRef,
+  resolveNominal: (guard: Extract<SourceNativeValueGuard, { readonly kind: "nominal" }>) => TargetTypeRef | undefined,
 ): readonly TargetTypeRef[] | undefined {
   const present = getCsharpNullableElementTargetType(sourceCarrier) ?? sourceCarrier;
   const payloads = csharpUnionLeaves(present, host.typeDefinitions)?.map(member => member.carrier) ??
@@ -23,7 +24,7 @@ export function selectCsharpNativeFlowMembers(
     : [...payloads, csharpAbsenceTargetType()];
   if (members === undefined) return undefined;
   return selectSourceGuardedValueMembers(host, reference, members,
-    expression => selectNativeGuard(host, expression),
+    expression => selectNativeGuard(host, expression, resolveNominal),
     (member, predicate) => testNativeCarrier(host, member, predicate));
 }
 
@@ -34,20 +35,25 @@ export function selectCsharpNativeFlowTypeMembers(
   reference: Node,
   sourceType: Type,
   resolveCarrier: (type: Type) => TargetTypeRef | undefined,
+  resolveNominal: (guard: Extract<SourceNativeValueGuard, { readonly kind: "nominal" }>) => TargetTypeRef | undefined,
 ): readonly Type[] | undefined {
   return selectSourceGuardedTypeMembers(host, reference, sourceType,
-    expression => selectNativeGuard(host, expression),
+    expression => selectNativeGuard(host, expression, resolveNominal),
     (type, predicate) => {
       const carrier = resolveCarrier(type);
       return carrier === undefined ? undefined : testNativeCarrier(host, carrier, predicate);
     });
 }
 
-function selectNativeGuard(host: CsharpTypePolicyHost, expression: Node): SourceNativeGuard<Predicate> | undefined {
+function selectNativeGuard(
+  host: CsharpTypePolicyHost,
+  expression: Node,
+  resolveNominal: (guard: Extract<SourceNativeValueGuard, { readonly kind: "nominal" }>) => TargetTypeRef | undefined,
+): SourceNativeGuard<Predicate> | undefined {
   const native = selectSourceNativeValueGuard(host, expression);
   if (native?.kind === "typeof") return { sourceOperand: native.sourceOperand, predicate: native };
   if (native?.kind === "nominal") {
-    const targetCarrier = host.projectTypeCatalog.targetTypeForDeclaration(native.declaration, []);
+    const targetCarrier = resolveNominal(native);
     if (targetCarrier !== undefined) return { sourceOperand: native.sourceOperand, predicate: { kind: "nominal", targetCarrier } };
   }
   return host.closedTypeGuard(expression);
