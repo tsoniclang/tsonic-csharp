@@ -485,14 +485,17 @@ export function resolveSourceCallArgumentParameter(
       paramsArray: signature?.restParameterIndex === parameterIndex,
     }, binding.sourceForm);
   }
-  return resolveSourceCallSelectedType(
+  const selected = resolveSourceCallSelectedType(
     source,
     parameter.parameterDeclaration,
     parameter.authoredTypeNode,
-    binding.sourceForm === "spread-sequence" && parameter.rest ? parameter.selectedType : binding.selectedParameterType,
+    parameter.rest ? parameter.selectedType : binding.selectedParameterType,
     sourceFile,
     { depth: 0 },
   );
+  return selected === undefined ? undefined : csharpTargetParameterValueType({
+    name: parameter.parameterName, type: selected, passingMode: "by-value", paramsArray: parameter.rest,
+  }, binding.sourceForm);
 }
 
 
