@@ -4,7 +4,7 @@ import type {
   SourceFile,
   Type,
 } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { selectedSourcePropertyDeclarations, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type {
   CsharpTargetReceiverRelation,
 } from "../../../providers/relations/index.js";
@@ -58,6 +58,7 @@ export interface CsharpSourceProfilePropertyPolicyContext {
   readonly sourceFile: SourceFile;
   readonly identity: CsharpSourceProfileDeclarationIdentity;
   readonly receiverType: TargetTypeRef | undefined;
+  readonly readonly: boolean;
 }
 
 export type CsharpTargetPropertyInvocation =
@@ -70,6 +71,7 @@ export interface CsharpSourceProfileElementPolicyContext {
   readonly source: ResolvedSourceElementAccessInfo;
   readonly sourceFile: SourceFile;
   readonly identity: CsharpSourceProfileDeclarationIdentity;
+  readonly readonly: boolean;
 }
 
 export type CsharpSourceProfileCallPolicyResult =
@@ -200,7 +202,7 @@ export function selectCsharpSourceProfilePropertyPolicy(
     ? undefined
     : selected.kind === "ambiguous"
       ? { kind: "rejected", diagnostic: selected.diagnostic }
-      : selected.policy.select({ host, source, sourceFile, identity, receiverType });
+      : selected.policy.select({ host, source, sourceFile, identity, receiverType, readonly: !source.writable });
 }
 
 function sourceProfilePropertyIdentityMatches(
@@ -221,25 +223,10 @@ export function sourceProfilePropertyIdentities(
   source: ResolvedSourcePropertyAccessInfo,
   sourceFile: SourceFile,
 ): readonly CsharpSourceProfileDeclarationIdentity[] {
-  if (source.selectedDeclaration !== undefined) {
-    const semantics = host.semantics(sourceFile);
-    const identity = csharpSourceProfileDeclarationIdentity(
-      host.ast,
-      semantics,
-      host.sourceFacts,
-      source.selectedDeclaration,
-    );
-    return identity === undefined ? [] : [identity];
-  }
-  if (source.selectedSymbol === undefined) {
-    return [];
-  }
   const semantics = host.semantics(sourceFile);
-  const declarations = [...new Set([
-    ...semantics.declarations.symbolDeclarations(source.selectedSymbol),
-    ...semantics.declarations.rootSymbols(source.selectedSymbol).flatMap(symbol =>
-      semantics.declarations.symbolDeclarations(symbol)),
-  ])];
+  const declarations = selectedSourcePropertyDeclarations(semantics, source.selectedDeclaration, source.selectedSymbol,
+    host.types.nativeFlowTypes(source.receiver.expression, source.receiver.type));
+  if (declarations === undefined) return [];
   const identities = declarations.map((declaration) =>
     csharpSourceProfileDeclarationIdentity(
       host.ast,
@@ -263,24 +250,39 @@ export function selectCsharpSourceProfileElementPolicy(
   sourceFile: SourceFile,
   policies: readonly CsharpSourceProfileElementPolicy[],
 ): CsharpSourceProfileElementPolicyResult | undefined {
-  const identity = csharpSourceProfileDeclarationIdentity(
-    host.ast,
-    host.semantics(sourceFile),
-    host.sourceFacts,
-    source.selectedDeclaration,
-  );
+  const semantics = host.semantics(sourceFile);
+  const types = host.types.nativeFlowTypes(source.receiver.expression, source.receiver.type) ?? [source.receiver.type];
+  if (types.length === 0) return undefined;
+  const declarations = new Set<Node>();
+  let readonly = false;
+  for (const type of types) {
+    const selected = semantics.types.selectIndexedAccess(type, source.argument.type);
+    if (selected?.kind !== "resolved" || selected.members.length !== 1 || selected.members[0]?.kind !== "index") return undefined;
+    const index = selected.members[0].index;
+    readonly ||= index.readonly;
+    const components = index.declaration === undefined ? index.components : [index.declaration];
+    if (components.length === 0) return undefined;
+    for (const declaration of components) {
+      if (declaration === undefined) return undefined;
+      declarations.add(declaration);
+    }
+  }
+  const identities = [...declarations].map(declaration => csharpSourceProfileDeclarationIdentity(
+    host.ast, semantics, host.sourceFacts, declaration));
+  if (identities.some(identity => identity === undefined)) return undefined;
+  const identity = identities[0];
   if (identity === undefined) {
     return undefined;
   }
   const matches = policies.filter((policy) =>
-    sourceProfileIdentityMatches(policy.source, identity)
+    identities.every(candidate => candidate !== undefined && sourceProfileIdentityMatches(policy.source, candidate))
   );
   const selected = selectExactlyOnePolicy(matches, identity);
   return selected.kind === "missing"
     ? undefined
     : selected.kind === "ambiguous"
       ? { kind: "rejected", diagnostic: selected.diagnostic }
-      : selected.policy.select({ host, source, sourceFile, identity });
+      : selected.policy.select({ host, source, sourceFile, identity, readonly });
 }
 
 export function csharpSourceProfileCall(

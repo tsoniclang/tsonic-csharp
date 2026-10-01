@@ -23,7 +23,7 @@ import { getCsharpDelegateSignature } from "../../../target-model/types/delegate
 import { createCsharpSourceUnionIndex, type CsharpSourceUnionIndex } from "./source-unions.js";
 import { createCsharpSourceUnionDefinitions } from "./union-definitions.js";
 import { createCsharpFixedArrayTypeQuery } from "./source-markers.js";
-import { selectCsharpNativeFlowMembers } from "./native-flow-refinement.js";
+import { selectCsharpNativeFlowMembers, selectCsharpNativeFlowTypeMembers } from "./native-flow-refinement.js";
 
 import {
   resolveNode as resolveNodeImplementation,
@@ -716,6 +716,11 @@ export function createCsharpTypeResolutionServices(
   };
   const policy: CsharpTypePolicy = Object.freeze({
     nativeFlowMembers: (reference: Node, sourceCarrier: TargetTypeRef) => selectCsharpNativeFlowMembers(host, reference, sourceCarrier),
+    nativeFlowTypes: (reference: Node, sourceType: Type) => {
+      const file = host.ast.getSourceFile(reference);
+      return file === undefined ? undefined : selectCsharpNativeFlowTypeMembers(host, reference, sourceType,
+        type => methods.resolveType(type, file));
+    },
     resolveBindingProjection: host.bindingProjection,
     selectFixedArray: createCsharpFixedArrayTypeQuery(host),
     resolveNode: methods.resolveNode,

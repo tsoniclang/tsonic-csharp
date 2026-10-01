@@ -38,7 +38,6 @@ import {
   jsCallPolicy,
   jsConstructIdentity,
   jsElementPolicy,
-  jsIndexerIdentity,
   jsMemberIdentity,
   jsPropertyPolicy,
   jsRuntimeTargetType,
@@ -276,68 +275,64 @@ export const csharpJsArrayCallPolicies:
   ]);
 
 export const csharpJsArrayPropertyPolicies:
-  readonly CsharpSourceProfilePropertyPolicy[] = Object.freeze(
-    ["Array", "ReadonlyArray"].map((declaringName) =>
-      jsPropertyPolicy(
-        jsMemberIdentity(declaringName, "length"),
-        (context) => {
-          const receiverType = context.receiverType;
-          const targetName = getCsharpIndexableLengthMemberName(receiverType);
-          return receiverType === undefined || targetName === undefined
-            ? undefined
-            : targetProperty(
-                `Tsonic.CSharp.Js.JSArray.length:${declaringName}`,
-                "length",
-                targetName,
-                receiverType,
-                intType,
-                {
-                  readonly: declaringName === "ReadonlyArray" ||
-                    getCsharpJsArrayMutationPolicy(receiverType) === undefined,
-                },
-              );
-        },
-        instanceReceiver,
-      )
+  readonly CsharpSourceProfilePropertyPolicy[] = Object.freeze([
+    jsPropertyPolicy(
+      { owner: "js", kind: "member", declaringNames: ["Array", "ReadonlyArray"], name: "length" },
+      (context) => {
+        const receiverType = context.receiverType;
+        const targetName = getCsharpIndexableLengthMemberName(receiverType);
+        return receiverType === undefined || targetName === undefined
+          ? undefined
+          : targetProperty(
+              "Tsonic.CSharp.Js.JSArray.length",
+              "length",
+              targetName,
+              receiverType,
+              intType,
+              {
+                readonly: context.readonly ||
+                  getCsharpJsArrayMutationPolicy(receiverType) === undefined,
+              },
+            );
+      },
+      instanceReceiver,
     ),
-  );
+  ]);
 
 export const csharpJsArrayElementPolicies:
-  readonly CsharpSourceProfileElementPolicy[] = Object.freeze(
-    ["Array", "ReadonlyArray"].map((declaringName) =>
-      jsElementPolicy(
-        jsIndexerIdentity(declaringName),
-        (context) => {
-          const receiverType = resolveCsharpSelectedSourceValue(
-            context,
-            context.source.receiver,
+  readonly CsharpSourceProfileElementPolicy[] = Object.freeze([
+    jsElementPolicy(
+      { owner: "js", kind: "indexer", declaringNames: ["Array", "ReadonlyArray"] },
+      (context) => {
+        const receiverType = resolveCsharpSelectedSourceValue(
+          context,
+          context.source.receiver,
+        );
+        const resultType =
+          getCsharpReadOnlyIndexableCollectionElementTargetType(receiverType);
+        const readonly = context.readonly ||
+          !(
+            receiverType?.kind === "array" ||
+            isCsharpDenseMutableCollectionTargetType(receiverType)
           );
-          const resultType =
-            getCsharpReadOnlyIndexableCollectionElementTargetType(receiverType);
-          const readonly = declaringName === "ReadonlyArray" ||
-            !(
-              receiverType?.kind === "array" ||
-              isCsharpDenseMutableCollectionTargetType(receiverType)
+        return receiverType === undefined || resultType === undefined
+          ? undefined
+          : targetIndexer(
+              "Tsonic.CSharp.Js.JSArray.indexer",
+              receiverType,
+              getCsharpJsArrayElementTargetType(receiverType) === undefined ? intType : doubleType,
+              resultType,
+              readonly,
             );
-          return receiverType === undefined || resultType === undefined
-            ? undefined
-            : targetIndexer(
-                `Tsonic.CSharp.Js.JSArray.indexer:${declaringName}`,
-                receiverType,
-                getCsharpJsArrayElementTargetType(receiverType) === undefined ? intType : doubleType,
-                resultType,
-                readonly,
-              );
-        },
-        (context) => ({
-          kind: "indexer",
-          ...(declaringName === "Array" && getCsharpJsArrayElementTargetType(
-            resolveCsharpSelectedSourceValue(context, context.source.receiver),
-          ) !== undefined ? { indexedLocationMethod: "elementLocation" } : {}),
-        }),
-      )
+      },
+      (context) => ({
+        kind: "indexer",
+        ...(!context.readonly && getCsharpJsArrayElementTargetType(
+          resolveCsharpSelectedSourceValue(context, context.source.receiver),
+        ) !== undefined ? { indexedLocationMethod: "elementLocation" } : {}),
+      }),
     ),
-  );
+  ]);
 
 function directArrayMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],

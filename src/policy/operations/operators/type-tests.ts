@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpClosedTypePredicate, CsharpClosedTypeTestPlan } from "../../../target-model/operations/type-tests.js";
 import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/collections.js";
 import { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
@@ -38,7 +38,8 @@ export function selectCsharpClosedTypeTestPlan(
     if (source.kind === "array" || source.kind === "tuple" || getCsharpJsArrayElementTargetType(source) !== undefined) {
       return Object.freeze({ kind: "constant", value: true });
     }
-    if (isCsharpValueTypeTargetType(source) || csharpStructuralObjectShapeIdentity(source) !== undefined) {
+    if (isCsharpValueTypeTargetType(source) || csharpStructuralObjectShapeIdentity(source) !== undefined ||
+      source.kind === "target-named" && (source as CsharpTargetNamedTypeRef).csharpJsSurfaceKind !== undefined) {
       return Object.freeze({ kind: "constant", value: false });
     }
     const category = getCsharpTypeofRuntimeKind(source, definitions);

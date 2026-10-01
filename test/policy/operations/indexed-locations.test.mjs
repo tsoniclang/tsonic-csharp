@@ -5,11 +5,12 @@ import { csharpJsArrayTargetType } from "../../../dist/policy/types/resolution/s
 
 const element = { kind: "source-primitive", name: "int32" };
 
-function select(policy, carrier) {
+function select(policy, carrier, readonly = false) {
   return policy.select({
     host: { types: { resolveSelectedValue: () => carrier } },
     source: { receiver: { expression: {}, type: {} } },
     sourceFile: {},
+    readonly,
   });
 }
 
@@ -21,7 +22,9 @@ test("source array location selection retains its exact native method and index 
   assert.deepEqual(selected.targetMember.declaringType, carrier);
   assert.deepEqual(selected.targetMember.returnType, element);
   assert.deepEqual(selected.targetMember.parameters[0].type, { kind: "source-primitive", name: "float64" });
-  const readonly = select(csharpJsArrayElementPolicies[1], carrier);
+  assert.equal(csharpJsArrayElementPolicies.length, 1);
+  assert.deepEqual(csharpJsArrayElementPolicies[0].source.declaringNames, ["Array", "ReadonlyArray"]);
+  const readonly = select(csharpJsArrayElementPolicies[0], carrier, true);
   assert.equal(readonly.kind, "resolved");
   assert.equal(readonly.targetMember.readonly, true);
   assert.equal(readonly.invocation.indexedLocationMethod, undefined);

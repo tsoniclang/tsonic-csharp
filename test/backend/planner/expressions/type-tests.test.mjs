@@ -5,6 +5,9 @@ import { csharpClosedTypeTestMatches } from "../../../../dist/analysis/operation
 import { planCsharpClosedTypeTest } from "../../../../dist/backend/planner/expressions/type-tests.js";
 import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpStringTargetType,
   csharpTargetNamedType } from "../../../../dist/target-model/types/index.js";
+import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsRegExpTargetType,
+  csharpJsMapTargetType, csharpJsSetTargetType, csharpJsArrayBufferTargetType, csharpJsDataViewTargetType,
+  csharpJsTypedArrayTargetType } from "../../../../dist/policy/types/resolution/surface-types.js";
 
 test("closed array tests distinguish generated structural carriers from open native references", () => {
   const structural = csharpTargetNamedType("tsonic.shape:fixture", [], { kind: "named", name: "Record" });
@@ -13,6 +16,22 @@ test("closed array tests distinguish generated structural carriers from open nat
   assert.deepEqual(selectCsharpClosedTypeTestPlan(native, { kind: "array" }), { kind: "runtime-array" });
   assert.equal(csharpClosedTypeTestMatches({ sourceCarrier: structural, predicate: { kind: "array" },
     test: { kind: "constant", value: true } }), false);
+});
+
+test("closed profile nonarrays are excluded without guessing about open native references", () => {
+  const element = csharpStringTargetType();
+  for (const carrier of [csharpJsDateTargetType(), csharpJsRegExpTargetType(),
+    csharpJsMapTargetType(element, element), csharpJsSetTargetType(element),
+    csharpJsArrayBufferTargetType(), csharpJsDataViewTargetType(), csharpJsTypedArrayTargetType("Uint8Array")]) {
+    assert.deepEqual(selectCsharpClosedTypeTestPlan(carrier, { kind: "array" }), { kind: "constant", value: false });
+    assert.equal(csharpClosedTypeTestMatches({ sourceCarrier: carrier, predicate: { kind: "array" },
+      test: { kind: "constant", value: true } }), false);
+  }
+  assert.deepEqual(selectCsharpClosedTypeTestPlan(csharpJsArrayTargetType(element), { kind: "array" }),
+    { kind: "constant", value: true });
+  const open = csharpTargetNamedType("Fixture.Unknown", [], { kind: "named", name: "Unknown" });
+  const categoryOnly = { ...open, csharpTypeofRuntimeKind: "object" };
+  assert.deepEqual(selectCsharpClosedTypeTestPlan(categoryOnly, { kind: "array" }), { kind: "runtime-array" });
 });
 
 for (const kind of ["nominal", "array"]) test(`closed ${kind} tests reject missing, forged and reordered test evidence`, () => {

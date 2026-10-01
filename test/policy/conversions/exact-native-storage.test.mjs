@@ -21,7 +21,7 @@ test("nullable conversions distinguish exact flow evidence from explicit asserti
     assert.deepEqual(selectCsharpConversion(conversionContext, nullable, type, "explicit"),
       reference ? { kind: "nullable-reference" } : { kind: "nullable-value", asserted: true });
     assert.deepEqual(selectCsharpFlowReadConversion(conversionContext, nullable, type),
-      reference ? { kind: "implicit", proof: "nullable" } : { kind: "nullable-value", asserted: false });
+      reference ? { kind: "nullable-reference" } : { kind: "nullable-value", asserted: false });
   }
 });
 

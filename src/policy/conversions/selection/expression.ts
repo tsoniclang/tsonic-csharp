@@ -176,7 +176,7 @@ export function selectCsharpFlowReadConversion(
   const nullableElement = getCsharpNullableElementTargetType(storageType);
   if (nullableElement !== undefined && targetTypeRefEquals(nullableElement, selectedReadType)) {
     return isCsharpNullableReferenceTargetType(storageType)
-      ? { kind: "implicit", proof: "nullable" }
+      ? { kind: "nullable-reference" }
       : { kind: "nullable-value", asserted: false };
   }
   const runtimeUnionArms = getCsharpRuntimeUnionArms(nullableElement ?? storageType, input.typeDefinitions);
