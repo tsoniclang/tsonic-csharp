@@ -1,7 +1,6 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
-import { isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { csharpCarrierAdmitsSourceAbsence } from "../../../target-model/types/runtime-carriers.js";
 import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 
@@ -20,7 +19,7 @@ export function planCsharpAbsentValue(storage: TargetTypeRef, typeParameterNames
   if (getCsharpGenericOptionalParts(storage) !== undefined) {
     return planCsharpOptionalStorageOperation(storage, "From1", { kind: "LiteralExpression", value: null }, typeParameterNames);
   }
-  if (getCsharpNullableElementTargetType(storage) === undefined && !isCsharpAbsenceTargetType(storage) && !isCsharpJsValueTargetType(storage)) return undefined;
+  if (!csharpCarrierAdmitsSourceAbsence(storage)) return undefined;
   const type = csharpTypeFromTargetTypeRef(storage, typeParameterNames);
   return type === undefined ? undefined : { kind: "DefaultExpression", type };
 }

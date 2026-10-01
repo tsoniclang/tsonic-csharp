@@ -42,6 +42,7 @@ import {
   planFunctionExpression,
 } from "./expression-lambdas.js";
 import { planObjectLiteralExpressionWithExpectedType } from "../objects/object-literals/planning.js";
+import { planCsharpAbsentValue } from "./optional-storage.js";
 import {
   tryPlanRecordDictionaryLiteralWithExpectedType,
 } from "./expression-dictionary-literals.js";
@@ -53,7 +54,6 @@ import {
 } from "./expression-bool-carriers.js";
 import {
   csharpAbsenceTargetType,
-  getCsharpRuntimeUnionArms,
   getCsharpDelegateSignature,
   targetTypeRefEquals,
 } from "../../../target-model/types/index.js";
@@ -355,19 +355,10 @@ function planExpectedRuntimeNullishLiteral(
   if (effectiveExpectedTargetType === undefined) {
     return undefined;
   }
-  const absence = csharpAbsenceTargetType();
-  if (
-    targetAcceptsRuntimeCarrier(effectiveExpectedTargetType, absence, input) &&
-    (HasSourceKind(input.program.source.ast, node, KindNullKeyword) || isGlobalUndefinedLiteral(node, sourceFile, input))
-  ) {
-    return { kind: "LiteralExpression", value: null };
+  if (HasSourceKind(input.program.source.ast, node, KindNullKeyword) || isGlobalUndefinedLiteral(node, sourceFile, input)) {
+    return planCsharpAbsentValue(effectiveExpectedTargetType, input.scope.typeParameterNames);
   }
   return undefined;
-}
-
-function targetAcceptsRuntimeCarrier(expectedTargetType: TargetTypeRef, carrier: TargetTypeRef, input: CsharpPlanningContext): boolean {
-  return targetTypeRefEquals(expectedTargetType, carrier) ||
-    (getCsharpRuntimeUnionArms(expectedTargetType, input.program.typeDefinitions)?.some((arm) => targetTypeRefEquals(arm, carrier)) === true);
 }
 
 function isGlobalUndefinedLiteral(

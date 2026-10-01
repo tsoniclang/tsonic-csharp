@@ -215,6 +215,11 @@ export function isCsharpAbsenceTargetType(type: TargetTypeRef | undefined): bool
   return type?.kind === "target-named" && type.id === "csharp.native.absence";
 }
 
+export function csharpCarrierAdmitsSourceAbsence(type: TargetTypeRef | undefined): boolean {
+  return isCsharpAbsenceTargetType(type) || isCsharpJsValueTargetType(type) ||
+    getCsharpNullableElementTargetType(type) !== undefined || getCsharpGenericOptionalParts(type) !== undefined;
+}
+
 export function isCsharpRuntimeUnionTargetType(type: TargetTypeRef | undefined): type is CsharpRuntimeUnionTargetTypeRef {
   const arms = (type as Partial<CsharpRuntimeUnionTargetTypeRef> | undefined)?.csharpRuntimeUnionArms;
   return type?.kind === "target-named" &&

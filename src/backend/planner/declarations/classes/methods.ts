@@ -5,6 +5,7 @@ import type {
   CsharpMethodDeclaration,
 } from "../../../target-ast/roslyn/index.js";
 import { AsMethodDeclaration } from "@tsonic/target-api/source";
+import { planCsharpAbsenceReturn } from "../../statements/statement-output.js";
 import {
   createDestructuringPlannerState,
 } from "../../bindings/index.js";
@@ -161,7 +162,7 @@ export function planMethodDeclaration(
       statements: [
         ...bodyStatements,
         ...(returnContract?.kind === "resolved" && returnContract.fallthroughUndefined
-          ? [{ kind: "ReturnStatement" as const, expression: { kind: "LiteralExpression" as const, value: null } }] : []),
+          ? [planCsharpAbsenceReturn(state.currentReturnExpressionTargetType, input.scope.typeParameterNames)] : []),
       ],
     },
   };

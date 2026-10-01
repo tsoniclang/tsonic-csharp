@@ -9,7 +9,7 @@ import type {
 import {
   isCsharpVoidTargetType,
 } from "./identity.js";
-import { isCsharpAbsenceTargetType } from "./runtime-carriers.js";
+import { csharpCarrierAdmitsSourceAbsence } from "./runtime-carriers.js";
 import {
   csharpQualifiedTypeRenderShape,
 } from "./render-shapes.js";
@@ -94,8 +94,7 @@ export function getCsharpAwaitResultTargetType(type: TargetTypeRef | undefined):
 export function csharpVoidReturnCompletion(source: TargetTypeRef | undefined, target: TargetTypeRef | undefined): "void" | "absence" | undefined {
   if (!isCsharpVoidTargetType(source)) return undefined;
   if (isCsharpVoidTargetType(target)) return "void";
-  return getCsharpNullableElementTargetType(target) !== undefined || isCsharpAbsenceTargetType(target)
-    ? "absence" : undefined;
+  return csharpCarrierAdmitsSourceAbsence(target) ? "absence" : undefined;
 }
 
 export function getCsharpDelegateSignature(type: TargetTypeRef | undefined): CsharpDelegateSignatureShape | undefined {

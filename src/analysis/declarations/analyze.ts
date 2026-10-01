@@ -13,6 +13,7 @@ import {
 } from "../../policy/conversions/index.js";
 import {
   csharpAbsenceTargetType,
+  csharpCarrierAdmitsSourceAbsence,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   getCsharpDelegateSignature,
@@ -21,7 +22,6 @@ import {
   targetTypeRefEquals,
   csharpBigIntegerTargetType,
   isCsharpVoidTargetType,
-  isCsharpAbsenceTargetType,
   getCsharpTaskResultTargetType,
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
@@ -110,10 +110,10 @@ function withAbsenceCompletion(
   const asynchronous = HasSyntacticModifier(policy.ast, declaration, ModifierFlagsAsync);
   const contextual = getCsharpDelegateSignature(evidence.contextualTargetType(declaration))?.returnType;
   const type = !asynchronous && Node_Type(policy.ast, declaration) === undefined &&
-    isCsharpVoidTargetType(contract.type) && getCsharpNullableElementTargetType(contextual) !== undefined
+    isCsharpVoidTargetType(contract.type) && csharpCarrierAdmitsSourceAbsence(contextual)
     ? contextual! : contract.type;
   const value = asynchronous ? getCsharpTaskResultTargetType(type) : type;
-  if (!isCsharpAbsenceTargetType(value) && getCsharpNullableElementTargetType(value) === undefined) return contract;
+  if (!csharpCarrierAdmitsSourceAbsence(value)) return contract;
   const completion = policy.semanticsFor(declaration).operations.callableCompletion(declaration);
   if (policy.ast.body(declaration) !== undefined && completion === undefined) {
     return { kind: "rejected", reason: "An absence-bearing callable requires exact source completion evidence." };

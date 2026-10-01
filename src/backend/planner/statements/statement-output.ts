@@ -3,6 +3,7 @@ import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../ta
 import {
   isCsharpVoidTargetType,
 } from "../../../target-model/types/index.js";
+import { planCsharpAbsentValue } from "../expressions/optional-storage.js";
 
 export function expressionStatement(expression: CsharpExpression): CsharpStatement {
   return {
@@ -11,11 +12,21 @@ export function expressionStatement(expression: CsharpExpression): CsharpStateme
   };
 }
 
-export function planCsharpVoidReturn(expression: CsharpExpression, completion: "void" | "absence"): readonly CsharpStatement[] {
+export function planCsharpAbsenceReturn(
+  carrier: TargetTypeRef | undefined, typeParameterNames?: ReadonlyMap<string, string>,
+): CsharpStatement {
+  const expression = carrier === undefined ? undefined : planCsharpAbsentValue(carrier, typeParameterNames);
+  if (expression === undefined) throw new Error("An absence return requires its finalized native storage carrier.");
+  return { kind: "ReturnStatement", expression };
+}
+
+export function planCsharpVoidReturn(
+  expression: CsharpExpression, completion: "void" | "absence",
+  carrier?: TargetTypeRef, typeParameterNames?: ReadonlyMap<string, string>,
+): readonly CsharpStatement[] {
   return [
     expressionStatement(expression),
-    { kind: "ReturnStatement", ...(completion === "absence"
-      ? { expression: { kind: "LiteralExpression" as const, value: null } } : {}) },
+    completion === "absence" ? planCsharpAbsenceReturn(carrier, typeParameterNames) : { kind: "ReturnStatement" },
   ];
 }
 

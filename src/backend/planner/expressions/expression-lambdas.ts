@@ -67,7 +67,7 @@ import {
 } from "../statements/generators.js";
 import { planLambdaParameterStorage } from "./lambda-parameter-storage.js";
 import { planCsharpFrameClosureReference } from "../bindings/capture-closures.js";
-import { planCsharpVoidReturn } from "../statements/statement-output.js";
+import { planCsharpVoidReturn, planCsharpAbsenceReturn } from "../statements/statement-output.js";
 
 export interface LambdaTargetContext {
   readonly type: CsharpTypeNode;
@@ -170,7 +170,8 @@ export function planArrowFunctionExpression(
     ...(isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}),
     parameters,
     body: completion !== undefined
-      ? { kind: "Block", statements: [...entryPrelude, ...planCsharpVoidReturn(body, completion)] }
+      ? { kind: "Block", statements: [...entryPrelude, ...planCsharpVoidReturn(body, completion,
+        returnContext?.returnExpressionTargetType, input.scope.typeParameterNames)] }
       : entryPrelude.length === 0
       ? body
       : {
@@ -324,7 +325,7 @@ export function planLambdaBlockBody(
     const statements = planBlockStatements(bodyNode, sourceFile, input, diagnostics, lambdaState, entryPrelude);
     return { kind: "Block", statements: [...statements,
       ...(returnContract?.kind === "resolved" && returnContract.fallthroughUndefined
-        ? [{ kind: "ReturnStatement" as const, expression: { kind: "LiteralExpression" as const, value: null } }] : [])] };
+        ? [planCsharpAbsenceReturn(lambdaState.currentReturnExpressionTargetType, input.scope.typeParameterNames)] : [])] };
   } finally {
     lambdaState.currentReturnExpressionType = previousReturnExpressionType;
     lambdaState.currentReturnExpressionTypeSubject = previousReturnExpressionTypeSubject;

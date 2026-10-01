@@ -639,7 +639,8 @@ function applyDelegateAdapter(
     arguments: arguments_,
   };
   const body = selection.returnConversion.kind === "void-return"
-    ? { kind: "Block" as const, statements: planCsharpVoidReturn(invocation, "absence") }
+    ? { kind: "Block" as const, statements: planCsharpVoidReturn(invocation, "absence",
+      targetSignature.returnType, input.scope.typeParameterNames) }
     : applyCsharpConversionSelection(
     node,
     sourceFile,

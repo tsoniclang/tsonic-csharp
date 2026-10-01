@@ -15,6 +15,7 @@ import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { hasCsharpGeneratorSyntax, planCsharpGeneratorFunction } from "../../statements/generators.js";
 import { withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
+import { planCsharpAbsenceReturn } from "../../statements/statement-output.js";
 
 export function planFunctionDeclaration(
   node: Node,
@@ -113,7 +114,7 @@ export function planFunctionDeclaration(
       statements: [
         ...bodyStatements,
         ...(returnContract?.kind === "resolved" && returnContract.fallthroughUndefined
-          ? [{ kind: "ReturnStatement" as const, expression: { kind: "LiteralExpression" as const, value: null } }] : []),
+          ? [planCsharpAbsenceReturn(state.currentReturnExpressionTargetType, input.scope.typeParameterNames)] : []),
       ],
     },
   };
