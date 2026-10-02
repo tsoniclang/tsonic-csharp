@@ -7,7 +7,7 @@ import { assertCsharpCompilationSucceeded } from "./direct-csharp-session.mjs";
 import { testRepositoryRoots } from "../../../tsonic/test/scripts/workspace-layout.mjs";
 import { createTestWorkspace } from "../../../tsonic/test/scripts/test-workspaces.mjs";
 
-export function executeCsharpConstruction(compiled, name, asynchronous = false, allowUnsafe = false, additionalReferences = []) {
+export function executeCsharpConstruction(compiled, name, asynchronous = false, allowUnsafe = false, additionalReferences = [], nativeProgram) {
   assertCsharpCompilationSucceeded(compiled);
   const scratch = fileURLToPath(new URL("../../.temp/", import.meta.url));
   const root = createTestWorkspace(scratch, `${name}-`);
@@ -18,7 +18,7 @@ export function executeCsharpConstruction(compiled, name, asynchronous = false, 
     writeFileSync(file, text);
   }
   if (!compiled.artifacts.has("generated/TsonicEntrypoint.cs")) {
-    writeFileSync(join(root, "Program.cs"), `if (!(${asynchronous ? "await " : ""}Tsonic.Generated.Index.run())) throw new System.Exception("source construction contract");`);
+    writeFileSync(join(root, "Program.cs"), nativeProgram ?? `if (!(${asynchronous ? "await " : ""}Tsonic.Generated.Index.run())) throw new System.Exception("source construction contract");`);
   }
   const references = [
     join(testRepositoryRoots.csharpRuntime, "src/Tsonic.CSharp.Runtime/Tsonic.CSharp.Runtime.csproj"),

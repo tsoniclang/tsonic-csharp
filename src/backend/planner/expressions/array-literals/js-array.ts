@@ -7,7 +7,7 @@ import type { CsharpExpression, CsharpTypeNode } from "../../../target-ast/rosly
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import type { ArrayLiteralPlanner } from "./types.js";
 import { planArrayLiteralExpression } from "./dense-array.js";
-import { planArraySpreadSourceExpression } from "./spread-source.js";
+import { planCsharpJsArraySpreadAppend } from "../sequence-conversions.js";
 import { arrayLiteralHasElision, rejectSparseArrayLiteralElision } from "./elision.js";
 import { callStatic } from "../csharp-expression-builders.js";
 
@@ -43,12 +43,17 @@ export function planJsArrayLiteralExpression(
       diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a source expression."));
       return undefined;
     }
-    const expression = spread
-      ? planArraySpreadSourceExpression(element, operand, sourceFile, input, diagnostics, elementType, elementTargetType, planner.planExpression)
-      : planner.planExpressionWithExpectedType(operand, sourceFile, input, diagnostics, elementType, undefined, elementTargetType);
+    if (spread) {
+      const appended = planCsharpJsArraySpreadAppend(element, operand, result, collectionType, elementTargetType,
+        sourceFile, input, diagnostics, planner);
+      if (appended === undefined) return undefined;
+      result = appended;
+      continue;
+    }
+    const expression = planner.planExpressionWithExpectedType(operand, sourceFile, input, diagnostics, elementType, undefined, elementTargetType);
     if (expression === undefined) return undefined;
     result = { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: result,
-      name: spread ? "AppendSequence" : "AppendElement" }, arguments: [{ kind: "Argument", expression }] };
+      name: "AppendElement" }, arguments: [{ kind: "Argument", expression }] };
   }
   return result;
 }

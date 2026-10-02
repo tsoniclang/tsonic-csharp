@@ -12,6 +12,8 @@ import {
   csharpAbsenceTargetType,
   getCsharpGeneratorProtocol,
   getCsharpJsArrayElementTargetType,
+  getCsharpArrayLiteralElementTargetType,
+  getCsharpCollectionElementTargetType,
   isSourceOwnedCallableRuntimeCarrierSubject,
   isSourceOwnedProjectReference,
   targetTypeRefKey,
@@ -147,7 +149,7 @@ export function analyzeCsharpConversions(
         classifyExpression(node, candidate, targetType, "implicit",
           expectedTypes.requiresExactIntegerConversion(node, targetType));
       }
-      classifyArrayCarrier(node, targetType, expectedTypes);
+      classifyArrayCarrier(node, targetType, expectedTypes, operations, storage);
     }
     if (
       sourceType !== undefined &&
@@ -237,6 +239,8 @@ export function analyzeCsharpConversions(
     node: Node,
     targetType: TargetTypeRef,
     expectedTypes: CsharpExpectedTypeClassifications,
+    operations: CsharpTargetOperationClassifications,
+    storage: CsharpStorageRepresentationClassifications,
   ): void {
     if (!policy.ast.is.IsArrayLiteralExpression(node)) {
       return;
@@ -247,6 +251,19 @@ export function analyzeCsharpConversions(
       "implicit",
       node,
     );
+    const elementTarget = getCsharpArrayLiteralElementTargetType(targetType);
+    if (elementTarget === undefined) return;
+    for (const contribution of policy.ast.elements(node)) {
+      if (contribution === undefined || !policy.ast.is.IsSpreadElement(contribution)) continue;
+      const operand = policy.ast.as.AsSpreadElement(contribution)?.Expression;
+      if (operand === undefined) continue;
+      for (const carrier of exactSourceTypes(operand, operations, storage)) {
+        const element = getCsharpCollectionElementTargetType(carrier);
+        for (const source of carrier.kind === "tuple" ? carrier.elements : element === undefined ? [] : [element]) {
+          classifyPair(source, elementTarget, "implicit", contribution);
+        }
+      }
+    }
   }
 
   function classifyUndefinedInitializer(node: Node): void {

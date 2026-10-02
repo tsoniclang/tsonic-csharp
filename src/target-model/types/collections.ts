@@ -54,6 +54,7 @@ export function csharpListTargetType(elementType: TargetTypeRef): CsharpTargetNa
       enumerableElementType: elementType,
       readOnlyIndexableElementType: elementType,
       denseMutableElementType: elementType,
+      arrayLiteralBuilder: { appendElementMethod: "Add", capacityConstructor: true },
       indexableLengthMemberName: "Count",
       collectionSemantics: "dense",
     },
@@ -116,6 +117,12 @@ export function getCsharpArrayLiteralElementTargetType(type: TargetTypeRef | und
 export function getCsharpArrayLiteralConstructionTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
   return type?.kind === "target-named"
     ? (type as CsharpTargetNamedTypeRef).csharpArrayLiteralConstructionType
+    : undefined;
+}
+
+export function getCsharpArrayLiteralBuilder(type: TargetTypeRef | undefined): CsharpTargetNamedTypeRef["csharpArrayLiteralBuilder"] {
+  return type?.kind === "target-named"
+    ? (type as CsharpTargetNamedTypeRef).csharpArrayLiteralBuilder
     : undefined;
 }
 

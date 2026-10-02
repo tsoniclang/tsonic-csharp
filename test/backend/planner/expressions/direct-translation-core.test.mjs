@@ -29,12 +29,21 @@ test("direct C# translation preserves authored primitive aliases and array carri
         private static object? __tsonic_module_init_core()
         {
             tail = new int[] { 2, 3 };
-            values = Tsonic.CSharp.Runtime.ArrayHelpers.Concat(new int[] { 1 }, tail);
+            values = __tsonic_array_spread_121_134(1, tail);
             return null;
         }
         public static void __tsonic_module_init()
         {
             _ = __tsonic_module_initialization.Value;
+        }
+        private static int[] __tsonic_array_spread_121_134(int source0, int[] source1)
+        {
+            int[] result = new int[checked(0 + 1 + source1.Length)];
+            int position = 0;
+            result[position++] = source0;
+            System.Array.Copy(source1, 0, result, position, source1.Length);
+            position += source1.Length;
+            return result;
         }
     }
 }

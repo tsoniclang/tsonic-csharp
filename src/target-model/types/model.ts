@@ -208,6 +208,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpStructuralContract?: true;
   readonly csharpArrayLiteralElementType?: TargetTypeRef;
   readonly csharpArrayLiteralConstructionType?: TargetTypeRef;
+  readonly csharpArrayLiteralBuilder?: { readonly appendElementMethod: string; readonly capacityConstructor: boolean };
   readonly csharpImplicitArrayInputElementType?: TargetTypeRef;
   readonly csharpEnumerableElementType?: TargetTypeRef;
   readonly csharpArrayLikeElementType?: TargetTypeRef;
