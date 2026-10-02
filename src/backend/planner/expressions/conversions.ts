@@ -16,12 +16,11 @@ import {
   getCsharpNullableElementTargetType,
   getCsharpGenericOptionalParts,
   getCsharpRuntimeUnionArms,
-  getCsharpDelegateSignature,
   isCsharpNullableReferenceTargetType,
   targetTypeRefEquals,
+  isCsharpAbsenceTargetType,
 } from "../../../target-model/types/index.js";
 import type {
-  CsharpArgument,
   CsharpExpression,
   CsharpTypeNode,
 } from "../../target-ast/roslyn/index.js";
@@ -50,8 +49,9 @@ import {
 import { planCsharpEmptyRecordConversion } from "./empty-record-conversion.js";
 import { planCsharpRuntimeUnionProjection } from "./runtime-union-projections.js";
 import { planCsharpUnionMapping } from "./union-mappings.js";
-import { planCsharpVoidReturn } from "../statements/statement-output.js";
 import { csharpUnsignedIntegerCounterpart } from "../../../target-model/conversions/integer-refinement.js";
+import { planCsharpDelegateAdapter } from "./delegate-adapters.js";
+import { planCsharpAbsentValue } from "./optional-storage.js";
 
 export function readCsharpConversionClassification(
   node: Node,
@@ -165,6 +165,22 @@ export function applyCsharpConversionSelection(
     }
     case "identity":
       return expression;
+    case "absence": {
+      const source = sourceType === undefined ? undefined
+        : csharpTypeFromTargetTypeRef(sourceType, input.scope.typeParameterNames);
+      const absent = targetType === undefined ? undefined
+        : planCsharpAbsentValue(targetType, input.scope.typeParameterNames);
+      if (!isCsharpAbsenceTargetType(sourceType) || source === undefined || absent === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(node,
+          "An absence conversion requires its exact source and destination storage contracts."));
+        return undefined;
+      }
+      return expression.kind === "DefaultExpression" ||
+        expression.kind === "LiteralExpression" && expression.value === null ? absent : {
+          kind: "SwitchExpression", expression: { kind: "CastExpression", type: source, expression },
+          arms: [{ pattern: { kind: "DiscardPattern" }, expression: absent }],
+        };
+    }
     case "array-like-union": {
       const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
       if (type === undefined) return undefined;
@@ -288,7 +304,7 @@ export function applyCsharpConversionSelection(
           };
     }
     case "delegate-adapter":
-      return applyDelegateAdapter(
+      return planCsharpDelegateAdapter(
         node,
         sourceFile,
         input,
@@ -297,6 +313,7 @@ export function applyCsharpConversionSelection(
         targetType,
         selection,
         expression,
+        applyCsharpConversionSelection,
       );
     case "provider-argument-adapter":
       return applyProviderArgumentAdapter(
@@ -551,115 +568,6 @@ function applyRuntimeUnionArmConversion(
   };
 }
 
-function applyDelegateAdapter(
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  sourceType: TargetTypeRef | undefined,
-  targetType: TargetTypeRef | undefined,
-  selection: Extract<CsharpConversionSelection, { readonly kind: "delegate-adapter" }>,
-  expression: CsharpExpression,
-): CsharpExpression | undefined {
-  const sourceSignature = getCsharpDelegateSignature(sourceType);
-  const targetSignature = getCsharpDelegateSignature(targetType);
-  if (
-    sourceSignature === undefined ||
-    targetSignature === undefined ||
-    sourceSignature.parameters.length > targetSignature.parameters.length ||
-    selection.parameterConversions.length !== sourceSignature.parameters.length
-  ) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "C# delegate adaptation requires exact source and target delegate signatures.",
-    ));
-    return undefined;
-  }
-  const parameters = targetSignature.parameters.map((parameterType, index) => {
-    const type = csharpTypeFromTargetTypeRef(parameterType, input.scope.typeParameterNames);
-    return type === undefined
-      ? undefined
-      : {
-          kind: "Parameter" as const,
-          name: `__tsonic_arg${index}`,
-          type,
-        };
-  });
-  if (parameters.some((parameter) => parameter === undefined)) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "C# delegate adaptation requires renderable exact target parameter types.",
-    ));
-    return undefined;
-  }
-  const arguments_: CsharpArgument[] = [];
-  for (let index = 0; index < sourceSignature.parameters.length; index += 1) {
-    const parameter = parameters[index]!;
-    const converted = applyCsharpConversionSelection(
-      node,
-      sourceFile,
-      input,
-      diagnostics,
-      targetSignature.parameters[index],
-      sourceSignature.parameters[index],
-      selection.parameterConversions[index]!,
-      { kind: "IdentifierName", name: parameter.name },
-    );
-    if (converted === undefined) {
-      return undefined;
-    }
-    arguments_.push({ kind: "Argument", expression: converted });
-  }
-  let callableExpression = expression;
-  if (expression.kind === "LambdaExpression") {
-    if (sourceType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        "C# delegate adaptation requires an exact source delegate type for an authored lambda.",
-      ));
-      return undefined;
-    }
-    const sourceDelegateType = csharpTypeFromTargetTypeRef(sourceType, input.scope.typeParameterNames);
-    if (sourceDelegateType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        "C# delegate adaptation requires a renderable exact source delegate type for an authored lambda.",
-      ));
-      return undefined;
-    }
-    callableExpression = {
-      kind: "CastExpression",
-      type: sourceDelegateType,
-      expression,
-    };
-  }
-  const invocation: CsharpExpression = {
-    kind: "InvocationExpression",
-    callee: callableExpression,
-    arguments: arguments_,
-  };
-  const body = selection.returnConversion.kind === "void-return"
-    ? { kind: "Block" as const, statements: planCsharpVoidReturn(invocation, "absence",
-      targetSignature.returnType, input.scope.typeParameterNames) }
-    : applyCsharpConversionSelection(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    sourceSignature.returnType,
-    targetSignature.returnType,
-    selection.returnConversion,
-    invocation,
-  );
-  if (body === undefined) {
-    return undefined;
-  }
-  return {
-    kind: "LambdaExpression",
-    parameters: parameters as NonNullable<(typeof parameters)[number]>[],
-    body,
-  };
-}
 
 function invokeStaticGeneric(
   typeParameterNames: ReadonlyMap<string, string> | undefined,

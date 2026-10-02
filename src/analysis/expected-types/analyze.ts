@@ -295,7 +295,16 @@ export function analyzeCsharpExpectedTypes(
 
   function callableContextTarget(declaration: Node, target: TargetTypeRef): TargetTypeRef | undefined {
     const value = getCsharpNullableElementTargetType(target) ?? target;
-    if (getCsharpDelegateSignature(value) !== undefined) return value;
+    const signature = getCsharpDelegateSignature(value);
+    if (signature !== undefined) {
+      const callable = callables.get({ kind: "declaration", declaration });
+      if (callable !== undefined && HasSyntacticModifier(policy.ast, declaration, ModifierFlagsAsync) &&
+        getCsharpTaskResultTargetType(callable.returnType) !== undefined &&
+        getCsharpTaskResultTargetType(signature.returnType) === undefined) {
+        return csharpCallableValueType(callable);
+      }
+      return value;
+    }
     const arms = getCsharpRuntimeUnionArms(value, policy.typeDefinitions);
     if (arms === undefined) return undefined;
     const callable = callables.get({ kind: "declaration", declaration });

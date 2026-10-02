@@ -214,6 +214,7 @@ export function csharpConversionIsApplicable(
 ): boolean {
   if (selection.kind === "nullable-map") return csharpConversionIsApplicable(selection.conversion, mode);
   return selection.kind === "identity" ||
+    selection.kind === "absence" ||
     selection.kind === "union-map" && (selection.coverage === "source" || mode === "explicit") ||
     selection.kind === "never" ||
     selection.kind === "checked-native-integer" ||

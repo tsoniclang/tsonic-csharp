@@ -471,15 +471,16 @@ export function getLambdaTargetContext(
   if (!HasSourceKind(input.program.source.ast, node, KindArrowFunction) && !HasSourceKind(input.program.source.ast, node, KindFunctionExpression)) {
     return undefined;
   }
-  const expectedTargetContext = lambdaTargetContextFromTargetRef(input.scope.typeParameterNames, expectedTargetType);
-  if (expectedTargetContext !== undefined) {
-    return expectedTargetContext;
+  const selected = lambdaTargetContextFromTargetRef(input.scope.typeParameterNames,
+    input.program.expectedTypes.callableTarget(node));
+  if (selected !== undefined) {
+    return selected;
   }
   void sourceFile;
   void expectedType;
   return lambdaTargetContextFromTargetRef(
     input.scope.typeParameterNames,
-    input.program.expectedTypes.callableTarget(node),
+    expectedTargetType,
   );
 }
 

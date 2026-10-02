@@ -99,6 +99,7 @@ export function createCsharpSourceNameResolver(
     temporaryName(preferred: string): string {
       let name = preferred;
       while (sourceNames.has(name)) name = `_${name}`;
+      sourceNames.add(name);
       return name;
     },
   });

@@ -8,8 +8,8 @@ import {
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   isCsharpJsValueTargetType,
-  isCsharpNullableReferenceTargetType,
   isCsharpAbsenceTargetType,
+  isCsharpNullableReferenceTargetType,
   isCsharpValueTypeTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
@@ -148,11 +148,6 @@ export function selectNullableConversion(
   const sourceElement = getCsharpNullableElementTargetType(source);
   const targetElement = getCsharpNullableElementTargetType(target);
   if (targetElement !== undefined) {
-    if (
-      isCsharpAbsenceTargetType(source)
-    ) {
-      return { kind: "implicit", proof: "nullable" };
-    }
     const elementConversion = selectCsharpConversion(
       input,
       sourceElement ?? source,

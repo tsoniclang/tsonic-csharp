@@ -10,6 +10,7 @@ import {
   isCsharpVoidTargetType,
 } from "./identity.js";
 import { csharpCarrierAdmitsSourceAbsence } from "./runtime-carriers.js";
+import { targetTypeRefEquals } from "./equality.js";
 import {
   csharpQualifiedTypeRenderShape,
 } from "./render-shapes.js";
@@ -101,4 +102,16 @@ export function getCsharpDelegateSignature(type: TargetTypeRef | undefined): Csh
   return type?.kind === "target-named"
     ? (type as Partial<CsharpDelegateTargetTypeRef>).csharpDelegateSignature
     : undefined;
+}
+
+export function isCsharpSourceDelegateTargetType(type: TargetTypeRef | undefined): boolean {
+  const value = getCsharpNullableElementTargetType(type) ?? type;
+  const signature = getCsharpDelegateSignature(value);
+  if (value === undefined || signature === undefined || signature.returnPassing !== undefined) return false;
+  return targetTypeRefEquals(value, csharpDelegateTargetType(
+    isCsharpVoidTargetType(signature.returnType) ? "System.Action" : "System.Func",
+    signature.parameters,
+    isCsharpVoidTargetType(signature.returnType) ? undefined : signature.returnType,
+    signature,
+  ));
 }

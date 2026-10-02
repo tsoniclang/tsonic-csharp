@@ -52,4 +52,6 @@ test("C# source name resolution retains authored case across declarations and re
   assert.equal(names.temporaryName("fooBar"), "_fooBar");
   assert.equal(names.temporaryName("moduleValue"), "_moduleValue");
   assert.equal(names.temporaryName("helperValue"), "helperValue");
+  assert.equal(names.temporaryName("helperValue"), "_helperValue");
+  assert.equal(names.temporaryName("helperValue"), "__helperValue");
 });

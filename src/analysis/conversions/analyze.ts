@@ -13,6 +13,7 @@ import {
   getCsharpGeneratorProtocol,
   getCsharpJsArrayElementTargetType,
   isSourceOwnedCallableRuntimeCarrierSubject,
+  isSourceOwnedProjectReference,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
 import {
@@ -56,12 +57,14 @@ export function analyzeCsharpConversions(
     Map<string, CsharpConversionSelection>
   >();
   const issues: CsharpConversionIssue[] = [];
+  const directCallables = new WeakMap<Node, NonNullable<ReturnType<CsharpPolicyContext["navigation"]["referenceFor"]>>>();
   let classificationCount = 0;
   let closed = false;
   let sealedClassifications: CsharpConversionClassifications | undefined;
 
   const openClassifications: CsharpConversionClassifications = {
     issues,
+    directCallableReference: expression => directCallables.get(expression),
     matchesUnionProjection: (source, target, selection) => csharpRuntimeUnionProjectionMatches(policy, source, target, selection),
     select(source, target, mode) {
       if (source === undefined || target === undefined) {
@@ -103,6 +106,7 @@ export function analyzeCsharpConversions(
       const sealedIssues = Object.freeze([...issues]);
       const sealed: CsharpConversionClassifications = {
         issues: sealedIssues,
+        directCallableReference: openClassifications.directCallableReference,
         matchesUnionProjection: openClassifications.matchesUnionProjection,
         select(source, target, mode) {
           if (source === undefined || target === undefined) {
@@ -527,6 +531,13 @@ export function analyzeCsharpConversions(
       return undefined;
     }
     const sourceFile = policy.ast.getSourceFile(expression);
+    const reference = policy.navigation.referenceFor(expression);
+    if (reference !== undefined && isSourceOwnedProjectReference(reference, policy) &&
+      policy.ast.is.IsFunctionDeclaration(reference.declaration) &&
+      policy.ast.is.IsSourceFile(policy.ast.parent(reference.declaration)) &&
+      !policy.navigation.declarationUseSummary(reference.declaration).bindingWritten) {
+      directCallables.set(expression, Object.freeze({ ...reference }));
+    }
     let candidate = selectCsharpIntegerTruncationConversion(policy, expression, sourceFile, source, target) ?? selectCsharpExpressionConversion(
       policy,
       expression,

@@ -19,6 +19,7 @@ export type CsharpConversionSelection =
   | { readonly kind: "exact-integer"; readonly input: TargetTypeRef; readonly output: TargetTypeRef; readonly nullable: boolean }
   | { readonly kind: "integer-truncation"; readonly signed: boolean; readonly width: number }
   | { readonly kind: "identity" }
+  | { readonly kind: "absence" }
   | { readonly kind: "array-like-union"; readonly arms: readonly TargetTypeRef[] }
   | { readonly kind: "runtime-union-reference"; readonly arms: readonly TargetTypeRef[]; readonly target: TargetTypeRef }
   | { readonly kind: "empty-record"; readonly source: TargetTypeRef; readonly target: TargetTypeRef }

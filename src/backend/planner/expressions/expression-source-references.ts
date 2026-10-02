@@ -15,15 +15,13 @@ import {
   KindPropertyDeclaration,
   KindSetAccessor,
   KindVariableDeclaration,
-  Node_Name,
   Node_Text,
 } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
-import { requireCsharpIdentifier, sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
-import { planIdentifierName } from "../names/source-identifiers.js";
+import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import {
   getCsharpLocalBindingName,
 } from "../bindings/index.js";
@@ -35,6 +33,7 @@ import type {
 } from "../bindings/index.js";
 import { isProviderVirtualSourceFile } from "../program/provider-virtual-source-files.js";
 import { sourceFileClassName } from "../artifacts/source-paths.js";
+import { planCsharpSourceModuleMemberName, planCsharpSourceModuleValueReference } from "../bindings/module-values.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -211,7 +210,7 @@ export function planProjectSourceModuleMemberReference(
   if (isModuleTypeValueDeclaration(sourceReference.declaration, input)) {
     return {
       kind: "IdentifierName",
-      name: planProjectSourceModuleMemberName(sourceReference.declaration, input, diagnostics),
+      name: planCsharpSourceModuleMemberName(sourceReference.declaration, input, diagnostics),
     };
   }
   if (isNestedProjectSourceMemberDeclaration(sourceReference.declaration, input)) {
@@ -233,17 +232,7 @@ export function planProjectSourceModuleMemberReference(
   ) {
     return undefined;
   }
-  return {
-    kind: "SimpleMemberAccessExpression",
-    receiver: {
-      kind: "IdentifierName",
-      name: sourceFileClassName(
-        input,
-        input.program.source.ast.getFileName(sourceReference.sourceFile),
-      ),
-    },
-    name: planProjectSourceModuleMemberName(sourceReference.declaration, input, diagnostics),
-  };
+  return planCsharpSourceModuleValueReference(sourceReference, node, sourceFile, input, diagnostics);
 }
 
 export function tryPlanProjectSourceModuleStaticMemberReference(
@@ -277,7 +266,7 @@ export function tryPlanProjectSourceModuleStaticMemberReference(
         input.program.source.ast.getFileName(sourceReference.sourceFile),
       ),
     },
-    name: planProjectSourceModuleMemberName(sourceReference.declaration, input, diagnostics),
+    name: planCsharpSourceModuleMemberName(sourceReference.declaration, input, diagnostics),
   };
 }
 
@@ -370,9 +359,9 @@ function tryPlanProjectSourceTypeMemberReference(
     kind: "SimpleMemberAccessExpression",
     receiver: input.scope.classValues?.get(receiverReference.declaration) ?? {
       kind: "IdentifierName",
-      name: planProjectSourceModuleMemberName(receiverReference.declaration, input, diagnostics),
+      name: planCsharpSourceModuleMemberName(receiverReference.declaration, input, diagnostics),
     },
-    name: planProjectSourceModuleMemberName(selectedMemberReference.declaration, input, diagnostics),
+    name: planCsharpSourceModuleMemberName(selectedMemberReference.declaration, input, diagnostics),
   };
 }
 
@@ -392,23 +381,6 @@ function isNestedProjectSourceMemberDeclaration(declaration: Node, input: Csharp
   return HasSourceKind(input.program.source.ast, parent, KindClassDeclaration) ||
     HasSourceKind(input.program.source.ast, parent, KindEnumDeclaration) ||
     HasSourceKind(input.program.source.ast, parent, KindInterfaceDeclaration);
-}
-
-function planProjectSourceModuleMemberName(
-  declaration: Node,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-): string {
-  if (HasSourceKind(input.program.source.ast, declaration, KindExportAssignment)) {
-    return sanitizeIdentifier("default");
-  }
-  return planIdentifierName(
-    Node_Name(input.program.source.ast, declaration),
-    "InvalidCrossFileReference",
-    input,
-    diagnostics,
-    "Cross-file source reference",
-  );
 }
 
 function getProjectSourceReferenceForPropertyAccessName(

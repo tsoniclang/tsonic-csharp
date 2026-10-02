@@ -8,6 +8,8 @@ import {
   getCsharpTaskResultTargetType,
   isCsharpNeverTargetType,
   isCsharpVoidTargetType,
+  isCsharpAbsenceTargetType,
+  csharpCarrierAdmitsSourceAbsence,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../../target-model/types/index.js";
@@ -41,6 +43,9 @@ export function selectCsharpConversion(
   }
   if (targetTypeRefEquals(source, target)) {
     return { kind: "identity" };
+  }
+  if (isCsharpAbsenceTargetType(source) && csharpCarrierAdmitsSourceAbsence(target)) {
+    return { kind: "absence" };
   }
   if (isCsharpNeverTargetType(source) && !isCsharpVoidTargetType(target)) {
     return { kind: "never" };
@@ -205,6 +210,7 @@ export function conversionIsImplicitlyApplicable(
     return conversionIsImplicitlyApplicable(selection.sourceToArm);
   }
   return selection.kind === "identity" ||
+    selection.kind === "absence" ||
     selection.kind === "union-map" && selection.coverage === "source" ||
     selection.kind === "integer-truncation" ||
     selection.kind === "empty-record" ||

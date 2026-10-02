@@ -17,6 +17,7 @@ import {
   isCsharpJsValueTargetType,
 } from "../../../target-model/types/runtime-carriers.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
+import { isCsharpSourceDelegateTargetType } from "../../../target-model/types/delegates.js";
 
 export function isTypeParameterTargetRef(
   type: TargetTypeRef | undefined,
@@ -44,6 +45,7 @@ export function isSourceOwnedCallableRuntimeCarrierSubject(
   return (isCsharpDelegateTargetRef(carrier) || getCsharpMethodValue(carrier) !== undefined) &&
     (
       isDirectSourceCallableSyntax(node, input) ||
+      isSourceCallableResult(node, sourceFile, carrier, input) ||
       isSourceDeclaredCallableReference(reference, input) ||
       (
         isSourceOwnedProjectReference(reference, input) &&
@@ -51,6 +53,24 @@ export function isSourceOwnedCallableRuntimeCarrierSubject(
         input.ast.is.IsBindingElement(reference.declaration)
       )
     );
+}
+
+function isSourceCallableResult(
+  node: Node,
+  sourceFile: SourceFile,
+  carrier: TargetTypeRef | undefined,
+  input: CsharpPolicyContext,
+): boolean {
+  if (!input.ast.is.IsCallExpression(node) || !isCsharpSourceDelegateTargetType(carrier)) return false;
+  const semantics = input.semantics(sourceFile);
+  const call = semantics.operations.call(node);
+  if (call?.sourceSelectedSignatureKind !== "resolved") return false;
+  const declaration = semantics.declarations.signatureDeclaration(call.selectedSignature);
+  const file = declaration === undefined ? undefined : input.ast.getSourceFile(declaration);
+  return declaration !== undefined && file !== undefined &&
+    input.navigation.isProjectDeclaration(declaration) &&
+    input.sourceFiles.includes(file) && !input.ast.isDeclarationFile(file) &&
+    !hasProviderOwnedSubject(file, input) && !hasProviderOwnedSubject(declaration, input);
 }
 
 export function isSourceOwnedProjectShapeSubject(

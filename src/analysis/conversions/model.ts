@@ -1,4 +1,5 @@
 import type { Node } from "@tsonic/tsts";
+import type { SourceProjectReference } from "@tsonic/target-api/source";
 import type {
   CsharpConversionMode,
   CsharpConversionSelection,
@@ -22,6 +23,7 @@ export interface CsharpConversionIssue {
 
 export interface CsharpConversionClassifications {
   readonly issues: readonly CsharpConversionIssue[];
+  directCallableReference(expression: Node): SourceProjectReference | undefined;
   matchesUnionProjection(
     source: TargetTypeRef | undefined, target: TargetTypeRef | undefined,
     selection: Extract<CsharpConversionSelection, { readonly kind: "runtime-union-projection" }>,
