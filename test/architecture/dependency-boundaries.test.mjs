@@ -193,12 +193,13 @@ test("expected-result specializations are classified by exact target use", () =>
   const planner = readFileSync(
     resolve(
       repositoryRoot,
-      "src/backend/planner/expressions/operators/nullish-expected-type.ts",
+      "src/backend/planner/expressions/operators/binary-expected-type.ts",
     ),
     "utf8",
   );
   assert.match(planner, /program\.expectedTypes\.binaryExpected/u);
   assert.doesNotMatch(planner, /selectCsharpBinaryOperation/u);
+  assert.doesNotMatch(planner, /selectExpectedResultType|sameCsharpType|expectedResultCompatible/u);
 });
 
 test("C# analysis walks only the host-selected project source graph", () => {

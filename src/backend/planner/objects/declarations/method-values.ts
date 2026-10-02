@@ -5,7 +5,7 @@ import type { CsharpTypeMember } from "../../../target-ast/roslyn/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { objectShapeStorageMemberName } from "../object-shape-storage.js";
 import { csharpNullableTargetType } from "../../../../target-model/types/nullable.js";
-import { csharpObjectShapeMethodDeclaration } from "../../../../policy/types/objects/object-shape-policy/method-implementations.js";
+import { csharpObjectShapeMethodDeclaration } from "../../../../target-model/types/method-values.js";
 import { csharpPresentObjectShapeMethod } from "../../../../target-model/types/method-values.js";
 
 export function renderCsharpMethodValueContracts(
@@ -43,7 +43,7 @@ export function renderCsharpMethodValueContracts(
       members.push({ kind: "PropertyDeclaration", name: objectShapeStorageMemberName(contract, required),
         explicitInterface, modifiers: [], type: memberType, getter: { kind: "Block", statements: [{
           kind: "ReturnStatement", expression: { kind: "IdentifierName", name: nativeMethod && selected.methodStorageType === undefined &&
-            csharpObjectShapeMethodDeclaration(shape, selected, input.program.source.ast) !== undefined
+            csharpObjectShapeMethodDeclaration(shape, selected) !== undefined
             ? "this" : objectShapeStorageMemberName(shape, selected) },
         }] } });
     }

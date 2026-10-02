@@ -45,6 +45,7 @@ import { resolveProviderObjectLiteralShape } from "./provider-construction.js";
 import { createCsharpStructuralUnionDefinitions } from "./union-definitions.js";
 import { selectCsharpObjectMethodImplementation } from "./method-implementations.js";
 import { csharpCopiedObjectShapeMembers, csharpMethodEnvironment, retainCsharpMethodValueContracts } from "./method-values.js";
+import { csharpObjectShapeMethodRequiresProtocol } from "../../../../target-model/types/method-values.js";
 import { parameterizeCsharpStructuralContract } from "./structural-contracts.js";
 
 import type {
@@ -261,7 +262,7 @@ export function createCsharpObjectShapePolicy(
       host.ast.is.IsMethodDeclaration(property) && (host.ast.typeParameters(property).length > 0 ||
         expectedShape.members.some(member => member.optional === true && member.sourceSubjects?.includes(property))));
     const copiedMethods = host.ast.properties(objectLiteral).some(property => property !== undefined &&
-      host.ast.is.IsSpreadAssignment(property)) && expectedShape.members.some(member => member.methodValueContract !== undefined);
+      host.ast.is.IsSpreadAssignment(property)) && expectedShape.members.some(csharpObjectShapeMethodRequiresProtocol);
     const ownsImplementation = expectedShape.methodImplementation?.declaration === objectLiteral;
     if (accessors.kind === "none" && implemented === expectedShape.implements &&
       (!nativeMethodLiteral || ownsImplementation) && !copiedMethods) {
@@ -495,7 +496,7 @@ export function createCsharpObjectShapePolicy(
     ) {
       return shape;
     }
-    shape = retainCsharpMethodValueContracts(shape, rememberTargetShape, host.ast);
+    shape = retainCsharpMethodValueContracts(shape, rememberTargetShape);
     if (shape.declarationTemplate !== undefined) rememberTargetShape(shape.declarationTemplate);
     const key = targetTypeRefKey(shape.targetType);
     const existing = targetShapes.get(key);

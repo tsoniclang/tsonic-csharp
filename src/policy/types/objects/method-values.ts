@@ -2,7 +2,7 @@ import type { ExtensionFactSubject } from "@tsonic/tsts";
 import type { CsharpTypePolicyHost } from "../resolution/model.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
-import { csharpMethodValueType, csharpPresentObjectShapeMethod } from "../../../target-model/types/method-values.js";
+import { csharpMethodValueType, csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } from "../../../target-model/types/method-values.js";
 import { csharpSourceMemberKeyParts } from "../../../target-model/types/source-member-keys.js";
 import { csharpMethodEnvironment } from "./object-shape-policy/method-values.js";
 import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
@@ -17,9 +17,7 @@ export function selectCsharpMethodValue(
   if (member.kind !== "resolved" || member.member.memberKind !== "method" || member.member.methodValueContract === undefined) return undefined;
   if (directCall && member.member.optional !== true) return undefined;
   if (member.member.methodStorageType === undefined && shape.methodImplementation !== undefined) {
-    const declarations = member.member.sourceDeclarations?.filter(declaration =>
-      host.ast.parent(declaration) === shape.methodImplementation!.declaration && host.ast.body(declaration) !== undefined);
-    if (declarations?.length !== 1) return undefined;
+    if (csharpObjectShapeMethodDeclaration(shape, member.member) === undefined) return undefined;
   } else if (member.member.methodStorageType === undefined && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true &&
     (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") return undefined;
   const environment = csharpMethodEnvironment(shape, member.member);

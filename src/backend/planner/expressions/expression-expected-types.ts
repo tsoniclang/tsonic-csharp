@@ -208,7 +208,6 @@ export function planExpressionWithExpectedTypeCore(
       sourceFile,
       input,
       diagnostics,
-      expectedType,
       effectiveExpectedTargetType,
       planners.planExpression,
       planners.planExpressionWithExpectedType,

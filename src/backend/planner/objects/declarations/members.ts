@@ -37,8 +37,7 @@ import {
 } from "../../../../target-model/types/index.js";
 import { renderCsharpStructuralInterfaceMembers } from "./structural-interfaces.js";
 import { csharpNullableTargetType } from "../../../../target-model/types/nullable.js";
-import type { AstReader } from "@tsonic/tsts";
-import { csharpObjectShapeMethodDeclaration } from "../../../../policy/types/objects/object-shape-policy/method-implementations.js";
+import { csharpObjectShapeMethodDeclaration } from "../../../../target-model/types/method-values.js";
 
 export function renderObjectShapeMembers(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
@@ -48,12 +47,11 @@ export function renderObjectShapeMembers(
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
   storage: CsharpStorageClassifications,
-  ast: AstReader,
 ): CsharpClassDeclaration["members"] | undefined {
   const members = canonicalCsharpObjectShapeMembers(fact.members).flatMap((member) => {
     if ((member.typeParameters?.length ?? 0) > 0 || member.methodValueContract !== undefined) {
       if (member.methodStorageType !== undefined) return renderCopiedGenericMethod(typeParameterNames, fact, member, storage);
-      if (csharpObjectShapeMethodDeclaration(fact, member, ast) !== undefined) return [];
+      if (csharpObjectShapeMethodDeclaration(fact, member) !== undefined) return [];
       if (member.optional === true && member.methodValueContract !== undefined) {
         const type = csharpTypeFromTargetTypeRef(csharpNullableTargetType(member.methodValueContract), typeParameterNames);
         return type === undefined ? [undefined] : [{ kind: "FieldDeclaration" as const, name: objectShapeStorageMemberName(fact, member),

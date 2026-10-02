@@ -309,7 +309,6 @@ function renderObjectShapeDeclaration(
     undefined,
     undefined,
     input.program.storage,
-    input.program.source.ast,
   );
   const methodValues = renderCsharpMethodValueContracts(fact, input);
   const genericMethods = renderCsharpAuthoredObjectMethods(fact, input, diagnostics);

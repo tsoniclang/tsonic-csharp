@@ -13,6 +13,9 @@ export function csharpObjectShapesEqual(
     JSON.stringify(left.covariantTypeParameterIdentities ?? []) === JSON.stringify(right.covariantTypeParameterIdentities ?? []) &&
     left.methodImplementation?.identity === right.methodImplementation?.identity &&
     left.methodImplementation?.declaration === right.methodImplementation?.declaration &&
+    (left.methodImplementation?.methods.length ?? 0) === (right.methodImplementation?.methods.length ?? 0) &&
+    (left.methodImplementation?.methods ?? []).every((declaration, index) =>
+      declaration === right.methodImplementation?.methods[index]) &&
     (left.methodImplementation?.captures.length ?? 0) === (right.methodImplementation?.captures.length ?? 0) &&
     (left.methodImplementation?.captures ?? []).every((capture, index) => {
       const other = right.methodImplementation?.captures[index];

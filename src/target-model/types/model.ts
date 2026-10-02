@@ -54,6 +54,7 @@ export interface CsharpObjectShapeFact {
   readonly methodImplementation?: {
     readonly declaration: Node;
     readonly identity: string;
+    readonly methods: readonly Node[];
     readonly captures: readonly {
       readonly declaration: Node;
       readonly reference: Node;

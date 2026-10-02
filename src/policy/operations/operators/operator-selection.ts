@@ -4,7 +4,7 @@ import { selectCsharpGuardedIntegerPromotion } from "../numeric/guarded.js";
 import type { CsharpReferenceEquality, CsharpUnionEqualityArm } from "../../../target-model/operations/binary.js";
 import { csharpReferenceIdentityCarrier, selectCsharpReferenceEquality } from "./reference-equality.js";
 import { selectCsharpUnionEquality } from "./union-equality.js";
-import { csharpConversionIsApplicable, selectCsharpConversion, selectCsharpExpressionConversion } from "../../conversions/selection.js";
+import { csharpConversionIsApplicable, selectCsharpExpressionConversion } from "../../conversions/selection.js";
 import type {
   Node,
   SourceFile,
@@ -53,7 +53,6 @@ export interface CsharpResolvedBinaryOperation {
   readonly leftInputType: TargetTypeRef;
   readonly rightInputType: TargetTypeRef;
   readonly resultType: TargetTypeRef;
-  readonly expectedResultCompatible: boolean;
 }
 
 export type CsharpTargetBinaryOperation =
@@ -208,7 +207,7 @@ export function selectCsharpBinaryOperands(
           location: direct ? "direct" : receiverType !== undefined && csharpReferenceIdentityCarrier(receiverType, input) !== undefined
             ? "reference-receiver" : "unsupported" },
         left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType,
-        resultType: leftType, expectedResultCompatible: expectedResultType !== undefined && targetTypeRefEquals(leftType, expectedResultType),
+        resultType: leftType,
       };
     }
   }
@@ -221,7 +220,7 @@ export function selectCsharpBinaryOperands(
       kind: "resolved", sourceOperator, targetOperation: { kind: "array-index-presence" },
       left, right, leftType, rightType,
       leftInputType: csharpSourcePrimitiveTargetType("float64"), rightInputType: rightType,
-      resultType, expectedResultCompatible: expectedResultType !== undefined && targetTypeRefEquals(resultType, expectedResultType),
+      resultType,
     };
   }
   const nullishTest = selectNullishTest(sourceOperator, leftType, rightType, input.typeDefinitions);
@@ -233,7 +232,7 @@ export function selectCsharpBinaryOperands(
     return Object.freeze({ kind: "resolved", sourceOperator,
       targetOperation: Object.freeze({ kind: "union-equality", negated: sourceOperator === "!==", arms }),
       left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType, resultType,
-      expectedResultCompatible: expectedResultType !== undefined && targetTypeRefEquals(resultType, expectedResultType) });
+    });
   }
   const stringRelational = selectStringRelational(
     sourceOperator,
@@ -305,8 +304,6 @@ export function selectCsharpBinaryOperands(
         input,
       )
     : undefined;
-  const expectedConversion = expectedResultType === undefined ? undefined :
-    selectCsharpConversion(input, operationTypes.resultType, expectedResultType, "implicit");
   return incompatibility === undefined
     ? {
         kind: "resolved",
@@ -320,8 +317,6 @@ export function selectCsharpBinaryOperands(
         leftType,
         rightType,
         ...operationTypes,
-        expectedResultCompatible: expectedConversion?.kind === "identity" ||
-          expectedConversion?.kind === "implicit" && expectedConversion.proof !== "runtime-union-arm",
       }
     : rejected(incompatibility);
 }

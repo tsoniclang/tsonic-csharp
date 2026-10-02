@@ -13,7 +13,7 @@ import { getCsharpLocalBindingName } from "../../bindings/binding-state.js";
 import { csharpCapturedBindingExpression, csharpCaptureFrameExpression } from "../../bindings/capture-storage.js";
 import { requireCsharpIdentifier } from "../../../../target-model/names/identifiers.js";
 import { objectShapeStorageMemberName } from "../object-shape-storage.js";
-import { csharpObjectShapeMethodDeclaration } from "../../../../policy/types/objects/object-shape-policy/method-implementations.js";
+import { csharpObjectShapeMethodDeclaration } from "../../../../target-model/types/method-values.js";
 
 interface ObjectCaptureField {
   readonly name: string;
@@ -68,7 +68,7 @@ export function renderCsharpAuthoredObjectMethods(
   const context = createCsharpThisBindingPlanningContext({ ...input, scope: { ...input.scope, capturedBindings, captureFrames } }, "this", shape.targetType);
   for (const member of shape.members) {
     if (member.memberKind !== "method" || member.methodValueContract === undefined || member.methodStorageType !== undefined) continue;
-    const declaration = csharpObjectShapeMethodDeclaration(shape, member, input.program.source.ast);
+    const declaration = csharpObjectShapeMethodDeclaration(shape, member);
     if (declaration === undefined) {
       if (member.optional === true) continue;
       diagnostics.push(unsupportedNodeDiagnostic(implementation.declaration, "A native object method requires its exact authored implementation."));

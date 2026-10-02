@@ -1,9 +1,24 @@
-import type { CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
+import type { Node } from "@tsonic/tsts";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
 import { csharpStructuralObjectShapeIdentity } from "./object-shape-identity.js";
 import { targetTypeRefEquals, scopedTargetTypeRefKey } from "./equality.js";
 import { getCsharpDelegateSignature } from "./delegates.js";
 import { getCsharpNullableElementTargetType } from "./nullable.js";
 import { csharpFreeTypeParameterIdentities } from "./generic-references.js";
+
+export function csharpObjectShapeMethodRequiresProtocol(member: CsharpObjectShapeMemberFact): boolean {
+  return member.memberKind === "method" && ((member.typeParameters?.length ?? 0) > 0 ||
+    member.optional === true || member.methodValueContract !== undefined);
+}
+
+export function csharpObjectShapeMethodDeclaration(
+  shape: CsharpObjectShapeFact, member: CsharpObjectShapeMemberFact,
+): Node | undefined {
+  const methods = shape.methodImplementation?.methods;
+  if (methods === undefined || member.memberKind !== "method") return undefined;
+  const declarations = methods.filter(declaration => member.sourceDeclarations?.includes(declaration));
+  return declarations.length === 1 ? declarations[0] : undefined;
+}
 
 export function csharpPresentObjectShapeMethod(member: CsharpObjectShapeMemberFact): CsharpObjectShapeMemberFact | undefined {
   if (member.memberKind !== "method") return undefined;

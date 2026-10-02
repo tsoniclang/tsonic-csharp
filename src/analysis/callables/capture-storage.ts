@@ -146,7 +146,6 @@ export function analyzeCsharpCaptureStorage(
 function hasSingleCaptureOwner(source: TargetSourceProgram, declaration: Node, shape: CsharpObjectShapeFact): boolean {
   const implementation = shape.methodImplementation;
   if (implementation === undefined) return false;
-  const methods = shape.members.flatMap(member => (member.typeParameters?.length ?? 0) === 0 ? []
-    : (member.sourceDeclarations ?? []).filter(method => source.ast.parent(method) === implementation.declaration));
-  return sourceBindingHasSingleCaptureOwner(declaration, implementation.declaration, methods, source.ast, source.navigation);
+  return sourceBindingHasSingleCaptureOwner(declaration, implementation.declaration,
+    implementation.methods, source.ast, source.navigation);
 }

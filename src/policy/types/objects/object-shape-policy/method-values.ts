@@ -2,18 +2,16 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNa
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import { createStructuralObjectShapeTarget } from "./construction.js";
 import { csharpStructuralObjectShapeIdentity } from "../../../../target-model/types/object-shape-identity.js";
-import type { AstReader } from "@tsonic/tsts";
-import { csharpObjectShapeMethodDeclaration } from "./method-implementations.js";
-import { csharpPresentObjectShapeMethod } from "../../../../target-model/types/method-values.js";
+import { csharpObjectShapeMethodDeclaration, csharpObjectShapeMethodRequiresProtocol, csharpPresentObjectShapeMethod } from "../../../../target-model/types/method-values.js";
 
 export function retainCsharpMethodValueContracts(
-  shape: CsharpObjectShapeFact, remember: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact, ast: AstReader,
+  shape: CsharpObjectShapeFact, remember: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
 ): CsharpObjectShapeFact {
   if (csharpStructuralObjectShapeIdentity(shape.targetType) === undefined &&
     (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") return shape;
   const implemented = new Map((shape.implements ?? []).map(type => [targetTypeRefKey(type), type]));
   const members = shape.members.map(member => {
-    if (member.memberKind !== "method" || (member.typeParameters?.length ?? 0) === 0 && member.optional !== true) return member;
+    if (!csharpObjectShapeMethodRequiresProtocol(member)) return member;
     let contract = member.methodValueContract;
     if (contract === undefined) {
       const signature = csharpPresentObjectShapeMethod(member);
@@ -22,7 +20,7 @@ export function retainCsharpMethodValueContracts(
       remember({ targetType: contract, members: [{ ...signature, methodValueContract: contract }] });
     }
     if (!targetTypeRefEquals(shape.targetType, contract) &&
-      (member.optional !== true || csharpObjectShapeMethodDeclaration(shape, member, ast) !== undefined)) {
+      (member.optional !== true || csharpObjectShapeMethodDeclaration(shape, member) !== undefined)) {
       implemented.set(targetTypeRefKey(contract), contract);
     }
     return { ...member, methodValueContract: contract };

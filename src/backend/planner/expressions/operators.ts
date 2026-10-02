@@ -50,7 +50,7 @@ export {
 } from "./expression-typeof-operators.js";
 export {
   tryPlanBinaryExpressionWithExpectedType,
-} from "./operators/nullish-expected-type.js";
+} from "./operators/binary-expected-type.js";
 
 export function tryPlanBinaryExpression(
   node: Node,

@@ -14,7 +14,7 @@ export function csharpBinarySelectionsEqual(
     csharpBinaryTargetOperationsEqual(left.targetOperation, right.targetOperation) &&
     targetTypeRefEquals(left.leftType, right.leftType) && targetTypeRefEquals(left.rightType, right.rightType) &&
     targetTypeRefEquals(left.leftInputType, right.leftInputType) && targetTypeRefEquals(left.rightInputType, right.rightInputType) &&
-    targetTypeRefEquals(left.resultType, right.resultType) && left.expectedResultCompatible === right.expectedResultCompatible;
+    targetTypeRefEquals(left.resultType, right.resultType);
 }
 
 function csharpBinaryTargetOperationsEqual(left: CsharpTargetBinaryOperation, right: CsharpTargetBinaryOperation): boolean {

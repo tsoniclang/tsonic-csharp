@@ -58,7 +58,7 @@ test("optional native method storage retains a required present protocol without
     typeParameters: [{ identity: "Item", name: "Item", declaration: {}, constraints: [] }] };
   const recorded = [];
   const shape = retainCsharpMethodValueContracts({ targetType: { ...owner, csharpStructuralContract: true }, members: [member] },
-    fact => { recorded.push(fact); return fact; }, { is: { IsMethodDeclaration: () => false } });
+    fact => { recorded.push(fact); return fact; });
   assert.equal(shape.members[0].optional, true);
   assert.equal(recorded[0].members[0].optional, undefined);
   assert.equal(getCsharpNullableElementTargetType(recorded[0].members[0].type), undefined);
@@ -79,7 +79,7 @@ test("copied generic methods retain only the exact original environment and mini
     memberKind: "method", type: contract("Item"), typeParameters: [{ identity: "Item", name: "Item", declaration: {}, constraints: [] }] };
   const recorded = [];
   const shape = retainCsharpMethodValueContracts({ targetType: owner, members: [member],
-    methodImplementation: { declaration: {}, identity: "body", captures: [] } }, fact => { recorded.push(fact); return fact; });
+    methodImplementation: { declaration: {}, identity: "body", methods: [], captures: [] } }, fact => { recorded.push(fact); return fact; });
   assert.equal(recorded.length, 1);
   assert.equal(recorded[0].members.length, 1);
   assert.equal(targetTypeRefEquals(recorded[0].targetType, shape.members[0].methodValueContract), true);
