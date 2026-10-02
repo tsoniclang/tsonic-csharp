@@ -137,6 +137,10 @@ export function selectCsharpJsValueBinaryOperation(
   sourceFile: SourceFile,
   operator: string,
 ): CsharpJsValueOperationSelection {
+  if ((operator === "??" || operator === "??=") &&
+    isCsharpJsValueTargetType(input.types.resolveReadStorage(left))) {
+    return { kind: "not-js-value" };
+  }
   const mode = selectJsValueOperandMode(
     input,
     [left, right],

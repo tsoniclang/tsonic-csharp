@@ -35,6 +35,7 @@ import {
 } from "../csharp-expression-builders.js";
 import { isCsharpAbsenceTargetType } from "../../../../target-model/types/runtime-carriers.js";
 import { planCsharpBigIntCall } from "./bigint-call.js";
+import { planCsharpClosedValueCoalescing } from "./closed-value-coalescing.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { allocateExpressionTemp } from "../../bindings/binding-state.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "../union-access.js";
@@ -50,6 +51,10 @@ export function planSelectedCsharpBinaryOperation(
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
+  if (selection.targetOperation.kind === "closed-value-coalesce") {
+    return planCsharpClosedValueCoalescing(node, selection, sourceFile, input, diagnostics,
+      planExpression, planExpressionWithExpectedType, state);
+  }
   if (selection.targetOperation.kind === "union-equality") {
     return planCsharpUnionEquality(node, selection, sourceFile, input, diagnostics, planExpression, state);
   }

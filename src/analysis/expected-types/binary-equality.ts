@@ -20,6 +20,8 @@ export function csharpBinarySelectionsEqual(
 function csharpBinaryTargetOperationsEqual(left: CsharpTargetBinaryOperation, right: CsharpTargetBinaryOperation): boolean {
   if (left.kind !== right.kind) return false;
   switch (left.kind) {
+    case "closed-value-coalesce":
+      return right.kind === "closed-value-coalesce" && left.assignment === right.assignment && left.location === right.location;
     case "bigint-call":
       return right.kind === "bigint-call" && left.method === right.method &&
         left.assignment === right.assignment && left.location === right.location;

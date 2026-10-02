@@ -1,8 +1,8 @@
 import { validateBinaryTargetSemantics, validateUnaryTargetSemantics, isCsharpReferenceCarrier, isEquality, isRelational, isShift, isBitwise, isArithmetic } from "./operator-validation.js";
-import { Node_Expression } from "@tsonic/target-api/source";
+import { selectCsharpAssignmentLocation, type CsharpAssignmentLocation } from "./assignment-location.js";
 import { selectCsharpGuardedIntegerPromotion } from "../numeric/guarded.js";
 import type { CsharpReferenceEquality, CsharpUnionEqualityArm } from "../../../target-model/operations/binary.js";
-import { csharpReferenceIdentityCarrier, selectCsharpReferenceEquality } from "./reference-equality.js";
+import { selectCsharpReferenceEquality } from "./reference-equality.js";
 import { selectCsharpUnionEquality } from "./union-equality.js";
 import { csharpConversionIsApplicable, selectCsharpExpressionConversion } from "../../conversions/selection.js";
 import type {
@@ -23,6 +23,7 @@ import {
   isCsharpIntegralTargetType,
   isCsharpAbsenceTargetType,
   isCsharpStringTargetType,
+  isCsharpJsValueTargetType,
   targetTypeRefEquals,
 } from "../../types/index.js";
 import {
@@ -60,8 +61,9 @@ export type CsharpTargetBinaryOperation =
       readonly kind: "bigint-call";
       readonly method: "LeftShift" | "RightShift" | "Divide" | "Remainder";
       readonly assignment: boolean;
-      readonly location: "direct" | "reference-receiver" | "unsupported";
+      readonly location: CsharpAssignmentLocation;
     }
+  | { readonly kind: "closed-value-coalesce"; readonly assignment: boolean; readonly location: CsharpAssignmentLocation }
   | { readonly kind: "array-index-presence" }
   | { readonly kind: "nullish-equality"; readonly value: boolean }
   | { readonly kind: "union-coalesce"; readonly valueArmIndex: number; readonly retainCarrier: boolean }
@@ -165,6 +167,17 @@ export function selectCsharpBinaryOperands(
       "The checked binary expression has no closed C# representation for every operand and result.",
     );
   }
+  if ((sourceOperator === "??" || sourceOperator === "??=") && isCsharpJsValueTargetType(leftType)) {
+    if (!csharpConversionIsApplicable(selectCsharpExpressionConversion(input, right, rightType, leftType, "implicit"), "implicit")) {
+      return rejected("Closed-value coalescing requires an exact native right-hand admission.");
+    }
+    return {
+      kind: "resolved", sourceOperator,
+      targetOperation: { kind: "closed-value-coalesce", assignment: sourceOperator === "??=",
+        location: selectCsharpAssignmentLocation(input, left, targetTypeFor) },
+      left, right, leftType, rightType, leftInputType: leftType, rightInputType: leftType, resultType: leftType,
+    };
+  }
   if (isEquality(sourceOperator)) {
     if (isCsharpAbsenceTargetType(rightType)) {
       leftType = resolveNullishOperandStorage(input, left, leftType);
@@ -185,27 +198,10 @@ export function selectCsharpBinaryOperands(
     targetTypeRefEquals(rightType, csharpBigIntegerTargetType())) {
     const method = bigintRuntimeMethods[sourceOperator];
     if (method !== undefined) {
-      let location = left;
-      while (input.ast.is.IsParenthesizedExpression(location)) {
-        const nested = input.ast.as.AsParenthesizedExpression(location)?.Expression;
-        if (nested === undefined) return rejected("BigInt assignment has incomplete location syntax.");
-        location = nested;
-      }
-      const receiver = input.ast.is.IsElementAccessExpression(location) || input.ast.is.IsPropertyAccessExpression(location)
-        ? Node_Expression(input.ast, location) : undefined;
-      const receiverType = receiver === undefined ? undefined : targetTypeFor(receiver);
-      const selectedDeclaration = input.ast.is.IsPropertyAccessExpression(location)
-        ? input.semanticsFor(location).operations.propertyAccess(location)?.selectedDeclaration
-        : input.ast.is.IsElementAccessExpression(location)
-          ? input.semanticsFor(location).operations.elementAccess(location)?.selectedDeclaration
-          : undefined;
-      const direct = input.ast.is.IsIdentifier(location) ||
-        selectedDeclaration !== undefined && input.ast.hasModifierKind(selectedDeclaration, "static");
       return {
         kind: "resolved", sourceOperator,
         targetOperation: { kind: "bigint-call", method, assignment: isCsharpAssignmentOperator(sourceOperator),
-          location: direct ? "direct" : receiverType !== undefined && csharpReferenceIdentityCarrier(receiverType, input) !== undefined
-            ? "reference-receiver" : "unsupported" },
+          location: selectCsharpAssignmentLocation(input, left, targetTypeFor) },
         left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType,
         resultType: leftType,
       };
