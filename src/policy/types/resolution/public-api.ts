@@ -169,7 +169,7 @@ export function resolveSelectedValueWithState(
         const nominal = resolveTypeWithState(selectedType, sourceFile, nextState(state));
         if (host.projectTypeCatalog.definitionForTarget(nominal)?.kind === "class") return nominal;
       }
-      return guarded.length === 1 ? guarded[0] : storage;
+      if (guarded.length === 1) return guarded[0];
     }
   }
   if (declaredType !== undefined && declaredType !== selectedType &&
