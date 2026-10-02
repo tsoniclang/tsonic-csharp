@@ -34,11 +34,14 @@ export function resolveSelectedDeclarationResult(
   }
   const callableType = sourcePresentCallableType(semanticType, queries);
   if (callableType !== undefined) {
-    return resolveCallableType(
+    const resolved = resolveCallableType(
       callableType,
       queries,
       nextState(state),
     );
+    return resolved !== undefined && semanticType !== undefined &&
+        sourceRefinementOnlyRemovesNullish(semanticType, callableType, queries)
+      ? csharpNullableTargetType(resolved) : resolved;
   }
   const declarationType = declaration === undefined ||
       !host.navigation.isProjectDeclaration(declaration)
