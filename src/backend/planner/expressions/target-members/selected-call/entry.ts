@@ -242,7 +242,7 @@ function jsValueCallShape(
       kind: "property",
       receiver: access.receiver.expression,
       name: property?.name,
-      optionalReceiver: property?.QuestionDotToken !== undefined,
+      optionalReceiver: property?.QuestionDotToken !== undefined && !input.scope.presentOptionalValues?.has(access.receiver.expression),
     };
   }
   if (
@@ -254,7 +254,7 @@ function jsValueCallShape(
       kind: "element",
       receiver: access.receiver.expression,
       key: access.argument.expression,
-      optionalReceiver: element?.QuestionDotToken !== undefined,
+      optionalReceiver: element?.QuestionDotToken !== undefined && !input.scope.presentOptionalValues?.has(access.receiver.expression),
     };
   }
   return { kind: "direct" };

@@ -12,7 +12,7 @@ export function planCsharpAssignmentLocation(
   resultType: CsharpTypeNode,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState | undefined,
-  build: (location: CsharpExpression) => CsharpExpression,
+  build: (location: CsharpExpression) => CsharpExpression | undefined,
 ): CsharpExpression | undefined {
   if (selection === "direct") return build(left);
   if (selection !== "reference-receiver" || state === undefined ||
@@ -32,11 +32,13 @@ export function planCsharpAssignmentLocation(
     : { ...left, receiver, arguments: left.arguments.map((_, index) => ({
       kind: "SimpleMemberAccessExpression", receiver: reference, name: `Item${index + 2}`,
     })) };
+  const value = build(location);
+  if (value === undefined) return undefined;
   return {
     kind: "ConditionalExpression",
     condition: { kind: "IsPatternExpression", expression: inputs.length === 1 ? inputs[0]! : { kind: "TupleExpression", elements: inputs },
       type: { kind: "IdentifierName", name: "var" }, designation: name },
-    whenTrue: build(location),
+    whenTrue: value,
     whenFalse: { kind: "DefaultExpression", type: resultType },
   };
 }

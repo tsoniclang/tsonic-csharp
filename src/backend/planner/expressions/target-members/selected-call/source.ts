@@ -13,9 +13,8 @@ import type { CsharpCallClassification } from "../../../../../analysis/operation
 import type { CsharpSourceCallArgumentClassification } from "../../../../../analysis/operations/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { csharpSourceArgumentGroups } from "./source-argument-groups.js";
-import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { isCsharpVoidTargetType } from "../../../../../target-model/types/identity.js";
-import { planCsharpAbsentValue } from "../../optional-storage.js";
+import { planCsharpAbsentValue, planCsharpPresentValueGuard } from "../../optional-storage.js";
 import { planCsharpSelectedSourceCallResult } from "./results.js";
 
 export function translateSourceOwnedCall(
@@ -65,13 +64,20 @@ export function translateSourceOwnedCall(
     return undefined;
   }
   let callee: CsharpExpression = selectedCallee;
-  const optionalCallee = classification.optionalCallee;
+  const optionalCallee = classification.optionalCallee !== undefined && !input.scope.presentOptionalValues?.has(classification.optionalCallee.expression)
+    ? classification.optionalCallee : undefined;
   const result = classification.sourceResult;
   const optionalVoid = result !== undefined && isCsharpVoidTargetType(result.nativeType);
   const guardedValue = callee;
   const guardedName = optionalCallee === undefined || optionalVoid ? undefined
     : input.names.temporaryName(`__tsonic_optionalCallee_${Math.max(0, input.program.source.ast.pos(node))}_${Math.max(0, input.program.source.ast.end(node))}`);
-  if (guardedName !== undefined) callee = { kind: "IdentifierName", name: guardedName };
+  const guard = guardedName === undefined || optionalCallee === undefined ? undefined
+    : planCsharpPresentValueGuard(optionalCallee.storage, optionalCallee.type, guardedValue, guardedName, input.scope.typeParameterNames);
+  if (guardedName !== undefined && guard === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "An optional source callee requires its exact native storage and present-value relation."));
+    return undefined;
+  }
+  if (guard !== undefined) callee = guard.value;
   if (classification.sourceMethodValue !== undefined) {
     callee = { kind: optionalCallee !== undefined && optionalVoid ? "ConditionalAccessExpression" : "SimpleMemberAccessExpression",
       receiver: callee, name: classification.sourceMethodValue.method };
@@ -111,14 +117,13 @@ export function translateSourceOwnedCall(
   const selectedInvocation = planCsharpSelectedSourceCallResult(node, sourceFile, input, diagnostics, result, invocation);
   if (selectedInvocation === undefined) return undefined;
   if (optionalCallee === undefined || guardedName === undefined) return selectedInvocation;
-  const presentType = csharpTypeFromTargetTypeRef(optionalCallee, input.scope.typeParameterNames);
   const absent = planCsharpAbsentValue(result.selectedType, input.scope.typeParameterNames);
-  if (presentType === undefined || absent === undefined) {
+  if (guard === undefined || absent === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "An optional source callee requires its exact native presence and result storage types."));
     return undefined;
   }
   return { kind: "ConditionalExpression",
-    condition: { kind: "IsPatternExpression", expression: guardedValue, type: presentType, designation: guardedName },
+    condition: guard.condition,
     whenTrue: selectedInvocation, whenFalse: absent };
 }
 

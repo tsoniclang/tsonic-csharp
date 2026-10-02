@@ -65,9 +65,15 @@ export interface CsharpCallClassification
   extends CsharpSourceCallArgumentClassification {
   readonly typeTest?: import("../../target-model/operations/type-tests.js").CsharpClosedTypeTest;
   readonly sourceResult?: import("../../policy/types/resolution/model.js").CsharpSourceCallResult;
-  readonly optionalCallee?: TargetTypeRef;
+  readonly optionalCallee?: {
+    readonly expression: Node;
+    readonly storage: TargetTypeRef;
+    readonly type: TargetTypeRef;
+    readonly guard: true;
+  };
   readonly optionalReceiver?: {
     readonly expression: Node;
+    readonly storage: TargetTypeRef;
     readonly type: TargetTypeRef;
     readonly guard: boolean;
     readonly parameterType?: TargetTypeRef;

@@ -7,7 +7,7 @@ import { allocateExpressionTemp, type DestructuringPlannerState } from "../../bi
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import type { ExpectedExpressionPlanner, ExpressionPlanner } from "../expression-planner-types.js";
-import { member } from "../csharp-expression-builders.js";
+import { planCsharpStorageIsAbsent } from "../optional-storage.js";
 import { planCsharpAssignmentLocation } from "./assignment-location.js";
 
 export function planCsharpClosedValueCoalescing(
@@ -37,14 +37,16 @@ export function planCsharpClosedValueCoalescing(
   const right = planExpressionWithExpectedType(selection.right, sourceFile, input, diagnostics,
     type, undefined, selection.rightInputType, state);
   if (left === undefined || right === undefined) return undefined;
-  const build = (location: CsharpExpression): CsharpExpression => {
+  const build = (location: CsharpExpression): CsharpExpression | undefined => {
     const name = allocateExpressionTemp(state);
     const current: CsharpExpression = { kind: "IdentifierName", name };
+    const absent = planCsharpStorageIsAbsent(selection.leftType, current, input.scope.typeParameterNames);
+    if (absent === undefined) return undefined;
     return {
       kind: "ConditionalExpression",
       condition: { kind: "BinaryExpression", operatorToken: { kind: "AmpersandAmpersandToken" },
         left: { kind: "IsPatternExpression", expression: location, type: { kind: "IdentifierName", name: "var" }, designation: name },
-        right: { kind: "InvocationExpression", callee: member(current, "isUndefined"), arguments: [] } },
+        right: absent },
       whenTrue: operation.assignment
         ? { kind: "AssignmentExpression", left: location, operatorToken: { kind: "EqualsToken" }, right }
         : right,

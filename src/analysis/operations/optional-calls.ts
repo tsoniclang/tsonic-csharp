@@ -4,6 +4,8 @@ import type { CsharpTargetCallSelection, ResolvedSourceCallInfo } from "../../po
 import { selectCsharpConversion } from "../../policy/conversions/index.js";
 import { getCsharpDelegateSignature, getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
+import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
+import { isCsharpJsValueTargetType } from "../../target-model/types/runtime-carriers.js";
 import type { CsharpCallClassification } from "./model.js";
 
 export function classifyCsharpOptionalCallCallee(
@@ -12,8 +14,9 @@ export function classifyCsharpOptionalCallCallee(
   if (source === undefined || policy.ast.as.AsCallExpression(source.call)?.QuestionDotToken === undefined) return undefined;
   const selected = policy.types.resolveNode(source.sourceCallee.expression, sourceFile);
   if (selected === undefined) return undefined;
-  const type = getCsharpNullableElementTargetType(selected) ?? selected;
-  return getCsharpDelegateSignature(type) === undefined && getCsharpMethodValue(type) === undefined ? undefined : type;
+  const type = getCsharpNullableElementTargetType(selected) ?? getCsharpGenericOptionalParts(selected)?.element ?? selected;
+  return getCsharpDelegateSignature(type) === undefined && getCsharpMethodValue(type) === undefined && !isCsharpJsValueTargetType(type)
+    ? undefined : Object.freeze({ expression: source.sourceCallee.expression, storage: selected, type, guard: true });
 }
 
 export function classifyCsharpOptionalCallReceiver(
@@ -29,7 +32,7 @@ export function classifyCsharpOptionalCallReceiver(
   const receiver = source.sourceReceiver;
   const selected = policy.types.resolveSelectedValue(receiver.expression, receiver.type, sourceFile);
   if (selected === undefined) return undefined;
-  const type = getCsharpNullableElementTargetType(selected) ?? selected;
+  const type = getCsharpNullableElementTargetType(selected) ?? getCsharpGenericOptionalParts(selected)?.element ?? selected;
   const access = source.sourceCalleeAccess?.expression;
   const guard = access !== undefined && (
     policy.ast.as.AsPropertyAccessExpression(access)?.QuestionDotToken !== undefined ||
@@ -40,6 +43,7 @@ export function classifyCsharpOptionalCallReceiver(
     : undefined;
   return Object.freeze({
     expression: receiver.expression,
+    storage: selected,
     type,
     guard,
     ...(parameter === undefined ? {} : {

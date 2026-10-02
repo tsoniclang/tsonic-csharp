@@ -739,7 +739,7 @@ namespace Tsonic.Generated
             value.InvokeDynamicSlot("create", true, false, () => new object?[] { argument() });
             value.InvokeDynamicSlot("create", false, true, () => new object?[] { argument() });
             value.InvokeDynamicElement(() => key(), true, true, () => new object?[] { argument() });
-            return Tsonic.CSharp.Runtime.TsValue.ApplyDynamicLogical(value, "??", () => argument());
+            return value is var __tsonic_value0 && __tsonic_value0.isUndefined() ? argument() : __tsonic_value0;
         }
     }
 }

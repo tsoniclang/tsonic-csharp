@@ -7,12 +7,11 @@ import { getCsharpGenericOptionalParts } from "../../../../../target-model/types
 import type { CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
-import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { applyCsharpConversionSelection } from "../../conversions.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import { translateCsharpPropertyAccess } from "../selected-property.js";
 import { translateCsharpElementAccess } from "../selected-element.js";
-import { planCsharpAbsentValue } from "../../optional-storage.js";
+import { planCsharpAbsentValue, planCsharpPresentValueGuard } from "../../optional-storage.js";
 
 export function planCsharpOptionalReceiverChain(
   node: Node,
@@ -28,27 +27,30 @@ export function planCsharpOptionalReceiverChain(
     arguments_: CallArgumentPlanner,
   ) => CsharpExpression | undefined,
 ): { readonly handled: boolean; readonly expression?: CsharpExpression } {
-  const chain: { readonly node: Node; readonly classification: CsharpCallClassification }[] = [];
+  const chain: { readonly node: Node; readonly classification: CsharpCallClassification;
+    readonly selected: NonNullable<CsharpCallClassification["optionalReceiver"] | CsharpCallClassification["optionalCallee"]> }[] = [];
   let current = node;
   for (;;) {
     const classification = input.program.operations.call(current);
-    if (classification?.optionalReceiver === undefined) break;
-    chain.push({ node: current, classification });
-    current = classification.optionalReceiver.expression;
+    const selected = classification?.optionalReceiver ?? classification?.optionalCallee;
+    if (classification === undefined || selected === undefined) break;
+    chain.push({ node: current, classification, selected });
+    current = selected.expression;
     if (!input.program.source.ast.is.IsCallExpression(current)) break;
   }
   const result = chain[0]?.classification.selectedResultType;
+  if (chain.length === 1 && chain[0]?.classification.jsValue.kind === "resolved") return { handled: false };
   const nativeAbsenceBranch = result !== undefined && (getCsharpGenericOptionalParts(result) !== undefined ||
     isCsharpValueTypeTargetType(result) && getCsharpNullableElementTargetType(result) === undefined &&
       csharpCarrierAdmitsSourceAbsence(result));
   const resultProjection = chain.some(entry => entry.classification.sourceResult !== undefined &&
     !targetTypeRefEquals(entry.classification.sourceResult.nativeType, entry.classification.sourceResult.selectedType));
-  if (!chain.some(entry => entry.classification.optionalReceiver?.guard === true) ||
+  if (!chain.some(entry => entry.selected.guard) ||
     !nativeAbsenceBranch && !resultProjection && !chain.some(entry => entry.classification.target?.kind === "resolved" &&
       entry.classification.target.call.receiver.kind === "target-parameter")) {
     return { handled: false };
   }
-  if (chain[chain.length - 1]?.classification.optionalReceiver?.guard !== true) {
+  if (chain[chain.length - 1]?.selected.guard !== true) {
     diagnostics.push(unsupportedNodeDiagnostic(node,
       "Optional-call lowering requires the originating receiver guard in its exact selected call chain."));
     return { handled: true };
@@ -61,13 +63,16 @@ export function planCsharpOptionalReceiverChain(
   function step(index: number, value: CsharpExpression): CsharpExpression | undefined {
     const entry = chain[index];
     if (entry === undefined) return value;
-    const selected = entry.classification.optionalReceiver!;
-    const type = csharpTypeFromTargetTypeRef(selected.type, input.scope.typeParameterNames);
-    if (type === undefined) return undefined;
+    const selected = entry.selected;
     const name = input.names.temporaryName(`__tsonic_optionalReceiver_${Math.max(0, input.program.source.ast.pos(entry.node))}_${Math.max(0, input.program.source.ast.end(entry.node))}`);
-    const present: CsharpExpression = selected.guard ? { kind: "IdentifierName", name } : value;
+    const guard = selected.guard ? planCsharpPresentValueGuard(selected.storage, selected.type, value, name, input.scope.typeParameterNames) : undefined;
+    if (selected.guard && guard === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(entry.node, "Optional receiver requires its exact native storage and present-value relation."));
+      return undefined;
+    }
+    const present: CsharpExpression = guard?.value ?? value;
     const presentContext: CsharpPlanningContext = { ...input, scope: { ...input.scope,
-      presentOptionalReceivers: new Set([...(input.scope.presentOptionalReceivers ?? []), selected.expression]),
+      presentOptionalValues: new Set([...(input.scope.presentOptionalValues ?? []), selected.expression]),
     } };
     const expressions: ExpressionPlanner = (subject, file, context, errors, state) => {
       if (subject === selected.expression) return present;
@@ -86,7 +91,7 @@ export function planCsharpOptionalReceiverChain(
       if (subject !== selected.expression) {
         return planCallArgument(subject, file, context, errors, expected, expectedSubject, target, mode, parameter);
       }
-      if (selected.conversion === undefined || selected.parameterType === undefined ||
+      if (!("conversion" in selected) || selected.conversion === undefined || selected.parameterType === undefined ||
         target === undefined || !targetTypeRefEquals(target, selected.parameterType) ||
         mode !== undefined && mode !== "by-value") {
         errors.push(unsupportedNodeDiagnostic(subject, "Optional receiver requires its exact sealed by-value parameter conversion."));
@@ -101,7 +106,7 @@ export function planCsharpOptionalReceiverChain(
     if (next === undefined || !selected.guard) return next;
     return {
       kind: "ConditionalExpression",
-      condition: { kind: "IsPatternExpression", expression: value, type, designation: name },
+      condition: guard!.condition,
       whenTrue: next,
       whenFalse: absent!,
     };
