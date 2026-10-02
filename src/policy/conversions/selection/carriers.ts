@@ -11,6 +11,7 @@ import {
   isCsharpAbsenceTargetType,
   isCsharpNullableReferenceTargetType,
   isCsharpValueTypeTargetType,
+  isCsharpVoidTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../../target-model/types/index.js";
@@ -213,10 +214,6 @@ export function selectDelegateConversion(
   if (
     sourceSignature.parameters.length > targetSignature.parameters.length ||
     sourceSignature.returnPassing !== targetSignature.returnPassing ||
-    !numberListsEqual(
-      sourceSignature.optionalParameterIndexes ?? [],
-      targetSignature.optionalParameterIndexes ?? [],
-    ) ||
     sourceSignature.restParameterIndex !== targetSignature.restParameterIndex
   ) {
     return rejectedDelegateConversion(source, target);
@@ -229,7 +226,8 @@ export function selectDelegateConversion(
       "implicit",
     ),
   );
-  const returnConversion = csharpVoidReturnCompletion(sourceSignature.returnType, targetSignature.returnType) === "absence"
+  const returnConversion = isCsharpVoidTargetType(targetSignature.returnType) ||
+    csharpVoidReturnCompletion(sourceSignature.returnType, targetSignature.returnType) === "absence"
     ? { kind: "void-return" as const } : selectCsharpConversion(
     input,
     sourceSignature.returnType,
@@ -260,14 +258,6 @@ function rejectedDelegateConversion(
     reason:
       `C# delegate conversion requires matching call shape and exact implicit parameter/return adaptations; source '${targetTypeRefKey(source)}', target '${targetTypeRefKey(target)}'.`,
   };
-}
-
-function numberListsEqual(
-  left: readonly number[],
-  right: readonly number[],
-): boolean {
-  return left.length === right.length &&
-    left.every((value, index) => value === right[index]);
 }
 
 export function namedTargetTypesAreRelated(

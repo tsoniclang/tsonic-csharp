@@ -94,7 +94,8 @@ export function planCsharpDelegateAdapter(
       : { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: captured!.method.methodName },
     arguments: arguments_ };
   if (selection.returnConversion.kind === "void-return") {
-    statements.push(...planCsharpVoidReturn(invocation, "absence", targetSignature.returnType, input.scope.typeParameterNames));
+    statements.push(...planCsharpVoidReturn(invocation,
+      isCsharpVoidTargetType(targetSignature.returnType) ? "void" : "absence", targetSignature.returnType, input.scope.typeParameterNames));
   } else {
     const converted = convert(node, sourceFile, input, diagnostics, sourceSignature.returnType,
       targetSignature.returnType, selection.returnConversion, invocation);

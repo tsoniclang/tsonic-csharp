@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { absenceCallableConversionSource, broadCallableConversionSource, broadAsyncCallableConversionSource } from "../../../../tsonic/test/fixtures/callable-conversion-evaluation.mjs";
+import { absenceCallableConversionSource, broadCallableConversionSource, broadAsyncCallableConversionSource, nativeCallableAdapterCostSource } from "../../../../tsonic/test/fixtures/callable-conversion-evaluation.mjs";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
@@ -37,16 +37,8 @@ test("nested native callback adapters preserve captures without colliding names"
   executeCsharpConstruction(compiled, "nested-callable-conversion");
 });
 
-test("native callable adapters invoke static, inline and captured bodies without per-call allocation", { timeout: 300_000 }, () => {
-  const compiled = compileCsharpSource({ sourceText: `
-    let total = 0;
-    function original(): number { total++; return total; }
-    export function staticCallback(): (unused: number) => number { return original; }
-    export function inlineCallback(): (unused: number) => number { return () => original(); }
-    export function capturedCallback(initial: number): (unused: number) => number {
-      return (): number => { initial++; return initial; };
-    }
-  ` });
+test("native callable adapters invoke static, inline, captured and defaulted bodies without per-call allocation", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ sourceText: nativeCallableAdapterCostSource });
   assertCsharpCompilationSucceeded(compiled);
   const artifacts = new Map(compiled.artifacts);
   artifacts.set("generated/TsonicEntrypoint.cs", `
@@ -54,12 +46,13 @@ using Subject = Tsonic.Generated.Index;
 var first = Subject.staticCallback();
 var second = Subject.inlineCallback();
 var third = Subject.capturedCallback(0);
-for (var index = 0; index < 10000; index++) { first(index); second(index); third(index); }
+var fourth = Subject.defaultCallback();
+for (var index = 0; index < 10000; index++) { first(index); second(index); third(index); fourth(null); }
 double result = 0;
 var before = System.GC.GetAllocatedBytesForCurrentThread();
-for (var index = 0; index < 10000; index++) { result += first(index) + second(index) + third(index); }
+for (var index = 0; index < 10000; index++) { result += first(index) + second(index) + third(index) + fourth(null); }
 var allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
-if (result != 750015000 || allocated != 0) throw new System.Exception($"callable adapter allocation: {allocated}; result: {result}");
+if (result != 750065000 || allocated != 0) throw new System.Exception($"callable adapter allocation: {allocated}; result: {result}");
 `);
   executeCsharpConstruction({ ...compiled, artifacts }, "native-callable-adapter-allocation");
 });
