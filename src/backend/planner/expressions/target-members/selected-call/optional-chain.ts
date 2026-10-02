@@ -23,6 +23,7 @@ export function planCsharpOptionalReceiverChain(
   planCallArgument: CallArgumentPlanner,
   planCall: (
     call: Node,
+    context: CsharpPlanningContext,
     expressions: ExpressionPlanner,
     arguments_: CallArgumentPlanner,
   ) => CsharpExpression | undefined,
@@ -40,8 +41,10 @@ export function planCsharpOptionalReceiverChain(
   const nativeAbsenceBranch = result !== undefined && (getCsharpGenericOptionalParts(result) !== undefined ||
     isCsharpValueTypeTargetType(result) && getCsharpNullableElementTargetType(result) === undefined &&
       csharpCarrierAdmitsSourceAbsence(result));
+  const resultProjection = chain.some(entry => entry.classification.sourceResult !== undefined &&
+    !targetTypeRefEquals(entry.classification.sourceResult.nativeType, entry.classification.sourceResult.selectedType));
   if (!chain.some(entry => entry.classification.optionalReceiver?.guard === true) ||
-    !nativeAbsenceBranch && !chain.some(entry => entry.classification.target?.kind === "resolved" &&
+    !nativeAbsenceBranch && !resultProjection && !chain.some(entry => entry.classification.target?.kind === "resolved" &&
       entry.classification.target.call.receiver.kind === "target-parameter")) {
     return { handled: false };
   }
@@ -63,11 +66,15 @@ export function planCsharpOptionalReceiverChain(
     if (type === undefined) return undefined;
     const name = input.names.temporaryName(`__tsonic_optionalReceiver_${Math.max(0, input.program.source.ast.pos(entry.node))}_${Math.max(0, input.program.source.ast.end(entry.node))}`);
     const present: CsharpExpression = selected.guard ? { kind: "IdentifierName", name } : value;
+    const presentContext: CsharpPlanningContext = { ...input, scope: { ...input.scope,
+      presentOptionalReceivers: new Set([...(input.scope.presentOptionalReceivers ?? []), selected.expression]),
+    } };
     const expressions: ExpressionPlanner = (subject, file, context, errors, state) => {
       if (subject === selected.expression) return present;
       if (subject === entry.classification.source?.sourceCallee.expression) {
         if (input.program.source.ast.is.IsPropertyAccessExpression(subject)) {
-          return translateCsharpPropertyAccess(subject, file, context, errors, expressions);
+          const property = translateCsharpPropertyAccess(subject, file, context, errors, expressions);
+          return property?.kind === "ConditionalAccessExpression" ? { ...property, kind: "SimpleMemberAccessExpression" } : property;
         }
         if (input.program.source.ast.is.IsElementAccessExpression(subject)) {
           return translateCsharpElementAccess(subject, file, context, errors, expressions, arguments_);
@@ -89,11 +96,7 @@ export function planCsharpOptionalReceiverChain(
         selected.type, selected.parameterType, selected.conversion, present);
       return converted === undefined ? undefined : { kind: "Argument", expression: converted };
     };
-    const plannedCall = planCall(entry.node, expressions, arguments_);
-    const call = plannedCall?.kind === "InvocationExpression" &&
-      plannedCall.callee.kind === "ConditionalAccessExpression"
-      ? { ...plannedCall, callee: { ...plannedCall.callee, kind: "SimpleMemberAccessExpression" as const } }
-      : plannedCall;
+    const call = planCall(entry.node, presentContext, expressions, arguments_);
     const next = call === undefined ? undefined : step(index + 1, call);
     if (next === undefined || !selected.guard) return next;
     return {

@@ -40,7 +40,7 @@ import {
 } from "../bindings/typed-location-identities.js";
 import { planResourceScopeStatements } from "./resource-management.js";
 import { planCsharpCaptureFrame, planCsharpCaptureFrameRotation } from "../bindings/capture-storage.js";
-import { csharpSourceExpressionSequence } from "../../../target-model/syntax/expression-sequence.js";
+import { sourceExpressionSequence } from "@tsonic/target-api/source";
 import { expressionStatement, planDiscardedExpression } from "./statement-output.js";
 
 export function planForStatement(
@@ -94,7 +94,7 @@ function planForStatementCore(
   const initializer = statement.Initializer === undefined
     ? undefined
     : planForInitializer(statement.Initializer, sourceFile, input, diagnostics, state);
-  const conditionNodes = statement.Condition === undefined ? [] : csharpSourceExpressionSequence(input.program.source.ast, statement.Condition);
+  const conditionNodes = statement.Condition === undefined ? [] : sourceExpressionSequence(input.program.source.ast, statement.Condition);
   const conditionNode = conditionNodes[conditionNodes.length - 1];
   const condition = conditionNode === undefined
     ? undefined
@@ -103,7 +103,8 @@ function planForStatementCore(
   if (statement.Condition !== undefined && condition === undefined) {
     return initializer?.prelude ?? [];
   }
-  const incrementors = statement.Incrementor === undefined ? [] : csharpSourceExpressionSequence(input.program.source.ast, statement.Incrementor)
+  const incrementorNodes = statement.Incrementor === undefined ? [] : sourceExpressionSequence(input.program.source.ast, statement.Incrementor);
+  const incrementors = incrementorNodes
     .map(expression => planExpression(expression, sourceFile, input, diagnostics, state));
   if (incrementors.some(expression => expression === undefined) || conditionPrelude.some(expression => expression === undefined)) {
     return initializer?.prelude ?? [];
@@ -121,11 +122,15 @@ function planForStatementCore(
     ...(condition !== undefined && conditionPrelude.length === 0
       ? { condition }
       : {}),
-    incrementors: [...(rotation === undefined ? [] : [rotation]), ...incrementors.map(expression => planDiscardedExpression(expression!))],
+    incrementors: [...(rotation === undefined ? [] : [rotation]), ...incrementors.map((expression, index) => planDiscardedExpression(
+      expression!, input.types.classifications.resolveNode(incrementorNodes[index], sourceFile),
+    ))],
     body: {
       kind: "Block",
       statements: [
-        ...conditionPrelude.map(expression => expressionStatement(planDiscardedExpression(expression!))),
+        ...conditionPrelude.map((expression, index) => expressionStatement(planDiscardedExpression(
+          expression!, input.types.classifications.resolveNode(conditionNodes[index], sourceFile),
+        ))),
         ...(condition !== undefined && conditionPrelude.length !== 0 ? [{ kind: "IfStatement" as const,
           condition: { kind: "PrefixUnaryExpression" as const, operatorToken: { kind: "ExclamationToken" as const },
             operand: { kind: "ParenthesizedExpression" as const, expression: condition } },

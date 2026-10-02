@@ -59,6 +59,7 @@ export interface CsharpPlanningScope {
   readonly captureFrames?: ReadonlyMap<Node, CsharpExpression>;
   readonly capturedReceivers?: ReadonlyMap<Node, CsharpExpression>;
   readonly nativeCallableBody?: Node;
+  readonly presentOptionalReceivers?: ReadonlySet<Node>;
   readonly generatedMethods?: Map<Node, CsharpMethodDeclaration>;
   readonly sourceThisBinding?: {
     readonly name: string;

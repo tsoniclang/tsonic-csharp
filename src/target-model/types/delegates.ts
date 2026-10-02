@@ -67,13 +67,14 @@ export function csharpDelegateTargetType(
 
 export function csharpTaskTargetType(resultType: TargetTypeRef): CsharpTaskTargetTypeRef {
   const targetType = isCsharpVoidTargetType(resultType)
-    ? csharpTargetNamedType("System.Threading.Tasks.Task", undefined, csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"))
-    : csharpTargetNamedType("System.Threading.Tasks.Task`1", [resultType], csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"));
+    ? csharpTargetNamedType("System.Threading.Tasks.Task", undefined, csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"), { typeofRuntimeKind: "object" })
+    : csharpTargetNamedType("System.Threading.Tasks.Task`1", [resultType], csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"), { typeofRuntimeKind: "object" });
   return {
     kind: "target-named",
     id: targetType.id,
     ...(targetType.typeArguments !== undefined ? { typeArguments: targetType.typeArguments } : {}),
     ...(targetType.csharpRender !== undefined ? { csharpRender: targetType.csharpRender } : {}),
+    csharpTypeofRuntimeKind: targetType.csharpTypeofRuntimeKind,
     csharpTaskResultType: resultType,
     ...(!isCsharpVoidTargetType(resultType)
       ? { csharpBaseType: csharpTaskTargetType(csharpVoidTargetType()) } : {}),

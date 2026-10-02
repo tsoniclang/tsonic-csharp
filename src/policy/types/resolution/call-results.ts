@@ -1,6 +1,8 @@
 import type { CsharpSourceCallResult, CsharpTypePolicyHost } from "./model.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { namedTargetTypeImplicitlyAccepts } from "../../conversions/selection/carriers.js";
+import { isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { retainCsharpBroadValueCarrier } from "./selected-type-evidence.js";
 
 export function selectCsharpSourceCallResult(
   host: CsharpTypePolicyHost,
@@ -8,6 +10,11 @@ export function selectCsharpSourceCallResult(
   selected: () => TargetTypeRef | undefined,
 ): CsharpSourceCallResult | undefined {
   if (nativeType === undefined) return undefined;
+  if (isCsharpJsValueTargetType(nativeType)) {
+    const selectedType = selected();
+    return selectedType === undefined ? undefined : Object.freeze({ nativeType,
+      selectedType: retainCsharpBroadValueCarrier(nativeType, selectedType) ?? selectedType });
+  }
   const definition = host.projectTypeCatalog.definitionForTarget(nativeType);
   if (definition?.kind !== "class" && definition?.kind !== "interface") {
     return Object.freeze({ nativeType, selectedType: nativeType });

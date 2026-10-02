@@ -367,7 +367,7 @@ export function resolveSourceCallTypeArguments(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
 ): readonly TargetTypeRef[] | undefined {
-  const callable = host.representations.sourceCallable(source, sourceFile);
+  const callable = host.representations.sourceCallable(source, sourceFile, "checked");
   return resolveSourceCallInstantiation(
     source,
     sourceFile,
@@ -388,7 +388,7 @@ export function resolveSourceCallParameter(
   if (parameter === undefined) {
     return undefined;
   }
-  const callable = host.representations.sourceCallable(source, sourceFile);
+  const callable = host.representations.sourceCallable(source, sourceFile, "checked");
   const contractedParameter = callable?.parameters[parameterIndex];
   if (callable !== undefined && contractedParameter !== undefined) {
     if (
@@ -430,7 +430,7 @@ export function resolveSourceCallParameters(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
 ): readonly import("../../../target-model/types/model.js").CsharpTargetParameter[] | undefined {
-  const callable = scope.host.representations.sourceCallable(source, sourceFile);
+  const callable = scope.host.representations.sourceCallable(source, sourceFile, "checked");
   const signature = callable === undefined
     ? scope.sourceCallCalleeDelegateSignature(source, sourceFile, { depth: 0 }) : undefined;
   const parameters = signature === undefined
@@ -462,7 +462,7 @@ export function resolveSourceCallArgumentParameter(
   if (parameter === undefined) {
     return undefined;
   }
-  const callable = host.representations.sourceCallable(source, sourceFile);
+  const callable = host.representations.sourceCallable(source, sourceFile, "checked");
   const contractedParameter = callable?.parameters[
     binding.sourceParameterIndex
   ];
@@ -523,31 +523,36 @@ export function resolveSourceCallResult(
   { resolveSourceCallResultWithState }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
+  nativeType: TargetTypeRef | undefined,
 ): CsharpSourceCallResult | undefined {
   return resolveSourceCallResultWithState(
     source,
     sourceFile,
     { depth: 0 },
+    nativeType,
   );
 }
 
 
 export function resolveSourceCallResultWithState(
-  { host, resolveTypeWithState, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch, sourceCallCalleeDelegateSignature, sourceCallSelectedDeclaration }: CsharpTypeResolutionScope,
+  { host, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch, sourceCallCalleeDelegateSignature, sourceCallSelectedDeclaration }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
+  nativeType: TargetTypeRef | undefined,
 ): CsharpSourceCallResult | undefined {
   const declaration = sourceCallSelectedDeclaration(source);
-  const callable = host.representations.sourceCallable(source, sourceFile);
+  const callable = host.representations.sourceCallable(source, sourceFile, "implementation");
   const result = host.semantics(sourceFile).operations.callResult(source);
   const retain = (nativeType: TargetTypeRef | undefined): CsharpSourceCallResult | undefined => {
     const selected = selectCsharpSourceCallResult(host, nativeType, () =>
-      resolveTypeWithState(result?.selectedReturnType, sourceFile, nextState(state)));
+      result === undefined ? undefined : resolveSourceCallSelectedType(source, declaration,
+        result.authoredTypeNode, result.selectedReturnType, sourceFile, nextState(state)));
     return selected === undefined || host.ast.as.AsCallExpression(source.call)?.QuestionDotToken === undefined ||
       isCsharpVoidTargetType(selected.selectedType) ? selected
       : Object.freeze({ ...selected, selectedType: csharpNullableTargetType(selected.selectedType) });
   };
+  if (nativeType !== undefined) return retain(nativeType);
   if (callable !== undefined) {
     if (!sourceCallableTypeParametersMatch(source, callable)) {
       return undefined;
@@ -625,8 +630,8 @@ export function withSourceTargetBindings(
           targetTypes.get(node) ??
           host.representations.scopedTargetType(node);
         },
-        sourceCallable(source, sourceFile) {
-          return host.representations.sourceCallable(source, sourceFile);
+        sourceCallable(source, sourceFile, selection) {
+          return host.representations.sourceCallable(source, sourceFile, selection);
         },
       },
     }),

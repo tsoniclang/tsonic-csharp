@@ -2,6 +2,8 @@ import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import {
   isCsharpVoidTargetType,
+  getCsharpTaskResultTargetType,
+  getCsharpNullableElementTargetType,
 } from "../../../target-model/types/index.js";
 import { planCsharpAbsentValue } from "../expressions/optional-storage.js";
 
@@ -34,8 +36,12 @@ export function isVoidCsharpType(type: CsharpTypeNode): boolean {
   return type.kind === "PredefinedType" && type.name === "void";
 }
 
-export function planDiscardedExpression(expression: CsharpExpression): CsharpExpression {
-  return isValidCsharpExpressionStatement(expression)
+export function planDiscardedExpression(
+  expression: CsharpExpression,
+  targetType: TargetTypeRef | undefined,
+): CsharpExpression {
+  const task = getCsharpTaskResultTargetType(getCsharpNullableElementTargetType(targetType) ?? targetType);
+  return task === undefined && isValidCsharpExpressionStatement(expression)
     ? expression
     : discardAssignment(expression);
 }

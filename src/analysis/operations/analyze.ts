@@ -364,8 +364,11 @@ function visit(
       ...(optionalCallee === undefined ? {} : { optionalCallee }),
       unionCall: classifyCsharpUnionCall(policy, source, sourceFile),
       ...(source === undefined ? {} : { source }),
-      ...(target?.kind !== "source-owned" || source === undefined ? {} : {
-        sourceResult: policy.types.resolveSourceCallResult(source, sourceFile),
+      ...(source === undefined || target?.kind !== "source-owned" && !(target?.kind === "resolved" &&
+        target.call.targetMember.kind === "method" && policy.navigation.isProjectDeclaration(
+          source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration)) ? {} : {
+        sourceResult: policy.types.resolveSourceCallResult(source, sourceFile,
+          target?.kind === "resolved" ? target.call.targetMember.returnType : undefined),
       }),
       sourceFlow: selectCsharpSourceFlowCall(policy, node),
       jsValue,

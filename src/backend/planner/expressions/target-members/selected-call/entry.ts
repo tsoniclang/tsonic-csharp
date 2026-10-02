@@ -7,6 +7,7 @@ import { planCsharpClosedTypeTest } from "../../type-tests.js";
 import { createDestructuringPlannerState } from "../../../bindings/binding-state.js";
 import { targetTypeRefEquals } from "../../../../../target-model/types/equality.js";
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
+import { planCsharpSelectedSourceCallResult } from "./results.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
@@ -24,8 +25,8 @@ export function translateCsharpCallExpression(
 ): CsharpExpression | undefined {
   const optional = planCsharpOptionalReceiverChain(
     node, sourceFile, input, diagnostics, planExpression, planCallArgument,
-    (call, expressions, arguments_) => translateCsharpCallExpressionCore(
-      call, sourceFile, input, diagnostics, expressions, arguments_,
+    (call, context, expressions, arguments_) => translateCsharpCallExpressionCore(
+      call, sourceFile, context, diagnostics, expressions, arguments_,
     ),
   );
   return optional.handled ? optional.expression : translateCsharpCallExpressionCore(
@@ -156,8 +157,8 @@ function translateCsharpCallExpressionCore(
     return undefined;
   }
   switch (selection.kind) {
-    case "resolved":
-      return translateSelectedTargetCall(
+    case "resolved": {
+      const invocation = translateSelectedTargetCall(
         node,
         selection.source,
         selection.call,
@@ -167,6 +168,9 @@ function translateCsharpCallExpressionCore(
         planExpression,
         planCallArgument,
       );
+      return invocation === undefined || classification.sourceResult === undefined ? invocation
+        : planCsharpSelectedSourceCallResult(node, sourceFile, input, diagnostics, classification.sourceResult, invocation);
+    }
     case "source-owned":
       return translateSourceOwnedCall(
         node,

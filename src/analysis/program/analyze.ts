@@ -356,13 +356,14 @@ function analyzeIteration(
       const callable = previous?.callables.get({ kind: "declaration", declaration: node });
       return callable === undefined ? undefined : csharpCallableValueType(callable);
     },
-    sourceCallable(source, sourceFile) {
+    sourceCallable(source, sourceFile, selection) {
       return sourceCallableContract(
         input,
         source,
         sourceFile,
         typeSystem,
         previous?.callables,
+        selection,
       );
     },
   };
@@ -453,6 +454,7 @@ function sourceCallableContract(
   sourceFile: SourceFile,
   typeSystem: CsharpTypeSystem | undefined,
   callables: CsharpCallableContractIndex | undefined,
+  selection: "checked" | "implementation",
 ) {
   if (callables === undefined) {
     return undefined;
@@ -473,8 +475,12 @@ function sourceCallableContract(
       });
     }
   }
-  const declaration = input.source.semantics.forFile(sourceFile)
+  const selectedDeclaration = input.source.semantics.forFile(sourceFile)
     .declarations.signatureDeclaration(source.selectedSignature);
+  const implementation = selection !== "implementation" || selectedDeclaration === undefined
+    ? undefined : input.source.navigation.callableImplementation(selectedDeclaration);
+  const declaration = implementation?.kind === "resolved"
+    ? implementation.implementation.declaration : selectedDeclaration;
   return declaration !== undefined &&
       input.source.navigation.isProjectDeclaration(declaration)
     ? callables.get({ kind: "declaration", declaration })

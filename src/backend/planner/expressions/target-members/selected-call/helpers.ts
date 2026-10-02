@@ -80,6 +80,7 @@ export function sourceCallIsOptional(
   input: CsharpPlanningContext,
   source: ResolvedSourceCallInfo,
 ): boolean {
+  if (source.sourceReceiver !== undefined && input.scope.presentOptionalReceivers?.has(source.sourceReceiver.expression)) return false;
   const access = source.sourceCalleeAccess?.expression;
   if (access === undefined || !input.program.source.ast.is.IsPropertyAccessExpression(access)) {
     return false;

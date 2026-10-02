@@ -13,11 +13,10 @@ import type { CsharpCallClassification } from "../../../../../analysis/operation
 import type { CsharpSourceCallArgumentClassification } from "../../../../../analysis/operations/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { csharpSourceArgumentGroups } from "./source-argument-groups.js";
-import { targetTypeRefEquals } from "../../../../../target-model/types/equality.js";
-import { applyCsharpConversionSelection } from "../../conversions.js";
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { isCsharpVoidTargetType } from "../../../../../target-model/types/identity.js";
 import { planCsharpAbsentValue } from "../../optional-storage.js";
+import { planCsharpSelectedSourceCallResult } from "./results.js";
 
 export function translateSourceOwnedCall(
   node: Node,
@@ -109,18 +108,8 @@ export function translateSourceOwnedCall(
   );
   if (arguments_ === undefined || result === undefined) return undefined;
   const invocation: CsharpExpression = { kind: "InvocationExpression", callee: genericCallee, arguments: arguments_ };
-  let selectedInvocation: CsharpExpression = invocation;
-  if (!targetTypeRefEquals(result.nativeType, result.selectedType)) {
-    const conversion = input.program.conversions.select(result.nativeType, result.selectedType, "explicit");
-    if (conversion === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "A source call result has no sealed native-to-selected conversion."));
-      return undefined;
-    }
-    const converted = applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
-      result.nativeType, result.selectedType, conversion, invocation);
-    if (converted === undefined) return undefined;
-    selectedInvocation = converted;
-  }
+  const selectedInvocation = planCsharpSelectedSourceCallResult(node, sourceFile, input, diagnostics, result, invocation);
+  if (selectedInvocation === undefined) return undefined;
   if (optionalCallee === undefined || guardedName === undefined) return selectedInvocation;
   const presentType = csharpTypeFromTargetTypeRef(optionalCallee, input.scope.typeParameterNames);
   const absent = planCsharpAbsentValue(result.selectedType, input.scope.typeParameterNames);

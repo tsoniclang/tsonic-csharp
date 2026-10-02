@@ -207,11 +207,13 @@ export interface CsharpTypeResolutionScope {
   resolveSourceCallResult(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
+  nativeType: TargetTypeRef | undefined,
 ): import("./model.js").CsharpSourceCallResult | undefined;
   resolveSourceCallResultWithState(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
+  nativeType: TargetTypeRef | undefined,
 ): import("./model.js").CsharpSourceCallResult | undefined;
   withSourceTargetBindings(
   bindings: readonly CsharpSourceTargetTypeBinding[],

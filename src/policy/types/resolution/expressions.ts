@@ -22,7 +22,7 @@ import { getCsharpGenericOptionalParts } from "../../../target-model/types/proje
 import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
 
 export function resolveSelectedExpressionType(
-  { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveTypeWithState, resolveReadStorage, resolveNonNullExpressionType, resolvePropertyAccessTargetType, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult, sourceUnions }: CsharpTypeResolutionScope,
+  { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveTypeWithState, resolveReadStorage, resolveNonNullExpressionType, resolvePropertyAccessTargetType, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState, sourceUnions }: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -173,7 +173,8 @@ export function resolveSelectedExpressionType(
         : selection.call.targetMember.returnType;
       return host.ast.is.IsNewExpression(node)
         ? result
-        : optionalAccessTargetType(result, selection.source.optionalChain);
+        : optionalAccessTargetType(resolveSourceCallResultWithState(selection.source, queries.sourceFile, state, result)?.selectedType,
+            selection.source.optionalChain);
     }
     if (selection.kind === "source-owned") {
       const result = host.ast.is.IsNewExpression(node)
@@ -439,6 +440,7 @@ export function resolveSourceOwnedCallResult(
     source,
     queries.sourceFile,
     state,
+    undefined,
   )?.selectedType;
 }
 
@@ -497,7 +499,7 @@ export function resolveSourceOwnedConstructionResult(
 ): TargetTypeRef | undefined {
   const factory = getCsharpClassFactory(resolveNodeWithState(source.sourceCallee.expression, queries.sourceFile, nextState(state)));
   if (factory !== undefined) {
-    const callable = host.representations.sourceCallable(source, queries.sourceFile);
+    const callable = host.representations.sourceCallable(source, queries.sourceFile, "checked");
     const instantiation = resolveSourceCallInstantiation(source, queries.sourceFile, nextState(state), undefined, callable);
     return instantiation === undefined ? undefined : substituteTargetTypeParameters(factory.instance, instantiation.substitutions);
   }
@@ -510,7 +512,7 @@ export function resolveSourceOwnedConstructionResult(
     return resolveSourceOwnedCallResult(source, queries, state);
   }
   const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
-  const callable = host.representations.sourceCallable(source, queries.sourceFile);
+  const callable = host.representations.sourceCallable(source, queries.sourceFile, "checked");
   const instantiation = resolveSourceCallInstantiation(source, queries.sourceFile, nextState(state), undefined, callable);
   return instantiation === undefined
     ? undefined

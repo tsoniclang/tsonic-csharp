@@ -403,7 +403,9 @@ export function planExpressionStatement(
       state.expressionOverrides.delete(rightYield);
       return planned === undefined
         ? []
-        : [...yieldPlan.statements, expressionStatement(planDiscardedExpression(planned))];
+        : [...yieldPlan.statements, expressionStatement(planDiscardedExpression(
+          planned, input.types.classifications.resolveNode(expression, sourceFile),
+        ))];
     }
   }
   const assignmentExpression = destructuringAssignmentExpressionStatementExpression(expression, input.program.source.ast);
@@ -431,7 +433,9 @@ export function planExpressionStatement(
     )];
   }
   const planned = planExpression(expression!, sourceFile, input, diagnostics, state);
-  return planned === undefined ? [] : [expressionStatement(planDiscardedExpression(planned))];
+  return planned === undefined ? [] : [expressionStatement(planDiscardedExpression(
+    planned, input.types.classifications.resolveNode(expression, sourceFile),
+  ))];
 }
 
 function destructuringAssignmentExpressionStatementExpression(

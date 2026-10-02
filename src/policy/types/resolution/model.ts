@@ -38,6 +38,7 @@ export interface CsharpPlanningRepresentationQueries {
   sourceCallable(
     source: ResolvedSourceCallInfo,
     sourceFile: SourceFile,
+    selection: "checked" | "implementation",
   ): CsharpSourceCallableContract | undefined;
 }
 
@@ -155,6 +156,7 @@ export interface CsharpTypePolicy {
   resolveSourceCallResult(
     source: ResolvedSourceCallInfo,
     sourceFile: SourceFile,
+    nativeType: TargetTypeRef | undefined,
   ): CsharpSourceCallResult | undefined;
   withSourceTargetBindings(
     bindings: readonly CsharpSourceTargetTypeBinding[],
