@@ -1,7 +1,9 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCallClassification } from "../../../../../analysis/operations/index.js";
-import { targetTypeRefEquals } from "../../../../../target-model/types/index.js";
+import { getCsharpNullableElementTargetType, isCsharpValueTypeTargetType, targetTypeRefEquals } from "../../../../../target-model/types/index.js";
+import { csharpCarrierAdmitsSourceAbsence } from "../../../../../target-model/types/runtime-carriers.js";
+import { getCsharpGenericOptionalParts } from "../../../../../target-model/types/projections.js";
 import type { CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
@@ -10,6 +12,7 @@ import { applyCsharpConversionSelection } from "../../conversions.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import { translateCsharpPropertyAccess } from "../selected-property.js";
 import { translateCsharpElementAccess } from "../selected-element.js";
+import { planCsharpAbsentValue } from "../../optional-storage.js";
 
 export function planCsharpOptionalReceiverChain(
   node: Node,
@@ -33,20 +36,23 @@ export function planCsharpOptionalReceiverChain(
     current = classification.optionalReceiver.expression;
     if (!input.program.source.ast.is.IsCallExpression(current)) break;
   }
+  const result = chain[0]?.classification.selectedResultType;
+  const nativeAbsenceBranch = result !== undefined && (getCsharpGenericOptionalParts(result) !== undefined ||
+    isCsharpValueTypeTargetType(result) && getCsharpNullableElementTargetType(result) === undefined &&
+      csharpCarrierAdmitsSourceAbsence(result));
   if (!chain.some(entry => entry.classification.optionalReceiver?.guard === true) ||
-    !chain.some(entry => entry.classification.target?.kind === "resolved" &&
+    !nativeAbsenceBranch && !chain.some(entry => entry.classification.target?.kind === "resolved" &&
       entry.classification.target.call.receiver.kind === "target-parameter")) {
     return { handled: false };
   }
   if (chain[chain.length - 1]?.classification.optionalReceiver?.guard !== true) {
     diagnostics.push(unsupportedNodeDiagnostic(node,
-      "Static optional-call lowering requires the originating receiver guard in its exact selected call chain."));
+      "Optional-call lowering requires the originating receiver guard in its exact selected call chain."));
     return { handled: true };
   }
-  const result = chain[0]?.classification.selectedResultType;
-  const resultType = result === undefined ? undefined : csharpTypeFromTargetTypeRef(result, input.scope.typeParameterNames);
+  const absent = result === undefined ? undefined : planCsharpAbsentValue(result, input.scope.typeParameterNames);
   const receiver = planExpression(current, sourceFile, input, diagnostics);
-  if (resultType === undefined || receiver === undefined) return { handled: true };
+  if (absent === undefined || receiver === undefined) return { handled: true };
   chain.reverse();
 
   function step(index: number, value: CsharpExpression): CsharpExpression | undefined {
@@ -94,7 +100,7 @@ export function planCsharpOptionalReceiverChain(
       kind: "ConditionalExpression",
       condition: { kind: "IsPatternExpression", expression: value, type, designation: name },
       whenTrue: next,
-      whenFalse: { kind: "DefaultExpression", type: resultType! },
+      whenFalse: absent!,
     };
   }
   const expression = step(0, receiver);

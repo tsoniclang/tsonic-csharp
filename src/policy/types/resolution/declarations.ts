@@ -1,7 +1,7 @@
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { sourcePresentCallableType, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { nextState } from "./state.js";
 import { readCsharpSourceField } from "./source-markers.js";
@@ -32,12 +32,10 @@ export function resolveSelectedDeclarationResult(
   if (enumMemberTarget !== undefined) {
     return enumMemberTarget;
   }
-  if (
-    semanticType !== undefined &&
-    queries.types.callSignatures(semanticType).length > 0
-  ) {
+  const callableType = sourcePresentCallableType(semanticType, queries);
+  if (callableType !== undefined) {
     return resolveCallableType(
-      semanticType,
+      callableType,
       queries,
       nextState(state),
     );
