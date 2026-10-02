@@ -20,6 +20,7 @@ import {
   getCsharpReadOnlyIndexableCollectionElementTargetType,
   isCsharpDenseMutableCollectionTargetType,
   isCsharpValueTypeTargetType,
+  isCsharpJsValueTargetType,
   targetTypeRefEquals,
 } from "../../../../target-model/types/index.js";
 import { csharpJsArrayTargetType, getCsharpJsArrayMutationPolicy } from "../../../types/resolution/surface-types.js";
@@ -280,6 +281,10 @@ export const csharpJsArrayPropertyPolicies:
       { owner: "js", kind: "member", declaringNames: ["Array", "ReadonlyArray"], name: "length" },
       (context) => {
         const receiverType = context.receiverType;
+        if (receiverType !== undefined && isCsharpJsValueTargetType(receiverType)) return targetProperty(
+          "Tsonic.CSharp.Runtime.TsValue.ArrayLength", "length", "ArrayLength", receiverType, intType,
+          { readonly: true },
+        );
         const targetName = getCsharpIndexableLengthMemberName(receiverType);
         return receiverType === undefined || targetName === undefined
           ? undefined

@@ -54,6 +54,21 @@ test("non-nullish broad values do not become empty object identities", () => {
   assert.equal(retainCsharpBroadValueCarrier(broad, undefined), undefined);
 });
 
+test("array category narrowing does not invent the erased backing's native element layout", () => {
+  const broad = csharpTsValueTargetType();
+  for (const selected of [{ kind: "array", element: broad }, { kind: "array", element: string },
+    { kind: "tuple", elements: [string, int32] }, csharpJsArrayTargetType(broad), csharpJsArrayTargetType(string)]) {
+    assert.equal(retainCsharpBroadValueCarrier(broad, selected), broad);
+    assert.equal(reconcileCsharpSelectedTargetType(broad, selected, "unrelated"), broad);
+    const optional = csharpNullableReferenceTargetType(selected);
+    assert.equal(retainCsharpBroadValueCarrier(broad, optional), broad);
+    assert.equal(retainCsharpBroadValueCarrier(string, selected), undefined);
+  }
+  const typed = csharpJsArrayTargetType(string);
+  assert.equal(retainCsharpBroadValueCarrier(typed, csharpJsArrayTargetType(broad)), undefined);
+  assert.equal(retainCsharpBroadValueCarrier(broad, csharpReadOnlyListTargetType(string)), undefined);
+});
+
 test("array binding policy preserves raw and JS array rest carriers", () => {
   const rawArray = { kind: "array", element: int32 };
   const raw = resolveCsharpArrayBindingCarrier(rawArray);

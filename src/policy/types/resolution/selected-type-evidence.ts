@@ -8,13 +8,16 @@ import {
 } from "../../../target-model/types/equality.js";
 import { isCsharpEmptyObjectTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/collections.js";
 
 export function retainCsharpBroadValueCarrier(
   authored: TargetTypeRef | undefined,
   selected: TargetTypeRef | undefined,
 ): TargetTypeRef | undefined {
-  return isCsharpJsValueTargetType(authored) && selected !== undefined &&
-    isCsharpEmptyObjectTargetType(getCsharpNullableElementTargetType(selected) ?? selected)
+  if (!isCsharpJsValueTargetType(authored) || selected === undefined) return undefined;
+  const payload = getCsharpNullableElementTargetType(selected) ?? selected;
+  return isCsharpEmptyObjectTargetType(payload) || payload.kind === "array" ||
+    payload.kind === "tuple" || getCsharpJsArrayElementTargetType(payload) !== undefined
     ? authored : undefined;
 }
 
