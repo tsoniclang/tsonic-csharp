@@ -24,6 +24,7 @@ import {
   isCsharpAbsenceTargetType,
   isCsharpStringTargetType,
   isCsharpJsValueTargetType,
+  isCsharpRecordDictionaryTargetType,
   targetTypeRefEquals,
 } from "../../types/index.js";
 import {
@@ -162,7 +163,10 @@ export function selectCsharpBinaryOperands(
     targetTypeFor,
     nullishRightExpectation,
   );
-  if (leftType === undefined || rightType === undefined || selectedResultType === undefined) {
+  const resultType = selectedResultType ??
+    (sourceOperator === "??" || sourceOperator === "??="
+      ? nullishValueType(leftType, input.typeDefinitions) : undefined);
+  if (leftType === undefined || rightType === undefined || resultType === undefined) {
     return rejected(
       "The checked binary expression has no closed C# representation for every operand and result.",
     );
@@ -286,7 +290,7 @@ export function selectCsharpBinaryOperands(
     sourceOperator,
     leftType,
     rightType,
-    selectedResultType,
+    resultType,
     numericPromotion,
     nullishResultType,
   );
@@ -460,6 +464,7 @@ function resolveBinaryOperandType(
     if (getCsharpNullableElementTargetType(storage) !== undefined) return storage;
   }
   if (expectedType !== undefined && input.ast.is.IsObjectLiteralExpression(node)) {
+    if (isCsharpRecordDictionaryTargetType(expectedType)) return expectedType;
     const shape = input.objectShapes.resolveTarget(expectedType);
     const construction = shape === undefined ? undefined
       : input.objectShapes.resolveObjectLiteralTargetShape(shape, node, input.semanticsFor(node).sourceFile);
