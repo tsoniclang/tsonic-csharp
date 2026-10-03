@@ -12,6 +12,7 @@ export { csharpTargetNamedType } from "../target-model/types/factories.js";
 export { csharpReadOnlyListTargetType } from "../target-model/types/collections.js";
 export {
   csharpSourcePrimitiveTargetType,
+  csharpExceptionTargetType,
   csharpStringTargetType,
   csharpVoidTargetType,
 } from "../target-model/types/scalar-types.js";
