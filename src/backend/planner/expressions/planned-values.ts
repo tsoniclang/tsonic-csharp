@@ -5,7 +5,8 @@ import type { CsharpArgument, CsharpExpression, CsharpStatement, CsharpTypeNode 
 
 export type CsharpPlannedCompletion =
   | { readonly kind: "value"; readonly carrier: TargetTypeRef; readonly expression: CsharpExpression }
-  | { readonly kind: "void" | "never"; readonly carrier: TargetTypeRef };
+  | { readonly kind: "void"; readonly carrier: TargetTypeRef }
+  | { readonly kind: "never"; readonly carrier: TargetTypeRef };
 
 export interface CsharpPlannedValue {
   readonly prelude: readonly CsharpStatement[];
