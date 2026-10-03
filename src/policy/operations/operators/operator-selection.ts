@@ -2,7 +2,6 @@ import { validateBinaryTargetSemantics, validateUnaryTargetSemantics, isCsharpRe
 import { selectCsharpAssignmentLocation, type CsharpAssignmentLocation } from "./assignment-location.js";
 import { selectCsharpGuardedIntegerPromotion } from "../numeric/guarded.js";
 import { resolveCsharpContextualObjectLiteralCarrier } from "../../types/resolution/contextual-literals.js";
-import { selectCsharpNullishSequenceTarget } from "../../types/collections/common-carrier.js";
 import type { CsharpReferenceEquality, CsharpUnionEqualityArm } from "../../../target-model/operations/binary.js";
 import { selectCsharpReferenceEquality } from "./reference-equality.js";
 import { selectCsharpUnionEquality } from "./union-equality.js";
@@ -19,7 +18,6 @@ import type {
 } from "../../types/index.js";
 import {
   csharpSourcePrimitiveTargetType,
-  csharpNullableTargetType,
   csharpBigIntegerTargetType,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
@@ -392,10 +390,8 @@ function selectBinaryOperationTypes(
     };
   }
   if (operator === "??" && nullishResultType !== undefined) {
-    const leftValue = getCsharpNullableElementTargetType(leftType) ?? leftType;
-    const resultValue = getCsharpNullableElementTargetType(nullishResultType) ?? nullishResultType;
     return {
-      leftInputType: targetTypeRefEquals(leftValue, resultValue) ? leftType : csharpNullableTargetType(resultValue),
+      leftInputType: leftType,
       rightInputType: nullishResultType,
       resultType: nullishResultType,
     };
@@ -504,7 +500,7 @@ function selectNullishResultType(
   ) {
     return left;
   }
-  return selectCsharpNullishSequenceTarget(input, left, right);
+  return undefined;
 }
 
 function nullishValueType(
