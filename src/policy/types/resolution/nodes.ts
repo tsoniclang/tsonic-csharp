@@ -24,7 +24,7 @@ export function resolveNodeWithState(
   sourceFile: SourceFile | undefined,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const { host, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProjectThisTargetType, resolveSelectedExpressionType, resolveSourceValueDeclaration, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState } = scope;
+  const { host, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProjectThisTargetType, resolveSelectedExpressionType, resolveSourceValueDeclaration, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState } = scope;
   if (node === undefined || state.depth > maximumTypeResolutionDepth) {
     return undefined;
   }
@@ -89,6 +89,10 @@ export function resolveNodeWithState(
   );
   if (keyword !== undefined) {
     return keyword;
+  }
+  if (host.ast.is.IsFunctionTypeNode(node)) {
+    const selected = queries.types.authoredType(node);
+    return selected === undefined ? undefined : resolveCallableType(selected, queries, state);
   }
   if (host.ast.kindName(node) === "KindObjectKeyword" && selectedCsharpSourceProfileOwner(host.target) === "js") {
     return csharpEmptyObjectTargetType();

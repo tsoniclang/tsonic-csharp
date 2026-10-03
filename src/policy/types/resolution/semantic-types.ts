@@ -1,5 +1,6 @@
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import { resolveCsharpConstructorValueType } from "./constructors.js";
+import { sourceTypeSyntaxIsCompositional } from "@tsonic/target-api/source";
 import { csharpBoundSourceType } from "./type-bindings.js";
 import { resolveCsharpSemanticConditionalType } from "./conditional-types.js";
 import type { CsharpTypeResolutionState } from "./model.js";
@@ -57,7 +58,7 @@ export function resolveTypeWithState(
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const { host, policy, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceSemanticType, resolveProviderType, resolveSemanticTypeArguments, resolveSourceProfileType, resolveTypeWithState, resolveUnionType } = scope;
+  const { host, policy, resolveCallableType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceSemanticType, resolveProviderType, resolveSemanticTypeArguments, resolveSourceProfileType, resolveTypeWithState, resolveUnionType } = scope;
   if (type === undefined || state.depth > maximumTypeResolutionDepth) {
     return undefined;
   }
@@ -86,6 +87,16 @@ export function resolveTypeWithState(
       sourceFile,
       nextState(state),
     );
+  }
+  const application = queries.types.aliasApplication(type);
+  if (application?.kind === "direct" && sourceTypeSyntaxIsCompositional(host.ast, application.typeNode) &&
+    host.navigation.isProjectDeclaration(application.declaration)) {
+    const typeName = host.ast.name(application.declaration);
+    const arguments_ = application.bindings.map(binding => resolveTypeWithState(binding.argument, sourceFile, nextState(state)));
+    if (typeName === undefined || arguments_.some(argument => argument === undefined)) return undefined;
+    const alias = resolveCompositionalSourceTypeAlias(typeName, arguments_ as readonly TargetTypeRef[], type, state,
+      application.bindings.map(binding => binding.argument));
+    return alias.kind === "resolved" ? alias.type : undefined;
   }
   const targetTypeArguments = resolveSemanticTypeArguments(type, queries, state);
   if (targetTypeArguments === undefined) {
