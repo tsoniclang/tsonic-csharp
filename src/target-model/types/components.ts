@@ -51,6 +51,12 @@ export function csharpTargetTypeComponents(
     addDefined(components, target.csharpArrayLikeElementType);
     addDefined(components, target.csharpReadOnlyIndexableElementType);
     addDefined(components, target.csharpDenseMutableElementType);
+    const indexedRead = target.csharpIndexableReadMember;
+    if (indexedRead !== undefined) {
+      addDefined(components, indexedRead.declaringType);
+      addDefined(components, indexedRead.returnType);
+      components.push(...indexedRead.parameters.map(parameter => parameter.type));
+    }
     addDefined(components, target.csharpBaseType);
     addDefined(components, target.csharpMethodValue?.owner);
     addDefined(components, target.csharpMethodValue?.contract);

@@ -21,6 +21,7 @@ export function csharpTargetNamedType(
     readonly readOnlyIndexableElementType?: TargetTypeRef;
     readonly denseMutableElementType?: TargetTypeRef;
     readonly indexableLengthMemberName?: string;
+    readonly indexableReadMember?: CsharpTargetNamedTypeRef["csharpIndexableReadMember"];
     readonly collectionSemantics?: CsharpTargetNamedTypeRef["csharpCollectionSemantics"];
     readonly delegateSignature?: CsharpTargetNamedTypeRef["csharpDelegateSignature"];
     readonly generatorProtocol?: CsharpTargetNamedTypeRef["csharpGeneratorProtocol"];
@@ -54,6 +55,9 @@ export function csharpTargetNamedType(
     ...(metadata.denseMutableElementType !== undefined ? { csharpDenseMutableElementType: metadata.denseMutableElementType } : {}),
     ...(metadata.indexableLengthMemberName !== undefined
       ? { csharpIndexableLengthMemberName: metadata.indexableLengthMemberName }
+      : {}),
+    ...(metadata.indexableReadMember !== undefined
+      ? { csharpIndexableReadMember: metadata.indexableReadMember }
       : {}),
     ...(metadata.collectionSemantics !== undefined
       ? { csharpCollectionSemantics: metadata.collectionSemantics }

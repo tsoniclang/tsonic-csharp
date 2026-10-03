@@ -57,6 +57,7 @@ export function substituteTargetTypeParameters(
       const arrayLikeElementType = (type as CsharpTargetNamedTypeRef).csharpArrayLikeElementType;
       const readOnlyIndexableElementType = (type as CsharpTargetNamedTypeRef).csharpReadOnlyIndexableElementType;
       const denseMutableElementType = (type as CsharpTargetNamedTypeRef).csharpDenseMutableElementType;
+      const indexedRead = (type as CsharpTargetNamedTypeRef).csharpIndexableReadMember;
       const baseType = (type as CsharpTargetNamedTypeRef).csharpBaseType;
       const taskResultType = (type as Partial<CsharpTaskTargetTypeRef>).csharpTaskResultType;
       const runtimeUnionArms = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionArms;
@@ -97,6 +98,18 @@ export function substituteTargetTypeParameters(
         ...(denseMutableElementType === undefined
           ? {}
           : { csharpDenseMutableElementType: substituteTargetTypeParameters(denseMutableElementType, substitutions) }),
+        ...(indexedRead === undefined ? {} : { csharpIndexableReadMember: {
+          ...indexedRead,
+          ...(indexedRead.declaringType === undefined ? {} : {
+            declaringType: substituteTargetTypeParameters(indexedRead.declaringType, substitutions),
+          }),
+          ...(indexedRead.returnType === undefined ? {} : {
+            returnType: substituteTargetTypeParameters(indexedRead.returnType, substitutions),
+          }),
+          parameters: indexedRead.parameters.map(parameter => ({ ...parameter,
+            type: substituteTargetTypeParameters(parameter.type, substitutions),
+          })),
+        } }),
         ...(baseType === undefined
           ? {}
           : { csharpBaseType: substituteTargetTypeParameters(baseType, substitutions) }),
