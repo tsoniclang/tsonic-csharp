@@ -352,7 +352,8 @@ function analyzeIteration(
     scopedTargetType(node) {
       const storage = previous?.storage.requiredType(node);
       if (storage !== undefined) return storage;
-      if (!input.source.ast.is.IsArrowFunction(node) && !input.source.ast.is.IsFunctionExpression(node)) return undefined;
+      if (!input.source.ast.is.IsArrowFunction(node) && !input.source.ast.is.IsFunctionExpression(node) &&
+        !input.source.ast.is.IsFunctionDeclaration(node)) return undefined;
       const callable = previous?.callables.get({ kind: "declaration", declaration: node });
       return callable === undefined ? undefined : csharpCallableValueType(callable);
     },

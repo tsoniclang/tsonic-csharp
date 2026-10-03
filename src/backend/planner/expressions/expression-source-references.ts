@@ -38,6 +38,7 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
 import { csharpCapturedBindingExpression } from "../bindings/capture-storage.js";
+import { planCsharpFrameClosureReference } from "../bindings/capture-closures.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 
 export function planIdentifierExpression(
@@ -50,6 +51,9 @@ export function planIdentifierExpression(
   const sourceName = Node_Text(input.program.source.ast, AsIdentifier(input.program.source.ast, identifier));
   const sourceReference = input.program.sourceNavigation.referenceFor(identifier);
   const declarationReference = input.program.sourceNavigation.sourceReferenceFor(identifier);
+  if (declarationReference !== undefined && input.program.captureStorage.closure(declarationReference.declaration) !== undefined) {
+    return planCsharpFrameClosureReference(declarationReference.declaration, input, diagnostics, state);
+  }
   const selectedClass = declarationReference === undefined ? undefined : input.scope.classValues?.get(declarationReference.declaration);
   if (selectedClass !== undefined) return selectedClass;
   if (declarationReference !== undefined && input.program.classFactories.get(declarationReference.declaration) !== undefined) {

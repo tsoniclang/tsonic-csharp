@@ -2,9 +2,10 @@ import type { CsharpPlanningContext } from "../../context.js";
 import { AsFunctionDeclaration } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpMethodDeclaration } from "../../../target-ast/roslyn/index.js";
+import type { CsharpMethodDeclaration, CsharpStatement } from "../../../target-ast/roslyn/index.js";
 import { planAttributesForSubject } from "../attributes.js";
-import { createDestructuringPlannerState } from "../../bindings/index.js";
+import { createDestructuringPlannerState, createNestedPlannerState, getCsharpLocalBindingName,
+  type DestructuringPlannerState } from "../../bindings/index.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers, isAsyncNode } from "../modifiers.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
 import { planParametersWithPrelude } from "./parameters.js";
@@ -23,10 +24,33 @@ export function planFunctionDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpMethodDeclaration {
+  const planned = planSourceFunctionDeclaration(node, sourceFile, input, diagnostics);
+  return { ...planned.declaration, kind: "MethodDeclaration",
+    modifiers: withCsharpSafetyModifiers(planned.async ? ["public", "static", "async"] : ["public", "static"],
+      node, "declaration", input) };
+}
+
+export function planLocalFunctionDeclaration(
+  node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[], parent: DestructuringPlannerState,
+): readonly CsharpStatement[] {
+  if (input.program.source.ast.body(node) === undefined || input.program.captureStorage.closure(node) !== undefined) return [];
+  const planned = planSourceFunctionDeclaration(node, sourceFile, input, diagnostics, parent);
+  return [{ ...planned.declaration, kind: "LocalFunctionStatement",
+    modifiers: withCsharpSafetyModifiers(planned.async ? ["async"] : [], node, "declaration", input) }];
+}
+
+export function planSourceFunctionDeclaration(
+  node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
+  parent?: DestructuringPlannerState,
+): { readonly async: boolean; readonly declaration: Omit<CsharpMethodDeclaration, "kind" | "modifiers" | "body"> &
+  { readonly body: NonNullable<CsharpMethodDeclaration["body"]> } } {
   const declaration = AsFunctionDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "function declaration", diagnostics);
-  const name = planIdentifierName(declaration.name, "__anonymous", input, diagnostics, "Function name");
-  const state = createDestructuringPlannerState(node, input.program.source.ast);
+  const name = declaration.name === undefined || parent === undefined ? undefined : getCsharpLocalBindingName(declaration.name, input, parent);
+  const selectedName = name ?? planIdentifierName(declaration.name, "__anonymous", input, diagnostics, "Function name");
+  const state = parent === undefined ? createDestructuringPlannerState(node, input.program.source.ast)
+    : createNestedPlannerState(parent, node, input.program.source.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   const declaredReturnTargetType = getDeclarationReturnTargetType(
     declaration.Type,
@@ -47,21 +71,14 @@ export function planFunctionDeclaration(
       parameters.prelude,
       planBlockStatements,
     );
-    return {
-      kind: "MethodDeclaration",
-      name,
-      modifiers: withCsharpSafetyModifiers(
-        ["public", "static"],
-        node,
-        "declaration",
-        input,
-      ),
+    return { async: false, declaration: {
+      name: selectedName,
       attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
       typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
       returnType: generator?.generatorTypeNode ?? declaredReturnType,
       parameters: parameters.parameters,
       body: generator?.body ?? { kind: "Block", statements: [] },
-    };
+    } };
   }
   const async = isAsyncNode(input.program.source.ast, node);
   state.currentReturnType = declaredReturnType;
@@ -96,15 +113,8 @@ export function planFunctionDeclaration(
     ? declaredReturnType
     : csharpTypeFromTargetTypeRef(effectiveReturnTargetType, input.scope.typeParameterNames) ??
       declaredReturnType;
-  return {
-    kind: "MethodDeclaration",
-    name,
-    modifiers: withCsharpSafetyModifiers(
-      async ? ["public", "static", "async"] : ["public", "static"],
-      node,
-      "declaration",
-      input,
-    ),
+  return { async, declaration: {
+    name: selectedName,
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
     returnType,
@@ -117,5 +127,5 @@ export function planFunctionDeclaration(
           ? [planCsharpAbsenceReturn(state.currentReturnExpressionTargetType, input.scope.typeParameterNames)] : []),
       ],
     },
-  };
+  } };
 }

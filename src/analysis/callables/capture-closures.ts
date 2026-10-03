@@ -23,7 +23,9 @@ export function selectCsharpFrameClosures(
   if (groups.size === 0) return [];
   const candidates: Node[] = [];
   const visit = (node: Node): void => {
-    if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) candidates.push(node);
+    if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node) ||
+      source.ast.is.IsFunctionDeclaration(node) && source.ast.parent(node) !== undefined &&
+      !source.ast.is.IsSourceFile(source.ast.parent(node)!)) candidates.push(node);
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   for (const file of source.navigation.sourceFiles) visit(file);

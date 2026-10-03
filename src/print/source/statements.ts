@@ -79,7 +79,9 @@ export function printCsharpStatement(
       ].join("\n");
     case "LocalFunctionStatement":
       return [
-        `${statement.async === true ? "async " : ""}${context.printType(statement.returnType)} ${statement.name}(${statement.parameters.map(context.printParameter).join(", ")})`,
+        ...context.printAttributes(statement.attributes),
+        `${statement.modifiers.length === 0 ? "" : `${statement.modifiers.join(" ")} `}${context.printType(statement.returnType)} ${statement.name}${context.printTypeParameters(statement.typeParameters)}(${statement.parameters.map(context.printParameter).join(", ")})`,
+        ...context.printTypeParameterConstraintLines(statement.typeParameters),
         "{",
         ...indentLines(context.printStatements(statement.body.statements)),
         "}",

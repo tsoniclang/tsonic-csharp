@@ -14,6 +14,7 @@ import {
   KindForInStatement,
   KindForOfStatement,
   KindForStatement,
+  KindFunctionDeclaration,
   KindIfStatement,
   KindLabeledStatement,
   KindReturnStatement,
@@ -33,10 +34,12 @@ import type {
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import {
   createDestructuringPlannerState,
+  declareCsharpLocalBindingName,
 } from "../bindings/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { planExpression } from "../expressions/index.js";
 import { planClassFactoryExpression } from "../declarations/classes/factories.js";
+import { planLocalFunctionDeclaration } from "../declarations/callables/functions.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
@@ -88,6 +91,12 @@ export function planBlockStatements(
     (statement): statement is Node => statement !== undefined,
   );
   const explicitUnsafe = isExplicitUnsafeBlockMarker(statements[0], input);
+  for (const statement of statements) {
+    if (input.program.source.ast.is.IsFunctionDeclaration(statement)) {
+      const name = input.program.source.ast.name(statement);
+      if (name !== undefined) declareCsharpLocalBindingName(name, input, diagnostics, state, "Local function name", "__anonymous");
+    }
+  }
   const captures = planCsharpCaptureFrame(blockNode, input, diagnostics, state);
   const plan = () => [...captures, ...entryPrelude, ...planCsharpCaptureEntryBindings(blockNode, input, state), ...planResourceManagedBlockStatements(
     blockNode,
@@ -123,6 +132,8 @@ export function planStatements(
 ): readonly CsharpStatement[] {
   if (input.program.operations.nativeUnreachable(node)) return [];
   switch (SourceKind(input.program.source.ast, node)) {
+    case KindFunctionDeclaration:
+      return planLocalFunctionDeclaration(node, sourceFile, input, diagnostics, state);
     case KindEmptyStatement:
       return [];
     case KindBlock:

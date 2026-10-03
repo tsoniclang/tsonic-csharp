@@ -81,7 +81,7 @@ export function planCsharpDelegateAdapter(
       return undefined;
     }
     statements.push({ kind: "LocalFunctionStatement", name, returnType,
-      ...(expression.async ? { async: true } : {}),
+      modifiers: expression.async ? ["async"] : [],
       parameters: sourceParameters as NonNullable<typeof sourceParameters[number]>[],
       body: expression.body.kind === "Block" ? expression.body : { kind: "Block", statements: [
         isCsharpVoidTargetType(sourceSignature.returnType)

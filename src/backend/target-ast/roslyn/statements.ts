@@ -1,5 +1,5 @@
 import type { CsharpExpression } from "./expressions.js";
-import type { CsharpParameter } from "./members.js";
+import type { CsharpAttribute, CsharpModifier, CsharpParameter, CsharpTypeParameter } from "./members.js";
 import type { CsharpTypeNode } from "./types.js";
 
 export interface CsharpBlock {
@@ -27,7 +27,9 @@ export type CsharpStatement =
   | {
       readonly kind: "LocalFunctionStatement";
       readonly name: string;
-      readonly async?: boolean;
+      readonly modifiers: readonly CsharpModifier[];
+      readonly attributes?: readonly CsharpAttribute[];
+      readonly typeParameters?: readonly CsharpTypeParameter[];
       readonly returnType: CsharpTypeNode;
       readonly parameters: readonly CsharpParameter[];
       readonly body: CsharpBlock;

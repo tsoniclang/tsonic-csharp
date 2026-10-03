@@ -208,7 +208,7 @@ export function planCsharpGeneratorFunction(
   const localFunction: CsharpStatement = {
     kind: "LocalFunctionStatement",
     name: names.iteratorName,
-    ...(protocol.kind === "async" ? { async: true } : {}),
+    modifiers: protocol.kind === "async" ? ["async"] : [],
     returnType: iteratorTypeNode,
     parameters: [generatorControllerParameter(names.controllerName, generatorTypeNode)],
     body: { kind: "Block", statements: iteratorStatements },

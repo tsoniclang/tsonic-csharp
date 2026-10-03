@@ -11,6 +11,8 @@ import { planTypeParameters } from "../../types/type-parameters.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { getCsharpDelegateSignature, isCsharpVoidTargetType } from "../../../../target-model/types/index.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { planSourceFunctionDeclaration } from "../../declarations/callables/functions.js";
+import { withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
 
 export function renderCsharpCaptureFrameMethods(
   shape: CsharpObjectShapeFact, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
@@ -45,6 +47,13 @@ export function renderCsharpCaptureFrameMethods(
     const context = createCsharpMemberPlanningContext({ ...input, scope: { ...input.scope,
       captureFrames, capturedBindings, capturedReceivers, nativeCallableBody: method.declaration,
     } });
+    if (input.program.source.ast.is.IsFunctionDeclaration(method.declaration)) {
+      const planned = planSourceFunctionDeclaration(method.declaration, file, context, diagnostics);
+      members.push({ ...planned.declaration, kind: "MethodDeclaration", name: method.methodName,
+        modifiers: withCsharpSafetyModifiers(planned.async ? ["public", "async"] : ["public"],
+          method.declaration, "declaration", context) });
+      continue;
+    }
     const planned = input.program.source.ast.is.IsArrowFunction(method.declaration)
       ? planArrowFunctionExpression(method.declaration, file, context, diagnostics, planExpression,
         undefined, undefined, method.type,
