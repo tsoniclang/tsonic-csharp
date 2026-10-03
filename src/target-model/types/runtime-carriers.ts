@@ -148,11 +148,18 @@ export function combineCsharpTargetUnionMembers(
   const pending = [...members];
   while (pending.length > 0) {
     const member = pending.pop()!;
+    if (isCsharpAbsenceTargetType(member)) {
+      byIdentity.set(targetTypeRefKey(member), member);
+      continue;
+    }
     const optional = getCsharpNullableElementTargetType(member);
-    const arms = getCsharpRuntimeUnionArms(optional ?? member);
+    if (optional !== undefined) {
+      pending.push(optional, csharpAbsenceTargetType());
+      continue;
+    }
+    const arms = getCsharpRuntimeUnionArms(member);
     if (arms !== undefined) {
       pending.push(...arms);
-      if (optional !== undefined) pending.push(csharpAbsenceTargetType());
       continue;
     }
     const value = valueUnion && isCsharpVoidTargetType(member) ? csharpAbsenceTargetType() : member;
