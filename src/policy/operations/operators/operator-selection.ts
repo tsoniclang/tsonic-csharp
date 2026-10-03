@@ -2,7 +2,8 @@ import { validateBinaryTargetSemantics, validateUnaryTargetSemantics, isCsharpRe
 import { selectCsharpAssignmentLocation, type CsharpAssignmentLocation } from "./assignment-location.js";
 import { selectCsharpGuardedIntegerPromotion } from "../numeric/guarded.js";
 import { resolveCsharpContextualObjectLiteralCarrier } from "../../types/resolution/contextual-literals.js";
-import { csharpBooleanShortCircuitBranch, type CsharpShortCircuitBranch } from "../../types/resolution/short-circuit-values.js";
+import { sourceBooleanShortCircuitBranch as csharpBooleanShortCircuitBranch,
+  type SourceBooleanShortCircuitBranch as CsharpShortCircuitBranch } from "@tsonic/target-api/source";
 import type { CsharpReferenceEquality, CsharpUnionEqualityArm } from "../../../target-model/operations/binary.js";
 import { selectCsharpReferenceEquality } from "./reference-equality.js";
 import { selectCsharpUnionEquality } from "./union-equality.js";

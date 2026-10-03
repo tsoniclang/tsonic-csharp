@@ -32,8 +32,11 @@ test("discarded finite await retains original completion, failure and cancellati
       await value;
     }
   `);
-  assert.match(source, /await .*switch/su);
-  assert.match(source, /Task\.CompletedTask/u);
+  assert.equal(source.match(/\bawait\b/gu)?.length, 2, "each existing native Task arm is awaited exactly once");
+  assert.match(source, /await [^;]*\.As2\(\)/u);
+  assert.match(source, /await [^;]*\.As3\(\)/u);
+  assert.match(source, /default\(int\?\)/u);
+  assert.doesNotMatch(source, /Task\.CompletedTask/u);
   assert.doesNotMatch(source, /ContinueWith|Task\.Run|Task\.FromResult|async .*=>/u);
 });
 
