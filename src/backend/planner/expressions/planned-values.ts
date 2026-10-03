@@ -13,10 +13,8 @@ export interface CsharpPlannedValue {
   readonly completion: CsharpPlannedCompletion;
 }
 
-export interface CsharpPlannedArgument {
-  readonly prelude: readonly CsharpStatement[];
-  readonly argument: CsharpArgument;
-  readonly carrier: TargetTypeRef;
+export interface CsharpPlannedArgument extends CsharpPlannedValue {
+  readonly passing?: CsharpArgument["passing"];
 }
 
 export interface CsharpPlannedCapture {
@@ -29,6 +27,8 @@ export function csharpPlannedValue(
   expression: CsharpExpression,
   prelude: readonly CsharpStatement[] = [],
 ): CsharpPlannedValue {
+  if (isCsharpVoidTargetType(carrier) || isCsharpNeverTargetType(carrier))
+    throw new Error("A native void or never completion cannot be planned as a value.");
   return Object.freeze({ prelude: Object.freeze([...prelude]),
     completion: Object.freeze({ kind: "value", carrier, expression }) });
 }
@@ -123,7 +123,7 @@ export function selectCsharpPlannedBranch(
     : csharpPlannedEffect(carrier, prelude);
 }
 
-function csharpPlannedExpressionIsStable(expression: CsharpExpression): boolean {
+export function csharpPlannedExpressionIsStable(expression: CsharpExpression): boolean {
   let selected = expression;
   let budget = 2048;
   while (selected.kind === "ParenthesizedExpression") {

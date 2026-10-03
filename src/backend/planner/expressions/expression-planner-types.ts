@@ -14,9 +14,10 @@ import type {
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
+import type { CsharpPlannedArgument, CsharpPlannedValue } from "./planned-values.js";
 
-export type PlannedExpression = CsharpExpression | undefined;
-export type PlannedArgument = CsharpArgument | undefined;
+export type PlannedExpression = CsharpPlannedValue | undefined;
+export type PlannedArgument = CsharpPlannedArgument | undefined;
 
 export type ExpressionPlanner = (
   node: Node,
