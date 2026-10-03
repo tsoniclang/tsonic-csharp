@@ -119,9 +119,6 @@ export function resolveNodeWithState(
   }
   if (host.ast.is.IsUnionTypeNode(node)) {
     const selected = queries.types.authoredType(node);
-    if (selected !== undefined && (queries.types.isUnknown(selected) || queries.types.isAny(selected))) {
-      return resolveTypeWithState(selected, queries.sourceFile, nextState(state));
-    }
     const structural = selected === undefined ? { kind: "not-applicable" as const }
       : host.structuralTypes.resolveUnion(selected, queries.sourceFile, state);
     if (structural.kind !== "not-applicable") return structural.kind === "resolved" ? structural.type : undefined;
