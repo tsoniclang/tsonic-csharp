@@ -36,7 +36,7 @@ import {
   planFlowReadUseSiteProjection,
 } from "../flow-read-projections.js";
 import { applyCsharpConversionSelection } from "../conversions.js";
-import { objectShapeStorageMemberName } from "../../objects/object-shape-storage.js";
+import { planCsharpSourceMemberName } from "./source-member-names.js";
 import { getCsharpMethodValue } from "../../../../target-model/types/method-values.js";
 import type { CsharpTargetNamedTypeRef } from "../../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
@@ -311,7 +311,6 @@ function translateSourceOwnedProperty(
     : syntaxName === undefined
       ? undefined
       : input.program.source.ast.text(syntaxName);
-  const nameNode = input.program.source.ast.name(declaration) ?? syntaxName;
   const methodValue = objectShape !== undefined && shapeMember?.kind === "resolved" &&
     shapeMember.member.memberKind === "method" && (!selection.source.callCallee || shapeMember.member.optional === true);
   const genericMethodValue = getCsharpMethodValue(rawReadType);
@@ -323,31 +322,16 @@ function translateSourceOwnedProperty(
       return undefined;
     }
   }
-  const name = shapeMember?.kind === "resolved"
-    ? methodValue ? objectShapeStorageMemberName(objectShape, shapeMember.member) : shapeMember.member.targetName
-    : nameNode === undefined
-      ? undefined
-      : input.names.resolve(nameNode, declaration);
-  const resolvedName = typeof name === "string"
-    ? name
-    : name?.kind === "resolved"
-      ? name.name
-      : undefined;
-  if (
-    jsValueOperation.kind === "resolved"
-      ? jsValueSourceName === undefined
-      : resolvedName === undefined
-  ) {
+  const resolvedName = jsValueOperation.kind === "resolved" ? undefined
+    : planCsharpSourceMemberName(node, declaration, classification, methodValue, input, diagnostics);
+  if (jsValueOperation.kind === "resolved" && jsValueSourceName === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
-      jsValueOperation.kind === "resolved"
-        ? "A JS-value property read requires an exact authored property name."
-        : typeof name === "object" && name?.kind === "rejected"
-        ? `The exact selected source property has no C#-representable declaration name. ${name.reason}`
-        : "The exact selected source property has no C#-representable declaration name.",
+      "A JS-value property read requires an exact authored property name.",
     ));
     return undefined;
   }
+  if (jsValueOperation.kind !== "resolved" && resolvedName === undefined) return undefined;
   const receiver = translateCsharpSelectedReceiver(
     selection.source.receiver,
     sourceFile,

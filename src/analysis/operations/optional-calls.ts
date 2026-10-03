@@ -30,7 +30,7 @@ export function classifyCsharpOptionalCallReceiver(
     return undefined;
   }
   const receiver = source.sourceReceiver;
-  const selected = policy.types.resolveSelectedValue(receiver.expression, receiver.type, sourceFile);
+  const selected = policy.types.resolveNode(receiver.expression, sourceFile);
   if (selected === undefined) return undefined;
   const type = getCsharpNullableElementTargetType(selected) ?? getCsharpGenericOptionalParts(selected)?.element ?? selected;
   const access = source.sourceCalleeAccess?.expression;

@@ -34,7 +34,7 @@ namespace Tsonic.Generated
         } = default(Func<string, string>)!;
         internal static string join(string left, string? right)
         {
-            return right is null ? left : left + right;
+            return right is null ? left : left + right!;
         }
         public static string run()
         {
@@ -76,7 +76,7 @@ test("direct C# translation evaluates an omitted reference delegate default in t
   const source = compiled.artifacts.get("src/Index.cs");
   assert.match(source, /internal static string defaulted\(string\? __tsonic_param0\)/u);
   assert.match(source, /return defaulted\(null\);/u);
-  assert.match(source, /string value = __tsonic_param0 \?\? "x";/u);
+  assert.match(source, /string value = __tsonic_param0 is string __tsonic_value0 \? __tsonic_value0 : "x";/u);
   assert.match(source, /return value;/u);
 });
 

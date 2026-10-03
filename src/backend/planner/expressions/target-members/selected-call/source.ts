@@ -18,8 +18,8 @@ import type { CsharpPlannedArgument, CsharpPlannedValue } from "../../planned-va
 import { csharpPlannedValue } from "../../planned-values.js";
 import { planCsharpExpressionCompletion, planCsharpOptionalReceiverValue } from "../../planned-value-composition.js";
 import { composeCsharpPlannedCall, csharpPlannedArgumentSyntax, type CsharpPlannedCallArguments } from "./planned-arguments.js";
-import { translateCsharpPropertyAccess } from "../selected-property.js";
 import { sourceCalleeRequiresExactTargetArity } from "./helpers.js";
+import { planCsharpNativeFunctionCallee, planCsharpNativeMethodCallee } from "./native-callees.js";
 
 export function translateSourceOwnedCall(
   node: Node,
@@ -96,22 +96,14 @@ export function translateSourceOwnedCall(
     return invocation === undefined ? undefined : planCsharpSelectedSourceCallResult(node, sourceFile, input, diagnostics, result, invocation);
   };
   if (selected.kind === "function") {
-    const callee = planExpression(selected.expression, sourceFile, input, diagnostics);
+    const callee = planCsharpNativeFunctionCallee(selected, sourceFile, input, diagnostics);
     if (callee === undefined) return undefined;
-    if (callee.completion.kind === "never") return callee;
-    if (callee.completion.kind !== "value" || callee.prelude.length !== 0) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "A selected native function group must not introduce value acquisition effects."));
-      return undefined;
-    }
-    const callable = callee.completion.expression;
-    return composeCsharpPlannedCall(node, sourceFile, input, diagnostics, undefined, arguments_, (_, args) => invoke(callable, args));
+    return composeCsharpPlannedCall(node, sourceFile, input, diagnostics, undefined, arguments_, (_, args) => invoke(callee, args));
   }
   if (selected.kind === "method") {
-    const receiver = planExpression(selected.receiver.expression, sourceFile, input, diagnostics);
-    return receiver === undefined ? undefined : composeCsharpPlannedCall(node, sourceFile, input, diagnostics, receiver, arguments_, (value, args) => {
-      const planned = planExpressionForReceiver(selected.expression, selected.receiver.expression, selected.receiver.type, value!, sourceFile, input, diagnostics, planExpression);
-      return planned?.completion.kind === "value" && planned.prelude.length === 0 ? invoke(planned.completion.expression, args) : undefined;
-    });
+    const callee = planCsharpNativeMethodCallee(selected, sourceFile, input, diagnostics, planExpression);
+    return callee === undefined ? undefined : composeCsharpPlannedCall(node, sourceFile, input, diagnostics,
+      callee.receiver, arguments_, (receiver, args) => invoke({ kind: "SimpleMemberAccessExpression", receiver: receiver!, name: callee.name }, args));
   }
   const callee = planExpression(selected.expression, sourceFile, input, diagnostics);
   const present = (value: CsharpExpression): CsharpPlannedValue | undefined => composeCsharpPlannedCall(node, sourceFile, input, diagnostics,
@@ -260,19 +252,4 @@ export function translateSourceOwnedArguments(
   }
   return arguments_;
   } };
-}
-
-function planExpressionForReceiver(
-  expression: Node,
-  receiver: Node,
-  type: import("../../../../../target-model/types/model.js").TargetTypeRef,
-  value: CsharpExpression,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  planner: ExpressionPlanner,
-): CsharpPlannedValue | undefined {
-  return translateCsharpPropertyAccess(expression, sourceFile, input, diagnostics,
-    (subject, file, context, errors, state) => subject === receiver ? csharpPlannedValue(type, value)
-      : planner(subject, file, context, errors, state));
 }
