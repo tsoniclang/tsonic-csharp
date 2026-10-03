@@ -4,7 +4,7 @@ import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { selectCsharpNativeFlowMembers } from "../../../dist/policy/types/resolution/native-flow-refinement.js";
 import { csharpJsArrayTargetType, csharpJsRegExpTargetType } from "../../../dist/policy/types/resolution/surface-types.js";
-import { csharpStringTargetType } from "../../../dist/target-model/types/scalar-types.js";
+import { csharpStringTargetType, csharpObjectTargetType } from "../../../dist/target-model/types/scalar-types.js";
 import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
 import { resolveCsharpInstanceType } from "../../../dist/policy/types/resolution/instance-tests.js";
 
@@ -64,4 +64,32 @@ test("nominal constructor policy requires every selected construct signature to 
   assert.equal(select([{ returnType: first }, {}], () => regexp), undefined);
   assert.equal(select([{ returnType: first }, { returnType: second }], selected => selected === first ? regexp : string), undefined);
   assert.equal(select([{ returnType: first }], () => undefined), undefined);
+});
+
+test("literal guards retain exact native integer widths and broad unknown payloads", () => {
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
+    declare function observe(value: unknown): void;
+    function run(value: unknown): void {
+      if (value === 1) observe(value);
+      if (value === 1n) observe(value);
+      if (value === "route") observe(value);
+    }
+  ` }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
+  assert.deepEqual(checked.diagnostics, []);
+  const source = createTargetSourceProgram(checked);
+  const reads = [];
+  const visit = node => {
+    const call = source.semantics.forNode(node).operations.call(node);
+    if (source.ast.text(call?.sourceCallee.expression) === "observe") reads.push(call.sourceArguments[0].expression);
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  visit(checked.getSourceFile("/src/index.ts"));
+  assert.equal(reads.length, 3);
+  const context = { ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts,
+    semanticsFor: node => source.semantics.forNode(node), closedTypeGuard: () => undefined };
+  const carriers = [{ kind: "source-primitive", name: "int32" }, { kind: "source-primitive", name: "int64" },
+    csharpObjectTargetType(), csharpStringTargetType()];
+  const carrier = csharpRuntimeUnionTargetType(carriers);
+  const selected = reads.map(reference => selectCsharpNativeFlowMembers(context, reference, carrier, () => undefined));
+  assert.deepEqual(selected, [carriers.slice(0, 3), carriers.slice(0, 3), carriers.slice(2)]);
 });

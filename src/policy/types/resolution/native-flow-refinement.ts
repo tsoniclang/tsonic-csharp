@@ -28,6 +28,7 @@ export function selectCsharpNativeFlowMembers(
 }
 
 type Predicate = CsharpClosedTypePredicate | { readonly kind: "typeof"; readonly value: string; readonly negated: boolean }
+  | Extract<SourceNativeValueGuard, { readonly kind: "literal" }>
   | { readonly kind: "absence"; readonly negated: boolean };
 
 export function selectCsharpNativeGuardResult(
@@ -72,6 +73,7 @@ function selectNativeGuard(
   const native = selectSourceNativeValueGuard(host, expression);
   if (native?.kind === "absence") return { sourceOperand: native.sourceOperand, predicate: native };
   if (native?.kind === "typeof") return { sourceOperand: native.sourceOperand, predicate: native };
+  if (native?.kind === "literal") return { sourceOperand: native.sourceOperand, predicate: native };
   if (native?.kind === "nominal") {
     const targetCarrier = resolveNominal(native);
     if (targetCarrier !== undefined) return { sourceOperand: native.sourceOperand, predicate: { kind: "nominal", targetCarrier } };
@@ -85,6 +87,12 @@ function testNativeCarrier(host: CsharpTypePolicyHost, member: TargetTypeRef, pr
     return getCsharpTypeofRuntimeKind(member, host.typeDefinitions) === undefined ? undefined : predicate.negated;
   }
   const category = getCsharpTypeofRuntimeKind(member, host.typeDefinitions);
+  if (predicate.kind === "literal") {
+    if (isCsharpAbsenceTargetType(member)) return predicate.negated;
+    const numeric = (category === "number" || category === "bigint") &&
+      (predicate.category === "number" || predicate.category === "bigint");
+    return category === undefined || category === predicate.category || numeric ? undefined : predicate.negated;
+  }
   if (predicate.kind === "typeof") return category === undefined ? undefined : (category === predicate.value) !== predicate.negated;
   if (predicate.kind === "nominal") {
     if (targetTypeRefEquals(member, predicate.targetCarrier)) return true;
