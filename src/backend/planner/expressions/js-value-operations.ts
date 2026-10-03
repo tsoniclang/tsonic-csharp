@@ -4,9 +4,7 @@ import type {
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpJsValueOperationSelection,
-} from "../../../analysis/operations/index.js";
+import type { CsharpJsValueInvocation } from "../../../policy/js-value-operations/selection.js";
 import type {
   TargetTypeRef,
 } from "../../../target-model/types/index.js";
@@ -97,10 +95,7 @@ export function planCsharpJsValueBox(
 
 export function translateCsharpJsValueInvocation(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
-  selection: Extract<
-    CsharpJsValueOperationSelection,
-    { readonly kind: "resolved" }
-  >,
+  selection: CsharpJsValueInvocation,
   receiver: CsharpExpression | undefined,
   arguments_: readonly CsharpExpression[],
 ): CsharpExpression | undefined {

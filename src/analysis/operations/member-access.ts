@@ -2,6 +2,7 @@ import type {
   ResolvedSourceElementAccessInfo,
   SourceFile,
 } from "@tsonic/tsts";
+import { validateCsharpJsValueOperationSelection } from "../../policy/js-value-operations/selection.js";
 import {
   resolveCsharpJsValueObjectShapeProperty,
   selectCsharpTargetProperty,
@@ -97,13 +98,13 @@ export function classifySourceOwnedProperty(
   sourceFile: SourceFile,
 ): NonNullable<CsharpPropertyClassification["sourceOwned"]> {
   const semantics = policy.semantics(sourceFile);
-  const jsValueOperation = selectCsharpJsValueReceiverExpressionOperation(
+  const jsValueOperation = validateCsharpJsValueOperationSelection(selectCsharpJsValueReceiverExpressionOperation(
     policy,
     selection.source.receiver.expression,
     sourceFile,
     "property-read",
     selection.source.optionalChain,
-  );
+  ));
   const selectedSubjects = semantics.facts.selectedSubjects(
     selection.source.selectedSymbol,
     selection.source.selectedDeclaration,

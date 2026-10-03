@@ -1,6 +1,7 @@
 import { classifyCsharpUnionCall } from "./union-calls.js";
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 import { classifyCsharpClassPropertyStorage } from "./class-property-storage.js";
+import { validateCsharpJsValueOperationSelection } from "../../policy/js-value-operations/selection.js";
 import { resolveCsharpInstanceType } from "../../policy/types/resolution/instance-tests.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
 import { selectCsharpArrayTypeTest } from "../../policy/operations/source-profiles/js/type-tests.js";
@@ -367,14 +368,14 @@ function visit(
     const source = policy.semantics(sourceFile).operations.call(node);
     const callee = source?.sourceCallee.expression ?? expression?.Expression;
     const shape = jsValueCallShape(policy, source);
-    const jsValue = selectCsharpJsValueCallOperation(
+    const jsValue = validateCsharpJsValueOperationSelection(selectCsharpJsValueCallOperation(
       policy,
       callee,
       shape.receiver,
       sourceFile,
       shape.kind,
       expression?.QuestionDotToken !== undefined,
-    );
+    ));
     const typeTest = selectCsharpArrayTypeTest(policy, source, sourceFile);
     const target = jsValue.kind === "not-js-value" && typeTest === undefined
       ? selectCsharpTargetCall(policy, node, sourceFile)
@@ -523,13 +524,13 @@ function visit(
     const expression = ast.as.AsElementAccessExpression(node);
     const source = policy.semantics(sourceFile).operations.elementAccess(node);
     const receiverProjection = source === undefined ? undefined : classifyCsharpMemberReceiver(policy, source, sourceFile);
-    const jsValue = selectCsharpJsValueReceiverExpressionOperation(
+    const jsValue = validateCsharpJsValueOperationSelection(selectCsharpJsValueReceiverExpressionOperation(
       policy,
       expression?.Expression,
       sourceFile,
       "element-read",
       expression?.QuestionDotToken !== undefined,
-    );
+    ));
     setClassification(builder, node, elementKey, Object.freeze({
       jsValue,
       ...(receiverProjection === undefined ? {} : { receiverProjection }),

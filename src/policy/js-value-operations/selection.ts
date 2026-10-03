@@ -10,10 +10,17 @@ import {
   csharpStringTargetType,
   csharpTsValueTargetType,
   isCsharpJsValueTargetType,
+  targetTypeRefEquals,
 } from "../types/index.js";
 import type {
   TargetTypeRef,
 } from "../types/index.js";
+
+export interface CsharpJsValueInvocation {
+  readonly runtimeMember: string;
+  readonly dispatch: "instance" | "static";
+  readonly resultType: TargetTypeRef;
+}
 
 export type CsharpJsValueOperationSelection =
   | { readonly kind: "not-js-value" }
@@ -24,6 +31,8 @@ export type CsharpJsValueOperationSelection =
       readonly dispatch: "instance" | "static";
       readonly resultType: TargetTypeRef;
       readonly lazyRight?: true;
+      readonly presentOperation?: CsharpJsValueInvocation;
+      readonly receiverReadOperation?: CsharpJsValueInvocation;
     };
 
 export type CsharpJsValueReceiverOperation =
@@ -37,6 +46,48 @@ export type CsharpJsValueCallKind =
   | "direct"
   | "property"
   | "element";
+
+export function validateCsharpJsValueOperationSelection(
+  selection: CsharpJsValueOperationSelection,
+): CsharpJsValueOperationSelection {
+  if (selection.kind !== "resolved") return selection;
+  let presentMember: string | undefined;
+  let receiverReadMember: string | undefined;
+  switch (selection.runtimeMember) {
+    case "ReadDynamicSlotOptional":
+      presentMember = receiverRuntimeMember("property-read", false);
+      break;
+    case "ReadDynamicElementOptional":
+      presentMember = receiverRuntimeMember("element-read", false);
+      break;
+    case "InvokeDynamic":
+    case "InvokeDynamicOptional":
+      presentMember = "InvokeDynamic";
+      break;
+    case "InvokeDynamicSlot":
+      presentMember = "InvokeDynamicWithThis";
+      receiverReadMember = receiverRuntimeMember("property-read", false);
+      break;
+    case "InvokeDynamicElement":
+      presentMember = "InvokeDynamicWithThis";
+      receiverReadMember = receiverRuntimeMember("element-read", false);
+      break;
+  }
+  const coherent = (operation: CsharpJsValueInvocation | undefined, member: string | undefined): boolean =>
+    member === undefined ? operation === undefined : operation !== undefined &&
+      operation.runtimeMember === member && operation.dispatch === "instance" &&
+      targetTypeRefEquals(operation.resultType, csharpTsValueTargetType()) &&
+      targetTypeRefEquals(operation.resultType, selection.resultType);
+  if (!coherent(selection.presentOperation, presentMember) ||
+      !coherent(selection.receiverReadOperation, receiverReadMember) ||
+      presentMember !== undefined && selection.dispatch !== "instance") {
+    return { kind: "rejected", reason: "A closed JS operation requires its exact selected present invocation and receiver-read correspondence." };
+  }
+  return Object.freeze({ ...selection,
+    ...(selection.presentOperation === undefined ? {} : { presentOperation: Object.freeze({ ...selection.presentOperation }) }),
+    ...(selection.receiverReadOperation === undefined ? {} : { receiverReadOperation: Object.freeze({ ...selection.receiverReadOperation }) }),
+  });
+}
 
 export function selectCsharpJsObjectLiteralOperation(): Extract<
   CsharpJsValueOperationSelection,
@@ -77,6 +128,7 @@ export function selectCsharpJsValueReceiverOperation(
     return { kind: "not-js-value" };
   }
   const runtimeMember = receiverRuntimeMember(operation, optional);
+  const presentMember = receiverRuntimeMember(operation, false);
   return runtimeMember === undefined
     ? {
         kind: "rejected",
@@ -88,6 +140,11 @@ export function selectCsharpJsValueReceiverOperation(
         runtimeMember,
         dispatch: "instance",
         resultType: csharpTsValueTargetType(),
+        ...(optional && presentMember !== undefined ? { presentOperation: {
+          runtimeMember: presentMember,
+          dispatch: "instance" as const,
+          resultType: csharpTsValueTargetType(),
+        } } : {}),
       };
 }
 
@@ -127,6 +184,16 @@ export function selectCsharpJsValueCallOperation(
       : "InvokeDynamic",
     dispatch: "instance",
     resultType: csharpTsValueTargetType(),
+    presentOperation: {
+      runtimeMember: callKind === "direct" ? "InvokeDynamic" : "InvokeDynamicWithThis",
+      dispatch: "instance",
+      resultType: csharpTsValueTargetType(),
+    },
+    ...(callKind === "direct" ? {} : { receiverReadOperation: {
+      runtimeMember: callKind === "property" ? "ReadDynamicSlot" : "ReadDynamicElement",
+      dispatch: "instance" as const,
+      resultType: csharpTsValueTargetType(),
+    } }),
   };
 }
 
