@@ -1,5 +1,6 @@
 import { classifyCsharpUnionCall } from "./union-calls.js";
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
+import { classifyCsharpClassPropertyStorage } from "./class-property-storage.js";
 import { resolveCsharpInstanceType } from "../../policy/types/resolution/instance-tests.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
 import { selectCsharpArrayTypeTest } from "../../policy/operations/source-profiles/js/type-tests.js";
@@ -173,6 +174,7 @@ export function analyzeCsharpTargetOperations(
   evidence: CsharpSourceEvidenceIndex,
 ): CsharpTargetOperationClassifications {
   const builder = createTargetClassificationBuilder();
+  const classPropertyStorage = classifyCsharpClassPropertyStorage(policy, evidence);
   const binaryExecutionDrivers:
     import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[] = [];
   for (const sourceFile of policy.sourceFiles) {
@@ -189,6 +191,7 @@ export function analyzeCsharpTargetOperations(
   const selectedBinaryExecutionDriver =
     composeCsharpBinaryExecutionDriver(...binaryExecutionDrivers);
   const classifications: CsharpTargetOperationClassifications = {
+    classPropertyStorage,
     borrowedSequence: node => facts.get(node, borrowedSequenceKey),
     nativeGuardResult: node => facts.get(node, nativeGuardResultKey),
     nativeUnreachable: node => facts.get(node, nativeUnreachableKey) === true,

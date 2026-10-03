@@ -118,7 +118,7 @@ export function planClassFactoryDeclaration(
   const context = classFactoryContext(factory, { kind: "IdentifierName", name: "this" }, input, diagnostics, "factory");
   const staticNodes = input.program.source.ast.members(factory.declaration).filter(node => node !== undefined &&
     input.program.source.ast.hasModifierKind(node, "static") && !input.program.source.ast.is.IsClassStaticBlockDeclaration(node));
-  const staticMembers = planClassMembers(staticNodes, factory.factoryName, new Set(), factory.sourceFile, context, diagnostics);
+  const staticMembers = planClassMembers(staticNodes, factory.factoryName, factory.sourceFile, context, diagnostics);
   const members: CsharpTypeMember[] = staticMembers.filter(member => member.kind !== "ConstructorDeclaration" && member.kind !== "StaticConstructorDeclaration")
     .map(member => ({ ...member, modifiers: member.modifiers.filter(modifier => modifier !== "static") }));
   const constructors = instanceDeclaration.members.filter((member): member is CsharpConstructorDeclaration =>

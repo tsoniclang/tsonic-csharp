@@ -1,5 +1,5 @@
 import type { CsharpPlanningContext } from "../../context.js";
-import { AsClassDeclaration, AsInterfaceDeclaration, AsPropertySignatureDeclaration, KindInterfaceDeclaration, KindPropertySignature, SourceKind } from "@tsonic/target-api/source";
+import { AsClassDeclaration } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpClassDeclaration, CsharpConstructorDeclaration } from "../../../target-ast/roslyn/index.js";
@@ -39,7 +39,6 @@ export function planClassDeclaration(
   const className = declaration.name === undefined && factory !== undefined ? factory.instanceName
     : planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
   const heritage = planClassHeritage(node, input, diagnostics);
-  const autoPropertyNames = new Set(getImplementedInterfacePropertyNames(node, input));
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
   const structuralInterfaces = objectShape?.implements ?? [];
   const interfaces = [...heritage.interfaces];
@@ -52,9 +51,6 @@ export function planClassDeclaration(
       interfaces.push(rendered);
     }
   }
-  if (structuralInterfaces.length > 0) for (const member of objectShape!.members) {
-    if (member.memberKind === "property") autoPropertyNames.add(member.targetName);
-  }
   if (objectShape !== undefined) {
     registerSourceObjectShape(input, objectShape, diagnostics, node);
   }
@@ -65,7 +61,7 @@ export function planClassDeclaration(
   }
   const memberNodes = (declaration.Members?.Nodes ?? []).filter(member => factory === undefined && !staticCompanion ||
     member === undefined || !input.program.source.ast.hasModifierKind(member, "static") && !input.program.source.ast.is.IsClassStaticBlockDeclaration(member));
-  const members = planClassMembers(memberNodes, className, autoPropertyNames, sourceFile, input, diagnostics);
+  const members = planClassMembers(memberNodes, className, sourceFile, input, diagnostics);
   const implicitConstructors = planImplicitForwardingConstructors(
     node,
     className,
@@ -152,66 +148,4 @@ function defaultSafetyConstructors(
         parameters: [],
         body: { kind: "Block", statements: [] },
       }];
-}
-
-function getImplementedInterfacePropertyNames(
-  classDeclaration: Node,
-  input: CsharpPlanningContext,
-): ReadonlySet<string> {
-  const names = new Set<string>();
-  const heritage = input.program.sourceNavigation.declaredHeritage(classDeclaration);
-  if (heritage.kind !== "resolved") {
-    return names;
-  }
-  for (const edge of heritage.edges) {
-    if (edge.kind === "implements") {
-      collectImplementedInterfacePropertyNames(
-        edge.target.declaration,
-        input,
-        names,
-        new Set<Node>(),
-      );
-    }
-  }
-  return names;
-}
-
-function collectImplementedInterfacePropertyNames(
-  declaration: Node,
-  input: CsharpPlanningContext,
-  names: Set<string>,
-  seen: Set<Node>,
-): void {
-  if (seen.has(declaration) || SourceKind(input.program.source.ast, declaration) !== KindInterfaceDeclaration) {
-    return;
-  }
-  seen.add(declaration);
-  const interfaceDeclaration = AsInterfaceDeclaration(input.program.source.ast, declaration);
-  if (interfaceDeclaration === undefined) {
-    return;
-  }
-  for (const member of interfaceDeclaration.Members?.Nodes ?? []) {
-    if (SourceKind(input.program.source.ast, member) !== KindPropertySignature) {
-      continue;
-    }
-    const property = AsPropertySignatureDeclaration(input.program.source.ast, member);
-    const name = property?.name === undefined ? undefined : planIdentifierName(property.name, "PropertyDeclaration", input, [], "Interface property name");
-    if (name !== undefined) {
-      names.add(name);
-    }
-  }
-  const heritage = input.program.sourceNavigation.declaredHeritage(declaration);
-  if (heritage.kind !== "resolved") {
-    return;
-  }
-  for (const edge of heritage.edges) {
-    if (edge.kind === "extends") {
-      collectImplementedInterfacePropertyNames(
-        edge.target.declaration,
-        input,
-        names,
-        seen,
-      );
-    }
-  }
 }

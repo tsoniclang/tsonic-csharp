@@ -160,6 +160,7 @@ export interface CsharpUnaryClassification {
 }
 
 export interface CsharpTargetOperationClassifications {
+  classPropertyStorage(declaration: Node): import("./class-property-storage.js").CsharpClassPropertyStorage | undefined;
   borrowedSequence(expression: Node): CsharpBorrowedSequenceInput | undefined;
   nativeGuardResult(expression: Node): boolean | undefined;
   nativeUnreachable(node: Node): boolean;

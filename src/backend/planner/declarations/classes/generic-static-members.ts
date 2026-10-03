@@ -14,5 +14,5 @@ export function planGenericClassStaticMembers(
   const members = ast.members(node).filter(member => member !== undefined &&
     (ast.hasModifierKind(member, "static") || ast.is.IsClassStaticBlockDeclaration(member)));
   return { kind: "ClassDeclaration", name: definition.sourceName, modifiers: ["public", "static"],
-    members: planClassMembers(members, definition.sourceName, new Set(), sourceFile, createCsharpMemberPlanningContext(input), diagnostics) };
+    members: planClassMembers(members, definition.sourceName, sourceFile, createCsharpMemberPlanningContext(input), diagnostics) };
 }

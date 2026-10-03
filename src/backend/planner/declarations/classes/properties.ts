@@ -64,7 +64,6 @@ import {
 
 export function planPropertyDeclaration(
   node: Node,
-  autoPropertyNames: ReadonlySet<string>,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
@@ -118,7 +117,10 @@ export function planPropertyDeclaration(
       "A static class field requires an explicit initializer. Use defaultValue<T>() when target-native default initialization is intended; an uninitialized TypeScript field has undefined runtime semantics and cannot be replaced by a C# default value.",
     ));
   }
-  if (!shouldEmitAutoProperty(node, propertyName, autoPropertyNames, sourceFile, input)) {
+  const storage = input.program.operations.classPropertyStorage(node);
+  if (storage === undefined) diagnostics.push(unsupportedNodeDiagnostic(node,
+    "The class property has no sealed native field/property representation."));
+  if (storage === "field") {
     diagnoseUnavailableCsharpSafetyAccessors(
       node,
       [],
@@ -168,19 +170,6 @@ export function planPropertyDeclaration(
       ? { initializer: planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics, type, declaration.Type ?? declaration.name) }
       : {}),
   };
-}
-
-function shouldEmitAutoProperty(
-  node: Node,
-  propertyName: string,
-  autoPropertyNames: ReadonlySet<string>,
-  _sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-): boolean {
-  const dispatch = input.program.sourceNavigation.memberDispatch(node);
-  return autoPropertyNames.has(propertyName) ||
-    dispatch?.overridesBase === true ||
-    dispatch?.hasDerivedOverride === true;
 }
 
 export function mergeAccessorProperty(

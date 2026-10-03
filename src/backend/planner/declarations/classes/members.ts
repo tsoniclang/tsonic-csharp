@@ -38,7 +38,6 @@ import { planCsharpProjectCallableAdapters } from "./callable-adapters.js";
 export function planClassMembers(
   members: readonly (Node | undefined)[],
   className: string,
-  autoPropertyNames: ReadonlySet<string>,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
@@ -74,7 +73,7 @@ export function planClassMembers(
         }
         break;
       case KindPropertyDeclaration:
-        planned.push(planPropertyDeclaration(member, autoPropertyNames, sourceFile, input, diagnostics));
+        planned.push(planPropertyDeclaration(member, sourceFile, input, diagnostics));
         break;
       case KindGetAccessor:
       case KindSetAccessor:

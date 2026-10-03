@@ -7,6 +7,7 @@ import type { CsharpTargetOperationClassifications } from "../operations/index.j
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications } from "./model.js";
 import { analyzeCsharpNativeBacking } from "./native-backing.js";
+import { classifyCsharpNativeLocation } from "./native-locations.js";
 
 export function sealCsharpStorage(
   policy: CsharpPolicyContext,
@@ -17,9 +18,7 @@ export function sealCsharpStorage(
 ): CsharpStorageClassifications {
   const backing = analyzeCsharpNativeBacking(policy, evidence, operations, objectShapes);
   const issues = [...representations.issues, ...backing.issues];
-  if (backing.entries.length > 0 || backing.fields.length > 0 || backing.arrays.length > 0) {
-    for (const sourceFile of policy.sourceFiles) visit(sourceFile);
-  }
+  const nativeLocations = new WeakMap<Node, ReturnType<typeof classifyCsharpNativeLocation>>();
   const classifications: CsharpStorageClassifications = {
     ...representations,
     closedNativeContracts: backing.closedContracts,
@@ -29,16 +28,25 @@ export function sealCsharpStorage(
     nativeField: backing.field,
     nativeBackings: backing.entries,
     nativeBacking: backing.get,
-    issues: Object.freeze(issues),
+    nativeLocation: expression => nativeLocations.get(expression),
+    issues,
     requiresTypedLocationIdentity(declaration) {
       return backing.get(declaration) === undefined && backing.array(declaration) === undefined &&
         representations.requiresTypedLocationIdentity(declaration);
     },
   };
+  for (const sourceFile of policy.sourceFiles) visit(sourceFile);
+  Object.freeze(issues);
   return Object.freeze(classifications);
 
   function visit(node: Node): void {
     if (evidence.isCompileTimeMetadata(node) || IsTypeSyntaxNode(policy.ast, node)) return;
+    if (!policy.types.nativeUnreachable(node) && (policy.ast.is.IsIdentifier(node) ||
+      policy.ast.is.IsPropertyAccessExpression(node) || policy.ast.is.IsElementAccessExpression(node) ||
+      policy.ast.is.IsCallExpression(node) || policy.ast.is.IsParenthesizedExpression(node))) {
+      nativeLocations.set(node, classifyCsharpNativeLocation(policy, node, policy.ast.getSourceFile(node)!,
+        operations.classPropertyStorage, classifications));
+    }
     const passing = selectCsharpSourceArgument(policy.sourceFacts, node);
     if (passing.kind === "resolved" && passing.argument.passingMode !== "by-value") {
       const expression = passing.argument.storageExpression;
