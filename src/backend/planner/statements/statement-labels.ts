@@ -46,7 +46,7 @@ export function planLabeledStatement(
   state.controlLabels.push(target);
   const planned = planSingleStatement(statement.Statement, sourceFile, input, diagnostics, state, planNestedStatementBody);
   state.controlLabels.pop();
-  const loweredStatement = target.continueLabel === undefined || target.continueUsed !== true
+  const loweredStatement = target.continueLabel === undefined || target.continueUsed !== true || target.continueOwned === true
     ? planned
     : attachContinueLabel(planned, target.continueLabel);
   return {

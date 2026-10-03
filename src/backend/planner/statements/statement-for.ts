@@ -1,10 +1,7 @@
 import type { CsharpPlanningContext } from "../context.js";
 import {
   AsForStatement,
-  AsVariableDeclaration,
   HasSourceKind,
-  KindArrayBindingPattern,
-  KindObjectBindingPattern,
   KindVariableDeclarationList,
 } from "@tsonic/target-api/source";
 import type {
@@ -12,36 +9,25 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpForInitializer,
-  CsharpStatement,
-} from "../../target-ast/roslyn/index.js";
+import type { CsharpStatement } from "../../target-ast/roslyn/index.js";
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
-import {
-  sameCsharpType,
-} from "../types/index.js";
 import {
   planExpression,
 } from "../expressions/index.js";
 import {
   planConditionExpression,
 } from "./statement-conditionals.js";
-import {
-  planLocalDeclaration,
-  planLocalDeclarationStatements,
-} from "../bindings/locals.js";
+import { planLocalDeclarationStatements } from "../bindings/locals.js";
 import type {
   NestedStatementPlanner,
 } from "./statement-nested-planner.js";
-import {
-  planCsharpTypedLocationIdentityDeclaration,
-} from "../bindings/typed-location-identities.js";
 import { planResourceScopeStatements } from "./resource-management.js";
 import { planCsharpCaptureFrame, planCsharpCaptureFrameRotation } from "../bindings/capture-storage.js";
 import { sourceExpressionSequence } from "@tsonic/target-api/source";
-import { expressionStatement, planDiscardedExpression } from "./statement-output.js";
+import { expressionStatement, planCsharpPlannedDiscard, planDiscardedExpression } from "./statement-output.js";
+import { csharpLoopContinuationLabel, planCsharpLoopContinuation } from "./loop-regions.js";
 
 export function planForStatement(
   node: Node,
@@ -110,45 +96,60 @@ function planForStatementCore(
     return initializer?.prelude ?? [];
   }
   const rotation = frame === undefined ? undefined : planCsharpCaptureFrameRotation(frame, input, diagnostics, state);
-  const body = planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state);
+  const iterationPrelude = conditionPrelude.flatMap(expression => planCsharpPlannedDiscard(expression!));
+  const expandedIncrement = incrementors.some(expression => expression!.prelude.length !== 0 || expression!.completion.kind !== "value");
+  const expandedCondition = iterationPrelude.length !== 0 || (condition?.prelude.length ?? 0) !== 0;
+  const label = expandedIncrement ? planCsharpLoopContinuation(node, state) : undefined;
+  const body = condition?.completion.kind === "never" ? [] : planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state);
   const outerLabels = new Set(state.controlLabels.flatMap(target => [target.breakLabel,
     ...(target.continueLabel === undefined || target.loop === node ? [] : [target.continueLabel])]));
-  const plannedFor: CsharpStatement = {
+  const incrementStatements = [
+    ...(rotation === undefined ? [] : [expressionStatement(rotation)]),
+    ...incrementors.flatMap(expression => planCsharpPlannedDiscard(expression!)),
+  ];
+  const conditionTest: readonly CsharpStatement[] = [...iterationPrelude, ...condition?.prelude ?? [],
+    ...(condition?.completion.kind === "value" ? [{ kind: "IfStatement" as const,
+      condition: { kind: "PrefixUnaryExpression" as const, operatorToken: { kind: "ExclamationToken" as const },
+        operand: { kind: "ParenthesizedExpression" as const, expression: condition.completion.expression } },
+      thenBody: { kind: "Block" as const, statements: [{ kind: "BreakStatement" as const }] },
+    }] : []),
+  ];
+  const continuation = label === undefined ? [] : csharpLoopContinuationLabel(node, label, state);
+  const plannedFor: CsharpStatement = expandedIncrement ? {
+    kind: "WhileStatement",
+    condition: !expandedCondition && condition?.completion.kind === "value" ? condition.completion.expression : { kind: "LiteralExpression", value: true },
+    body: { kind: "Block", statements: [
+      ...(expandedCondition ? conditionTest : []),
+      { kind: "Block", body: { kind: "Block", statements: body } },
+      ...continuation,
+      ...(continuation.length === 0 && exitsBeforeIncrementor(body, outerLabels) ? [] : incrementStatements),
+    ] },
+  } : {
     kind: "ForStatement",
     ...(incrementors.length > 0 && exitsBeforeIncrementor(body, outerLabels) ? { unreachableIncrementor: true } : {}),
-    ...(initializer?.initializer !== undefined
-      ? { initializer: initializer.initializer }
+    ...(condition?.completion.kind === "value" && !expandedCondition
+      ? { condition: condition.completion.expression }
       : {}),
-    ...(condition !== undefined && conditionPrelude.length === 0
-      ? { condition }
-      : {}),
-    incrementors: [...(rotation === undefined ? [] : [rotation]), ...incrementors.map((expression, index) => planDiscardedExpression(
-      expression!, input.types.classifications.resolveNode(incrementorNodes[index], sourceFile),
-    ))],
+    incrementors: [...(rotation === undefined ? [] : [rotation]), ...incrementors.flatMap(expression =>
+      expression!.completion.kind === "value" ? [planDiscardedExpression(expression!.completion.expression, expression!.completion.carrier)] : [])],
     body: {
       kind: "Block",
       statements: [
-        ...conditionPrelude.map((expression, index) => expressionStatement(planDiscardedExpression(
-          expression!, input.types.classifications.resolveNode(conditionNodes[index], sourceFile),
-        ))),
-        ...(condition !== undefined && conditionPrelude.length !== 0 ? [{ kind: "IfStatement" as const,
-          condition: { kind: "PrefixUnaryExpression" as const, operatorToken: { kind: "ExclamationToken" as const },
-            operand: { kind: "ParenthesizedExpression" as const, expression: condition } },
-          thenBody: { kind: "Block" as const, statements: [{ kind: "BreakStatement" as const }] },
-        }] : []),
+        ...(expandedCondition ? conditionTest : []),
         ...body,
       ],
     },
   };
   const initializerPrelude: readonly CsharpStatement[] = [...capturePrelude, ...initializer?.prelude ?? [],
     ...(rotation === undefined ? [] : [{ kind: "ExpressionStatement" as const, expression: rotation }])];
+  const loopStatements = condition?.completion.kind === "never" ? conditionTest : [plannedFor];
   return initializerPrelude.length === 0
-    ? [plannedFor]
+    ? loopStatements
     : initializer?.preludeScope === "enclosing"
-      ? [...initializerPrelude, plannedFor]
+      ? [...initializerPrelude, ...loopStatements]
       : [{
         kind: "Block",
-        body: { kind: "Block", statements: [...initializerPrelude, plannedFor] },
+        body: { kind: "Block", statements: [...initializerPrelude, ...loopStatements] },
       }];
 }
 
@@ -163,7 +164,6 @@ function exitsBeforeIncrementor(statements: readonly CsharpStatement[], outerLab
 }
 
 interface PlannedForInitializer {
-  readonly initializer?: CsharpForInitializer;
   readonly prelude: readonly CsharpStatement[];
   readonly preludeScope?: "loop" | "enclosing";
 }
@@ -179,89 +179,14 @@ function planForInitializer(
     const concreteDeclarations = input.program.source.ast.children(node)
       .filter((declaration): declaration is Node => declaration !== undefined && input.program.source.ast.is.IsVariableDeclaration(declaration));
     const declarationKind = input.program.source.ast.variableDeclarationKind(node);
-    if (concreteDeclarations.some(declaration => input.program.captureStorage.binding(declaration) !== undefined)) {
-      return { prelude: concreteDeclarations.flatMap(declaration =>
-        planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state)),
-        ...(declarationKind === "var" ? { preludeScope: "enclosing" as const } : {}),
-      };
-    }
-    if (declarationKind === "using" || declarationKind === "await using") {
-      return {
-        prelude: concreteDeclarations.flatMap((declaration) =>
-          planLocalDeclarationStatements(
-            declaration,
-            sourceFile,
-            input,
-            diagnostics,
-            state,
-          )),
-      };
-    }
-    if (concreteDeclarations.some((declaration) => {
-      const variable = AsVariableDeclaration(input.program.source.ast, declaration)!;
-      return HasSourceKind(input.program.source.ast, variable.name, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, variable.name, KindArrayBindingPattern);
-    })) {
-      return {
-        ...(input.program.source.ast.variableDeclarationKind(node) === "var"
-          ? { preludeScope: "enclosing" as const }
-          : {}),
-        prelude: concreteDeclarations.flatMap((declaration) =>
-          planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state)),
-      };
-    }
-    if (input.program.source.ast.variableDeclarationKind(node) === "var") {
-      return {
-        preludeScope: "enclosing",
-        prelude: concreteDeclarations.flatMap((declaration) =>
-          planLocalDeclarationStatements(
-            declaration,
-            sourceFile,
-            input,
-            diagnostics,
-            state,
-          )
-        ),
-      };
-    }
-    const locals = concreteDeclarations
-      .map((declaration) => planLocalDeclaration(declaration, sourceFile, input, diagnostics, state));
-    const first = locals[0];
-    if (first !== undefined && locals.some((local) => !sameCsharpType(local.type, first.type))) {
-      return {
-        prelude: concreteDeclarations.flatMap((declaration) =>
-          planLocalDeclarationStatements(
-            declaration,
-            sourceFile,
-            input,
-            diagnostics,
-            state,
-          )
-        ),
-      };
-    }
-    const identityPrelude = concreteDeclarations.flatMap((declaration) => {
-      const identity = planCsharpTypedLocationIdentityDeclaration(
-        declaration,
-        input,
-        state,
-      );
-      return identity === undefined ? [] : [identity];
-    });
     return {
-      initializer: {
-        kind: "VariableDeclaration",
-        locals,
-      },
-      prelude: identityPrelude,
+      prelude: concreteDeclarations.flatMap(declaration => planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state)),
+      ...(declarationKind === "var" ? { preludeScope: "enclosing" as const } : {}),
     };
   }
   const expression = planExpression(node, sourceFile, input, diagnostics, state);
   return {
-    initializer: expression === undefined ? undefined : {
-      kind: "Expression",
-      expression,
-    },
-    prelude: [],
+    prelude: expression === undefined ? [] : planCsharpPlannedDiscard(expression),
   };
 }
 

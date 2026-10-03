@@ -1,4 +1,5 @@
 import { classifyCsharpUnionCall } from "./union-calls.js";
+import { classifyCsharpSourceCallee } from "./source-callees.js";
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 import { classifyCsharpClassPropertyStorage } from "./class-property-storage.js";
 import { validateCsharpJsValueOperationSelection } from "../../policy/js-value-operations/selection.js";
@@ -398,6 +399,7 @@ function visit(
       ...(optionalCallee === undefined ? {} : { optionalCallee }),
       unionCall: classifyCsharpUnionCall(policy, source, sourceFile),
       ...(source === undefined ? {} : { source }),
+      ...(source === undefined || target?.kind !== "source-owned" ? {} : { sourceCall: classifyCsharpSourceCallee(policy, source, sourceFile) }),
       ...(source === undefined || target?.kind !== "source-owned" && !(target?.kind === "resolved" &&
         target.call.targetMember.kind === "method" && policy.navigation.isProjectDeclaration(
           source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration)) ? {} : {

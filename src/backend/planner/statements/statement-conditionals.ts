@@ -10,7 +10,6 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
-  CsharpExpression,
   CsharpStatement,
 } from "../../target-ast/roslyn/index.js";
 import type {
@@ -28,6 +27,9 @@ import {
 import type {
   NestedStatementPlanner,
 } from "./statement-nested-planner.js";
+import type { CsharpPlannedValue } from "../expressions/planned-values.js";
+import { consumeCsharpPlannedValue } from "./statement-output.js";
+import { planCsharpLoopContinuation, csharpLoopContinuationLabel } from "./loop-regions.js";
 
 export function planIfStatement(
   node: Node,
@@ -48,9 +50,9 @@ export function planIfStatement(
   if (condition === undefined) {
     return [];
   }
-  return [{
+  return consumeCsharpPlannedValue(condition, value => [{
     kind: "IfStatement",
-    condition,
+    condition: value,
     thenBody: {
       kind: "Block",
       statements: planNestedStatementBody(statement.ThenStatement, sourceFile, input, diagnostics, state),
@@ -58,7 +60,7 @@ export function planIfStatement(
     ...(statement.ElseStatement !== undefined
       ? { elseBody: { kind: "Block", statements: planNestedStatementBody(statement.ElseStatement, sourceFile, input, diagnostics, state) } }
       : {}),
-  }];
+  }]);
 }
 
 export function planWhileStatement(
@@ -74,12 +76,18 @@ export function planWhileStatement(
   if (condition === undefined) {
     return [];
   }
+  if (condition.completion.kind !== "value") return condition.prelude;
+  const body = planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state);
   return [{
     kind: "WhileStatement",
-    condition,
+    condition: condition.prelude.length === 0 ? condition.completion.expression : { kind: "LiteralExpression", value: true },
     body: {
       kind: "Block",
-      statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
+      statements: [...(condition.prelude.length === 0 ? [] : [...condition.prelude, {
+        kind: "IfStatement" as const, condition: { kind: "PrefixUnaryExpression" as const,
+          operatorToken: { kind: "ExclamationToken" as const }, operand: { kind: "ParenthesizedExpression" as const, expression: condition.completion.expression } },
+        thenBody: { kind: "Block" as const, statements: [{ kind: "BreakStatement" as const }] },
+      }]), ...body],
     },
   }];
 }
@@ -97,13 +105,23 @@ export function planDoStatement(
   if (condition === undefined) {
     return [];
   }
+  const label = condition.prelude.length === 0 ? undefined : planCsharpLoopContinuation(node, state);
+  const body = planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state);
+  if (condition.completion.kind !== "value") return [{ kind: "WhileStatement", condition: { kind: "LiteralExpression", value: true },
+    body: { kind: "Block", statements: [{ kind: "Block", body: { kind: "Block", statements: body } }, ...(label === undefined ? [] : csharpLoopContinuationLabel(node, label, state)), ...condition.prelude] } }];
+  if (label !== undefined) return [{ kind: "WhileStatement", condition: { kind: "LiteralExpression", value: true },
+    body: { kind: "Block", statements: [{ kind: "Block", body: { kind: "Block", statements: body } }, ...csharpLoopContinuationLabel(node, label, state), ...condition.prelude, {
+      kind: "IfStatement", condition: { kind: "PrefixUnaryExpression", operatorToken: { kind: "ExclamationToken" },
+        operand: { kind: "ParenthesizedExpression", expression: condition.completion.expression } },
+      thenBody: { kind: "Block", statements: [{ kind: "BreakStatement" }] },
+    }] } }];
   return [{
     kind: "DoStatement",
     body: {
       kind: "Block",
-      statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
+      statements: body,
     },
-    condition,
+    condition: condition.completion.expression,
   }];
 }
 
@@ -114,7 +132,7 @@ export function planConditionExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (expression === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(sourceFile, `${statementKind} requires a condition expression.`));
     return undefined;

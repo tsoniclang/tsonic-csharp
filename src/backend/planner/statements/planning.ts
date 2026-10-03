@@ -52,6 +52,7 @@ import {
 import { planSwitchStatement } from "./switch-statements.js";
 import { planForInStatement, planForOfStatement } from "./statement-loops.js";
 import { planLabeledStatement } from "./statement-labels.js";
+import { withCsharpLoopContinuation } from "./loop-regions.js";
 import { planTryStatement } from "./statement-try.js";
 import {
   planBreakStatement,
@@ -162,16 +163,16 @@ export function planStatements(
     case KindIfStatement:
       return planIfStatement(node, sourceFile, input, diagnostics, state, planNestedStatementBody);
     case KindWhileStatement:
-      return planWhileStatement(node, sourceFile, input, diagnostics, state, planNestedStatementBody);
+      return withCsharpLoopContinuation(node, state, () => planWhileStatement(node, sourceFile, input, diagnostics, state, planNestedStatementBody));
     case KindDoStatement:
-      return planDoStatement(node, sourceFile, input, diagnostics, state, planNestedStatementBody);
+      return withCsharpLoopContinuation(node, state, () => planDoStatement(node, sourceFile, input, diagnostics, state, planNestedStatementBody));
     case KindForStatement:
-      return planForStatement(node, sourceFile, input, diagnostics, state, planNestedStatementBody);
+      return withCsharpLoopContinuation(node, state, () => planForStatement(node, sourceFile, input, diagnostics, state, planNestedStatementBody));
     case KindForInStatement:
-      return planForInStatement(node, AsForInOrOfStatement(input.program.source.ast, node)!, sourceFile, input, diagnostics, state, planNestedStatementBody);
+      return withCsharpLoopContinuation(node, state, () => planForInStatement(node, AsForInOrOfStatement(input.program.source.ast, node)!, sourceFile, input, diagnostics, state, planNestedStatementBody));
     case KindForOfStatement: {
       const statement = AsForInOrOfStatement(input.program.source.ast, node)!;
-      return planForOfStatement(node, statement, sourceFile, input, diagnostics, state, planNestedStatementBody);
+      return withCsharpLoopContinuation(node, state, () => planForOfStatement(node, statement, sourceFile, input, diagnostics, state, planNestedStatementBody));
     }
     case "KindClassDeclaration": {
       const factory = input.program.classFactories.get(node);

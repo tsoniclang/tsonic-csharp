@@ -7,9 +7,6 @@ import {
   AsParenthesizedExpression,
   AsReturnStatement,
   AsThrowStatement,
-  AsVoidExpression,
-  HasSourceKind,
-  KindVoidExpression,
   Node_Text,
 } from "@tsonic/target-api/source";
 import type {
@@ -59,12 +56,8 @@ import {
 } from "../bindings/binding-state.js";
 import {
   expressionStatement,
-  isVoidCsharpType,
-  planDiscardedExpression,
-  planExplicitlyDiscardedExpression,
   planCsharpVoidReturn,
   planCsharpAbsenceReturn,
-  planCsharpDiscardedStatement,
   consumeCsharpPlannedValue,
   planCsharpPlannedDiscard,
 } from "./statement-output.js";
@@ -158,18 +151,19 @@ export function planReturnStatement(
     if (expression === undefined) {
       return [];
     }
+    const generator = state.generator;
     return [
       ...(yieldPlan?.statements ?? []),
       ...consumeCsharpPlannedValue(expression, value => [expressionStatement({
         kind: "AssignmentExpression",
         left: {
           kind: "IdentifierName",
-          name: state.generator.returnValueName,
+          name: generator.returnValueName,
         },
         operatorToken: { kind: "EqualsToken" },
         right: value,
       }),
-      { kind: "GotoStatement", label: state.generator.exitLabel },
+      { kind: "GotoStatement", label: generator.exitLabel },
     ])];
   }
   const expectedReturnExpressionType = state.currentReturnExpressionType ?? state.currentReturnType;
@@ -230,7 +224,17 @@ export function planContinueStatement(
       return [];
     }
     target.continueUsed = true;
+    const region = [...state.loopContinuations].reverse().find(region => region.loop === target.loop);
+    if (region?.label !== undefined) {
+      region.used = true;
+      return [{ kind: "GotoStatement", label: region.label }];
+    }
     return [{ kind: "GotoStatement", label: target.continueLabel }];
+  }
+  const region = state.loopContinuations[state.loopContinuations.length - 1];
+  if (region?.label !== undefined) {
+    region.used = true;
+    return [{ kind: "GotoStatement", label: region.label }];
   }
   return [{ kind: "ContinueStatement" }];
 }
@@ -247,6 +251,7 @@ export function planThrowStatement(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Throw statement must have an expression."));
     return [];
   }
+  const sourceExpression = statement.Expression;
   if (isExactUnmodifiedCatchRethrow(node, statement.Expression, input)) {
     return [{ kind: "ThrowStatement" }];
   }
@@ -272,7 +277,7 @@ export function planThrowStatement(
       if (expression === undefined) return [];
       return consumeCsharpPlannedValue(expression, value => {
         const boxed = planCsharpJsValueBox(
-            statement.Expression,
+            sourceExpression,
             input,
             diagnostics,
             carrier,
@@ -280,7 +285,7 @@ export function planThrowStatement(
           );
       const wrapped = boxed === undefined ? undefined : csharpThrownValueFromExpression(boxed);
       if (wrapped === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Throw statements require a renderable closed TsThrownValueException carrier before C# emission."));
+        diagnostics.push(unsupportedNodeDiagnostic(sourceExpression, "Throw statements require a renderable closed TsThrownValueException carrier before C# emission."));
         return [];
       }
       return [{

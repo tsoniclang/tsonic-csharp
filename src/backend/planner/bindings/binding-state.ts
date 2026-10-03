@@ -35,6 +35,7 @@ export interface DestructuringPlannerState {
   typedLocationIdentityNames: WeakMap<object, string>;
   expressionOverrides: WeakMap<object, CsharpExpression>;
   controlLabels: ControlLabelTarget[];
+  readonly loopContinuations: CsharpLoopContinuation[];
   currentReturnType?: CsharpTypeNode;
   currentReturnTypeSubject?: Node;
   currentReturnExpressionType?: CsharpTypeNode;
@@ -83,6 +84,13 @@ export interface ControlLabelTarget {
   readonly loop?: Node;
   breakUsed?: boolean;
   continueUsed?: boolean;
+  continueOwned?: boolean;
+}
+
+export interface CsharpLoopContinuation {
+  readonly loop: Node;
+  label?: string;
+  used: boolean;
 }
 
 export interface ForInSyntheticNames {
@@ -119,6 +127,7 @@ export function createDestructuringPlannerState(root?: Node, ast?: AstReader): D
     typedLocationIdentityNames: new WeakMap(),
     expressionOverrides: new WeakMap(),
     controlLabels: [],
+    loopContinuations: [],
   };
 }
 
