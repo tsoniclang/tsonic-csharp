@@ -11,7 +11,6 @@ import { sourceCallableUsesLexicalThis } from "@tsonic/target-api/source";
 import { type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
-  CsharpObjectInitializerAssignment,
 } from "../../../target-ast/roslyn/index.js";
 import type {
   CsharpObjectShapeFact,
@@ -41,6 +40,8 @@ import {
   findObjectShapeMemberForProperty,
 } from "./support.js";
 import { planLambdaParameterStorage } from "../../expressions/lambda-parameter-storage.js";
+import { csharpPlannedValue } from "../../expressions/planned-values.js";
+import type { CsharpPlannedObjectInitializer } from "../../expressions/planned-initializers.js";
 
 export function planObjectShapeMethodMemberAssignment(
   methodNode: Node,
@@ -48,7 +49,7 @@ export function planObjectShapeMethodMemberAssignment(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-): CsharpObjectInitializerAssignment | undefined {
+): CsharpPlannedObjectInitializer | undefined {
   const member = findObjectShapeMemberForProperty(
     objectShape,
     methodNode,
@@ -117,9 +118,8 @@ export function planObjectShapeMethodMemberAssignment(
     return undefined;
   }
   return {
-    kind: "AssignmentExpression",
-    name: objectShapeStorageMemberName(objectShape, member),
-    expression,
+    value: csharpPlannedValue(storageTargetType, expression),
+    assignments: value => [{ kind: "AssignmentExpression", name: objectShapeStorageMemberName(objectShape, member), expression: value }],
   };
 }
 

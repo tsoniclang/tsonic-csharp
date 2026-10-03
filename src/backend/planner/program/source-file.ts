@@ -43,7 +43,8 @@ import {
   predefined,
   qualifiedCsharpType,
 } from "../types/index.js";
-import { planTopLevelVariableStatement } from "./top-level-variables.js";
+import { planTopLevelVariableStatement, topLevelBindingMember, topLevelFieldAssignment } from "./top-level-variables.js";
+import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 import {
   csharpModuleInitMethodName,
 } from "./module-initialization-names.js";
@@ -138,7 +139,7 @@ export function planSourceFile(
           case KindExportDeclaration:
             continue;
           case KindExportAssignment: {
-            const exportMember = planExportAssignment(statement, sourceFile, input, diagnostics);
+            const exportMember = planExportAssignment(statement, sourceFile, input, diagnostics, topLevelStatements);
             if (exportMember !== undefined) {
               members.push(exportMember);
             }
@@ -404,6 +405,7 @@ function planExportAssignment(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
+  statements: CsharpStatement[],
 ): CsharpTypeMember | undefined {
   const assignment = AsExportAssignment(input.program.source.ast, node)!;
   if (assignment.IsExportEquals) {
@@ -414,11 +416,10 @@ function planExportAssignment(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Default export assignment must have an expression."));
     return undefined;
   }
-  return {
-    kind: "FieldDeclaration",
-    name: sanitizeIdentifier("default"),
-    modifiers: ["public", "static", "readonly"],
-    type: getCsharpTypeForNode(assignment.Expression, sourceFile, input, undefined, diagnostics),
-    initializer: planExpression(assignment.Expression, sourceFile, input, diagnostics),
-  };
+  const name = sanitizeIdentifier("default");
+  const type = getCsharpTypeForNode(assignment.Expression, sourceFile, input, undefined, diagnostics);
+  const planned = planExpression(assignment.Expression, sourceFile, input, diagnostics);
+  if (planned === undefined) return undefined;
+  statements.push(...consumeCsharpPlannedValue(planned, value => [topLevelFieldAssignment(name, value)]));
+  return topLevelBindingMember(name, type, "public", false);
 }

@@ -3,7 +3,8 @@ import type { DestructuringPlannerState } from "../bindings/binding-state.js";
 import { planTypedArrayMutation } from "./typed-array-mutations.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
+import type { CsharpPlannedValue } from "./planned-values.js";
+import { buildCsharpPlannedValue } from "./planned-value-composition.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -28,7 +29,7 @@ export function tryPlanJsArrayMutationExpression(
   planCallArgument: CallArgumentPlanner,
   planExpected: ExpectedExpressionPlanner,
   state?: DestructuringPlannerState,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const selection = input.program.operations.jsArrayMutation(node);
   if (selection === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -67,15 +68,15 @@ export function tryPlanJsArrayMutationExpression(
   if (receiver === undefined || argument === undefined) {
     return undefined;
   }
-  return {
+  return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, argument], values => ({
     kind: "InvocationExpression",
     callee: {
       kind: "SimpleMemberAccessExpression",
-      receiver,
+      receiver: values[0]!,
       name: selection.targetMemberName,
     },
-    arguments: [argument],
-  };
+    arguments: [{ kind: "Argument", expression: values[1]! }],
+  }));
 }
 
 function planMutationArgument(

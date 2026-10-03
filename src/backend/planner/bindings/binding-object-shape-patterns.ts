@@ -29,6 +29,7 @@ import {
   targetTypeRefEquals,
 } from "../../../target-model/types/index.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/index.js";
+import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 import {
   csharpObjectShapeMemberLookupFailureMessage,
   resolveCsharpObjectShapeMemberBySourceContract,
@@ -113,7 +114,8 @@ function planObjectShapeBindingElement(
   if (defaultedProjection === undefined) {
     return [];
   }
-  return planBindingNameFromProjection(name, defaultedProjection.expression, defaultedProjection.type, elementNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier);
+  return consumeCsharpPlannedValue(defaultedProjection.value, expression =>
+    planBindingNameFromProjection(name, expression, defaultedProjection.type, elementNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier));
 }
 
 function planObjectShapeRestBindingElement(

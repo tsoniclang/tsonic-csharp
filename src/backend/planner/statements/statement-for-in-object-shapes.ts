@@ -22,6 +22,7 @@ import type {
 import {
   planExpression,
 } from "../expressions/index.js";
+import { consumeCsharpPlannedValue } from "./statement-output.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -135,7 +136,9 @@ export function planObjectShapeForInStatement(
       ],
     },
   };
-  return [...bindingActivation.outerPrelude, {
+  const collection = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
+  if (collection === undefined) return [];
+  return consumeCsharpPlannedValue(collection, value => [...bindingActivation.outerPrelude, {
     kind: "Block",
     body: {
       kind: "Block",
@@ -144,7 +147,7 @@ export function planObjectShapeForInStatement(
           kind: "LocalDeclarationStatement",
           name: collectionName,
           type: collectionType,
-          initializer: planExpression(statement.Expression, sourceFile, input, diagnostics),
+          initializer: value,
         },
         {
           kind: "LocalDeclarationStatement",
@@ -160,5 +163,5 @@ export function planObjectShapeForInStatement(
         plannedLoop,
       ],
     },
-  }];
+  }]);
 }

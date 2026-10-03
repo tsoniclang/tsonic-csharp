@@ -17,10 +17,6 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
-  CsharpExpression,
-  CsharpObjectInitializerAssignment,
-} from "../../../target-ast/roslyn/index.js";
-import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeMemberFact,
 } from "../../../../target-model/types/index.js";
@@ -49,6 +45,8 @@ import {
 import {
   planObjectShapeSpreadAssignments,
 } from "./spread.js";
+import type { CsharpPlannedValue } from "../../expressions/planned-values.js";
+import type { CsharpPlannedObjectInitializer } from "../../expressions/planned-initializers.js";
 
 export function planObjectShapeLiteralAssignment(
   property: Node,
@@ -58,7 +56,7 @@ export function planObjectShapeLiteralAssignment(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
-): readonly CsharpObjectInitializerAssignment[] | undefined {
+): readonly CsharpPlannedObjectInitializer[] | undefined {
   switch (SourceKind(input.program.source.ast, property)) {
     case KindPropertyAssignment:
     case KindShorthandPropertyAssignment: {
@@ -72,11 +70,11 @@ export function planObjectShapeLiteralAssignment(
       );
       return planned === undefined
         ? undefined
-        : [{
+        : [{ value: planned.expression, assignments: expression => [{
             kind: "AssignmentExpression",
             name: objectShapeStorageMemberName(objectShape, planned.member),
-            expression: planned.expression,
-          }];
+            expression,
+          }] }];
     }
     case KindMethodDeclaration: {
       if (objectShape.methodImplementation?.declaration === input.program.source.ast.parent(property) &&
@@ -96,7 +94,8 @@ export function planObjectShapeLiteralAssignment(
       return assignment === undefined ? undefined : [assignment];
     }
     case KindSpreadAssignment:
-      return planObjectShapeSpreadAssignments(property, objectShape, sourceFile, input, diagnostics, planExpression);
+      const spread = planObjectShapeSpreadAssignments(property, objectShape, sourceFile, input, diagnostics, planExpression);
+      return spread === undefined ? undefined : [spread];
     default:
       diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal member is outside the current C# planning surface."));
       return undefined;
@@ -105,7 +104,7 @@ export function planObjectShapeLiteralAssignment(
 
 export interface CsharpPlannedObjectShapeLiteralMember {
   readonly member: CsharpObjectShapeMemberFact;
-  readonly expression: CsharpExpression;
+  readonly expression: CsharpPlannedValue;
 }
 
 export function planExplicitObjectShapeLiteralMember(

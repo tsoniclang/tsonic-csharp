@@ -77,13 +77,15 @@ export function planTopLevelVariableStatement(
       topLevelStatements.push(...planned.statements);
       continue;
     }
-    const field = planLocalDeclaration(declaration, sourceFile, input, diagnostics, state);
+    const planned = planLocalDeclaration(declaration, sourceFile, input, diagnostics, state);
+    const { initializer: initial, ...binding } = planned;
+    const field = { ...binding, ...(initial?.completion.kind === "value" ? { initializer: initial.completion.expression } : {}) };
     const callableVisibility = input.program.moduleInitialization.directCallableVisibility(declaration);
     if (callableVisibility !== undefined) {
       const lambda = field.initializer;
       const signature = variable.Initializer === undefined ? undefined :
         getLambdaTargetContext(variable.Initializer, sourceFile, input)?.signature;
-      if (lambda?.kind !== "LambdaExpression" || signature === undefined ||
+      if ((initial?.prelude.length ?? 0) !== 0 || lambda?.kind !== "LambdaExpression" || signature === undefined ||
         lambda.parameters.some(parameter => parameter.type === undefined)) {
         diagnostics.push(unsupportedNodeDiagnostic(declaration, "Direct callable planning requires its sealed lambda signature and body."));
         continue;
@@ -112,11 +114,12 @@ export function planTopLevelVariableStatement(
       "public",
       reassignable,
     ));
+    if (initial !== undefined) topLevelStatements.push(...initial.prelude);
     if (field.initializer !== undefined) {
       topLevelStatements.push(topLevelFieldAssignment(field.name, field.initializer));
     }
     const resourceKind = input.program.source.ast.variableDeclarationKind(declaration);
-    if (resourceKind === "using" || resourceKind === "await using") {
+    if ((resourceKind === "using" || resourceKind === "await using") && initial?.completion.kind !== "never") {
       const registration = planResourceRegistrationStatement(
         declaration,
         field,
@@ -166,7 +169,7 @@ function topLevelBindingFields(
   };
 }
 
-function topLevelBindingMember(
+export function topLevelBindingMember(
   name: string,
   type: CsharpTypeNode,
   accessibility: "public" | "private",
@@ -193,7 +196,7 @@ function topLevelBindingMember(
   };
 }
 
-function topLevelFieldAssignment(
+export function topLevelFieldAssignment(
   name: string,
   initializer: CsharpExpression,
 ): CsharpStatement {

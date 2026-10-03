@@ -1,6 +1,8 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression, CsharpStatement, CsharpSwitchSection } from "../../target-ast/roslyn/index.js";
+import type { CsharpStatement, CsharpSwitchSection } from "../../target-ast/roslyn/index.js";
+import type { CsharpPlannedValue } from "../expressions/planned-values.js";
+import { consumeCsharpPlannedValue } from "./statement-output.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
@@ -9,7 +11,7 @@ import { finishSwitchSections, planOrderedSwitch } from "./ordered-switch.js";
 interface SwitchStatementPlanner {
   readonly planExpression: (
     node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
-  ) => CsharpExpression | undefined;
+  ) => CsharpPlannedValue | undefined;
   readonly planStatements: (
     node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
     diagnostics: TargetDiagnostic[], state: DestructuringPlannerState,
@@ -47,9 +49,15 @@ export function planSwitchStatement(
       const source = ast.as.AsCaseOrDefaultClause(clause)?.Expression;
       const value = source === undefined ? undefined : planner.planExpression(source, sourceFile, input, diagnostics);
       if (value === undefined) return undefined;
-      label = { kind: "CaseSwitchLabel", expression: value };
+      if (value.prelude.length !== 0 || value.completion.kind !== "value") {
+        diagnostics.push(unsupportedNodeDiagnostic(clause, "A native switch case requires its sealed constant expression without runtime statements."));
+        return undefined;
+      }
+      label = { kind: "CaseSwitchLabel", expression: value.completion.expression };
     }
     sections.push({ kind: "SwitchSection", label, statements: body(clause) });
   }
-  return { kind: "SwitchStatement", expression, sections: finishSwitchSections(sections) };
+  return { kind: "Block", body: { kind: "Block", statements: consumeCsharpPlannedValue(expression, value => [{
+    kind: "SwitchStatement", expression: value, sections: finishSwitchSections(sections),
+  }]) } };
 }

@@ -20,6 +20,7 @@ import type {
 import {
   planExpression,
 } from "../expressions/index.js";
+import { consumeCsharpPlannedValue } from "./statement-output.js";
 import type {
   NestedStatementPlanner,
 } from "./statement-nested-planner.js";
@@ -88,7 +89,9 @@ export function planKeyCollectionForInStatement(
     diagnostics,
   );
   const itemName = bindingActivation.itemName;
-  return [...bindingActivation.outerPrelude, {
+  const collection = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
+  if (collection === undefined) return [];
+  return consumeCsharpPlannedValue(collection, value => [...bindingActivation.outerPrelude, {
     kind: "Block",
     body: {
       kind: "Block",
@@ -97,7 +100,7 @@ export function planKeyCollectionForInStatement(
           kind: "LocalDeclarationStatement",
           name: collectionName,
           type: collectionType,
-          initializer: planExpression(statement.Expression, sourceFile, input, diagnostics),
+          initializer: value,
         },
         {
           kind: "ForEachStatement",
@@ -118,5 +121,5 @@ export function planKeyCollectionForInStatement(
         },
       ],
     },
-  }];
+  }]);
 }

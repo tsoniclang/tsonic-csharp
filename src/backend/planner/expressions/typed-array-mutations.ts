@@ -8,6 +8,8 @@ import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { ExpressionPlanner, ExpectedExpressionPlanner } from "./expression-planner-types.js";
 import { planSelectedCsharpBinaryOperation } from "./operators/selected-binary.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { type CsharpPlannedValue } from "./planned-values.js";
+import { buildCsharpPlannedValue, composeCsharpPlannedValues, projectCsharpPlannedValue } from "./planned-value-composition.js";
 
 export function planTypedArrayMutation(
   node: Node,
@@ -18,7 +20,7 @@ export function planTypedArrayMutation(
   planExpression: ExpressionPlanner,
   planExpected: ExpectedExpressionPlanner,
   state: DestructuringPlannerState | undefined,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const receiver = planExpression(selection.receiver, sourceFile, input, diagnostics);
   const index = planExpression(selection.index, sourceFile, input, diagnostics);
   if (receiver === undefined || index === undefined) return undefined;
@@ -33,16 +35,17 @@ export function planTypedArrayMutation(
       diagnostics.push(unsupportedNodeDiagnostic(node, "Typed array update has no sealed native result type."));
       return undefined;
     }
-    return {
+    return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, index], values => ({
       kind: "InvocationExpression",
-      callee: { kind: "SimpleMemberAccessExpression", receiver, name: "Update", typeArguments: [type, indexType] },
-      arguments: [index, { kind: "LiteralExpression" as const, value: selection.increment },
+      callee: { kind: "SimpleMemberAccessExpression", receiver: values[0]!, name: "Update", typeArguments: [type, indexType] },
+      arguments: [values[1]!, { kind: "LiteralExpression" as const, value: selection.increment },
         { kind: "LiteralExpression" as const, value: selection.prefix }].map(expression => ({ kind: "Argument", expression })),
-    };
+    }), selection.resultType);
   }
   if (selection.calculation === undefined) {
     const value = planExpression(selection.value, sourceFile, input, diagnostics);
-    return value === undefined ? undefined : invoke(receiver, "Set", [index, value]);
+    return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, index, value],
+      values => invoke(values[0]!, "Set", [values[1]!, values[2]!]), selection.resultType);
   }
   const type = csharpTypeFromTargetTypeRef(selection.resultType, input.scope.typeParameterNames);
   if (state === undefined || type === undefined) {
@@ -56,7 +59,7 @@ export function planTypedArrayMutation(
   const left = selection.calculation.left;
   const previous = state.expressionOverrides.get(left);
   state.expressionOverrides.set(left, invoke(owner, "Get", [offset]));
-  let value: CsharpExpression | undefined;
+  let value: CsharpPlannedValue | undefined;
   try {
     value = planSelectedCsharpBinaryOperation(node, selection.calculation, sourceFile, input,
       diagnostics, planExpression, planExpected, state);
@@ -64,11 +67,12 @@ export function planTypedArrayMutation(
     if (previous === undefined) state.expressionOverrides.delete(left);
     else state.expressionOverrides.set(left, previous);
   }
-  return value === undefined ? undefined : {
-    kind: "ConditionalExpression",
-    condition: { kind: "IsPatternExpression", expression: { kind: "TupleExpression", elements: [receiver, index] },
-      type: { kind: "IdentifierName", name: "var" }, designation: name },
-    whenTrue: invoke(owner, "Set", [offset, value]),
-    whenFalse: { kind: "DefaultExpression", type },
-  };
+  const result = projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
+    expression => invoke(owner, "Set", [offset, expression]), selection.resultType);
+  return composeCsharpPlannedValues(node, sourceFile, input, diagnostics, [receiver, index], values =>
+    result === undefined ? undefined : {
+      prelude: [{ kind: "LocalDeclarationStatement", name, type: { kind: "IdentifierName", name: "var" },
+        initializer: { kind: "TupleExpression", elements: values } }, ...result.prelude],
+      completion: result.completion,
+    });
 }

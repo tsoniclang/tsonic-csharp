@@ -86,9 +86,10 @@ export function planCsharpOptionalReceiverChain(
         errors.push(unsupportedNodeDiagnostic(subject, "Optional receiver requires its exact sealed by-value parameter conversion."));
         return undefined;
       }
+      const conversion = selected.conversion;
       return mapCsharpPlannedValue(present, selected.parameterType, value =>
         applyCsharpConversionSelection(subject, file, context, errors,
-          selected.type, selected.parameterType, selected.conversion, value));
+          selected.type, selected.parameterType, conversion, value));
     };
     const call = planCall(entry.node, presentContext, expressions, arguments_);
     return call === undefined ? undefined : step(index + 1, call);

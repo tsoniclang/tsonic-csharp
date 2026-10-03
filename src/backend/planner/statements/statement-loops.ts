@@ -44,6 +44,11 @@ import {
   planResourceRegistrationStatement,
   planResourceScopeStatements,
 } from "./resource-management.js";
+import type { CsharpPlannedValue } from "../expressions/planned-values.js";
+import { consumeCsharpPlannedValue } from "./statement-output.js";
+import { planCsharpCollectionIndexedIteration } from "../expressions/collection-reads.js";
+import { selectCsharpCollectionElementRead } from "../../../target-model/types/collection-reads.js";
+import { allocateExpressionTemp } from "../bindings/binding-state.js";
 
 export { planForInStatement } from "./statement-for-in.js";
 
@@ -98,13 +103,7 @@ export function planForOfStatement(
     return planStringCodePointForOfStatement(statementNode, statement, binding, selectedIteration, sourceFile, input, diagnostics, state, planNestedStatementBody);
   }
   const sourceCollection = planForOfCollectionExpression(statement.Expression, binding.type, sourceFile, input, diagnostics);
-  const collection = sourceCollection === undefined
-    ? undefined
-    : selectedIteration.iterationKind === "for-await-of" &&
-        selectedIteration.lowering.kind === "await-foreach-sync-adapter"
-      ? adaptSyncCollectionToAsync(sourceCollection, binding.type)
-      : sourceCollection;
-  if (collection === undefined) {
+  if (sourceCollection === undefined) {
     return [];
   }
   const resourceDeclaration = forOfResourceDeclaration(
@@ -142,6 +141,20 @@ export function planForOfStatement(
         state,
         planBody,
       );
+  return consumeCsharpPlannedValue(sourceCollection, source => {
+  if (selectedIteration.iterationKind === "for-of" &&
+    selectCsharpCollectionElementRead(sourceCollection.completion.carrier)?.kind === "method") {
+    const name = allocateExpressionTemp(state);
+    const receiver: CsharpExpression = { kind: "IdentifierName", name };
+    const loop = planCsharpCollectionIndexedIteration(sourceCollection.completion.carrier, receiver, allocateExpressionTemp(state),
+      value => [{ kind: "LocalDeclarationStatement", name: binding.name, type: binding.type, initializer: value }, ...bodyStatements],
+      input.scope.typeParameterNames);
+    const type = csharpTypeFromTargetTypeRef(sourceCollection.completion.carrier, input.scope.typeParameterNames);
+    if (loop === undefined || type === undefined) return [];
+    return [...binding.outerPrelude, { kind: "LocalDeclarationStatement", name, type, initializer: source }, loop];
+  }
+  const collection = selectedIteration.iterationKind === "for-await-of" &&
+    selectedIteration.lowering.kind === "await-foreach-sync-adapter" ? adaptSyncCollectionToAsync(source, binding.type) : source;
   const loop: CsharpStatement = {
     kind: "ForEachStatement",
     ...(selectedIteration.iterationKind === "for-await-of"
@@ -156,6 +169,7 @@ export function planForOfStatement(
     },
   };
   return [...binding.outerPrelude, loop];
+  });
 }
 
 function forOfResourceDeclaration(
@@ -191,7 +205,7 @@ function planForOfCollectionExpression(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (expression === undefined) {
     diagnostics.push({
       code: "CSHARP_UNSUPPORTED_FOR_OF_COLLECTION",
@@ -325,7 +339,7 @@ function planForOfBindingCore(
             state,
           );
     }
-    const planned = planLocalDeclaration(first, sourceFile, input, diagnostics, state);
+    const { initializer: _initializer, ...planned } = planLocalDeclaration(first, sourceFile, input, diagnostics, state);
     const identity = planCsharpTypedLocationIdentityDeclaration(
       first,
       input,
@@ -352,15 +366,15 @@ function planForOfBindingCore(
       type: csharpTypeFromTargetTypeRef(selectedIteration.elementType, input.scope.typeParameterNames) ??
         getCsharpTypeForNode(initializer, sourceFile, input, undefined, diagnostics),
       outerPrelude: [],
-      prelude: [{
+      prelude: consumeCsharpPlannedValue(target, value => [{
         kind: "ExpressionStatement",
         expression: {
           kind: "AssignmentExpression",
-          left: target,
+          left: value,
           operatorToken: { kind: "EqualsToken" },
           right: { kind: "IdentifierName", name: itemName },
         },
-      }],
+      }]),
     };
   }
   diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-of initializer binding is outside the current C# planning surface."));

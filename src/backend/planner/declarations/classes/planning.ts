@@ -21,8 +21,8 @@ import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { csharpSafetyModifiersForDeclaration } from "../../safety/explicit-safety.js";
 import { guardCsharpFrozenDataProperties } from "../../objects/frozen-data-properties.js";
 import { createCsharpMemberPlanningContext } from "../../context.js";
-import { completeLocalClassConstructor } from "./factories.js";
-import { planClassInitializers } from "./initializers.js";
+import { classFactoryContext, completeLocalClassConstructor } from "./factories.js";
+import { planClassInitializationRegion } from "./initializers.js";
 
 export function planClassDeclaration(
   node: Node,
@@ -61,7 +61,13 @@ export function planClassDeclaration(
   }
   const memberNodes = (declaration.Members?.Nodes ?? []).filter(member => factory === undefined && !staticCompanion ||
     member === undefined || !input.program.source.ast.hasModifierKind(member, "static") && !input.program.source.ast.is.IsClassStaticBlockDeclaration(member));
-  const members = planClassMembers(memberNodes, className, sourceFile, input, diagnostics);
+  const initializerInput = factory === undefined ? input : classFactoryContext(factory,
+    { kind: "IdentifierName", name: factory.environmentName }, input, diagnostics, "instance");
+  const instanceRegion = planClassInitializationRegion(node, sourceFile, className, false, initializerInput, diagnostics, factory !== undefined);
+  const staticRegion = factory !== undefined || staticCompanion ? undefined
+    : planClassInitializationRegion(node, sourceFile, className, true, input, diagnostics);
+  const members = planClassMembers(memberNodes, className, sourceFile, input, diagnostics,
+    staticRegion === undefined ? [instanceRegion] : [instanceRegion, staticRegion]);
   const implicitConstructors = planImplicitForwardingConstructors(
     node,
     className,
@@ -73,12 +79,10 @@ export function planClassDeclaration(
       implicitConstructors.length > 0
     ? []
     : defaultSafetyConstructors(node, className, input);
-  const requiresConstructor = input.program.classInitialization.requiresConstructor(node);
-  const instanceInitializers = factory !== undefined || !requiresConstructor ? []
-    : planClassInitializers(node, sourceFile, className, false, input, diagnostics);
+  const requiresConstructor = instanceRegion.relocates;
   const completeConstructor = (constructor: CsharpConstructorDeclaration): CsharpConstructorDeclaration => factory !== undefined
-    ? completeLocalClassConstructor(constructor, factory, input, diagnostics)
-    : { ...constructor, body: { kind: "Block", statements: [...instanceInitializers, ...constructor.body.statements] } };
+    ? completeLocalClassConstructor(constructor, factory, input, instanceRegion.statements)
+    : { ...constructor, body: { kind: "Block", statements: [...instanceRegion.statements, ...constructor.body.statements] } };
   const defaultInitializationConstructor = !requiresConstructor || members.some(member => member.kind === "ConstructorDeclaration") ||
     implicitConstructors.length !== 0 || safetyDefaultConstructors.length !== 0 ? [] : [{
       kind: "ConstructorDeclaration" as const, name: className, modifiers: ["public" as const],
@@ -104,6 +108,8 @@ export function planClassDeclaration(
           ],
         }),
     members: [
+      ...(staticRegion?.relocates ? [{ kind: "ConstructorDeclaration" as const, name: className,
+        modifiers: ["static" as const], parameters: [], body: { kind: "Block" as const, statements: staticRegion.statements } }] : []),
       ...implicitConstructors.map(completeConstructor),
       ...[...safetyDefaultConstructors, ...defaultInitializationConstructor].map(member => member.kind === "ConstructorDeclaration"
         ? completeConstructor(member) : member),

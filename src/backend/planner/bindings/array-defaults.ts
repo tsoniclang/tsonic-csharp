@@ -9,6 +9,7 @@ import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import { planCsharpArrayBindingPresence, planCsharpBindingDefaultValue } from "./optional-values.js";
+import type { CsharpPlannedValue } from "../expressions/planned-values.js";
 
 export function planArrayDefaultProjection(
   sourceExpression: CsharpExpression,
@@ -21,7 +22,7 @@ export function planArrayDefaultProjection(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planDefaultExpression: BindingDefaultExpressionPlanner,
-): { readonly expression: CsharpExpression; readonly carrier: TargetTypeRef; readonly type: CsharpTypeNode } | undefined {
+): { readonly value: CsharpPlannedValue; readonly carrier: TargetTypeRef; readonly type: CsharpTypeNode } | undefined {
   const defaultCarrier = input.program.sourceEvidence.nodeTargetType(initializer);
   const carrier = defaultCarrier === undefined ? undefined : csharpBindingDefaultCarrier(sourceCarrier.element, defaultCarrier);
   const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
@@ -31,14 +32,8 @@ export function planArrayDefaultProjection(
   }
   const defaultValue = planDefaultExpression(initializer, sourceFile, input, diagnostics, type, initializer, state, carrier);
   if (defaultValue === undefined) return undefined;
-  const presentValue = planCsharpBindingDefaultValue(projected, sourceCarrier.element, defaultValue, carrier, state);
-  return {
-    carrier, type,
-    expression: {
-      kind: "ConditionalExpression",
-      condition: planCsharpArrayBindingPresence(sourceExpression, index, sourceCarrier.lengthMember),
-      whenTrue: presentValue,
-      whenFalse: defaultValue,
-    },
-  };
+  const value = planCsharpBindingDefaultValue(initializer, sourceFile, input, diagnostics,
+    projected, sourceCarrier.element, defaultValue, carrier, state,
+    planCsharpArrayBindingPresence(sourceExpression, index, sourceCarrier.lengthMember));
+  return value === undefined ? undefined : { carrier, type, value };
 }

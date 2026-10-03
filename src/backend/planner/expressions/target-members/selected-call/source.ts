@@ -1,4 +1,4 @@
-import { applyCalleeTypeArguments, isProjectSourceDeclaration, sourceCalleeRequiresExactTargetArity } from "./helpers.js";
+import { applyCalleeTypeArguments, isProjectSourceDeclaration } from "./helpers.js";
 import { planCsharpUnionDispatcherCall } from "./union.js";
 import { planCsharpSourceUndefinedValue } from "../../undefined-values.js";
 import { translateCallArgument } from "./arguments.js";
@@ -13,9 +13,13 @@ import type { CsharpCallClassification } from "../../../../../analysis/operation
 import type { CsharpSourceCallArgumentClassification } from "../../../../../analysis/operations/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { csharpSourceArgumentGroups } from "./source-argument-groups.js";
-import { isCsharpVoidTargetType } from "../../../../../target-model/types/identity.js";
-import { planCsharpAbsentValue, planCsharpPresentValueGuard } from "../../optional-storage.js";
 import { planCsharpSelectedSourceCallResult } from "./results.js";
+import type { CsharpPlannedArgument, CsharpPlannedValue } from "../../planned-values.js";
+import { csharpPlannedValue } from "../../planned-values.js";
+import { planCsharpExpressionCompletion, planCsharpOptionalReceiverValue } from "../../planned-value-composition.js";
+import { composeCsharpPlannedCall, csharpPlannedArgumentSyntax, type CsharpPlannedCallArguments } from "./planned-arguments.js";
+import { translateCsharpPropertyAccess } from "../selected-property.js";
+import { sourceCalleeRequiresExactTargetArity } from "./helpers.js";
 
 export function translateSourceOwnedCall(
   node: Node,
@@ -26,7 +30,7 @@ export function translateSourceOwnedCall(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const signatureDeclaration = input.program.sourceEvidence.signatureDeclaration(
     source.selectedSignature,
   );
@@ -52,54 +56,24 @@ export function translateSourceOwnedCall(
     const receiver = planExpression(union.receiver, sourceFile, input, diagnostics);
     const arguments_ = translateSourceOwnedArguments(node, source, classification, sourceFile, input, diagnostics, planExpression, planCallArgument);
     return receiver === undefined || arguments_ === undefined ? undefined
-      : planCsharpUnionDispatcherCall(node, source, classification, receiver, arguments_, input, diagnostics);
+      : composeCsharpPlannedCall(node, sourceFile, input, diagnostics, receiver, arguments_, (value, args) =>
+        planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
+          planCsharpUnionDispatcherCall(node, source, classification, value!, args, input, diagnostics), union.resultType));
   }
-  const selectedCallee = planExpression(
-    source.sourceCallee.expression,
-    sourceFile,
-    input,
-    diagnostics,
-  );
-  if (selectedCallee === undefined) {
+  const selected = classification.sourceCall;
+  if (selected === undefined || selected.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, selected?.reason ?? "Source call has no exact sealed callee acquisition contract."));
     return undefined;
   }
-  let callee: CsharpExpression = selectedCallee;
   const optionalCallee = classification.optionalCallee !== undefined && !input.scope.presentOptionalValues?.has(classification.optionalCallee.expression)
     ? classification.optionalCallee : undefined;
   const result = classification.sourceResult;
-  const optionalVoid = result !== undefined && isCsharpVoidTargetType(result.nativeType);
-  const guardedValue = callee;
-  const guardedName = optionalCallee === undefined || optionalVoid ? undefined
-    : input.names.temporaryName(`__tsonic_optionalCallee_${Math.max(0, input.program.source.ast.pos(node))}_${Math.max(0, input.program.source.ast.end(node))}`);
-  const guard = guardedName === undefined || optionalCallee === undefined ? undefined
-    : planCsharpPresentValueGuard(optionalCallee.storage, optionalCallee.type, guardedValue, guardedName, input.scope.typeParameterNames);
-  if (guardedName !== undefined && guard === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "An optional source callee requires its exact native storage and present-value relation."));
-    return undefined;
-  }
-  if (guard !== undefined) callee = guard.value;
-  if (classification.sourceMethodValue !== undefined) {
-    callee = { kind: optionalCallee !== undefined && optionalVoid ? "ConditionalAccessExpression" : "SimpleMemberAccessExpression",
-      receiver: callee, name: classification.sourceMethodValue.method };
-  } else if (optionalCallee !== undefined) {
-    callee = { kind: optionalVoid ? "ConditionalAccessExpression" : "SimpleMemberAccessExpression", receiver: callee, name: "Invoke" };
-  }
   const typeArguments = classification.sourceTypeArguments;
   if (typeArguments === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
       "Source-owned generic call has a selected method type argument with no closed C# representation.",
     ));
-    return undefined;
-  }
-  const genericCallee = applyCalleeTypeArguments(
-    input.scope.typeParameterNames,
-    callee,
-    typeArguments,
-    node,
-    diagnostics,
-  );
-  if (genericCallee === undefined) {
     return undefined;
   }
   const arguments_ = translateSourceOwnedArguments(
@@ -113,18 +87,38 @@ export function translateSourceOwnedCall(
     planCallArgument,
   );
   if (arguments_ === undefined || result === undefined) return undefined;
-  const invocation: CsharpExpression = { kind: "InvocationExpression", callee: genericCallee, arguments: arguments_ };
-  const selectedInvocation = planCsharpSelectedSourceCallResult(node, sourceFile, input, diagnostics, result, invocation);
-  if (selectedInvocation === undefined) return undefined;
-  if (optionalCallee === undefined || guardedName === undefined) return selectedInvocation;
-  const absent = planCsharpAbsentValue(result.selectedType, input.scope.typeParameterNames);
-  if (guard === undefined || absent === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "An optional source callee requires its exact native presence and result storage types."));
-    return undefined;
+  const invoke = (callee: CsharpExpression, args: readonly CsharpArgument[]): CsharpPlannedValue | undefined => {
+    const member = classification.sourceMethodValue === undefined ? callee
+      : { kind: "SimpleMemberAccessExpression" as const, receiver: callee, name: classification.sourceMethodValue.method };
+    const generic = applyCalleeTypeArguments(input.scope.typeParameterNames, member, typeArguments, node, diagnostics);
+    const invocation = generic === undefined ? undefined : planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
+      { kind: "InvocationExpression", callee: generic, arguments: args }, result.nativeType);
+    return invocation === undefined ? undefined : planCsharpSelectedSourceCallResult(node, sourceFile, input, diagnostics, result, invocation);
+  };
+  if (selected.kind === "function") {
+    const callee = planExpression(selected.expression, sourceFile, input, diagnostics);
+    if (callee === undefined) return undefined;
+    if (callee.completion.kind === "never") return callee;
+    if (callee.completion.kind !== "value" || callee.prelude.length !== 0) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "A selected native function group must not introduce value acquisition effects."));
+      return undefined;
+    }
+    const callable = callee.completion.expression;
+    return composeCsharpPlannedCall(node, sourceFile, input, diagnostics, undefined, arguments_, (_, args) => invoke(callable, args));
   }
-  return { kind: "ConditionalExpression",
-    condition: guard.condition,
-    whenTrue: selectedInvocation, whenFalse: absent };
+  if (selected.kind === "method") {
+    const receiver = planExpression(selected.receiver.expression, sourceFile, input, diagnostics);
+    return receiver === undefined ? undefined : composeCsharpPlannedCall(node, sourceFile, input, diagnostics, receiver, arguments_, (value, args) => {
+      const planned = planExpressionForReceiver(selected.expression, selected.receiver.expression, selected.receiver.type, value!, sourceFile, input, diagnostics, planExpression);
+      return planned?.completion.kind === "value" && planned.prelude.length === 0 ? invoke(planned.completion.expression, args) : undefined;
+    });
+  }
+  const callee = planExpression(selected.expression, sourceFile, input, diagnostics);
+  const present = (value: CsharpExpression): CsharpPlannedValue | undefined => composeCsharpPlannedCall(node, sourceFile, input, diagnostics,
+    csharpPlannedValue(optionalCallee?.type ?? selected.type, value), arguments_, (callable, args) => invoke(callable!, args));
+  return optionalCallee === undefined
+    ? callee === undefined ? undefined : composeCsharpPlannedCall(node, sourceFile, input, diagnostics, callee, arguments_, (value, args) => invoke(value!, args))
+    : planCsharpOptionalReceiverValue(node, sourceFile, input, diagnostics, callee, present, result.selectedType);
 }
 
 export function translateSourceOwnedArguments(
@@ -136,8 +130,8 @@ export function translateSourceOwnedArguments(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
-): readonly CsharpArgument[] | undefined {
-  const exactTargetArity = classification.sourceMethodValue === undefined && sourceCalleeRequiresExactTargetArity(source, input);
+): CsharpPlannedCallArguments | undefined {
+  const exactTargetArity = classification.sourceMethodValue === undefined && (classification.sourceCall?.kind === "value" || sourceCalleeRequiresExactTargetArity(source, input));
   const nativeParameters = classification.sourceNativeParameters;
   const groups = csharpSourceArgumentGroups(source, classification, exactTargetArity);
   if (nativeParameters === undefined || groups === undefined) {
@@ -157,7 +151,7 @@ export function translateSourceOwnedArguments(
       [...existing, binding],
     );
   }
-  const planned: CsharpArgument[] = [];
+  const planned: CsharpPlannedArgument[] = [];
   for (
     let sourceArgumentIndex = 0;
     sourceArgumentIndex < source.sourceArguments.length;
@@ -225,17 +219,18 @@ export function translateSourceOwnedArguments(
     }
     planned.push(plannedArgument);
   }
+  return { operands: planned, arguments: values => {
   const arguments_: CsharpArgument[] = [];
   for (const group of groups) {
     if (group.collect) {
       arguments_.push({ kind: "Argument", expression: { kind: "CollectionExpression", elements: group.arguments.map(argument => ({
-        kind: argument.spread ? "SpreadElement" : "ExpressionElement", expression: planned[argument.index]!.expression,
+        kind: argument.spread ? "SpreadElement" : "ExpressionElement", expression: values[argument.index]!,
       })) } });
       continue;
     }
     const argument = group.arguments[0];
     if (argument !== undefined) {
-      arguments_.push(planned[argument.index]!);
+      arguments_.push(csharpPlannedArgumentSyntax(planned[argument.index]!, values[argument.index]!));
       continue;
     }
     const parameter = source.sourceSelectedSignatureParameters[group.parameterIndex];
@@ -264,4 +259,20 @@ export function translateSourceOwnedArguments(
     arguments_.push({ kind: "Argument", expression: omitted.expression });
   }
   return arguments_;
+  } };
+}
+
+function planExpressionForReceiver(
+  expression: Node,
+  receiver: Node,
+  type: import("../../../../../target-model/types/model.js").TargetTypeRef,
+  value: CsharpExpression,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planner: ExpressionPlanner,
+): CsharpPlannedValue | undefined {
+  return translateCsharpPropertyAccess(expression, sourceFile, input, diagnostics,
+    (subject, file, context, errors, state) => subject === receiver ? csharpPlannedValue(type, value)
+      : planner(subject, file, context, errors, state));
 }

@@ -16,6 +16,7 @@ import {
   getCsharpNullableElementTargetType,
   isCsharpValueTypeTargetType,
 } from "../../../target-model/types/index.js";
+import type { CsharpPlannedValue } from "../expressions/planned-values.js";
 
 export function planObjectShapeDefaultProjection(
   projected: CsharpExpression,
@@ -26,7 +27,7 @@ export function planObjectShapeDefaultProjection(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner | undefined,
-): { readonly expression: CsharpExpression; readonly type: CsharpTypeNode; readonly carrier: CsharpObjectShapeFact["members"][number]["type"] } | undefined {
+): { readonly value: CsharpPlannedValue; readonly type: CsharpTypeNode; readonly carrier: CsharpObjectShapeFact["members"][number]["type"] } | undefined {
   if (planDefaultExpressionWithExpectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(initializer, "Object destructuring defaults require the active expression planner before C# emission."));
     return undefined;
@@ -47,9 +48,7 @@ export function planObjectShapeDefaultProjection(
   if (whenFalse === undefined) {
     return undefined;
   }
-  return {
-    expression: planCsharpBindingDefaultValue(projected, member.type, whenFalse, defaultCarrier, state),
-    type: defaultType,
-    carrier: defaultCarrier,
-  };
+  const value = planCsharpBindingDefaultValue(initializer, sourceFile, input, diagnostics,
+    projected, member.type, whenFalse, defaultCarrier, state);
+  return value === undefined ? undefined : { value, type: defaultType, carrier: defaultCarrier };
 }

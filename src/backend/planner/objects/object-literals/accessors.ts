@@ -18,7 +18,6 @@ import type {
 } from "../../../../target-model/types/index.js";
 import type {
   CsharpExpression,
-  CsharpObjectInitializerAssignment,
 } from "../../../target-ast/roslyn/index.js";
 import {
   allocateSyntheticParameter,
@@ -51,6 +50,8 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
 import { planLambdaParameterStorage } from "../../expressions/lambda-parameter-storage.js";
+import { csharpPlannedValue } from "../../expressions/planned-values.js";
+import type { CsharpPlannedObjectInitializer } from "../../expressions/planned-initializers.js";
 
 export function planObjectShapeAccessorMemberAssignment(
   accessorNode: Node,
@@ -58,7 +59,7 @@ export function planObjectShapeAccessorMemberAssignment(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-): CsharpObjectInitializerAssignment | undefined {
+): CsharpPlannedObjectInitializer | undefined {
   const sourceName = getObjectLiteralPropertySourceName(
     accessorNode,
     input,
@@ -116,11 +117,12 @@ export function planObjectShapeAccessorMemberAssignment(
     return undefined;
   }
   return {
-    kind: "AssignmentExpression",
-    name: getter
+    value: csharpPlannedValue(getter
+      ? csharpDelegateTargetType("System.Func", [objectShape.targetType], member.type)
+      : csharpDelegateTargetType("System.Action", [objectShape.targetType, member.type]), expression),
+    assignments: value => [{ kind: "AssignmentExpression", name: getter
       ? objectShapeAccessorGetterStorageMemberName(objectShape, member)
-      : objectShapeAccessorSetterStorageMemberName(objectShape, member),
-    expression,
+      : objectShapeAccessorSetterStorageMemberName(objectShape, member), expression: value }],
   };
 }
 

@@ -8,9 +8,6 @@ import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
-import type {
-  CsharpExpression,
-} from "../../target-ast/roslyn/index.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";

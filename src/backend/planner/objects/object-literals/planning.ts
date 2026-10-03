@@ -19,9 +19,10 @@ import {
   validateCsharpJsValueObjectShapeCarrier,
   getCsharpRuntimeUnionArms,
   getCsharpNullableElementTargetType,
+  csharpStringTargetType,
 } from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
+import type { CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/index.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
@@ -40,8 +41,10 @@ import {
 } from "./assignments.js";
 import {
   getExpectedObjectShapeFact,
-  mergeObjectInitializerAssignments,
 } from "./support.js";
+import { csharpPlannedValue, type CsharpPlannedValue } from "../../expressions/planned-values.js";
+import { buildCsharpPlannedValue } from "../../expressions/planned-value-composition.js";
+import { planCsharpObjectInitialization, type CsharpPlannedObjectInitializer } from "../../expressions/planned-initializers.js";
 
 export function planObjectLiteralExpressionWithExpectedType(
   node: Node,
@@ -54,7 +57,7 @@ export function planObjectLiteralExpressionWithExpectedType(
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   expectedTargetType?: TargetTypeRef,
   state?: DestructuringPlannerState,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const unionShape = expectedTargetType === undefined ? undefined
     : input.types.objectShapes.resolveObjectLiteralUnionShape(node, expectedTargetType);
   if (getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(expectedTargetType) ?? expectedTargetType, input.program.typeDefinitions) !== undefined && unionShape === undefined) {
@@ -111,7 +114,7 @@ function planObjectLiteralExpressionWithObjectShape(
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   state?: DestructuringPlannerState,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (isCsharpJsValueObjectShapeTargetType(objectShape.targetType)) {
     return planJsValueObjectLiteral(
       node,
@@ -134,7 +137,7 @@ function planObjectLiteralExpressionWithObjectShape(
   const literal = AsObjectLiteralExpression(input.program.source.ast, node)!;
   const captures = planCsharpObjectCaptureAssignments(objectShape, input, diagnostics, state);
   if (captures === undefined) return undefined;
-  const assignments: CsharpObjectInitializerAssignment[] = [...captures];
+  const assignments: CsharpPlannedObjectInitializer[] = [];
   for (const property of literal.Properties?.Nodes ?? []) {
     if (property === undefined) {
       continue;
@@ -145,11 +148,7 @@ function planObjectLiteralExpressionWithObjectShape(
     }
     assignments.push(...planned);
   }
-  return {
-    kind: "ObjectCreationExpression",
-    type,
-    assignments: mergeObjectInitializerAssignments(assignments),
-  };
+  return planCsharpObjectInitialization(node, sourceFile, input, diagnostics, objectShape.targetType, type, captures, assignments);
 }
 
 function planJsValueObjectLiteral(
@@ -159,14 +158,14 @@ function planJsValueObjectLiteral(
   diagnostics: TargetDiagnostic[],
   objectShape: CsharpObjectShapeFact,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const carrierRejection = validateCsharpJsValueObjectShapeCarrier(objectShape);
   if (carrierRejection !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, carrierRejection));
     return undefined;
   }
   const literal = AsObjectLiteralExpression(input.program.source.ast, node)!;
-  const arguments_: CsharpExpression[] = [];
+  const arguments_: CsharpPlannedValue[] = [];
   for (const property of literal.Properties?.Nodes ?? []) {
     if (property === undefined) {
       continue;
@@ -196,7 +195,7 @@ function planJsValueObjectLiteral(
       return undefined;
     }
     arguments_.push(
-      { kind: "LiteralExpression", value: planned.member.sourceName },
+      csharpPlannedValue(csharpStringTargetType(), { kind: "LiteralExpression", value: planned.member.sourceName }),
       planned.expression,
     );
   }
@@ -210,10 +209,10 @@ function planJsValueObjectLiteral(
     ));
     return undefined;
   }
-  return translateCsharpJsValueInvocation(
+  return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, arguments_, values => translateCsharpJsValueInvocation(
     input.scope.typeParameterNames,
     operation,
     undefined,
-    arguments_,
-  );
+    values,
+  ), operation.resultType);
 }

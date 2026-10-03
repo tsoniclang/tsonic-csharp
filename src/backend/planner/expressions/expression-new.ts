@@ -3,9 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpExpression,
-} from "../../target-ast/roslyn/index.js";
+import type { CsharpPlannedValue } from "./planned-values.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -24,7 +22,7 @@ export function planNewExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   return translateCsharpConstruction(
     node,
     sourceFile,

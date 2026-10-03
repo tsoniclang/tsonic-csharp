@@ -37,6 +37,7 @@ import {
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { planExpression } from "../expressions/index.js";
 import { planClassFactoryExpression } from "../declarations/classes/factories.js";
+import { consumeCsharpPlannedValue } from "./statement-output.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planLocalDeclarationStatements } from "../bindings/locals.js";
@@ -182,8 +183,8 @@ export function planStatements(
         diagnostics.push(unsupportedNodeDiagnostic(node, "A local class requires a sealed native factory."));
         return [];
       }
-      return [{ kind: "LocalDeclarationStatement", type, initializer,
-        name: planIdentifierName(input.program.source.ast.name(node), "Class", input, diagnostics, "Local class") }];
+      return consumeCsharpPlannedValue(initializer, expression => [{ kind: "LocalDeclarationStatement", type, initializer: expression,
+        name: planIdentifierName(input.program.source.ast.name(node), "Class", input, diagnostics, "Local class") }]);
     }
     case KindVariableStatement: {
       const declarationList = AsVariableStatement(input.program.source.ast, node)!.DeclarationList;

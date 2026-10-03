@@ -13,9 +13,10 @@ export function planAttributesForSubject(
   const attributes = subject === undefined ? [] : input.program.attributeApplications.forDeclaration(subject);
   if (attributes.length === 0) return undefined;
   return attributes.flatMap(attribute => {
-    const construction = planExpression(attribute.invocation, sourceFile, input, diagnostics);
-    if (construction === undefined) return [];
-    if (construction.kind !== "ObjectCreationExpression" ||
+    const planned = planExpression(attribute.invocation, sourceFile, input, diagnostics);
+    if (planned === undefined) return [];
+    const construction = planned.completion.kind === "value" ? planned.completion.expression : undefined;
+    if (planned.prelude.length !== 0 || construction?.kind !== "ObjectCreationExpression" ||
       construction.assignments !== undefined || construction.collectionInitializers !== undefined) {
       diagnostics.push({ code: "CSHARP_UNSUPPORTED_ATTRIBUTE_APPLICATION", category: "error", source: "tsonic-csharp",
         message: "C# attribute application must emit a native attribute construction without a factory or runtime conversion.",

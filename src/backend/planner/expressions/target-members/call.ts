@@ -5,9 +5,6 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
-  CsharpExpression,
-} from "../../../target-ast/roslyn/index.js";
-import type {
   CallArgumentPlanner,
   ExpressionPlanner,
 } from "../expression-planner-types.js";

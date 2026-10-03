@@ -6,12 +6,14 @@ import { getCsharpTypeForExpressionCarrier } from "../binding-patterns.js";
 import { getRuntimeCarrierForExpression } from "../../types/runtime-carriers.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import type { BindingDefaultExpressionPlanner } from "../binding-array-patterns.js";
-import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpStatement } from "../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { DestructuringPlannerState } from "../binding-state.js";
 import type { ExpressionPlanner } from "../../expressions/expression-planner-types.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { csharpPlannedValue, type CsharpPlannedValue } from "../../expressions/planned-values.js";
+import { planCsharpPlannedDiscard } from "../../statements/statement-output.js";
 
 export const missingDestructuringAssignmentFactsMessage = "Destructuring assignment emission requires finalized target storage and extraction facts before C# emission.";
 
@@ -50,7 +52,7 @@ export function planDestructuringAssignmentStatement(
     planExpression,
     planDefaultExpressionWithExpectedType,
   );
-  return planned?.statements ?? [];
+  return planned === undefined ? [] : planCsharpPlannedDiscard(planned);
 }
 
 export function tryPlanDestructuringAssignmentExpression(
@@ -61,7 +63,7 @@ export function tryPlanDestructuringAssignmentExpression(
   state: DestructuringPlannerState | undefined,
   planExpression: ExpressionPlanner,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (!isDestructuringAssignmentExpression(node, input)) {
     return undefined;
   }
@@ -81,37 +83,7 @@ export function tryPlanDestructuringAssignmentExpression(
   if (planned === undefined) {
     return undefined;
   }
-  return {
-    kind: "InvocationExpression",
-    callee: {
-      kind: "ParenthesizedExpression",
-      expression: {
-        kind: "CastExpression",
-        type: csharpFuncType(planned.sourceType),
-        expression: {
-          kind: "LambdaExpression",
-          parameters: [],
-          body: {
-            kind: "Block",
-            statements: [
-              ...planned.statements,
-              {
-                kind: "ReturnStatement",
-                expression: planned.resultExpression,
-              },
-            ],
-          },
-        },
-      },
-    },
-    arguments: [],
-  };
-}
-
-interface DestructuringAssignmentPlan {
-  readonly sourceType: CsharpTypeNode;
-  readonly resultExpression: CsharpExpression;
-  readonly statements: readonly CsharpStatement[];
+  return planned;
 }
 
 function planDestructuringAssignmentCore(
@@ -122,7 +94,7 @@ function planDestructuringAssignmentCore(
   state: DestructuringPlannerState,
   planExpression: ExpressionPlanner,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
-): DestructuringAssignmentPlan | undefined {
+): CsharpPlannedValue | undefined {
   const selectedOperator = input.program.operations.binary(node)
     ?.destructuring;
   if (selectedOperator === undefined) {
@@ -144,20 +116,20 @@ function planDestructuringAssignmentCore(
   if (sourceExpression === undefined) {
     return undefined;
   }
+  if (sourceExpression.completion.kind === "never") return sourceExpression;
+  if (sourceExpression.completion.kind !== "value") return undefined;
   const sourceType = getCsharpTypeForExpressionCarrier(right, sourceFile, input, diagnostics, left, "Destructuring assignment source");
   const sourceCarrier = getArrayBoundaryCoreCarrierForExpression(input, right, sourceFile) ??
     getRuntimeCarrierForExpression(input, right, sourceFile);
   const tempName = allocateDestructuringTemp(state);
   const tempReference: CsharpExpression = { kind: "IdentifierName", name: tempName };
-  return {
-    sourceType,
-    resultExpression: tempReference,
-    statements: [
+  return csharpPlannedValue(sourceExpression.completion.carrier, tempReference, [
+    ...sourceExpression.prelude,
     {
       kind: "LocalDeclarationStatement",
       name: tempName,
       type: sourceType,
-      initializer: sourceExpression,
+      initializer: sourceExpression.completion.expression,
     },
     ...planAssignmentPatternFromExpression(
       pattern,
@@ -170,17 +142,7 @@ function planDestructuringAssignmentCore(
       sourceCarrier,
       planDefaultExpressionWithExpectedType,
     ),
-    ],
-  };
-}
-
-function csharpFuncType(returnType: CsharpTypeNode): CsharpTypeNode {
-  return {
-    kind: "QualifiedName",
-    left: { kind: "IdentifierName", name: "System" },
-    name: "Func",
-    typeArguments: [returnType],
-  };
+    ]);
 }
 
 export type DestructuringAssignmentPattern =

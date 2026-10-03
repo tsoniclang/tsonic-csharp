@@ -4,7 +4,6 @@ import type { CsharpSourceOperator } from "../../../../target-model/syntax/opera
 import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
-import type { CsharpExpression } from "../../../target-ast/roslyn/index.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import type { ExpectedExpressionPlanner, ExpressionPlanner } from "../expression-planner-types.js";
 import { planSelectedCsharpBinaryOperation } from "./selected-binary.js";

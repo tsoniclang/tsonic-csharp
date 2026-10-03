@@ -23,7 +23,8 @@ import {
   arrayLiteralHasElision,
   rejectSparseArrayLiteralElision,
 } from "./elision.js";
-import { planCsharpDenseSequenceConstruction } from "../sequence-conversions.js";
+import { planCsharpArrayConstruction } from "./construction.js";
+import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { buildCsharpPlannedValue } from "../planned-value-composition.js";
 
@@ -41,7 +42,11 @@ export function planArrayLiteralExpression(
     return rejectSparseArrayLiteralElision(node, diagnostics);
   }
   if ((literal.Elements?.Nodes ?? []).some((element) => HasSourceKind(input.program.source.ast, element, KindSpreadElement))) {
-    return planCsharpDenseSequenceConstruction(node, sourceFile, input, diagnostics, elementType, elementTargetType, planner);
+    if (elementTargetType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "Dense array construction requires its exact element carrier."));
+      return undefined;
+    }
+    return planCsharpArrayConstruction(node, sourceFile, input, diagnostics, elementType, elementTargetType, planner);
   }
   const elements = plannedArrayElements(literal.Elements?.Nodes ?? [], sourceFile, input, diagnostics, (element, elementSourceFile, elementInput, elementDiagnostics) =>
     planner.planExpressionWithExpectedType(element, elementSourceFile, elementInput, elementDiagnostics, elementType, undefined, elementTargetType));

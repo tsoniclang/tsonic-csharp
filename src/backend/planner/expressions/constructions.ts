@@ -38,6 +38,9 @@ import {
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";
+import type { CsharpPlannedValue } from "./planned-values.js";
+import { buildCsharpPlannedValue, planCsharpExpressionCompletion } from "./planned-value-composition.js";
+import { composeCsharpPlannedCall } from "./target-members/selected-call/planned-arguments.js";
 
 export function translateCsharpConstruction(
   node: Node,
@@ -46,7 +49,7 @@ export function translateCsharpConstruction(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const expression = input.program.source.ast.as.AsNewExpression(node);
   const calleeNode = expression?.Expression;
   const classification = input.program.operations.construction(node);
@@ -90,12 +93,8 @@ export function translateCsharpConstruction(
     ) {
       return undefined;
     }
-    return translateCsharpJsValueInvocation(
-      input.scope.typeParameterNames,
-      jsValueOperation,
-      callee,
-      arguments_ as readonly CsharpExpression[],
-    );
+    return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [callee, ...arguments_], values =>
+      translateCsharpJsValueInvocation(input.scope.typeParameterNames, jsValueOperation, values[0]!, values.slice(1)), jsValueOperation.resultType);
   }
   const selection = classification.target;
   if (selection === undefined) {
@@ -171,7 +170,7 @@ function translateSelectedConstruction(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const member = selection.call.targetMember;
   if (
     member.kind !== "constructor" ||
@@ -196,6 +195,20 @@ function translateSelectedConstruction(
   if (arguments_ === undefined) {
     return undefined;
   }
+  return composeCsharpPlannedCall(node, sourceFile, input, diagnostics, undefined, arguments_, (_, args) =>
+    planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
+      buildSelectedConstruction(node, selection, sourceFile, input, diagnostics, args)));
+}
+
+function buildSelectedConstruction(
+  node: Node,
+  selection: Extract<CsharpTargetCallSelection, { readonly kind: "resolved" }>,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  arguments_: readonly import("../../target-ast/roslyn/index.js").CsharpArgument[],
+): CsharpExpression | undefined {
+  const member = selection.call.targetMember;
   if (member.csharpInvocation?.kind === "static-factory-construction") {
     const factoryType = csharpTypeFromTargetTypeRef(
       member.csharpInvocation.factoryType, input.scope.typeParameterNames,
@@ -322,7 +335,7 @@ function translateSourceOwnedConstruction(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const declaration = input.program.sourceEvidence.signatureDeclaration(
     selection.source.selectedSignature,
   );
@@ -370,20 +383,19 @@ function translateSourceOwnedConstruction(
       diagnostics.push(unsupportedNodeDiagnostic(node, "A generic class construction requires its exact native type arguments."));
       return undefined;
     }
-    return callee === undefined ? undefined : { kind: "InvocationExpression",
-      callee: { kind: "SimpleMemberAccessExpression", receiver: callee, name: factory.createMethodName,
-        ...(typeArguments.length === 0 ? {} : { typeArguments: typeArguments as import("../../target-ast/roslyn/index.js").CsharpTypeNode[] }) }, arguments: arguments_ };
+    return callee === undefined ? undefined : composeCsharpPlannedCall(node, sourceFile, input, diagnostics, callee, arguments_, (value, args) =>
+      planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "InvocationExpression",
+        callee: { kind: "SimpleMemberAccessExpression", receiver: value!, name: factory.createMethodName,
+          ...(typeArguments.length === 0 ? {} : { typeArguments: typeArguments as import("../../target-ast/roslyn/index.js").CsharpTypeNode[] }) }, arguments: args }));
   }
   if (arguments_ !== undefined && getCsharpDelegateSignature(input.types.classifications.resolveNode(calleeNode)) !== undefined &&
     (calleeReference === undefined || !input.program.source.ast.is.IsClassDeclaration(calleeReference.declaration))) {
     const callee = planExpression(calleeNode, sourceFile, input, diagnostics);
-    return callee === undefined ? undefined : { kind: "InvocationExpression", callee, arguments: arguments_ };
+    return callee === undefined ? undefined : composeCsharpPlannedCall(node, sourceFile, input, diagnostics, callee, arguments_, (value, args) =>
+      planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "InvocationExpression", callee: value!, arguments: args }));
   }
   return arguments_ === undefined
     ? undefined
-    : {
-        kind: "ObjectCreationExpression",
-        type,
-        arguments: arguments_,
-      };
+    : composeCsharpPlannedCall(node, sourceFile, input, diagnostics, undefined, arguments_, (_, args) =>
+      planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "ObjectCreationExpression", type, arguments: args }));
 }

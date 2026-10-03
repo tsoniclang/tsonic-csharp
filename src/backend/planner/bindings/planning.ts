@@ -17,6 +17,7 @@ import {
 } from "./binding-patterns.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planExpression, planExpressionWithExpectedType } from "../expressions/index.js";
+import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 
 export {
   allocateCatchValue,
@@ -67,15 +68,15 @@ export function planVariableBindingStatements(
   if (initializerExpression === undefined) {
     return [];
   }
-  return [
+  return consumeCsharpPlannedValue(initializerExpression, expression => [
     {
       kind: "LocalDeclarationStatement",
       name: sourceName,
       type: sourceType,
-      initializer: initializerExpression,
+      initializer: expression,
     },
     ...planBindingPatternFromExpression(bindingName, sourceExpression, initializer, sourceFile, input, diagnostics, state, undefined, planExpressionWithExpectedType),
-  ];
+  ]);
 }
 
 export function planParameterBindingPrelude(

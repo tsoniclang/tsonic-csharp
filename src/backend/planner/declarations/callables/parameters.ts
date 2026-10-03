@@ -26,6 +26,7 @@ import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { planExpressionWithExpectedType } from "../../expressions/index.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../modifiers.js";
 import { planCsharpRuntimeParameterDefault } from "./defaults.js";
+import { consumeCsharpPlannedValue } from "../../statements/statement-output.js";
 import {
   planCsharpParameterStorageDeclaration,
 } from "../../bindings/typed-location-identities.js";
@@ -69,7 +70,8 @@ export function planParametersWithPrelude(
         parameters.push({ name: incomingName, type: selected.parameterType,
           attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
           defaultValue: selected.defaultValue });
-        prelude.push({ kind: "LocalDeclarationStatement", name: sourceName, type: selected.valueType, initializer: selected.value });
+        prelude.push(...consumeCsharpPlannedValue(selected.value, initializer => [
+          { kind: "LocalDeclarationStatement", name: sourceName, type: selected.valueType, initializer }]));
         const locationIdentity = planCsharpParameterStorageDeclaration(parameterNode!, input, state, diagnostics);
         if (locationIdentity !== undefined) prelude.push(locationIdentity);
         hasDefaultParameter = true;
@@ -186,9 +188,10 @@ function planParameterDefaultValue(
   if (defaultValue === undefined) {
     return undefined;
   }
-  if (defaultValue.kind === "LiteralExpression" || defaultValue.kind === "CharacterLiteralExpression" ||
-    defaultValue.kind === "IntegerLiteralExpression" || defaultValue.kind === "NumericLiteralExpression") {
-    return defaultValue;
+  const expression = defaultValue.completion.kind === "value" ? defaultValue.completion.expression : undefined;
+  if (defaultValue.prelude.length === 0 && (expression?.kind === "LiteralExpression" || expression?.kind === "CharacterLiteralExpression" ||
+    expression?.kind === "IntegerLiteralExpression" || expression?.kind === "NumericLiteralExpression")) {
+    return expression;
   }
   diagnostics.push(unsupportedNodeDiagnostic(initializer, "C# parameter defaults require compile-time literal values."));
   return undefined;

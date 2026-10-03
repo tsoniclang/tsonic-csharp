@@ -30,7 +30,7 @@ import type {
 } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { sourceNodesEqual } from "@tsonic/target-api/source";
-import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import {
   planArrayLiteralExpressionFromFacts,
@@ -123,7 +123,7 @@ function planExpressionCore(
     planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression);
   if (input.program.source.ast.is.IsClassExpression(node)) {
     const factory = input.program.classFactories.get(node);
-    if (factory !== undefined) return complete(planClassFactoryExpression(factory, sourceFile, input, diagnostics, state));
+    if (factory !== undefined) return planClassFactoryExpression(factory, sourceFile, input, diagnostics, state);
     diagnostics.push(unsupportedNodeDiagnostic(node, "A class expression requires its sealed native factory."));
     return undefined;
   }

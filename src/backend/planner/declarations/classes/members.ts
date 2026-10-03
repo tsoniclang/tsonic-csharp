@@ -20,10 +20,7 @@ import {
 import {
   unsupportedNodeDiagnostic,
 } from "../../diagnostics.js";
-import {
-  planClassStaticBlockDeclaration,
-  planConstructorDeclaration,
-} from "./constructors.js";
+import { planConstructorDeclaration } from "./constructors.js";
 import {
   planMethodDeclaration,
 } from "./methods.js";
@@ -34,6 +31,7 @@ import {
 import { planCsharpMutableMethod } from "./mutable-methods.js";
 import { classFactoryContext } from "./factories.js";
 import { planCsharpProjectCallableAdapters } from "./callable-adapters.js";
+import type { CsharpClassInitializationRegion } from "./initializers.js";
 
 export function planClassMembers(
   members: readonly (Node | undefined)[],
@@ -41,6 +39,7 @@ export function planClassMembers(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
+  initialization: readonly CsharpClassInitializationRegion[],
 ): readonly CsharpTypeMember[] {
   const planned: CsharpTypeMember[] = [];
   const accessorProperties = new Map<string, CsharpPropertyDeclaration>();
@@ -61,7 +60,6 @@ export function planClassMembers(
         }
         break;
       case KindClassStaticBlockDeclaration:
-        planned.push(planClassStaticBlockDeclaration(member, className, sourceFile, input, diagnostics));
         break;
       case KindMethodDeclaration:
         if (AsMethodDeclaration(input.program.source.ast, member)?.Body !== undefined ||
@@ -73,7 +71,8 @@ export function planClassMembers(
         }
         break;
       case KindPropertyDeclaration:
-        planned.push(planPropertyDeclaration(member, sourceFile, input, diagnostics));
+        planned.push(planPropertyDeclaration(member, sourceFile, input, diagnostics,
+          initialization.map(region => region.inline.get(member)).find(value => value !== undefined)));
         break;
       case KindGetAccessor:
       case KindSetAccessor:

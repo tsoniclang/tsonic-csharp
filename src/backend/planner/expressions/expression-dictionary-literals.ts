@@ -31,7 +31,6 @@ import {
 } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
-  CsharpCollectionInitializerElement,
   CsharpExpression,
   CsharpTypeNode,
 } from "../../target-ast/roslyn/index.js";
@@ -47,6 +46,13 @@ import {
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { csharpRecordOperation } from "../objects/indexed-records.js";
 import type { ExpectedExpressionPlanner } from "./expression-planner-types.js";
+import { csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
+import { buildCsharpPlannedValue, projectCsharpPlannedValue } from "./planned-value-composition.js";
+
+interface PlannedRecordInitializer {
+  readonly key: CsharpExpression;
+  readonly value: CsharpPlannedValue;
+}
 
 export function tryPlanRecordDictionaryLiteralWithExpectedType(
   node: Node,
@@ -56,7 +62,7 @@ export function tryPlanRecordDictionaryLiteralWithExpectedType(
   expectedTypeSubject: Node | undefined,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   expectedTargetType?: TargetTypeRef,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (!HasSourceKind(input.program.source.ast, node, KindObjectLiteralExpression)) {
     return undefined;
   }
@@ -74,7 +80,7 @@ function planRecordDictionaryLiteral(
   diagnostics: TargetDiagnostic[],
   dictionaryType: TargetTypeRef,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const properties = (AsObjectLiteralExpression(input.program.source.ast, node)!.Properties?.Nodes ?? [])
     .filter((property): property is Node => property !== undefined);
   const type = csharpTypeFromTargetTypeRef(dictionaryType, input.scope.typeParameterNames);
@@ -83,11 +89,11 @@ function planRecordDictionaryLiteral(
     return undefined;
   }
   if (properties.length === 0) {
-    return {
+    return csharpPlannedValue(dictionaryType, {
       kind: "ObjectCreationExpression",
       type,
       arguments: [],
-    };
+    });
   }
   const [keyType, valueType] = dictionaryType.kind === "target-named" ? dictionaryType.typeArguments ?? [] : [];
   if (keyType === undefined || valueType === undefined) {
@@ -99,7 +105,7 @@ function planRecordDictionaryLiteral(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Record dictionary object literal values require a renderable finalized value target type before C# emission."));
     return undefined;
   }
-  let result: CsharpExpression = { kind: "ObjectCreationExpression", type, collectionInitializers: [] };
+  let result: CsharpPlannedValue | undefined = csharpPlannedValue(dictionaryType, { kind: "ObjectCreationExpression", type, collectionInitializers: [] });
   for (const property of properties) {
     if (HasSourceKind(input.program.source.ast, property, KindSpreadAssignment)) {
       const expression = SpreadAssignment_Expression(input.program.source.ast, property);
@@ -110,18 +116,28 @@ function planRecordDictionaryLiteral(
       }
       const spread = planExpressionWithExpectedType(expression, sourceFile, input, diagnostics, type, expression);
       if (spread === undefined) return undefined;
-      result = result.kind === "ObjectCreationExpression" && result.collectionInitializers?.length === 0
-        ? { kind: "ObjectCreationExpression", type, arguments: [{ kind: "Argument", expression: spread }] }
-        : csharpRecordOperation("Extend", [result, spread]);
+      const current: CsharpExpression | undefined = result?.completion.kind === "value" ? result.completion.expression : undefined;
+      result = result?.prelude.length === 0 && current?.kind === "ObjectCreationExpression" && current.collectionInitializers?.length === 0
+        ? projectCsharpPlannedValue(node, sourceFile, input, diagnostics, spread, value => ({
+            kind: "ObjectCreationExpression", type, arguments: [{ kind: "Argument", expression: value }],
+          }), dictionaryType)
+        : buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [result, spread], values =>
+            csharpRecordOperation("Extend", values), dictionaryType);
+      if (result === undefined) return undefined;
       continue;
     }
     const initializer = planRecordDictionaryInitializer(property, keyType, valueType, valueCsharpType,
       sourceFile, input, diagnostics, planExpressionWithExpectedType);
     if (initializer === undefined) return undefined;
-    result = result.kind === "ObjectCreationExpression" && result.assignments === undefined
-      ? { kind: "ObjectCreationExpression", type: result.type, arguments: result.arguments,
-          collectionInitializers: [...result.collectionInitializers ?? [], initializer] }
-      : csharpRecordOperation("Set", [result, initializer.arguments[0]!, initializer.expression]);
+    result = buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [result, initializer.value], values => {
+      const previous = values[0]!;
+      return previous.kind === "ObjectCreationExpression" && previous.assignments === undefined
+        ? { kind: "ObjectCreationExpression", type: previous.type, arguments: previous.arguments, collectionInitializers: [...previous.collectionInitializers ?? [], {
+            kind: "IndexerInitializer", arguments: [initializer.key], expression: values[1]!,
+          }] }
+        : csharpRecordOperation("Set", [previous, initializer.key, values[1]!]);
+    }, dictionaryType);
+    if (result === undefined) return undefined;
   }
   return result;
 }
@@ -135,7 +151,7 @@ function planRecordDictionaryInitializer(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
-): CsharpCollectionInitializerElement | undefined {
+): PlannedRecordInitializer | undefined {
   switch (SourceKind(input.program.source.ast, property)) {
     case KindPropertyAssignment: {
       const propertyAssignment = AsPropertyAssignment(input.program.source.ast, property)!;
@@ -152,9 +168,7 @@ function planRecordDictionaryInitializer(
         return undefined;
       }
       return {
-        kind: "IndexerInitializer",
-        arguments: [key],
-        expression,
+        key, value: expression,
       };
     }
     case KindShorthandPropertyAssignment: {
@@ -174,9 +188,7 @@ function planRecordDictionaryInitializer(
         return undefined;
       }
       return {
-        kind: "IndexerInitializer",
-        arguments: [key],
-        expression,
+        key, value: expression,
       };
     }
     case KindMethodDeclaration:
@@ -196,7 +208,7 @@ function planRecordDictionaryValue(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (isCsharpRecordDictionaryTargetType(valueType) && HasSourceKind(input.program.source.ast, valueNode, KindObjectLiteralExpression)) {
     return planRecordDictionaryLiteral(valueNode, sourceFile, input, diagnostics, valueType, planExpressionWithExpectedType);
   }

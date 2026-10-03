@@ -35,6 +35,8 @@ import { getCsharpTypeForExpressionCarrier } from "../binding-patterns.js";
 import { getObjectShapeForBindingSource } from "../binding-object-patterns.js";
 import { missingCarrierDiagnosticDetail, resolveRuntimeCarrierForExpression } from "../../types/runtime-carriers.js";
 import { planObjectShapeDefaultProjection } from "../../objects/object-shape-defaults.js";
+import { planCsharpBindingDefaultValue } from "../optional-values.js";
+import { consumeCsharpPlannedValue } from "../../statements/statement-output.js";
 import { requireCsharpIdentifier } from "../../../../target-model/names/identifiers.js";
 import { runtimeArrayHelperCall } from "../../expressions/arrays/helpers.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
@@ -192,14 +194,10 @@ function planArrayAssignmentElement(
         if (whenNull === undefined) {
           return [];
         }
-        return planAssignmentTargetFromProjection(
-          element.target,
-          {
-            kind: "BinaryExpression",
-            left: projected,
-            operatorToken: { kind: "QuestionQuestionToken" },
-            right: whenNull,
-          },
+        const defaulted = planCsharpBindingDefaultValue(element.initializer, sourceFile, input, diagnostics,
+          projected, elementCarrier!, whenNull, defaultedElementCarrier, state);
+        return defaulted === undefined ? [] : consumeCsharpPlannedValue(defaulted, expression => planAssignmentTargetFromProjection(
+          element.target, expression,
           defaultedElementType,
           element.sourceNode,
           sourceFile,
@@ -208,7 +206,7 @@ function planArrayAssignmentElement(
           state,
           defaultedElementCarrier,
           planDefaultExpressionWithExpectedType,
-        );
+        ));
       }
       return planAssignmentTargetFromProjection(element.target, projected, projectedType, element.sourceNode, sourceFile, input, diagnostics, state, elementCarrier, planDefaultExpressionWithExpectedType);
     }
@@ -216,7 +214,8 @@ function planArrayAssignmentElement(
     if (defaultedProjection === undefined) {
       return [];
     }
-    return planAssignmentTargetFromProjection(element.target, defaultedProjection.expression, defaultedProjection.type, element.sourceNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier, planDefaultExpressionWithExpectedType);
+    return consumeCsharpPlannedValue(defaultedProjection.value, expression =>
+      planAssignmentTargetFromProjection(element.target, expression, defaultedProjection.type, element.sourceNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier, planDefaultExpressionWithExpectedType));
   }
   const checked = sourceCarrier.kind === "array" && csharpCollectionUsesJsArraySemantics(sourceCarrier.carrier)
     ? planCsharpCheckedBindingValue(projected, planCsharpArrayBindingPresence(sourceExpression, index, sourceCarrier.lengthMember),
@@ -435,7 +434,8 @@ function planObjectAssignmentElement(
   if (defaultedProjection === undefined) {
     return [];
   }
-  return planAssignmentTargetFromProjection(element.target, defaultedProjection.expression, defaultedProjection.type, element.sourceNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier, planDefaultExpressionWithExpectedType);
+  return consumeCsharpPlannedValue(defaultedProjection.value, expression =>
+    planAssignmentTargetFromProjection(element.target, expression, defaultedProjection.type, element.sourceNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier, planDefaultExpressionWithExpectedType));
 }
 
 function planObjectAssignmentRestElement(

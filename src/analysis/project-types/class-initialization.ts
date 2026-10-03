@@ -6,6 +6,7 @@ import type { CsharpClassFactoryIndex } from "./class-factories.js";
 export interface CsharpClassInitializationIndex {
   requiresConstructor(declaration: Node): boolean;
   relocatesField(declaration: Node): boolean;
+  orderedRegion(declaration: Node, isStatic: boolean): readonly Node[];
 }
 
 export function analyzeCsharpClassInitialization(
@@ -14,12 +15,17 @@ export function analyzeCsharpClassInitialization(
 ): CsharpClassInitializationIndex {
   const constructors = new WeakSet<Node>();
   const fields = new WeakSet<Node>();
+  const regions = new WeakMap<Node, { readonly instance: readonly Node[]; readonly static: readonly Node[] }>();
   const ast = source.ast;
   const visit = (node: Node): void => {
     if (ast.is.IsClassDeclaration(node) || ast.is.IsClassExpression(node)) {
       const properties = ast.members(node).filter((member): member is Node => member !== undefined && ast.is.IsPropertyDeclaration(member));
       const factory = factories.get(node) !== undefined;
       const instance = properties.filter(member => !ast.hasModifierKind(member, "static"));
+      regions.set(node, Object.freeze({ instance: Object.freeze(instance), static: Object.freeze(ast.members(node).filter(
+        (member): member is Node => member !== undefined && (ast.is.IsClassStaticBlockDeclaration(member) ||
+          ast.is.IsPropertyDeclaration(member) && ast.hasModifierKind(member, "static")),
+      )) }));
       if (factory || instance.some(member => {
         const initializer = ast.as.AsPropertyDeclaration(member)?.Initializer;
         return initializer !== undefined && sourceExpressionUsesLexicalThis(ast, initializer);
@@ -33,5 +39,7 @@ export function analyzeCsharpClassInitialization(
   };
   source.navigation.sourceFiles.forEach(visit);
   return Object.freeze({ requiresConstructor: (declaration: Node) => constructors.has(declaration),
-    relocatesField: (declaration: Node) => fields.has(declaration) });
+    relocatesField: (declaration: Node) => fields.has(declaration),
+    orderedRegion: (declaration: Node, isStatic: boolean) => isStatic
+      ? regions.get(declaration)?.static ?? [] : regions.get(declaration)?.instance ?? [] });
 }

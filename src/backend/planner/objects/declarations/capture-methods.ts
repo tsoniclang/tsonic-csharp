@@ -45,13 +45,14 @@ export function renderCsharpCaptureFrameMethods(
     const context = createCsharpMemberPlanningContext({ ...input, scope: { ...input.scope,
       captureFrames, capturedBindings, capturedReceivers, nativeCallableBody: method.declaration,
     } });
-    const lambda = input.program.source.ast.is.IsArrowFunction(method.declaration)
+    const planned = input.program.source.ast.is.IsArrowFunction(method.declaration)
       ? planArrowFunctionExpression(method.declaration, file, context, diagnostics, planExpression,
         undefined, undefined, method.type,
         (node, file, input, diagnostics, type, subject, target, state) =>
           planExpressionWithExpectedType(node, file, input, diagnostics, type, subject, state, target))
       : planFunctionExpression(method.declaration, file, context, diagnostics, undefined, undefined, method.type);
-    if (lambda?.kind !== "LambdaExpression") return undefined;
+    const lambda = planned?.completion.kind === "value" ? planned.completion.expression : undefined;
+    if (planned === undefined || planned.prelude.length !== 0 || lambda?.kind !== "LambdaExpression") return undefined;
     const parameters = lambda.parameters.map((parameter, index) => {
       const type = parameter.type ?? (signature.parameters[index] === undefined ? undefined : csharpTypeFromTargetTypeRef(signature.parameters[index]!, input.scope.typeParameterNames));
       return type === undefined ? undefined : { name: parameter.name, type };

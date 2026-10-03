@@ -32,6 +32,8 @@ import {
 import {
   planExpressionWithExpectedType,
 } from "../expressions/index.js";
+import { csharpPlannedValue } from "../expressions/planned-values.js";
+import { consumeCsharpPlannedValue } from "./statement-output.js";
 export interface CsharpYieldValuePlan {
   readonly statements: readonly CsharpStatement[];
   readonly resumeExpression: CsharpExpression;
@@ -76,11 +78,11 @@ export function planCsharpYieldValue(
     return undefined;
   }
   const yieldedExpression = source.operand === undefined
-    ? {
+    ? csharpPlannedValue(generator.protocol.yieldType, {
         kind: "DefaultExpression" as const,
         type: yieldType,
         nullForgiving: true,
-      }
+      })
     : planExpressionWithExpectedType(
         source.operand.expression,
         sourceFile,
@@ -95,7 +97,7 @@ export function planCsharpYieldValue(
     return undefined;
   }
   return {
-    statements: [{ kind: "YieldReturnStatement", expression: yieldedExpression }],
+    statements: consumeCsharpPlannedValue(yieldedExpression, value => [{ kind: "YieldReturnStatement", expression: value }]),
     resumeExpression: invokeGeneratorController(
       generator.controllerName,
       "ConsumeNext",
@@ -196,12 +198,12 @@ function planCsharpDelegatedYield(
     generatorExpression,
   );
   return {
-    statements: [
+    statements: consumeCsharpPlannedValue(delegatedExpression, value => [
       {
         kind: "LocalDeclarationStatement",
         name: names.generatorName,
         type: delegatedTypeNode,
-        initializer: delegatedExpression,
+        initializer: value,
       },
       {
         kind: "LocalDeclarationStatement",
@@ -248,7 +250,7 @@ function planCsharpDelegatedYield(
           }],
         },
       },
-    ],
+    ]),
     resumeExpression: member(resultExpression, "ReturnValue"),
     resumeType: inner.returnType,
   };

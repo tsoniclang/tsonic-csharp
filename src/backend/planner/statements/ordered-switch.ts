@@ -7,6 +7,8 @@ import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindi
 import { planExpression, planExpressionWithExpectedType } from "../expressions/index.js";
 import { planSelectedCsharpBinaryOperation } from "../expressions/operators/selected-binary.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import type { CsharpPlannedValue } from "../expressions/planned-values.js";
+import { consumeCsharpPlannedValue } from "./statement-output.js";
 
 export function planOrderedSwitch(
   selection: Extract<CsharpSwitchSelection, { readonly kind: "ordered" }>,
@@ -25,7 +27,7 @@ export function planOrderedSwitch(
   const section: CsharpExpression = { kind: "IdentifierName", name: sectionName };
   const previous = state.expressionOverrides.get(selection.expression);
   state.expressionOverrides.set(selection.expression, value);
-  const tests: { readonly index: number; readonly condition: CsharpExpression }[] = [];
+  const tests: { readonly index: number; readonly condition: CsharpPlannedValue }[] = [];
   try {
     for (const [index, clause] of selection.clauses.entries()) {
       if (clause.comparison === undefined) continue;
@@ -44,10 +46,11 @@ export function planOrderedSwitch(
   let branch: CsharpStatement | undefined;
   for (let position = tests.length - 1; position >= 0; position--) {
     const { index, condition } = tests[position]!;
-    branch = { kind: "IfStatement", condition, thenBody: { kind: "Block", statements: [{
+    const alternative = branch;
+    branch = { kind: "Block", body: { kind: "Block", statements: consumeCsharpPlannedValue(condition, value => [{ kind: "IfStatement", condition: value, thenBody: { kind: "Block", statements: [{
       kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", left: section,
         operatorToken: { kind: "EqualsToken" }, right: { kind: "LiteralExpression", value: index } },
-    }] }, ...(branch === undefined ? {} : { elseBody: { kind: "Block" as const, statements: [branch] } }) };
+    }] }, ...(alternative === undefined ? {} : { elseBody: { kind: "Block" as const, statements: [alternative] } }) }]) } };
   }
   const sections = selection.clauses.map((clause, index) => ({
     kind: "SwitchSection" as const,
@@ -55,13 +58,13 @@ export function planOrderedSwitch(
       : { kind: "CaseSwitchLabel" as const, expression: { kind: "LiteralExpression" as const, value: index } },
     statements: planBody(clause.node),
   }));
-  return { kind: "Block", body: { kind: "Block", statements: [
-    { kind: "LocalDeclarationStatement", name: valueName, type, initializer: expression },
+  return { kind: "Block", body: { kind: "Block", statements: consumeCsharpPlannedValue(expression, value => [
+    { kind: "LocalDeclarationStatement", name: valueName, type, initializer: value },
     { kind: "LocalDeclarationStatement", name: sectionName, type: { kind: "PredefinedType", name: "int" },
       initializer: { kind: "LiteralExpression", value: selection.defaultIndex } },
     ...(branch === undefined ? [] : [branch]),
     { kind: "SwitchStatement", expression: section, sections: finishSwitchSections(sections) },
-  ] } };
+  ]) } };
 }
 
 export function finishSwitchSections(sections: readonly CsharpSwitchSection[]) {

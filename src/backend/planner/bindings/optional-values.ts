@@ -5,6 +5,14 @@ import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/roslyn/i
 import { allocateExpressionTemp, type DestructuringPlannerState } from "./binding-state.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { planCsharpOptionalStorageOperation } from "../expressions/optional-storage.js";
+import { planCsharpPresentValueGuard } from "../expressions/optional-storage.js";
+import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
+import { csharpPlannedValue, type CsharpPlannedValue } from "../expressions/planned-values.js";
+import { planCsharpValueBranch } from "../expressions/planned-value-composition.js";
+import { planCsharpDiscardedStatement } from "../statements/statement-output.js";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { CsharpPlanningContext } from "../context.js";
 
 export function planCsharpArrayBindingPresence(source: CsharpExpression, index: number, lengthMember: string): CsharpExpression {
   return { kind: "BinaryExpression",
@@ -25,28 +33,27 @@ export function planCsharpCheckedBindingValue(
 }
 
 export function planCsharpBindingDefaultValue(
-  value: CsharpExpression, carrier: TargetTypeRef, defaultValue: CsharpExpression, resultCarrier: TargetTypeRef, state: DestructuringPlannerState,
-): CsharpExpression {
-  if (isCsharpAbsenceTargetType(carrier)) return { kind: "SimpleMemberAccessExpression",
-    receiver: { kind: "TupleExpression", elements: [value, defaultValue] }, name: "Item2" };
-  if (getCsharpNullableElementTargetType(carrier) !== undefined) return {
-    kind: "BinaryExpression", left: value, operatorToken: { kind: "QuestionQuestionToken" }, right: defaultValue,
-  };
-  const storage = csharpNullableTargetType(carrier);
-  const generic = getCsharpGenericOptionalParts(storage);
-  const broad = isCsharpJsValueTargetType(carrier);
-  if (generic === undefined && !broad) return value;
+  node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
+  value: CsharpExpression, carrier: TargetTypeRef, defaultValue: CsharpPlannedValue, resultCarrier: TargetTypeRef,
+  state: DestructuringPlannerState, presence?: CsharpExpression,
+): CsharpPlannedValue | undefined {
+  const element = getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier);
+  const optional = element !== undefined || isCsharpJsValueTargetType(carrier);
+  if (isCsharpAbsenceTargetType(carrier)) {
+    const absent = { prelude: [planCsharpDiscardedStatement(value, carrier), ...defaultValue.prelude], completion: defaultValue.completion };
+    return presence === undefined ? absent : planCsharpValueBranch(node, sourceFile, input, diagnostics,
+      csharpPlannedValue(csharpSourcePrimitiveTargetType("bool"), presence), absent, defaultValue, resultCarrier);
+  }
+  if (!optional && presence === undefined) return csharpPlannedValue(resultCarrier, value);
   const name = allocateExpressionTemp(state);
   const reference: CsharpExpression = { kind: "IdentifierName", name };
-  const stored = generic !== undefined && getCsharpGenericOptionalParts(carrier) === undefined
-    ? planCsharpOptionalStorageOperation(storage, "From2", value) : value;
-  const absent: CsharpExpression = broad ? { kind: "InvocationExpression",
-    callee: { kind: "SimpleMemberAccessExpression", receiver: reference, name: "isUndefined" }, arguments: [] }
-    : planCsharpOptionalStorageOperation(storage, "Is1", reference);
-  return { kind: "ConditionalExpression", condition: {
-    kind: "BinaryExpression", operatorToken: { kind: "AmpersandAmpersandToken" },
-    left: { kind: "IsPatternExpression", expression: stored, type: { kind: "IdentifierName", name: "var" }, designation: name },
-    right: absent,
-  }, whenTrue: defaultValue, whenFalse: broad || targetTypeRefEquals(storage, resultCarrier)
-    ? reference : planCsharpOptionalStorageOperation(storage, "As2", reference) };
+  const guard = optional ? planCsharpPresentValueGuard(carrier, element ?? carrier, value, name, input.scope.typeParameterNames) : undefined;
+  if (optional && guard === undefined) return undefined;
+  const condition: CsharpExpression = guard === undefined ? presence! : presence === undefined ? guard.condition
+    : { kind: "BinaryExpression", left: presence, operatorToken: { kind: "AmpersandAmpersandToken" }, right: guard.condition };
+  const present = guard === undefined ? value : getCsharpGenericOptionalParts(carrier) !== undefined && targetTypeRefEquals(carrier, resultCarrier)
+    ? reference : guard.value;
+  return planCsharpValueBranch(node, sourceFile, input, diagnostics,
+    csharpPlannedValue(csharpSourcePrimitiveTargetType("bool"), condition),
+    csharpPlannedValue(resultCarrier, present), defaultValue, resultCarrier);
 }

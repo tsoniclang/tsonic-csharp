@@ -1,6 +1,7 @@
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { getCsharpIndexableLengthMemberName, targetTypeRefEquals } from "../../../../../target-model/types/index.js";
-import type { CsharpExpression } from "../../../../target-ast/roslyn/index.js";
+import type { CsharpPlannedValue } from "../../planned-values.js";
+import { projectCsharpPlannedValue } from "../../planned-value-composition.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpSelectedTargetCall } from "../../../../../analysis/operations/index.js";
@@ -15,7 +16,7 @@ export function planCsharpRestSequence(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const actual = input.types.classifications.resolveNode(sequence.expression, sourceFile);
   if (actual === undefined || !targetTypeRefEquals(actual, sequence.sourceType) ||
     sequence.elements.length !== (actual.kind === "tuple" ? actual.elements.length : 1)) return undefined;
@@ -27,11 +28,13 @@ export function planCsharpRestSequence(
   if (source === undefined || type === undefined || elementType === undefined ||
     elements.some(element => element.type === undefined || !csharpConversionIsApplicable(element.conversion, "implicit"))) return undefined;
   if (actual.kind !== "tuple" && sequence.semantics === "native" && elements[0]?.conversion.kind === "identity") {
-    return { kind: "CastExpression", type: { kind: "ArrayType", elementType },
-      expression: { kind: "CollectionExpression", elements: [{ kind: "SpreadElement", expression: source }] } };
+    return projectCsharpPlannedValue(sequence.expression, sourceFile, input, diagnostics, source, value => ({
+      kind: "CastExpression", type: { kind: "ArrayType", elementType },
+      expression: { kind: "CollectionExpression", elements: [{ kind: "SpreadElement", expression: value }] },
+    }), { kind: "array", element: sequence.targetElementType });
   }
-  return planCsharpSequenceValue(sequence.expression, { carrier: actual, type, expression: source,
+  return planCsharpSequenceValue(sequence.expression, { ...source, source: { carrier: actual, type,
     lengthMember: getCsharpIndexableLengthMemberName(actual),
-    elements: elements.map(element => ({ ...element, type: element.type! })) },
+    elements: elements.map(element => ({ ...element, type: element.type! })) } },
     sourceFile, input, diagnostics, elementType, sequence.targetElementType);
 }

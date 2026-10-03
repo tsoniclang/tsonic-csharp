@@ -6,11 +6,7 @@ import {
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { CsharpTargetParameter } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpArgument,
-  CsharpExpression,
-  CsharpTypeNode,
-} from "../../target-ast/roslyn/index.js";
+import type { CsharpArgument, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";

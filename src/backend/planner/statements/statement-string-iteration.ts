@@ -45,6 +45,7 @@ import type {
 import type {
   CsharpStaticTargetMethod,
 } from "../../../target-model/types/index.js";
+import { consumeCsharpPlannedValue } from "./statement-output.js";
 
 export interface PlannedStringForOfBinding extends CsharpLocalDeclaration {
   readonly outerPrelude: readonly CsharpStatement[];
@@ -92,6 +93,7 @@ export function planStringCodePointForOfStatement(
   if (collectionExpression === undefined || surrogatePairTest === undefined) {
     return [];
   }
+  return consumeCsharpPlannedValue(collectionExpression, value => {
   const loopBlock: CsharpStatement = {
     kind: "Block",
     body: {
@@ -101,7 +103,7 @@ export function planStringCodePointForOfStatement(
           kind: "LocalDeclarationStatement",
           name: collectionName,
           type: stringType,
-          initializer: collectionExpression,
+          initializer: value,
         },
         {
           kind: "ForStatement",
@@ -157,6 +159,7 @@ export function planStringCodePointForOfStatement(
     },
   };
   return [...binding.outerPrelude, loopBlock];
+  });
 }
 
 function stringHasSurrogatePairAt(

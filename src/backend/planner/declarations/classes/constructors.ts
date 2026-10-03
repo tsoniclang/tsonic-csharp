@@ -4,6 +4,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpArgument,
   CsharpConstructorDeclaration,
+  CsharpParameter,
 } from "../../../target-ast/roslyn/index.js";
 import {
   AsBlock,
@@ -41,6 +42,9 @@ import {
   withCsharpSafetyModifiers,
 } from "../../safety/explicit-safety.js";
 import { planClassMemberModifiers } from "./modifiers.js";
+import { planCsharpConstructorInitializerArgument } from "./initializer-arguments.js";
+import type { DestructuringPlannerState } from "../../bindings/index.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 
 export function planClassStaticBlockDeclaration(
   node: Node,
@@ -78,7 +82,7 @@ export function planConstructorDeclaration(
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   const baseArguments = leadingSuperCall === undefined
     ? undefined
-    : planBaseConstructorArguments(leadingSuperCall.Arguments?.Nodes ?? [], sourceFile, input, diagnostics);
+    : planBaseConstructorArguments(leadingSuperCall, parameters.parameters, sourceFile, input, diagnostics, state);
   if (leadingSuperCall !== undefined && baseArguments === undefined) {
     return {
       kind: "ConstructorDeclaration",
@@ -120,21 +124,29 @@ export function planConstructorDeclaration(
 }
 
 function planBaseConstructorArguments(
-  argumentNodes: readonly (Node | undefined)[],
+  call: NonNullable<ReturnType<typeof AsCallExpression>>,
+  parameters: readonly CsharpParameter[],
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
 ): readonly CsharpArgument[] | undefined {
   const planned: CsharpArgument[] = [];
-  for (const argument of argumentNodes) {
+  const callNode = call.Expression === undefined ? undefined : input.program.source.ast.parent(call.Expression);
+  const selection = callNode === undefined ? undefined : input.program.operations.call(callNode);
+  for (const [index, argument] of (call.Arguments?.Nodes ?? []).entries()) {
     if (argument === undefined) {
       continue;
     }
-    const plannedArgument = planCallArgument(argument, sourceFile, input, diagnostics);
+    const carrier = selection?.sourceArgumentParameterTypes?.[index];
+    const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
+    const plannedArgument = planCallArgument(argument, sourceFile, input, diagnostics, type, undefined, carrier, state);
     if (plannedArgument === undefined) {
       return undefined;
     }
-    planned.push(plannedArgument);
+    const syntax = planCsharpConstructorInitializerArgument(argument, plannedArgument, parameters, input, diagnostics, carrier);
+    if (syntax === undefined) return undefined;
+    planned.push(syntax);
   }
   return planned;
 }

@@ -3,7 +3,6 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { targetPolicyDiagnostic } from "../diagnostics.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";

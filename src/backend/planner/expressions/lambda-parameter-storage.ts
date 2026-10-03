@@ -9,6 +9,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { applyCsharpConversionSelection, readCsharpConversionClassification } from "./conversions.js";
 import { planCsharpRuntimeParameterDefault } from "../declarations/callables/defaults.js";
+import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 
 export function planLambdaParameterStorage(
   nodes: readonly (Node | undefined)[],
@@ -60,8 +61,8 @@ function planParameterValue(
     const name = allocateSyntheticParameter(state);
     const selected = planCsharpRuntimeParameterDefault(node, name, sourceFile, input, diagnostics, state);
     if (selected === undefined) return undefined;
-    return { parameter: { ...parameter, name }, prelude: [{ kind: "LocalDeclarationStatement", name: parameter.name,
-      type: selected.valueType, initializer: selected.value }] };
+    return { parameter: { ...parameter, name }, prelude: consumeCsharpPlannedValue(selected.value, initializer => [
+      { kind: "LocalDeclarationStatement", name: parameter.name, type: selected.valueType, initializer }]) };
   }
   if (targetTypeRefEquals(nativeType, valueType)) return { parameter, prelude: [] };
   const type = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, valueType, diagnostics, node);

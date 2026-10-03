@@ -4,10 +4,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpExpression,
-  CsharpTypeNode,
-} from "../../target-ast/roslyn/index.js";
+import type { CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import {
   HasSourceKind,
   KindFalseKeyword,

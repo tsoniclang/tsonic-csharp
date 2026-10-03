@@ -11,9 +11,6 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
-import type {
-  CsharpExpression,
-} from "../../target-ast/roslyn/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";

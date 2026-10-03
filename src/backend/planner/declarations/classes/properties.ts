@@ -9,6 +9,7 @@ import type {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpFieldDeclaration,
+  CsharpExpression,
   CsharpParameter,
   CsharpPropertyDeclaration,
   CsharpStatement,
@@ -37,9 +38,6 @@ import {
   unsupportedNodeDiagnostic,
 } from "../../diagnostics.js";
 import {
-  planExpressionWithExpectedType,
-} from "../../expressions/index.js";
-import {
   diagnoseTypeScriptOnlyRuntimeShapeModifiers,
 } from "../modifiers.js";
 import {
@@ -67,9 +65,9 @@ export function planPropertyDeclaration(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
+  initializer: CsharpExpression | undefined,
 ): CsharpFieldDeclaration | CsharpPropertyDeclaration {
   const declaration = AsPropertyDeclaration(input.program.source.ast, node)!;
-  const relocatesInitializer = input.program.classInitialization.relocatesField(node);
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "property declaration", diagnostics, ["public", "private", "protected", "readonly", "abstract", "override"]);
   const sourceField = getClassPropertySourceField(node, declaration, input);
   if (sourceField !== undefined) {
@@ -138,9 +136,7 @@ export function planPropertyDeclaration(
       ),
       attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
       type,
-      ...(declaration.Initializer !== undefined && !relocatesInitializer
-        ? { initializer: planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics, type, declaration.Type ?? declaration.name) }
-        : {}),
+      ...(initializer === undefined ? {} : { initializer }),
     };
   }
   return {
@@ -166,9 +162,7 @@ export function planPropertyDeclaration(
       "setter",
       input,
     ),
-    ...(declaration.Initializer !== undefined && !relocatesInitializer
-      ? { initializer: planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics, type, declaration.Type ?? declaration.name) }
-      : {}),
+    ...(initializer === undefined ? {} : { initializer }),
   };
 }
 

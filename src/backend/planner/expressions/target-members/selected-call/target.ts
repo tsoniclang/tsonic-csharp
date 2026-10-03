@@ -13,6 +13,9 @@ import type { CsharpSelectedTargetCall, ResolvedSourceCallInfo } from "../../../
 import type { CsharpTargetMember, CsharpObjectShapeProjection } from "../../../../../target-model/types/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { CsharpPlannedValue } from "../../planned-values.js";
+import { planCsharpExpressionCompletion } from "../../planned-value-composition.js";
+import { composeCsharpPlannedCall } from "./planned-arguments.js";
 
 export function translateSelectedTargetCall(
   node: Node,
@@ -23,6 +26,35 @@ export function translateSelectedTargetCall(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
+): CsharpPlannedValue | undefined {
+  const arguments_ = translateSelectedTargetArguments(node, source, selection, sourceFile, input, diagnostics, planExpression, planCallArgument);
+  if (arguments_ === undefined) return undefined;
+  const instance = selection.receiver.kind === "instance";
+  const receiver = !instance || source.sourceReceiver === undefined ? undefined
+    : translateCsharpSelectedReceiver(source.sourceReceiver, sourceFile, input, diagnostics, planExpression);
+  if (instance && receiver === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Selected instance call requires its exact native receiver acquisition."));
+    return undefined;
+  }
+  const carrier = selection.targetMember.kind === "constructor" ? selection.targetMember.declaringType : selection.targetMember.returnType;
+  if (carrier === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Selected native call requires its exact physical completion carrier."));
+    return undefined;
+  }
+  return composeCsharpPlannedCall(node, sourceFile, input, diagnostics, receiver, arguments_, (value, args) =>
+    planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
+      buildSelectedTargetCall(node, source, selection, sourceFile, input, diagnostics, value, args), carrier));
+}
+
+function buildSelectedTargetCall(
+  node: Node,
+  source: ResolvedSourceCallInfo,
+  selection: CsharpSelectedTargetCall,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  receiver: CsharpExpression | undefined,
+  arguments_: readonly CsharpArgument[],
 ): CsharpExpression | undefined {
   if (
     selection.targetMember.kind !== "method" &&
@@ -44,19 +76,6 @@ export function translateSelectedTargetCall(
       diagnostics,
     );
   if (registeredArtifacts === undefined) {
-    return undefined;
-  }
-  const arguments_ = translateSelectedTargetArguments(
-    node,
-    source,
-    selection,
-    sourceFile,
-    input,
-    diagnostics,
-    planExpression,
-    planCallArgument,
-  );
-  if (arguments_ === undefined) {
     return undefined;
   }
   if (selection.targetMember.csharpInvocation?.kind === "numeric-conversion") {
@@ -121,12 +140,11 @@ export function translateSelectedTargetCall(
     return translateNativeIndexerCall(
       node,
       source,
-      sourceFile,
       input,
       selection.targetMember,
       arguments_,
       diagnostics,
-      planExpression,
+      receiver,
     );
   }
   if (
@@ -136,12 +154,11 @@ export function translateSelectedTargetCall(
     return translateNativeEventSubscription(
       node,
       source,
-      sourceFile,
       input,
       selection.targetMember,
       arguments_,
       diagnostics,
-      planExpression,
+      receiver,
     );
   }
   if (selection.targetMember.csharpInvocation?.kind === "native-operator") {
@@ -172,7 +189,7 @@ export function translateSelectedTargetCall(
     sourceFile,
     input,
     diagnostics,
-    planExpression,
+    receiver,
   );
   return callee === undefined
     ? undefined
@@ -394,12 +411,11 @@ function nativeBinaryOperatorExpression(
 function translateNativeEventSubscription(
   node: Node,
   source: ResolvedSourceCallInfo,
-  sourceFile: SourceFile,
   input: CsharpPlanningContext,
   member: CsharpTargetMember,
   arguments_: readonly CsharpArgument[],
   diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
+  selectedReceiver: CsharpExpression | undefined,
 ): CsharpExpression | undefined {
   const invocation = member.csharpInvocation;
   if (
@@ -420,15 +436,7 @@ function translateNativeEventSubscription(
     ? member.declaringType === undefined
       ? undefined
       : csharpTypeFromTargetTypeRef(member.declaringType, input.scope.typeParameterNames)
-    : source.sourceReceiver === undefined
-      ? undefined
-      : translateCsharpSelectedReceiver(
-          source.sourceReceiver,
-          sourceFile,
-          input,
-          diagnostics,
-          planExpression,
-        );
+    : selectedReceiver;
   if (receiver === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -455,12 +463,11 @@ function translateNativeEventSubscription(
 function translateNativeIndexerCall(
   node: Node,
   source: ResolvedSourceCallInfo,
-  sourceFile: SourceFile,
   input: CsharpPlanningContext,
   member: CsharpTargetMember,
   arguments_: readonly CsharpArgument[],
   diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
+  receiver: CsharpExpression | undefined,
 ): CsharpExpression | undefined {
   const invocation = member.csharpInvocation;
   const sourceReceiver = source.sourceReceiver;
@@ -477,13 +484,6 @@ function translateNativeIndexerCall(
     ));
     return undefined;
   }
-  const receiver = translateCsharpSelectedReceiver(
-    sourceReceiver,
-    sourceFile,
-    input,
-    diagnostics,
-    planExpression,
-  );
   const indexSet = new Set(invocation.indexParameterIndexes);
   const valueParameterIndex = invocation.kind === "native-indexer-set"
     ? invocation.valueParameterIndex
@@ -818,7 +818,7 @@ function translateSelectedTargetCallee(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
+  receiver: CsharpExpression | undefined,
 ): CsharpExpression | undefined {
   const typeArguments = renderSelectedCsharpTargetMethodTypeArguments(
     selection,
@@ -839,13 +839,6 @@ function translateSelectedTargetCallee(
       ));
       return undefined;
     }
-    const receiver = translateCsharpSelectedReceiver(
-      sourceReceiver,
-      sourceFile,
-      input,
-      diagnostics,
-      planExpression,
-    );
     if (receiver === undefined) {
       return undefined;
     }

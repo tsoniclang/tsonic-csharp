@@ -9,9 +9,6 @@ import {
 import type {
   CsharpPlanningContext,
 } from "../context.js";
-import type {
-  CsharpExpression,
-} from "../../target-ast/roslyn/index.js";
 import {
   csharpPostfixUnaryOperatorTokenFromText,
   csharpPrefixUnaryOperatorTokenFromText,

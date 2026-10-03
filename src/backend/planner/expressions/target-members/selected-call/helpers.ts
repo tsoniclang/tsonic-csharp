@@ -12,7 +12,7 @@ export function sourceCalleeRequiresExactTargetArity(
   source: ResolvedSourceCallInfo,
   input: CsharpPlanningContext,
 ): boolean {
-  const declaration = source.sourceCallee.selectedDeclaration;
+  const declaration = input.program.sourceNavigation.sourceReferenceFor(source.sourceCallee.expression)?.declaration ?? source.sourceCallee.declaration;
   return declaration !== undefined &&
     (
       input.program.source.ast.is.IsVariableDeclaration(declaration) ||

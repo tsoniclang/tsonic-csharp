@@ -8,11 +8,10 @@ import { isCsharpAbsenceTargetType } from "../../../target-model/types/runtime-c
 import { csharpVoidTargetType } from "../../../target-model/types/scalar-types.js";
 import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
 import { planCsharpUnionMapping } from "./union-mappings.js";
-import { csharpPlannedValue, csharpPlannedEffect, mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
+import { csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { captureCsharpPlannedValue, planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
 import type { CsharpStatement } from "../../target-ast/roslyn/index.js";

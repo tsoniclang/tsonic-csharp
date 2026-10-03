@@ -14,11 +14,15 @@ import { planClassMembers } from "./members.js";
 import { createCsharpTypeParameterPlanningContext } from "../../names/type-parameters.js";
 import { planOuterTypeParameters, planTypeParameters } from "../../types/type-parameters.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
-import { planClassInitializers } from "./initializers.js";
+import { planClassInitializationRegion } from "./initializers.js";
+import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import { csharpPlannedValue, type CsharpPlannedValue } from "../../expressions/planned-values.js";
+import { buildCsharpPlannedValue } from "../../expressions/planned-value-composition.js";
 
 interface CaptureSlot {
   readonly name: string;
   readonly type: CsharpTypeNode;
+  readonly carrier: TargetTypeRef;
   readonly frame?: CsharpCaptureFrame;
   readonly reference?: Node;
   readonly declaration?: Node;
@@ -33,11 +37,11 @@ function captureSlots(factory: CsharpClassFactory, input: CsharpPlanningContext,
       if (frames.has(shared.frame.scope)) continue;
       frames.add(shared.frame.scope);
       const type = csharpTypeFromObjectShapeFact(input, shared.frame.shape, diagnostics, factory.declaration);
-      if (type !== undefined) slots.push({ name: input.program.names.temporaryName(`frame${frames.size - 1}`), type, frame: shared.frame });
+      if (type !== undefined) slots.push({ name: input.program.names.temporaryName(`frame${frames.size - 1}`), type, carrier: shared.frame.shape.targetType, frame: shared.frame });
     } else {
       const type = csharpTypeFromTargetTypeRef(input.program.captureStorage.physicalType(capture.declaration, capture.type), input.scope.typeParameterNames);
       if (type === undefined) diagnostics.push(unsupportedNodeDiagnostic(capture.declaration, "A class capture has no renderable native storage."));
-      else slots.push({ name: capture.fieldName, type, reference: capture.reference, declaration: capture.declaration });
+      else slots.push({ name: capture.fieldName, type, carrier: input.program.captureStorage.physicalType(capture.declaration, capture.type), reference: capture.reference, declaration: capture.declaration });
     }
   }
   return slots;
@@ -75,14 +79,18 @@ export function classFactoryContext(
 export function planClassFactoryExpression(
   factory: CsharpClassFactory, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], state?: DestructuringPlannerState,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const slots = captureSlots(factory, input, diagnostics);
   const arguments_ = slots.map(slot => {
-    if (slot.frame !== undefined) return csharpCaptureFrameExpression(slot.frame.scope, input, state);
+    if (slot.frame !== undefined) {
+      const value = csharpCaptureFrameExpression(slot.frame.scope, input, state);
+      return value === undefined ? undefined : csharpPlannedValue(slot.carrier, value);
+    }
     if (slot.declaration !== undefined && input.program.storage.nativeBacking(slot.declaration) !== undefined) {
       const captured = csharpCapturedBindingExpression(slot.declaration, input, state);
       const name = getCsharpLocalBindingName(slot.reference!, input, state);
-      return captured ?? (name === undefined ? undefined : { kind: "IdentifierName" as const, name });
+      const value = captured ?? (name === undefined ? undefined : { kind: "IdentifierName" as const, name });
+      return value === undefined ? undefined : csharpPlannedValue(slot.carrier, value);
     }
     return planExpression(slot.reference!, sourceFile, input, diagnostics, state);
   });
@@ -91,21 +99,21 @@ export function planClassFactoryExpression(
     diagnostics.push(unsupportedNodeDiagnostic(factory.declaration, "A class evaluation requires every sealed native capture owner."));
     return undefined;
   }
-  return { kind: "ObjectCreationExpression", type,
-    arguments: arguments_.map(expression => ({ kind: "Argument", expression: expression! })) };
+  return buildCsharpPlannedValue(factory.declaration, sourceFile, input, diagnostics, arguments_, values => ({
+    kind: "ObjectCreationExpression", type, arguments: values.map(expression => ({ kind: "Argument", expression })),
+  }), factory.factoryType);
 }
 
 export function completeLocalClassConstructor(
   constructor: CsharpConstructorDeclaration, factory: CsharpClassFactory,
-  input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
+  input: CsharpPlanningContext, initializers: readonly CsharpStatement[],
 ): CsharpConstructorDeclaration {
   const environment: CsharpExpression = { kind: "IdentifierName", name: factory.environmentName };
   const type = csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames)!;
-  const context = classFactoryContext(factory, environment, input, diagnostics, "instance");
   return { ...constructor, parameters: [{ name: factory.environmentName, type }, ...constructor.parameters],
     body: { kind: "Block", statements: [
       ...(factory.retainsEnvironment ? [assignment({ kind: "IdentifierName", name: "this" }, factory.environmentName, environment)] : []),
-      ...planClassInitializers(factory.declaration, factory.sourceFile, factory.instanceName, false, context, diagnostics), ...constructor.body.statements,
+      ...initializers, ...constructor.body.statements,
     ] } };
 }
 
@@ -118,7 +126,8 @@ export function planClassFactoryDeclaration(
   const context = classFactoryContext(factory, { kind: "IdentifierName", name: "this" }, input, diagnostics, "factory");
   const staticNodes = input.program.source.ast.members(factory.declaration).filter(node => node !== undefined &&
     input.program.source.ast.hasModifierKind(node, "static") && !input.program.source.ast.is.IsClassStaticBlockDeclaration(node));
-  const staticMembers = planClassMembers(staticNodes, factory.factoryName, factory.sourceFile, context, diagnostics);
+  const staticRegion = planClassInitializationRegion(factory.declaration, factory.sourceFile, factory.factoryName, true, context, diagnostics, true);
+  const staticMembers = planClassMembers(staticNodes, factory.factoryName, factory.sourceFile, context, diagnostics, [staticRegion]);
   const members: CsharpTypeMember[] = staticMembers.filter(member => member.kind !== "ConstructorDeclaration" && member.kind !== "StaticConstructorDeclaration")
     .map(member => ({ ...member, modifiers: member.modifiers.filter(modifier => modifier !== "static") }));
   const constructors = instanceDeclaration.members.filter((member): member is CsharpConstructorDeclaration =>
@@ -134,7 +143,7 @@ export function planClassFactoryDeclaration(
     parameters: slots.map(slot => ({ name: slot.name, type: slot.type })),
     body: { kind: "Block", statements: [
       ...slots.map(slot => assignment({ kind: "IdentifierName", name: "this" }, slot.name, { kind: "IdentifierName", name: slot.name })),
-      ...planClassInitializers(factory.declaration, factory.sourceFile, factory.factoryName, true, context, diagnostics),
+      ...staticRegion.statements,
     ] } });
   const instance = csharpTypeFromTargetTypeRef(factory.contract.instance, input.scope.typeParameterNames)!;
   if (factory.requiresInstanceTest) {

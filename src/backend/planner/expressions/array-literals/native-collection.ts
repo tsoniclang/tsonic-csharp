@@ -2,12 +2,11 @@ import type { CsharpPlanningContext } from "../../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression } from "../../../target-ast/roslyn/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { getCsharpArrayLiteralBuilder, getCsharpArrayLiteralConstructionTargetType } from "../../../../target-model/types/index.js";
 import type { ArrayLiteralPlanner } from "./types.js";
-import { planCsharpDenseSequenceConstruction } from "../sequence-conversions.js";
+import { planCsharpArrayConstruction } from "./construction.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 
 export function planNativeCollectionArrayLiteralExpression(
@@ -28,6 +27,6 @@ export function planNativeCollectionArrayLiteralExpression(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires renderable provider collection element and construction metadata."));
     return undefined;
   }
-  return planCsharpDenseSequenceConstruction(node, sourceFile, input, diagnostics, elementType, elementCarrier, planner,
-    { type: collectionType, builder });
+  return planCsharpArrayConstruction(node, sourceFile, input, diagnostics, elementType, elementCarrier, planner,
+    { carrier: constructionCarrier!, type: collectionType, builder });
 }

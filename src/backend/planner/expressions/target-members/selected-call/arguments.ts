@@ -21,6 +21,10 @@ import type { CsharpPlanningContext } from "../../../context.js";
 import type { CsharpTargetParameter } from "../../../../../target-model/types/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { CsharpPlannedArgument } from "../../planned-values.js";
+import { csharpPlannedValue, mapCsharpPlannedValue } from "../../planned-values.js";
+import { captureCsharpPlannedValue } from "../../planned-value-composition.js";
+import { csharpPlannedArgumentSyntax, type CsharpPlannedCallArguments } from "./planned-arguments.js";
 
 export function translateSelectedTargetArguments(
   node: Node,
@@ -31,11 +35,11 @@ export function translateSelectedTargetArguments(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
-): readonly CsharpArgument[] | undefined {
+): CsharpPlannedCallArguments | undefined {
   const planned: {
     readonly parameterIndex: number;
     readonly effectiveArgumentIndex: number;
-    readonly argument: CsharpArgument;
+    readonly argument: CsharpPlannedArgument;
     readonly sequence?: boolean;
   }[] = [];
   if (selection.receiver.kind === "target-parameter") {
@@ -93,7 +97,7 @@ export function translateSelectedTargetArguments(
       if (expression === undefined) return undefined;
       plannedSequences.add(sequence.sourceArgumentIndex);
       planned.push({ parameterIndex: sequence.targetParameterIndex, effectiveArgumentIndex: argumentSelection.sourceArgumentIndex,
-        argument: { kind: "Argument", expression }, sequence: true });
+        argument: expression, sequence: true });
       continue;
     }
     const argument = translateCallArgument(
@@ -120,11 +124,13 @@ export function translateSelectedTargetArguments(
       argument,
     });
   }
-  planned.sort((left, right) =>
+  planned.sort((left, right) => left.effectiveArgumentIndex - right.effectiveArgumentIndex);
+  const operands = planned.map(entry => entry.argument);
+  const ordered = planned.map((entry, index) => ({ ...entry, index })).sort((left, right) =>
     left.parameterIndex - right.parameterIndex ||
     left.effectiveArgumentIndex - right.effectiveArgumentIndex);
   if (!targetArgumentOrderIsRepresentable(
-    planned.map((entry) => entry.parameterIndex),
+    ordered.map((entry) => entry.parameterIndex),
     selection.targetMember.parameters,
   )) {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -133,6 +139,8 @@ export function translateSelectedTargetArguments(
     ));
     return undefined;
   }
+  return { operands, ...(ordered.some((entry, index) => entry.index !== index) ? { reordered: true as const } : {}), arguments: values => {
+  const planned = ordered.map(entry => ({ ...entry, argument: csharpPlannedArgumentSyntax(entry.argument, values[entry.index]!) }));
   if (plannedSequences.size === 0) return planned.map(entry => entry.argument);
   const arguments_: CsharpArgument[] = [];
   for (let index = 0; index < planned.length;) {
@@ -156,6 +164,7 @@ export function translateSelectedTargetArguments(
     arguments_.push({ kind: "Argument", expression });
   }
   return arguments_;
+  } };
 }
 
 export function translateCallArgument(
@@ -168,7 +177,7 @@ export function translateCallArgument(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
   selectedMapping?: CsharpProviderArgumentMapping,
-): CsharpArgument | undefined {
+): CsharpPlannedArgument | undefined {
   if (sourceForm === "spread-element") {
     diagnostics.push(unsupportedNodeDiagnostic(
       expression,
@@ -227,19 +236,8 @@ export function translateCallArgument(
       input,
       diagnostics,
     );
-    const adapted = applyCsharpConversionSelection(
-      expression,
-      sourceFile,
-      input,
-      diagnostics,
-      selectedMapping.sourceType,
-      selectedMapping.targetType,
-      selectedMapping.conversion,
-      sourceExpression,
-    );
-    return adapted === undefined
-      ? undefined
-      : { kind: "Argument", expression: adapted };
+    return mapCsharpPlannedValue(sourceExpression, selectedMapping.targetType, value => applyCsharpConversionSelection(
+      expression, sourceFile, input, diagnostics, selectedMapping.sourceType, selectedMapping.targetType, selectedMapping.conversion, value));
   }
   if (
     selectedMapping?.kind === "by-value" &&
@@ -287,19 +285,8 @@ export function translateCallArgument(
     if (sourceArgument === undefined) {
       return undefined;
     }
-    const adapted = applyCsharpConversionSelection(
-      expression,
-      sourceFile,
-      input,
-      diagnostics,
-      selectedMapping.sourceType,
-      selectedMapping.targetType,
-      selectedMapping.conversion,
-      sourceArgument.expression,
-    );
-    return adapted === undefined
-      ? undefined
-      : { kind: "Argument", expression: adapted };
+    return mapCsharpPlannedValue(sourceArgument, selectedMapping.targetType, value => applyCsharpConversionSelection(
+      expression, sourceFile, input, diagnostics, selectedMapping.sourceType, selectedMapping.targetType, selectedMapping.conversion, value));
   }
   return planCallArgument(
     expression,
@@ -342,7 +329,7 @@ function translateEcmascriptArgumentVectorCallback(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planCallArgument: CallArgumentPlanner,
-): CsharpArgument | undefined {
+): CsharpPlannedArgument | undefined {
   const adapter = parameter.csharpSourceArgumentAdapter;
   if (
     adapter?.kind !== "ecmascript-argument-vector-callback" ||
@@ -406,6 +393,10 @@ function translateEcmascriptArgumentVectorCallback(
   if (plannedSource === undefined) {
     return undefined;
   }
+  if (plannedSource.completion.kind === "never") return plannedSource;
+  if (plannedSource.completion.kind !== "value") return undefined;
+  const capture = captureCsharpPlannedValue(expression, input, diagnostics, effectiveSourceCallableType);
+  if (capture === undefined) return undefined;
   const parameterName = `__tsonic_ecmascriptArguments_${
     Math.max(0, input.program.source.ast.pos(expression))
   }_${Math.max(0, input.program.source.ast.end(expression))}`;
@@ -449,9 +440,7 @@ function translateEcmascriptArgumentVectorCallback(
       },
     });
   }
-  return {
-    kind: "Argument",
-    expression: {
+  return csharpPlannedValue(parameter.type, {
       kind: "LambdaExpression",
       parameters: [{
         kind: "Parameter",
@@ -465,11 +454,10 @@ function translateEcmascriptArgumentVectorCallback(
           expression: {
             kind: "CastExpression",
             type: sourceCallableType,
-            expression: plannedSource.expression,
+            expression: { kind: "IdentifierName", name: capture.name },
           },
         },
         arguments: callbackArguments,
       },
-    },
-  };
+    }, [...plannedSource.prelude, { kind: "LocalDeclarationStatement", ...capture, initializer: plannedSource.completion.expression }]);
 }

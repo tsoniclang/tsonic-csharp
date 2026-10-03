@@ -8,9 +8,6 @@ import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
 import type {
-  CsharpExpression,
-} from "../../target-ast/roslyn/index.js";
-import type {
   CsharpPlanningContext,
 } from "../context.js";
 import type { CsharpMemberReceiverProjection } from "../../../analysis/operations/index.js";

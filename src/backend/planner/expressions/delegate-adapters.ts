@@ -11,6 +11,7 @@ import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planCsharpVoidReturn } from "../statements/statement-output.js";
 import type { applyCsharpConversionSelection } from "./conversions.js";
 import { csharpSourceModuleValueReferencesEqual, planCsharpSourceModuleValueReference } from "../bindings/module-values.js";
+import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 
 export function planCsharpDelegateAdapter(
   node: Node,
@@ -94,7 +95,9 @@ export function planCsharpDelegateAdapter(
       : { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: captured!.method.methodName },
     arguments: arguments_ };
   if (selection.returnConversion.kind === "void-return") {
-    statements.push(...planCsharpVoidReturn(invocation,
+    const completion = planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, invocation, sourceSignature.returnType);
+    if (completion === undefined) return undefined;
+    statements.push(...planCsharpVoidReturn(completion,
       isCsharpVoidTargetType(targetSignature.returnType) ? "void" : "absence", targetSignature.returnType, input.scope.typeParameterNames));
   } else {
     const converted = convert(node, sourceFile, input, diagnostics, sourceSignature.returnType,

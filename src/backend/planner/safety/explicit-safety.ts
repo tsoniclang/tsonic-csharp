@@ -11,7 +11,6 @@ import type {
 } from "../context.js";
 import type {
   CsharpAccessorModifier,
-  CsharpExpression,
   CsharpModifier,
 } from "../../target-ast/roslyn/index.js";
 import type {
@@ -24,10 +23,12 @@ import {
   AsExpressionStatement,
   AsParenthesizedExpression,
 } from "@tsonic/target-api/source";
+import { csharpPlannedValue, type CsharpPlannedValue } from "../expressions/planned-values.js";
+import { captureCsharpPlannedValue } from "../expressions/planned-value-composition.js";
 
 export type CsharpExplicitSafetyExpressionPlan =
   | { readonly handled: false }
-  | { readonly handled: true; readonly expression?: CsharpExpression };
+  | { readonly handled: true; readonly expression?: CsharpPlannedValue };
 
 export function tryPlanCsharpExplicitSafetyExpression(
   node: Node,
@@ -41,7 +42,7 @@ export function tryPlanCsharpExplicitSafetyExpression(
     input: CsharpPlanningContext,
     diagnostics: TargetDiagnostic[],
     state: DestructuringPlannerState,
-  ) => CsharpExpression | undefined,
+  ) => CsharpPlannedValue | undefined,
 ): CsharpExplicitSafetyExpressionPlan {
   const selected = exactSafetyOperation(node, input);
   if (selected?.kind !== "unsafe-context") {
@@ -81,12 +82,24 @@ export function tryPlanCsharpExplicitSafetyExpression(
       diagnostics,
       plannerState,
     ));
-  return {
-    handled: true,
-    ...(expression === undefined
-      ? {}
-      : { expression: { kind: "UnsafeExpression", expression } }),
-  };
+  if (expression === undefined) return { handled: true };
+  if (expression.completion.kind !== "value") return { handled: true, expression: {
+    prelude: [{ kind: "UnsafeStatement", body: { kind: "Block", statements: expression.prelude } }],
+    completion: expression.completion,
+  } };
+  if (expression.prelude.length === 0) return { handled: true, expression: csharpPlannedValue(
+    expression.completion.carrier, { kind: "UnsafeExpression", expression: expression.completion.expression },
+  ) };
+  const storage = captureCsharpPlannedValue(node, input, diagnostics, expression.completion.carrier);
+  if (storage === undefined) return { handled: true };
+  const reference = { kind: "IdentifierName" as const, name: storage.name };
+  return { handled: true, expression: csharpPlannedValue(expression.completion.carrier, reference, [
+    { kind: "LocalDeclarationStatement", ...storage },
+    { kind: "UnsafeStatement", body: { kind: "Block", statements: [...expression.prelude, {
+      kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", left: reference,
+        operatorToken: { kind: "EqualsToken" }, right: expression.completion.expression },
+    }] } },
+  ]) };
 }
 
 export function isExplicitUnsafeBlockMarker(

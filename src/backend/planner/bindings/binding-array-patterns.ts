@@ -39,6 +39,9 @@ import { csharpCollectionUsesJsArraySemantics } from "../../../target-model/type
 import type {
   CsharpArrayBindingCarrier,
 } from "../../../target-model/types/index.js";
+import type { CsharpPlannedValue } from "../expressions/planned-values.js";
+import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
+import { planCsharpBindingDefaultValue } from "./optional-values.js";
 
 export function planArrayBindingPattern(
   patternNode: Node,
@@ -85,7 +88,7 @@ export type BindingDefaultExpressionPlanner = (
   expectedTypeSubject?: Node,
   state?: DestructuringPlannerState,
   expectedTargetType?: TargetTypeRef,
-) => CsharpExpression | undefined;
+) => CsharpPlannedValue | undefined;
 
 function planArrayBindingElement(
   elementNode: Node,
@@ -149,14 +152,10 @@ function planArrayBindingElement(
         if (whenNull === undefined) {
           return [];
         }
-        return planBindingNameFromProjection(
-          name,
-          {
-            kind: "BinaryExpression",
-            left: projected,
-            operatorToken: { kind: "QuestionQuestionToken" },
-            right: whenNull,
-          },
+        const defaulted = planCsharpBindingDefaultValue(element.Initializer, sourceFile, input, diagnostics,
+          projected, elementCarrier!, whenNull, defaultedElementCarrier, state);
+        return defaulted === undefined ? [] : consumeCsharpPlannedValue(defaulted, expression => planBindingNameFromProjection(
+          name, expression,
           defaultedElementType,
           elementNode,
           sourceFile,
@@ -164,7 +163,7 @@ function planArrayBindingElement(
           diagnostics,
           state,
           defaultedElementCarrier,
-        );
+        ));
       }
       return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
     }
@@ -176,7 +175,8 @@ function planArrayBindingElement(
     if (defaultedProjection === undefined) {
       return [];
     }
-    return planBindingNameFromProjection(name, defaultedProjection.expression, defaultedProjection.type, elementNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier);
+    return consumeCsharpPlannedValue(defaultedProjection.value, expression =>
+      planBindingNameFromProjection(name, expression, defaultedProjection.type, elementNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier));
   }
   const checked = sourceCarrier.kind === "array" && csharpCollectionUsesJsArraySemantics(sourceCarrier.carrier)
     ? planCsharpCheckedBindingValue(projected, planCsharpArrayBindingPresence(sourceExpression, index, sourceCarrier.lengthMember),
