@@ -4,6 +4,7 @@ import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpRuntimeU
 import { selectCsharpUnionArmMapping } from "../../../dist/target-model/types/union-relations.js";
 import { selectCsharpConversion, selectCsharpFlowReadConversion } from "../../../dist/policy/conversions/index.js";
 import { planCsharpUnionMapping } from "../../../dist/backend/planner/expressions/union-mappings.js";
+import { csharpRuntimeUnionMappingMatches } from "../../../dist/analysis/conversions/validation.js";
 
 test("union mappings require complete exact coverage and reject forged or numeric-changing arms", () => {
   const integer = csharpSourcePrimitiveTargetType("int64");
@@ -29,7 +30,9 @@ test("union mappings require complete exact coverage and reject forged or numeri
   assert.equal(selectCsharpConversion(policy, wide, narrow, "implicit").kind, "rejected");
   const selection = selectCsharpFlowReadConversion(policy, csharpNullableTargetType(wide), csharpNullableTargetType(narrow));
   assert.deepEqual(selection, { kind: "union-map", coverage: "target", arms: narrowing });
-  const context = { program: { source: { ast: { pos: () => 0, end: () => 5 } } }, scope: {}, names: { temporaryName: name => name } };
+  const context = { program: { source: { ast: { pos: () => 0, end: () => 5 } }, conversions: {
+    matchesUnionMapping: (source, target, selected) => csharpRuntimeUnionMappingMatches(policy, source, target, selected),
+  } }, scope: {}, names: { temporaryName: name => name } };
   const expression = { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "Next" }, arguments: [] };
   const diagnostics = [];
   const planned = planCsharpUnionMapping({}, expression, csharpNullableTargetType(wide), csharpNullableTargetType(narrow), selection, context, diagnostics);
@@ -59,7 +62,10 @@ test("nested union paths preserve each native grouping and reject stale intermed
   const arms = selectCsharpUnionArmMapping(flat, nested, "source");
   assert.deepEqual(arms.map(arm => arm.target.map(step => step.index)), [[1, 1], [0], [1, 0]]);
   assert.deepEqual(arms.map(arm => arm.carrier), [string, boolean, integer]);
-  const context = { program: { source: { ast: { pos: () => 0, end: () => 5 } } }, scope: {}, names: { temporaryName: name => name } };
+  const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined } };
+  const context = { program: { source: { ast: { pos: () => 0, end: () => 5 } }, conversions: {
+    matchesUnionMapping: (source, target, selected) => csharpRuntimeUnionMappingMatches(policy, source, target, selected),
+  } }, scope: {}, names: { temporaryName: name => name } };
   const expression = { kind: "IdentifierName", name: "original" };
   const selection = { kind: "union-map", coverage: "source", arms };
   const diagnostics = [];

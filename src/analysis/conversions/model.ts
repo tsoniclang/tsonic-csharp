@@ -24,6 +24,10 @@ export interface CsharpConversionIssue {
 export interface CsharpConversionClassifications {
   readonly issues: readonly CsharpConversionIssue[];
   directCallableReference(expression: Node): SourceProjectReference | undefined;
+  matchesUnionMapping(
+    source: TargetTypeRef | undefined, target: TargetTypeRef | undefined,
+    selection: Extract<CsharpConversionSelection, { readonly kind: "union-map" }>,
+  ): boolean;
   matchesUnionProjection(
     source: TargetTypeRef | undefined, target: TargetTypeRef | undefined,
     selection: Extract<CsharpConversionSelection, { readonly kind: "runtime-union-projection" }>,

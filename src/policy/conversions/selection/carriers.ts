@@ -67,7 +67,8 @@ export function selectRuntimeUnionConversion(
     return selectCsharpRuntimeUnionProjection(input, source, target);
   }
   const sourceArms = getCsharpRuntimeUnionArms(source, input.typeDefinitions);
-  const widening = selectCsharpUnionArmMapping(source, target, "source", input.typeDefinitions);
+  const widening = selectCsharpUnionArmMapping(source, target, "source", input.typeDefinitions,
+    (sourceArm, targetArm) => csharpUnionReferenceImplicitlyAccepts(input, sourceArm, targetArm));
   if (widening !== undefined) return { kind: "union-map", coverage: "source", arms: widening };
   const narrowing = mode === "explicit" ? selectCsharpUnionArmMapping(source, target, "target", input.typeDefinitions) : undefined;
   if (narrowing !== undefined) return { kind: "union-map", coverage: "target", arms: narrowing };
@@ -112,6 +113,19 @@ export function selectRuntimeUnionConversion(
         ? "C# runtime-union conversion requires the source representation to match one exact union arm."
         : "C# runtime-union conversion matched more than one structurally identical union arm.",
   };
+}
+
+export function csharpUnionReferenceImplicitlyAccepts(
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">,
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+): boolean {
+  return source.kind === "target-named" && target.kind === "target-named" &&
+    !isCsharpValueTypeTargetType(source) && !isCsharpValueTypeTargetType(target) &&
+    !isCsharpAbsenceTargetType(source) && !isCsharpAbsenceTargetType(target) &&
+    (!isCsharpNullableReferenceTargetType(source) || isCsharpNullableReferenceTargetType(target)) &&
+    namedTargetTypeImplicitlyAccepts(input, getCsharpNullableElementTargetType(source) ?? source,
+      getCsharpNullableElementTargetType(target) ?? target, new Set());
 }
 
 export function selectCsharpRuntimeUnionProjection(

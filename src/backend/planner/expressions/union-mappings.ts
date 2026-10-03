@@ -2,7 +2,6 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionSelection } from "../../../analysis/conversions/index.js";
 import { getCsharpNullableElementTargetType, type TargetTypeRef } from "../../../target-model/types/index.js";
-import { csharpUnionArmMappingsMatch } from "../../../target-model/types/union-relations.js";
 import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
@@ -24,7 +23,7 @@ export function planCsharpUnionMapping(
   const targetUnion = targetElement ?? target;
   const resultType = target === undefined ? undefined : csharpTypeFromTargetTypeRef(target, input.scope.typeParameterNames);
   if (sourceUnion === undefined || targetUnion === undefined || resultType === undefined ||
-    !csharpUnionArmMappingsMatch(sourceUnion, targetUnion, selection.coverage, selection.arms, input.program.typeDefinitions) ||
+    !input.program.conversions.matchesUnionMapping(sourceUnion, targetUnion, selection) ||
     selection.coverage === "target" && targetElement !== undefined && sourceElement === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node,
       "Union conversion requires exact sealed arm coverage and native absence correspondence."));

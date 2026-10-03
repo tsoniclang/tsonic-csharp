@@ -2,6 +2,8 @@ import type { TargetTypeRef } from "./model.js";
 import { targetTypeRefEquals } from "./equality.js";
 import { getCsharpRuntimeUnionArms } from "./runtime-carriers.js";
 import type { CsharpTypeDefinitions } from "./source-union-definitions.js";
+import { csharpMetadataDescriptors } from "../metadata/immutable.js";
+import { snapshotCsharpTargetTypes } from "./snapshot.js";
 
 export interface CsharpUnionPathStep {
   readonly union: TargetTypeRef;
@@ -45,20 +47,24 @@ export function selectCsharpUnionArmMapping(
   target: TargetTypeRef,
   coverage: "source" | "target",
   definitions?: CsharpTypeDefinitions,
+  relates?: (source: TargetTypeRef, target: TargetTypeRef) => boolean,
 ): readonly CsharpUnionArmMapping[] | undefined {
   if (coverage !== "source" && coverage !== "target") return undefined;
   const sourceArms = csharpUnionLeaves(source, definitions);
   const targetArms = csharpUnionLeaves(target, definitions);
   if (sourceArms === undefined || targetArms === undefined) return undefined;
   const mappings: CsharpUnionArmMapping[] = [];
-  const selectedTargets = new Set<readonly CsharpUnionPathStep[]>();
+  const selectedTargets = new Map<readonly CsharpUnionPathStep[], TargetTypeRef[]>();
   for (const arm of sourceArms) {
-    const matches = targetArms.filter(candidate => targetTypeRefEquals(arm.carrier, candidate.carrier));
+    const exact = targetArms.filter(candidate => targetTypeRefEquals(arm.carrier, candidate.carrier));
+    const matches = exact.length > 0 ? exact : targetArms.filter(candidate => relates?.(arm.carrier, candidate.carrier) === true);
     if (matches.length > 1 || coverage === "source" && matches.length !== 1) return undefined;
     const selected = matches[0];
     if (selected === undefined) continue;
-    if (selectedTargets.has(selected.path)) return undefined;
-    selectedTargets.add(selected.path);
+    const previous = selectedTargets.get(selected.path);
+    if (previous !== undefined && (coverage === "target" || previous.some(carrier => targetTypeRefEquals(carrier, arm.carrier)))) return undefined;
+    if (previous === undefined) selectedTargets.set(selected.path, [arm.carrier]);
+    else previous.push(arm.carrier);
     mappings.push(Object.freeze({ carrier: arm.carrier, source: arm.path, target: selected.path }));
   }
   return mappings.length === 0 || coverage === "target" && selectedTargets.size !== targetArms.length
@@ -75,27 +81,41 @@ export function csharpUnionProjectionPath(
 }
 
 export function csharpUnionPathsEqual(source: readonly CsharpUnionPathStep[], target: readonly CsharpUnionPathStep[]): boolean {
-  if (!Array.isArray(target) || source.length !== target.length) return false;
-  const slots = Object.getOwnPropertyDescriptors(target);
-  if (Object.keys(slots).length !== target.length + 1) return false;
-  return source.every((step, index) => {
-    const slot = slots[String(index)];
-    if (slot === undefined || !("value" in slot)) return false;
-    const selected: unknown = slot.value;
-    if (selected === null || typeof selected !== "object" || Array.isArray(selected)) return false;
-    const fields = Object.getOwnPropertyDescriptors(selected);
-    return Object.keys(fields).length === 2 && fields.index !== undefined && "value" in fields.index &&
-      fields.union !== undefined && "value" in fields.union && fields.index.value === step.index &&
-      targetTypeRefEquals(fields.union.value as TargetTypeRef, step.union);
-  });
+  try {
+    if (!Array.isArray(target) || source.length !== target.length) return false;
+    const slots = csharpMetadataDescriptors(target);
+    if (Object.keys(slots).length !== target.length + 1) return false;
+    return source.every((step, index) => {
+      const selected: unknown = slots[String(index)]?.value;
+      if (selected === null || typeof selected !== "object" || Array.isArray(selected)) return false;
+      const fields = csharpMetadataDescriptors(selected);
+      return Object.keys(fields).length === 2 && fields.index?.value === step.index && fields.union !== undefined &&
+        targetTypeRefEquals(snapshotCsharpTargetTypes([fields.union.value as TargetTypeRef])[0]!, step.union);
+    });
+  } catch (error) {
+    if (error instanceof TypeError) return false;
+    throw error;
+  }
 }
 
 export function csharpUnionArmMappingsEqual(left: readonly CsharpUnionArmMapping[], right: readonly CsharpUnionArmMapping[]): boolean {
-  return left.length === right.length && left.every((arm, index) => {
-    const selected = right[index];
-    return selected !== undefined && targetTypeRefEquals(selected.carrier, arm.carrier) &&
-      csharpUnionPathsEqual(arm.source, selected.source) && csharpUnionPathsEqual(arm.target, selected.target);
-  });
+  try {
+    if (!Array.isArray(right) || left.length !== right.length) return false;
+    const slots = csharpMetadataDescriptors(right);
+    if (Object.keys(slots).length !== right.length + 1) return false;
+    return left.every((arm, index) => {
+      const selected: unknown = slots[String(index)]?.value;
+      if (selected === null || typeof selected !== "object" || Array.isArray(selected)) return false;
+      const fields = csharpMetadataDescriptors(selected);
+      return Object.keys(fields).length === 3 && fields.carrier !== undefined && fields.source !== undefined && fields.target !== undefined &&
+        targetTypeRefEquals(snapshotCsharpTargetTypes([fields.carrier.value as TargetTypeRef])[0]!, arm.carrier) &&
+        csharpUnionPathsEqual(arm.source, fields.source.value as readonly CsharpUnionPathStep[]) &&
+        csharpUnionPathsEqual(arm.target, fields.target.value as readonly CsharpUnionPathStep[]);
+    });
+  } catch (error) {
+    if (error instanceof TypeError) return false;
+    throw error;
+  }
 }
 
 export function csharpUnionArmMappingsMatch(
@@ -104,7 +124,8 @@ export function csharpUnionArmMappingsMatch(
   coverage: "source" | "target",
   mappings: readonly CsharpUnionArmMapping[],
   definitions?: CsharpTypeDefinitions,
+  relates?: (source: TargetTypeRef, target: TargetTypeRef) => boolean,
 ): boolean {
-  const contract = selectCsharpUnionArmMapping(source, target, coverage, definitions);
+  const contract = selectCsharpUnionArmMapping(source, target, coverage, definitions, relates);
   return contract !== undefined && Array.isArray(mappings) && csharpUnionArmMappingsEqual(contract, mappings);
 }

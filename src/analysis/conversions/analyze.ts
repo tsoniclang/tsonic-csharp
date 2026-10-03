@@ -41,7 +41,7 @@ import { substituteTargetTypeParameters } from "../../target-model/types/substit
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import { selectCsharpIntegerTruncationConversion } from "../../policy/conversions/selection/integer-truncation.js";
 import { selectCsharpExactIntegerConversion } from "../../policy/conversions/selection/exact-integer.js";
-import { csharpRuntimeUnionProjectionMatches } from "./validation.js";
+import { csharpRuntimeUnionMappingMatches, csharpRuntimeUnionProjectionMatches } from "./validation.js";
 
 const unavailableConversion: CsharpConversionSelection = Object.freeze({
   kind: "rejected",
@@ -68,6 +68,7 @@ export function analyzeCsharpConversions(
   const openClassifications: CsharpConversionClassifications = {
     issues,
     directCallableReference: expression => directCallables.get(expression),
+    matchesUnionMapping: (source, target, selection) => csharpRuntimeUnionMappingMatches(policy, source, target, selection),
     matchesUnionProjection: (source, target, selection) => csharpRuntimeUnionProjectionMatches(policy, source, target, selection),
     select(source, target, mode) {
       if (source === undefined || target === undefined) {
@@ -110,6 +111,7 @@ export function analyzeCsharpConversions(
       const sealed: CsharpConversionClassifications = {
         issues: sealedIssues,
         directCallableReference: openClassifications.directCallableReference,
+        matchesUnionMapping: openClassifications.matchesUnionMapping,
         matchesUnionProjection: openClassifications.matchesUnionProjection,
         select(source, target, mode) {
           if (source === undefined || target === undefined) {
