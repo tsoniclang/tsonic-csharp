@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 import { borrowedNullishSequencesSource, incompatibleBorrowedSequenceSource } from "../../../../../tsonic/test/fixtures/borrowed-nullish-sequences.mjs";
-import { createTsonicPlugin } from "../../../../../csharp-nodejs/nodejs/dist/index.js";
+import { createTsonicPlugin } from "../../../../../csharp-nodejs/dist/index.js";
 
 for (const surface of [undefined, "js"]) {
   test(`native nullish sequences retain backing until the authored snapshot (${surface ?? "native"})`, { timeout: 300_000 }, () => {
@@ -12,26 +12,30 @@ for (const surface of [undefined, "js"]) {
     assertCsharpCompilationSucceeded(compiled);
     const output = [...compiled.artifacts.values()].join("\n");
     assert.doesNotMatch(output, /\.ToArray\(|\.Select\(|IEnumerable<|foreach|Func</u);
-    if (surface === "js") assert.match(output, /IReadOnlyList<string>/u);
+    assert.match(output, /Microsoft\.Extensions\.Primitives\.StringValues/u);
+    assert.doesNotMatch(output, /IReadOnlyList<string>|Array\.Empty<string>\(\).*\?\?/u);
     const references = [fileURLToPath(new URL("../../../../../csharp-nodejs/csharp/src/Tsonic.CSharp.Node/Tsonic.CSharp.Node.csproj", import.meta.url))];
     const carrier = surface === "js" ? "Tsonic.CSharp.Js.JSArray<string>" : "string[]";
     const authored = surface === "js" ? 'new Tsonic.CSharp.Js.JSArray<string> { "authored", "second" }' : 'new string[] { "authored", "second" }';
     const count = surface === "js" ? "Count" : "Length";
     const hand = surface === "js"
-      ? "new Tsonic.CSharp.Js.JSArray<string>().AppendSequence((System.Collections.Generic.IReadOnlyList<string>?)authored ?? native ?? System.Array.Empty<string>())"
-      : "Copy(authored ?? native ?? System.Array.Empty<string>())";
+      ? `var result = new Tsonic.CSharp.Js.JSArray<string>(); if (authored is not null) return result.AppendSequence(authored);
+         if (native is { } source) { result.EnsureCapacity(source.Count); for (var index = 0; index < source.Count; index++) result.Add(source[index]!); } return result;`
+      : `if (authored is not null) { var result = new string[authored.Length]; System.Array.Copy(authored, result, authored.Length); return result; }
+         if (native is { } source) { var result = new string[source.Count]; for (var index = 0; index < source.Count; index++) result[index] = source[index]!; return result; } return new string[0];`;
     executeCsharpConstruction(compiled, `borrowed-nullish-sequences-${surface ?? "native"}`, false, false, references, `
 using Index = Tsonic.Generated.Index;
 ${carrier} authored = ${authored};
-string[] native = new string[] { "native", "tail" };
+string[] backing = new string[] { "native", "tail" };
+var native = new Microsoft.Extensions.Primitives.StringValues(backing);
 var first = Index.choose(authored, native);
 if (first.${count} != 2 || first[0] != "authored") throw new System.Exception("present source selection");
 first[0] = "changed";
-if (authored[0] != "authored" || native[0] != "native") throw new System.Exception("fresh destination alias");
+if (authored[0] != "authored" || backing[0] != "native") throw new System.Exception("fresh destination alias");
 var second = Index.choose(null, native);
 if (second.${count} != 2 || second[0] != "native") throw new System.Exception("native fallback");
 second[0] = "changed";
-if (native[0] != "native") throw new System.Exception("native backing alias");
+if (backing[0] != "native") throw new System.Exception("native backing alias");
 if (Index.choose(null, null).${count} != 0) throw new System.Exception("absence fallback");
 for (var index = 0; index < 1000; index++) { System.GC.KeepAlive(Index.choose(authored, native)); System.GC.KeepAlive(Handwritten(authored, native)); }
 foreach (var selected in new ${carrier}?[] { authored, null }) {
@@ -43,8 +47,7 @@ foreach (var selected in new ${carrier}?[] { authored, null }) {
     var handwritten = System.GC.GetAllocatedBytesForCurrentThread() - before;
     if (generated != handwritten) throw new System.Exception($"borrowed selection allocation: {generated} != {handwritten}");
 }
-static ${carrier} Handwritten(${carrier}? authored, string[]? native) => ${hand};
-${surface === "js" ? "" : "static string[] Copy(string[] source) { var result = new string[source.Length]; System.Array.Copy(source, result, source.Length); return result; }"}
+static ${carrier} Handwritten(${carrier}? authored, Microsoft.Extensions.Primitives.StringValues? native) { ${hand} }
 `);
   });
 }

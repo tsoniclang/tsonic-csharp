@@ -105,7 +105,7 @@ function planSequenceConstruction(
         left: identifier("position"), right: spreadLength(contribution.source, source)! } });
     }
     else {
-      const spread = planSpreadStatements(contribution.node, contribution.source, source, sourceFile, input, diagnostics, elementTarget, append);
+      const spread = planCsharpSequenceAppendStatements(contribution.node, contribution.source, source, sourceFile, input, diagnostics, elementTarget, append);
       if (spread === undefined) return undefined;
       statements.push(...spread);
     }
@@ -140,7 +140,7 @@ export function planCsharpJsArraySpreadAppend(
     kind: "CheckedExpression", expression: { kind: "BinaryExpression", operatorToken: { kind: "PlusToken" },
       left: { kind: "SimpleMemberAccessExpression", receiver: destinationName, name: "Count" }, right: length },
   }]) });
-  const spread = planSpreadStatements(node, source, sourceName, sourceFile, input, diagnostics, elementTarget,
+  const spread = planCsharpSequenceAppendStatements(node, source, sourceName, sourceFile, input, diagnostics, elementTarget,
     value => ({ kind: "ExpressionStatement", expression: invoke(destinationName, "Add", [value]) }));
   if (spread === undefined) return undefined;
   statements.push(...spread, { kind: "ReturnStatement", expression: destinationName });
@@ -149,7 +149,7 @@ export function planCsharpJsArraySpreadAppend(
     [{ kind: "Argument", expression: destination }, { kind: "Argument", expression: source.expression }], input, diagnostics);
 }
 
-function planSpreadStatements(
+export function planCsharpSequenceAppendStatements(
   node: Node,
   source: CsharpArraySpreadInput,
   receiver: CsharpExpression,
