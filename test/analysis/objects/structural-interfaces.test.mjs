@@ -35,7 +35,9 @@ test("structural optional interfaces bind their payload and every dependent nati
     const source = { targetType: { kind: "target-named", id: "test.Record", typeArguments: generic ? [integer] : [] },
       members: [field(sourceSymbol, optional(integer))], declarationTemplate: template };
     const selected = selectCsharpStructuralInterface(policy, expression, source, destination);
-    assert.deepEqual(selected, { sourceType: template.targetType, interfaceType: slot(generic ? captured : integer), methods: [] });
+    assert.deepEqual(selected, { sourceType: template.targetType, interfaceType: slot(generic ? captured : integer), methods: [],
+      properties: [{ sourceName: "value", member: { ...destinationTemplate.members[0], type: optional(generic ? captured : integer) } }],
+    });
     const mismatched = { ...source, members: [field(sourceSymbol, optional({ kind: "source-primitive", name: "uint64" }))] };
     assert.equal(selectCsharpStructuralInterface(policy, expression, mismatched, destination), undefined);
     const incomplete = { ...destination, declarationTemplate: { ...destinationTemplate,
@@ -44,4 +46,22 @@ test("structural optional interfaces bind their payload and every dependent nati
     } };
     assert.equal(selectCsharpStructuralInterface(policy, expression, source, incomplete), undefined);
   }
+});
+
+test("structural interface property forwarding preserves writes and direct native accessors", () => {
+  const memberType = optional(integer);
+  const source = { targetType: { kind: "target-named", id: "test.Record" }, members: [field(sourceSymbol, memberType)] };
+  const target = { targetType: { kind: "target-named", id: "test.ReadView", csharpSourceDeclarationKind: "interface" },
+    sourceType: destinationType, members: [{ ...field(destinationSymbol, memberType), readonly: true }] };
+  const readonly = selectCsharpStructuralInterface(policy, expression, source, target);
+  assert.equal(readonly?.properties.length, 1);
+  assert.equal(readonly?.properties[0].member.readonly, true);
+  const writable = { ...target, members: [{ ...target.members[0], readonly: false }] };
+  assert.equal(selectCsharpStructuralInterface(policy, expression, source, writable)?.properties.length, 1);
+  for (const changes of [{ readonly: true }, { accessor: { getter: true, setter: false } }]) {
+    assert.equal(selectCsharpStructuralInterface(policy, expression,
+      { ...source, members: [{ ...source.members[0], ...changes }] }, writable) === undefined, true);
+  }
+  assert.equal(selectCsharpStructuralInterface(policy, expression,
+    { ...source, members: [{ ...source.members[0], accessor: { getter: true, setter: false } }] }, target)?.properties.length, 0);
 });

@@ -48,6 +48,9 @@ export function analyzeCsharpObjectShapes(
       const bindings = inferCsharpTargetTypeParameterBindings(selected.sourceType, type, parameters);
       if (bindings === undefined) throw new Error("A structural implementation lost its exact source generic instantiation.");
       return { ...selected, sourceType: type, interfaceType: substituteTargetTypeParameters(selected.interfaceType, bindings),
+        properties: selected.properties.map(property => ({ ...property, member: { ...property.member,
+          type: substituteTargetTypeParameters(property.member.type, bindings),
+        } })),
         methods: selected.methods.map(method => ({ ...method, member: { ...method.member,
           type: substituteTargetTypeParameters(method.member.type, bindings),
         } })),

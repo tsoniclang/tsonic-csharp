@@ -8,13 +8,31 @@ import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { planParametersWithPrelude } from "../callables/parameters.js";
 
-export function planCsharpStructuralInterfaceMethods(
+export function planCsharpStructuralInterfaceMembers(
   shape: CsharpObjectShapeFact, node: Node,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeMember[] {
   const result: CsharpTypeMember[] = [];
   for (const implementation of input.program.objectShapes.structuralImplementations(shape.targetType)) {
     const explicitInterface = csharpTypeFromTargetTypeRef(implementation.interfaceType, input.scope.typeParameterNames);
+    for (const property of implementation.properties) {
+      const type = csharpTypeFromTargetTypeRef(property.member.type, input.scope.typeParameterNames);
+      if (explicitInterface === undefined || type === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "An analyzed interface property has no exact native forwarding type."));
+        continue;
+      }
+      const access: CsharpExpression = { kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "this" }, name: property.sourceName };
+      result.push({ kind: "PropertyDeclaration", name: property.member.targetName, explicitInterface, modifiers: [], type,
+        getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: access }] },
+        ...(property.member.readonly === true || property.member.accessor?.setter === false ? {} : {
+          setter: { kind: "Block" as const, statements: [{ kind: "ExpressionStatement" as const, expression: {
+            kind: "AssignmentExpression" as const, operatorToken: { kind: "EqualsToken" as const }, left: access,
+            right: { kind: "IdentifierName" as const, name: "value" },
+          } }] },
+        }),
+      });
+    }
     for (const method of implementation.methods) {
       const sourceFile = input.program.source.ast.getSourceFile(method.declaration);
       if (sourceFile === undefined) {

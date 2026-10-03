@@ -7,7 +7,7 @@ import { planAttributesForSubject } from "../attributes.js";
 import { planClassHeritage } from "./heritage.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../modifiers.js";
 import { csharpReferenceIdentityInterfaceType } from "../../objects/declarations/interfaces.js";
-import { planCsharpStructuralInterfaceMethods } from "../interfaces/structural.js";
+import { planCsharpStructuralInterfaceMembers } from "../interfaces/structural.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
 import { createCsharpTypeParameterPlanningContext } from "../../names/type-parameters.js";
 import { planOuterTypeParameters, planTypeParameters } from "../../types/type-parameters.js";
@@ -124,7 +124,7 @@ export function planClassDeclaration(
           kind: "SimpleMemberAccessExpression" as const, receiver: { kind: "IdentifierName" as const, name: "this" }, name: factory.environmentName,
         } }] },
       }]),
-      ...(objectShape === undefined ? [] : planCsharpStructuralInterfaceMethods(objectShape, node, input, diagnostics)),
+      ...(objectShape === undefined ? [] : planCsharpStructuralInterfaceMembers(objectShape, node, input, diagnostics)),
       ...(objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "js-freeze")
         ? guardCsharpFrozenDataProperties(objectShape, members, input, diagnostics) : members).map(member =>
           member.kind === "ConstructorDeclaration" ? completeConstructor(member) : member),

@@ -2,6 +2,7 @@ import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
 import type { CsharpReferenceEquality } from "../../../target-model/operations/binary.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
+import { namedTargetTypesAreRelated } from "../../conversions/selection/carriers.js";
 import {
   getCsharpNullableElementTargetType, isCsharpStringTargetType, isCsharpValueTypeTargetType,
   targetTypeRefEquals, type TargetTypeRef,
@@ -25,7 +26,8 @@ export function selectCsharpReferenceEquality(
   const rightIdentity = csharpReferenceIdentityCarrier(right, input);
   return leftIdentity !== undefined && rightIdentity !== undefined &&
     (targetTypeRefEquals(leftIdentity, rightIdentity) ||
-      input.objectShapes.resolveTarget(leftIdentity) !== undefined && input.objectShapes.resolveTarget(rightIdentity) !== undefined)
+      input.objectShapes.resolveTarget(leftIdentity) !== undefined && input.objectShapes.resolveTarget(rightIdentity) !== undefined ||
+      namedTargetTypesAreRelated(input, leftIdentity, rightIdentity))
     ? { kind: "reference-identity", negated: operator === "!==" } : undefined;
 }
 
