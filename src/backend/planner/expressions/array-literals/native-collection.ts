@@ -8,6 +8,7 @@ import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { getCsharpArrayLiteralBuilder, getCsharpArrayLiteralConstructionTargetType } from "../../../../target-model/types/index.js";
 import type { ArrayLiteralPlanner } from "./types.js";
 import { planCsharpDenseSequenceConstruction } from "../sequence-conversions.js";
+import type { CsharpPlannedValue } from "../planned-values.js";
 
 export function planNativeCollectionArrayLiteralExpression(
   node: Node,
@@ -17,7 +18,7 @@ export function planNativeCollectionArrayLiteralExpression(
   carrier: TargetTypeRef,
   elementCarrier: TargetTypeRef,
   planner: ArrayLiteralPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const elementType = csharpTypeFromTargetTypeRef(elementCarrier, input.scope.typeParameterNames);
   const constructionCarrier = getCsharpArrayLiteralConstructionTargetType(carrier);
   const collectionType = constructionCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(constructionCarrier, input.scope.typeParameterNames);

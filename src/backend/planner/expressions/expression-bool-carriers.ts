@@ -30,6 +30,8 @@ import type {
 import {
   translateCsharpJsValueInvocation,
 } from "./js-value-operations.js";
+import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
+import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
 
 export function planCsharpConditionExpression(
   expression: Node,
@@ -38,7 +40,7 @@ export function planCsharpConditionExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (HasSourceKind(input.program.source.ast, expression, KindTrueKeyword) || HasSourceKind(input.program.source.ast, expression, KindFalseKeyword)) {
     return planExpression(expression, sourceFile, input, diagnostics);
   }
@@ -61,14 +63,12 @@ export function planCsharpConditionExpression(
       input,
       diagnostics,
     );
-    return planned === undefined
-      ? undefined
-      : translateCsharpJsValueInvocation(
+    return mapCsharpPlannedValue(planned, csharpSourcePrimitiveTargetType("bool"), expression => translateCsharpJsValueInvocation(
           input.scope.typeParameterNames,
           jsValueOperation,
           undefined,
-          [planned],
-        );
+          [expression],
+        ));
   }
   const carrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
   const carrier = probeCarrierFromResolution(carrierResolution);

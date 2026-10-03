@@ -30,6 +30,8 @@ import { planCsharpClosedTypeTest } from "./type-tests.js";
 import {
   translateCsharpJsValueInvocation,
 } from "./js-value-operations.js";
+import type { CsharpPlannedValue } from "./planned-values.js";
+import { composeCsharpPlannedValues, planCsharpExpressionCompletion, projectCsharpPlannedValue } from "./planned-value-composition.js";
 
 export function planTypeofExpression(
   node: Node,
@@ -38,7 +40,7 @@ export function planTypeofExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   state?: DestructuringPlannerState,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (!input.program.source.ast.is.IsTypeOfExpression(node)) {
     return undefined;
   }
@@ -63,12 +65,12 @@ export function planTypeofExpression(
       : planExpression(operand, sourceFile, input, diagnostics);
     return planned === undefined
       ? undefined
-      : translateCsharpJsValueInvocation(
+      : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, planned, value => translateCsharpJsValueInvocation(
           input.scope.typeParameterNames,
           jsValueOperation,
           undefined,
-          [planned],
-        );
+          [value],
+        ));
   }
   const runtimeKind = operand === undefined
     ? undefined
@@ -82,9 +84,9 @@ export function planTypeofExpression(
   }
   const carrier = input.types.classifications.resolveNode(operand, sourceFile);
   const expression = planExpression(operand, sourceFile, input, diagnostics);
-  const result = carrier === undefined || expression === undefined ? undefined : planCsharpRuntimeCategory(
-    expression, carrier, runtimeKind, input, state ?? createDestructuringPlannerState(sourceFile, input.program.source.ast),
-  );
+  const result = carrier === undefined ? undefined : projectCsharpPlannedValue(node, sourceFile, input, diagnostics,
+    expression, value => planCsharpRuntimeCategory(value, carrier, runtimeKind, input,
+      state ?? createDestructuringPlannerState(sourceFile, input.program.source.ast)));
   if (result === undefined) diagnostics.push(unsupportedNodeDiagnostic(node,
     "C# typeof translation requires a runtime category consistent with its sealed native carrier."));
   return result;
@@ -97,7 +99,7 @@ export function tryPlanTypeTestExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   state?: DestructuringPlannerState,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (
     !input.program.source.ast.is.IsBinaryExpression(node) ||
     sourceOperatorFromKindName(input.program.source.ast.operatorKindName(node)) !== "instanceof"
@@ -125,16 +127,18 @@ export function tryPlanTypeTestExpression(
       diagnostics.push(unsupportedNodeDiagnostic(node, "A local class identity test requires its sealed per-evaluation environment."));
       return undefined;
     }
-    return { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: owner,
+    return composeCsharpPlannedValues(node, sourceFile, input, diagnostics, [planned, receiver], values =>
+      planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: owner,
       name: factory.instanceTestMethodName }, arguments: [
-      { kind: "Argument", expression: planned }, { kind: "Argument", expression: receiver },
-    ] };
+      { kind: "Argument", expression: values[0]! }, { kind: "Argument", expression: values[1]! },
+    ] }));
   }
   const fact = input.program.operations.binary(node)?.instanceTest;
   const sourceCarrier = input.types.classifications.resolveNode(left, sourceFile);
   const result = planned === undefined || fact === undefined || sourceCarrier === undefined ||
     !targetTypeRefEquals(fact.sourceCarrier, sourceCarrier) ? undefined
-    : planCsharpClosedTypeTest(planned, fact, input, state ?? createDestructuringPlannerState(sourceFile, input.program.source.ast));
+    : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, planned, value =>
+      planCsharpClosedTypeTest(value, fact, input, state ?? createDestructuringPlannerState(sourceFile, input.program.source.ast)));
   if (result === undefined) diagnostics.push(unsupportedNodeDiagnostic(node,
     "Nominal type test requires its exact sealed source, constructor and native payload test."));
   return result;
@@ -147,7 +151,7 @@ export function tryPlanTypeofComparisonExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   state?: DestructuringPlannerState,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (!input.program.source.ast.is.IsBinaryExpression(node)) {
     return undefined;
   }
@@ -188,12 +192,9 @@ export function tryPlanTypeofComparisonExpression(
       input,
       diagnostics,
     );
-    const runtimeTypeof = planned === undefined
-      ? undefined
-      : translateCsharpJsValueInvocation(input.scope.typeParameterNames, jsValueOperation, undefined, [planned]);
-    return runtimeTypeof === undefined
-      ? undefined
-      : {
+    return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, planned, value => {
+      const runtimeTypeof = translateCsharpJsValueInvocation(input.scope.typeParameterNames, jsValueOperation, undefined, [value]);
+      return runtimeTypeof === undefined ? undefined : {
           kind: "BinaryExpression",
           left: runtimeTypeof,
           operatorToken: {
@@ -206,6 +207,7 @@ export function tryPlanTypeofComparisonExpression(
             value: comparison.runtimeKind,
           },
         };
+    });
   }
   const selection = comparison.selection;
   if (selection.kind === "rejected") {
@@ -221,11 +223,13 @@ export function tryPlanTypeofComparisonExpression(
   if (planned === undefined) {
     return undefined;
   }
-  if (selection.kind === "constant") return evaluatedConstant(planned, selection.value);
+  if (selection.kind === "constant") return projectCsharpPlannedValue(node, sourceFile, input, diagnostics,
+    planned, value => evaluatedConstant(value, selection.value));
   const sourceCarrier = input.types.classifications.resolveNode(comparison.operand, sourceFile);
   const result = sourceCarrier === undefined || !targetTypeRefEquals(sourceCarrier, selection.sourceCarrier)
-    ? undefined : planCsharpRuntimeCategory(planned, sourceCarrier, selection.category, input,
-      state ?? createDestructuringPlannerState(sourceFile, input.program.source.ast), selection);
+    ? undefined : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, planned, value =>
+      planCsharpRuntimeCategory(value, sourceCarrier, selection.category, input,
+        state ?? createDestructuringPlannerState(sourceFile, input.program.source.ast), selection));
   if (result === undefined) diagnostics.push(unsupportedNodeDiagnostic(node,
     "The selected typeof comparison must retain its exact native carrier and closed category contract."));
   return result;

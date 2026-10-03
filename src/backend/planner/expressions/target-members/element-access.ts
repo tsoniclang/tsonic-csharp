@@ -16,6 +16,7 @@ import type {
   CallArgumentPlanner,
   ExpressionPlanner,
 } from "../expression-planner-types.js";
+import type { CsharpPlannedValue } from "../planned-values.js";
 
 export function planElementAccessExpression(
   elementAccess: Node,
@@ -24,7 +25,7 @@ export function planElementAccessExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   return translateCsharpElementAccess(
     elementAccess,
     sourceFile,

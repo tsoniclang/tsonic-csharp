@@ -99,6 +99,8 @@ import {
 import {
   tryPlanCsharpJsStringConversion,
 } from "./expression-js-string-conversion.js";
+import { mapCsharpPlannedValue, type CsharpPlannedArgument, type CsharpPlannedValue } from "./planned-values.js";
+import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 
 export function planExpression(
   node: Node,
@@ -106,7 +108,7 @@ export function planExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   return planExpressionCore(node, sourceFile, input, diagnostics, state);
 }
 
@@ -116,20 +118,22 @@ function planExpressionCore(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
+  const complete = (expression: CsharpExpression | undefined): CsharpPlannedValue | undefined =>
+    planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression);
   if (input.program.source.ast.is.IsClassExpression(node)) {
     const factory = input.program.classFactories.get(node);
-    if (factory !== undefined) return planClassFactoryExpression(factory, sourceFile, input, diagnostics, state);
+    if (factory !== undefined) return complete(planClassFactoryExpression(factory, sourceFile, input, diagnostics, state));
     diagnostics.push(unsupportedNodeDiagnostic(node, "A class expression requires its sealed native factory."));
     return undefined;
   }
   const expressionOverride = state?.expressionOverrides.get(node);
   if (expressionOverride !== undefined) {
-    return expressionOverride;
+    return complete(expressionOverride);
   }
   const defaultValue = input.program.sourceEvidence.defaultValue(node);
   if (defaultValue !== undefined) {
-    return {
+    return complete({
       kind: "DefaultExpression",
       nullForgiving: true,
       type: getCsharpTypeForNode(
@@ -139,7 +143,7 @@ function planExpressionCore(
         undefined,
         diagnostics,
       ),
-    };
+    });
   }
   const argumentPassing = input.program.sourceEvidence.argument(node);
   if (argumentPassing === undefined) {
@@ -174,7 +178,7 @@ function planExpressionCore(
     expressionInput: CsharpPlanningContext,
     expressionDiagnostics: TargetDiagnostic[],
     nestedState?: DestructuringPlannerState,
-  ): CsharpExpression | undefined => planExpression(
+  ): CsharpPlannedValue | undefined => planExpression(
     expressionNode,
     expressionSourceFile,
     expressionInput,
@@ -191,7 +195,7 @@ function planExpressionCore(
     conversionExpectedTargetType?: TargetTypeRef,
     expectedArgumentPassingMode?: CsharpTargetParameter["passingMode"],
     selectedTargetParameter?: CsharpTargetParameter,
-  ): CsharpArgument | undefined => planCallArgument(
+  ): CsharpPlannedArgument | undefined => planCallArgument(
     argumentNode,
     argumentSourceFile,
     argumentInput,
@@ -295,9 +299,9 @@ function planExpressionCore(
   }
   switch (SourceKind(input.program.source.ast, node)) {
     case KindIdentifier:
-      return planIdentifierExpression(node, sourceFile, input, diagnostics, state);
+      return complete(planIdentifierExpression(node, sourceFile, input, diagnostics, state));
     case KindRegularExpressionLiteral:
-      return planRegularExpressionLiteral(node, input, diagnostics);
+      return complete(planRegularExpressionLiteral(node, input, diagnostics));
     case KindTypeOfExpression:
       return planTypeofExpression(
         node,
@@ -453,7 +457,7 @@ export function planCallArgument(
   state?: DestructuringPlannerState,
   expectedArgumentPassingMode?: CsharpTargetParameter["passingMode"],
   selectedTargetParameter?: CsharpTargetParameter,
-): CsharpArgument | undefined {
+): CsharpPlannedArgument | undefined {
   return planCallArgumentCore(
     node,
     sourceFile,
@@ -481,7 +485,7 @@ export function planExpressionWithExpectedType(
   expectedTypeSubject?: Node,
   state?: DestructuringPlannerState,
   expectedTargetType?: TargetTypeRef,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const effectiveExpectedTargetType = expectedTargetType ??
     (
       expectedTypeSubject === undefined
@@ -512,7 +516,7 @@ export function planExpressionWithExpectedType(
   if (selection === undefined) {
     return undefined;
   }
-  return applyCsharpConversionSelection(
+  return mapCsharpPlannedValue(plan.expression, effectiveExpectedTargetType, expression => applyCsharpConversionSelection(
     node,
     sourceFile,
     input,
@@ -520,6 +524,6 @@ export function planExpressionWithExpectedType(
     sourceType,
     effectiveExpectedTargetType,
     selection,
-    plan.expression,
-  );
+    expression,
+  ));
 }

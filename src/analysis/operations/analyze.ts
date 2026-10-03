@@ -596,13 +596,13 @@ function visit(
       node,
       binaryKey,
       Object.freeze({
-        jsValue: selectCsharpJsValueBinaryOperation(
+        jsValue: validateCsharpJsValueOperationSelection(selectCsharpJsValueBinaryOperation(
           policy,
           expression?.Left,
           expression?.Right,
           sourceFile,
           sourceOperator,
-        ),
+        )),
         target: selectCsharpBinaryOperation(
           policy,
           node,

@@ -12,29 +12,31 @@ import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
 import { planCsharpUnionMapping } from "./union-mappings.js";
+import { csharpPlannedValue, csharpPlannedEffect, mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
+import { captureCsharpPlannedValue, planCsharpExpressionCompletion } from "./planned-value-composition.js";
+import { planCsharpAbsentValue } from "./optional-storage.js";
+import type { CsharpStatement } from "../../target-ast/roslyn/index.js";
 
 export function planCsharpAwaitCompletion(
   node: Node,
   carrier: TargetTypeRef,
   completion: CsharpAwaitCompletion,
-  expression: CsharpExpression,
+  planned: CsharpPlannedValue,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-  discarded: boolean,
-): CsharpExpression | undefined {
-  if (!completion.alternatives.some(alternative => alternative.task)) return expression;
-  const discard = discarded || isCsharpVoidTargetType(completion.result);
+): CsharpPlannedValue | undefined {
+  if (planned.completion.kind === "never") return planned;
+  if (!completion.alternatives.some(alternative => alternative.task)) return planned;
+  if (planned.completion.kind !== "value") return undefined;
+  const expression = planned.completion.expression;
+  const discard = isCsharpVoidTargetType(completion.result);
   const resultType = csharpTypeFromTargetTypeRef(completion.result, input.scope.typeParameterNames);
   const taskType = csharpTypeFromTargetTypeRef(csharpTaskTargetType(csharpVoidTargetType()), input.scope.typeParameterNames);
   if (taskType === undefined || !discard && resultType === undefined) return undefined;
   const completedTask: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: taskType, name: "CompletedTask" };
   const projectResult = (alternative: CsharpAwaitAlternative, value: CsharpExpression): CsharpExpression | undefined => {
     if (discard) return alternative.task ? { kind: "CastExpression", type: taskType, expression: value } : completedTask;
-    if (alternative.task && isCsharpVoidTargetType(alternative.result)) {
-      diagnostics.push(unsupportedNodeDiagnostic(node,
-        "A valued finite await with a void Task alternative requires native statement-level completion lowering."));
-      return undefined;
-    }
+    if (alternative.task && isCsharpVoidTargetType(alternative.result)) return undefined;
     if (isCsharpAbsenceTargetType(alternative.result)) return { kind: "DefaultExpression", type: resultType! };
     let result: CsharpExpression = alternative.task ? { kind: "AwaitExpression", expression: value } : value;
     if (alternative.resultMapping !== undefined) {
@@ -55,8 +57,46 @@ export function planCsharpAwaitCompletion(
   if (completion.alternatives.length === 1 && !completion.optional &&
     completion.alternatives[0]!.sourcePath.length === 0) {
     const alternative = completion.alternatives[0]!;
-    if (discard || alternative.resultPath.length === 0 && alternative.resultMapping === undefined) return { kind: "AwaitExpression", expression };
-    return projectResult(alternative, expression);
+    const result = discard || alternative.resultPath.length === 0 && alternative.resultMapping === undefined
+      ? { kind: "AwaitExpression" as const, expression } : projectResult(alternative, expression);
+    return planCsharpExpressionCompletion(node, input.program.source.ast.getSourceFile(node)!, input, diagnostics, result, completion.result, planned.prelude);
+  }
+  if (!discard && completion.alternatives.some(alternative => alternative.task && isCsharpVoidTargetType(alternative.result))) {
+    const selected = captureCsharpPlannedValue(node, input, diagnostics, carrier);
+    const result = captureCsharpPlannedValue(node, input, diagnostics, completion.result);
+    const absent = planCsharpAbsentValue(completion.result, input.scope.typeParameterNames);
+    if (selected === undefined || result === undefined || absent === undefined) return undefined;
+    const receiver: CsharpExpression = { kind: "IdentifierName", name: selected.name };
+    const assign = (value: CsharpExpression): CsharpStatement => ({ kind: "ExpressionStatement", expression: {
+      kind: "AssignmentExpression", left: { kind: "IdentifierName", name: result.name }, operatorToken: { kind: "EqualsToken" }, right: value,
+    } });
+    let remaining: readonly CsharpStatement[] = completion.optional ? [assign(absent)] : [{ kind: "ThrowStatement", expression: {
+      kind: "ObjectCreationExpression", type: { kind: "QualifiedName", left: { kind: "IdentifierName", name: "System" }, name: "InvalidOperationException" },
+      arguments: [{ kind: "Argument", expression: { kind: "LiteralExpression", value: "Excluded native completion variant" } }],
+    } }];
+    for (const alternative of [...completion.alternatives].reverse()) {
+      const selection = planCsharpUnionPattern(receiver, alternative.sourcePath, carrier);
+      let value = selection.value;
+      let condition = selection.condition;
+      if (condition === undefined && completion.optional) {
+        const type = csharpTypeFromTargetTypeRef(alternative.carrier, input.scope.typeParameterNames);
+        if (type === undefined) return undefined;
+        const name = input.names.temporaryName(`__tsonic_present_await_${input.program.source.ast.pos(node)}`);
+        condition = { kind: "IsPatternExpression", expression: receiver, type, designation: name };
+        value = { kind: "IdentifierName", name };
+      }
+      const projected = alternative.task && isCsharpVoidTargetType(alternative.result) ? absent : projectResult(alternative, value);
+      if (projected === undefined) return undefined;
+      const statements: readonly CsharpStatement[] = alternative.task && isCsharpVoidTargetType(alternative.result)
+        ? [{ kind: "ExpressionStatement", expression: { kind: "AwaitExpression", expression: value } }, assign(projected)]
+        : [assign(projected)];
+      remaining = condition === undefined ? statements : [{ kind: "IfStatement", condition,
+        thenBody: { kind: "Block", statements }, elseBody: { kind: "Block", statements: remaining } }];
+    }
+    return csharpPlannedValue(completion.result, { kind: "IdentifierName", name: result.name }, [
+      ...planned.prelude, { kind: "LocalDeclarationStatement", name: selected.name, type: selected.type, initializer: expression },
+      { kind: "LocalDeclarationStatement", name: result.name, type: result.type }, ...remaining,
+    ]);
   }
   const arms: CsharpSwitchExpressionArm[] = [];
   for (const [index, alternative] of completion.alternatives.entries()) {
@@ -85,6 +125,7 @@ export function planCsharpAwaitCompletion(
     } },
   });
   const selection: CsharpExpression = { kind: "SwitchExpression", expression, arms };
-  return discard ? { kind: "AwaitExpression", expression: { kind: "ParenthesizedExpression", expression: selection } }
+  const result: CsharpExpression = discard ? { kind: "AwaitExpression", expression: { kind: "ParenthesizedExpression", expression: selection } }
     : { kind: "ParenthesizedExpression", expression: selection };
+  return planCsharpExpressionCompletion(node, input.program.source.ast.getSourceFile(node)!, input, diagnostics, result, completion.result, planned.prelude);
 }

@@ -31,6 +31,8 @@ import type {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
+import type { CsharpPlannedValue } from "../planned-values.js";
+import { buildCsharpPlannedValue } from "../planned-value-composition.js";
 
 export function planTupleLiteralExpression(
   node: Node,
@@ -40,7 +42,7 @@ export function planTupleLiteralExpression(
   planner: ArrayLiteralPlanner,
   tupleType: CsharpTypeNode | undefined,
   tupleTarget?: Extract<TargetTypeRef, { readonly kind: "tuple" }>,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const literal = AsArrayLiteralExpression(input.program.source.ast, node)!;
   if (arrayLiteralHasElision(node, input)) {
     return rejectSparseArrayLiteralElision(node, diagnostics);
@@ -58,11 +60,12 @@ export function planTupleLiteralExpression(
   if (plannedElements === undefined) {
     return undefined;
   }
+  return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, plannedElements, values => {
   const elements = completeOptionalTupleElements(
     node,
     input,
     diagnostics,
-    plannedElements,
+    values,
     tupleTarget,
   );
   if (elements === undefined) {
@@ -73,6 +76,7 @@ export function planTupleLiteralExpression(
     return undefined;
   }
   return csharpTupleExpression(elements, tupleType ?? { kind: "TupleType", elements: [] });
+  }, tupleTarget);
 }
 
 function completeOptionalTupleElements(

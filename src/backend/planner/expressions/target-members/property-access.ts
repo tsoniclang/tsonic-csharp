@@ -18,6 +18,8 @@ import {
 import type {
   ExpressionPlanner,
 } from "../expression-planner-types.js";
+import type { CsharpPlannedValue } from "../planned-values.js";
+import { planCsharpExpressionCompletion } from "../planned-value-composition.js";
 
 export function planPropertyAccessExpression(
   propertyAccess: Node,
@@ -25,7 +27,7 @@ export function planPropertyAccessExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const projectModuleMember = tryPlanProjectSourceModuleStaticMemberReference(
     propertyAccess,
     sourceFile,
@@ -33,7 +35,7 @@ export function planPropertyAccessExpression(
     diagnostics,
   );
   if (projectModuleMember !== undefined) {
-    return projectModuleMember;
+    return planCsharpExpressionCompletion(propertyAccess, sourceFile, input, diagnostics, projectModuleMember);
   }
   return translateCsharpPropertyAccess(
     propertyAccess,

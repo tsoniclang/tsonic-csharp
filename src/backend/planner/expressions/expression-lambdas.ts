@@ -67,7 +67,9 @@ import {
 } from "../statements/generators.js";
 import { planLambdaParameterStorage } from "./lambda-parameter-storage.js";
 import { planCsharpFrameClosureReference } from "../bindings/capture-closures.js";
-import { planCsharpVoidReturn, planCsharpAbsenceReturn } from "../statements/statement-output.js";
+import { consumeCsharpPlannedValue, planCsharpVoidReturn, planCsharpAbsenceReturn } from "../statements/statement-output.js";
+import type { CsharpPlannedValue } from "./planned-values.js";
+import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 
 export interface LambdaTargetContext {
   readonly type: CsharpTypeNode;
@@ -90,9 +92,12 @@ export function planArrowFunctionExpression(
   state?: DestructuringPlannerState,
   expectedTargetType?: TargetTypeRef,
   planExpressionWithExpectedType?: ExpectedExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
+  const complete = (expression: CsharpExpression | undefined): CsharpPlannedValue | undefined =>
+    planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression,
+      expectedTargetType ?? input.types.classifications.resolveNode(node, sourceFile));
   if (input.scope.nativeCallableBody !== node && input.program.captureStorage.closure(node) !== undefined) {
-    return planCsharpFrameClosureReference(node, input, diagnostics, state);
+    return complete(planCsharpFrameClosureReference(node, input, diagnostics, state));
   }
   const expression = AsArrowFunction(input.program.source.ast, node)!;
   const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
@@ -136,12 +141,12 @@ export function planArrowFunctionExpression(
     if (body === undefined) {
       return undefined;
     }
-    return {
+    return complete({
       kind: "LambdaExpression",
       ...(isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}),
       parameters,
       body,
-    };
+    });
   }
   const entryPrelude = expression.Body === undefined ? parameterIdentityDeclarations : [
     ...planCsharpCaptureFrame(expression.Body, scopedInput, diagnostics, plannerState),
@@ -165,26 +170,28 @@ export function planArrowFunctionExpression(
   if (body === undefined) {
     return undefined;
   }
-  return {
+  return complete({
     kind: "LambdaExpression",
     ...(isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}),
     parameters,
     body: completion !== undefined
       ? { kind: "Block", statements: [...entryPrelude, ...planCsharpVoidReturn(body, completion,
         returnContext?.returnExpressionTargetType, input.scope.typeParameterNames)] }
-      : entryPrelude.length === 0
-      ? body
+      : entryPrelude.length === 0 && body.prelude.length === 0 && body.completion.kind === "value"
+      ? body.completion.expression
       : {
           kind: "Block",
           statements: [
             ...entryPrelude,
-            targetContext?.signature.returnTargetType !== undefined &&
-                isCsharpVoidTargetType(targetContext.signature.returnTargetType)
-              ? { kind: "ExpressionStatement", expression: body }
-              : { kind: "ReturnStatement", expression: body },
+            ...consumeCsharpPlannedValue(body, value => [
+              targetContext?.signature.returnTargetType !== undefined &&
+                  isCsharpVoidTargetType(targetContext.signature.returnTargetType)
+                ? { kind: "ExpressionStatement", expression: value }
+                : { kind: "ReturnStatement", expression: value },
+            ], () => [{ kind: "ReturnStatement" }]),
           ],
         },
-  };
+  });
 }
 
 export function planFunctionExpression(
@@ -195,9 +202,12 @@ export function planFunctionExpression(
   expectedType?: CsharpTypeNode,
   state?: DestructuringPlannerState,
   expectedTargetType?: TargetTypeRef,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
+  const complete = (expression: CsharpExpression | undefined): CsharpPlannedValue | undefined =>
+    planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression,
+      expectedTargetType ?? input.types.classifications.resolveNode(node, sourceFile));
   if (input.scope.nativeCallableBody !== node && input.program.captureStorage.closure(node) !== undefined) {
-    return planCsharpFrameClosureReference(node, input, diagnostics, state);
+    return complete(planCsharpFrameClosureReference(node, input, diagnostics, state));
   }
   const expression = AsFunctionExpression(input.program.source.ast, node)!;
   const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
@@ -253,22 +263,22 @@ export function planFunctionExpression(
     if (generator === undefined) {
       return undefined;
     }
-    return {
+    return complete({
       kind: "LambdaExpression",
       parameters,
       body: generator.body,
-    };
+    });
   }
   const body = planLambdaBlockBody(node, expression.Body, sourceFile, scopedInput, diagnostics, plannerState, targetContext, returnContext, parameterIdentityDeclarations);
   if (body === undefined) {
     return undefined;
   }
-  return {
+  return complete({
     kind: "LambdaExpression",
     ...(isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}),
     parameters,
     body,
-  };
+  });
 }
 
 function planLambdaParameterIdentityDeclarations(

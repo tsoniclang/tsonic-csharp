@@ -24,6 +24,8 @@ import {
   rejectSparseArrayLiteralElision,
 } from "./elision.js";
 import { planCsharpDenseSequenceConstruction } from "../sequence-conversions.js";
+import type { CsharpPlannedValue } from "../planned-values.js";
+import { buildCsharpPlannedValue } from "../planned-value-composition.js";
 
 export function planArrayLiteralExpression(
   node: Node,
@@ -33,7 +35,7 @@ export function planArrayLiteralExpression(
   elementType: CsharpTypeNode,
   planner: ArrayLiteralPlanner,
   elementTargetType?: TargetTypeRef,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const literal = AsArrayLiteralExpression(input.program.source.ast, node)!;
   if (arrayLiteralHasElision(node, input)) {
     return rejectSparseArrayLiteralElision(node, diagnostics);
@@ -46,13 +48,15 @@ export function planArrayLiteralExpression(
   if (elements === undefined) {
     return undefined;
   }
+  return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, elements, values => {
   const array: CsharpExpression = {
     kind: "ArrayCreationExpression",
     elementType,
-    elements,
+    elements: values,
   };
   const native = input.program.storage.nativeArray(node);
   return native === undefined ? array : planCsharpNativeArray(input.scope.typeParameterNames, array, native.layout, native.stride);
+  });
 }
 
 export function plannedArrayElements(
@@ -65,9 +69,9 @@ export function plannedArrayElements(
     sourceFile: SourceFile,
     input: CsharpPlanningContext,
     diagnostics: TargetDiagnostic[],
-  ) => CsharpExpression | undefined,
-): readonly CsharpExpression[] | undefined {
-  const planned: CsharpExpression[] = [];
+  ) => CsharpPlannedValue | undefined,
+): readonly CsharpPlannedValue[] | undefined {
+  const planned: CsharpPlannedValue[] = [];
   for (const element of elements) {
     if (element === undefined) {
       continue;

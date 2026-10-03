@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   selectCsharpJsValueCallOperation,
+  selectCsharpJsValueBinaryOperation,
   selectCsharpJsValueReceiverOperation,
   validateCsharpJsValueOperationSelection,
 } from "../../dist/policy/js-value-operations/selection.js";
@@ -58,4 +59,23 @@ test("ordinary reads retain their direct native invocation and no speculative op
   assert.equal(selected.presentOperation, undefined);
   assert.equal(selected.receiverReadOperation, undefined);
   assert.equal(selectCsharpJsValueReceiverOperation(carrier, "element-write", true).kind, "rejected");
+});
+
+test("logical JS selections contain exact native condition and branch relation", () => {
+  const policy = { types: { resolveNode: () => carrier, resolveReadStorage: () => undefined } };
+  for (const [operator, member, dispatch, whenTrue] of [
+    ["&&", "ToDynamicBoolean", "static", "right"],
+    ["||", "ToDynamicBoolean", "static", "left"],
+    ["??", "isUndefined", "instance", "right"],
+  ]) {
+    const selected = validateCsharpJsValueOperationSelection(selectCsharpJsValueBinaryOperation(policy, {}, {}, {}, operator));
+    assert.equal(selected.kind, "resolved");
+    assert.equal(selected.shortCircuit.condition.runtimeMember, member);
+    assert.equal(selected.shortCircuit.condition.dispatch, dispatch);
+    assert.equal(selected.shortCircuit.whenTrue, whenTrue);
+    assert.equal(Object.isFrozen(selected.shortCircuit.condition), true);
+    assert.equal(validateCsharpJsValueOperationSelection({ ...selected, shortCircuit: undefined }).kind, "rejected");
+    assert.equal(validateCsharpJsValueOperationSelection({ ...selected, shortCircuit: { ...selected.shortCircuit,
+      condition: { ...selected.shortCircuit.condition, resultType: carrier } } }).kind, "rejected");
+  }
 });

@@ -7,10 +7,11 @@ import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { targetPolicyDiagnostic } from "../diagnostics.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
+import type { CsharpPlannedValue } from "./planned-values.js";
 
 export type CsharpJsStringConversionPlan =
   | { readonly handled: false }
-  | { readonly handled: true; readonly expression?: CsharpExpression };
+  | { readonly handled: true; readonly expression?: CsharpPlannedValue };
 
 export function tryPlanCsharpJsStringConversion(
   node: Node,

@@ -9,6 +9,9 @@ import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import type { ExpectedExpressionPlanner, ExpressionPlanner } from "../expression-planner-types.js";
 import { planCsharpStorageIsAbsent } from "../optional-storage.js";
 import { planCsharpAssignmentLocation } from "./assignment-location.js";
+import { csharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";
+import { planCsharpValueBranch } from "../planned-value-composition.js";
+import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/scalar-types.js";
 
 export function planCsharpClosedValueCoalescing(
   node: Node,
@@ -19,7 +22,7 @@ export function planCsharpClosedValueCoalescing(
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   state: DestructuringPlannerState | undefined,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const operation = selection.targetOperation;
   if (operation.kind !== "closed-value-coalesce") return undefined;
   const type = csharpTypeFromTargetTypeRef(selection.resultType, input.scope.typeParameterNames);
@@ -37,23 +40,27 @@ export function planCsharpClosedValueCoalescing(
   const right = planExpressionWithExpectedType(selection.right, sourceFile, input, diagnostics,
     type, undefined, selection.rightInputType, state);
   if (left === undefined || right === undefined) return undefined;
-  const build = (location: CsharpExpression): CsharpExpression | undefined => {
+  const build = (location: CsharpExpression): CsharpPlannedValue | undefined => {
     const name = allocateExpressionTemp(state);
     const current: CsharpExpression = { kind: "IdentifierName", name };
     const absent = planCsharpStorageIsAbsent(selection.leftType, current, input.scope.typeParameterNames);
     if (absent === undefined) return undefined;
-    return {
-      kind: "ConditionalExpression",
-      condition: { kind: "BinaryExpression", operatorToken: { kind: "AmpersandAmpersandToken" },
+    const condition: CsharpExpression = { kind: "BinaryExpression", operatorToken: { kind: "AmpersandAmpersandToken" },
         left: { kind: "IsPatternExpression", expression: location, type: { kind: "IdentifierName", name: "var" }, designation: name },
-        right: absent },
-      whenTrue: operation.assignment
-        ? { kind: "AssignmentExpression", left: location, operatorToken: { kind: "EqualsToken" }, right }
-        : right,
-      whenFalse: current,
-    };
+        right: absent };
+    const assigned = !operation.assignment || right.completion.kind !== "value" ? right
+      : csharpPlannedValue(selection.resultType, { kind: "AssignmentExpression", left: location,
+          operatorToken: { kind: "EqualsToken" }, right: right.completion.expression }, right.prelude);
+    return planCsharpValueBranch(node, sourceFile, input, diagnostics,
+      csharpPlannedValue(csharpSourcePrimitiveTargetType("bool"), condition), assigned,
+      csharpPlannedValue(selection.resultType, current), selection.resultType);
   };
   return operation.assignment
-    ? planCsharpAssignmentLocation(node, operation.location, left, type, diagnostics, state, build)
-    : build(left);
+    ? planCsharpAssignmentLocation(node, operation.location, left, diagnostics, state, build)
+    : left.completion.kind === "never" ? left : left.completion.kind !== "value" ? undefined
+      : appendLeftPrelude(left, build(left.completion.expression));
+}
+
+function appendLeftPrelude(left: CsharpPlannedValue, result: CsharpPlannedValue | undefined): CsharpPlannedValue | undefined {
+  return result === undefined ? undefined : { prelude: [...left.prelude, ...result.prelude], completion: result.completion };
 }

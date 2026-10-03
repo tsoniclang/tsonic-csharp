@@ -43,6 +43,8 @@ import { targetTypeRefEquals } from "../../../../target-model/types/equality.js"
 import { csharpRecordOptionalRead } from "../../objects/indexed-records.js";
 import { planCsharpUnionProperty } from "../union-properties.js";
 import { planCsharpNativeUnionProjection } from "../union-projections.js";
+import type { CsharpPlannedValue } from "../planned-values.js";
+import { planCsharpExpressionCompletion, projectCsharpPlannedValue } from "../planned-value-composition.js";
 
 export function translateCsharpPropertyAccess(
   node: Node,
@@ -50,7 +52,7 @@ export function translateCsharpPropertyAccess(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const classification = input.program.operations.property(node);
   if (classification === undefined) {
     diagnostics.push(targetPolicyDiagnostic(
@@ -125,7 +127,7 @@ function translateSelectedProperty(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const member = selection.targetMember;
   if (selection.invocation.kind === "source-name-indexer") {
     if (member.kind !== "indexer") {
@@ -164,17 +166,17 @@ function translateSelectedProperty(
     }
     const key: CsharpExpression = { kind: "LiteralExpression", value: input.program.source.ast.text(sourceName) };
     if (selection.invocation.optionalRead) {
-      return csharpRecordOptionalRead(receiver, key, selection.source.optionalChain,
+      return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => csharpRecordOptionalRead(value, key, selection.source.optionalChain,
         member.declaringType, member.returnType,
-        `__tsonic_record_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`, input);
+        `__tsonic_record_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`, input));
     }
-    return {
+    return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => ({
       kind: selection.source.optionalChain
         ? "ConditionalElementAccessExpression"
         : "ElementAccessExpression",
-      receiver,
+      receiver: value,
       arguments: [key],
-    };
+    }));
   }
   if (
     member.kind !== "property" &&
@@ -194,9 +196,12 @@ function translateSelectedProperty(
     ));
     return undefined;
   }
-  const receiver = selection.receiver.kind === "none"
-    ? targetStaticReceiver(input.scope.typeParameterNames, member, node, diagnostics)
-    : translateCsharpSelectedReceiver(
+  if (selection.receiver.kind === "none") {
+    const receiver = targetStaticReceiver(input.scope.typeParameterNames, member, node, diagnostics);
+    return receiver === undefined ? undefined : planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
+      { kind: "SimpleMemberAccessExpression", receiver, name: member.targetName });
+  }
+  const receiver = translateCsharpSelectedReceiver(
         selection.source.receiver,
         sourceFile,
         input,
@@ -208,17 +213,17 @@ function translateSelectedProperty(
     return undefined;
   }
   const projection = selection.invocation.kind === "array-like" ? selection.invocation.projection : undefined;
-  const selectedReceiver = projection === undefined ? receiver : applyCsharpConversionSelection(
-    node, sourceFile, input, diagnostics, projection.source, projection.target, projection.conversion, receiver,
-  );
-  if (selectedReceiver === undefined) return undefined;
-  return {
+  return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => {
+    const selectedReceiver = projection === undefined ? value : applyCsharpConversionSelection(
+      node, sourceFile, input, diagnostics, projection.source, projection.target, projection.conversion, value);
+    return selectedReceiver === undefined ? undefined : {
     kind: selection.source.optionalChain
       ? "ConditionalAccessExpression"
       : "SimpleMemberAccessExpression",
     receiver: selectedReceiver,
     name: member.targetName,
-  };
+    };
+  });
 }
 
 function translateSourceOwnedProperty(
@@ -232,7 +237,7 @@ function translateSourceOwnedProperty(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (classification === undefined) {
     diagnostics.push(targetPolicyDiagnostic(
       node,
@@ -370,11 +375,12 @@ function translateSourceOwnedProperty(
       return undefined;
     }
   }
-  const planned = jsValueOperation.kind === "resolved" && jsValueSourceName !== undefined
+  const planned = projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value =>
+    jsValueOperation.kind === "resolved" && jsValueSourceName !== undefined
     ? translateCsharpJsValueInvocation(
         input.scope.typeParameterNames,
         jsValueOperation,
-        receiver,
+        value,
         [{ kind: "LiteralExpression", value: jsValueSourceName }],
       )
     : resolvedName === undefined
@@ -383,9 +389,9 @@ function translateSourceOwnedProperty(
         kind: selection.source.optionalChain
           ? "ConditionalAccessExpression"
           : "SimpleMemberAccessExpression" as const,
-        receiver,
+        receiver: value,
         name: resolvedName,
-      } as CsharpExpression;
+      } as CsharpExpression);
   if (planned === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -418,9 +424,9 @@ function translateSourceOwnedProperty(
     ));
     return undefined;
   }
-  return planFlowReadUseSiteProjection(
+  return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, planned, value => planFlowReadUseSiteProjection(
     node,
-    planned,
+    value,
     sourceFile,
     input,
     diagnostics,
@@ -428,7 +434,7 @@ function translateSourceOwnedProperty(
       ...(rawReadType === undefined ? {} : { storageType: rawReadType }),
       ...(selectedReadType === undefined ? {} : { selectedType: selectedReadType }),
     },
-  );
+  ));
 }
 
 function translateRuntimeUnionObjectShapeProperty(
@@ -446,7 +452,7 @@ function translateRuntimeUnionObjectShapeProperty(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (selection.source.optionalChain) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -465,12 +471,12 @@ function translateRuntimeUnionObjectShapeProperty(
   if (receiver === undefined) {
     return undefined;
   }
-  const projected = planCsharpNativeUnionProjection(node, receiver, {
+  const projected = projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => planCsharpNativeUnionProjection(node, value, {
     unionCarrier: classification.selectedReceiverType!,
     selectedVariantIndexes: property.members.map(entry => entry.armIndex),
     variants: property.members.map(entry => ({ carrier: entry.armType, member: entry.member })),
   }, input, diagnostics, variant => variant.member,
-  (payload, member) => ({ kind: "SimpleMemberAccessExpression", receiver: payload, name: member.targetName }));
+  (payload, member) => ({ kind: "SimpleMemberAccessExpression", receiver: payload, name: member.targetName })), property.resultType);
   if (projected === undefined) return undefined;
   const selectedReadType = classification.selectedReadType;
   if (selectedReadType === undefined) {
@@ -480,9 +486,9 @@ function translateRuntimeUnionObjectShapeProperty(
     ));
     return undefined;
   }
-  return planFlowReadUseSiteProjection(
+  return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, projected, value => planFlowReadUseSiteProjection(
     node,
-    projected,
+    value,
     sourceFile,
     input,
     diagnostics,
@@ -490,7 +496,7 @@ function translateRuntimeUnionObjectShapeProperty(
       storageType: property.resultType,
       selectedType: selectedReadType,
     },
-  );
+  ));
 }
 
 function targetStaticReceiver(

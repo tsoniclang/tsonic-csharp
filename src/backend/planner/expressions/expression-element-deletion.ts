@@ -5,6 +5,8 @@ import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "./expression-planner-types.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import type { CsharpPlannedValue } from "./planned-values.js";
+import { buildCsharpPlannedValue } from "./planned-value-composition.js";
 
 export function planCsharpElementDeletion(
   node: Node,
@@ -13,7 +15,7 @@ export function planCsharpElementDeletion(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const selection = input.program.operations.elementDeletion(node);
   if (selection?.kind !== "resolved") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection?.reason ?? "Element deletion requires a sealed native operation."));
@@ -24,6 +26,7 @@ export function planCsharpElementDeletion(
   const argument = keyType === undefined ? undefined : planCallArgument(selection.index, sourceFile, input,
     diagnostics, keyType, undefined, selection.keyType, "by-value");
   if (receiver === undefined || argument === undefined || argument.passing !== undefined) return undefined;
-  return { kind: "InvocationExpression",
-    callee: { kind: "SimpleMemberAccessExpression", receiver, name: selection.targetMemberName }, arguments: [argument] };
+  return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, argument], values => ({ kind: "InvocationExpression",
+    callee: { kind: "SimpleMemberAccessExpression", receiver: values[0]!, name: selection.targetMemberName },
+    arguments: [{ kind: "Argument", expression: values[1]! }] }));
 }

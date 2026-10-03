@@ -18,6 +18,8 @@ import { getCsharpNullableElementTargetType } from "../../../target-model/types/
 import { isCsharpAbsenceTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
 import { planCsharpPresentValueGuard, planCsharpStorageIsAbsent } from "./optional-storage.js";
+import type { CsharpPlannedValue } from "./planned-values.js";
+import { composeCsharpPlannedValues, planCsharpExpressionCompletion } from "./planned-value-composition.js";
 
 export function planCsharpUnionEquality(
   node: Node,
@@ -27,7 +29,7 @@ export function planCsharpUnionEquality(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   state: DestructuringPlannerState | undefined,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const operation = selection.targetOperation;
   const sealed = input.program.operations.binary(node)?.target;
   if (operation.kind !== "union-equality" || state === undefined ||
@@ -74,8 +76,12 @@ export function planCsharpUnionEquality(
     arms.push({ pattern: { kind: "VarPattern", designation }, when, expression: comparison });
   }
   arms.push({ pattern: { kind: "DiscardPattern" }, expression: { kind: "LiteralExpression", value: false } });
-  const result: CsharpExpression = { kind: "SwitchExpression", expression: { kind: "TupleExpression", elements: [left, right] }, arms };
-  return operation.negated ? { kind: "PrefixUnaryExpression", operatorToken: { kind: "ExclamationToken" }, operand: result } : result;
+  return composeCsharpPlannedValues(node, sourceFile, input, diagnostics, [left, right], values => {
+    const result: CsharpExpression = { kind: "SwitchExpression", expression: { kind: "TupleExpression", elements: values }, arms };
+    return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
+      operation.negated ? { kind: "PrefixUnaryExpression", operatorToken: { kind: "ExclamationToken" }, operand: result } : result,
+      selection.resultType);
+  });
 }
 
 function planEqualityOperand(

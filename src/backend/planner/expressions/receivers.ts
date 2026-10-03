@@ -15,6 +15,7 @@ import type {
 } from "../context.js";
 import type { CsharpMemberReceiverProjection } from "../../../analysis/operations/index.js";
 import { applyCsharpConversionSelection } from "./conversions.js";
+import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 
 export interface CsharpSelectedReceiverEvidence {
   readonly expression: Node;
@@ -28,14 +29,14 @@ export function translateCsharpSelectedReceiver(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   projection?: CsharpMemberReceiverProjection,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const expression = planExpression(
     receiver.expression,
     sourceFile,
     input,
     diagnostics,
   );
-  return expression === undefined || projection === undefined ? expression : applyCsharpConversionSelection(
-    receiver.expression, sourceFile, input, diagnostics, projection.source, projection.target, projection.conversion, expression,
-  );
+  return projection === undefined ? expression : mapCsharpPlannedValue(expression, projection.target, value =>
+    applyCsharpConversionSelection(receiver.expression, sourceFile, input, diagnostics,
+      projection.source, projection.target, projection.conversion, value));
 }

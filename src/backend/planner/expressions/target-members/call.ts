@@ -14,6 +14,7 @@ import type {
 import {
   translateCsharpCallExpression,
 } from "./selected-call.js";
+import type { CsharpPlannedValue } from "../planned-values.js";
 
 export function planCallExpression(
   node: Node,
@@ -22,7 +23,7 @@ export function planCallExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   return translateCsharpCallExpression(
     node,
     sourceFile,

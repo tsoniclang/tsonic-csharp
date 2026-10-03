@@ -3,11 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import {
-  csharpTaskTargetType,
-  isCsharpNeverTargetType,
-  isCsharpVoidTargetType,
-} from "../../../target-model/types/index.js";
+import { isCsharpVoidTargetType } from "../../../target-model/types/index.js";
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type {
   CsharpPlanningContext,
@@ -25,6 +21,8 @@ import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
 import { planCsharpSourceUndefinedValue } from "./undefined-values.js";
+import { csharpPlannedEffect, csharpPlannedExpressionIsStable, csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
+import { planCsharpDiscardedStatement } from "../statements/statement-output.js";
 
 export function planVoidExpression(
   node: Node,
@@ -33,7 +31,7 @@ export function planVoidExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   expectedTargetType?: TargetTypeRef,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (!input.program.source.ast.is.IsVoidExpression(node)) {
     return undefined;
   }
@@ -67,34 +65,10 @@ export function planVoidExpression(
   }
   const expression = planExpression(operand, sourceFile, input, diagnostics);
   if (expression === undefined) return undefined;
-  if (expression.kind === "LiteralExpression" || expression.kind === "NumericLiteralExpression" ||
-    expression.kind === "IntegerLiteralExpression" || expression.kind === "CharacterLiteralExpression") {
-    return result.expression;
-  }
-  if (!isCsharpVoidTargetType(operandType) && !isCsharpNeverTargetType(operandType)) {
-    return {
-      kind: "SimpleMemberAccessExpression",
-      receiver: { kind: "TupleExpression", elements: [expression,
-        { kind: "CastExpression", type: resultType, expression: result.expression }] },
-      name: "Item2",
-    };
-  }
-  let statement: CsharpExpression = expression;
-  while (statement.kind === "ParenthesizedExpression") statement = statement.expression;
-  const asynchronous = statement.kind === "AwaitExpression";
-  const returnType = asynchronous ? csharpTypeFromTargetTypeRef(csharpTaskTargetType(target), input.scope.typeParameterNames) : resultType;
-  if (returnType === undefined) return undefined;
-  const invocation: CsharpExpression = {
-    kind: "InvocationExpression",
-    callee: { kind: "ParenthesizedExpression", expression: { kind: "CastExpression",
-      type: { kind: "QualifiedName", left: { kind: "IdentifierName", name: "System" }, name: "Func",
-        typeArguments: [returnType] },
-      expression: { kind: "LambdaExpression", async: asynchronous, parameters: [],
-        body: { kind: "Block", statements: [
-          { kind: "ExpressionStatement", expression: statement },
-          { kind: "ReturnStatement", expression: result.expression },
-        ] } } } },
-    arguments: [],
-  };
-  return asynchronous ? { kind: "AwaitExpression", expression: invocation } : invocation;
+  if (expression.completion.kind === "never") return expression;
+  const prelude = expression.completion.kind === "value" && !csharpPlannedExpressionIsStable(expression.completion.expression)
+    ? [...expression.prelude, planCsharpDiscardedStatement(expression.completion.expression, expression.completion.carrier)]
+    : expression.prelude;
+  return isCsharpVoidTargetType(target) ? csharpPlannedEffect(target, prelude)
+    : csharpPlannedValue(target, result.expression, prelude);
 }

@@ -34,7 +34,6 @@ import type {
 } from "../../context.js";
 import {
   translateCsharpJsValueInvocation,
-  translateCsharpJsValueFactory,
 } from "../js-value-operations.js";
 import {
   applyCsharpConversionSelection,
@@ -43,9 +42,8 @@ import {
   translateCsharpSelectedReceiver,
 } from "../receivers.js";
 import { csharpRecordOptionalRead } from "../../objects/indexed-records.js";
-import { selectCsharpCollectionElementRead } from "../../../../target-model/types/collection-reads.js";
-import { planCsharpCollectionElementRead } from "../collection-reads.js";
-import { planCsharpAbsentValue, planCsharpPresentValueGuard } from "../optional-storage.js";
+import type { CsharpPlannedArgument, CsharpPlannedValue } from "../planned-values.js";
+import { buildCsharpPlannedValue, planCsharpOptionalReceiverValue, projectCsharpPlannedValue } from "../planned-value-composition.js";
 
 export function translateCsharpElementAccess(
   node: Node,
@@ -54,7 +52,7 @@ export function translateCsharpElementAccess(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const expression = input.program.source.ast.as.AsElementAccessExpression(node);
   const receiverNode = expression?.Expression;
   const argumentNode = expression?.ArgumentExpression;
@@ -86,14 +84,15 @@ export function translateCsharpElementAccess(
       ));
       return undefined;
     }
-    return translateCsharpJsValueInvocation(
-      input.scope.typeParameterNames,
-      jsValueOperation,
-      receiver,
-      expression?.QuestionDotToken === undefined
-        ? [argument]
-        : [translateCsharpJsValueFactory(argument)],
-    );
+    const optional = expression?.QuestionDotToken !== undefined;
+    const operation = optional ? jsValueOperation.presentOperation : jsValueOperation;
+    if (operation === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "An optional closed element read requires its exact selected present invocation."));
+      return undefined;
+    }
+    return planElementOperands(node, sourceFile, input, diagnostics, receiver, argument,
+      optional,
+      (target, key) => translateCsharpJsValueInvocation(input.scope.typeParameterNames, operation, target, [key]));
   }
   const selection = classification.target;
   if (selection === undefined) {
@@ -178,7 +177,7 @@ function translateProjectIndexerElement(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const keyType = csharpTypeFromTargetTypeRef(selection.keyType, input.scope.typeParameterNames);
   if (keyType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -208,20 +207,17 @@ function translateProjectIndexerElement(
   if (receiver === undefined || !isValueArgument(argument)) {
     return undefined;
   }
-  const planned: CsharpExpression = {
-    kind: selection.source.optionalChain
-      ? "ConditionalElementAccessExpression"
-      : "ElementAccessExpression",
-    receiver,
-    arguments: [argument.expression],
-  };
+  const planned = planElementOperands(node, sourceFile, input, diagnostics, receiver, argument,
+    selection.source.optionalChain,
+    (target, key) => ({ kind: "ElementAccessExpression", receiver: target, arguments: [key] }),
+    selection.valueType);
   if (
     selection.source.accessMode !== "read" ||
     selection.selectedReadType === undefined
   ) {
     return planned;
   }
-  return applyCsharpConversionSelection(
+  return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, planned, value => applyCsharpConversionSelection(
     node,
     sourceFile,
     input,
@@ -232,8 +228,8 @@ function translateProjectIndexerElement(
       kind: "rejected",
       reason: "The sealed C# element-read classification has no conversion.",
     },
-    planned,
-  );
+    value,
+  ), selection.selectedReadType);
 }
 
 function translateSelectedElement(
@@ -247,7 +243,7 @@ function translateSelectedElement(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (
     selection.receiver.kind !== "instance"
   ) {
@@ -299,24 +295,29 @@ function translateSelectedElement(
   }
   if (selection.invocation.kind === "record-optional-read") {
     if (selection.source.accessMode !== "read") return undefined;
-    return csharpRecordOptionalRead(receiver, argument.expression, selection.source.optionalChain,
+    return planElementOperands(node, sourceFile, input, diagnostics, receiver, argument, selection.source.optionalChain,
+      (target, key) => csharpRecordOptionalRead(target, key, false,
       selection.targetMember.declaringType, selection.targetMember.returnType,
-      `__tsonic_record_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`, input);
+      `__tsonic_record_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`, input));
   }
   if (selection.invocation.kind === "array-like") {
     const projection = selection.invocation.projection;
-    const projected = applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
-      projection.source, projection.target, projection.conversion, receiver);
     const owner = selection.targetMember.declaringType === undefined ? undefined
       : csharpTypeFromTargetTypeRef(selection.targetMember.declaringType, input.scope.typeParameterNames);
-    if (projected === undefined || owner === undefined) return undefined;
-    return {
+    if (owner === undefined) return undefined;
+    return planElementOperands(node, sourceFile, input, diagnostics, receiver, argument, selection.source.optionalChain,
+      (target, key) => {
+      const projected = applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
+        projection.source, projection.target, projection.conversion, target);
+      return projected === undefined ? undefined : {
       kind: "InvocationExpression",
       callee: { kind: "SimpleMemberAccessExpression", receiver: owner, name: selection.targetMember.targetName },
-      arguments: [{ kind: "Argument", expression: projected }, argument],
-    };
+      arguments: [{ kind: "Argument", expression: projected }, { kind: "Argument", expression: key }],
+      };
+    });
   }
   if (selection.invocation.kind === "method") {
+    const invocation = selection.invocation;
     if (selection.source.accessMode !== "read") {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
@@ -324,27 +325,28 @@ function translateSelectedElement(
       ));
       return undefined;
     }
-    const arguments_: CsharpArgument[] = [argument];
-    if (selection.invocation.appendInt32Literal !== undefined) {
+    return planElementOperands(node, sourceFile, input, diagnostics, receiver, argument, selection.source.optionalChain,
+      (target, key) => {
+    const arguments_: CsharpArgument[] = [{ kind: "Argument", expression: key }];
+    if (invocation.appendInt32Literal !== undefined) {
       arguments_.push({
         kind: "Argument",
         expression: {
           kind: "LiteralExpression",
-          value: selection.invocation.appendInt32Literal,
+          value: invocation.appendInt32Literal,
         },
       });
     }
     return {
       kind: "InvocationExpression",
       callee: {
-        kind: selection.source.optionalChain
-          ? "ConditionalAccessExpression"
-          : "SimpleMemberAccessExpression",
-        receiver,
-        name: selection.invocation.targetName,
+        kind: "SimpleMemberAccessExpression",
+        receiver: target,
+        name: invocation.targetName,
       },
       arguments: arguments_,
     };
+    });
   }
   if (selection.targetMember.kind !== "indexer") {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -353,13 +355,8 @@ function translateSelectedElement(
     ));
     return undefined;
   }
-  return {
-    kind: selection.source.optionalChain
-      ? "ConditionalElementAccessExpression"
-      : "ElementAccessExpression",
-    receiver,
-    arguments: [argument.expression],
-  };
+  return planElementOperands(node, sourceFile, input, diagnostics, receiver, argument, selection.source.optionalChain,
+    (target, key) => ({ kind: "ElementAccessExpression", receiver: target, arguments: [key] }));
 }
 
 function translateSourceOwnedElement(
@@ -373,7 +370,7 @@ function translateSourceOwnedElement(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const receiverType = classification.receiverType;
   const indexableReceiverType =
     getCsharpNullableElementTargetType(receiverType) ?? receiverType;
@@ -381,6 +378,7 @@ function translateSourceOwnedElement(
     indexableReceiverType?.kind === "tuple" &&
     selection.source.selectedElementIndex !== undefined
   ) {
+    const elementIndex = selection.source.selectedElementIndex;
     const receiver = translateCsharpSelectedReceiver(
       selection.source.receiver,
       sourceFile,
@@ -391,13 +389,13 @@ function translateSourceOwnedElement(
     );
     return receiver === undefined
       ? undefined
-      : {
+      : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => ({
           kind: selection.source.optionalChain
             ? "ConditionalAccessExpression"
             : "SimpleMemberAccessExpression",
-          receiver,
-          name: `Item${selection.source.selectedElementIndex + 1}`,
-        };
+          receiver: value,
+          name: `Item${elementIndex + 1}`,
+        }));
   }
   const selectedResultType = classification.selectedResultType;
   const elementType = getCsharpReadOnlyIndexableCollectionElementTargetType(
@@ -439,36 +437,29 @@ function translateSourceOwnedElement(
     input,
     diagnostics,
   );
-  const read = indexableReceiverType === undefined ? undefined : selectCsharpCollectionElementRead(indexableReceiverType);
-  if (read?.kind === "invalid") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, read.reason));
-    return undefined;
-  }
-  if (read?.kind === "method" && selection.source.accessMode === "read" && receiver !== undefined && argument !== undefined) {
-    if (!selection.source.optionalChain) return planCsharpCollectionElementRead(indexableReceiverType!, receiver,
-      argument, input.scope.typeParameterNames);
-    if (receiverType === undefined) return undefined;
-    const name = input.names.temporaryName(`__tsonic_indexed_sequence_${input.program.source.ast.pos(node)}`);
-    const guard = planCsharpPresentValueGuard(receiverType, indexableReceiverType!, receiver, name, input.scope.typeParameterNames);
-    const absent = planCsharpAbsentValue(selectedResultType, input.scope.typeParameterNames);
-    const value = guard === undefined ? undefined : planCsharpCollectionElementRead(indexableReceiverType!, guard.value,
-      argument, input.scope.typeParameterNames);
-    return guard === undefined || value === undefined || absent === undefined ? undefined : { kind: "ConditionalExpression",
-      condition: guard.condition, whenTrue: value, whenFalse: absent };
-  }
-  return receiver === undefined || argument === undefined
-    ? undefined
-    : {
-        kind: selection.source.optionalChain
-          ? "ConditionalElementAccessExpression"
-          : "ElementAccessExpression",
-        receiver,
-        arguments: [argument],
-      };
+  return planElementOperands(node, sourceFile, input, diagnostics, receiver, argument, selection.source.optionalChain,
+    (target, key) => ({ kind: "ElementAccessExpression", receiver: target, arguments: [key] }), selectedResultType);
 }
 
 function isValueArgument(
-  argument: CsharpArgument | undefined,
-): argument is CsharpArgument & { readonly passing?: undefined } {
+  argument: CsharpPlannedArgument | undefined,
+): argument is CsharpPlannedArgument & { readonly passing?: undefined } {
   return argument !== undefined && argument.passing === undefined;
+}
+
+function planElementOperands(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  receiver: CsharpPlannedValue | undefined,
+  argument: CsharpPlannedValue | undefined,
+  optional: boolean,
+  build: (receiver: CsharpExpression, argument: CsharpExpression) => CsharpExpression | undefined,
+  carrier = input.types.classifications.resolveNode(node, sourceFile),
+): CsharpPlannedValue | undefined {
+  return optional ? planCsharpOptionalReceiverValue(node, sourceFile, input, diagnostics, receiver, present =>
+    buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [argument], values => build(present, values[0]!), carrier), carrier)
+    : buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, argument],
+      values => build(values[0]!, values[1]!), carrier);
 }

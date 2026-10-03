@@ -10,9 +10,9 @@ import {
 import type {
   CsharpPlanningContext,
 } from "../context.js";
-import type {
-  CsharpExpression,
-} from "../../target-ast/roslyn/index.js";
+import type { CsharpPlannedValue } from "./planned-values.js";
+import { buildCsharpPlannedValue } from "./planned-value-composition.js";
+import { planCsharpJsValueLogical } from "./js-value-logical.js";
 import {
   csharpAssignmentOperatorTokenFromText,
 } from "./csharp-operator-tokens.js";
@@ -61,7 +61,7 @@ export function tryPlanBinaryExpression(
   planCallArgument: CallArgumentPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   state?: DestructuringPlannerState,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (!HasSourceKind(input.program.source.ast, node, KindBinaryExpression)) {
     return undefined;
   }
@@ -130,22 +130,18 @@ export function tryPlanBinaryExpression(
       if (left === undefined || right === undefined) {
         return undefined;
       }
-      return translateCsharpJsValueInvocation(
+      if (jsValueOperation.shortCircuit !== undefined) return planCsharpJsValueLogical(
+        node, sourceFile, input, diagnostics, jsValueOperation, expression.Left, expression.Right, left, right);
+      return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [left, right], values => translateCsharpJsValueInvocation(
         input.scope.typeParameterNames,
         jsValueOperation,
         undefined,
         [
-          left,
+          values[0]!,
           { kind: "LiteralExpression", value: sourceOperator },
-          jsValueOperation.lazyRight === true
-            ? {
-                kind: "LambdaExpression",
-                parameters: [],
-                body: right,
-              }
-            : right,
+          values[1]!,
         ],
-      );
+      ), jsValueOperation.resultType);
     }
   }
   const typeofStart = diagnostics.length;
@@ -218,7 +214,7 @@ function tryPlanJsValueAssignment(
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): {
   readonly handled: boolean;
-  readonly expression?: CsharpExpression;
+  readonly expression?: CsharpPlannedValue;
 } {
   if (input.program.source.ast.is.IsPropertyAccessExpression(left)) {
     const property = input.program.source.ast.as.AsPropertyAccessExpression(left);
@@ -293,18 +289,18 @@ function tryPlanJsValueAssignment(
         }
         return {
           handled: true,
-          expression: translateCsharpJsValueInvocation(
+          expression: buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, value], values => translateCsharpJsValueInvocation(
             input.scope.typeParameterNames,
             selection,
-            receiver,
+            values[0],
             [
               {
                 kind: "LiteralExpression",
                 value: jsValueProperty.member.sourceName,
               },
-              value,
+              values[1]!,
             ],
-          ),
+          ), selection.resultType),
         };
       }
     }
@@ -340,15 +336,15 @@ function tryPlanJsValueAssignment(
     }
     return {
       handled: true,
-      expression: translateCsharpJsValueInvocation(
+      expression: buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, value], values => translateCsharpJsValueInvocation(
         input.scope.typeParameterNames,
         selection,
-        receiver,
+        values[0],
         [
           { kind: "LiteralExpression", value: input.program.source.ast.text(nameNode) },
-          value,
+          values[1]!,
         ],
-      ),
+      ), selection.resultType),
     };
   }
   if (input.program.source.ast.is.IsElementAccessExpression(left)) {
@@ -390,12 +386,12 @@ function tryPlanJsValueAssignment(
     }
     return {
       handled: true,
-      expression: translateCsharpJsValueInvocation(
+      expression: buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, argument, value], values => translateCsharpJsValueInvocation(
         input.scope.typeParameterNames,
         selection,
-        receiver,
-        [argument, value],
-      ),
+        values[0],
+        [values[1]!, values[2]!],
+      ), selection.resultType),
     };
   }
   return { handled: false };

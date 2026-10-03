@@ -16,6 +16,8 @@ import type {
 import {
   requireCsharpStringRuntimeCarrier,
 } from "./expression-literal-carriers.js";
+import type { CsharpPlannedValue } from "./planned-values.js";
+import { composeCsharpPlannedValues, planCsharpExpressionCompletion } from "./planned-value-composition.js";
 
 export function planTemplateExpression(
   node: Node,
@@ -23,12 +25,13 @@ export function planTemplateExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (!requireCsharpStringRuntimeCarrier(node, sourceFile, input, diagnostics, "Template string emission")) {
     return undefined;
   }
   const expression = AsTemplateExpression(input.program.source.ast, node)!;
-  const parts: CsharpInterpolatedStringPart[] = [
+  const operands: CsharpPlannedValue[] = [];
+  const parts: (CsharpInterpolatedStringPart | number)[] = [
     { kind: "InterpolatedStringText", text: Node_Text(input.program.source.ast, expression.Head) },
   ];
   for (const spanNode of expression.TemplateSpans?.Nodes ?? []) {
@@ -40,11 +43,11 @@ export function planTemplateExpression(
     if (expression === undefined) {
       return undefined;
     }
-    parts.push({
-      kind: "Interpolation",
-      expression,
-    });
+    parts.push(operands.length);
+    operands.push(expression);
     parts.push({ kind: "InterpolatedStringText", text: Node_Text(input.program.source.ast, span.Literal) });
   }
-  return { kind: "InterpolatedStringExpression", parts };
+  return composeCsharpPlannedValues(node, sourceFile, input, diagnostics, operands, expressions =>
+    planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "InterpolatedStringExpression",
+      parts: parts.map(part => typeof part === "number" ? { kind: "Interpolation", expression: expressions[part]! } : part) }));
 }

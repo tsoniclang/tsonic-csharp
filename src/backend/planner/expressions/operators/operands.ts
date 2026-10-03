@@ -25,6 +25,8 @@ import type {
   TargetTypeRef,
 } from "../../../../target-model/types/index.js";
 import { planVoidExpression } from "../expression-void.js";
+import type { CsharpPlannedValue } from "../planned-values.js";
+import { planCsharpExpressionCompletion } from "../planned-value-composition.js";
 
 export function planBinaryOperand(
   operand: Node,
@@ -36,13 +38,14 @@ export function planBinaryOperand(
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   expectedType: CsharpTypeNode | undefined,
   expectedTargetType: TargetTypeRef,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (SourceKind(input.program.source.ast, operand) === KindVoidExpression &&
     (operatorToken.kind === "EqualsEqualsToken" || operatorToken.kind === "ExclamationEqualsToken")) {
     return planVoidExpression(operand, sourceFile, input, diagnostics, planExpression, expectedTargetType);
   }
   if (isNullishEqualityOperand(operand, operatorToken, sourceFile, input)) {
-    return { kind: "LiteralExpression", value: null };
+    return planCsharpExpressionCompletion(operand, sourceFile, input, diagnostics,
+      { kind: "LiteralExpression", value: null }, expectedTargetType);
   }
   return expectedType === undefined
     ? planExpression(operand, sourceFile, input, diagnostics)

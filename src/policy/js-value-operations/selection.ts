@@ -30,7 +30,10 @@ export type CsharpJsValueOperationSelection =
       readonly runtimeMember: string;
       readonly dispatch: "instance" | "static";
       readonly resultType: TargetTypeRef;
-      readonly lazyRight?: true;
+      readonly shortCircuit?: {
+        readonly condition: CsharpJsValueInvocation;
+        readonly whenTrue: "left" | "right";
+      };
       readonly presentOperation?: CsharpJsValueInvocation;
       readonly receiverReadOperation?: CsharpJsValueInvocation;
     };
@@ -83,9 +86,21 @@ export function validateCsharpJsValueOperationSelection(
       presentMember !== undefined && selection.dispatch !== "instance") {
     return { kind: "rejected", reason: "A closed JS operation requires its exact selected present invocation and receiver-read correspondence." };
   }
+  const shortCircuit = selection.shortCircuit;
+  if (selection.runtimeMember === "ApplyDynamicLogical" ?
+    shortCircuit === undefined || !targetTypeRefEquals(selection.resultType, csharpTsValueTargetType()) ||
+      !targetTypeRefEquals(shortCircuit.condition.resultType, csharpSourcePrimitiveTargetType("bool")) ||
+      (shortCircuit.whenTrue !== "left" && shortCircuit.whenTrue !== "right") ||
+      !(shortCircuit.condition.runtimeMember === "ToDynamicBoolean" && shortCircuit.condition.dispatch === "static" ||
+        shortCircuit.condition.runtimeMember === "isUndefined" && shortCircuit.condition.dispatch === "instance" && shortCircuit.whenTrue === "right")
+    : shortCircuit !== undefined) {
+    return { kind: "rejected", reason: "A closed logical operation requires its exact selected native condition and lazy branch relation." };
+  }
   return Object.freeze({ ...selection,
     ...(selection.presentOperation === undefined ? {} : { presentOperation: Object.freeze({ ...selection.presentOperation }) }),
     ...(selection.receiverReadOperation === undefined ? {} : { receiverReadOperation: Object.freeze({ ...selection.receiverReadOperation }) }),
+    ...(shortCircuit === undefined ? {} : { shortCircuit: Object.freeze({ ...shortCircuit,
+      condition: Object.freeze({ ...shortCircuit.condition }) }) }),
   });
 }
 
@@ -230,7 +245,14 @@ export function selectCsharpJsValueBinaryOperation(
       runtimeMember: "ApplyDynamicLogical",
       dispatch: "static",
       resultType: csharpTsValueTargetType(),
-      lazyRight: true,
+      shortCircuit: {
+        condition: {
+          runtimeMember: operator === "??" ? "isUndefined" : "ToDynamicBoolean",
+          dispatch: operator === "??" ? "instance" : "static",
+          resultType: csharpSourcePrimitiveTargetType("bool"),
+        },
+        whenTrue: operator === "||" ? "left" : "right",
+      },
     };
   }
   return eagerBinaryOperators.has(operator)

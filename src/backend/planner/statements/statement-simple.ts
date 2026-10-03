@@ -65,7 +65,10 @@ import {
   planCsharpVoidReturn,
   planCsharpAbsenceReturn,
   planCsharpDiscardedStatement,
+  consumeCsharpPlannedValue,
+  planCsharpPlannedDiscard,
 } from "./statement-output.js";
+import { planCsharpExpressionCompletion } from "../expressions/planned-value-composition.js";
 import { csharpVoidReturnCompletion } from "../../../target-model/types/index.js";
 import {
   convertCsharpYieldResumeExpression,
@@ -128,20 +131,20 @@ export function planReturnStatement(
           state,
         );
     const expression = yieldPlan !== undefined && directYield !== undefined
-      ? convertCsharpYieldResumeExpression(
+      ? planCsharpExpressionCompletion(directYield, sourceFile, input, diagnostics, convertCsharpYieldResumeExpression(
           directYield,
           yieldPlan,
           state.generator.protocol.returnType,
           sourceFile,
           input,
           diagnostics,
-        )
+        ), state.generator.protocol.returnType)
       : statement.Expression === undefined
-      ? {
+      ? planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, {
           kind: "DefaultExpression" as const,
           type: returnType,
           nullForgiving: true,
-        }
+        }, state.generator.protocol.returnType)
       : planExpressionWithExpectedType(
           statement.Expression,
           sourceFile,
@@ -157,45 +160,17 @@ export function planReturnStatement(
     }
     return [
       ...(yieldPlan?.statements ?? []),
-      expressionStatement({
+      ...consumeCsharpPlannedValue(expression, value => [expressionStatement({
         kind: "AssignmentExpression",
         left: {
           kind: "IdentifierName",
           name: state.generator.returnValueName,
         },
         operatorToken: { kind: "EqualsToken" },
-        right: expression,
+        right: value,
       }),
       { kind: "GotoStatement", label: state.generator.exitLabel },
-    ];
-  }
-  if (
-    HasSourceKind(input.program.source.ast, statement.Expression, KindVoidExpression) &&
-    state.currentReturnType !== undefined &&
-    isVoidCsharpType(state.currentReturnType)
-  ) {
-    const voidExpression = AsVoidExpression(input.program.source.ast, statement.Expression)!;
-    const discarded = planExpression(voidExpression.Expression!, sourceFile, input, diagnostics, state);
-    if (discarded === undefined) {
-      return [];
-    }
-    const discardedType = input.types.classifications.resolveNode(
-      voidExpression.Expression,
-      sourceFile,
-    );
-    if (discardedType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        voidExpression.Expression!,
-        "The explicit void operand has no closed C# target representation.",
-      ));
-      return [];
-    }
-    return [
-      expressionStatement(
-        planExplicitlyDiscardedExpression(discarded, discardedType),
-      ),
-      { kind: "ReturnStatement" },
-    ];
+    ])];
   }
   const expectedReturnExpressionType = state.currentReturnExpressionType ?? state.currentReturnType;
   const expectedReturnExpressionTypeSubject = state.currentReturnExpressionTypeSubject ?? state.currentReturnTypeSubject;
@@ -217,10 +192,9 @@ export function planReturnStatement(
   if (statement.Expression !== undefined && expression === undefined) {
     return [];
   }
-  return [{
-    kind: "ReturnStatement",
-    ...(expression !== undefined ? { expression } : {}),
-  }];
+  return expression === undefined ? [{ kind: "ReturnStatement" }]
+    : consumeCsharpPlannedValue(expression, value => [{ kind: "ReturnStatement", expression: value }],
+      () => [{ kind: "ReturnStatement" }]);
 }
 
 export function planBreakStatement(
@@ -295,14 +269,14 @@ export function planThrowStatement(
   if (thrown.targetCarrier === undefined) {
     if (isCsharpJsThrowableValueCarrier(carrier)) {
       const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
-      const boxed = expression === undefined
-        ? undefined
-        : planCsharpJsValueBox(
+      if (expression === undefined) return [];
+      return consumeCsharpPlannedValue(expression, value => {
+        const boxed = planCsharpJsValueBox(
             statement.Expression,
             input,
             diagnostics,
             carrier,
-            expression,
+            value,
           );
       const wrapped = boxed === undefined ? undefined : csharpThrownValueFromExpression(boxed);
       if (wrapped === undefined) {
@@ -313,6 +287,7 @@ export function planThrowStatement(
         kind: "ThrowStatement",
         expression: wrapped,
       }];
+      });
     }
     const detail = carrier === undefined
       ? missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the thrown expression.")
@@ -326,10 +301,7 @@ export function planThrowStatement(
   if (expression === undefined) {
     return [];
   }
-  return [{
-    kind: "ThrowStatement",
-    expression,
-  }];
+  return consumeCsharpPlannedValue(expression, value => [{ kind: "ThrowStatement", expression: value }]);
 }
 
 export function planDebuggerStatement(): readonly CsharpStatement[] {
@@ -409,37 +381,15 @@ export function planExpressionStatement(
       state.expressionOverrides.delete(rightYield);
       return planned === undefined
         ? []
-        : [...yieldPlan.statements, expressionStatement(planDiscardedExpression(
-          planned, input.types.classifications.resolveNode(expression, sourceFile),
-        ))];
+        : [...yieldPlan.statements, ...planCsharpPlannedDiscard(planned)];
     }
   }
   const assignmentExpression = destructuringAssignmentExpressionStatementExpression(expression, input.program.source.ast);
   if (isDestructuringAssignmentExpression(assignmentExpression, input)) {
     return planDestructuringAssignmentStatement(assignmentExpression, sourceFile, input, diagnostics, state ?? createDestructuringPlannerState(assignmentExpression, input.program.source.ast), planExpression, planExpressionWithExpectedType) ?? [];
   }
-  if (HasSourceKind(input.program.source.ast, expression, KindVoidExpression)) {
-    const voidExpression = AsVoidExpression(input.program.source.ast, expression!)!;
-    const planned = planExpression(voidExpression.Expression!, sourceFile, input, diagnostics, state);
-    const discardedType = input.types.classifications.resolveNode(
-      voidExpression.Expression,
-      sourceFile,
-    );
-    if (planned === undefined || discardedType === undefined) {
-      if (planned !== undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(
-          voidExpression.Expression!,
-          "The explicit void operand has no closed C# target representation.",
-        ));
-      }
-      return [];
-    }
-    return [planCsharpDiscardedStatement(planned, discardedType, true)];
-  }
   const planned = planExpression(expression!, sourceFile, input, diagnostics, state);
-  return planned === undefined ? [] : [planCsharpDiscardedStatement(
-    planned, input.types.classifications.resolveNode(expression, sourceFile),
-  )];
+  return planned === undefined ? [] : planCsharpPlannedDiscard(planned);
 }
 
 function destructuringAssignmentExpressionStatementExpression(

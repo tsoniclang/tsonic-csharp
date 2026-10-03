@@ -24,6 +24,7 @@ import type {
   ExpectedExpressionPlanner,
   ExpressionPlanner,
 } from "./expression-planner-types.js";
+import type { CsharpPlannedArgument, CsharpPlannedValue } from "./planned-values.js";
 
 export function planCallArgumentCore(
   node: Node,
@@ -38,7 +39,7 @@ export function planCallArgumentCore(
   expectedArgumentPassingMode: CsharpTargetParameter["passingMode"] = "by-value",
   state?: DestructuringPlannerState,
   selectedTargetParameter?: CsharpTargetParameter,
-): CsharpArgument | undefined {
+): CsharpPlannedArgument | undefined {
   const selected = input.program.sourceEvidence.argument(node);
   if (selected === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -105,8 +106,7 @@ export function planCallArgumentCore(
     return undefined;
   }
   return {
-    kind: "Argument",
-    expression,
+    ...expression,
     ...(passing !== undefined ? { passing } : {}),
   };
 }
@@ -122,7 +122,7 @@ function planCallArgumentExpression(
   expectedTypeSubject?: Node,
   conversionExpectedTargetType?: TargetTypeRef,
   state?: DestructuringPlannerState,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (expectedType !== undefined) {
     return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state);
   }

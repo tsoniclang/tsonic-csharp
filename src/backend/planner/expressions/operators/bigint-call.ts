@@ -7,6 +7,8 @@ import type { ExpressionPlanner } from "../expression-planner-types.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { callStatic } from "../csharp-expression-builders.js";
 import { planCsharpAssignmentLocation } from "./assignment-location.js";
+import { csharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";
+import { buildCsharpPlannedValue } from "../planned-value-composition.js";
 
 export function planCsharpBigIntCall(
   node: Node,
@@ -16,7 +18,7 @@ export function planCsharpBigIntCall(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   state: DestructuringPlannerState | undefined,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const operation = selection.targetOperation;
   if (operation.kind !== "bigint-call") return undefined;
   let storage = selection.left;
@@ -28,13 +30,13 @@ export function planCsharpBigIntCall(
   const left = planExpression(storage, sourceFile, operation.assignment ? { ...input, storageExpression: storage } : input, diagnostics);
   const right = planExpression(selection.right, sourceFile, input, diagnostics);
   if (left === undefined || right === undefined) return undefined;
-  const calculate = (value: CsharpExpression): CsharpExpression => callStatic(
-    { kind: "IdentifierName", requiredUsingNamespace: "Tsonic.CSharp.Runtime", name: "BigIntOperators" }, operation.method, [value, right]);
-  if (!operation.assignment) return calculate(left);
-  const assign = (location: CsharpExpression): CsharpExpression => ({
-    kind: "AssignmentExpression", left: location, operatorToken: { kind: "EqualsToken" }, right: calculate(location),
-  });
-  return planCsharpAssignmentLocation(node, operation.location, left,
-    { kind: "IdentifierName", requiredUsingNamespace: "System.Numerics", name: "BigInteger" },
-    diagnostics, state, assign);
+  const calculate = (values: readonly CsharpExpression[]): CsharpExpression => callStatic(
+    { kind: "IdentifierName", requiredUsingNamespace: "Tsonic.CSharp.Runtime", name: "BigIntOperators" }, operation.method, values);
+  if (!operation.assignment) return buildCsharpPlannedValue(node, sourceFile, input, diagnostics,
+    [left, right], calculate, selection.resultType);
+  return planCsharpAssignmentLocation(node, operation.location, left, diagnostics, state, location =>
+    buildCsharpPlannedValue(node, sourceFile, input, diagnostics,
+      [csharpPlannedValue(selection.leftType, location), right], values => ({
+        kind: "AssignmentExpression", left: location, operatorToken: { kind: "EqualsToken" }, right: calculate(values),
+      }), selection.resultType));
 }

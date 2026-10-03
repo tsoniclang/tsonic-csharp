@@ -9,6 +9,27 @@ import {
 import { planCsharpAbsentValue } from "../expressions/optional-storage.js";
 import { planCsharpNeverValue } from "../expressions/never-values.js";
 import { qualifiedCsharpType } from "../types/index.js";
+import type { CsharpPlannedValue } from "../expressions/planned-values.js";
+import { csharpPlannedExpressionIsStable } from "../expressions/planned-values.js";
+
+export function consumeCsharpPlannedValue(
+  planned: CsharpPlannedValue,
+  value: (expression: CsharpExpression) => readonly CsharpStatement[],
+  voidCompletion: () => readonly CsharpStatement[] = () => [],
+): readonly CsharpStatement[] {
+  return [...planned.prelude, ...(
+    planned.completion.kind === "value" ? value(planned.completion.expression)
+      : planned.completion.kind === "void" ? voidCompletion() : []
+  )];
+}
+
+export function planCsharpPlannedDiscard(
+  planned: CsharpPlannedValue, explicit = false,
+): readonly CsharpStatement[] {
+  return consumeCsharpPlannedValue(planned, expression => csharpPlannedExpressionIsStable(expression) ? [] : [
+    planCsharpDiscardedStatement(expression, planned.completion.carrier, explicit),
+  ]);
+}
 
 export function expressionStatement(expression: CsharpExpression): CsharpStatement {
   return {
@@ -39,13 +60,13 @@ export function planCsharpAbsenceReturn(
 }
 
 export function planCsharpVoidReturn(
-  expression: CsharpExpression, completion: "void" | "absence",
+  planned: CsharpPlannedValue, completion: "void" | "absence",
   carrier?: TargetTypeRef, typeParameterNames?: ReadonlyMap<string, string>,
 ): readonly CsharpStatement[] {
-  return [
-    expressionStatement(expression),
+  return [...planCsharpPlannedDiscard(planned), ...(
+    planned.completion.kind === "never" ? [] : [
     completion === "absence" ? planCsharpAbsenceReturn(carrier, typeParameterNames) : { kind: "ReturnStatement" },
-  ];
+  ] as readonly CsharpStatement[])];
 }
 
 export function isVoidCsharpType(type: CsharpTypeNode): boolean {

@@ -44,6 +44,7 @@ import {
 import {
   planJsArrayLiteralExpression,
 } from "./js-array.js";
+import type { CsharpPlannedValue } from "../planned-values.js";
 
 export type {
   ArrayLiteralPlanner,
@@ -61,7 +62,7 @@ export function planArrayLiteralExpressionFromFacts(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planner: ArrayLiteralPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const carrierResolution = resolveRuntimeCarrierForExpression(input, node, sourceFile);
   const carrier = probeCarrierFromResolution(carrierResolution) ??
     input.types.classifications.resolveNode(node, sourceFile);
@@ -76,7 +77,7 @@ export function planArrayLiteralExpressionWithCarrier(
   carrier: TargetTypeRef | undefined,
   planner: ArrayLiteralPlanner,
   carrierResolution?: ReturnType<typeof resolveRuntimeCarrierForExpression>,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const constructionCarrier = getCsharpNullableElementTargetType(carrier) ??
     carrier;
   if (

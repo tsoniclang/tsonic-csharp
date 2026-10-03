@@ -27,6 +27,8 @@ import {
 } from "./js-value-operations.js";
 import { planCsharpExactLiteralConversion } from "./literal-conversions.js";
 import { csharpNumericLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
+import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
+import { planCsharpExpressionCompletion, projectCsharpPlannedValue } from "./planned-value-composition.js";
 
 export function planPrefixUnaryExpression(
   node: Node,
@@ -34,7 +36,7 @@ export function planPrefixUnaryExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const operandNode = input.program.source.ast.as.AsPrefixUnaryExpression(node)?.Operand;
   const sourceOperator = sourceOperatorFromKindName(
     input.program.source.ast.operatorKindName(node),
@@ -70,15 +72,15 @@ export function planPrefixUnaryExpression(
         : planExpression(operandNode, sourceFile, input, diagnostics);
       return operand === undefined
         ? undefined
-        : translateCsharpJsValueInvocation(
+        : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, operand, value => translateCsharpJsValueInvocation(
             input.scope.typeParameterNames,
             jsValueOperation,
             undefined,
             [
-              operand,
+              value,
               { kind: "LiteralExpression", value: sourceOperator },
             ],
-          );
+          ));
     }
   }
   const classification = input.program.operations.unary(node);
@@ -96,7 +98,7 @@ export function planPrefixUnaryExpression(
   }
   if (Object.is(csharpNumericLiteralValue(input.program.source.ast, node), -0)) {
     const literal = planCsharpExactLiteralConversion(input, node, selection.resultType);
-    if (literal.kind === "resolved") return literal.expression;
+    if (literal.kind === "resolved") return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, literal.expression, selection.resultType);
     if (literal.kind === "rejected") {
       diagnostics.push(unsupportedNodeDiagnostic(node, literal.reason));
       return undefined;
@@ -120,11 +122,11 @@ export function planPrefixUnaryExpression(
   );
   return operand === undefined
     ? undefined
-    : {
+    : mapCsharpPlannedValue(operand, selection.resultType, value => ({
         kind: "PrefixUnaryExpression",
         operatorToken,
-        operand,
-      };
+        operand: value,
+      }));
 }
 
 export function planPostfixUnaryExpression(
@@ -133,7 +135,7 @@ export function planPostfixUnaryExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const operandNode = input.program.source.ast.as.AsPostfixUnaryExpression(node)?.Operand;
   const sourceOperator = sourceOperatorFromKindName(
     input.program.source.ast.operatorKindName(node),
@@ -169,15 +171,15 @@ export function planPostfixUnaryExpression(
         : planExpression(operandNode, sourceFile, input, diagnostics);
       return operand === undefined
         ? undefined
-        : translateCsharpJsValueInvocation(
+        : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, operand, value => translateCsharpJsValueInvocation(
             input.scope.typeParameterNames,
             jsValueOperation,
             undefined,
             [
-              operand,
+              value,
               { kind: "LiteralExpression", value: sourceOperator },
             ],
-          );
+          ));
     }
   }
   const classification = input.program.operations.unary(node);
@@ -211,11 +213,11 @@ export function planPostfixUnaryExpression(
   );
   return operand === undefined
     ? undefined
-    : {
+    : mapCsharpPlannedValue(operand, selection.resultType, value => ({
         kind: "PostfixUnaryExpression",
-        operand,
+        operand: value,
         operatorToken,
-      };
+      }));
 }
 
 function rejectUnloweredJsValueObjectShapeUpdate(

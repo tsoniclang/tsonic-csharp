@@ -9,6 +9,7 @@ import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import type { ExpectedExpressionPlanner, ExpressionPlanner } from "../expression-planner-types.js";
 import { planSelectedCsharpBinaryOperation } from "./selected-binary.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
+import type { CsharpPlannedValue } from "../planned-values.js";
 
 export function tryPlanBinaryExpressionWithExpectedType(
   node: Node,
@@ -19,7 +20,7 @@ export function tryPlanBinaryExpressionWithExpectedType(
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   state?: DestructuringPlannerState,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (!input.program.source.ast.is.IsBinaryExpression(node)) return undefined;
   const baseline = input.program.operations.binary(node)?.target;
   if (expectedTargetType === undefined || baseline?.kind === "resolved" &&

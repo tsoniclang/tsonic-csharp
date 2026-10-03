@@ -73,6 +73,8 @@ import {
 } from "./expression-this.js";
 import { selectCsharpAwaitCompletion } from "../../../target-model/types/await-completions.js";
 import { planCsharpAwaitCompletion } from "./await-completions.js";
+import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
+import { planCsharpExpressionCompletion, planCsharpValueBranch } from "./planned-value-composition.js";
 
 export function tryPlanSourceSyntaxExpression(
   node: Node,
@@ -80,26 +82,27 @@ export function tryPlanSourceSyntaxExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
+  const value = (expression: CsharpExpression | undefined) => planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression);
   switch (SourceKind(input.program.source.ast, node)) {
     case KindStringLiteral:
-      return { kind: "LiteralExpression", value: Node_Text(input.program.source.ast, AsStringLiteral(input.program.source.ast, node)) };
+      return value({ kind: "LiteralExpression", value: Node_Text(input.program.source.ast, AsStringLiteral(input.program.source.ast, node)) });
     case KindNoSubstitutionTemplateLiteral:
       if (!requireCsharpStringRuntimeCarrier(node, sourceFile, input, diagnostics, "No-substitution template literal emission")) {
         return undefined;
       }
-      return { kind: "LiteralExpression", value: Node_Text(input.program.source.ast, AsNoSubstitutionTemplateLiteral(input.program.source.ast, node)) };
+      return value({ kind: "LiteralExpression", value: Node_Text(input.program.source.ast, AsNoSubstitutionTemplateLiteral(input.program.source.ast, node)) });
     case KindNumericLiteral: {
-      const value = parseFiniteNumberLiteral(Node_Text(input.program.source.ast, AsNumericLiteral(input.program.source.ast, node)));
-      if (value === undefined) {
+      const literal = parseFiniteNumberLiteral(Node_Text(input.program.source.ast, AsNumericLiteral(input.program.source.ast, node)));
+      if (literal === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "Numeric literal emission requires parseable finite source literal text from TSTS."));
         return undefined;
       }
-      return { kind: "LiteralExpression", value };
+      return value({ kind: "LiteralExpression", value: literal });
     }
     case KindBigIntLiteral: {
-      const value = parseBigIntLiteral(Node_Text(input.program.source.ast, AsBigIntLiteral(input.program.source.ast, node)));
-      if (value === undefined) {
+      const literal = parseBigIntLiteral(Node_Text(input.program.source.ast, AsBigIntLiteral(input.program.source.ast, node)));
+      if (literal === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "BigInt literal emission requires parseable source literal text from TSTS."));
         return undefined;
       }
@@ -119,7 +122,7 @@ export function tryPlanSourceSyntaxExpression(
         diagnostics.push(unsupportedNodeDiagnostic(node, "BigInt literal emission requires a renderable System.Numerics.BigInteger target type."));
         return undefined;
       }
-      return {
+      return value({
         kind: "InvocationExpression",
         callee: {
           kind: "SimpleMemberAccessExpression",
@@ -128,20 +131,20 @@ export function tryPlanSourceSyntaxExpression(
         },
         arguments: [{
           kind: "Argument",
-          expression: { kind: "LiteralExpression", value: value.toString(10) },
+          expression: { kind: "LiteralExpression", value: literal.toString(10) },
         }],
-      };
+      });
     }
     case KindTrueKeyword:
-      return { kind: "LiteralExpression", value: true };
+      return value({ kind: "LiteralExpression", value: true });
     case KindFalseKeyword:
-      return { kind: "LiteralExpression", value: false };
+      return value({ kind: "LiteralExpression", value: false });
     case KindNullKeyword:
-      return { kind: "LiteralExpression", value: null };
+      return value({ kind: "LiteralExpression", value: null });
     case KindThisKeyword:
-      return planThisExpression(node, sourceFile, input, diagnostics);
+      return value(planThisExpression(node, sourceFile, input, diagnostics));
     case KindSuperKeyword:
-      return { kind: "IdentifierName", name: "base" };
+      return value({ kind: "IdentifierName", name: "base" });
     case KindAsExpression: {
       const assertion = AsAsExpression(input.program.source.ast, node)!;
       return planAssertionExpression(
@@ -186,10 +189,7 @@ export function tryPlanSourceSyntaxExpression(
       if (inner === undefined) {
         return undefined;
       }
-      return {
-        kind: "ParenthesizedExpression",
-        expression: inner,
-      };
+      return mapCsharpPlannedValue(inner, inner.completion.carrier, expression => ({ kind: "ParenthesizedExpression", expression }));
     }
     case KindAwaitExpression: {
       const expression = AsAwaitExpression(input.program.source.ast, node)!;
@@ -220,14 +220,7 @@ export function tryPlanSourceSyntaxExpression(
       if (awaited === undefined) {
         return undefined;
       }
-      let use = node;
-      let parent = input.program.source.ast.parent(use);
-      while (parent !== undefined && input.program.source.ast.is.IsParenthesizedExpression(parent)) {
-        use = parent;
-        parent = input.program.source.ast.parent(use);
-      }
-      return planCsharpAwaitCompletion(node, awaitedCarrier, completion, awaited, input, diagnostics,
-        parent !== undefined && input.program.source.ast.is.IsExpressionStatement(parent));
+      return planCsharpAwaitCompletion(node, awaitedCarrier, completion, awaited, input, diagnostics);
     }
     case KindConditionalExpression: {
       const expression = AsConditionalExpression(input.program.source.ast, node)!;
@@ -248,12 +241,7 @@ export function tryPlanSourceSyntaxExpression(
       if (condition === undefined || whenTrue === undefined || whenFalse === undefined) {
         return undefined;
       }
-      return {
-        kind: "ConditionalExpression",
-        condition,
-        whenTrue,
-        whenFalse,
-      };
+      return planCsharpValueBranch(node, sourceFile, input, diagnostics, condition, whenTrue, whenFalse);
     }
     default:
       return undefined;
@@ -268,7 +256,7 @@ function planAssertionExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   if (expressionNode === undefined || targetTypeNode === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -299,7 +287,7 @@ function planAssertionExpression(
       targetType,
     );
     if (literal.kind === "resolved") {
-      return literal.expression;
+      return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, literal.expression, targetType);
     }
     diagnostics.push(unsupportedNodeDiagnostic(
       expressionNode,
@@ -309,14 +297,7 @@ function planAssertionExpression(
     ));
     return undefined;
   }
-  return applyCsharpConversionSelection(
-    expressionNode,
-    sourceFile,
-    input,
-    diagnostics,
-    sourceType,
-    targetType,
-    selection,
-    planExpression(expressionNode, sourceFile, input, diagnostics),
-  );
+  if (targetType === undefined) return undefined;
+  return mapCsharpPlannedValue(planExpression(expressionNode, sourceFile, input, diagnostics), targetType, expression =>
+    applyCsharpConversionSelection(expressionNode, sourceFile, input, diagnostics, sourceType, targetType, selection, expression));
 }

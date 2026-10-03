@@ -10,6 +10,7 @@ import type {
   CsharpExpression,
   CsharpTypeNode,
 } from "../../../target-ast/roslyn/index.js";
+import type { CsharpPlannedValue } from "../planned-values.js";
 
 export interface ArrayLiteralPlanner {
   readonly planExpression: (
@@ -17,7 +18,7 @@ export interface ArrayLiteralPlanner {
     sourceFile: SourceFile,
     input: CsharpPlanningContext,
     diagnostics: TargetDiagnostic[],
-  ) => CsharpExpression | undefined;
+  ) => CsharpPlannedValue | undefined;
   readonly planExpressionWithExpectedType: (
     node: Node,
     sourceFile: SourceFile,
@@ -26,5 +27,5 @@ export interface ArrayLiteralPlanner {
     expectedType: CsharpTypeNode,
     expectedTypeSubject?: Node,
     expectedTargetType?: TargetTypeRef,
-  ) => CsharpExpression | undefined;
+  ) => CsharpPlannedValue | undefined;
 }
