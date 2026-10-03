@@ -10,7 +10,7 @@ import { targetTypeRefEquals } from "../../../../target-model/types/equality.js"
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import { getCsharpCollectionElementTargetType, getCsharpIndexableLengthMemberName } from "../../../../target-model/types/collections.js";
-import { csharpConversionIsApplicable } from "../../../../policy/conversions/index.js";
+import { csharpConversionIsApplicable, type CsharpConversionSelection } from "../../../../policy/conversions/index.js";
 import { planCsharpPresentValueGuard } from "../optional-storage.js";
 import type { CsharpArraySpreadInput } from "./spread-source.js";
 
@@ -25,7 +25,12 @@ export function planCsharpBorrowedSequenceConsumption(
   empty: () => readonly CsharpStatement[] | undefined,
 ): readonly CsharpStatement[] | undefined {
   const choice = sourceSequenceInputChoice(input.program.source.ast, fact.expression);
+  const spread = input.program.source.ast.parent(fact.expression);
+  const array = spread === undefined ? undefined : input.program.source.ast.parent(spread);
+  const destination = array === undefined ? undefined : input.types.classifications.resolveNode(array, sourceFile);
+  const elementTarget = getCsharpCollectionElementTargetType(destination);
   if (choice === undefined || choice.inputs.length !== fact.inputs.length ||
+    elementTarget === undefined || !targetTypeRefEquals(elementTarget, fact.elementTarget) ||
     choice.inputs.some((expression, index) => expression !== fact.inputs[index]?.expression) ||
     choice.controlNodes.length !== fact.controlNodes.length ||
     choice.controlNodes.some((expression, index) => expression !== fact.controlNodes[index])) {
@@ -47,14 +52,17 @@ export function planCsharpBorrowedSequenceConsumption(
       selected.optional !== (present !== undefined) ||
       selected.lengthMember !== getCsharpIndexableLengthMemberName(selected.presentCarrier) ||
       carriers === undefined || carriers.length !== selected.elements.length ||
-      carriers.some((carrier, elementIndex) => !targetTypeRefEquals(carrier, selected.elements[elementIndex]!.carrier)) ||
-      selected.elements.some(element => !csharpConversionIsApplicable(element.conversion, "implicit"))) {
+      carriers.some((carrier, elementIndex) => !targetTypeRefEquals(carrier, selected.elements[elementIndex]!))) {
       return reject("Borrowed sequence selection lost its exact native storage, presence or element conversion.");
     }
     const value = planValue(selected.expression);
     const type = csharpTypeFromTargetTypeRef(selected.presentCarrier, input.scope.typeParameterNames);
-    const elements = selected.elements.map(element => ({ ...element,
-      type: csharpTypeFromTargetTypeRef(element.carrier, input.scope.typeParameterNames) }));
+    const elements = selected.elements.map(carrier => ({ carrier,
+      conversion: input.program.conversions.select(carrier, fact.elementTarget, "implicit"),
+      type: csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames) }));
+    if (elements.some(element => element.conversion === undefined || !csharpConversionIsApplicable(element.conversion, "implicit"))) {
+      return reject("Borrowed sequence elements require their sealed exact source/destination conversion pairs.");
+    }
     if (value === undefined || type === undefined || elements.some(element => element.type === undefined)) return undefined;
     const name = input.names.temporaryName(`__tsonic_sequence_${input.program.source.ast.pos(selected.expression)}`);
     const receiver: CsharpExpression = { kind: "IdentifierName", name };
@@ -63,7 +71,7 @@ export function planCsharpBorrowedSequenceConsumption(
     if (selected.optional && guard === undefined) return reject("Borrowed sequence must use the finalized native optional storage projection.");
     const consumed = consume({ carrier: selected.presentCarrier, type, expression: guard?.value ?? receiver,
       elements: elements as readonly { readonly carrier: typeof selected.carrier; readonly type: CsharpTypeNode;
-        readonly conversion: typeof selected.elements[number]["conversion"] }[], lengthMember: selected.lengthMember });
+        readonly conversion: CsharpConversionSelection }[], lengthMember: selected.lengthMember });
     if (consumed === undefined) return undefined;
     if (!selected.optional) return [...value.prelude,
       { kind: "LocalDeclarationStatement", name, type, initializer: value.value }, ...consumed];

@@ -5,17 +5,16 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpCollectionElementTargetType, getCsharpIndexableLengthMemberName } from "../../target-model/types/collections.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
-import type { CsharpConversionSelection } from "../../policy/conversions/index.js";
-import { csharpConversionIsApplicable, selectCsharpConversion } from "../../policy/conversions/index.js";
 
 export interface CsharpBorrowedSequenceInput {
   readonly expression: Node;
+  readonly elementTarget: TargetTypeRef;
   readonly controlNodes: readonly Node[];
   readonly inputs: readonly (
     | { readonly kind: "empty"; readonly expression: Node }
     | { readonly kind: "sequence"; readonly expression: Node; readonly carrier: TargetTypeRef;
         readonly presentCarrier: TargetTypeRef; readonly optional: boolean; readonly lengthMember: string | undefined;
-        readonly elements: readonly { readonly carrier: TargetTypeRef; readonly conversion: CsharpConversionSelection }[] }
+        readonly elements: readonly TargetTypeRef[] }
   )[];
 }
 
@@ -44,14 +43,8 @@ export function classifyCsharpBorrowedSequenceInput(
     const element = getCsharpCollectionElementTargetType(presentCarrier);
     const carriers = presentCarrier.kind === "tuple" ? presentCarrier.elements : element === undefined ? undefined : [element];
     if (carriers === undefined) return undefined;
-    const elements: { readonly carrier: TargetTypeRef; readonly conversion: CsharpConversionSelection }[] = [];
-    for (const selected of carriers) {
-      const conversion = selectCsharpConversion(policy, selected, elementTarget, "implicit");
-      if (conversion === undefined || !csharpConversionIsApplicable(conversion, "implicit")) return undefined;
-      elements.push(Object.freeze({ carrier: selected, conversion }));
-    }
     inputs.push(Object.freeze({ kind: "sequence", expression: node, carrier, presentCarrier,
-      optional: optional !== undefined, lengthMember: getCsharpIndexableLengthMemberName(presentCarrier), elements: Object.freeze(elements) }));
+      optional: optional !== undefined, lengthMember: getCsharpIndexableLengthMemberName(presentCarrier), elements: Object.freeze([...carriers]) }));
   }
-  return Object.freeze({ expression, controlNodes: choice.controlNodes, inputs: Object.freeze(inputs) });
+  return Object.freeze({ expression, elementTarget, controlNodes: choice.controlNodes, inputs: Object.freeze(inputs) });
 }
