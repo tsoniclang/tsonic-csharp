@@ -1,6 +1,7 @@
 import type {
   Node,
 } from "@tsonic/tsts";
+import { sourceIntegerConstantValue } from "@tsonic/target-api/source";
 import type {
   CsharpExpression,
 } from "../../target-ast/roslyn/index.js";
@@ -34,6 +35,13 @@ export function planCsharpExactLiteralConversion(
   const targetType = getCsharpNullableElementTargetType(target) ?? target;
   if (targetType.kind !== "source-primitive") {
     return classifiedLiteralRepresentation(input, node, target);
+  }
+  if (input.program.source.ast.kindName(node) === "KindBinaryExpression" ||
+    input.program.source.ast.kindName(node) === "KindParenthesizedExpression") {
+    const value = sourceIntegerConstantValue(input.program.source.ast, node);
+    if (value !== undefined && csharpBigIntFitsSourcePrimitive(value, targetType.name)) {
+      return { kind: "source-representation" };
+    }
   }
   if (Object.is(csharpNumericLiteralValue(input.program.source.ast, node), -0)) {
     if (targetType.name === "float64" || targetType.name === "float32" || targetType.name === "float16") {

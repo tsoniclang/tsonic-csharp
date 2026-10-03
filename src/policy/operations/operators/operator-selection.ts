@@ -232,7 +232,10 @@ export function selectCsharpBinaryOperands(
     if (rightCandidates?.length === 1) rightType = rightCandidates[0]!;
     if (leftCandidates?.length === 1) leftType = leftCandidates[0]!;
   }
-  if (targetTypeRefEquals(leftType, csharpBigIntegerTargetType()) &&
+  const numericPromotion = selectCsharpNumericBinaryPromotion(
+    input, left, leftType, right, rightType, expectedResultType,
+  ) ?? selectCsharpGuardedIntegerPromotion(input, left, right, leftType, rightType);
+  if (numericPromotion === undefined && targetTypeRefEquals(leftType, csharpBigIntegerTargetType()) &&
     targetTypeRefEquals(rightType, csharpBigIntegerTargetType())) {
     const method = bigintRuntimeMethods[sourceOperator];
     if (method !== undefined) {
@@ -290,14 +293,6 @@ export function selectCsharpBinaryOperands(
       `Source operator '${sourceOperator}' requires a dedicated C# translation policy.`,
     );
   }
-  const numericPromotion = selectCsharpNumericBinaryPromotion(
-    input,
-    left,
-    leftType,
-    right,
-    rightType,
-    expectedResultType,
-  ) ?? selectCsharpGuardedIntegerPromotion(input, left, right, leftType, rightType);
   const numericPromotionRequired = operatorRequiresNumericPromotion(
     sourceOperator,
     leftType,

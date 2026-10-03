@@ -1,6 +1,7 @@
 import type {
   Node,
 } from "@tsonic/tsts";
+import { sourceIntegerConstantValue } from "@tsonic/target-api/source";
 import {
   csharpBigIntFitsSourcePrimitive,
   csharpBigIntLiteralValue,
@@ -43,6 +44,10 @@ export function csharpLiteralIsRepresentableAs(
   }
   if (target.kind !== "source-primitive") {
     return false;
+  }
+  if (input.ast.kindName(node) === "KindBinaryExpression" || input.ast.kindName(node) === "KindParenthesizedExpression") {
+    const value = sourceIntegerConstantValue(input.ast, node);
+    if (value !== undefined && csharpBigIntFitsSourcePrimitive(value, target.name)) return true;
   }
   switch (target.name) {
     case "bool":

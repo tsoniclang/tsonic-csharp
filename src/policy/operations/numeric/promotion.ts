@@ -34,6 +34,10 @@ export function selectCsharpNumericBinaryPromotion(
   rightType: TargetTypeRef,
   expectedResultType?: TargetTypeRef,
 ): CsharpNumericBinaryPromotion | undefined {
+  const expectedPromotion = expectedNumericPromotion(
+    input, leftNode, leftType, rightNode, rightType, expectedResultType,
+  );
+  if (expectedPromotion !== undefined) return expectedPromotion;
   const selectedLeft = isNumericPrimitive(leftType) ? leftType
     : isNumericPrimitive(rightType) && csharpLiteralIsRepresentableAs(input, leftNode, rightType)
       ? rightType : undefined;
@@ -42,17 +46,6 @@ export function selectCsharpNumericBinaryPromotion(
       ? leftType : undefined;
   if (selectedLeft === undefined || selectedRight === undefined) {
     return undefined;
-  }
-  const expectedPromotion = expectedNumericPromotion(
-    input,
-    leftNode,
-    selectedLeft,
-    rightNode,
-    selectedRight,
-    expectedResultType,
-  );
-  if (expectedPromotion !== undefined) {
-    return expectedPromotion;
   }
   const adaptedRight = literalAdaptation(
     input,
@@ -91,36 +84,35 @@ export function selectCsharpNumericCarrierPromotion(
 function expectedNumericPromotion(
   input: Pick<CsharpPolicyContext, "ast">,
   leftNode: Node,
-  leftType: SourcePrimitiveTargetType,
+  leftType: TargetTypeRef,
   rightNode: Node,
-  rightType: SourcePrimitiveTargetType,
+  rightType: TargetTypeRef,
   expectedResultType: TargetTypeRef | undefined,
 ): CsharpNumericBinaryPromotion | undefined {
   if (
     !isNumericPrimitive(expectedResultType) ||
-    promotedPrimitiveKind(
-      expectedResultType.name,
-      expectedResultType.name,
-    ) !== expectedResultType.name ||
     !operandCanUseExpectedType(input, leftNode, leftType, expectedResultType) ||
     !operandCanUseExpectedType(input, rightNode, rightType, expectedResultType)
   ) {
     return undefined;
   }
+  const promoted = promotedPrimitiveKind(expectedResultType.name, expectedResultType.name);
+  if (promoted === undefined) return undefined;
+  const resultType = csharpSourcePrimitiveTargetType(promoted);
   return {
-    leftType: expectedResultType,
-    rightType: expectedResultType,
-    resultType: expectedResultType,
+    leftType: resultType,
+    rightType: resultType,
+    resultType,
   };
 }
 
 function operandCanUseExpectedType(
   input: Pick<CsharpPolicyContext, "ast">,
   node: Node,
-  source: SourcePrimitiveTargetType,
+  source: TargetTypeRef,
   expected: SourcePrimitiveTargetType,
 ): boolean {
-  return source.name === expected.name ||
+  return source.kind === "source-primitive" && source.name === expected.name ||
     csharpLiteralIsRepresentableAs(input, node, expected);
 }
 

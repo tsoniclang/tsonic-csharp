@@ -42,41 +42,17 @@ export function csharpNumericLiteralFitsSourcePrimitive(
   node: Node,
   primitive: SourcePrimitiveKind,
 ): boolean {
-  if (primitive === "native-int" || primitive === "native-uint") {
-    const integer = csharpBigIntLiteralValue(ast, node);
-    return integer !== undefined && csharpBigIntFitsSourcePrimitive(integer, primitive);
-  }
-  const value = csharpNumericLiteralValue(ast, node);
-  if (value === undefined) {
-    return false;
-  }
   if (
     primitive === "float16" ||
     primitive === "float32" ||
     primitive === "float64" ||
     primitive === "decimal"
   ) {
-    return Number.isFinite(value);
+    const value = csharpNumericLiteralValue(ast, node);
+    return value !== undefined && Number.isFinite(value);
   }
-  if (!Number.isInteger(value)) {
-    return false;
-  }
-  switch (primitive) {
-    case "int8":
-      return value >= -128 && value <= 127;
-    case "uint8":
-      return value >= 0 && value <= 255;
-    case "int16":
-      return value >= -32768 && value <= 32767;
-    case "uint16":
-      return value >= 0 && value <= 65535;
-    case "int32":
-      return value >= -2147483648 && value <= 2147483647;
-    case "uint32":
-      return value >= 0 && value <= 4294967295;
-    default:
-      return false;
-  }
+  const integer = csharpBigIntLiteralValue(ast, node);
+  return integer !== undefined && csharpBigIntFitsSourcePrimitive(integer, primitive);
 }
 
 export const csharpBigIntLiteralValue = sourceIntegerLiteralValue;
@@ -86,6 +62,18 @@ export function csharpBigIntFitsSourcePrimitive(
   primitive: SourcePrimitiveKind,
 ): boolean {
   switch (primitive) {
+    case "int8":
+      return value >= -128n && value <= 127n;
+    case "uint8":
+      return value >= 0n && value <= 255n;
+    case "int16":
+      return value >= -32768n && value <= 32767n;
+    case "uint16":
+      return value >= 0n && value <= 65535n;
+    case "int32":
+      return value >= -2147483648n && value <= 2147483647n;
+    case "uint32":
+      return value >= 0n && value <= 4294967295n;
     case "int64":
     case "native-int":
       return value >= -(1n << 63n) && value <= (1n << 63n) - 1n;

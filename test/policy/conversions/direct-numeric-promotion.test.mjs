@@ -124,6 +124,20 @@ test("C# native integer operands retain exact bigint literal bounds", () => {
   }
 });
 
+test("C# exact arithmetic contexts select native carriers before broad bigint classification", () => {
+  const literal = text => ({ kind: "bigint", kindName: "KindBigIntLiteral", text });
+  for (const name of ["int64", "uint64", "native-int", "native-uint"]) {
+    assert.deepEqual(selectCsharpNumericBinaryPromotion(input, literal("64n"), csharpBigIntegerTargetType(),
+      literal("1024n"), csharpBigIntegerTargetType(), primitive(name)), promoted(name));
+  }
+  assert.deepEqual(selectCsharpNumericBinaryPromotion(input, numericLiteral("7"), primitive("float64"),
+    numericLiteral("2"), primitive("float64"), primitive("uint8")), promoted("int32"));
+  assert.equal(selectCsharpNumericBinaryPromotion(input, literal("18446744073709551616n"), csharpBigIntegerTargetType(),
+    literal("1n"), csharpBigIntegerTargetType(), primitive("uint64")), undefined);
+  assert.equal(selectCsharpNumericBinaryPromotion(input, value, csharpBigIntegerTargetType(),
+    literal("1n"), csharpBigIntegerTargetType(), primitive("uint64")), undefined);
+});
+
 function assertPromotion(left, right, result) {
   assert.deepEqual(
     selectCsharpNumericBinaryPromotion(
@@ -160,5 +174,5 @@ function primitive(name) {
 }
 
 function numericLiteral(text) {
-  return { kind: "numeric", text };
+  return { kind: "numeric", kindName: "KindNumericLiteral", text };
 }
