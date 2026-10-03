@@ -6,10 +6,7 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpExpression,
-  CsharpTypeNode,
-} from "../../../target-ast/roslyn/index.js";
+import type { CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 
 export interface ArrayLiteralPlanner {
