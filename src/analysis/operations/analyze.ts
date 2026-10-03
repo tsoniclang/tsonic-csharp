@@ -1,4 +1,5 @@
 import { classifyCsharpUnionCall } from "./union-calls.js";
+import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 import { resolveCsharpInstanceType } from "../../policy/types/resolution/instance-tests.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
 import { selectCsharpArrayTypeTest } from "../../policy/operations/source-profiles/js/type-tests.js";
@@ -164,6 +165,9 @@ const exactCatchRethrowKey = createTargetClassificationKey<boolean>(
 );
 const nativeGuardResultKey = createTargetClassificationKey<boolean>("csharp.operation.native-guard-result");
 const nativeUnreachableKey = createTargetClassificationKey<boolean>("csharp.operation.native-unreachable");
+const borrowedSequenceKey = createTargetClassificationKey<ReturnType<typeof classifyCsharpBorrowedSequenceInput>>(
+  "csharp.operation.borrowed-sequence",
+);
 export function analyzeCsharpTargetOperations(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
@@ -185,6 +189,7 @@ export function analyzeCsharpTargetOperations(
   const selectedBinaryExecutionDriver =
     composeCsharpBinaryExecutionDriver(...binaryExecutionDrivers);
   const classifications: CsharpTargetOperationClassifications = {
+    borrowedSequence: node => facts.get(node, borrowedSequenceKey),
     nativeGuardResult: node => facts.get(node, nativeGuardResultKey),
     nativeUnreachable: node => facts.get(node, nativeUnreachableKey) === true,
     memoryBinding: node => facts.get(node, memoryBindingKey),
@@ -234,6 +239,13 @@ function visit(
     return;
   }
   const { ast } = policy;
+  if (ast.is.IsSpreadElement(node)) {
+    const expression = ast.as.AsSpreadElement(node)?.Expression;
+    if (expression !== undefined) {
+      setClassification(builder, expression, borrowedSequenceKey,
+        classifyCsharpBorrowedSequenceInput(policy, expression, sourceFile));
+    }
+  }
   if (ast.is.IsIfStatement(node)) {
     const expression = ast.as.AsIfStatement(node)?.Expression;
     const result = expression === undefined ? undefined : policy.types.nativeGuardResult(expression);

@@ -3,6 +3,7 @@ import type { CsharpTypeofResult } from "../../target-model/types/runtime-kind.j
 import type { CsharpSwitchSelection } from "../../policy/operations/control-flow/switch.js";
 import type { CsharpMemoryBindingSelection } from "../../policy/operations/memory-bindings.js";
 import type { CsharpElementDeletionSelection } from "../../policy/operations/collections/element-deletion.js";
+import type { CsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 import type {
   CsharpJsValueOperationSelection,
 } from "../../policy/js-value-operations/index.js";
@@ -159,6 +160,7 @@ export interface CsharpUnaryClassification {
 }
 
 export interface CsharpTargetOperationClassifications {
+  borrowedSequence(expression: Node): CsharpBorrowedSequenceInput | undefined;
   nativeGuardResult(expression: Node): boolean | undefined;
   nativeUnreachable(node: Node): boolean;
   memoryBinding(node: Node): CsharpMemoryBindingSelection | undefined;

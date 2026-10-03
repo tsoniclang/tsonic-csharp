@@ -29,6 +29,7 @@ import type { CsharpExpectedTypeClassifications } from "../expected-types/index.
 import type { CsharpObjectShapeClassifications } from "../objects/index.js";
 import type { CsharpStructuralInterfaceRegistration } from "../objects/structural-interfaces.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
+import type { CsharpBorrowedSequenceInput } from "../operations/borrowed-sequences.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpStorageRepresentationClassifications } from "../storage/index.js";
 import type {
@@ -142,6 +143,10 @@ export function analyzeCsharpConversions(
     if (operations.nativeUnreachable(node)) return;
     const sourceTypes = exactSourceTypes(node, operations, storage);
     const sourceType = sourceTypes[0];
+    const borrowedSequence = operations.borrowedSequence(node);
+    if (borrowedSequence !== undefined) {
+      classifyBorrowedSequencePairs(borrowedSequence, borrowedSequence.elementTarget);
+    }
     for (const candidate of sourceTypes) {
       classifyPair(candidate, candidate, "implicit", node);
     }
@@ -258,11 +263,25 @@ export function analyzeCsharpConversions(
       if (contribution === undefined || !policy.ast.is.IsSpreadElement(contribution)) continue;
       const operand = policy.ast.as.AsSpreadElement(contribution)?.Expression;
       if (operand === undefined) continue;
+      classifyBorrowedSequencePairs(operations.borrowedSequence(operand), elementTarget);
       for (const carrier of exactSourceTypes(operand, operations, storage)) {
         const element = getCsharpCollectionElementTargetType(carrier);
         for (const source of carrier.kind === "tuple" ? carrier.elements : element === undefined ? [] : [element]) {
           classifyPair(source, elementTarget, "implicit", contribution);
         }
+      }
+    }
+  }
+
+  function classifyBorrowedSequencePairs(
+    sequence: CsharpBorrowedSequenceInput | undefined,
+    elementTarget: TargetTypeRef,
+  ): void {
+    if (sequence === undefined) return;
+    for (const input of sequence.inputs) {
+      if (input.kind !== "sequence") continue;
+      for (const element of input.elements) {
+        classifyPair(element, elementTarget, "implicit", input.expression);
       }
     }
   }
