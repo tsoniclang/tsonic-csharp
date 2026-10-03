@@ -59,9 +59,6 @@ import {
   csharpSourceTypeArgumentNodes,
 } from "../../../target-model/syntax/type-arguments.js";
 import {
-  planCsharpTypedLocationIdentityDeclaration,
-} from "../bindings/typed-location-identities.js";
-import {
   hasCsharpGeneratorSyntax,
   planCsharpGeneratorFunction,
 } from "../statements/generators.js";
@@ -132,10 +129,7 @@ export function planArrowFunctionExpression(
   );
   if (parameterPlan === undefined) return undefined;
   const parameters = parameterPlan.parameters;
-  const parameterIdentityDeclarations = [
-    ...parameterPlan.prelude,
-    ...planLambdaParameterIdentityDeclarations(parameterNodes, input, plannerState),
-  ];
+  const parameterIdentityDeclarations = parameterPlan.prelude;
   if (HasSourceKind(input.program.source.ast, expression.Body, KindBlock)) {
     const body = planLambdaBlockBody(node, expression.Body, sourceFile, scopedInput, diagnostics, plannerState, targetContext, returnContext, parameterIdentityDeclarations);
     if (body === undefined) {
@@ -245,10 +239,7 @@ export function planFunctionExpression(
   );
   if (parameterPlan === undefined) return undefined;
   const parameters = parameterPlan.parameters;
-  const parameterIdentityDeclarations = [
-    ...parameterPlan.prelude,
-    ...planLambdaParameterIdentityDeclarations(parameterNodes, input, plannerState),
-  ];
+  const parameterIdentityDeclarations = parameterPlan.prelude;
   if (generatorSyntax) {
     const generator = planCsharpGeneratorFunction(
       node,
@@ -278,24 +269,6 @@ export function planFunctionExpression(
     ...(isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}),
     parameters,
     body,
-  });
-}
-
-function planLambdaParameterIdentityDeclarations(
-  parameterNodes: readonly (Node | undefined)[],
-  input: CsharpPlanningContext,
-  state: DestructuringPlannerState,
-): readonly CsharpStatement[] {
-  return parameterNodes.flatMap((parameter) => {
-    if (parameter === undefined) {
-      return [];
-    }
-    const identity = planCsharpTypedLocationIdentityDeclaration(
-      parameter,
-      input,
-      state,
-    );
-    return identity === undefined ? [] : [identity];
   });
 }
 

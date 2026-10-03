@@ -15,6 +15,7 @@ import {
   getCsharpTypeForExpressionCarrier,
   planBindingPatternFromExpression,
 } from "./binding-patterns.js";
+import type { CsharpEntryBinding } from "./binding-patterns.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planExpression, planExpressionWithExpectedType } from "../expressions/index.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
@@ -86,6 +87,7 @@ export function planParameterBindingPrelude(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
+  retainBinding?: (binding: CsharpEntryBinding) => void,
 ): readonly CsharpStatement[] {
   if (bindingName === undefined || HasSourceKind(input.program.source.ast, bindingName, KindIdentifier)) {
     return [];
@@ -106,5 +108,6 @@ export function planParameterBindingPrelude(
     state,
     undefined,
     planExpressionWithExpectedType,
+    retainBinding,
   );
 }

@@ -67,7 +67,7 @@ export function typeMemberRequiresUnsafe(member: CsharpTypeMember): boolean {
 
 function constructorRequiresUnsafe(member: CsharpConstructorDeclaration): boolean {
   return member.parameters.some((parameter) => parameterRequiresUnsafe(parameter, (expression) => optionalExpressionRequiresUnsafe(expression, blockRequiresUnsafe))) ||
-    (member.baseArguments ?? []).some((argument) => argumentRequiresUnsafe(argument, blockRequiresUnsafe)) ||
+    (member.initializer?.arguments ?? []).some((argument) => argumentRequiresUnsafe(argument, blockRequiresUnsafe)) ||
     blockRequiresUnsafe(member.body);
 }
 
@@ -138,7 +138,7 @@ function typeMemberRequiresUnsafePermission(
           parameter.defaultValue,
           blockRequiresUnsafePermission,
         )
-      ) || (member.baseArguments ?? []).some((argument) =>
+      ) || (member.initializer?.arguments ?? []).some((argument) =>
         argumentRequiresUnsafePermission(
           argument,
           blockRequiresUnsafePermission,

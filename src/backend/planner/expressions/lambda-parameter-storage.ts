@@ -10,6 +10,8 @@ import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { applyCsharpConversionSelection, readCsharpConversionClassification } from "./conversions.js";
 import { planCsharpRuntimeParameterDefault } from "../declarations/callables/defaults.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
+import { planCsharpParameterStorageDeclaration } from "../bindings/typed-location-identities.js";
+import { planCsharpParameterCapture } from "../bindings/capture-storage.js";
 
 export function planLambdaParameterStorage(
   nodes: readonly (Node | undefined)[],
@@ -37,6 +39,11 @@ export function planLambdaParameterStorage(
       prelude.push(...planParameterBindingPrelude(
         binding, parameter.name, sourceFile, input, diagnostics, state,
       ));
+    } else {
+      const identity = planCsharpParameterStorageDeclaration(node, input, state, diagnostics);
+      if (identity !== undefined) prelude.push(identity);
+      const capture = planCsharpParameterCapture(node, input, state);
+      if (capture !== undefined) prelude.push(capture);
     }
   }
   return { parameters: nativeParameters, prelude };

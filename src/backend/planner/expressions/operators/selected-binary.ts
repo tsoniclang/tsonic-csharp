@@ -45,6 +45,7 @@ import { buildCsharpPlannedValue, planCsharpValueBranch } from "../planned-value
 import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/scalar-types.js";
 import { captureCsharpPlannedLocation } from "../planned-locations.js";
 import { captureCsharpPlannedValue } from "../planned-value-composition.js";
+import { planCsharpPlannedDiscard } from "../../statements/statement-output.js";
 
 export function planSelectedCsharpBinaryOperation(
   node: Node,
@@ -57,6 +58,17 @@ export function planSelectedCsharpBinaryOperation(
   state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
   const operation = selection.targetOperation;
+  if (operation.kind === "sequence") {
+    const left = planExpression(selection.left, sourceFile, input, diagnostics, state);
+    if (left === undefined || left.completion.kind === "never") return left;
+    const type = csharpTypeFromTargetTypeRef(selection.resultType, input.scope.typeParameterNames);
+    const right = type === undefined ? planExpression(selection.right, sourceFile, input, diagnostics, state)
+      : planExpressionWithExpectedType(selection.right, sourceFile, input, diagnostics,
+        type, undefined, selection.resultType, state);
+    return right === undefined ? undefined : {
+      prelude: [...planCsharpPlannedDiscard(left), ...right.prelude], completion: right.completion,
+    };
+  }
   if (operation.kind === "closed-value-coalesce") {
     return planCsharpClosedValueCoalescing(node, selection, sourceFile, input, diagnostics,
       planExpression, planExpressionWithExpectedType, state);

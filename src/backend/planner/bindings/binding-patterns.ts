@@ -45,6 +45,11 @@ import {
   planCsharpTypedLocationIdentityDeclaration,
 } from "./typed-location-identities.js";
 
+export interface CsharpEntryBinding {
+  readonly name: string;
+  readonly type: CsharpTypeNode;
+}
+
 export function planBindingPatternFromExpression(
   patternNode: Node,
   sourceExpression: CsharpExpression,
@@ -55,6 +60,7 @@ export function planBindingPatternFromExpression(
   state: DestructuringPlannerState,
   sourceCarrier?: TargetTypeRef,
   planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
+  retainBinding?: (binding: CsharpEntryBinding) => void,
 ): readonly CsharpStatement[] {
   const projectionPlanner: BindingProjectionPlanner = (
     name,
@@ -77,6 +83,7 @@ export function planBindingPatternFromExpression(
     projectionState,
     projectedCarrier,
     planDefaultExpressionWithExpectedType,
+    retainBinding,
   );
   if (HasSourceKind(input.program.source.ast, patternNode, KindArrayBindingPattern)) {
     return planArrayBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, projectionPlanner, planDefaultExpressionWithExpectedType, sourceCarrier);
@@ -99,6 +106,7 @@ function planBindingNameFromProjection(
   state: DestructuringPlannerState,
   projectedCarrier?: TargetTypeRef,
   planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
+  retainBinding?: (binding: CsharpEntryBinding) => void,
 ): readonly CsharpStatement[] {
   if (HasSourceKind(input.program.source.ast, name, KindIdentifier)) {
     const declaration = input.program.sourceNavigation.sourceReferenceFor(name)?.declaration ?? projectionNode;
@@ -110,9 +118,7 @@ function planBindingNameFromProjection(
           input,
           state,
         );
-    return [
-      ...(identity === undefined ? [] : [identity]),
-      ...(captured === undefined ? [{
+    const local = captured === undefined ? {
         kind: "LocalDeclarationStatement" as const,
         name: requireCsharpIdentifier(Node_Text(input.program.source.ast, name), diagnostics, "Destructuring binding"),
         type: projectedType ??
@@ -123,8 +129,10 @@ function planBindingNameFromProjection(
           ) ??
           getCsharpTypeForNode(name, sourceFile, input, invalidCsharpType("missing destructured binding type"), diagnostics),
         initializer: projected,
-      }] : [captured]),
-    ];
+      } : undefined;
+    if (identity !== undefined) retainBinding?.(identity);
+    if (local !== undefined) retainBinding?.(local);
+    return [...(identity === undefined ? [] : [identity]), ...(local === undefined ? [captured!] : [local])];
   }
   if (HasSourceKind(input.program.source.ast, name, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, name, KindArrayBindingPattern)) {
     const nestedName = allocateDestructuringTemp(state);
@@ -137,7 +145,7 @@ function planBindingNameFromProjection(
         type: nestedType,
         initializer: projected,
       },
-      ...planBindingPatternFromExpression(name, nestedSource, projectionNode, sourceFile, input, diagnostics, state, projectedCarrier, planDefaultExpressionWithExpectedType),
+      ...planBindingPatternFromExpression(name, nestedSource, projectionNode, sourceFile, input, diagnostics, state, projectedCarrier, planDefaultExpressionWithExpectedType, retainBinding),
     ];
   }
   diagnostics.push(unsupportedNodeDiagnostic(name, "Destructuring target binding name is outside the current C# planning surface."));

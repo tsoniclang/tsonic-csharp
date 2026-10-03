@@ -167,12 +167,12 @@ function printConstructorLines(
 ): string[] {
   const modifiers = constructor.modifiers.length === 0 ? "" : `${constructor.modifiers.join(" ")} `;
   const parameters = constructor.parameters.map(context.printParameter).join(", ");
-  const baseInitializer = constructor.baseArguments === undefined
+  const initializer = constructor.initializer === undefined
     ? ""
-    : ` : base(${constructor.baseArguments.map(context.printArgument).join(", ")})`;
+    : ` : ${constructor.initializer.kind}(${constructor.initializer.arguments.map(context.printArgument).join(", ")})`;
   return [
     ...context.printAttributes(constructor.attributes),
-    `${modifiers}${constructor.name}(${parameters})${baseInitializer}`,
+    `${modifiers}${constructor.name}(${parameters})${initializer}`,
     "{",
     ...indentLines(context.printStatements(constructor.body.statements)),
     "}",

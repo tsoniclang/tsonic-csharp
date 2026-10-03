@@ -33,7 +33,9 @@ export function csharpCapturedBindingExpression(
 export function planCsharpCaptureFrame(
   scope: Node, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState,
   incoming: ReadonlyMap<Node, CsharpExpression> = new Map(),
+  receivers: ReadonlyMap<Node, CsharpExpression> = new Map(),
 ): readonly CsharpStatement[] {
+  if (input.scope.captureFrames?.has(scope)) return [];
   const frame = input.program.captureStorage.frame(scope);
   if (frame === undefined) return [];
   const type = csharpTypeFromObjectShapeFact(input, frame.shape, diagnostics, scope);
@@ -58,7 +60,7 @@ export function planCsharpCaptureFrame(
   for (const receiver of frame.receivers) {
     const reference = receiver.references[0]!;
     const file = input.program.source.ast.getSourceFile(reference);
-    const expression = file === undefined ? undefined : planThisExpression(reference, file, input, diagnostics);
+    const expression = receivers.get(receiver.owner) ?? (file === undefined ? undefined : planThisExpression(reference, file, input, diagnostics));
     if (expression === undefined) return [];
     assignments.push({ kind: "AssignmentExpression", name: receiver.fieldName, expression });
   }
@@ -71,16 +73,25 @@ export function planCsharpCaptureEntryBindings(
 ): readonly CsharpStatement[] {
   const owner = input.program.source.ast.parent(scope);
   const frame = input.program.captureStorage.frame(scope);
-  if (frame === undefined || owner === undefined) return [];
+  if (frame === undefined || owner === undefined || !input.program.source.ast.is.IsCatchClause(owner)) return [];
   return frame.bindings.flatMap(binding => {
     if (input.program.source.ast.parent(binding.declaration) !== owner ||
-      (!input.program.source.ast.is.IsParameterDeclaration(binding.declaration) && !input.program.source.ast.is.IsCatchClause(owner))) return [];
+      !input.program.source.ast.is.IsCatchClause(owner)) return [];
     const name = input.program.source.ast.name(binding.declaration);
     const localName = name === undefined ? undefined : getCsharpLocalBindingName(name, input, state);
     if (localName === undefined) return [];
     const statement = planCsharpCapturedInitialization(binding.declaration, { kind: "IdentifierName", name: localName }, input, state);
     return statement === undefined ? [] : [statement];
   });
+}
+
+export function planCsharpParameterCapture(
+  declaration: Node, input: CsharpPlanningContext, state: DestructuringPlannerState,
+): CsharpStatement | undefined {
+  const name = input.program.source.ast.name(declaration);
+  const localName = name === undefined ? undefined : getCsharpLocalBindingName(name, input, state);
+  return localName === undefined ? undefined : planCsharpCapturedInitialization(declaration,
+    { kind: "IdentifierName", name: localName }, input, state);
 }
 
 export function planCsharpCaptureFrameRotation(

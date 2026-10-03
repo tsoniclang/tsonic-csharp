@@ -82,6 +82,7 @@ export function planClassDeclaration(
   const requiresConstructor = instanceRegion.relocates;
   const completeConstructor = (constructor: CsharpConstructorDeclaration): CsharpConstructorDeclaration => factory !== undefined
     ? completeLocalClassConstructor(constructor, factory, input, instanceRegion.statements)
+    : constructor.initializer?.kind === "this" ? constructor
     : { ...constructor, body: { kind: "Block", statements: [...instanceRegion.statements, ...constructor.body.statements] } };
   const defaultInitializationConstructor = !requiresConstructor || members.some(member => member.kind === "ConstructorDeclaration") ||
     implicitConstructors.length !== 0 || safetyDefaultConstructors.length !== 0 ? [] : [{

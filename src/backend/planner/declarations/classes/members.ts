@@ -20,7 +20,7 @@ import {
 import {
   unsupportedNodeDiagnostic,
 } from "../../diagnostics.js";
-import { planConstructorDeclaration } from "./constructors.js";
+import { planConstructorDeclarations } from "./constructors.js";
 import {
   planMethodDeclaration,
 } from "./methods.js";
@@ -56,7 +56,7 @@ export function planClassMembers(
     switch (SourceKind(input.program.source.ast, member)) {
       case KindConstructor:
         if (AsConstructorDeclaration(input.program.source.ast, member)?.Body !== undefined) {
-          planned.push(planConstructorDeclaration(member, className, sourceFile, memberInput, diagnostics));
+          planned.push(...planConstructorDeclarations(member, className, sourceFile, memberInput, diagnostics));
         }
         break;
       case KindClassStaticBlockDeclaration:

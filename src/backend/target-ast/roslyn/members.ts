@@ -54,7 +54,10 @@ export interface CsharpConstructorDeclaration {
   readonly modifiers: readonly CsharpModifier[];
   readonly attributes?: readonly CsharpAttribute[];
   readonly parameters: readonly CsharpParameter[];
-  readonly baseArguments?: readonly CsharpArgument[];
+  readonly initializer?: {
+    readonly kind: "base" | "this";
+    readonly arguments: readonly CsharpArgument[];
+  };
   readonly body: CsharpBlock;
 }
 

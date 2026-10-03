@@ -110,6 +110,9 @@ export function completeLocalClassConstructor(
 ): CsharpConstructorDeclaration {
   const environment: CsharpExpression = { kind: "IdentifierName", name: factory.environmentName };
   const type = csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames)!;
+  if (constructor.initializer?.kind === "this") return { ...constructor,
+    parameters: [{ name: factory.environmentName, type }, ...constructor.parameters],
+    initializer: { kind: "this", arguments: [{ kind: "Argument", expression: environment }, ...constructor.initializer.arguments] } };
   return { ...constructor, parameters: [{ name: factory.environmentName, type }, ...constructor.parameters],
     body: { kind: "Block", statements: [
       ...(factory.retainsEnvironment ? [assignment({ kind: "IdentifierName", name: "this" }, factory.environmentName, environment)] : []),
@@ -132,11 +135,13 @@ export function planClassFactoryDeclaration(
     .map(member => ({ ...member, modifiers: member.modifiers.filter(modifier => modifier !== "static") }));
   const constructors = instanceDeclaration.members.filter((member): member is CsharpConstructorDeclaration =>
     member.kind === "ConstructorDeclaration");
-  if (constructors.length !== 1 || constructors[0]!.parameters[0]?.name !== factory.environmentName) {
+  const entries = constructors.filter(constructor => constructor.initializer?.kind === "this");
+  const entry = constructors.length === 1 ? constructors[0] : entries.length === 1 ? entries[0] : undefined;
+  if (entry === undefined || entry.parameters[0]?.name !== factory.environmentName) {
     diagnostics.push(unsupportedNodeDiagnostic(factory.declaration,
       "A local class factory requires one exact planned constructor and its environment parameter."));
   }
-  const parameters = constructors.length === 1 ? constructors[0]!.parameters.slice(1) : [];
+  const parameters = entry?.parameters.slice(1) ?? [];
   members.push(...slots.map(slot => ({ kind: "FieldDeclaration" as const, name: slot.name,
     type: slot.type, modifiers: ["public" as const, "readonly" as const] })));
   members.push({ kind: "ConstructorDeclaration", name: factory.factoryName, modifiers: ["public"],

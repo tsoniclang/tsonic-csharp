@@ -58,6 +58,7 @@ export interface CsharpResolvedBinaryOperation {
 }
 
 export type CsharpTargetBinaryOperation =
+  | { readonly kind: "sequence" }
   | {
       readonly kind: "bigint-call";
       readonly method: "LeftShift" | "RightShift" | "Divide" | "Remainder";
@@ -156,14 +157,15 @@ export function selectCsharpBinaryOperands(
     : resolveBinaryOperandType(input, left, targetTypeFor);
   const nullishRightExpectation = sourceOperator === "??"
     ? expectedResultType ?? nullishValueType(leftType, input.typeDefinitions)
-    : sourceOperator === "??=" ? nullishValueType(leftType, input.typeDefinitions) : undefined;
+    : sourceOperator === "??=" ? nullishValueType(leftType, input.typeDefinitions)
+    : sourceOperator === "," ? expectedResultType ?? selectedResultType : undefined;
   let rightType = resolveBinaryOperandType(
     input,
     right,
     targetTypeFor,
     nullishRightExpectation,
   );
-  const resultType = selectedResultType ??
+  const resultType = (sourceOperator === "," ? expectedResultType ?? selectedResultType ?? rightType : selectedResultType) ??
     (sourceOperator === "??" || sourceOperator === "??="
       ? nullishValueType(leftType, input.typeDefinitions) : undefined);
   if (leftType === undefined || rightType === undefined || resultType === undefined) {
@@ -171,6 +173,10 @@ export function selectCsharpBinaryOperands(
       "The checked binary expression has no closed C# representation for every operand and result.",
     );
   }
+  if (sourceOperator === ",") return {
+    kind: "resolved", sourceOperator, targetOperation: { kind: "sequence" },
+    left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType, resultType,
+  };
   if ((sourceOperator === "??" || sourceOperator === "??=") && isCsharpJsValueTargetType(leftType)) {
     if (!csharpConversionIsApplicable(selectCsharpExpressionConversion(input, right, rightType, leftType, "implicit"), "implicit")) {
       return rejected("Closed-value coalescing requires an exact native right-hand admission.");

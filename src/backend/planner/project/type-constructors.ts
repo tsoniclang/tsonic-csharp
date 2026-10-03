@@ -93,7 +93,7 @@ function planForwardingConstructorOverloads(
       name: className,
       modifiers: ["public" as const, ...safetyModifiers],
       parameters: planned.parameters,
-      baseArguments: planned.baseArguments,
+      initializer: { kind: "base" as const, arguments: planned.baseArguments },
       body: { kind: "Block" as const, statements: [] },
     }];
   });

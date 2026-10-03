@@ -30,10 +30,13 @@ import { consumeCsharpPlannedValue } from "../../statements/statement-output.js"
 import {
   planCsharpParameterStorageDeclaration,
 } from "../../bindings/typed-location-identities.js";
+import type { CsharpEntryBinding } from "../../bindings/binding-patterns.js";
+import { planCsharpParameterCapture } from "../../bindings/capture-storage.js";
 
 export interface PlannedParameterList {
   readonly parameters: readonly CsharpParameter[];
   readonly prelude: readonly CsharpStatement[];
+  readonly entryBindings: readonly CsharpEntryBinding[];
 }
 
 export function planParameters(
@@ -54,6 +57,15 @@ export function planParametersWithPrelude(
 ): PlannedParameterList {
   const parameters: CsharpParameter[] = [];
   const prelude: CsharpStatement[] = [];
+  const entryBindings: CsharpEntryBinding[] = [];
+  const retainBinding = (binding: CsharpEntryBinding): void => { entryBindings.push(binding); };
+  const completeIdentifierEntry = (node: Node, name: string, type: CsharpTypeNode): void => {
+    const identity = planCsharpParameterStorageDeclaration(node, input, state, diagnostics);
+    if (identity !== undefined) { prelude.push(identity); retainBinding(identity); }
+    const capture = planCsharpParameterCapture(node, input, state);
+    if (capture !== undefined) prelude.push(capture);
+    if (capture === undefined && input.program.storage.nativeBacking(node) === undefined) retainBinding({ name, type });
+  };
   let hasDefaultParameter = false;
   for (const parameterNode of parameterNodes) {
     const parameter = AsParameterDeclaration(input.program.source.ast, parameterNode)!;
@@ -72,8 +84,7 @@ export function planParametersWithPrelude(
           defaultValue: selected.defaultValue });
         prelude.push(...consumeCsharpPlannedValue(selected.value, initializer => [
           { kind: "LocalDeclarationStatement", name: sourceName, type: selected.valueType, initializer }]));
-        const locationIdentity = planCsharpParameterStorageDeclaration(parameterNode!, input, state, diagnostics);
-        if (locationIdentity !== undefined) prelude.push(locationIdentity);
+        completeIdentifierEntry(parameterNode!, sourceName, selected.valueType);
         hasDefaultParameter = true;
         continue;
       }
@@ -91,21 +102,26 @@ export function planParametersWithPrelude(
         ...(parameter.DotDotDotToken === undefined ? {} : { isParams: true }),
         ...(defaultValue === undefined ? {} : { defaultValue }),
       });
-      const locationIdentity = planCsharpParameterStorageDeclaration(
-        parameterNode!,
-        input,
-        state,
-        diagnostics,
-      );
-      if (locationIdentity !== undefined) {
-        prelude.push(locationIdentity);
-      }
+      completeIdentifierEntry(parameterNode!, sourceName, type);
       continue;
     }
-      const bindingName = parameter.name;
+    const bindingName = parameter.name;
     if (bindingName !== undefined && (HasSourceKind(input.program.source.ast, bindingName, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, bindingName, KindArrayBindingPattern))) {
       const typeSubject = getParameterTypeSubject(parameter) ?? bindingName;
       const type = getParameterType(parameterNode, sourceFile, input, diagnostics, invalidCsharpType("destructured parameter type"));
+      if (input.program.declarations.runtimeDefault(parameterNode!) !== undefined) {
+        const incomingName = allocateSyntheticParameter(state);
+        const valueName = allocateSyntheticParameter(state);
+        const selected = planCsharpRuntimeParameterDefault(parameterNode!, incomingName, sourceFile, input, diagnostics, state);
+        if (selected === undefined) continue;
+        parameters.push({ name: incomingName, type: selected.parameterType,
+          attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics), defaultValue: selected.defaultValue });
+        prelude.push(...consumeCsharpPlannedValue(selected.value, initializer => [
+          { kind: "LocalDeclarationStatement", name: valueName, type: selected.valueType, initializer }]));
+        prelude.push(...planParameterBindingPrelude(bindingName, valueName, sourceFile, input, diagnostics, state, retainBinding));
+        hasDefaultParameter = true;
+        continue;
+      }
       const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, typeSubject, state);
       if (defaultValue !== undefined) {
         hasDefaultParameter = true;
@@ -120,7 +136,7 @@ export function planParametersWithPrelude(
         attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
         ...(parameter.DotDotDotToken === undefined ? {} : { isParams: true }),
       });
-      prelude.push(...planParameterBindingPrelude(bindingName, parameterName, sourceFile, input, diagnostics, state));
+      prelude.push(...planParameterBindingPrelude(bindingName, parameterName, sourceFile, input, diagnostics, state, retainBinding));
       continue;
     }
     const typeSubject = getParameterTypeSubject(parameter);
@@ -143,6 +159,7 @@ export function planParametersWithPrelude(
   return {
     parameters,
     prelude,
+    entryBindings,
   };
 }
 

@@ -4,7 +4,6 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpArgument,
   CsharpConstructorDeclaration,
-  CsharpParameter,
 } from "../../../target-ast/roslyn/index.js";
 import {
   AsBlock,
@@ -24,9 +23,6 @@ import {
   planCallArgument,
 } from "../../expressions/index.js";
 import {
-  unsupportedNodeDiagnostic,
-} from "../../diagnostics.js";
-import {
   diagnoseTypeScriptOnlyRuntimeShapeModifiers,
 } from "../modifiers.js";
 import {
@@ -45,6 +41,7 @@ import { planClassMemberModifiers } from "./modifiers.js";
 import { planCsharpConstructorInitializerArgument } from "./initializer-arguments.js";
 import type { DestructuringPlannerState } from "../../bindings/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import { planCsharpPreparedConstructor, type CsharpConstructorArgumentPlan } from "./constructor-entry.js";
 
 export function planClassStaticBlockDeclaration(
   node: Node,
@@ -67,24 +64,22 @@ export function planClassStaticBlockDeclaration(
   };
 }
 
-export function planConstructorDeclaration(
+export function planConstructorDeclarations(
   node: Node,
   className: string,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-): CsharpConstructorDeclaration {
+): readonly CsharpConstructorDeclaration[] {
   const declaration = AsConstructorDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "constructor declaration", diagnostics, ["public", "private", "protected"]);
   const bodyStatements = AsBlock(input.program.source.ast, declaration.Body)?.Statements?.Nodes ?? [];
   const leadingSuperCall = getLeadingSuperCall(bodyStatements, input);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
-  const baseArguments = leadingSuperCall === undefined
-    ? undefined
-    : planBaseConstructorArguments(leadingSuperCall, parameters.parameters, sourceFile, input, diagnostics, state);
-  if (leadingSuperCall !== undefined && baseArguments === undefined) {
-    return {
+  const baseArgumentPlans = leadingSuperCall === undefined ? []
+    : planBaseConstructorArguments(leadingSuperCall, sourceFile, input, diagnostics, state);
+  const constructor: CsharpConstructorDeclaration = {
       kind: "ConstructorDeclaration",
       name: className,
       modifiers: withCsharpSafetyModifiers(
@@ -96,42 +91,36 @@ export function planConstructorDeclaration(
       attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
       parameters: parameters.parameters,
       body: { kind: "Block", statements: [] },
-    };
+  };
+  if (baseArgumentPlans === undefined) return [constructor];
+  if (leadingSuperCall !== undefined && parameters.prelude.length > 0) return planCsharpPreparedConstructor(node, declaration.Body, constructor,
+    parameters, baseArgumentPlans, sourceFile, input, diagnostics, state, leadingSuperCall !== undefined);
+  const baseArguments: CsharpArgument[] = [];
+  for (const argument of baseArgumentPlans) {
+    const syntax = planCsharpConstructorInitializerArgument(argument.node, argument.value, parameters.parameters, input, diagnostics, argument.expectedCarrier);
+    if (syntax === undefined) return [constructor];
+    baseArguments.push(syntax);
   }
-  if (leadingSuperCall !== undefined && parameters.prelude.length > 0 && (leadingSuperCall.Arguments?.Nodes ?? []).length > 0) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Constructor base arguments cannot reference destructured parameter locals until base-argument rewriting is finalized."));
-  }
-  return {
-    kind: "ConstructorDeclaration",
-    name: className,
-    modifiers: withCsharpSafetyModifiers(
-      planClassMemberModifiers(node, undefined, input),
-      node,
-      "constructor",
-      input,
-    ),
-    attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
-    parameters: parameters.parameters,
+  return [{ ...constructor,
     ...(leadingSuperCall === undefined
       ? {}
-      : { baseArguments }),
+      : { initializer: { kind: "base", arguments: baseArguments ?? [] } }),
     body: {
       kind: "Block",
       statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state,
         parameters.prelude, leadingSuperCall === undefined ? 0 : 1),
     },
-  };
+  }];
 }
 
 function planBaseConstructorArguments(
   call: NonNullable<ReturnType<typeof AsCallExpression>>,
-  parameters: readonly CsharpParameter[],
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-): readonly CsharpArgument[] | undefined {
-  const planned: CsharpArgument[] = [];
+): readonly CsharpConstructorArgumentPlan[] | undefined {
+  const planned: CsharpConstructorArgumentPlan[] = [];
   const callNode = call.Expression === undefined ? undefined : input.program.source.ast.parent(call.Expression);
   const selection = callNode === undefined ? undefined : input.program.operations.call(callNode);
   for (const [index, argument] of (call.Arguments?.Nodes ?? []).entries()) {
@@ -144,9 +133,7 @@ function planBaseConstructorArguments(
     if (plannedArgument === undefined) {
       return undefined;
     }
-    const syntax = planCsharpConstructorInitializerArgument(argument, plannedArgument, parameters, input, diagnostics, carrier);
-    if (syntax === undefined) return undefined;
-    planned.push(syntax);
+    planned.push({ node: argument, value: plannedArgument, expectedCarrier: carrier });
   }
   return planned;
 }
