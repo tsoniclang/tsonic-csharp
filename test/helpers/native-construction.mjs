@@ -7,7 +7,11 @@ import { assertCsharpCompilationSucceeded } from "./direct-csharp-session.mjs";
 import { testRepositoryRoots } from "../../../tsonic/test/scripts/workspace-layout.mjs";
 import { createTestWorkspace } from "../../../tsonic/test/scripts/test-workspaces.mjs";
 
-export function executeCsharpConstruction(compiled, name, asynchronous = false, allowUnsafe = false, additionalReferences = [], nativeProgram) {
+export function executeCsharpConstruction(compiled, name, asynchronous = false, allowUnsafe = false, additionalReferences = [], nativeProgram, assemblyName) {
+  if (assemblyName !== undefined) {
+    assert.ok(typeof assemblyName === "string" && /^[\p{L}\p{N}_][\p{L}\p{N}_.-]*$/u.test(assemblyName),
+      "Native construction assemblyName must be a nonempty simple assembly name.");
+  }
   assertCsharpCompilationSucceeded(compiled);
   const scratch = fileURLToPath(new URL("../../.temp/", import.meta.url));
   const root = createTestWorkspace(scratch, `${name}-`);
@@ -29,10 +33,16 @@ export function executeCsharpConstruction(compiled, name, asynchronous = false, 
 <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
 <AllowUnsafeBlocks>${allowUnsafe}</AllowUnsafeBlocks>
 <Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-</PropertyGroup><ItemGroup>${references.map(path => `<ProjectReference Include="${path}" />`).join("")}</ItemGroup></Project>`);
+${assemblyName === undefined ? "" : `<AssemblyName>${escapeXml(assemblyName)}</AssemblyName>`}
+</PropertyGroup><ItemGroup>${references.map(path => `<ProjectReference Include="${escapeXml(path)}" />`).join("")}</ItemGroup></Project>`);
   const native = spawnSync("dotnet", ["run", "--project", join(root, "Proof.csproj"), "-c", "Release", "--verbosity", "quiet"], {
     encoding: "utf8", timeout: 240_000, maxBuffer: 4_194_304,
   });
   assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
   return native.stdout;
+}
+
+function escapeXml(value) {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;").replaceAll("'", "&apos;");
 }
