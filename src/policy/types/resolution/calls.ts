@@ -250,6 +250,15 @@ export function resolveSourceCallSelectedType(
   if (instantiation === undefined) {
     return undefined;
   }
+  if (authoredTypeNode !== undefined && host.ast.is.IsThisTypeNode(authoredTypeNode)) {
+    return resolveAuthoredAndSelectedSourceType(
+      authoredTypeNode,
+      host.ast.getSourceFile(authoredTypeNode) ?? selectedSourceFile,
+      selectedType,
+      selectedSourceFile,
+      nextState(state),
+    );
+  }
   const authoredSourceFile = host.ast.getSourceFile(authoredTypeNode) ??
     selectedSourceFile;
   const authored = authoredTypeNode === undefined ||
