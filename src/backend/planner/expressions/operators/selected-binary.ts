@@ -377,6 +377,12 @@ export function planSelectedCsharpBinaryOperation(
     selection.rightInputType,
   );
   if (left === undefined || right === undefined) return undefined;
+  const zeroType = operation.kind === "generic-numeric" && operation.zeroOperand !== undefined
+    ? csharpTypeFromTargetTypeRef(operation.carrier, input.scope.typeParameterNames) : undefined;
+  if (operation.kind === "generic-numeric" && operation.zeroOperand !== undefined && zeroType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Generic numeric zero requires its sealed native type parameter."));
+    return undefined;
+  }
   return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [left, right], values => {
   if (input.program.numericRepresentations.usesInt32Remainder(node)) {
     const integer = csharpTypeFromTargetTypeRef({ kind: "source-primitive", name: "int32" }, input.scope.typeParameterNames)!;
@@ -397,9 +403,11 @@ export function planSelectedCsharpBinaryOperation(
   }
   return {
         kind: "BinaryExpression",
-        left: values[0]!,
+        left: operation.kind === "generic-numeric" && operation.zeroOperand === "left" && zeroType !== undefined
+          ? { kind: "SimpleMemberAccessExpression", receiver: zeroType, name: "Zero" } : values[0]!,
         operatorToken: binaryToken,
-        right: values[1]!,
+        right: operation.kind === "generic-numeric" && operation.zeroOperand === "right" && zeroType !== undefined
+          ? { kind: "SimpleMemberAccessExpression", receiver: zeroType, name: "Zero" } : values[1]!,
       };
   }, selection.resultType);
 }

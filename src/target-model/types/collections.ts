@@ -138,6 +138,7 @@ export function getCsharpArrayLiteralInputCarrierTargetType(
   expectedType: TargetTypeRef,
   fallbackType: TargetTypeRef | undefined,
 ): TargetTypeRef | undefined {
+  if (expectedType.kind === "tuple") return expectedType;
   const implicitArrayElement =
     getCsharpImplicitArrayInputElementTargetType(expectedType);
   if (implicitArrayElement !== undefined) {

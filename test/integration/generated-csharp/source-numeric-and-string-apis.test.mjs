@@ -4,6 +4,29 @@ import { join } from "node:path";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { nativeCharacterInputsSource } from "../../../../tsonic/test/fixtures/native-character-inputs.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { genericNumberPredicatesSource } from "../../../../tsonic/test/fixtures/generic-number-predicates.mjs";
+
+test("generic Number predicates retain exact native carriers and their numeric constraints", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: genericNumberPredicatesSource });
+  executeCsharpConstruction(compiled, "generic-number-predicates");
+  executeCsharpConstruction(compiled, "generic-number-predicate-allocation", false, false, [], `
+using Index = Tsonic.Generated.Index;
+var value = System.Numerics.BigInteger.Parse("9007199254740993");
+for (var iteration = 0; iteration < 10000; iteration++)
+    if (!Index.forward(value) || !Index.forward(uint.MaxValue)) throw new System.Exception("predicate");
+var before = System.GC.GetAllocatedBytesForCurrentThread();
+for (var iteration = 0; iteration < 10000; iteration++)
+    if (!Index.forward(value) || !Index.forward(uint.MaxValue)) throw new System.Exception("predicate");
+if (System.GC.GetAllocatedBytesForCurrentThread() != before) throw new System.Exception("predicate allocation");
+`);
+});
+
+test("unconstrained Number predicate inputs cannot acquire an invented numeric constraint", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText:
+    "export function integer<Value>(value: Value): boolean { return Number.isInteger(value); }" });
+  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "TS9101001"), true);
+  assert.equal(compiled.result.artifacts.length, 0);
+});
 
 test("void results retain unit calls, nullable conversion and equality effects", { timeout: 300_000 }, () => {
   executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: `
@@ -59,6 +82,9 @@ export function run(): boolean {
   check(String.fromCharCode(...bytes, ...empty, ...[67, 68]) === "ABCD");
   check(String.fromCharCode(...empty) === "");
   check(String.fromCharCode(...[]) === "");
+  let emptyReads = 0;
+  const emptyTuple = (): [] => { emptyReads += 1; return []; };
+  check(String.fromCharCode(...emptyTuple()) === "" && emptyReads === 1);
   const tuple: [uint8, number] = [65, 66];
   check(String.fromCharCode(...tuple) === "AB");
   let tupleReads = 0;

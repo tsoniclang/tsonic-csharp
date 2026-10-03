@@ -39,6 +39,9 @@ function csharpBinaryTargetOperationsEqual(left: CsharpTargetBinaryOperation, ri
       return right.kind === "union-equality" && left.negated === right.negated && csharpUnionEqualityArmsEqual(left.arms, right.arms);
     case "operator":
       return right.kind === "operator" && left.operator === right.operator;
+    case "generic-numeric":
+      return right.kind === "generic-numeric" && left.operator === right.operator &&
+        left.zeroOperand === right.zeroOperand && targetTypeRefEquals(left.carrier, right.carrier);
     case "string-ordinal-relational":
       return right.kind === "string-ordinal-relational" && left.operator === right.operator;
     case "nullish-test":

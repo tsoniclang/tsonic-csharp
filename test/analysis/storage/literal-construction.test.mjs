@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { canConstructCsharpStorageLiteral } from "../../../dist/analysis/storage/literal-construction.js";
+import { selectCsharpArrayLiteralCarrier } from "../../../dist/policy/types/collections/literal-construction.js";
 
 const element = { kind: "source-primitive", name: "int64" };
 const array = { kind: "array", element };
@@ -12,6 +13,14 @@ const policy = { ast: { is: {
 }, elements: node => node.elements } };
 const evidence = { nodeTargetType: node => node === expression ? array : element };
 const shapes = {};
+
+test("tuple construction consumes the exact contextual element carriers rather than inferred literal carriers", () => {
+  const source = { kind: "tuple", elements: [{ kind: "source-primitive", name: "float64" }, element] };
+  const required = { kind: "tuple", elements: [{ kind: "source-primitive", name: "uint8" }, element] };
+  assert.equal(selectCsharpArrayLiteralCarrier(required, source), required);
+  assert.equal(selectCsharpArrayLiteralCarrier(required, undefined), required);
+  assert.equal(selectCsharpArrayLiteralCarrier(array, source), array);
+});
 
 test("fresh storage construction requires the exact carrier and every element conversion", () => {
   const conversions = { selectExpression: (_node, actual, required, mode) => {

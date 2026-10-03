@@ -1,6 +1,7 @@
 import { validateBinaryTargetSemantics, validateUnaryTargetSemantics, isCsharpReferenceCarrier, isEquality, isRelational, isShift, isBitwise, isArithmetic } from "./operator-validation.js";
 import { selectCsharpAssignmentLocation, type CsharpAssignmentLocation } from "./assignment-location.js";
 import { selectCsharpGuardedIntegerPromotion } from "../numeric/guarded.js";
+import { selectCsharpGenericNumericOperation } from "../numeric/generic.js";
 import { resolveCsharpContextualObjectLiteralCarrier } from "../../types/resolution/contextual-literals.js";
 import { sourceBooleanShortCircuitBranch as csharpBooleanShortCircuitBranch,
   type SourceBooleanShortCircuitBranch as CsharpShortCircuitBranch } from "@tsonic/target-api/source";
@@ -60,6 +61,7 @@ export interface CsharpResolvedBinaryOperation {
 }
 
 export type CsharpTargetBinaryOperation =
+  | NonNullable<ReturnType<typeof selectCsharpGenericNumericOperation>>
   | { readonly kind: "sequence" }
   | { readonly kind: "conditional-value"; readonly operator: "&&" | "||"; readonly branch: CsharpShortCircuitBranch }
   | {
@@ -178,6 +180,11 @@ export function selectCsharpBinaryOperands(
       "The checked binary expression has no closed C# representation for every operand and result.",
     );
   }
+  const genericNumeric = selectCsharpGenericNumericOperation(input, sourceOperator, left, right, leftType, rightType);
+  if (genericNumeric !== undefined) return {
+    kind: "resolved", sourceOperator, targetOperation: genericNumeric,
+    left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType, resultType,
+  };
   if (sourceOperator === ",") return {
     kind: "resolved", sourceOperator, targetOperation: { kind: "sequence" },
     left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType, resultType,

@@ -16,6 +16,8 @@ import { planCsharpArraySpreadInput, type CsharpArraySpreadInput } from "./array
 import type { CsharpPlannedArraySpreadInput } from "./array-literals/spread-source.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { composeCsharpPlannedValues } from "./planned-value-composition.js";
+import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
+import { qualifiedCsharpType } from "../types/index.js";
 
 
 export function planCsharpSequenceValue(
@@ -35,6 +37,13 @@ export function planCsharpSequenceValue(
   }
   if (source.carrier.kind !== "tuple" && source.lengthMember === undefined) {
     return reject(node, diagnostics, "Native sequence construction requires its finalized native length.");
+  }
+  if (source.carrier.kind === "tuple" && source.elements.length === 0) {
+    return csharpPlannedValue({ kind: "array", element: elementTarget }, {
+      kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
+        receiver: qualifiedCsharpType("System", "Array"), name: "Empty", typeArguments: [elementType] },
+      arguments: [],
+    }, planCsharpPlannedDiscard(planned));
   }
   const name = input.names.temporaryName("__tsonic_sequence_source");
   const destinationName = input.names.temporaryName("__tsonic_sequence_result");
@@ -65,6 +74,7 @@ export function planCsharpSequenceSnapshotStatements(
   const allocation: CsharpStatement = { kind: "ExpressionStatement", expression: { kind: "AssignmentExpression",
     operatorToken: { kind: "EqualsToken" }, left: destination,
     right: { kind: "ArrayCreationExpression", elementType, elements: [], size: length } } };
+  if (source.carrier.kind === "tuple" && source.elements.length === 0) return [allocation];
   if (source.carrier.kind === "array" && source.elements[0]?.conversion.kind === "identity") {
     return [allocation, { kind: "ExpressionStatement", expression: invoke({ kind: "QualifiedName",
       left: { kind: "IdentifierName", name: "System" }, name: "Array" }, "Copy", [source.expression, destination, length]) }];
