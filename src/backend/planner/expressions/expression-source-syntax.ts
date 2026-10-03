@@ -66,14 +66,13 @@ import {
   resolveRuntimeCarrierForExpression,
 } from "../types/runtime-carriers.js";
 import {
-  getCsharpAwaitResultTargetType,
-  getCsharpNullableElementTargetType,
-  isCsharpVoidTargetType,
   targetTypeRefEquals,
 } from "../../../target-model/types/index.js";
 import {
   planThisExpression,
 } from "./expression-this.js";
+import { selectCsharpAwaitCompletion } from "../../../target-model/types/await-completions.js";
+import { planCsharpAwaitCompletion } from "./await-completions.js";
 
 export function tryPlanSourceSyntaxExpression(
   node: Node,
@@ -200,8 +199,9 @@ export function tryPlanSourceSyntaxExpression(
       }
       const awaitedCarrierResolution = resolveRuntimeCarrierForExpression(input, expression.Expression, sourceFile);
       const awaitedCarrier = probeCarrierFromResolution(awaitedCarrierResolution);
-      const awaitedResultCarrier = getCsharpAwaitResultTargetType(awaitedCarrier);
-      if (awaitedResultCarrier === undefined) {
+      const completion = selectCsharpAwaitCompletion(awaitedCarrier, input.program.typeDefinitions);
+      const awaitedResultCarrier = completion?.result;
+      if (awaitedCarrier === undefined || completion === undefined || awaitedResultCarrier === undefined) {
         const detail = missingCarrierDiagnosticDetail(awaitedCarrierResolution, "Runtime carrier fact is missing for the awaited expression.");
         diagnostics.push(unsupportedNodeDiagnostic(node, `Await expression emission requires a finalized Promise/Task target carrier fact for the awaited expression. ${detail.reason}`, detail.evidence));
         return undefined;
@@ -220,30 +220,14 @@ export function tryPlanSourceSyntaxExpression(
       if (awaited === undefined) {
         return undefined;
       }
-      const presentCarrier = getCsharpNullableElementTargetType(awaitedCarrier);
-      if (presentCarrier !== undefined) {
-        if (isCsharpVoidTargetType(awaitedResultCarrier)) {
-          const taskType = csharpTypeFromTargetTypeRef(presentCarrier, input.scope.typeParameterNames);
-          if (taskType === undefined) return undefined;
-          return { kind: "AwaitExpression", expression: { kind: "ParenthesizedExpression", expression: {
-            kind: "BinaryExpression", operatorToken: { kind: "QuestionQuestionToken" }, left: awaited,
-            right: { kind: "SimpleMemberAccessExpression", receiver: taskType, name: "CompletedTask" },
-          } } };
-        }
-        const presentType = csharpTypeFromTargetTypeRef(presentCarrier, input.scope.typeParameterNames);
-        const resultType = csharpTypeFromTargetTypeRef(awaitedResultCarrier, input.scope.typeParameterNames);
-        if (presentType === undefined || resultType === undefined) return undefined;
-        const name = input.names.temporaryName(`__tsonic_await_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`);
-        return { kind: "ParenthesizedExpression", expression: { kind: "ConditionalExpression",
-          condition: { kind: "IsPatternExpression", expression: awaited, type: presentType, designation: name },
-          whenTrue: { kind: "AwaitExpression", expression: { kind: "IdentifierName", name } },
-          whenFalse: { kind: "DefaultExpression", type: resultType },
-        } };
+      let use = node;
+      let parent = input.program.source.ast.parent(use);
+      while (parent !== undefined && input.program.source.ast.is.IsParenthesizedExpression(parent)) {
+        use = parent;
+        parent = input.program.source.ast.parent(use);
       }
-      return {
-        kind: "AwaitExpression",
-        expression: awaited,
-      };
+      return planCsharpAwaitCompletion(node, awaitedCarrier, completion, awaited, input, diagnostics,
+        parent !== undefined && input.program.source.ast.is.IsExpressionStatement(parent));
     }
     case KindConditionalExpression: {
       const expression = AsConditionalExpression(input.program.source.ast, node)!;

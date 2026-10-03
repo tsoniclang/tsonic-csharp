@@ -155,7 +155,7 @@ export function resolveSelectedExpressionType(
     );
     return awaited === undefined
       ? undefined
-      : getTaskResultType(awaited);
+      : getTaskResultType(awaited, host.typeDefinitions);
   }
   if (
     host.ast.is.IsCallExpression(node) ||

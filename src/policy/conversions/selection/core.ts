@@ -70,19 +70,6 @@ export function selectCsharpConversion(
   if (nullable !== undefined) {
     return nullable;
   }
-  if (
-    getCsharpTaskResultTargetType(source) !== undefined ||
-    getCsharpTaskResultTargetType(target) !== undefined
-  ) {
-    if (namedTargetTypeImplicitlyAccepts(input, source, target, new Set())) {
-      return { kind: "implicit", proof: "reference" };
-    }
-    return {
-      kind: "rejected",
-      reason:
-        `Task carriers cannot be unwrapped, reinterpreted, or changed in arity without an exact target conversion relation: '${targetTypeRefKey(source)}' to '${targetTypeRefKey(target)}'.`,
-    };
-  }
   const sourceMethod = getCsharpMethodValue(source);
   const targetMethod = getCsharpMethodValue(target);
   if (sourceMethod !== undefined && targetMethod !== undefined) {
@@ -97,6 +84,19 @@ export function selectCsharpConversion(
   const runtimeUnion = selectRuntimeUnionConversion(input, source, target, mode);
   if (runtimeUnion !== undefined) {
     return runtimeUnion;
+  }
+  if (
+    getCsharpTaskResultTargetType(source) !== undefined ||
+    getCsharpTaskResultTargetType(target) !== undefined
+  ) {
+    if (namedTargetTypeImplicitlyAccepts(input, source, target, new Set())) {
+      return { kind: "implicit", proof: "reference" };
+    }
+    return {
+      kind: "rejected",
+      reason:
+        `Task carriers cannot be unwrapped, reinterpreted, or changed in arity without an exact target conversion relation: '${targetTypeRefKey(source)}' to '${targetTypeRefKey(target)}'.`,
+    };
   }
   const tuple = selectTupleConversion(input, source, target, mode);
   if (tuple !== undefined) {

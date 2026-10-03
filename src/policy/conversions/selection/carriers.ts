@@ -120,9 +120,6 @@ export function selectCsharpRuntimeUnionProjection(
 ): CsharpConversionSelection {
   const sourceElement = getCsharpNullableElementTargetType(source);
   const targetElement = getCsharpNullableElementTargetType(target);
-  if (targetElement !== undefined && sourceElement === undefined) return {
-    kind: "rejected", reason: "A union payload cannot retain absence that its source does not carry.",
-  };
   const selected = targetElement ?? target;
   const path = csharpUnionProjectionPath(sourceElement ?? source, selected, input.typeDefinitions);
   const related = path !== undefined ? [{ path, armType: selected }]
@@ -131,7 +128,7 @@ export function selectCsharpRuntimeUnionProjection(
       !isCsharpValueTypeTargetType(selected) && !isCsharpValueTypeTargetType(leaf.carrier) &&
       namedTargetTypeImplicitlyAccepts(input, selected, leaf.carrier, new Set())
         ? [{ path: leaf.path, armType: leaf.carrier, refinement: selected }] : []);
-  return related.length === 1 ? { kind: "runtime-union-projection", ...related[0]!, retainsAbsence: targetElement !== undefined }
+  return related.length === 1 ? { kind: "runtime-union-projection", ...related[0]!, retainsAbsence: sourceElement !== undefined && targetElement !== undefined }
     : { kind: "rejected", reason: related.length === 0
       ? "Explicit C# runtime-union projection requires one exact payload or nominal refinement."
       : "Explicit C# runtime-union projection has ambiguous native payloads." };

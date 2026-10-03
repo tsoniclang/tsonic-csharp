@@ -107,7 +107,7 @@ export function planCsharpRuntimeUnionProjection(
 ): CsharpExpression | undefined {
   const sourceElement = getCsharpNullableElementTargetType(sourceType);
   const targetElement = getCsharpNullableElementTargetType(targetType);
-  const selectedType = selection.retainsAbsence ? targetElement : targetType;
+  const selectedType = targetElement ?? targetType;
   if (!input.program.conversions.matchesUnionProjection(sourceType, targetType, selection) ||
     typeof selection.retainsAbsence !== "boolean" || selectedType === undefined ||
     !targetTypeRefEquals(selection.refinement ?? selection.armType, selectedType) ||

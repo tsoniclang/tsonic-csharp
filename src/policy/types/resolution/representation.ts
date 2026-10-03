@@ -7,6 +7,7 @@ import { isCsharpDestructuringAssignmentPattern, isCsharpAssignmentOperator, sou
 import { selectCsharpNumericBinaryPromotion } from "../../operations/numeric/promotion.js";
 import { sourcePrimitiveImplicitlyConverts } from "../../conversions/source-primitives.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 
 export function resolveBinaryTargetRepresentation(
   ast: AstReader,
@@ -110,6 +111,7 @@ export function getNonNullableTargetRepresentation(
 
 export function getTaskResultType(
   type: TargetTypeRef,
+  definitions?: CsharpTypeDefinitions,
 ): TargetTypeRef | undefined {
-  return getCsharpAwaitResultTargetType(type);
+  return getCsharpAwaitResultTargetType(type, definitions);
 }

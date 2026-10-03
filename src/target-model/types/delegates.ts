@@ -20,7 +20,9 @@ import {
 import {
   csharpTargetNamedType,
 } from "./factories.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "./nullable.js";
+import { getCsharpNullableElementTargetType } from "./nullable.js";
+import type { CsharpTypeDefinitions } from "./source-union-definitions.js";
+import { selectCsharpAwaitCompletion } from "./await-completions.js";
 
 export function csharpDelegateTargetType(
   kind: "System.Action" | "System.Func",
@@ -87,10 +89,11 @@ export function getCsharpTaskResultTargetType(type: TargetTypeRef | undefined): 
     : undefined;
 }
 
-export function getCsharpAwaitResultTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
-  const result = getCsharpTaskResultTargetType(type);
-  return result === undefined || isCsharpVoidTargetType(result) || getCsharpNullableElementTargetType(type) === undefined
-    ? result : csharpNullableTargetType(result);
+export function getCsharpAwaitResultTargetType(
+  type: TargetTypeRef | undefined,
+  definitions?: CsharpTypeDefinitions,
+): TargetTypeRef | undefined {
+  return selectCsharpAwaitCompletion(type, definitions)?.result;
 }
 
 export function csharpVoidReturnCompletion(source: TargetTypeRef | undefined, target: TargetTypeRef | undefined): "void" | "absence" | undefined {

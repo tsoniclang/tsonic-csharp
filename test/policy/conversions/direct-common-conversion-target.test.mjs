@@ -228,7 +228,7 @@ test("delegate adapters retain exact contravariant parameter conversions", () =>
       { kind: "identity" },
       { kind: "implicit", proof: "numeric" },
     ],
-    returnConversion: { kind: "identity" },
+    returnConversion: { kind: "void-return" },
   });
 });
 
@@ -249,7 +249,7 @@ test("delegate adapters discard target callback parameters omitted by source cal
   assert.deepEqual(selectCsharpConversion(host, source, target, "implicit"), {
     kind: "delegate-adapter",
     parameterConversions: [],
-    returnConversion: { kind: "identity" },
+    returnConversion: { kind: "void-return" },
   });
   assert.equal(
     selectCsharpConversion(host, target, source, "implicit").kind,
@@ -266,7 +266,7 @@ test("nullable target annotations retain required delegate adaptation", () => {
   assert.deepEqual(selectCsharpConversion(host, source, target, "implicit"), {
     kind: "delegate-adapter",
     parameterConversions: [{ kind: "implicit", proof: "numeric" }],
-    returnConversion: { kind: "identity" },
+    returnConversion: { kind: "void-return" },
   });
 });
 
@@ -294,7 +294,9 @@ test("flow reads project one exact runtime-union arm", () => {
   assert.deepEqual(selectCsharpFlowReadConversion(host, nullable, optionalString), {
     kind: "runtime-union-projection", path: [{ union, index: 1 }], armType: string, retainsAbsence: true,
   });
-  assert.equal(selectCsharpFlowReadConversion(host, union, optionalString).kind, "rejected");
+  assert.deepEqual(selectCsharpFlowReadConversion(host, union, optionalString), {
+    kind: "runtime-union-projection", path: [{ union, index: 1 }], armType: string, retainsAbsence: false,
+  });
   assert.equal(selectCsharpFlowReadConversion(host, nullable, csharpNullableTargetType(float64)).kind, "rejected");
   assert.equal(selectCsharpFlowReadConversion(host, nullable, float64).kind, "rejected");
   assert.equal(selectCsharpConversion(host, nullable, string, "implicit").kind, "rejected");
