@@ -4,7 +4,7 @@ import { csharpPlannedValue, csharpPlannedEffect } from "../../../../dist/backen
 import { planCsharpObjectInitialization } from "../../../../dist/backend/planner/expressions/planned-initializers.js";
 import { completeCsharpClassInitializationRegion } from "../../../../dist/backend/planner/declarations/classes/initializers.js";
 import { planCsharpConstructorInitializerArgument } from "../../../../dist/backend/planner/declarations/classes/initializer-arguments.js";
-import { csharpSourcePrimitiveTargetType, csharpNeverTargetType, csharpTargetNamedType } from "../../../../dist/target-model/types/index.js";
+import { csharpSourcePrimitiveTargetType, csharpNeverTargetType, csharpTargetNamedType, csharpNullableTargetType } from "../../../../dist/target-model/types/index.js";
 
 const integer = csharpSourcePrimitiveTargetType("uint64");
 const carrier = csharpTargetNamedType("fixture:Record", [], { kind: "named", name: "Record" });
@@ -13,7 +13,7 @@ const identifier = name => ({ kind: "IdentifierName", name });
 const call = name => ({ kind: "InvocationExpression", callee: identifier(name), arguments: [] });
 const effect = name => ({ kind: "ExpressionStatement", expression: call(name) });
 const value = name => csharpPlannedValue(integer, call(name));
-const group = (name, planned) => ({ value: planned, assignments: expression => [{ kind: "AssignmentExpression", name, expression }] });
+const group = (name, planned) => ({ value: planned, presence: { kind: "required" }, assignments: expression => [{ kind: "AssignmentExpression", name, expression }] });
 function context() {
   let index = 0;
   return { program: { source: { ast: { pos: () => 1, end: () => 9, parent: () => undefined } } },
@@ -39,7 +39,7 @@ test("native object initialization preserves overwritten values and orders a lat
 
 test("object spreads capture their exact source once even for zero or multiple projected fields", () => {
   for (const count of [0, 2]) {
-    const spread = { value: csharpPlannedValue(carrier, call("source")), assignments: receiver => Array.from({ length: count }, (_, index) => ({
+    const spread = { value: csharpPlannedValue(carrier, call("source")), presence: { kind: "required" }, assignments: receiver => Array.from({ length: count }, (_, index) => ({
       kind: "AssignmentExpression", name: `field${index}`, expression: { kind: "SimpleMemberAccessExpression", receiver, name: `field${index}` },
     })) };
     const planned = planCsharpObjectInitialization({}, {}, context(), [], carrier, type, [], [spread]);
@@ -47,6 +47,25 @@ test("object spreads capture their exact source once even for zero or multiple p
     assert.equal(planned.prelude.length, count + 2);
     for (const statement of planned.prelude.slice(2)) assert.equal(statement.expression.right.receiver.name, planned.prelude[1].name);
   }
+});
+
+test("optional spreads evaluate once and guard their complete ordered assignment region", () => {
+  const source = csharpNullableTargetType(carrier);
+  const spread = { value: csharpPlannedValue(source, call("source")), presence: { kind: "optional", carrier },
+    assignments: receiver => ["left", "right"].map(name => ({ kind: "AssignmentExpression", name,
+      expression: { kind: "SimpleMemberAccessExpression", receiver, name } })) };
+  const planned = planCsharpObjectInitialization({}, {}, context(), [], carrier, type, [], [spread]);
+  assert.ok(planned);
+  assert.deepEqual(planned.prelude.map(statement => statement.kind),
+    ["LocalDeclarationStatement", "LocalDeclarationStatement", "IfStatement"]);
+  assert.equal(planned.prelude[1].initializer.callee.name, "source");
+  const guard = planned.prelude[2];
+  assert.equal(guard.thenBody.statements.length, 2);
+  assert.equal(guard.condition.kind, "IsPatternExpression");
+  assert.equal(guard.thenBody.statements.every(statement =>
+    statement.expression.right.receiver.name === guard.condition.designation), true);
+  assert.equal(planCsharpObjectInitialization({}, {}, context(), [], carrier, type, [],
+    [{ ...spread, presence: { kind: "optional", carrier: integer } }]) === undefined, true);
 });
 
 test("ordered instance and static initialization regions keep all necessary neighboring fields in source order", () => {

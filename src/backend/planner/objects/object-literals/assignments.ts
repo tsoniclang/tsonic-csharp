@@ -70,7 +70,7 @@ export function planObjectShapeLiteralAssignment(
       );
       return planned === undefined
         ? undefined
-        : [{ value: planned.expression, assignments: expression => [{
+        : [{ value: planned.expression, presence: { kind: "required" }, assignments: expression => [{
             kind: "AssignmentExpression",
             name: objectShapeStorageMemberName(objectShape, planned.member),
             expression,

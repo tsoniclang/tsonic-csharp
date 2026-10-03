@@ -5,9 +5,11 @@ import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpStateme
 import type { CsharpPlanningContext } from "../context.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { captureCsharpPlannedValue } from "./planned-value-composition.js";
+import { planCsharpPresentValueGuard } from "./optional-storage.js";
 
 export interface CsharpPlannedObjectInitializer {
   readonly value: CsharpPlannedValue;
+  readonly presence: { readonly kind: "required" } | { readonly kind: "optional"; readonly carrier: TargetTypeRef };
   assignments(value: CsharpExpression): readonly CsharpObjectInitializerAssignment[];
 }
 
@@ -19,7 +21,8 @@ export function planCsharpObjectInitialization(
   const inline: CsharpObjectInitializerAssignment[] = [...initial];
   let direct = true;
   for (const group of groups) {
-    if (group.value.prelude.length !== 0 || group.value.completion.kind !== "value") { direct = false; break; }
+    if (group.presence.kind !== "required" || group.value.prelude.length !== 0 ||
+      group.value.completion.kind !== "value") { direct = false; break; }
     const assignments = group.assignments(group.value.completion.expression);
     if (assignments.length !== 1) { direct = false; break; }
     inline.push(...assignments);
@@ -37,16 +40,24 @@ export function planCsharpObjectInitialization(
     if (group.value.completion.kind !== "value") return undefined;
     let value = group.value.completion.expression;
     const selected = group.assignments(value);
-    if (selected.length !== 1) {
+    if (selected.length !== 1 || group.presence.kind === "optional") {
       const source = captureCsharpPlannedValue(node, input, diagnostics, group.value.completion.carrier);
       if (source === undefined) return undefined;
       prelude.push({ kind: "LocalDeclarationStatement", ...source, initializer: value });
       value = { kind: "IdentifierName", name: source.name };
     }
-    for (const assignment of group.assignments(value)) prelude.push({ kind: "ExpressionStatement", expression: {
+    const guard = group.presence.kind !== "optional" ? undefined : planCsharpPresentValueGuard(
+      group.value.completion.carrier, group.presence.carrier, value,
+      input.names.temporaryName(`__tsonic_present_${input.program.source.ast.pos(node)}`), input.scope.typeParameterNames,
+    );
+    if (group.presence.kind === "optional" && guard === undefined) return undefined;
+    const stores: CsharpStatement[] = group.assignments(guard?.value ?? value).map(assignment => ({ kind: "ExpressionStatement", expression: {
       kind: "AssignmentExpression", left: { kind: "SimpleMemberAccessExpression", receiver: reference, name: assignment.name },
       operatorToken: { kind: "EqualsToken" }, right: assignment.expression,
-    } });
+    } }));
+    if (guard === undefined) prelude.push(...stores);
+    else if (stores.length > 0) prelude.push({ kind: "IfStatement", condition: guard.condition,
+      thenBody: { kind: "Block", statements: stores } });
   }
   void file;
   return csharpPlannedValue(carrier, reference, prelude);

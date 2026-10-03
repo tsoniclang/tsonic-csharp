@@ -13,7 +13,9 @@ import type {
 import {
   csharpObjectShapeMemberLookupFailureMessage,
   resolveCsharpObjectShapeMemberBySourceKey,
+  getCsharpNullableElementTargetType,
 } from "../../../../target-model/types/index.js";
+import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../../diagnostics.js";
@@ -80,7 +82,10 @@ export function planObjectShapeSpreadAssignments(
     }
     fields.push({ source: objectShapeStorageMemberName(sourceShape, sourceMember), target: objectShapeStorageMemberName(targetShape, targetMember) });
   }
-  return { value: sourceExpression, assignments: receiver => fields.map(field => ({
+  const carrier = sourceExpression.completion.kind === "value" ? sourceExpression.completion.carrier : undefined;
+  const present = getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier);
+  return { value: sourceExpression, presence: present === undefined ? { kind: "required" } : { kind: "optional", carrier: present },
+    assignments: receiver => fields.map(field => ({
       kind: "AssignmentExpression",
       name: field.target,
       expression: {

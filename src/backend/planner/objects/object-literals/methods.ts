@@ -119,6 +119,7 @@ export function planObjectShapeMethodMemberAssignment(
   }
   return {
     value: csharpPlannedValue(storageTargetType, expression),
+    presence: { kind: "required" },
     assignments: value => [{ kind: "AssignmentExpression", name: objectShapeStorageMemberName(objectShape, member), expression: value }],
   };
 }

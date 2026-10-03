@@ -117,6 +117,7 @@ export function planObjectShapeAccessorMemberAssignment(
     return undefined;
   }
   return {
+    presence: { kind: "required" },
     value: csharpPlannedValue(getter
       ? csharpDelegateTargetType("System.Func", [objectShape.targetType], member.type)
       : csharpDelegateTargetType("System.Action", [objectShape.targetType, member.type]), expression),
