@@ -161,6 +161,7 @@ export function createCsharpProjectTypePolicy(
         providers: host.providers,
         sourceFacts: host.sourceFacts,
         types: host.types,
+        semanticsFor: host.semanticsFor,
         targetTypeForDefinition: projectDefinitionTargetType,
       },
       catalog.definitions,

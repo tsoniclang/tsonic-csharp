@@ -82,6 +82,7 @@ import type {
   CsharpSourceEvidenceIndex,
 } from "../source-evidence/index.js";
 import { classifyExactUnmodifiedCatchRethrow } from "./catch-rethrow.js";
+import { selectCsharpProgramErrorCarrier } from "../../policy/conversions/program-error.js";
 import {
   classifySourceOwnedProperty,
   classifyCsharpMemberReceiver,
@@ -155,6 +156,9 @@ const regularExpressionKey = createTargetClassificationKey<ReturnType<typeof sel
 const throwableKey = createTargetClassificationKey<boolean>(
   "csharp.operation.throwable",
 );
+const throwValueKey = createTargetClassificationKey<NonNullable<ReturnType<CsharpTargetOperationClassifications["throwValue"]>>>(
+  "csharp.operation.throw-value",
+);
 const exactCatchRethrowKey = createTargetClassificationKey<boolean>(
   "csharp.operation.exact-catch-rethrow",
 );
@@ -205,6 +209,7 @@ export function analyzeCsharpTargetOperations(
     providerValue: (node) => facts.get(node, providerValueKey),
     regularExpression: (node) => facts.get(node, regularExpressionKey),
     throwable: (node) => facts.get(node, throwableKey),
+    throwValue: (node) => facts.get(node, throwValueKey),
     exactCatchRethrow: (node) => facts.get(node, exactCatchRethrowKey) === true,
   };
   return Object.freeze(classifications);
@@ -638,14 +643,12 @@ function visit(
   if (ast.is.IsThrowStatement(node)) {
     const expression = ast.as.AsThrowStatement(node)?.Expression;
     if (expression !== undefined) {
+      const sourceCarrier = policy.types.resolveNode(expression, sourceFile);
       setClassification(
         builder,
-        expression,
-        throwableKey,
-        isCsharpThrowableType(
-          policy,
-          policy.types.resolveNode(expression, sourceFile),
-        ),
+        node,
+        throwValueKey,
+        Object.freeze({ expression, sourceCarrier, targetCarrier: selectCsharpProgramErrorCarrier(policy, sourceCarrier) }),
       );
       setClassification(
         builder,

@@ -111,6 +111,7 @@ export type CsharpSourceProfileElementPolicyResult =
 
 export interface CsharpSourceProfileCallPolicy {
   readonly source: CsharpSourceProfileIdentitySelector;
+  readonly inheritableConstructor?: CsharpTargetMember;
   select(
     context: CsharpSourceProfileCallPolicyContext,
   ): CsharpSourceProfileCallPolicyResult | undefined;
@@ -439,7 +440,7 @@ export function csharpSourceProfileDiagnostic(
   });
 }
 
-function sourceProfileIdentityMatches(
+export function sourceProfileIdentityMatches(
   selector: CsharpSourceProfileIdentitySelector,
   identity: CsharpSourceProfileDeclarationIdentity,
 ): boolean {

@@ -1,10 +1,12 @@
 import type {
   AstReader,
+  Node,
   ReadonlySourceFactResolver,
   Signature,
 } from "@tsonic/tsts";
 import type {
   SourceClassConstructorSignature,
+  SourceFileSemantics,
   SourceProgramNavigation,
 } from "@tsonic/target-api/source";
 import { sourceNodeIdentity } from "@tsonic/target-api/source";
@@ -40,7 +42,9 @@ import {
 } from "../callables/member-substitution.js";
 import {
   targetTypeRefKey,
+  targetTypeRefEquals,
 } from "../../../target-model/types/equality.js";
+import { selectCsharpSourceProfileConstructor } from "../../operations/source-profiles/source-profile-selection.js";
 
 type CsharpProviderSignatureRelation = Extract<
   CsharpProviderTargetRelation,
@@ -51,7 +55,7 @@ export interface CsharpProjectForwardingConstructor {
   readonly definition: CsharpProjectTypeDefinition;
   readonly source: SourceClassConstructorSignature;
   readonly targetMember: CsharpTargetMember;
-  readonly providerBaseMemberId?: string;
+  readonly baseMemberId?: string;
 }
 
 export interface CsharpProjectConstructorPolicy {
@@ -71,6 +75,7 @@ export interface CsharpProjectConstructorPolicyHost {
   readonly providers: CsharpProviderRelationResolver;
   readonly sourceFacts?: ReadonlySourceFactResolver;
   readonly types: CsharpTypePolicy;
+  semanticsFor(node: Node): SourceFileSemantics;
   targetTypeForDefinition(
     definition: CsharpProjectTypeDefinition,
     typeArguments: readonly TargetTypeRef[],
@@ -83,6 +88,7 @@ export function createCsharpProjectConstructorPolicy(
   heritageById: ReadonlyMap<string, CsharpProjectTypeHeritage>,
 ): CsharpProjectConstructorPolicy {
   const issues: CsharpProjectTypeIssue[] = [];
+  const definitionsById = new Map(definitions.map(definition => [definition.id, definition]));
   const byDeclaration = new WeakMap<
     CsharpProjectTypeDefinition["declaration"],
     readonly CsharpProjectForwardingConstructor[]
@@ -128,6 +134,8 @@ export function createCsharpProjectConstructorPolicy(
         definition,
         heritage.baseType,
         sourceSignature,
+        definitionsById,
+        heritageById,
       );
       if (resolved.kind === "unresolved") {
         issues.push(resolved.issue);
@@ -139,8 +147,8 @@ export function createCsharpProjectConstructorPolicy(
       const existing = constructorsByTargetSignature.get(key);
       if (existing !== undefined) {
         if (
-          existing.providerBaseMemberId !==
-            resolved.constructor.providerBaseMemberId
+          existing.baseMemberId !==
+            resolved.constructor.baseMemberId
         ) {
           issues.push({
             node: sourceSignature.declaration ?? definition.declaration,
@@ -182,6 +190,8 @@ function resolveForwardingConstructor(
   definition: CsharpProjectTypeDefinition,
   baseType: TargetTypeRef,
   source: SourceClassConstructorSignature,
+  definitionsById: ReadonlyMap<string, CsharpProjectTypeDefinition>,
+  heritageById: ReadonlyMap<string, CsharpProjectTypeHeritage>,
 ):
   | {
       readonly kind: "resolved";
@@ -223,12 +233,50 @@ function resolveForwardingConstructor(
   if (host.navigation.isProjectDeclaration(source.declaration)) {
     return createSourceForwardingConstructor(host, definition, source);
   }
+  const constructors = selectCsharpSourceProfileConstructor(host, source.declaration);
+  if (constructors.length !== 0) {
+    const nativeBase = inheritedNativeBaseType(host, baseType, source, definitionsById, heritageById);
+    if (constructors.length !== 1 ||
+      constructors[0]!.declaringType === undefined ||
+      nativeBase === undefined || !targetTypeRefEquals(constructors[0]!.declaringType, nativeBase)) {
+      return constructorIssue(definition, "CSHARP_PROJECT_CONSTRUCTOR_SOURCE_PROFILE_CONFLICT",
+        "An inherited source-profile constructor requires one exact selected native base contract.", source.declaration);
+    }
+    return createNativeForwardingConstructor(host, definition, source, constructors[0]!);
+  }
   return constructorIssue(
     definition,
     "CSHARP_PROJECT_CONSTRUCTOR_TARGET_UNRESOLVED",
     "The inherited source constructor has neither project ownership nor an exact provider signature relation.",
     source.declaration,
   );
+}
+
+function inheritedNativeBaseType(
+  host: CsharpProjectConstructorPolicyHost,
+  baseType: TargetTypeRef,
+  source: SourceClassConstructorSignature,
+  definitionsById: ReadonlyMap<string, CsharpProjectTypeDefinition>,
+  heritageById: ReadonlyMap<string, CsharpProjectTypeHeritage>,
+): TargetTypeRef | undefined {
+  const visited = new Set<string>();
+  let current: TargetTypeRef | undefined = baseType;
+  while (current?.kind === "target-named") {
+    if (visited.has(current.id)) return undefined;
+    visited.add(current.id);
+    const definition = definitionsById.get(current.id);
+    if (definition === undefined) return current;
+    const constructors = host.navigation.classConstructors(definition.declaration);
+    if (constructors.kind !== "resolved" || !constructors.implicit ||
+      constructors.signatures.filter(signature => signature.declaration === source.declaration &&
+        signature.parameters.length === source.parameters.length && signature.parameters.every((parameter, index) => {
+          const selected = source.parameters[index];
+          return selected !== undefined && parameter.parameterDeclaration === selected.parameterDeclaration &&
+            parameter.acceptsOmission === selected.acceptsOmission && parameter.rest === selected.rest;
+        })).length !== 1) return undefined;
+    current = heritageById.get(definition.id)?.baseType;
+  }
+  return undefined;
 }
 
 function createProviderForwardingConstructor(
@@ -300,6 +348,17 @@ function createProviderForwardingConstructor(
     relation.targetMember,
     substitutions,
   );
+  return createNativeForwardingConstructor(host, definition, source, baseMember);
+}
+
+function createNativeForwardingConstructor(
+  host: CsharpProjectConstructorPolicyHost,
+  definition: CsharpProjectTypeDefinition,
+  source: SourceClassConstructorSignature,
+  baseMember: CsharpTargetMember,
+):
+  | { readonly kind: "resolved"; readonly constructor: CsharpProjectForwardingConstructor }
+  | { readonly kind: "unresolved"; readonly issue: CsharpProjectTypeIssue } {
   if (baseMember.csharpInvocation !== undefined) {
     return constructorIssue(
       definition,
@@ -325,7 +384,7 @@ function createProviderForwardingConstructor(
       definition,
       source,
       targetMember,
-      providerBaseMemberId: baseMember.id,
+      baseMemberId: baseMember.id,
     }),
   };
 }

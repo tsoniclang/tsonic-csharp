@@ -81,7 +81,7 @@ test("project-owned implicit constructors adapt an exact inherited provider sign
     selectedSignature,
     {
       targetMember: projectMember,
-      providerBaseMemberId: baseMember.id,
+      baseMemberId: baseMember.id,
     },
   ]])]]);
   const fixture = createCallFixture({

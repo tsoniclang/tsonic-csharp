@@ -319,6 +319,8 @@ export function analyzeCsharpExpectedTypes(
     recordInitializer(node);
     recordReturnExpression(node);
     recordExpressionBodyReturn(node);
+    const thrown = operations.throwValue(node);
+    if (thrown !== undefined) record(thrown.expression, thrown.targetCarrier, "required");
     const contextualType = evidence.contextualType(node);
     record(
       node,

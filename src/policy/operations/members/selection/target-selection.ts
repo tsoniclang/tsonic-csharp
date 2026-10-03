@@ -35,6 +35,7 @@ import type {
   CsharpTargetPropertyInvocation,
 } from "../../source-profiles/source-profile-policy.js";
 import { selectCsharpUnionProperty, type CsharpUnionProperty } from "../../union-properties.js";
+import { selectCsharpInheritedConstructorTarget } from "./inherited-construction.js";
 import {
   selectCsharpSourceCoreFixedArrayElement,
   selectCsharpSourceCoreFixedArrayProperty,
@@ -166,12 +167,12 @@ export function selectCsharpTargetCall(
       reason: provider.reason,
     };
   }
-  return profile.kind === "rejected"
-    ? profile
-    : {
+  if (profile.kind === "rejected") return profile;
+  const forwarding = selectCsharpInheritedConstructorTarget(host, provider.source, profile.call.targetMember);
+  return forwarding.kind === "missing" ? forwarding : {
         kind: "resolved",
         source: provider.source,
-        call: profile.call,
+        call: { ...profile.call, targetMember: forwarding.member },
       };
 }
 

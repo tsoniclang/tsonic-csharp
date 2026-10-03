@@ -185,5 +185,7 @@ export interface CsharpTargetOperationClassifications {
   providerValue(node: Node): CsharpProviderValueSelection | undefined;
   regularExpression(node: Node): CsharpRegularExpressionLiteralSelection | undefined;
   throwable(node: Node): boolean | undefined;
+  throwValue(node: Node): { readonly expression: Node; readonly sourceCarrier: TargetTypeRef | undefined;
+    readonly targetCarrier: TargetTypeRef | undefined } | undefined;
   exactCatchRethrow(node: Node): boolean;
 }

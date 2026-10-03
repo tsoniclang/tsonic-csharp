@@ -75,6 +75,7 @@ import {
 import {
   directCsharpSourceYieldExpression,
 } from "../../../target-model/syntax/yield-expression.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -281,15 +282,17 @@ export function planThrowStatement(
     sourceFile,
   );
   const carrier = probeCarrierFromResolution(carrierResolution);
-  const throwable = input.program.operations.throwable(statement.Expression);
-  if (throwable === undefined) {
+  const thrown = input.program.operations.throwValue(node);
+  if (thrown === undefined || thrown.expression !== statement.Expression ||
+    (carrier === undefined ? thrown.sourceCarrier !== undefined
+      : thrown.sourceCarrier === undefined || !targetTypeRefEquals(thrown.sourceCarrier, carrier))) {
     diagnostics.push(unsupportedNodeDiagnostic(
       statement.Expression,
-      "Throw expression has no sealed C# throwable classification.",
+      "Throw expression has no exact sealed C# native error carrier classification.",
     ));
     return [];
   }
-  if (!throwable) {
+  if (thrown.targetCarrier === undefined) {
     if (isCsharpJsThrowableValueCarrier(carrier)) {
       const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
       const boxed = expression === undefined
@@ -317,7 +320,9 @@ export function planThrowStatement(
     diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, `Throw statements require finalized TSTS/provider exception-carrier facts before C# emission. ${detail.reason}`, detail.evidence));
     return [];
   }
-  const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
+  const type = csharpTypeFromTargetTypeRef(thrown.targetCarrier, input.scope.typeParameterNames);
+  const expression = type === undefined ? undefined : planExpressionWithExpectedType(statement.Expression, sourceFile,
+    input, diagnostics, type, statement.Expression, state, thrown.targetCarrier);
   if (expression === undefined) {
     return [];
   }

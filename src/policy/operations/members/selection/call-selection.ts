@@ -23,6 +23,7 @@ import {
   compareInstantiatedProviderCalls,
   instantiateCsharpProviderCall,
 } from "../instantiation/instantiation.js";
+import { selectCsharpInheritedConstructorTarget } from "./inherited-construction.js";
 
 type ResolvedSourceCallInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["call"]>
@@ -78,11 +79,6 @@ export function selectCsharpProviderCall(
       reason: "The checker did not resolve an exact source call.",
     };
   }
-  const projectCallee = host.navigation.isProjectDeclaration(
-      source.sourceCallee.selectedDeclaration,
-    )
-    ? source.sourceCallee.selectedDeclaration
-    : undefined;
   const resolution = resolveCsharpProviderCallRelations(
     host,
     call,
@@ -107,30 +103,17 @@ export function selectCsharpProviderCall(
     sourceFile,
     resolution,
   );
-  if (selected.kind !== "resolved" || projectCallee === undefined) {
+  if (selected.kind !== "resolved") {
     return selected;
   }
-  const forwarding = host.projectTypes.implicitConstructorForSignature(
-    projectCallee,
-    source.selectedSignature,
-  );
-  if (
-    forwarding === undefined ||
-    selected.call.targetMember.kind !== "constructor" ||
-    forwarding.providerBaseMemberId !== selected.call.targetMember.id
-  ) {
-    return {
-      kind: "missing",
-      reason:
-        "The project-owned callee has no exact implicit constructor relation for the selected provider signature.",
-    };
-  }
+  const forwarding = selectCsharpInheritedConstructorTarget(host, source, selected.call.targetMember);
+  if (forwarding.kind === "missing") return forwarding;
   return {
     kind: "resolved",
     source,
     call: {
       ...selected.call,
-      targetMember: forwarding.targetMember,
+      targetMember: forwarding.member,
     },
   };
 }

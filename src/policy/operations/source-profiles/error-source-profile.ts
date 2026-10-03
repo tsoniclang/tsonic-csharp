@@ -13,12 +13,12 @@ import type {
   CsharpSourceProfileOwner,
 } from "./source-profile-identity.js";
 import {
-  csharpNullableTargetType,
   csharpRuntimeErrorTargetType,
   csharpStringTargetType,
   csharpVoidTargetType,
-} from "../../types/index.js";
-import type { CsharpTargetMember, TargetTypeRef } from "../../types/index.js";
+} from "../../../target-model/types/scalar-types.js";
+import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
+import type { CsharpTargetMember, TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTargetId } from "../../../target-model/identities/source.js";
 import { csharpSourceErrorNames, type CsharpSourceErrorName } from "../../../target-model/identities/source-errors.js";
 
@@ -39,9 +39,10 @@ const errorConstructor: CsharpTargetMember = Object.freeze({
   declaringType: errorType,
   parameters: Object.freeze([{
     name: "message",
-    type: stringType,
+    type: csharpNullableTargetType(stringType),
     passingMode: "by-value" as const,
     optional: true,
+    csharpOmittableOptionalArgument: true as const,
   }]),
   returnType: errorType,
 });
@@ -143,6 +144,7 @@ function errorCallPolicy(
     declaringType: type, returnType: type };
   return Object.freeze({
     source,
+    ...(kind === "construct" ? { inheritableConstructor: constructor } : {}),
     select(
       context: CsharpSourceProfileCallPolicyContext,
     ): CsharpSourceProfileCallPolicyResult {

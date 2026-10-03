@@ -1,5 +1,8 @@
 import type {
   SourceFile,
+  Node,
+  AstReader,
+  ReadonlySourceFactResolver,
 } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { selectCsharpArrayUnionElement, selectCsharpArrayUnionProperty } from "./js/array-unions.js";
@@ -31,7 +34,10 @@ import type {
   CsharpSourceProfileElementPolicyResult,
   CsharpSourceProfilePropertyPolicyResult,
 } from "./source-profile-policy.js";
+import { csharpSourceProfileDeclarationIdentity } from "./source-profile-identity.js";
+import type { CsharpTargetMember } from "../../../target-model/types/model.js";
 import {
+  sourceProfileIdentityMatches,
   selectCsharpSourceProfileCallPolicy,
   selectCsharpSourceProfileElementPolicy,
   selectCsharpSourceProfilePropertyPolicy,
@@ -64,6 +70,21 @@ const elementPolicies = Object.freeze([
   ...csharpNativeSourceProfileElementPolicies,
   ...csharpJsSourceProfileElementPolicies,
 ]);
+
+export function selectCsharpSourceProfileConstructor(
+  host: {
+    readonly ast: AstReader;
+    readonly sourceFacts?: ReadonlySourceFactResolver;
+    semanticsFor(node: Node): SourceFileSemantics;
+  },
+  declaration: Node,
+): readonly CsharpTargetMember[] {
+  const identity = csharpSourceProfileDeclarationIdentity(host.ast,
+    host.semanticsFor(declaration), host.sourceFacts, declaration);
+  if (identity === undefined || identity.kind !== "construct") return [];
+  return callPolicies.flatMap(policy => policy.inheritableConstructor === undefined ||
+    !sourceProfileIdentityMatches(policy.source, identity) ? [] : [policy.inheritableConstructor]);
+}
 
 export function selectCsharpComposedSourceProfileCall(
   host: CsharpProviderCallSelectionHost,
