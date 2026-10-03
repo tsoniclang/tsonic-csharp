@@ -20,6 +20,8 @@ import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { selectCsharpConditionalNumericCarrier } from "../conditional-numeric-carrier.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { resolveCsharpContextualObjectLiteralCarrier } from "./contextual-literals.js";
 
 export function resolveSelectedExpressionType(
   { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveTypeWithState, resolveReadStorage, resolveNonNullExpressionType, resolvePropertyAccessTargetType, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState, sourceUnions }: CsharpTypeResolutionScope,
@@ -114,21 +116,19 @@ export function resolveSelectedExpressionType(
   if (host.ast.is.IsBinaryExpression(node)) {
     const binary = host.ast.as.AsBinaryExpression(node);
     const operator = sourceOperatorFromKindName(host.ast.operatorKindName(node));
+    const left = operator === "??=" ? resolveReadStorage(binary?.Left, queries.sourceFile)
+      : resolveNodeWithState(binary?.Left, queries.sourceFile, nextState(state));
+    const expected = operator === "??" || operator === "??="
+      ? getCsharpNullableElementTargetType(left) ?? left : undefined;
+    const right = resolveCsharpContextualObjectLiteralCarrier(host, binary?.Right, expected) ??
+      resolveNodeWithState(binary?.Right, queries.sourceFile, nextState(state));
     return resolveBinaryTargetRepresentation(
       host.ast,
       operator,
       binary?.Left,
-      operator === "??=" ? resolveReadStorage(binary?.Left, queries.sourceFile) : resolveNodeWithState(
-        binary?.Left,
-        queries.sourceFile,
-        nextState(state),
-      ),
+      left,
       binary?.Right,
-      resolveNodeWithState(
-        binary?.Right,
-        queries.sourceFile,
-        nextState(state),
-      ),
+      right,
     );
   }
   if (

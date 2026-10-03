@@ -12,6 +12,7 @@ import { csharpSourceTypeArgumentNodes } from "../../../target-model/syntax/type
 import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/collections.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { csharpNeverTargetType } from "../../../target-model/types/scalar-types.js";
 import { nextState } from "./state.js";
 import { sourceFactSubjectsForNode, definedValues, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { sourcePrimitiveFactKey } from "@tsonic/tsts";
@@ -254,6 +255,11 @@ export function resolveStandardSourceTypeTransformation(
 ): TargetTypeRef | undefined {
   if (transformation.kind === "unresolved") {
     return undefined;
+  }
+  if (transformation.kind === "non-nullish") {
+    if (queries.types.isNever(selectedType)) return csharpNeverTargetType();
+    const input = resolveSourceTypeComponentEvidence(transformation.component, queries, state);
+    return getCsharpNullableElementTargetType(input) ?? input;
   }
   if (transformation.kind === "component") {
     return resolveSourceTypeComponentEvidence(

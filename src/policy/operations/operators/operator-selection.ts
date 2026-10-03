@@ -1,6 +1,7 @@
 import { validateBinaryTargetSemantics, validateUnaryTargetSemantics, isCsharpReferenceCarrier, isEquality, isRelational, isShift, isBitwise, isArithmetic } from "./operator-validation.js";
 import { selectCsharpAssignmentLocation, type CsharpAssignmentLocation } from "./assignment-location.js";
 import { selectCsharpGuardedIntegerPromotion } from "../numeric/guarded.js";
+import { resolveCsharpContextualObjectLiteralCarrier } from "../../types/resolution/contextual-literals.js";
 import type { CsharpReferenceEquality, CsharpUnionEqualityArm } from "../../../target-model/operations/binary.js";
 import { selectCsharpReferenceEquality } from "./reference-equality.js";
 import { selectCsharpUnionEquality } from "./union-equality.js";
@@ -24,7 +25,6 @@ import {
   isCsharpAbsenceTargetType,
   isCsharpStringTargetType,
   isCsharpJsValueTargetType,
-  isCsharpRecordDictionaryTargetType,
   targetTypeRefEquals,
 } from "../../types/index.js";
 import {
@@ -463,13 +463,8 @@ function resolveBinaryOperandType(
     const storage = input.types.resolveReadStorage(node);
     if (getCsharpNullableElementTargetType(storage) !== undefined) return storage;
   }
-  if (expectedType !== undefined && input.ast.is.IsObjectLiteralExpression(node)) {
-    if (isCsharpRecordDictionaryTargetType(expectedType)) return expectedType;
-    const shape = input.objectShapes.resolveTarget(expectedType);
-    const construction = shape === undefined ? undefined
-      : input.objectShapes.resolveObjectLiteralTargetShape(shape, node, input.semanticsFor(node).sourceFile);
-    if (construction?.kind === "resolved") return expectedType;
-  }
+  const contextual = resolveCsharpContextualObjectLiteralCarrier(input, node, expectedType);
+  if (contextual !== undefined) return contextual;
   return adaptLiteralToExpectedType(input, node, selected, expectedType);
 }
 

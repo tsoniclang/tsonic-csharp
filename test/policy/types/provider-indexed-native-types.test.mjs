@@ -17,7 +17,9 @@ function fixture(options = {}) {
     if (!options.missingFact || index === 0) for (const subject of member.subjects) facts.set(subject, declaration);
     return memberRelation({ declaration, binding, member: providerField({
       id: `Native.Box.Field${index}`, returnType: options.conflicting && index === 1
-        ? { kind: "source-primitive", name: "uint64" } : { kind: "type-parameter", identity: "T", name: "T" },
+        ? { kind: "source-primitive", name: "uint64" } : options.nativeOptional
+          ? csharpNullableTargetType({ kind: "type-parameter", identity: "T", name: "T" })
+          : { kind: "type-parameter", identity: "T", name: "T" },
     }) });
   });
   const direct = directProviderHost({ relations: options.missingRelation ? [] :
@@ -36,6 +38,8 @@ test("provider indexed type policy closes native generics and optional propertie
   assert.deepEqual(fixture(), integer);
   assert.deepEqual(fixture({ keys: '"value" | "other"' }), integer);
   assert.deepEqual(fixture({ keys: '"optional"' }), csharpNullableTargetType(integer));
+  assert.deepEqual(fixture({ keys: '"optional"', nativeOptional: true }), csharpNullableTargetType(integer));
+  assert.deepEqual(fixture({ nativeOptional: true }), csharpNullableTargetType(integer));
   assert.equal(fixture({ unowned: true }), undefined);
 });
 
