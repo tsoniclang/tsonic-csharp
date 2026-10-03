@@ -139,6 +139,7 @@ export function analyzeCsharpConversions(
     storage: CsharpStorageRepresentationClassifications,
   ): void {
     if (evidence.isCompileTimeMetadata(node)) return;
+    if (operations.nativeUnreachable(node)) return;
     const sourceTypes = exactSourceTypes(node, operations, storage);
     const sourceType = sourceTypes[0];
     for (const candidate of sourceTypes) {

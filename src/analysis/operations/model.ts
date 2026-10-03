@@ -159,6 +159,8 @@ export interface CsharpUnaryClassification {
 }
 
 export interface CsharpTargetOperationClassifications {
+  nativeGuardResult(expression: Node): boolean | undefined;
+  nativeUnreachable(node: Node): boolean;
   memoryBinding(node: Node): CsharpMemoryBindingSelection | undefined;
   binaryExecutionDriver(): CsharpTargetBinaryExecutionDriver | undefined;
   resultType(node: Node): TargetTypeRef | undefined;

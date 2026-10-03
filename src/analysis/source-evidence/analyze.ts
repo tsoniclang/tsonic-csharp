@@ -192,6 +192,7 @@ export function analyzeCsharpSourceEvidence(
   }
 
   function visit(node: Node, sourceFile: SourceFile, typeOnly = false): void {
+    if (!typeOnly && policy.types.nativeUnreachable(node)) return;
     if (source.ast.is.IsVariableDeclaration(node)) {
       const alias = policy.callOnlyAlias(node);
       if (alias !== undefined) {

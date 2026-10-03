@@ -316,6 +316,7 @@ export function analyzeCsharpExpectedTypes(
 
   function visit(node: Node, sourceFile: SourceFile): void {
     if (evidence.isCompileTimeMetadata(node)) return;
+    if (operations.nativeUnreachable(node)) return;
     recordInitializer(node);
     recordReturnExpression(node);
     recordExpressionBodyReturn(node);

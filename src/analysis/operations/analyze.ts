@@ -162,6 +162,8 @@ const throwValueKey = createTargetClassificationKey<NonNullable<ReturnType<Cshar
 const exactCatchRethrowKey = createTargetClassificationKey<boolean>(
   "csharp.operation.exact-catch-rethrow",
 );
+const nativeGuardResultKey = createTargetClassificationKey<boolean>("csharp.operation.native-guard-result");
+const nativeUnreachableKey = createTargetClassificationKey<boolean>("csharp.operation.native-unreachable");
 export function analyzeCsharpTargetOperations(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
@@ -183,6 +185,8 @@ export function analyzeCsharpTargetOperations(
   const selectedBinaryExecutionDriver =
     composeCsharpBinaryExecutionDriver(...binaryExecutionDrivers);
   const classifications: CsharpTargetOperationClassifications = {
+    nativeGuardResult: node => facts.get(node, nativeGuardResultKey),
+    nativeUnreachable: node => facts.get(node, nativeUnreachableKey) === true,
     memoryBinding: node => facts.get(node, memoryBindingKey),
     binaryExecutionDriver: () => selectedBinaryExecutionDriver,
     resultType: (node) => operationResultType(facts, node),
@@ -225,7 +229,16 @@ function visit(
     import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[],
 ): void {
   if (evidence.isCompileTimeMetadata(node)) return;
+  if (policy.types.nativeUnreachable(node)) {
+    setClassification(builder, node, nativeUnreachableKey, true);
+    return;
+  }
   const { ast } = policy;
+  if (ast.is.IsIfStatement(node)) {
+    const expression = ast.as.AsIfStatement(node)?.Expression;
+    const result = expression === undefined ? undefined : policy.types.nativeGuardResult(expression);
+    if (expression !== undefined && result !== undefined) setClassification(builder, expression, nativeGuardResultKey, result);
+  }
   if (ast.is.IsSwitchStatement(node)) {
     setClassification(builder, node, switchKey, selectCsharpSwitch(policy, node, sourceFile));
   }

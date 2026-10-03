@@ -38,6 +38,12 @@ export function planIfStatement(
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
   const statement = AsIfStatement(input.program.source.ast, node)!;
+  const selected = statement.Expression === undefined ? undefined : input.program.operations.nativeGuardResult(statement.Expression);
+  if (selected !== undefined) {
+    const branch = selected ? statement.ThenStatement : statement.ElseStatement;
+    return branch === undefined ? [] : [{ kind: "Block", body: { kind: "Block",
+      statements: planNestedStatementBody(branch, sourceFile, input, diagnostics, state) } }];
+  }
   const condition = planConditionExpression(statement.Expression, "If statement", sourceFile, input, diagnostics, state);
   if (condition === undefined) {
     return [];

@@ -10,7 +10,7 @@ import type {
   SourceFileSemantics,
   SourceTypeComponentEvidence,
 } from "@tsonic/target-api/source";
-import { sourceTypeSyntaxRoot } from "@tsonic/target-api/source";
+import { sourceTypeSyntaxRoot, sourceNodeIsNativeUnreachable } from "@tsonic/target-api/source";
 import type { CsharpSourceCallableContract } from "../callables/source-callable-contract.js";
 import { resolveCsharpPointerReturnContract } from "../callables/pointer-return.js";
 import type { CsharpPointerReturnContract } from "../callables/pointer-return.js";
@@ -23,7 +23,7 @@ import { getCsharpDelegateSignature } from "../../../target-model/types/delegate
 import { createCsharpSourceUnionIndex, type CsharpSourceUnionIndex } from "./source-unions.js";
 import { createCsharpSourceUnionDefinitions } from "./union-definitions.js";
 import { createCsharpFixedArrayTypeQuery } from "./source-markers.js";
-import { selectCsharpNativeFlowMembers, selectCsharpNativeFlowTypeMembers } from "./native-flow-refinement.js";
+import { selectCsharpNativeFlowMembers, selectCsharpNativeFlowTypeMembers, selectCsharpNativeGuardResult } from "./native-flow-refinement.js";
 import { resolveCsharpInstanceType } from "./instance-tests.js";
 import type { SourceNativeValueGuard } from "@tsonic/target-api/source";
 
@@ -724,6 +724,9 @@ export function createCsharpTypeResolutionServices(
       guard.sourceConstructor, type => methods.resolveType(type, file));
   };
   const policy: CsharpTypePolicy = Object.freeze({
+    nativeGuardResult: (expression: Node) => selectCsharpNativeGuardResult(host, expression, methods.resolveStorage),
+    nativeUnreachable: (node: Node) => sourceNodeIsNativeUnreachable(host.ast, node,
+      expression => selectCsharpNativeGuardResult(host, expression, methods.resolveStorage)),
     nativeFlowMembers: (reference: Node, sourceCarrier: TargetTypeRef) => selectCsharpNativeFlowMembers(host, reference, sourceCarrier, resolveNominal),
     nativeFlowTypes: (reference: Node, sourceType: Type) => {
       const file = host.ast.getSourceFile(reference);

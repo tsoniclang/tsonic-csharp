@@ -102,6 +102,8 @@ export type CsharpScopedTypePolicyResult =
     };
 
 export interface CsharpTypePolicy {
+  nativeGuardResult(expression: Node): boolean | undefined;
+  nativeUnreachable(node: Node): boolean;
   nativeFlowMembers(reference: Node, sourceCarrier: TargetTypeRef): readonly TargetTypeRef[] | undefined;
   nativeFlowTypes(reference: Node, sourceType: Type): readonly Type[] | undefined;
   resolveBindingProjection(node: Node, sourceFile: SourceFile): import("../objects/binding-projection-policy.js").CsharpBindingProjection | undefined;

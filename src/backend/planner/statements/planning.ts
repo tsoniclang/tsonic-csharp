@@ -119,6 +119,7 @@ export function planStatements(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState = createDestructuringPlannerState(),
 ): readonly CsharpStatement[] {
+  if (input.program.operations.nativeUnreachable(node)) return [];
   switch (SourceKind(input.program.source.ast, node)) {
     case KindEmptyStatement:
       return [];
