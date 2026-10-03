@@ -51,11 +51,15 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     state: CsharpTypeResolutionState,
     authoredTypeRoot?: Node,
   ): readonly CsharpObjectShapeMemberFact[] | undefined {
+    const symbol = queries.declarations.typeSymbol(ownerType);
+    const literals = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)
+      .filter(declaration => host.ast.is.IsObjectLiteralExpression(declaration));
+    if (literals.length > 1) return undefined;
     const members = queries.types.propertyInfos(ownerType).filter(property => {
       const declarations = queries.declarations.symbolDeclarations(property.symbol);
       return declarations.length === 0 || !declarations.every(declaration => sourceClassFieldIsTypeOnly(host.ast, declaration));
     }).map((property) =>
-      deriveMember(property, queries, state, authoredTypeRoot)
+      deriveMember(property, queries, state, authoredTypeRoot, literals[0])
     );
     return members.some((member) => member === undefined)
       ? undefined
@@ -96,6 +100,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
     authoredTypeRoot?: Node,
+    literalOwner?: Node,
   ): CsharpObjectShapeMemberFact | undefined {
     const sourcePropertyName = property.name;
     if (sourcePropertyName.length === 0) {
@@ -126,10 +131,12 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       host.ast.is.IsMethodSignatureDeclaration(declaration)
     );
     const getters = declarations.filter((declaration) =>
-      host.ast.is.IsGetAccessorDeclaration(declaration)
+      host.ast.is.IsGetAccessorDeclaration(declaration) &&
+        (literalOwner === undefined || host.ast.parent(declaration) === literalOwner)
     );
     const setters = declarations.filter((declaration) =>
-      host.ast.is.IsSetAccessorDeclaration(declaration)
+      host.ast.is.IsSetAccessorDeclaration(declaration) &&
+        (literalOwner === undefined || host.ast.parent(declaration) === literalOwner)
     );
     if (getters.length > 1 || setters.length > 1 ||
       (getters.length === 0 && setters.length > 0)) {
