@@ -8,7 +8,10 @@ import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/nullable.js";
+import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
+import { getCsharpCollectionElementTargetType, getCsharpIndexableLengthMemberName } from "../../../../target-model/types/collections.js";
 import { csharpConversionIsApplicable } from "../../../../policy/conversions/index.js";
+import { planCsharpPresentValueGuard } from "../optional-storage.js";
 import type { CsharpArraySpreadInput } from "./spread-source.js";
 
 export function planCsharpBorrowedSequenceConsumption(
@@ -36,10 +39,15 @@ export function planCsharpBorrowedSequenceConsumption(
         ? empty() : reject("Only an exact empty array literal may omit source construction.");
     }
     const recorded = input.types.classifications.resolveNode(selected.expression, sourceFile);
-    const present = getCsharpNullableElementTargetType(selected.carrier);
+    const present = getCsharpGenericOptionalParts(selected.carrier)?.element ?? getCsharpNullableElementTargetType(selected.carrier);
+    const element = getCsharpCollectionElementTargetType(selected.presentCarrier);
+    const carriers = selected.presentCarrier.kind === "tuple" ? selected.presentCarrier.elements : element === undefined ? undefined : [element];
     if (recorded === undefined || !targetTypeRefEquals(recorded, selected.carrier) ||
       !targetTypeRefEquals(present ?? selected.carrier, selected.presentCarrier) ||
       selected.optional !== (present !== undefined) ||
+      selected.lengthMember !== getCsharpIndexableLengthMemberName(selected.presentCarrier) ||
+      carriers === undefined || carriers.length !== selected.elements.length ||
+      carriers.some((carrier, elementIndex) => !targetTypeRefEquals(carrier, selected.elements[elementIndex]!.carrier)) ||
       selected.elements.some(element => !csharpConversionIsApplicable(element.conversion, "implicit"))) {
       return reject("Borrowed sequence selection lost its exact native storage, presence or element conversion.");
     }
@@ -50,7 +58,10 @@ export function planCsharpBorrowedSequenceConsumption(
     if (value === undefined || type === undefined || elements.some(element => element.type === undefined)) return undefined;
     const name = input.names.temporaryName(`__tsonic_sequence_${input.program.source.ast.pos(selected.expression)}`);
     const receiver: CsharpExpression = { kind: "IdentifierName", name };
-    const consumed = consume({ carrier: selected.presentCarrier, type, expression: receiver,
+    const guard = selected.optional ? planCsharpPresentValueGuard(selected.carrier, selected.presentCarrier,
+      value.value, name, input.scope.typeParameterNames) : undefined;
+    if (selected.optional && guard === undefined) return reject("Borrowed sequence must use the finalized native optional storage projection.");
+    const consumed = consume({ carrier: selected.presentCarrier, type, expression: guard?.value ?? receiver,
       elements: elements as readonly { readonly carrier: typeof selected.carrier; readonly type: CsharpTypeNode;
         readonly conversion: typeof selected.elements[number]["conversion"] }[], lengthMember: selected.lengthMember });
     if (consumed === undefined) return undefined;
@@ -58,9 +69,8 @@ export function planCsharpBorrowedSequenceConsumption(
       { kind: "LocalDeclarationStatement", name, type, initializer: value.value }, ...consumed];
     const otherwise = branch(index + 1);
     if (otherwise === undefined) return undefined;
-    return [...value.prelude, { kind: "IfStatement", condition: {
-      kind: "IsPatternExpression", expression: value.value, type, designation: name,
-    }, thenBody: { kind: "Block", statements: consumed }, elseBody: { kind: "Block", statements: otherwise } }];
+    return [...value.prelude, { kind: "IfStatement", condition: guard!.condition,
+      thenBody: { kind: "Block", statements: consumed }, elseBody: { kind: "Block", statements: otherwise } }];
   };
   return branch(0);
 

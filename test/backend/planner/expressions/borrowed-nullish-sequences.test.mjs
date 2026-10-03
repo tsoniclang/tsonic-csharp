@@ -20,9 +20,9 @@ for (const surface of [undefined, "js"]) {
     const count = surface === "js" ? "Count" : "Length";
     const hand = surface === "js"
       ? `var result = new Tsonic.CSharp.Js.JSArray<string>(); if (authored is not null) return result.AppendSequence(authored);
-         if (native is { } source) { result.EnsureCapacity(source.Count); for (var index = 0; index < source.Count; index++) result.Add(source[index]!); } return result;`
+         if (native is { } source) { result.EnsureCapacity(source.Count); for (var index = 0; index < source.Count; index++) result.Add(Tsonic.CSharp.Node.Http.HeaderValues.read(source, index)); } return result;`
       : `if (authored is not null) { var result = new string[authored.Length]; System.Array.Copy(authored, result, authored.Length); return result; }
-         if (native is { } source) { var result = new string[source.Count]; for (var index = 0; index < source.Count; index++) result[index] = source[index]!; return result; } return new string[0];`;
+         if (native is { } source) { var result = new string[source.Count]; for (var index = 0; index < source.Count; index++) result[index] = Tsonic.CSharp.Node.Http.HeaderValues.read(source, index); return result; } return new string[0];`;
     executeCsharpConstruction(compiled, `borrowed-nullish-sequences-${surface ?? "native"}`, false, false, references, `
 using Index = Tsonic.Generated.Index;
 ${carrier} authored = ${authored};

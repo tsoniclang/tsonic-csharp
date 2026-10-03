@@ -43,6 +43,9 @@ import {
   translateCsharpSelectedReceiver,
 } from "../receivers.js";
 import { csharpRecordOptionalRead } from "../../objects/indexed-records.js";
+import { selectCsharpCollectionElementRead } from "../../../../target-model/types/collection-reads.js";
+import { planCsharpCollectionElementRead } from "../collection-reads.js";
+import { planCsharpAbsentValue, planCsharpPresentValueGuard } from "../optional-storage.js";
 
 export function translateCsharpElementAccess(
   node: Node,
@@ -436,6 +439,23 @@ function translateSourceOwnedElement(
     input,
     diagnostics,
   );
+  const read = indexableReceiverType === undefined ? undefined : selectCsharpCollectionElementRead(indexableReceiverType);
+  if (read?.kind === "invalid") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, read.reason));
+    return undefined;
+  }
+  if (read?.kind === "method" && selection.source.accessMode === "read" && receiver !== undefined && argument !== undefined) {
+    if (!selection.source.optionalChain) return planCsharpCollectionElementRead(indexableReceiverType!, receiver,
+      argument, input.scope.typeParameterNames);
+    if (receiverType === undefined) return undefined;
+    const name = input.names.temporaryName(`__tsonic_indexed_sequence_${input.program.source.ast.pos(node)}`);
+    const guard = planCsharpPresentValueGuard(receiverType, indexableReceiverType!, receiver, name, input.scope.typeParameterNames);
+    const absent = planCsharpAbsentValue(selectedResultType, input.scope.typeParameterNames);
+    const value = guard === undefined ? undefined : planCsharpCollectionElementRead(indexableReceiverType!, guard.value,
+      argument, input.scope.typeParameterNames);
+    return guard === undefined || value === undefined || absent === undefined ? undefined : { kind: "ConditionalExpression",
+      condition: guard.condition, whenTrue: value, whenFalse: absent };
+  }
   return receiver === undefined || argument === undefined
     ? undefined
     : {

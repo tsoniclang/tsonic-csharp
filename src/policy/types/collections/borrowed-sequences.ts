@@ -3,6 +3,7 @@ import { sourceSequenceInputChoice, sourceSequenceInputIsEmpty } from "@tsonic/t
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/collections.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 import { combineCsharpTargetUnionMembers } from "../../../target-model/types/runtime-carriers.js";
 
 export function resolveCsharpBorrowedSequenceElement(
@@ -16,10 +17,14 @@ export function resolveCsharpBorrowedSequenceElement(
   for (const input of choice.inputs) {
     if (sourceSequenceInputIsEmpty(ast, input)) continue;
     const carrier = resolve(input);
-    const present = getCsharpNullableElementTargetType(carrier) ?? carrier;
-    const element = getCsharpCollectionElementTargetType(present);
-    if (element === undefined) return undefined;
-    elements.push(element);
+    const present = getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier) ?? carrier;
+    if (present?.kind === "tuple") {
+      elements.push(...present.elements);
+    } else {
+      const element = getCsharpCollectionElementTargetType(present);
+      if (element === undefined) return undefined;
+      elements.push(element);
+    }
   }
   return elements.length === 0 ? undefined : combineCsharpTargetUnionMembers(elements);
 }

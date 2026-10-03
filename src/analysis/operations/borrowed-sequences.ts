@@ -4,6 +4,7 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpCollectionElementTargetType, getCsharpIndexableLengthMemberName } from "../../target-model/types/collections.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/nullable.js";
+import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import type { CsharpConversionSelection } from "../../policy/conversions/index.js";
 import { csharpConversionIsApplicable, selectCsharpConversion } from "../../policy/conversions/index.js";
 
@@ -38,7 +39,7 @@ export function classifyCsharpBorrowedSequenceInput(
     }
     const carrier = policy.types.resolveNode(node, sourceFile);
     if (carrier === undefined) return undefined;
-    const optional = getCsharpNullableElementTargetType(carrier);
+    const optional = getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier);
     const presentCarrier = optional ?? carrier;
     const element = getCsharpCollectionElementTargetType(presentCarrier);
     const carriers = presentCarrier.kind === "tuple" ? presentCarrier.elements : element === undefined ? undefined : [element];

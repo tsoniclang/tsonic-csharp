@@ -8,6 +8,7 @@ import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planCsharpGeneratedMethodCall } from "../declarations/generated-methods.js";
 import { applyCsharpConversionSelection } from "./conversions.js";
 import type { ArrayLiteralPlanner } from "./array-literals/types.js";
+import { planCsharpCollectionElementRead } from "./collection-reads.js";
 import { planCsharpArraySpreadInput, type CsharpArraySpreadInput } from "./array-literals/spread-source.js";
 
 type SpreadContribution = { readonly kind: "spread"; readonly node: Node; readonly source: CsharpArraySpreadInput };
@@ -171,7 +172,9 @@ export function planCsharpSequenceAppendStatements(
   }
   if (getCsharpReadOnlyIndexableCollectionElementTargetType(source.carrier) !== undefined && source.lengthMember !== undefined) {
     const index = identifier("index");
-    const value = convert({ kind: "ElementAccessExpression", receiver, arguments: [index] }, 0);
+    const read = planCsharpCollectionElementRead(source.carrier, receiver, index, input.scope.typeParameterNames);
+    if (read === undefined) return reject(node, diagnostics, "Native sequence read lost its finalized indexed member contract.");
+    const value = convert(read, 0);
     return value === undefined ? undefined : [{ kind: "ForStatement",
       initializer: { kind: "VariableDeclaration", locals: [{ kind: "VariableDeclarator", name: "index",
         type: { kind: "PredefinedType", name: "int" }, initializer: { kind: "LiteralExpression", value: 0 } }] },
