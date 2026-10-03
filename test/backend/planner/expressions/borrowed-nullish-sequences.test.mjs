@@ -1,0 +1,56 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
+import { borrowedNullishSequencesSource, incompatibleBorrowedSequenceSource } from "../../../../../tsonic/test/fixtures/borrowed-nullish-sequences.mjs";
+import { createTsonicPlugin } from "../../../../../csharp-nodejs/nodejs/dist/index.js";
+
+for (const surface of [undefined, "js"]) {
+  test(`native nullish sequences retain backing until the authored snapshot (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, capabilities: [createTsonicPlugin()], sourceText: borrowedNullishSequencesSource });
+    assertCsharpCompilationSucceeded(compiled);
+    const output = [...compiled.artifacts.values()].join("\n");
+    assert.doesNotMatch(output, /\.ToArray\(|\.Select\(|IEnumerable<|foreach|Func</u);
+    if (surface === "js") assert.match(output, /IReadOnlyList<string>/u);
+    const references = [fileURLToPath(new URL("../../../../../csharp-nodejs/csharp/src/Tsonic.CSharp.Node/Tsonic.CSharp.Node.csproj", import.meta.url))];
+    const carrier = surface === "js" ? "Tsonic.CSharp.Js.JSArray<string>" : "string[]";
+    const authored = surface === "js" ? 'new Tsonic.CSharp.Js.JSArray<string> { "authored", "second" }' : 'new string[] { "authored", "second" }';
+    const count = surface === "js" ? "Count" : "Length";
+    const hand = surface === "js"
+      ? "new Tsonic.CSharp.Js.JSArray<string>().AppendSequence((System.Collections.Generic.IReadOnlyList<string>?)authored ?? native ?? System.Array.Empty<string>())"
+      : "Copy(authored ?? native ?? System.Array.Empty<string>())";
+    executeCsharpConstruction(compiled, `borrowed-nullish-sequences-${surface ?? "native"}`, false, false, references, `
+using Index = Tsonic.Generated.Index;
+${carrier} authored = ${authored};
+string[] native = new string[] { "native", "tail" };
+var first = Index.choose(authored, native);
+if (first.${count} != 2 || first[0] != "authored") throw new System.Exception("present source selection");
+first[0] = "changed";
+if (authored[0] != "authored" || native[0] != "native") throw new System.Exception("fresh destination alias");
+var second = Index.choose(null, native);
+if (second.${count} != 2 || second[0] != "native") throw new System.Exception("native fallback");
+second[0] = "changed";
+if (native[0] != "native") throw new System.Exception("native backing alias");
+if (Index.choose(null, null).${count} != 0) throw new System.Exception("absence fallback");
+for (var index = 0; index < 1000; index++) { System.GC.KeepAlive(Index.choose(authored, native)); System.GC.KeepAlive(Handwritten(authored, native)); }
+foreach (var selected in new ${carrier}?[] { authored, null }) {
+    var before = System.GC.GetAllocatedBytesForCurrentThread();
+    for (var index = 0; index < 10000; index++) System.GC.KeepAlive(Index.choose(selected, native));
+    var generated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+    before = System.GC.GetAllocatedBytesForCurrentThread();
+    for (var index = 0; index < 10000; index++) System.GC.KeepAlive(Handwritten(selected, native));
+    var handwritten = System.GC.GetAllocatedBytesForCurrentThread() - before;
+    if (generated != handwritten) throw new System.Exception($"borrowed selection allocation: {generated} != {handwritten}");
+}
+static ${carrier} Handwritten(${carrier}? authored, string[]? native) => ${hand};
+${surface === "js" ? "" : "static string[] Copy(string[] source) { var result = new string[source.Length]; System.Array.Copy(source, result, source.Length); return result; }"}
+`);
+  });
+}
+
+test("native sequence selection cannot admit incompatible element storage", () => {
+  const compiled = compileCsharpSource({ surface: "js", capabilities: [createTsonicPlugin()], sourceText: incompatibleBorrowedSequenceSource });
+  assert.notEqual(compiled.sourceDiagnosticsText, "");
+  assert.equal(compiled.result.artifacts.length, 0);
+});

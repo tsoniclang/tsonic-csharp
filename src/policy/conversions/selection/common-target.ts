@@ -3,10 +3,28 @@ import { csharpConversionIsApplicable } from "./expression.js";
 import {
   targetTypeRefEquals,
   targetTypeRefKey,
+  csharpReadOnlyListTargetType,
+  getCsharpReadOnlyIndexableCollectionElementTargetType,
 } from "../../../target-model/types/index.js";
 import type { CsharpCommonImplicitTargetSelection, CsharpConversionTargetPreference } from "./model.js";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { TargetTypeRef } from "../../types/index.js";
+
+export function selectCsharpCommonReadOnlySequenceTarget(
+  input: Pick<CsharpPolicyContext, "projectTypes" | "providers" | "target">,
+  sources: readonly TargetTypeRef[],
+): TargetTypeRef | undefined {
+  const element = getCsharpReadOnlyIndexableCollectionElementTargetType(sources[0]);
+  if (element === undefined || sources.some(source => {
+    const selected = getCsharpReadOnlyIndexableCollectionElementTargetType(source);
+    return selected === undefined || !targetTypeRefEquals(selected, element);
+  })) {
+    return undefined;
+  }
+  const selected = selectCsharpCommonImplicitTarget(input, sources,
+    [...sources, csharpReadOnlyListTargetType(element)]);
+  return selected.kind === "resolved" ? selected.target : undefined;
+}
 
 export function selectCsharpCommonImplicitTarget(
   input: Pick<
