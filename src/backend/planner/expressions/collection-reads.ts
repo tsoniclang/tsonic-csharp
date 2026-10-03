@@ -1,6 +1,7 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { selectCsharpCollectionElementRead } from "../../../target-model/types/collection-reads.js";
-import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
+import { getCsharpIndexableLengthMemberName } from "../../../target-model/types/collections.js";
+import type { CsharpExpression, CsharpStatement } from "../../target-ast/roslyn/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 
 export function planCsharpCollectionElementRead(
@@ -16,4 +17,26 @@ export function planCsharpCollectionElementRead(
     arguments: [{ kind: "Argument", expression: receiver,
       ...(selection.member.parameters[0]!.passingMode === "byref-readonly" ? { passing: "in" as const } : {}) },
       { kind: "Argument", expression: index }] };
+}
+
+export function planCsharpCollectionIndexedIteration(
+  carrier: TargetTypeRef,
+  receiver: CsharpExpression,
+  indexName: string,
+  consume: (value: CsharpExpression) => readonly CsharpStatement[] | undefined,
+  typeParameterNames?: ReadonlyMap<string, string>,
+): CsharpStatement | undefined {
+  const length = getCsharpIndexableLengthMemberName(carrier);
+  if (length === undefined) return undefined;
+  const index: CsharpExpression = { kind: "IdentifierName", name: indexName };
+  const value = planCsharpCollectionElementRead(carrier, receiver, index, typeParameterNames);
+  const statements = value === undefined ? undefined : consume(value);
+  if (statements === undefined) return undefined;
+  return { kind: "ForStatement",
+    initializer: { kind: "VariableDeclaration", locals: [{ kind: "VariableDeclarator", name: indexName,
+      type: { kind: "PredefinedType", name: "int" }, initializer: { kind: "LiteralExpression", value: 0 } }] },
+    condition: { kind: "BinaryExpression", operatorToken: { kind: "LessThanToken" }, left: index,
+      right: { kind: "SimpleMemberAccessExpression", receiver, name: length } },
+    incrementors: [{ kind: "PostfixUnaryExpression", operand: index, operatorToken: { kind: "PlusPlusToken" } }],
+    body: { kind: "Block", statements } };
 }

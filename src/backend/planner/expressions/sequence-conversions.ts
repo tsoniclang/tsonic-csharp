@@ -2,13 +2,15 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef, CsharpTargetNamedTypeRef } from "../../../target-model/types/index.js";
 import { csharpTupleElementMemberName, getCsharpReadOnlyIndexableCollectionElementTargetType } from "../../../target-model/types/index.js";
+import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
+import { selectCsharpCollectionElementRead } from "../../../target-model/types/collection-reads.js";
 import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planCsharpGeneratedMethodCall } from "../declarations/generated-methods.js";
 import { applyCsharpConversionSelection } from "./conversions.js";
 import type { ArrayLiteralPlanner } from "./array-literals/types.js";
-import { planCsharpCollectionElementRead } from "./collection-reads.js";
+import { planCsharpCollectionIndexedIteration } from "./collection-reads.js";
 import { planCsharpArraySpreadInput, type CsharpArraySpreadInput } from "./array-literals/spread-source.js";
 
 type SpreadContribution = { readonly kind: "spread"; readonly node: Node; readonly source: CsharpArraySpreadInput };
@@ -130,7 +132,10 @@ export function planCsharpJsArraySpreadAppend(
 ): CsharpExpression | undefined {
   const source = planCsharpArraySpreadInput(node, operand, sourceFile, input, diagnostics, elementTarget, planner.planExpression);
   if (source === undefined) return undefined;
-  if (source.carrier.kind !== "tuple" && source.elements.every(element => element.conversion.kind === "identity")) {
+  const read = selectCsharpCollectionElementRead(source.carrier);
+  if (read?.kind === "invalid") return reject(node, diagnostics, read.reason);
+  if (source.carrier.kind !== "tuple" && !isCsharpValueTypeTargetType(source.carrier) &&
+    read?.kind !== "method" && source.elements.every(element => element.conversion.kind === "identity")) {
     return invoke(destination, "AppendSequence", [source.expression]);
   }
   const destinationName = identifier("destination");
@@ -171,16 +176,12 @@ export function planCsharpSequenceAppendStatements(
     return values.some(value => value === undefined) ? undefined : values.map(value => append(value!));
   }
   if (getCsharpReadOnlyIndexableCollectionElementTargetType(source.carrier) !== undefined && source.lengthMember !== undefined) {
-    const index = identifier("index");
-    const read = planCsharpCollectionElementRead(source.carrier, receiver, index, input.scope.typeParameterNames);
-    if (read === undefined) return reject(node, diagnostics, "Native sequence read lost its finalized indexed member contract.");
-    const value = convert(read, 0);
-    return value === undefined ? undefined : [{ kind: "ForStatement",
-      initializer: { kind: "VariableDeclaration", locals: [{ kind: "VariableDeclarator", name: "index",
-        type: { kind: "PredefinedType", name: "int" }, initializer: { kind: "LiteralExpression", value: 0 } }] },
-      condition: { kind: "BinaryExpression", operatorToken: { kind: "LessThanToken" }, left: index, right: spreadLength(source, receiver)! },
-      incrementors: [{ kind: "PostfixUnaryExpression", operand: index, operatorToken: { kind: "PlusPlusToken" } }],
-      body: { kind: "Block", statements: [append(value)] } }];
+    const indexName = input.names.temporaryName("__tsonic_sequence_index");
+    const loop = planCsharpCollectionIndexedIteration(source.carrier, receiver, indexName, read => {
+      const value = convert(read, 0);
+      return value === undefined ? undefined : [append(value)];
+    }, input.scope.typeParameterNames);
+    return loop === undefined ? reject(node, diagnostics, "Native sequence read lost its finalized indexed member contract.") : [loop];
   }
   const value = convert(identifier("value"), 0);
   return value === undefined ? undefined : [{ kind: "ForEachStatement", itemType: source.elements[0]!.type,

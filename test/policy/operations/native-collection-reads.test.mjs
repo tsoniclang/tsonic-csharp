@@ -3,7 +3,8 @@ import test from "node:test";
 import { csharpTargetNamedType, csharpStringTargetType, csharpSourcePrimitiveTargetType,
   csharpQualifiedTypeRenderShape, csharpNullableTargetType } from "../../../dist/target-model/types/index.js";
 import { selectCsharpCollectionElementRead } from "../../../dist/target-model/types/collection-reads.js";
-import { planCsharpCollectionElementRead } from "../../../dist/backend/planner/expressions/collection-reads.js";
+import { planCsharpCollectionElementRead, planCsharpCollectionIndexedIteration } from "../../../dist/backend/planner/expressions/collection-reads.js";
+import { planCsharpSequenceAppendStatements } from "../../../dist/backend/planner/expressions/sequence-conversions.js";
 
 const element = csharpStringTargetType();
 const physical = csharpTargetNamedType("example.NativeValues", undefined, csharpQualifiedTypeRenderShape("example", "NativeValues"), {
@@ -55,4 +56,26 @@ test("native read signatures fail closed for wrong physical receiver, width, res
     assert.equal(planCsharpCollectionElementRead(selected, receiver, index), undefined);
   }
   assert.equal(selectCsharpCollectionElementRead({ ...carrier, csharpReadOnlyIndexableElementType: undefined }).kind, "invalid");
+});
+
+test("native readonly indexed iteration and identity spreads consume the exact read method without boxing or bypass", () => {
+  const append = value => ({ kind: "ExpressionStatement", expression: value });
+  const loop = planCsharpCollectionIndexedIteration(carrier, receiver, "elementIndex", value => [append(value)]);
+  assert.equal(loop.kind, "ForStatement");
+  assert.deepEqual(loop.condition.right, { kind: "SimpleMemberAccessExpression", receiver, name: "Count" });
+  assert.equal(loop.body.statements[0].expression.callee.name, "read");
+  assert.equal(loop.body.statements[0].expression.arguments[1].expression.name, "elementIndex");
+  const source = { carrier, expression: receiver, elements: [{ carrier: element, conversion: { kind: "identity" },
+    type: { kind: "PredefinedType", name: "string" } }], lengthMember: "Count" };
+  const input = { scope: {}, names: { temporaryName: () => "selectedIndex" } };
+  const statements = planCsharpSequenceAppendStatements({}, source, receiver, {}, input, [], element, append);
+  assert.equal(statements[0].kind, "ForStatement");
+  assert.equal(statements[0].body.statements[0].expression.callee.name, "read");
+  assert.equal(statements[0].body.statements[0].expression.arguments[1].expression.name, "selectedIndex");
+  const serialized = JSON.stringify(statements);
+  assert.doesNotMatch(serialized, /ForEachStatement|AppendSequence|IEnumerable|ObjectCreationExpression/u);
+  assert.equal(planCsharpCollectionIndexedIteration({ ...carrier, csharpIndexableLengthMemberName: undefined }, receiver,
+    "elementIndex", value => [append(value)]), undefined);
+  assert.equal(planCsharpCollectionIndexedIteration({ ...carrier, csharpIndexableReadMember: { ...member, returnType: owner } },
+    receiver, "elementIndex", value => [append(value)]), undefined);
 });
