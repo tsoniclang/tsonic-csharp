@@ -292,12 +292,16 @@ export function applyCsharpConversionSelection(
     }
     case "cast": {
       const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
+      const operand = selection.proof === "nullable" && isCsharpNullableReferenceTargetType(sourceType) &&
+          getCsharpNullableElementTargetType(targetType) === undefined
+        ? { kind: "PostfixUnaryExpression" as const, operand: expression, operatorToken: { kind: "ExclamationToken" as const } }
+        : expression;
       return type === undefined
         ? undefined
         : {
             kind: "CastExpression",
             type,
-            expression,
+            expression: operand,
           };
     }
     case "delegate-adapter":

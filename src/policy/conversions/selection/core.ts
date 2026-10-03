@@ -2,7 +2,6 @@ import {
   csharpEnumerableTargetType,
   csharpReadOnlyListTargetType,
   getCsharpJsArrayElementTargetType,
-  csharpObjectTargetType,
   getCsharpCollectionElementTargetType,
   getCsharpImplicitArrayInputElementTargetType,
   getCsharpTaskResultTargetType,
@@ -22,7 +21,7 @@ import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../../targ
 import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-carriers.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "./model.js";
 import type { CsharpPolicyContext } from "../../model/context.js";
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
+import type { TargetTypeRef } from "../../types/index.js";
 import { getCsharpMethodValue, csharpMethodValueContractsEqual } from "../../../target-model/types/method-values.js";
 
 export function selectCsharpConversion(
@@ -126,12 +125,6 @@ export function selectCsharpConversion(
   if (delegate !== undefined) {
     return delegate;
   }
-  if (
-    targetTypeRefEquals(target, csharpObjectTargetType()) &&
-    targetTypeImplicitlyConvertsToObject(source)
-  ) {
-    return { kind: "implicit", proof: "reference" };
-  }
   if (namedTargetTypeImplicitlyAccepts(input, source, target, new Set())) {
     return { kind: "implicit", proof: "reference" };
   }
@@ -219,28 +212,6 @@ export function conversionIsImplicitlyApplicable(
     selection.kind === "empty-record" ||
     selection.kind === "implicit" ||
     selection.kind === "delegate-adapter";
-}
-
-function targetTypeImplicitlyConvertsToObject(
-  source: TargetTypeRef,
-): boolean {
-  switch (source.kind) {
-    case "source-primitive":
-    case "array":
-    case "tuple":
-      return true;
-    case "target-named":
-      return (source as CsharpTargetNamedTypeRef).csharpSpecialType !== "void";
-    case "source-global":
-    case "type-parameter":
-    case "pointer":
-    case "function-pointer":
-    case "opaque":
-    case "associated-type":
-    case "lifetime":
-    case "target-specific":
-      return false;
-  }
 }
 
 function selectCollectionInterfaceConversion(

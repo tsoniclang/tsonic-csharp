@@ -3,6 +3,7 @@ import {
 } from "../../types/storage/bindings.js";
 import {
   csharpVoidReturnCompletion,
+  csharpObjectTargetType,
   csharpTargetBindingFact,
   getCsharpDelegateSignature,
   getCsharpNullableElementTargetType,
@@ -289,6 +290,9 @@ export function namedTargetTypeImplicitlyAccepts(
   if (targetTypeRefEquals(source, target)) {
     return true;
   }
+  if (targetTypeRefEquals(target, csharpObjectTargetType())) {
+    return targetTypeImplicitlyConvertsToObject(source);
+  }
   if (source.kind !== "target-named" || target.kind !== "target-named") {
     return false;
   }
@@ -359,6 +363,26 @@ export function namedTargetTypeImplicitlyAccepts(
       target,
       visited,
     ));
+}
+
+function targetTypeImplicitlyConvertsToObject(source: TargetTypeRef): boolean {
+  switch (source.kind) {
+    case "source-primitive":
+    case "array":
+    case "tuple":
+      return true;
+    case "target-named":
+      return (source as CsharpTargetNamedTypeRef).csharpSpecialType !== "void";
+    case "source-global":
+    case "type-parameter":
+    case "pointer":
+    case "function-pointer":
+    case "opaque":
+    case "associated-type":
+    case "lifetime":
+    case "target-specific":
+      return false;
+  }
 }
 
 function constructedNamedTargetTypeImplicitlyAccepts(

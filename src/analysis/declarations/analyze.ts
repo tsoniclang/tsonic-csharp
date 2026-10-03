@@ -1,4 +1,5 @@
 import type { Node } from "@tsonic/tsts";
+import { selectCsharpContextualAsyncReturn } from "../../policy/conversions/contextual-async-return.js";
 import { csharpMethodValueCoversContract } from "../../target-model/types/method-values.js";
 import {
   HasSyntacticModifier,
@@ -123,11 +124,13 @@ function withAbsenceCompletion(
   if (contract.kind !== "resolved") return contract;
   const asynchronous = HasSyntacticModifier(policy.ast, declaration, ModifierFlagsAsync);
   const contextual = getCsharpDelegateSignature(evidence.contextualTargetType(declaration))?.returnType;
-  const type = !asynchronous && Node_Type(policy.ast, declaration) === undefined &&
-    isCsharpVoidTargetType(contract.type) && csharpCarrierAdmitsSourceAbsence(contextual)
-    ? contextual! : contract.type;
+  const inferred = Node_Type(policy.ast, declaration) === undefined;
+  const type = asynchronous && inferred
+    ? selectCsharpContextualAsyncReturn(policy, contract.type, contextual) ?? contract.type
+    : !asynchronous && inferred && isCsharpVoidTargetType(contract.type) && csharpCarrierAdmitsSourceAbsence(contextual)
+      ? contextual! : contract.type;
   const value = asynchronous ? getCsharpTaskResultTargetType(type) : type;
-  if (!csharpCarrierAdmitsSourceAbsence(value)) return contract;
+  if (!csharpCarrierAdmitsSourceAbsence(value)) return type === contract.type ? contract : { ...contract, type };
   const completion = policy.semanticsFor(declaration).operations.callableCompletion(declaration);
   if (policy.ast.body(declaration) !== undefined && completion === undefined) {
     return { kind: "rejected", reason: "An absence-bearing callable requires exact source completion evidence." };

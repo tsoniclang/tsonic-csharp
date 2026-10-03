@@ -4,7 +4,7 @@ import { selectCsharpExactIntegerConversion } from "../../../dist/policy/convers
 import { csharpNullableTargetType, csharpNullableValueTargetType } from "../../../dist/target-model/types/nullable.js";
 import { csharpObjectShapesEqual } from "../../../dist/target-model/types/object-shape-equality.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/selection/core.js";
-import { csharpJsArrayTargetType, csharpReadOnlyListTargetType, csharpStringTargetType } from "../../../dist/policy/types/index.js";
+import { csharpJsArrayTargetType, csharpReadOnlyListTargetType, csharpStringTargetType, csharpObjectTargetType, csharpRuntimeErrorTargetType, csharpVoidTargetType } from "../../../dist/policy/types/index.js";
 import { selectCsharpFlowReadConversion } from "../../../dist/policy/conversions/selection/expression.js";
 
 const primitive = name => ({ kind: "source-primitive", name });
@@ -13,6 +13,19 @@ const conversionContext = {
   projectTypes: { typeFromTarget: () => undefined, directSupertypes: () => [] },
   providers: { findTargetBindingByTargetId: () => undefined },
 };
+
+test("native Object ancestry supports exact checked reads without implicit downcasts", () => {
+  const object = csharpObjectTargetType();
+  const error = csharpRuntimeErrorTargetType();
+  assert.equal(selectCsharpConversion(conversionContext, error, object, "implicit").kind, "implicit");
+  assert.equal(selectCsharpConversion(conversionContext, object, error, "implicit").kind, "rejected");
+  assert.equal(selectCsharpConversion(conversionContext, object, error, "explicit").kind, "cast");
+  assert.equal(selectCsharpFlowReadConversion(conversionContext, csharpNullableTargetType(object), error).kind, "cast");
+  for (const target of [csharpVoidTargetType(), { kind: "type-parameter", identity: "opaque-T", name: "T" },
+    { kind: "pointer", pointee: primitive("uint8") }, { kind: "opaque", name: "opaque" }]) {
+    assert.equal(selectCsharpConversion(conversionContext, object, target, "explicit").kind, "rejected");
+  }
+});
 
 test("nullable conversions distinguish exact flow evidence from explicit assertions", () => {
   for (const [type, reference] of [[primitive("int64"), false], [csharpStringTargetType(), true]]) {
