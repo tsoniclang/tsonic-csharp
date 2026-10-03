@@ -37,7 +37,7 @@ export function planCsharpBorrowedSequenceConsumption(
     }
     const recorded = input.types.classifications.resolveNode(selected.expression, sourceFile);
     const present = getCsharpNullableElementTargetType(selected.carrier);
-    if (!targetTypeRefEquals(recorded, selected.carrier) ||
+    if (recorded === undefined || !targetTypeRefEquals(recorded, selected.carrier) ||
       !targetTypeRefEquals(present ?? selected.carrier, selected.presentCarrier) ||
       selected.optional !== (present !== undefined) ||
       selected.elements.some(element => !csharpConversionIsApplicable(element.conversion, "implicit"))) {
