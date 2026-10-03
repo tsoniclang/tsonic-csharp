@@ -12,7 +12,12 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
 import { callStatic } from "./csharp-expression-builders.js";
 import { csharpUnionEqualityArmsEqual } from "../../../target-model/operations/binary.js";
+import type { CsharpUnionEqualityArm } from "../../../target-model/operations/binary.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { isCsharpAbsenceTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
+import { planCsharpPresentValueGuard, planCsharpStorageIsAbsent } from "./optional-storage.js";
 
 export function planCsharpUnionEquality(
   node: Node,
@@ -44,8 +49,11 @@ export function planCsharpUnionEquality(
   for (const arm of operation.arms) {
     const designation = allocateExpressionTemp(state);
     const receiver: CsharpExpression = { kind: "IdentifierName", name: designation };
-    const left = planCsharpUnionPattern({ kind: "SimpleMemberAccessExpression", receiver, name: "Item1" }, arm.left.path);
-    const right = planCsharpUnionPattern({ kind: "SimpleMemberAccessExpression", receiver, name: "Item2" }, arm.right.path);
+    const left = planEqualityOperand(arm.left, selection.leftType,
+      { kind: "SimpleMemberAccessExpression", receiver, name: "Item1" }, input, state);
+    const right = planEqualityOperand(arm.right, selection.rightType,
+      { kind: "SimpleMemberAccessExpression", receiver, name: "Item2" }, input, state);
+    if (left === undefined || right === undefined) return undefined;
     const when = left.condition === undefined ? right.condition : right.condition === undefined ? left.condition
       : { kind: "BinaryExpression" as const, left: left.condition, right: right.condition,
           operatorToken: { kind: "AmpersandAmpersandToken" as const } };
@@ -68,4 +76,21 @@ export function planCsharpUnionEquality(
   arms.push({ pattern: { kind: "DiscardPattern" }, expression: { kind: "LiteralExpression", value: false } });
   const result: CsharpExpression = { kind: "SwitchExpression", expression: { kind: "TupleExpression", elements: [left, right] }, arms };
   return operation.negated ? { kind: "PrefixUnaryExpression", operatorToken: { kind: "ExclamationToken" }, operand: result } : result;
+}
+
+function planEqualityOperand(
+  arm: CsharpUnionEqualityArm["left"],
+  storage: TargetTypeRef,
+  value: CsharpExpression,
+  input: CsharpPlanningContext,
+  state: DestructuringPlannerState,
+): { readonly value: CsharpExpression; readonly condition?: CsharpExpression } | undefined {
+  if (arm.path.length === 0 && isCsharpAbsenceTargetType(arm.carrier)) {
+    const condition = planCsharpStorageIsAbsent(storage, value, input.scope.typeParameterNames);
+    return condition === undefined ? undefined : { value: { kind: "LiteralExpression", value: null }, condition };
+  }
+  if (arm.path.length === 0 && getCsharpNullableElementTargetType(storage) !== undefined) {
+    return planCsharpPresentValueGuard(storage, arm.carrier, value, allocateExpressionTemp(state), input.scope.typeParameterNames);
+  }
+  return planCsharpUnionPattern(value, arm.path, storage);
 }

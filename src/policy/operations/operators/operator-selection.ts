@@ -225,7 +225,8 @@ export function selectCsharpBinaryOperands(
   }
   const nullishTest = selectNullishTest(sourceOperator, leftType, rightType, input.typeDefinitions);
   if (nullishTest === undefined && (sourceOperator === "===" || sourceOperator === "!==") &&
-    (getCsharpRuntimeUnionArms(leftType, input.typeDefinitions) !== undefined || getCsharpRuntimeUnionArms(rightType, input.typeDefinitions) !== undefined)) {
+    (getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(leftType) ?? leftType, input.typeDefinitions) !== undefined ||
+      getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(rightType) ?? rightType, input.typeDefinitions) !== undefined)) {
     const arms = selectCsharpUnionEquality(leftType, rightType, input);
     if (arms === undefined) return rejected("Union equality requires exact native comparison evidence for every leaf pair.");
     const resultType = csharpSourcePrimitiveTargetType("bool");

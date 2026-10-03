@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { compileCsharpSource, assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 for (const surface of [undefined, "js"]) {
@@ -43,5 +43,20 @@ export function run(): boolean {
     const generated = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
     assert.doesNotMatch(generated, /\bAny\b|\bReflection\b|\bDynamicInvoke\b|\bActivator\b/u);
     executeCsharpConstruction(compiled, "project-union-upcasts");
+  });
+  test(`closed union widening rejects unrelated native classes on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32 } from "@tsonic/core/types.js";
+class Base { value: int32 = 1 as int32; read(): int32 { return this.value; } }
+class Other { value: int32 = 1 as int32; read(): int32 { return this.value; } }
+type Source = string | Other;
+type Target = string | Base;
+export function forbidden(value: Source): Target { return value; }
+` });
+    assertCsharpCheckingSucceeded(compiled);
+    assert.ok(compiled.result.diagnostics.some(diagnostic =>
+      diagnostic.category === "error" && /runtime-union conversion requires the source representation to match one exact union arm/u.test(diagnostic.message)),
+    JSON.stringify(compiled.targetDiagnostics));
+    assert.equal(compiled.artifacts.size, 0);
   });
 }

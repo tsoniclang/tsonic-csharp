@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpUnionEquality } from "../../../../dist/policy/operations/operators/union-equality.js";
 import { planCsharpUnionEquality } from "../../../../dist/backend/planner/expressions/union-equality.js";
-import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../../dist/target-model/types/index.js";
+import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType,
+  csharpStringTargetType, csharpTargetNamedType } from "../../../../dist/target-model/types/index.js";
+import { printCsharpExpression } from "../../../../dist/print/source/printer.js";
 
 test("union equality rejects stale carriers, paths, operations, coverage and polarity", () => {
   const integer = csharpSourcePrimitiveTargetType("int64");
@@ -37,5 +39,52 @@ test("union equality rejects stale carriers, paths, operations, coverage and pol
       assert.fail("invalid classification cannot plan operands");
     }, state()), undefined);
     assert.equal(diagnostics.length, 1);
+  }
+});
+
+test("nullable union equality plans canonical native presence guards with each operand evaluated once in order", () => {
+  const integer = csharpSourcePrimitiveTargetType("int64");
+  const text = csharpStringTargetType();
+  const base = csharpTargetNamedType("fixture.Base", [], { kind: "named", name: "Base" }, { sourceDeclarationKind: "class" });
+  const policy = { providers: { findTargetBindingByTargetId() {} }, objectShapes: { resolveTarget() {} },
+    projectTypes: { catalog: { definitionForTarget() {} } } };
+  const union = csharpNullableTargetType(csharpRuntimeUnionTargetType([integer, text, base]));
+  for (const rightType of [union, csharpNullableTargetType(text), csharpNullableTargetType(base), integer]) {
+    const arms = selectCsharpUnionEquality(union, rightType, policy);
+    assert.ok(arms !== undefined);
+    for (const negated of [false, true]) {
+      const left = {};
+      const right = {};
+      const selection = { kind: "resolved", sourceOperator: negated ? "!==" : "===",
+        targetOperation: { kind: "union-equality", negated, arms }, left, right, leftType: union, rightType,
+        resultType: csharpSourcePrimitiveTargetType("bool") };
+      const input = { program: { operations: { binary: () => ({ target: selection }) } }, scope: {} };
+      const seen = [];
+      const diagnostics = [];
+      const planned = planCsharpUnionEquality({}, selection, {}, input, diagnostics, node => {
+        seen.push(node);
+        return { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: node === left ? "produceLeft" : "produceRight" }, arguments: [] };
+      }, { nextTempIndex: 0, usedNames: new Set() });
+      assert.deepEqual(diagnostics, []);
+      assert.deepEqual(seen, [left, right]);
+      const output = printCsharpExpression(planned);
+      assert.equal(output.match(/produceLeft\(\)/gu)?.length, 1);
+      assert.equal(output.match(/produceRight\(\)/gu)?.length, 1);
+      assert.ok(output.indexOf("produceLeft()") < output.indexOf("produceRight()"));
+      assert.match(output, /\.Item1\?\.Is\d\(\) == true/u);
+      assert.match(output, /\.Item1!\.Value\.As\d\(\)/u);
+      if (rightType !== integer) assert.match(output, /\.Item1 is null.*\.Item2 is null/u);
+      if (rightType !== union && rightType !== integer) assert.match(output, /\.Item2 is (?:string|Base) /u);
+      assert.doesNotMatch(output, /\bnew\b|\bClone\b|\bDynamicInvoke\b|\(object\)|\.ToArray\(|\.ToList\(/u);
+      if (negated) assert.match(output, /^!/u);
+      for (const mutation of [
+        { leftType: csharpRuntimeUnionTargetType([integer, text, base]) },
+        { targetOperation: { ...selection.targetOperation, arms: arms.slice(0, -1) } },
+      ]) {
+        assert.equal(planCsharpUnionEquality({}, { ...selection, ...mutation }, {}, input, [],
+          () => assert.fail("stale absence evidence cannot evaluate operands"),
+          { nextTempIndex: 0, usedNames: new Set() }), undefined);
+      }
+    }
   }
 });
