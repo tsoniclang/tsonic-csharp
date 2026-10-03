@@ -1,158 +1,153 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { TargetTypeRef, CsharpTargetNamedTypeRef } from "../../../target-model/types/index.js";
+import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import { csharpTupleElementMemberName, getCsharpReadOnlyIndexableCollectionElementTargetType } from "../../../target-model/types/index.js";
 import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
 import { selectCsharpCollectionElementRead } from "../../../target-model/types/collection-reads.js";
-import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
-import { planCsharpGeneratedMethodCall } from "../declarations/generated-methods.js";
 import { applyCsharpConversionSelection } from "./conversions.js";
-import type { ArrayLiteralPlanner } from "./array-literals/types.js";
+import type { ExpressionPlanner } from "./expression-planner-types.js";
+import { planCsharpBorrowedSequenceConsumption } from "./array-literals/borrowed-sequences.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { planCsharpCollectionIndexedIteration } from "./collection-reads.js";
 import { planCsharpArraySpreadInput, type CsharpArraySpreadInput } from "./array-literals/spread-source.js";
+import type { CsharpPlannedArraySpreadInput } from "./array-literals/spread-source.js";
+import { csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
+import { composeCsharpPlannedValues } from "./planned-value-composition.js";
 
-type SpreadContribution = { readonly kind: "spread"; readonly node: Node; readonly source: CsharpArraySpreadInput };
-type Contribution = SpreadContribution | { readonly kind: "value"; readonly expression: CsharpExpression };
-type Construction = { readonly type: CsharpTypeNode; readonly builder: NonNullable<CsharpTargetNamedTypeRef["csharpArrayLiteralBuilder"]> };
-
-export function planCsharpDenseSequenceConstruction(
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  elementType: CsharpTypeNode,
-  elementTarget: TargetTypeRef | undefined,
-  planner: ArrayLiteralPlanner,
-  construction?: Construction,
-): CsharpExpression | undefined {
-  if (elementTarget === undefined) return reject(node, diagnostics, "Dense array spread requires its exact destination element carrier.");
-  const contributions: Contribution[] = [];
-  for (const element of input.program.source.ast.elements(node)) {
-    if (element === undefined) return reject(node, diagnostics, "Dense array spread requires every authored contribution.");
-    if (input.program.source.ast.is.IsSpreadElement(element)) {
-      const operand = input.program.source.ast.as.AsSpreadElement(element)?.Expression;
-      const source = operand === undefined ? undefined : planCsharpArraySpreadInput(element, operand,
-        sourceFile, input, diagnostics, elementTarget, planner.planExpression);
-      if (source === undefined) return undefined;
-      if (source.carrier.kind !== "tuple" && source.lengthMember === undefined) {
-        return reject(element, diagnostics, "Dense native array construction requires a finalized native sequence length.");
-      }
-      contributions.push({ kind: "spread", node: element, source });
-    } else {
-      const expression = planner.planExpressionWithExpectedType(element, sourceFile, input, diagnostics, elementType, undefined, elementTarget);
-      if (expression === undefined) return undefined;
-      contributions.push({ kind: "value", expression });
-    }
-  }
-  return planSequenceConstruction(node, contributions, sourceFile, input, diagnostics, elementType, elementTarget, construction);
-}
 
 export function planCsharpSequenceValue(
   node: Node,
-  source: CsharpArraySpreadInput,
+  planned: CsharpPlannedArraySpreadInput,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   elementType: CsharpTypeNode,
   elementTarget: TargetTypeRef,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
+  if (planned.completion.kind === "never") return planned;
+  if (planned.completion.kind !== "value") return reject(node, diagnostics, "Native sequence construction requires a selected value completion.");
+  const source = planned.source;
+  if (!targetTypeRefEquals(source.carrier, planned.completion.carrier)) {
+    return reject(node, diagnostics, "Native sequence construction must retain its finalized source carrier.");
+  }
   if (source.carrier.kind !== "tuple" && source.lengthMember === undefined) {
     return reject(node, diagnostics, "Native sequence construction requires its finalized native length.");
   }
-  return planSequenceConstruction(node, [{ kind: "spread", node, source }], sourceFile, input, diagnostics, elementType, elementTarget);
+  const name = input.names.temporaryName("__tsonic_sequence_source");
+  const destinationName = input.names.temporaryName("__tsonic_sequence_result");
+  const receiver = identifier(name);
+  const destination = identifier(destinationName);
+  const consumed = planCsharpSequenceSnapshotStatements(node, { ...source, expression: receiver }, destination,
+    sourceFile, input, diagnostics, elementType, elementTarget);
+  if (consumed === undefined) return undefined;
+  const resultCarrier: TargetTypeRef = { kind: "array", element: elementTarget };
+  return csharpPlannedValue(resultCarrier, destination, [...planned.prelude,
+    { kind: "LocalDeclarationStatement", name, type: source.type, initializer: planned.completion.expression },
+    { kind: "LocalDeclarationStatement", name: destinationName, type: { kind: "ArrayType", elementType } }, ...consumed,
+  ]);
 }
 
-function planSequenceConstruction(
+export function planCsharpSequenceSnapshotStatements(
   node: Node,
-  contributions: readonly Contribution[],
+  source: CsharpArraySpreadInput,
+  destination: CsharpExpression,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   elementType: CsharpTypeNode,
   elementTarget: TargetTypeRef,
-  construction?: Construction,
-): CsharpExpression | undefined {
-  const parameters: CsharpParameter[] = contributions.map((contribution, index) => ({ name: `source${index}`,
-    type: contribution.kind === "value" ? elementType : contribution.source.type }));
-  let length: CsharpExpression = { kind: "LiteralExpression", value: 0 };
-  for (const [index, contribution] of contributions.entries()) length = { kind: "BinaryExpression", operatorToken: { kind: "PlusToken" },
-    left: length, right: contribution.kind === "value" ? { kind: "LiteralExpression", value: 1 }
-      : spreadLength(contribution.source, identifier(parameters[index]!.name))! };
-  const returnType: CsharpTypeNode = construction?.type ?? { kind: "ArrayType", elementType };
-  const destination = identifier("result");
-  const statements: CsharpStatement[] = [
-    { kind: "LocalDeclarationStatement", name: "result", type: returnType,
-      initializer: construction === undefined ? { kind: "ArrayCreationExpression", elementType, elements: [], size: { kind: "CheckedExpression", expression: length } }
-        : { kind: "ObjectCreationExpression", type: returnType, arguments: construction.builder.capacityConstructor
-          ? [{ kind: "Argument", expression: { kind: "CheckedExpression", expression: length } }] : [] } },
-  ];
-  if (construction === undefined) statements.push({ kind: "LocalDeclarationStatement", name: "position",
-    type: { kind: "PredefinedType", name: "int" }, initializer: { kind: "LiteralExpression", value: 0 } });
-  const append = (value: CsharpExpression): CsharpStatement => construction !== undefined
-    ? { kind: "ExpressionStatement", expression: invoke(destination, construction.builder.appendElementMethod, [value]) }
-    : ({ kind: "ExpressionStatement", expression: {
-    kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" },
-    left: { kind: "ElementAccessExpression", receiver: destination, arguments: [{ kind: "PostfixUnaryExpression",
-      operand: identifier("position"), operatorToken: { kind: "PlusPlusToken" } }] }, right: value,
-  } });
-  for (const [index, contribution] of contributions.entries()) {
-    const source = identifier(parameters[index]!.name);
-    if (contribution.kind === "value") statements.push(append(source));
-    else if (construction === undefined && contribution.source.carrier.kind === "array" && contribution.source.elements[0]?.conversion.kind === "identity") {
-      statements.push({ kind: "ExpressionStatement", expression: invoke({ kind: "QualifiedName",
-        left: { kind: "IdentifierName", name: "System" }, name: "Array" }, "Copy",
-        [source, { kind: "LiteralExpression", value: 0 }, destination, identifier("position"), spreadLength(contribution.source, source)!]) },
-      { kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", operatorToken: { kind: "PlusEqualsToken" },
-        left: identifier("position"), right: spreadLength(contribution.source, source)! } });
-    }
-    else {
-      const spread = planCsharpSequenceAppendStatements(contribution.node, contribution.source, source, sourceFile, input, diagnostics, elementTarget, append);
-      if (spread === undefined) return undefined;
-      statements.push(...spread);
-    }
+): readonly CsharpStatement[] | undefined {
+  const length = planCsharpSequenceLength(source, source.expression);
+  if (length === undefined) return reject(node, diagnostics, "Native sequence snapshot requires its exact native length.");
+  const allocation: CsharpStatement = { kind: "ExpressionStatement", expression: { kind: "AssignmentExpression",
+    operatorToken: { kind: "EqualsToken" }, left: destination,
+    right: { kind: "ArrayCreationExpression", elementType, elements: [], size: length } } };
+  if (source.carrier.kind === "array" && source.elements[0]?.conversion.kind === "identity") {
+    return [allocation, { kind: "ExpressionStatement", expression: invoke({ kind: "QualifiedName",
+      left: { kind: "IdentifierName", name: "System" }, name: "Array" }, "Copy", [source.expression, destination, length]) }];
   }
-  statements.push({ kind: "ReturnStatement", expression: destination });
-  return planCsharpGeneratedMethodCall(node, construction === undefined ? "array_spread" : "collection_literal", returnType, parameters, { kind: "Block", statements },
-    contributions.map(contribution => ({ kind: "Argument", expression: contribution.kind === "value" ? contribution.expression : contribution.source.expression })),
-    input, diagnostics);
+  const position = input.names.temporaryName("__tsonic_sequence_position");
+  const consumed = planCsharpSequenceAppendStatements(node, source, source.expression, sourceFile, input, diagnostics,
+    elementTarget, value => ({ kind: "ExpressionStatement", expression: {
+      kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" },
+      left: { kind: "ElementAccessExpression", receiver: destination,
+        arguments: [{ kind: "PostfixUnaryExpression", operand: identifier(position), operatorToken: { kind: "PlusPlusToken" } }] }, right: value,
+    } }));
+  return consumed === undefined ? undefined : [allocation,
+    { kind: "LocalDeclarationStatement", name: position, type: { kind: "PredefinedType", name: "int" }, initializer: { kind: "LiteralExpression", value: 0 } },
+    ...consumed];
 }
+
 
 export function planCsharpJsArraySpreadAppend(
   node: Node,
   operand: Node,
-  destination: CsharpExpression,
+  destination: CsharpPlannedValue,
   collectionType: CsharpTypeNode,
   elementTarget: TargetTypeRef,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-  planner: ArrayLiteralPlanner,
-): CsharpExpression | undefined {
-  const source = planCsharpArraySpreadInput(node, operand, sourceFile, input, diagnostics, elementTarget, planner.planExpression);
-  if (source === undefined) return undefined;
+  planner: { readonly planExpression: ExpressionPlanner },
+): CsharpPlannedValue | undefined {
+  if (destination.completion.kind === "never") return destination;
+  if (destination.completion.kind !== "value") return reject(node, diagnostics, "Sequence append requires a native destination value.");
+  const resultCarrier = destination.completion.carrier;
+  const borrowed = input.program.operations.borrowedSequence(operand);
+  if (borrowed !== undefined) {
+    if (!targetTypeRefEquals(borrowed.elementTarget, elementTarget)) {
+      return reject(node, diagnostics, "Borrowed sequence append requires its finalized destination element carrier.");
+    }
+    const name = input.names.temporaryName("__tsonic_sequence_destination");
+    const receiver = identifier(name);
+    const consumed = planCsharpBorrowedSequenceConsumption(node, borrowed, sourceFile, input, diagnostics,
+      expression => planner.planExpression(expression, sourceFile, input, diagnostics), source => {
+        const statements = planCsharpSequenceAppendStatements(node, source, source.expression, sourceFile, input, diagnostics,
+          elementTarget, value => ({ kind: "ExpressionStatement", expression: invoke(receiver, "Add", [value]) }));
+        if (statements === undefined) return undefined;
+        const length = planCsharpSequenceLength(source, source.expression);
+        return [...(length === undefined ? [] : [{ kind: "ExpressionStatement" as const,
+          expression: invoke(receiver, "EnsureCapacity", [{ kind: "CheckedExpression", expression: {
+            kind: "BinaryExpression", operatorToken: { kind: "PlusToken" },
+            left: { kind: "SimpleMemberAccessExpression", receiver, name: "Count" }, right: length,
+          } }]) }]), ...statements];
+      }, () => []);
+    return consumed === undefined ? undefined : csharpPlannedValue(resultCarrier, receiver, [...destination.prelude,
+      { kind: "LocalDeclarationStatement", name, type: collectionType, initializer: destination.completion.expression },
+      ...consumed.prelude]);
+  }
+  const planned = planCsharpArraySpreadInput(node, operand, sourceFile, input, diagnostics, elementTarget, planner.planExpression);
+  if (planned === undefined) return undefined;
+  const source = planned.source;
   const read = selectCsharpCollectionElementRead(source.carrier);
   if (read?.kind === "invalid") return reject(node, diagnostics, read.reason);
   if (source.carrier.kind !== "tuple" && !isCsharpValueTypeTargetType(source.carrier) &&
     read?.kind !== "method" && source.elements.every(element => element.conversion.kind === "identity")) {
-    return invoke(destination, "AppendSequence", [source.expression]);
+    return composeCsharpPlannedValues(node, sourceFile, input, diagnostics, [destination, planned], values =>
+      csharpPlannedValue(resultCarrier, invoke(values[0]!, "AppendSequence", [values[1]!])));
   }
-  const destinationName = identifier("destination");
-  const sourceName = identifier("source");
+  const destinationLocal = input.names.temporaryName("__tsonic_sequence_destination");
+  const sourceLocal = input.names.temporaryName("__tsonic_sequence_source");
+  const destinationName = identifier(destinationLocal);
+  const sourceName = identifier(sourceLocal);
   const statements: CsharpStatement[] = [];
-  const length = spreadLength(source, sourceName);
+  const length = planCsharpSequenceLength(source, sourceName);
   if (length !== undefined) statements.push({ kind: "ExpressionStatement", expression: invoke(destinationName, "EnsureCapacity", [{
     kind: "CheckedExpression", expression: { kind: "BinaryExpression", operatorToken: { kind: "PlusToken" },
       left: { kind: "SimpleMemberAccessExpression", receiver: destinationName, name: "Count" }, right: length },
   }]) });
-  const spread = planCsharpSequenceAppendStatements(node, source, sourceName, sourceFile, input, diagnostics, elementTarget,
+  const spread = planCsharpSequenceAppendStatements(node, { ...source, expression: sourceName }, sourceName, sourceFile, input, diagnostics, elementTarget,
     value => ({ kind: "ExpressionStatement", expression: invoke(destinationName, "Add", [value]) }));
   if (spread === undefined) return undefined;
-  statements.push(...spread, { kind: "ReturnStatement", expression: destinationName });
-  return planCsharpGeneratedMethodCall(node, "array_append", collectionType,
-    [{ name: "destination", type: collectionType }, { name: "source", type: source.type }], { kind: "Block", statements },
-    [{ kind: "Argument", expression: destination }, { kind: "Argument", expression: source.expression }], input, diagnostics);
+  statements.push(...spread);
+  return composeCsharpPlannedValues(node, sourceFile, input, diagnostics, [destination, planned], values =>
+    csharpPlannedValue(resultCarrier, destinationName, [
+      { kind: "LocalDeclarationStatement", name: destinationLocal, type: collectionType, initializer: values[0]! },
+      { kind: "LocalDeclarationStatement", name: sourceLocal, type: source.type, initializer: values[1]! }, ...statements,
+    ]));
 }
 
 export function planCsharpSequenceAppendStatements(
@@ -188,10 +183,11 @@ export function planCsharpSequenceAppendStatements(
     itemName: "value", collection: receiver, body: { kind: "Block", statements: [append(value)] } }];
 }
 
-function spreadLength(source: CsharpArraySpreadInput, receiver: CsharpExpression): CsharpExpression | undefined {
+export function planCsharpSequenceLength(source: Omit<CsharpArraySpreadInput, "expression">, receiver: CsharpExpression): CsharpExpression | undefined {
   return source.carrier.kind === "tuple" ? { kind: "LiteralExpression", value: source.carrier.elements.length }
     : source.lengthMember === undefined ? undefined : { kind: "SimpleMemberAccessExpression", receiver, name: source.lengthMember };
 }
+
 
 function identifier(name: string): CsharpExpression { return { kind: "IdentifierName", name }; }
 

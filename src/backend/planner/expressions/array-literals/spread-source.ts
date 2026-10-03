@@ -10,6 +10,8 @@ import type { ExpressionPlanner } from "../expression-planner-types.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { probeCarrierFromResolution, resolveRuntimeCarrierForExpression } from "../../types/runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import type { CsharpPlannedValue } from "../planned-values.js";
+import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
 export interface CsharpArraySpreadInput {
   readonly carrier: TargetTypeRef;
@@ -17,6 +19,10 @@ export interface CsharpArraySpreadInput {
   readonly expression: CsharpExpression;
   readonly elements: readonly { readonly carrier: TargetTypeRef; readonly type: CsharpTypeNode; readonly conversion: CsharpConversionSelection }[];
   readonly lengthMember: string | undefined;
+}
+
+export interface CsharpPlannedArraySpreadInput extends CsharpPlannedValue {
+  readonly source: Omit<CsharpArraySpreadInput, "expression">;
 }
 
 export function planCsharpArraySpreadInput(
@@ -27,7 +33,7 @@ export function planCsharpArraySpreadInput(
   diagnostics: TargetDiagnostic[],
   elementTarget: TargetTypeRef,
   planExpression: ExpressionPlanner,
-): CsharpArraySpreadInput | undefined {
+): CsharpPlannedArraySpreadInput | undefined {
   const carrier = probeCarrierFromResolution(resolveRuntimeCarrierForExpression(input, expression, sourceFile));
   const element = getCsharpCollectionElementTargetType(carrier);
   const carriers = carrier?.kind === "tuple" ? carrier.elements : element === undefined ? undefined : [element];
@@ -41,7 +47,13 @@ export function planCsharpArraySpreadInput(
     return undefined;
   }
   const planned = planExpression(expression, sourceFile, input, diagnostics);
-  return planned === undefined ? undefined : { carrier, type, expression: planned,
+  if (planned === undefined) return undefined;
+  if (planned.completion.kind !== "never" && (planned.completion.kind !== "value" ||
+    !targetTypeRefEquals(planned.completion.carrier, carrier))) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Array spread requires its exact selected native value completion."));
+    return undefined;
+  }
+  return { ...planned, source: { carrier, type,
     elements: elements.map(selected => ({ carrier: selected.carrier, type: selected.type!, conversion: selected.conversion! })),
-    lengthMember: getCsharpIndexableLengthMemberName(carrier) };
+    lengthMember: getCsharpIndexableLengthMemberName(carrier) } };
 }

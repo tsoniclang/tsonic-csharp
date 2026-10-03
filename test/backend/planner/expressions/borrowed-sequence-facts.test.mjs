@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { planCsharpBorrowedSequenceConsumption } from "../../../../dist/backend/planner/expressions/array-literals/borrowed-sequences.js";
+import { planCsharpBorrowedDenseSequence } from "../../../../dist/backend/planner/expressions/array-literals/borrowed-dense.js";
+import { planCsharpJsArraySpreadAppend } from "../../../../dist/backend/planner/expressions/sequence-conversions.js";
+import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { csharpNullableTargetType, csharpStringTargetType, csharpSourcePrimitiveTargetType,
   csharpNeverTargetType, csharpVoidTargetType, targetTypeRefEquals } from "../../../../dist/target-model/types/index.js";
 
@@ -41,7 +44,7 @@ function fixture(destination = string, completion) {
       completion: completion ?? { kind: "value", carrier: optional, expression: { kind: "IdentifierName", name: "source" } } }),
     selected => { consumed.push(selected); return [{ kind: "ExpressionStatement", expression: { kind: "IdentifierName", name: "consume_selected" } }]; },
     () => []);
-  return { fact, statements, diagnostics, pairs, consumed, string, int32 };
+  return { fact, statements, diagnostics, pairs, consumed, string, int32, input, spread, source, empty, array, optional };
 }
 
 test("borrowed sequence fragments consume only sealed exact element pairs in the selected native branch", () => {
@@ -84,5 +87,65 @@ test("mutated destination, element evidence and fabricated identity cannot bypas
   assert.equal(fabricated.statements(), undefined);
   assert.deepEqual(fabricated.pairs, [[string, int32, "implicit"]]);
   assert.equal(fabricated.consumed.length, 0);
-  for (const state of [destination, element, fabricated]) assert.equal(state.diagnostics.length, 1);
+for (const state of [destination, element, fabricated]) assert.equal(state.diagnostics.length, 1);
+});
+
+test("borrowed dense selection allocates its sole destination inside the selected branch", () => {
+  const state = fixture();
+  const planned = planCsharpBorrowedDenseSequence(state.array, state.fact, {}, state.input, state.diagnostics,
+    { kind: "PredefinedType", name: "string" }, string,
+    () => csharpPlannedValue(state.optional, { kind: "IdentifierName", name: "source" }));
+  assert.equal(planned.completion.kind, "value");
+  assert.deepEqual(planned.completion.carrier, sequence);
+  assert.equal(planned.prelude[0].kind, "LocalDeclarationStatement");
+  assert.equal(planned.prelude[0].initializer, undefined);
+  const selected = planned.prelude[1];
+  assert.equal(selected.kind, "IfStatement");
+  assert.equal(selected.thenBody.statements[0].expression.right.kind, "ArrayCreationExpression");
+  assert.equal(selected.thenBody.statements[1].expression.callee.name, "Copy");
+  assert.equal(selected.elseBody.statements.length, 1);
+  assert.equal(selected.elseBody.statements[0].expression.right.size.value, 0);
+  assert.doesNotMatch(JSON.stringify(planned), /generated|Func|ForEach|IEnumerable|ObjectCreation|Lambda|ToArray/u);
+  assert.deepEqual(state.diagnostics, []);
+});
+
+test("borrowed JS append uses the sealed operand query and skips empty-source construction", () => {
+  const state = fixture();
+  const queried = [];
+  state.input.program.operations = { borrowedSequence(node) { queried.push(node); return state.fact; } };
+  const planExpression = () => csharpPlannedValue(state.optional, { kind: "IdentifierName", name: "source" },
+    [{ kind: "ExpressionStatement", expression: { kind: "IdentifierName", name: "evaluate_source" } }]);
+  const planned = planCsharpJsArraySpreadAppend(state.spread, state.fact.expression,
+    csharpPlannedValue(sequence, { kind: "IdentifierName", name: "destination" },
+      [{ kind: "ExpressionStatement", expression: { kind: "IdentifierName", name: "evaluate_destination" } }]),
+    { kind: "IdentifierName", name: "NativeDenseCollection" }, string, {}, state.input, state.diagnostics, { planExpression });
+  assert.deepEqual(queried, [state.fact.expression]);
+  assert.equal(planned.prelude[0].expression.name, "evaluate_destination");
+  assert.equal(planned.prelude[1].initializer.name, "destination");
+  assert.equal(planned.prelude[2].expression.name, "evaluate_source");
+  const branch = planned.prelude[3];
+  assert.equal(branch.kind, "IfStatement");
+  assert.deepEqual(branch.elseBody.statements, []);
+  assert.equal(branch.thenBody.statements[0].expression.callee.name, "EnsureCapacity");
+  assert.doesNotMatch(JSON.stringify(planned), /ArrayCreation|ObjectCreation|generated|Func|Lambda|ToArray/u);
+  assert.deepEqual(state.diagnostics, []);
+});
+
+test("borrowed branch composition keeps an effectful fallback in the selected native else region", () => {
+  const state = fixture();
+  state.empty.kind = "Identifier";
+  state.fact.inputs[1] = { kind: "sequence", expression: state.empty, carrier: sequence,
+    presentCarrier: sequence, optional: false, lengthMember: "Length", elements: [string] };
+  state.input.types.classifications.resolveNode = node => node === state.array ? sequence : node === state.source ? state.optional : sequence;
+  const planned = planCsharpBorrowedDenseSequence(state.array, state.fact, {}, state.input, state.diagnostics,
+    { kind: "PredefinedType", name: "string" }, string, node => node === state.source
+      ? csharpPlannedValue(state.optional, { kind: "IdentifierName", name: "source" })
+      : csharpPlannedValue(sequence, { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "fallback" }, arguments: [] },
+        [{ kind: "ExpressionStatement", expression: { kind: "IdentifierName", name: "fallback_effect" } }]));
+  const branch = planned.prelude[1];
+  assert.equal(branch.kind, "IfStatement");
+  assert.equal(branch.elseBody.statements[0].expression.name, "fallback_effect");
+  assert.equal(branch.elseBody.statements[1].initializer.callee.name, "fallback");
+  assert.doesNotMatch(JSON.stringify(branch.thenBody), /fallback/u);
+  assert.deepEqual(state.diagnostics, []);
 });
