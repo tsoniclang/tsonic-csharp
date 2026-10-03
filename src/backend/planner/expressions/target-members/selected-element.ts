@@ -44,6 +44,8 @@ import {
 import { csharpRecordOptionalRead } from "../../objects/indexed-records.js";
 import type { CsharpPlannedArgument, CsharpPlannedValue } from "../planned-values.js";
 import { buildCsharpPlannedValue, planCsharpOptionalReceiverValue, projectCsharpPlannedValue } from "../planned-value-composition.js";
+import { selectCsharpCollectionElementRead } from "../../../../target-model/types/collection-reads.js";
+import { planCsharpCollectionElementRead } from "../collection-reads.js";
 
 export function translateCsharpElementAccess(
   node: Node,
@@ -437,6 +439,16 @@ function translateSourceOwnedElement(
     input,
     diagnostics,
   );
+  const read = indexableReceiverType === undefined ? undefined : selectCsharpCollectionElementRead(indexableReceiverType);
+  if (read?.kind === "invalid") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, read.reason));
+    return undefined;
+  }
+  if (read?.kind === "method" && selection.source.accessMode === "read" && indexableReceiverType !== undefined) {
+    const carrier = indexableReceiverType;
+    return planElementOperands(node, sourceFile, input, diagnostics, receiver, argument, selection.source.optionalChain,
+      (target, key) => planCsharpCollectionElementRead(carrier, target, key, input.scope.typeParameterNames), selectedResultType);
+  }
   return planElementOperands(node, sourceFile, input, diagnostics, receiver, argument, selection.source.optionalChain,
     (target, key) => ({ kind: "ElementAccessExpression", receiver: target, arguments: [key] }), selectedResultType);
 }
