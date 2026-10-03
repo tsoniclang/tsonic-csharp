@@ -23,7 +23,7 @@ export function tryPlanBinaryExpressionWithExpectedType(
   if (!input.program.source.ast.is.IsBinaryExpression(node)) return undefined;
   const baseline = input.program.operations.binary(node)?.target;
   if (expectedTargetType === undefined || baseline?.kind === "resolved" &&
-    !binaryOperationUsesExpectedNumericType(baseline.sourceOperator)) return undefined;
+    !binaryOperationUsesExpectedResultType(baseline.sourceOperator)) return undefined;
   const selection = input.program.expectedTypes.binaryExpected(node, expectedTargetType);
   if (selection === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node,
@@ -31,15 +31,18 @@ export function tryPlanBinaryExpressionWithExpectedType(
     return undefined;
   }
   return selection.kind === "resolved" &&
-    binaryOperationUsesExpectedNumericType(selection.sourceOperator) &&
+    binaryOperationUsesExpectedResultType(selection.sourceOperator) &&
     targetTypeRefEquals(selection.resultType, expectedTargetType)
     ? planSelectedCsharpBinaryOperation(node, selection, sourceFile, input, diagnostics,
         planExpression, planExpressionWithExpectedType, state)
     : undefined;
 }
 
-function binaryOperationUsesExpectedNumericType(operator: CsharpSourceOperator): boolean {
+function binaryOperationUsesExpectedResultType(operator: CsharpSourceOperator): boolean {
   switch (operator) {
+    case ",":
+    case "&&":
+    case "||":
     case "+":
     case "-":
     case "*":

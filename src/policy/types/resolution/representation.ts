@@ -8,6 +8,7 @@ import { selectCsharpNumericBinaryPromotion } from "../../operations/numeric/pro
 import { sourcePrimitiveImplicitlyConverts } from "../../conversions/source-primitives.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
+import { resolveCsharpShortCircuitResult } from "./short-circuit-values.js";
 
 export function resolveBinaryTargetRepresentation(
   ast: AstReader,
@@ -43,9 +44,10 @@ export function resolveBinaryTargetRepresentation(
     case ">=":
     case "in":
     case "instanceof":
+      return csharpSourcePrimitiveTargetType("bool");
     case "&&":
     case "||":
-      return csharpSourcePrimitiveTargetType("bool");
+      return resolveCsharpShortCircuitResult(ast, operator, leftNode, left, right);
     case ",":
       return right;
     case "<<":

@@ -61,12 +61,23 @@ var invocations = 0;
 Tsonic.CSharp.Runtime.Union<int, System.Threading.Tasks.Task>? Sync() { invocations++; return Tsonic.CSharp.Runtime.Union<int, System.Threading.Tasks.Task>.From1(44); }
 if (await Tsonic.Generated.Index.conditional(false, Sync, () => 55) != 55 || invocations != 0)
     throw new System.Exception("unselected conditional branch executed");
-await Tsonic.Generated.Index.lazyAnd(false, Sync);
-await Tsonic.Generated.Index.lazyOr(true, Sync);
+var lazyAnd = await Tsonic.Generated.Index.lazyAnd(false, Sync);
+var lazyOr = await Tsonic.Generated.Index.lazyOr(true, Sync);
+if (!lazyAnd.HasValue || !lazyAnd.Value.Is1() || lazyAnd.Value.As1()
+    || !lazyOr.HasValue || !lazyOr.Value.Is1() || !lazyOr.Value.As1())
+    throw new System.Exception("short-circuit bool result changed");
 if (await Tsonic.Generated.Index.coalesce(66, Sync) != 66 || invocations != 0)
     throw new System.Exception("unselected short-circuit branch executed");
 if (await Tsonic.Generated.Index.conditional(true, Sync, () => 55) != 44 || invocations != 1)
     throw new System.Exception("selected conditional branch skipped");
+var completedAnd = await Tsonic.Generated.Index.lazyAnd(true, Sync);
+var completedOr = await Tsonic.Generated.Index.lazyOr(false, Sync);
+if (!completedAnd.HasValue || !completedAnd.Value.Is2() || completedAnd.Value.As2() != 44
+    || !completedOr.HasValue || !completedOr.Value.Is2() || completedOr.Value.As2() != 44 || invocations != 3)
+    throw new System.Exception("selected logical payload changed");
+if (await Tsonic.Generated.Index.lazyAnd(true, () => Tsonic.CSharp.Runtime.Union<int, System.Threading.Tasks.Task>.From2(System.Threading.Tasks.Task.CompletedTask)) != null
+    || await Tsonic.Generated.Index.lazyOr(false, () => null) != null)
+    throw new System.Exception("logical completion manufactured a second absence");
 if (await Tsonic.Generated.Index.snapshot(() => Tsonic.CSharp.Runtime.Union<int, System.Threading.Tasks.Task>.From2(System.Threading.Tasks.Task.CompletedTask)) != 1)
     throw new System.Exception("earlier local read moved after later argument mutation");
 var advances = 0;
@@ -83,5 +94,14 @@ try {
     throw new System.Exception("native failure ignored");
 } catch (System.InvalidOperationException actual) {
     if (!object.ReferenceEquals(actual, failure) || calls != "LP") throw new System.Exception("failure identity or effect boundary changed");
+}
+using var cancellation = new System.Threading.CancellationTokenSource();
+cancellation.Cancel();
+try {
+    await Tsonic.Generated.Index.lazyAnd(true,
+        () => Tsonic.CSharp.Runtime.Union<int, System.Threading.Tasks.Task>.From2(System.Threading.Tasks.Task.FromCanceled(cancellation.Token)));
+    throw new System.Exception("native cancellation ignored");
+} catch (System.OperationCanceledException actual) {
+    if (actual.CancellationToken != cancellation.Token) throw new System.Exception("native cancellation token changed");
 }
 `;

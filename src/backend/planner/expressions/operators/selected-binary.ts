@@ -46,6 +46,7 @@ import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/
 import { captureCsharpPlannedLocation } from "../planned-locations.js";
 import { captureCsharpPlannedValue } from "../planned-value-composition.js";
 import { planCsharpPlannedDiscard } from "../../statements/statement-output.js";
+import { planCsharpConditionalValue } from "./conditional-values.js";
 
 export function planSelectedCsharpBinaryOperation(
   node: Node,
@@ -58,6 +59,8 @@ export function planSelectedCsharpBinaryOperation(
   state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
   const operation = selection.targetOperation;
+  if (operation.kind === "conditional-value") return planCsharpConditionalValue(
+    node, selection, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, state);
   if (operation.kind === "sequence") {
     const left = planExpression(selection.left, sourceFile, input, diagnostics, state);
     if (left === undefined || left.completion.kind === "never") return left;
@@ -374,11 +377,6 @@ export function planSelectedCsharpBinaryOperation(
     selection.rightInputType,
   );
   if (left === undefined || right === undefined) return undefined;
-  if (targetOperator === "&&" || targetOperator === "||") {
-    const constant = csharpPlannedValue(selection.resultType, { kind: "LiteralExpression", value: targetOperator === "||" });
-    return planCsharpValueBranch(node, sourceFile, input, diagnostics, left,
-      targetOperator === "&&" ? right : constant, targetOperator === "&&" ? constant : right, selection.resultType);
-  }
   return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [left, right], values => {
   if (input.program.numericRepresentations.usesInt32Remainder(node)) {
     const integer = csharpTypeFromTargetTypeRef({ kind: "source-primitive", name: "int32" }, input.scope.typeParameterNames)!;

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
+import { constructorBaseArgumentSequenceSource } from "../../../helpers/constructor-entry.mjs";
 import { finiteCompletionSequencingSource, finiteCompletionSequencingNativeProgram } from "../../../helpers/finite-completion-sequencing.mjs";
 
 for (const surface of [undefined, "js"]) {
@@ -51,28 +52,12 @@ test("native assignment keeps the acquired array cell and old compound value thr
 });
 
 test("base argument regions preserve one evaluation and native parameter mutation without delegate helpers", { timeout: 300_000 }, () => {
-  const compiled = compileCsharpSource({ sourceText: `
-    import type { int32 } from "@tsonic/core/types.js";
-    class Base {
-      left: int32; right: int32;
-      constructor(left: int32, right: int32) { this.left = left; this.right = right; }
-    }
-    class Derived extends Base {
-      value: int32;
-      constructor(value: int32, effect: () => void) {
-        super((effect(), value += 1), value);
-        this.value = value;
-      }
-    }
-    export function run(): boolean {
-      let effects = 0 as int32;
-      const item = new Derived(4 as int32, () => { effects++; });
-      return effects === 1 && item.left === 5 && item.right === 5 && item.value === 5;
-    }
-  ` });
+  const compiled = compileCsharpSource({ sourceText: constructorBaseArgumentSequenceSource });
   assertCsharpCompilationSucceeded(compiled);
   const source = [...compiled.artifacts.values()].join("\n");
-  assert.match(source, /private static int __tsonic_base_argument/u);
+  const helper = /private static int (_+tsonic_base_argument_[0-9]+_[0-9]+)\(ref int value, ref Action effect\)/u.exec(source)?.[1];
+  assert.notEqual(helper, undefined, "Base completion must use its exact native static helper and parameter locations.");
+  assert.equal(source.includes(`: base(${helper}(ref value, ref effect), value)`), true);
   assert.doesNotMatch(source, /Func<[^>]*>.*__tsonic_base_argument|async .*=>/u);
   executeCsharpConstruction(compiled, "planned-base-argument");
 });

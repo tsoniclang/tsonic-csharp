@@ -2,6 +2,7 @@ import { validateBinaryTargetSemantics, validateUnaryTargetSemantics, isCsharpRe
 import { selectCsharpAssignmentLocation, type CsharpAssignmentLocation } from "./assignment-location.js";
 import { selectCsharpGuardedIntegerPromotion } from "../numeric/guarded.js";
 import { resolveCsharpContextualObjectLiteralCarrier } from "../../types/resolution/contextual-literals.js";
+import { csharpBooleanShortCircuitBranch, type CsharpShortCircuitBranch } from "../../types/resolution/short-circuit-values.js";
 import type { CsharpReferenceEquality, CsharpUnionEqualityArm } from "../../../target-model/operations/binary.js";
 import { selectCsharpReferenceEquality } from "./reference-equality.js";
 import { selectCsharpUnionEquality } from "./union-equality.js";
@@ -59,6 +60,7 @@ export interface CsharpResolvedBinaryOperation {
 
 export type CsharpTargetBinaryOperation =
   | { readonly kind: "sequence" }
+  | { readonly kind: "conditional-value"; readonly operator: "&&" | "||"; readonly branch: CsharpShortCircuitBranch }
   | {
       readonly kind: "bigint-call";
       readonly method: "LeftShift" | "RightShift" | "Divide" | "Remainder";
@@ -158,14 +160,16 @@ export function selectCsharpBinaryOperands(
   const nullishRightExpectation = sourceOperator === "??"
     ? expectedResultType ?? nullishValueType(leftType, input.typeDefinitions)
     : sourceOperator === "??=" ? nullishValueType(leftType, input.typeDefinitions)
-    : sourceOperator === "," ? expectedResultType ?? selectedResultType : undefined;
+    : sourceOperator === "," || sourceOperator === "&&" || sourceOperator === "||"
+      ? expectedResultType ?? selectedResultType : undefined;
   let rightType = resolveBinaryOperandType(
     input,
     right,
     targetTypeFor,
     nullishRightExpectation,
   );
-  const resultType = (sourceOperator === "," ? expectedResultType ?? selectedResultType ?? rightType : selectedResultType) ??
+  const resultType = (sourceOperator === "," || sourceOperator === "&&" || sourceOperator === "||"
+    ? expectedResultType ?? selectedResultType ?? (sourceOperator === "," ? rightType : undefined) : selectedResultType) ??
     (sourceOperator === "??" || sourceOperator === "??="
       ? nullishValueType(leftType, input.typeDefinitions) : undefined);
   if (leftType === undefined || rightType === undefined || resultType === undefined) {
@@ -177,6 +181,22 @@ export function selectCsharpBinaryOperands(
     kind: "resolved", sourceOperator, targetOperation: { kind: "sequence" },
     left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType, resultType,
   };
+  if (sourceOperator === "&&" || sourceOperator === "||") {
+    const boolean = csharpSourcePrimitiveTargetType("bool");
+    if (!targetTypeRefEquals(leftType, boolean)) return rejected("C# conditional-value operators require an exact bool condition.");
+    const branch = csharpBooleanShortCircuitBranch(input.ast, left, sourceOperator);
+    if (branch !== "left" && !csharpConversionIsApplicable(
+      selectCsharpExpressionConversion(input, right, rightType, resultType, "implicit"), "implicit")) {
+      return rejected("C# conditional-value selection requires exact admission of the selected right-hand completion.");
+    }
+    if (branch !== "right" && !csharpConversionIsApplicable(
+      selectCsharpExpressionConversion(input, left, leftType, resultType, "implicit"), "implicit")) {
+      return rejected("C# conditional-value selection requires exact admission of its short-circuit bool result.");
+    }
+    return { kind: "resolved", sourceOperator,
+      targetOperation: { kind: "conditional-value", operator: sourceOperator, branch },
+      left, right, leftType, rightType, leftInputType: boolean, rightInputType: resultType, resultType };
+  }
   if ((sourceOperator === "??" || sourceOperator === "??=") && isCsharpJsValueTargetType(leftType)) {
     if (!csharpConversionIsApplicable(selectCsharpExpressionConversion(input, right, rightType, leftType, "implicit"), "implicit")) {
       return rejected("Closed-value coalescing requires an exact native right-hand admission.");
@@ -386,13 +406,6 @@ function selectBinaryOperationTypes(
     return {
       leftInputType: numericPromotion?.leftType ?? leftType,
       rightInputType: numericPromotion?.rightType ?? rightType,
-      resultType: csharpSourcePrimitiveTargetType("bool"),
-    };
-  }
-  if (operator === "&&" || operator === "||") {
-    return {
-      leftInputType: leftType,
-      rightInputType: rightType,
       resultType: csharpSourcePrimitiveTargetType("bool"),
     };
   }
@@ -691,8 +704,6 @@ function targetBinaryOperator(
     case "<=":
     case ">":
     case ">=":
-    case "&&":
-    case "||":
     case "??":
     case "??=":
     case "&":

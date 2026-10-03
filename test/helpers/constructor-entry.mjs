@@ -54,3 +54,23 @@ export const constructorEntrySource = `
     return wide.left === 1 && wide.right === 8 && wide.total === 36;
   }
 `;
+
+export const constructorBaseArgumentSequenceSource = `
+  import type { int32 } from "@tsonic/core/types.js";
+  class Base {
+    left: int32; right: int32;
+    constructor(left: int32, right: int32) { this.left = left; this.right = right; }
+  }
+  class Derived extends Base {
+    value: int32;
+    constructor(value: int32, effect: () => void) {
+      super((effect(), value += 1), value);
+      this.value = value;
+    }
+  }
+  export function run(): boolean {
+    let effects = 0 as int32;
+    const item = new Derived(4 as int32, () => { effects++; });
+    return effects === 1 && item.left === 5 && item.right === 5 && item.value === 5;
+  }
+`;

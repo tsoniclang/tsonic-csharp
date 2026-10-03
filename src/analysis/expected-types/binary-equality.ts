@@ -22,6 +22,8 @@ function csharpBinaryTargetOperationsEqual(left: CsharpTargetBinaryOperation, ri
   switch (left.kind) {
     case "sequence":
       return right.kind === "sequence";
+    case "conditional-value":
+      return right.kind === "conditional-value" && left.operator === right.operator && left.branch === right.branch;
     case "closed-value-coalesce":
       return right.kind === "closed-value-coalesce" && left.assignment === right.assignment && left.location === right.location;
     case "bigint-call":

@@ -4,6 +4,8 @@ import {
   getCsharpRuntimeUnionArms,
   isCsharpNullableReferenceTargetType,
   isCsharpIntegralTargetType,
+  isCsharpVoidTargetType,
+  csharpCarrierAdmitsSourceAbsence,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../../target-model/types/index.js";
@@ -31,6 +33,9 @@ export function selectCsharpExpressionConversion(
   target: TargetTypeRef | undefined,
   mode: CsharpConversionMode,
 ): CsharpConversionSelection {
+  if (isCsharpVoidTargetType(source) && target !== undefined && csharpCarrierAdmitsSourceAbsence(target)) {
+    return { kind: "absence" };
+  }
   const selected = selectCsharpConversion(input, source, target, mode);
   if (selected.kind !== "rejected" || target === undefined) {
     return selected;

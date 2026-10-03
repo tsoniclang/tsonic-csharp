@@ -422,6 +422,9 @@ export function analyzeCsharpExpectedTypes(
     const binary = operations.binary(node)?.target;
     if (binary?.kind === "resolved") {
       record(binary.left, binary.leftInputType, "required");
+      if (binary.targetOperation.kind === "conditional-value" && binary.targetOperation.branch !== "right") {
+        record(binary.left, binary.resultType, "required");
+      }
       const selected = binary.sourceOperator === "="
         ? policy.semantics(sourceFile)?.operations.propertyAccess(binary.left) ??
           policy.semantics(sourceFile)?.operations.elementAccess(binary.left)
@@ -431,8 +434,10 @@ export function analyzeCsharpExpectedTypes(
       const member = shape === undefined || selected === undefined ? undefined
         : resolveCsharpObjectShapeMemberBySelectedSubject(shape,
           [selected.selectedDeclaration, selected.selectedSymbol]);
-      record(binary.right, binary.rightInputType, "required",
-        member?.kind === "resolved" && member.member.exactNumericStorage === true);
+      if (binary.targetOperation.kind !== "conditional-value" || binary.targetOperation.branch !== "left") {
+        record(binary.right, binary.rightInputType, "required",
+          member?.kind === "resolved" && member.member.exactNumericStorage === true);
+      }
     }
     const mutation = operations.jsArrayMutation(node);
     if (mutation?.kind === "set-typed-element" && mutation.calculation !== undefined) {
@@ -625,7 +630,12 @@ export function analyzeCsharpExpectedTypes(
       const selection = expectedSelection ?? operations.binary(expression)?.target;
       if (selection?.kind === "resolved") {
         record(selection.left, selection.leftInputType, strength);
-        record(selection.right, selection.rightInputType, strength);
+        if (selection.targetOperation.kind === "conditional-value" && selection.targetOperation.branch !== "right") {
+          record(selection.left, selection.resultType, strength);
+        }
+        if (selection.targetOperation.kind !== "conditional-value" || selection.targetOperation.branch !== "left") {
+          record(selection.right, selection.rightInputType, strength);
+        }
         if (selection.sourceOperator === "??") {
           record(selection.right, targetType, strength);
         }

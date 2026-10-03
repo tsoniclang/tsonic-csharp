@@ -44,6 +44,9 @@ export function selectCsharpConversion(
   if (targetTypeRefEquals(source, target)) {
     return { kind: "identity" };
   }
+  if (isCsharpVoidTargetType(source)) return {
+    kind: "rejected", reason: "A native void completion is not a value carrier; its checked expression owns absence admission.",
+  };
   if (isCsharpAbsenceTargetType(source) && csharpCarrierAdmitsSourceAbsence(target)) {
     return { kind: "absence" };
   }

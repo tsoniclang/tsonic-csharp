@@ -99,7 +99,8 @@ import {
 import {
   tryPlanCsharpJsStringConversion,
 } from "./expression-js-string-conversion.js";
-import { mapCsharpPlannedValue, type CsharpPlannedArgument, type CsharpPlannedValue } from "./planned-values.js";
+import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedArgument, type CsharpPlannedValue } from "./planned-values.js";
+import { planCsharpAbsentValue } from "./optional-storage.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 
 export function planExpression(
@@ -515,6 +516,10 @@ export function planExpressionWithExpectedType(
   );
   if (selection === undefined) {
     return undefined;
+  }
+  if (plan.expression?.completion.kind === "void" && selection.kind === "absence") {
+    const absent = planCsharpAbsentValue(effectiveExpectedTargetType, input.scope.typeParameterNames);
+    return absent === undefined ? undefined : csharpPlannedValue(effectiveExpectedTargetType, absent, plan.expression.prelude);
   }
   return mapCsharpPlannedValue(plan.expression, effectiveExpectedTargetType, expression => applyCsharpConversionSelection(
     node,

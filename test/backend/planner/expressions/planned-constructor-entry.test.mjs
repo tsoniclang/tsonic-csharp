@@ -5,14 +5,22 @@ import { executeCsharpConstruction } from "../../../helpers/native-construction.
 import { nativeExpressionSequencesSource } from "../../../../../tsonic/test/fixtures/native-expression-sequences.mjs";
 import { finiteCompletionSequencingSource } from "../../../helpers/finite-completion-sequencing.mjs";
 
-import { constructorEntrySource } from "../../../helpers/constructor-entry.mjs";
+import { constructorEntrySource, constructorBaseArgumentSequenceSource } from "../../../helpers/constructor-entry.mjs";
 
 for (const [name, sourceText] of [["constructor entry", constructorEntrySource],
+  ["base arguments without parameter preludes", constructorBaseArgumentSequenceSource],
   ["value sequences", nativeExpressionSequencesSource], ["finite completion", finiteCompletionSequencingSource]]) {
   for (const surface of [undefined, "js"]) {
     test(`plan-only ${name} preserves closed native planning on ${surface ?? "native"}`, () => {
       const compiled = compileCsharpSource({ sourceText, surface });
       assertCsharpCompilationSucceeded(compiled);
+      if (sourceText === constructorBaseArgumentSequenceSource) {
+        const emitted = [...compiled.artifacts.values()].join("\n");
+        const helper = /private static int (_+tsonic_base_argument_[0-9]+_[0-9]+)\(ref int value, ref Action effect\)/u.exec(emitted)?.[1];
+        assert.notEqual(helper, undefined, "Base completion must use its exact native static helper and parameter locations.");
+        assert.equal(emitted.includes(`: base(${helper}(ref value, ref effect), value)`), true);
+        assert.doesNotMatch(emitted, /__tsonic_constructor_entry|ContinueWith|Task\.Run|Func<[^>]*>.*__tsonic_base_argument/u);
+      }
     });
   }
 }
