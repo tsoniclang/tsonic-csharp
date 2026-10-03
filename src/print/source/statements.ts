@@ -7,6 +7,7 @@ import type {
 import type { CsharpPrintContext } from "./context.js";
 import { failUnsupportedCsharpSyntax } from "./fail-closed.js";
 import { indentLines } from "./format.js";
+import { csharpTypeParameterShadowingPragma } from "./generic-signatures.js";
 
 export function printCsharpStatement(
   statement: CsharpStatement,
@@ -80,8 +81,10 @@ export function printCsharpStatement(
     case "LocalFunctionStatement":
       return [
         ...context.printAttributes(statement.attributes),
+        ...csharpTypeParameterShadowingPragma(statement, "disable"),
         `${statement.modifiers.length === 0 ? "" : `${statement.modifiers.join(" ")} `}${context.printType(statement.returnType)} ${statement.name}${context.printTypeParameters(statement.typeParameters)}(${statement.parameters.map(context.printParameter).join(", ")})`,
         ...context.printTypeParameterConstraintLines(statement.typeParameters),
+        ...csharpTypeParameterShadowingPragma(statement, "restore"),
         "{",
         ...indentLines(context.printStatements(statement.body.statements)),
         "}",

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
 import { finiteCompletionSequencingSource } from "../../../helpers/finite-completion-sequencing.mjs";
+import { lexicalGenericFunctionsSource } from "../../../../../tsonic/test/fixtures/lexical-generic-functions.mjs";
 
 function generated(sourceText, surface) {
   const compiled = compileCsharpSource({ sourceText, surface });
@@ -12,6 +13,13 @@ function generated(sourceText, surface) {
 }
 
 for (const surface of ["native", "js"]) {
+  test(`lexical functions retain exact outer binders and generic shadowing in ${surface}`, () => {
+    const source = generated(lexicalGenericFunctionsSource, surface);
+    assert.match(source, /T forward\(T inner\)/u);
+    assert.match(source, /T through<U>\(T outer, U other\)/u);
+    assert.match(source, /T identity<T>\(T inner\)/u);
+    assert.doesNotMatch(source, /DynamicInvoke|\.GetMethod\(|Task\.Run/u);
+  });
   test(`lexical function declarations retain hoisting, recursion and stack captures in ${surface}`, () => {
     const source = generated(`
       import type { int32 } from "@tsonic/core/types.js";

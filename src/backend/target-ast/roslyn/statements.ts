@@ -26,6 +26,7 @@ export type CsharpStatement =
   | { readonly kind: "ForEachStatement"; readonly await?: boolean; readonly itemType: CsharpTypeNode; readonly itemName: string; readonly collection: CsharpExpression; readonly body: CsharpBlock }
   | {
       readonly kind: "LocalFunctionStatement";
+      readonly shadowsEnclosingTypeParameter?: true;
       readonly name: string;
       readonly modifiers: readonly CsharpModifier[];
       readonly attributes?: readonly CsharpAttribute[];
