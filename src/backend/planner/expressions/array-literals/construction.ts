@@ -25,8 +25,17 @@ export function planCsharpArrayConstruction(
   construction?: { readonly carrier: TargetTypeRef; readonly type: CsharpTypeNode;
     readonly builder: { readonly capacityConstructor: boolean; readonly appendElementMethod: string } },
 ): CsharpPlannedValue | undefined {
+  const elements = input.program.source.ast.elements(node);
+  const sole = elements.length === 1 ? elements[0] : undefined;
+  const soleOperand = sole === undefined || !input.program.source.ast.is.IsSpreadElement(sole)
+    ? undefined : input.program.source.ast.as.AsSpreadElement(sole)?.Expression;
+  const soleBorrowed = soleOperand === undefined ? undefined : input.program.operations.borrowedSequence(soleOperand);
+  if (construction === undefined && sole !== undefined && soleBorrowed !== undefined) {
+    return planCsharpBorrowedDenseSequence(sole, soleBorrowed, sourceFile, input, diagnostics,
+      elementType, elementTarget, planner.planExpression);
+  }
   const contributions: Contribution[] = [];
-  for (const element of input.program.source.ast.elements(node)) {
+  for (const element of elements) {
     if (element === undefined) return undefined;
     if (!input.program.source.ast.is.IsSpreadElement(element)) {
       const value = planner.planExpressionWithExpectedType(element, sourceFile, input, diagnostics, elementType, undefined, elementTarget);
@@ -36,7 +45,9 @@ export function planCsharpArrayConstruction(
     }
     const operand = input.program.source.ast.as.AsSpreadElement(element)?.Expression;
     if (operand === undefined) return undefined;
-    const borrowed = input.program.operations.borrowedSequence(operand);
+    const selected = input.program.operations.borrowedSequence(operand);
+    const borrowed = selected?.inputs.length === 1 && selected.inputs[0]?.kind === "sequence" &&
+      !selected.inputs[0].optional ? undefined : selected;
     const spread = borrowed === undefined ? planCsharpArraySpreadInput(element, operand, sourceFile,
       input, diagnostics, elementTarget, planner.planExpression) : undefined;
     const value = borrowed === undefined ? spread : planCsharpBorrowedDenseSequence(element, borrowed,

@@ -2,10 +2,8 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpBorrowedSequenceInput } from "../../../../analysis/operations/borrowed-sequences.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import type { ExpressionPlanner } from "../expression-planner-types.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";
 import { planCsharpSequenceSnapshotStatements } from "../sequence-conversions.js";
@@ -21,10 +19,6 @@ export function planCsharpBorrowedDenseSequence(
   elementTarget: TargetTypeRef,
   planExpression: ExpressionPlanner,
 ): CsharpPlannedValue | undefined {
-  if (!targetTypeRefEquals(fact.elementTarget, elementTarget)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Borrowed dense construction requires its finalized destination element carrier."));
-    return undefined;
-  }
   const name = input.names.temporaryName("__tsonic_sequence_result");
   const receiver: CsharpExpression = { kind: "IdentifierName", name };
   const destinationType: CsharpTypeNode = { kind: "ArrayType", elementType };
@@ -33,7 +27,7 @@ export function planCsharpBorrowedDenseSequence(
     kind: "AssignmentExpression", left: receiver, operatorToken: { kind: "EqualsToken" },
     right: { kind: "ArrayCreationExpression", elementType, elements: [], size },
   } });
-  const planned = planCsharpBorrowedSequenceConsumption(node, fact, sourceFile, input, diagnostics,
+  const planned = planCsharpBorrowedSequenceConsumption(node, fact, sourceFile, input, diagnostics, elementTarget,
     expression => planExpression(expression, sourceFile, input, diagnostics), source =>
       planCsharpSequenceSnapshotStatements(node, source, receiver, sourceFile, input, diagnostics, elementType, elementTarget),
     () => [allocate({ kind: "LiteralExpression", value: 0 })]);

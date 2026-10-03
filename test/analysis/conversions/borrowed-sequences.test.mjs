@@ -10,7 +10,7 @@ const boolean = csharpSourcePrimitiveTargetType("bool");
 function sealedConversions(inputs, elementTarget = int64) {
   const sourceFile = {};
   const expression = {};
-  const sequence = { expression, elementTarget, inputs, controlNodes: [] };
+  const sequence = { expression, array: {}, sourceCarrier: { kind: "array", element: elementTarget }, inputs, controlNodes: [] };
   const predicates = ["NonNullExpression", "AsExpression", "TypeAssertion", "VariableDeclaration",
     "ReturnStatement", "ArrayLiteralExpression", "StringLiteral", "NoSubstitutionTemplateLiteral",
     "NumericLiteral", "BigIntLiteral", "PrefixUnaryExpression", "CallExpression"];

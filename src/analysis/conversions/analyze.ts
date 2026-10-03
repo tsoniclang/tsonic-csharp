@@ -147,7 +147,8 @@ export function analyzeCsharpConversions(
     const sourceType = sourceTypes[0];
     const borrowedSequence = operations.borrowedSequence(node);
     if (borrowedSequence !== undefined) {
-      classifyBorrowedSequencePairs(borrowedSequence, borrowedSequence.elementTarget);
+      const element = getCsharpCollectionElementTargetType(borrowedSequence.sourceCarrier);
+      if (element !== undefined) classifyBorrowedSequencePairs(borrowedSequence, element);
     }
     for (const candidate of sourceTypes) {
       classifyPair(candidate, candidate, "implicit", node);

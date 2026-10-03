@@ -98,12 +98,9 @@ export function planCsharpJsArraySpreadAppend(
   const resultCarrier = destination.completion.carrier;
   const borrowed = input.program.operations.borrowedSequence(operand);
   if (borrowed !== undefined) {
-    if (!targetTypeRefEquals(borrowed.elementTarget, elementTarget)) {
-      return reject(node, diagnostics, "Borrowed sequence append requires its finalized destination element carrier.");
-    }
     const name = input.names.temporaryName("__tsonic_sequence_destination");
     const receiver = identifier(name);
-    const consumed = planCsharpBorrowedSequenceConsumption(node, borrowed, sourceFile, input, diagnostics,
+    const consumed = planCsharpBorrowedSequenceConsumption(node, borrowed, sourceFile, input, diagnostics, elementTarget,
       expression => planner.planExpression(expression, sourceFile, input, diagnostics), source => {
         const statements = planCsharpSequenceAppendStatements(node, source, source.expression, sourceFile, input, diagnostics,
           elementTarget, value => ({ kind: "ExpressionStatement", expression: invoke(receiver, "Add", [value]) }));

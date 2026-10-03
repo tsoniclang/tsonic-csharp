@@ -26,20 +26,22 @@ function fixture(destination = string, completion) {
     as: { AsBinaryExpression: node => node },
   };
   const optional = csharpNullableTargetType(sequence);
-  const fact = { expression, elementTarget: destination, controlNodes: [expression], inputs: [
+  const fact = { expression, array, sourceCarrier: { kind: "array", element: destination }, controlNodes: [expression], inputs: [
     { kind: "sequence", expression: source, carrier: optional, presentCarrier: sequence,
       optional: true, lengthMember: "Length", elements: [string] },
     { kind: "empty", expression: empty },
   ] };
   const pairs = [];
-  const input = { program: { source: { ast }, conversions: { select(from, to, mode) {
+  const input = { program: { source: { ast },
+    expectedTypes: { forExpression: () => [], arrayLiteralCarrier: () => undefined },
+    conversions: { select(from, to, mode) {
     pairs.push([from, to, mode]);
     return targetTypeRefEquals(from, to) ? { kind: "identity" } : { kind: "rejected", reason: "No selected native conversion." };
   } } }, types: { classifications: { resolveNode(node) { return node === array ? { kind: "array", element: destination } : optional; } } },
     scope: {}, names: { temporaryName: name => name } };
   const diagnostics = [];
   const consumed = [];
-  const statements = () => planCsharpBorrowedSequenceConsumption(spread, fact, {}, input, diagnostics,
+  const statements = () => planCsharpBorrowedSequenceConsumption(spread, fact, {}, input, diagnostics, destination,
     () => ({ prelude: [{ kind: "ExpressionStatement", expression: { kind: "IdentifierName", name: "evaluate_source" } }],
       completion: completion ?? { kind: "value", carrier: optional, expression: { kind: "IdentifierName", name: "source" } } }),
     selected => { consumed.push(selected); return [{ kind: "ExpressionStatement", expression: { kind: "IdentifierName", name: "consume_selected" } }]; },
@@ -75,7 +77,7 @@ test("borrowed consumption preserves canonical never completion and cannot consu
 
 test("mutated destination, element evidence and fabricated identity cannot bypass the sealed pair owner", () => {
   const destination = fixture();
-  destination.fact.elementTarget = int32;
+  destination.fact.sourceCarrier = { kind: "array", element: int32 };
   assert.equal(destination.statements(), undefined);
   assert.equal(destination.pairs.length, 0);
   const element = fixture();
@@ -88,6 +90,35 @@ test("mutated destination, element evidence and fabricated identity cannot bypas
   assert.deepEqual(fabricated.pairs, [[string, int32, "implicit"]]);
   assert.equal(fabricated.consumed.length, 0);
 for (const state of [destination, element, fabricated]) assert.equal(state.diagnostics.length, 1);
+});
+
+test("borrowed construction admits only the sealed contextual destination without confusing source storage", () => {
+  const state = fixture();
+  const contextual = { kind: "array", element: int32 };
+  state.input.program.conversions.select = (from, to, mode) => {
+    state.pairs.push([from, to, mode]);
+    return { kind: "rejected", reason: "No selected native conversion." };
+  };
+  const consume = () => planCsharpBorrowedSequenceConsumption(state.spread, state.fact, {}, state.input,
+    state.diagnostics, int32, () => csharpPlannedValue(state.optional, { kind: "IdentifierName", name: "source" }),
+    () => [], () => []);
+  assert.equal(consume(), undefined);
+  assert.equal(state.pairs.length, 0);
+  state.input.program.expectedTypes = {
+    forExpression: node => node === state.array ? [contextual] : [],
+    arrayLiteralCarrier: (node, target) => node === state.array && target === contextual ? contextual : undefined,
+  };
+  assert.equal(consume(), undefined);
+  assert.deepEqual(state.pairs, [[string, int32, "implicit"]]);
+  assert.equal(state.diagnostics.length, 2);
+});
+
+test("borrowed source facts cannot be reused for a different array construction", () => {
+  const state = fixture();
+  state.fact.array = {};
+  assert.equal(state.statements(), undefined);
+  assert.equal(state.pairs.length, 0);
+  assert.equal(state.diagnostics.length, 1);
 });
 
 test("borrowed dense selection allocates its sole destination inside the selected branch", () => {

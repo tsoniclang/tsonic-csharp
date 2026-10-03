@@ -107,6 +107,7 @@ export function planArrayLiteralExpressionWithCarrier(
         sourceFile,
         input,
         diagnostics,
+        constructionCarrier,
         collectionType,
         elementType,
         collectionElementCarrier,

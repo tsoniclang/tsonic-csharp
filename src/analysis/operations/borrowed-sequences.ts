@@ -8,7 +8,8 @@ import { getCsharpGenericOptionalParts } from "../../target-model/types/projecti
 
 export interface CsharpBorrowedSequenceInput {
   readonly expression: Node;
-  readonly elementTarget: TargetTypeRef;
+  readonly array: Node;
+  readonly sourceCarrier: TargetTypeRef;
   readonly controlNodes: readonly Node[];
   readonly inputs: readonly (
     | { readonly kind: "empty"; readonly expression: Node }
@@ -27,9 +28,9 @@ export function classifyCsharpBorrowedSequenceInput(
   if (choice === undefined) return undefined;
   const spread = policy.ast.parent(expression);
   const array = spread === undefined ? undefined : policy.ast.parent(spread);
-  const destination = array === undefined ? undefined : policy.types.resolveNode(array, sourceFile);
-  const elementTarget = getCsharpCollectionElementTargetType(destination);
-  if (elementTarget === undefined) return undefined;
+  const sourceCarrier = array === undefined ? undefined : policy.types.resolveNode(array, sourceFile);
+  if (array === undefined || sourceCarrier === undefined ||
+    getCsharpCollectionElementTargetType(sourceCarrier) === undefined) return undefined;
   const inputs: CsharpBorrowedSequenceInput["inputs"][number][] = [];
   for (const node of choice.inputs) {
     if (sourceSequenceInputIsEmpty(policy.ast, node)) {
@@ -46,5 +47,5 @@ export function classifyCsharpBorrowedSequenceInput(
     inputs.push(Object.freeze({ kind: "sequence", expression: node, carrier, presentCarrier,
       optional: optional !== undefined, lengthMember: getCsharpIndexableLengthMemberName(presentCarrier), elements: Object.freeze([...carriers]) }));
   }
-  return Object.freeze({ expression, elementTarget, controlNodes: choice.controlNodes, inputs: Object.freeze(inputs) });
+  return Object.freeze({ expression, array, sourceCarrier, controlNodes: choice.controlNodes, inputs: Object.freeze(inputs) });
 }

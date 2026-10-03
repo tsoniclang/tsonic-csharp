@@ -2,6 +2,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import { sourceSequenceInputChoice, sourceSequenceInputIsEmpty } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpBorrowedSequenceInput } from "../../../../analysis/operations/borrowed-sequences.js";
+import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
@@ -9,7 +10,7 @@ import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
-import { getCsharpCollectionElementTargetType, getCsharpIndexableLengthMemberName } from "../../../../target-model/types/collections.js";
+import { getCsharpArrayLiteralElementTargetType, getCsharpCollectionElementTargetType, getCsharpIndexableLengthMemberName } from "../../../../target-model/types/collections.js";
 import { csharpVoidTargetType } from "../../../../target-model/types/scalar-types.js";
 import { csharpConversionIsApplicable, type CsharpConversionSelection } from "../../../../policy/conversions/index.js";
 import { planCsharpPresentValueGuard } from "../optional-storage.js";
@@ -23,6 +24,7 @@ export function planCsharpBorrowedSequenceConsumption(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
+  elementTarget: TargetTypeRef,
   planValue: (node: Node) => CsharpPlannedValue | undefined,
   consume: (source: CsharpArraySpreadInput) => readonly CsharpStatement[] | undefined,
   empty: () => readonly CsharpStatement[] | undefined,
@@ -30,10 +32,15 @@ export function planCsharpBorrowedSequenceConsumption(
   const choice = sourceSequenceInputChoice(input.program.source.ast, fact.expression);
   const spread = input.program.source.ast.parent(fact.expression);
   const array = spread === undefined ? undefined : input.program.source.ast.parent(spread);
-  const destination = array === undefined ? undefined : input.types.classifications.resolveNode(array, sourceFile);
-  const elementTarget = getCsharpCollectionElementTargetType(destination);
+  const sourceCarrier = array === undefined ? undefined : input.types.classifications.resolveNode(array, sourceFile);
+  const constructions = array === undefined ? [] : [sourceCarrier, ...input.program.expectedTypes.forExpression(array)
+    .map(target => input.program.expectedTypes.arrayLiteralCarrier(array, target))];
   if (choice === undefined || choice.inputs.length !== fact.inputs.length ||
-    elementTarget === undefined || !targetTypeRefEquals(elementTarget, fact.elementTarget) ||
+    array !== fact.array || sourceCarrier === undefined || !targetTypeRefEquals(sourceCarrier, fact.sourceCarrier) ||
+    !constructions.some(carrier => {
+      const element = getCsharpArrayLiteralElementTargetType(carrier);
+      return element !== undefined && targetTypeRefEquals(element, elementTarget);
+    }) ||
     choice.inputs.some((expression, index) => expression !== fact.inputs[index]?.expression) ||
     choice.controlNodes.length !== fact.controlNodes.length ||
     choice.controlNodes.some((expression, index) => expression !== fact.controlNodes[index])) {
@@ -68,7 +75,7 @@ export function planCsharpBorrowedSequenceConsumption(
     }
     const type = csharpTypeFromTargetTypeRef(selected.presentCarrier, input.scope.typeParameterNames);
     const elements = selected.elements.map(carrier => ({ carrier,
-      conversion: input.program.conversions.select(carrier, fact.elementTarget, "implicit"),
+      conversion: input.program.conversions.select(carrier, elementTarget, "implicit"),
       type: csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames) }));
     if (elements.some(element => element.conversion === undefined || !csharpConversionIsApplicable(element.conversion, "implicit"))) {
       return reject("Borrowed sequence elements require their sealed exact source/destination conversion pairs.");

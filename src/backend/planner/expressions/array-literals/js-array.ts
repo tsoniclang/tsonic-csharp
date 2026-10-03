@@ -18,6 +18,7 @@ export function planJsArrayLiteralExpression(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
+  carrier: TargetTypeRef,
   collectionType: CsharpTypeNode,
   elementType: CsharpTypeNode,
   elementTargetType: TargetTypeRef,
@@ -33,8 +34,6 @@ export function planJsArrayLiteralExpression(
         elements: value.elements.map(expression => ({ kind: "ExpressionElement", expression })) }])
       : { kind: "ObjectCreationExpression", type: collectionType, arguments: [{ kind: "Argument", expression: value }] });
   }
-  const carrier = input.types.classifications.resolveNode(node, sourceFile);
-  if (carrier === undefined) return undefined;
   let result: CsharpPlannedValue = csharpPlannedValue(carrier, { kind: "ObjectCreationExpression", type: collectionType, arguments: [] });
   for (const element of elements) {
     if (element === undefined) {
