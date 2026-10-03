@@ -135,7 +135,7 @@ function planObjectLiteralExpressionWithObjectShape(
     return undefined;
   }
   const literal = AsObjectLiteralExpression(input.program.source.ast, node)!;
-  const captures = planCsharpObjectCaptureAssignments(objectShape, input, diagnostics, state);
+  const captures = planCsharpObjectCaptureAssignments(objectShape, node, input, diagnostics, state);
   if (captures === undefined) return undefined;
   const assignments: CsharpPlannedObjectInitializer[] = [];
   for (const property of literal.Properties?.Nodes ?? []) {

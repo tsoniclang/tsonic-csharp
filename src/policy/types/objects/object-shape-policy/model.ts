@@ -26,7 +26,7 @@ export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
 }
 
 export interface CsharpObjectShapePolicy {
-  resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact;
+  resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;
   resolveNode(
     node: Node | undefined,
     sourceFile?: SourceFile,

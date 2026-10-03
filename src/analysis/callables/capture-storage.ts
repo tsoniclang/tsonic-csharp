@@ -54,7 +54,7 @@ export function analyzeCsharpCaptureStorage(
   for (const shape of shapes.knownShapes()) {
     for (const capture of (shape.declarationTemplate ?? shape).methodImplementation?.captures ?? []) {
       if (!capture.mutable || storage.nativeBacking(capture.declaration) !== undefined) continue;
-      if (hasSingleCaptureOwner(source, capture.declaration, shape.declarationTemplate ?? shape)) continue;
+      if (!shapes.methodImplementationHasCopies(shape) && hasSingleCaptureOwner(source, capture.declaration, shape.declarationTemplate ?? shape)) continue;
       const scope = sourceBindingScope(capture.declaration, source.ast);
       if (scope === undefined || source.ast.is.IsSourceFile(scope)) {
         issues.push({ node: capture.declaration, code: "CSHARP_CAPTURE_SCOPE_NOT_CLOSED",

@@ -9,11 +9,13 @@ import type {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpObjectShapeFact,
+  TargetTypeRef,
 } from "../../../../target-model/types/index.js";
 import {
   csharpObjectShapeMemberLookupFailureMessage,
   resolveCsharpObjectShapeMemberBySourceKey,
   getCsharpNullableElementTargetType,
+  targetTypeRefEquals,
 } from "../../../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import {
@@ -22,6 +24,9 @@ import {
 import {
   objectShapeStorageMemberName,
 } from "../index.js";
+import { objectShapeMethodStorageTargetType } from "../object-shape-storage.js";
+import { csharpObjectShapeMethodDeclaration } from "../../../../target-model/types/method-values.js";
+import { csharpObjectCaptureFields } from "../declarations/authored-methods.js";
 import type {
   ExpressionPlanner,
 } from "../../expressions/expression-planner-types.js";
@@ -50,7 +55,11 @@ export function planObjectShapeSpreadAssignments(
     diagnostics.push(unsupportedNodeDiagnostic(spreadNode, "Object literal spread requires finalized provider object-shape facts for the spread expression before C# emission."));
     return undefined;
   }
-  if (sourceShape.members.some(member => member.methodValueContract !== undefined)) {
+  const sharedImplementation = sourceShape.methodImplementation !== undefined &&
+    sourceShape.methodImplementation.identity === targetShape.methodImplementation?.identity &&
+    targetTypeRefEquals(sourceShape.targetType, targetShape.targetType);
+  if (sourceShape.members.some(member => member.methodValueContract !== undefined &&
+    !(sharedImplementation && csharpObjectShapeMethodDeclaration(sourceShape, member) !== undefined))) {
     const required = input.artifacts.requireObjectShapeCapability(undefined, sourceShape.targetType, sourceFile, "method-values", "object-shape");
     if (required.kind === "rejected") {
       diagnostics.push(unsupportedNodeDiagnostic(spreadNode, required.reason));
@@ -61,7 +70,7 @@ export function planObjectShapeSpreadAssignments(
   if (sourceExpression === undefined) {
     return undefined;
   }
-  const fields: { readonly source: string; readonly target: string }[] = [];
+  const fields: { readonly source: string; readonly target: string; readonly carrier: TargetTypeRef }[] = [];
   for (const sourceMember of sourceShape.members) {
     const targetMemberLookup = resolveCsharpObjectShapeMemberBySourceKey(
       targetShape,
@@ -76,11 +85,19 @@ export function planObjectShapeSpreadAssignments(
       return undefined;
     }
     const targetMember = targetMemberLookup.member;
+    if (sharedImplementation && targetMember.methodValueContract !== undefined &&
+      csharpObjectShapeMethodDeclaration(targetShape, targetMember) === csharpObjectShapeMethodDeclaration(sourceShape, sourceMember)) continue;
     if (!objectShapeMemberTypesMatch(sourceMember, targetMember)) {
       diagnostics.push(unsupportedNodeDiagnostic(spreadNode, `Object literal spread member '${sourceMember.sourceName}' requires matching finalized source and target member carriers.`));
       return undefined;
     }
-    fields.push({ source: objectShapeStorageMemberName(sourceShape, sourceMember), target: objectShapeStorageMemberName(targetShape, targetMember) });
+    const carrier = targetMember.memberKind !== "method" ? targetMember.type
+      : objectShapeMethodStorageTargetType(targetShape, targetMember, input.artifacts.objectShapeMethodUsesReceiver(targetShape, targetMember));
+    if (carrier === undefined) return undefined;
+    fields.push({ source: objectShapeStorageMemberName(sourceShape, sourceMember), target: objectShapeStorageMemberName(targetShape, targetMember), carrier });
+  }
+  if (sharedImplementation) for (const field of csharpObjectCaptureFields(sourceShape, input)) {
+    fields.push({ source: field.name, target: field.name, carrier: field.type });
   }
   const carrier = sourceExpression.completion.kind === "value" ? sourceExpression.completion.carrier : undefined;
   const present = getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier);
@@ -88,6 +105,7 @@ export function planObjectShapeSpreadAssignments(
     assignments: receiver => fields.map(field => ({
       kind: "AssignmentExpression",
       name: field.target,
+      carrier: field.carrier,
       expression: {
         kind: "SimpleMemberAccessExpression",
         receiver,

@@ -13,7 +13,7 @@ const identifier = name => ({ kind: "IdentifierName", name });
 const call = name => ({ kind: "InvocationExpression", callee: identifier(name), arguments: [] });
 const effect = name => ({ kind: "ExpressionStatement", expression: call(name) });
 const value = name => csharpPlannedValue(integer, call(name));
-const group = (name, planned) => ({ value: planned, presence: { kind: "required" }, assignments: expression => [{ kind: "AssignmentExpression", name, expression }] });
+const group = (name, planned) => ({ value: planned, presence: { kind: "required" }, assignments: expression => [{ kind: "AssignmentExpression", name, carrier: integer, expression }] });
 function context() {
   let index = 0;
   return { program: { source: { ast: { pos: () => 1, end: () => 9, parent: () => undefined } } },
@@ -30,22 +30,40 @@ test("native object pure initialization remains one direct constructor without a
 test("native object initialization preserves overwritten values and orders a later region after earlier stores", () => {
   const planned = planCsharpObjectInitialization({}, {}, context(), [], carrier, type, [], [group("same", value("first")),
     group("same", csharpPlannedValue(integer, identifier("completed"), [effect("complete")])), group("last", value("last"))]);
-  assert.deepEqual(planned.prelude.map(statement => statement.kind), ["LocalDeclarationStatement", "ExpressionStatement", "ExpressionStatement", "ExpressionStatement", "ExpressionStatement"]);
-  assert.equal(planned.prelude[1].expression.right.callee.name, "first");
-  assert.equal(planned.prelude[2].expression.callee.name, "complete");
-  assert.equal(planned.prelude[3].expression.left.name, "same");
-  assert.equal(planned.prelude[4].expression.right.callee.name, "last");
+  assert.deepEqual(planned.prelude.map(statement => statement.kind), ["LocalDeclarationStatement", "ExpressionStatement", "ExpressionStatement", "LocalDeclarationStatement"]);
+  assert.equal(planned.prelude[0].initializer.callee.name, "first");
+  assert.equal(planned.prelude[1].expression.callee.name, "complete");
+  assert.equal(planned.prelude[2].expression.left.name, planned.prelude[0].name);
+  assert.equal(planned.prelude[3].initializer.callee.name, "last");
+  assert.deepEqual(planned.completion.expression.assignments.map(assignment => assignment.name), ["same", "last"]);
+  assert.equal(planned.prelude.some(statement => statement.initializer?.kind === "ObjectCreationExpression"), false);
+});
+
+test("one spread orders an overwritten getter before a newly declared field", () => {
+  const spread = { value: csharpPlannedValue(carrier, call("source")), presence: { kind: "required" },
+    assignments: receiver => ["same", "next"].map(name => ({ kind: "AssignmentExpression", name,
+      carrier: integer, expression: { kind: "SimpleMemberAccessExpression", receiver, name } })) };
+  const planned = planCsharpObjectInitialization({}, {}, context(), [], carrier, type, [],
+    [group("same", value("first")), spread]);
+  assert.ok(planned);
+  assert.deepEqual(planned.prelude.map(statement => statement.kind),
+    ["LocalDeclarationStatement", "LocalDeclarationStatement", "ExpressionStatement", "LocalDeclarationStatement"]);
+  assert.equal(planned.prelude[2].expression.right.name, "same");
+  assert.equal(planned.prelude[3].initializer.name, "next");
+  assert.equal(planned.prelude[2].expression.right.receiver.name, planned.prelude[1].name);
+  assert.equal(planned.prelude[3].initializer.receiver.name, planned.prelude[1].name);
 });
 
 test("object spreads capture their exact source once even for zero or multiple projected fields", () => {
   for (const count of [0, 2]) {
     const spread = { value: csharpPlannedValue(carrier, call("source")), presence: { kind: "required" }, assignments: receiver => Array.from({ length: count }, (_, index) => ({
-      kind: "AssignmentExpression", name: `field${index}`, expression: { kind: "SimpleMemberAccessExpression", receiver, name: `field${index}` },
+      kind: "AssignmentExpression", name: `field${index}`, carrier: integer, expression: { kind: "SimpleMemberAccessExpression", receiver, name: `field${index}` },
     })) };
     const planned = planCsharpObjectInitialization({}, {}, context(), [], carrier, type, [], [spread]);
-    assert.equal(planned.prelude[1].initializer.callee.name, "source");
-    assert.equal(planned.prelude.length, count + 2);
-    for (const statement of planned.prelude.slice(2)) assert.equal(statement.expression.right.receiver.name, planned.prelude[1].name);
+    assert.equal(planned.prelude[0].initializer.callee.name, "source");
+    assert.equal(planned.prelude.length, count + 1);
+    for (const statement of planned.prelude.slice(1)) assert.equal(statement.initializer.receiver.name, planned.prelude[0].name);
+    assert.equal(planned.completion.expression.assignments.length, count);
   }
 });
 
@@ -53,19 +71,34 @@ test("optional spreads evaluate once and guard their complete ordered assignment
   const source = csharpNullableTargetType(carrier);
   const spread = { value: csharpPlannedValue(source, call("source")), presence: { kind: "optional", carrier },
     assignments: receiver => ["left", "right"].map(name => ({ kind: "AssignmentExpression", name,
-      expression: { kind: "SimpleMemberAccessExpression", receiver, name } })) };
+      carrier: csharpNullableTargetType(integer), expression: { kind: "SimpleMemberAccessExpression", receiver, name } })) };
   const planned = planCsharpObjectInitialization({}, {}, context(), [], carrier, type, [], [spread]);
   assert.ok(planned);
   assert.deepEqual(planned.prelude.map(statement => statement.kind),
-    ["LocalDeclarationStatement", "LocalDeclarationStatement", "IfStatement"]);
-  assert.equal(planned.prelude[1].initializer.callee.name, "source");
-  const guard = planned.prelude[2];
+    ["LocalDeclarationStatement", "LocalDeclarationStatement", "LocalDeclarationStatement", "IfStatement"]);
+  assert.equal(planned.prelude[0].initializer.callee.name, "source");
+  const guard = planned.prelude[3];
   assert.equal(guard.thenBody.statements.length, 2);
   assert.equal(guard.condition.kind, "IsPatternExpression");
   assert.equal(guard.thenBody.statements.every(statement =>
     statement.expression.right.receiver.name === guard.condition.designation), true);
   assert.equal(planCsharpObjectInitialization({}, {}, context(), [], carrier, type, [],
     [{ ...spread, presence: { kind: "optional", carrier: integer } }]) === undefined, true);
+});
+
+test("optional contributions cannot invent required values, but later definite stores complete construction", () => {
+  const spread = { value: csharpPlannedValue(csharpNullableTargetType(carrier), call("source")),
+    presence: { kind: "optional", carrier }, assignments: receiver => [{ kind: "AssignmentExpression", name: "value",
+      carrier: integer, expression: { kind: "SimpleMemberAccessExpression", receiver, name: "value" } }] };
+  assert.equal(planCsharpObjectInitialization({}, {}, context(), [], carrier, type, [], [spread]) === undefined, true);
+  const planned = planCsharpObjectInitialization({}, {}, context(), [], carrier, type, [], [spread, group("value", value("final"))]);
+  assert.ok(planned);
+  assert.equal(planned.prelude[1].initializer, undefined);
+  assert.equal(planned.prelude[2].kind, "IfStatement");
+  assert.equal(planned.prelude[3].expression.right.callee.name, "final");
+  assert.equal(planned.completion.expression.assignments[0].expression.name, planned.prelude[1].name);
+  const conflicting = { ...spread, assignments: receiver => [{ ...spread.assignments(receiver)[0], carrier }] };
+  assert.equal(planCsharpObjectInitialization({}, {}, context(), [], carrier, type, [], [group("value", value("first")), conflicting]) === undefined, true);
 });
 
 test("ordered instance and static initialization regions keep all necessary neighboring fields in source order", () => {

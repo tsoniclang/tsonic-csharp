@@ -1,7 +1,8 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../../target-model/types/model.js";
-import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpTypeMember } from "../../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpTypeMember } from "../../../target-ast/roslyn/index.js";
+import type { CsharpPlannedObjectAssignment } from "../../expressions/planned-initializers.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { createCsharpMemberPlanningContext, createCsharpThisBindingPlanningContext } from "../../context.js";
 import { planMethodDeclaration } from "../../declarations/classes/methods.js";
@@ -22,7 +23,7 @@ interface ObjectCaptureField {
   readonly frameScope?: Node;
 }
 
-function objectCaptureFields(shape: CsharpObjectShapeFact, input: CsharpPlanningContext): readonly ObjectCaptureField[] {
+export function csharpObjectCaptureFields(shape: CsharpObjectShapeFact, input: CsharpPlanningContext): readonly ObjectCaptureField[] {
   const fields: ObjectCaptureField[] = [];
   const frames = new Map<Node, number>();
   for (const capture of shape.methodImplementation?.captures ?? []) {
@@ -54,7 +55,7 @@ export function renderCsharpAuthoredObjectMethods(
   const members: CsharpTypeMember[] = [];
   const capturedBindings = new Map<Node, CsharpExpression>();
   const captureFrames = new Map<Node, CsharpExpression>();
-  for (const field of objectCaptureFields(shape, input)) {
+  for (const field of csharpObjectCaptureFields(shape, input)) {
     const type = csharpTypeFromTargetTypeRef(field.type, input.scope.typeParameterNames);
     if (type === undefined) return undefined;
     const frame = field.frameScope === undefined ? undefined : input.program.captureStorage.frame(field.frameScope);
@@ -96,10 +97,11 @@ export function renderCsharpAuthoredObjectMethods(
 }
 
 export function planCsharpObjectCaptureAssignments(
-  shape: CsharpObjectShapeFact, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state?: DestructuringPlannerState,
-): readonly CsharpObjectInitializerAssignment[] | undefined {
-  const assignments: CsharpObjectInitializerAssignment[] = [];
-  for (const field of objectCaptureFields(shape, input)) {
+  shape: CsharpObjectShapeFact, literal: Node, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state?: DestructuringPlannerState,
+): readonly CsharpPlannedObjectAssignment[] | undefined {
+  if (shape.methodImplementation !== undefined && shape.methodImplementation.declaration !== literal) return [];
+  const assignments: CsharpPlannedObjectAssignment[] = [];
+  for (const field of csharpObjectCaptureFields(shape, input)) {
     const declaration = field.declarations[0]!.declaration;
     let expression: CsharpExpression | undefined;
     if (field.frameScope !== undefined) {
@@ -117,7 +119,7 @@ export function planCsharpObjectCaptureAssignments(
       diagnostics.push(unsupportedNodeDiagnostic(declaration, "A captured object method binding has no sealed native storage access."));
       return undefined;
     }
-    assignments.push({ kind: "AssignmentExpression", name: field.name, expression });
+    assignments.push({ kind: "AssignmentExpression", name: field.name, carrier: field.type, expression });
   }
   return assignments;
 }

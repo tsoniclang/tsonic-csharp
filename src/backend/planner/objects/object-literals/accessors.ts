@@ -123,7 +123,9 @@ export function planObjectShapeAccessorMemberAssignment(
       : csharpDelegateTargetType("System.Action", [objectShape.targetType, member.type]), expression),
     assignments: value => [{ kind: "AssignmentExpression", name: getter
       ? objectShapeAccessorGetterStorageMemberName(objectShape, member)
-      : objectShapeAccessorSetterStorageMemberName(objectShape, member), expression: value }],
+      : objectShapeAccessorSetterStorageMemberName(objectShape, member), carrier: getter
+      ? csharpDelegateTargetType("System.Func", [objectShape.targetType], member.type)
+      : csharpDelegateTargetType("System.Action", [objectShape.targetType, member.type]), expression: value }],
   };
 }
 

@@ -36,6 +36,7 @@ export function analyzeCsharpObjectShapes(
   const byTarget = new Map<string, CsharpObjectShapeFact>();
   const copies = new Map<string, CsharpObjectShapeFact>();
   const objectLiterals = new Map<Node, SourceFile>();
+  const copiedMethodImplementations = new Set<string>();
   const operationTypes: TargetTypeRef[] = [];
   let classificationCount = 0;
   let sealed = false;
@@ -188,6 +189,8 @@ export function analyzeCsharpObjectShapes(
       results.set(key, result);
       if (result.kind === "resolved") {
         rememberShape(result.shape);
+        const implementation = result.shape.methodImplementation;
+        if (implementation !== undefined && implementation.declaration !== literal) copiedMethodImplementations.add(implementation.identity);
       }
     }
   }
@@ -196,6 +199,10 @@ export function analyzeCsharpObjectShapes(
     structuralImplementations,
     knownShapes() {
       return Object.freeze([...byTarget.values()].map(shape => withInterfaces(shape)!));
+    },
+    methodImplementationHasCopies(shape) {
+      const implementation = (shape.declarationTemplate ?? shape).methodImplementation;
+      return implementation !== undefined && copiedMethodImplementations.has(implementation.identity);
     },
     registerStructuralInterface(expression, source, destination, sourceType) {
       if (sealed) throw new Error("C# structural-interface analysis is sealed.");
@@ -244,8 +251,8 @@ export function analyzeCsharpObjectShapes(
         rememberShape(shape);
         if (shape !== undefined) {
           const copy = policy.objectShapes.resolveCopyShape(shape);
-          copies.set(key, copy);
-          if (copy !== shape) {
+          if (copy !== undefined) copies.set(key, copy);
+          if (copy !== undefined && copy !== shape) {
             rememberShape(copy);
             pending.push(copy.targetType);
           }

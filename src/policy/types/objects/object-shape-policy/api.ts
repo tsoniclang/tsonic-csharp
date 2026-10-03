@@ -47,6 +47,7 @@ import { selectCsharpObjectMethodImplementation } from "./method-implementations
 import { csharpCopiedObjectShapeMembers, csharpMethodEnvironment, retainCsharpMethodValueContracts } from "./method-values.js";
 import { csharpObjectShapeMethodRequiresProtocol } from "../../../../target-model/types/method-values.js";
 import { parameterizeCsharpStructuralContract } from "./structural-contracts.js";
+import { selectCsharpCopiedMethodReceiver } from "../../../ownership/copied-methods.js";
 
 import type {
   CsharpObjectLiteralTargetShapeResolution,
@@ -270,12 +271,19 @@ export function createCsharpObjectShapePolicy(
     }
     const members = [...retainLiteralMemberEvidence(expectedShape.members, objectLiteral, host.semantics(sourceFile))];
     if (copiedMethods) {
+      const sources: { readonly property: Node; readonly shape: CsharpObjectShapeFact }[] = [];
       for (const property of host.ast.properties(objectLiteral)) {
         if (property === undefined || !host.ast.is.IsSpreadAssignment(property)) continue;
-        const expression = AsSpreadAssignment(host.ast, property)?.Expression;
-        const source = resolveNode(expression, sourceFile);
+        const source = resolveNode(AsSpreadAssignment(host.ast, property)?.Expression, sourceFile);
         if (source === undefined) return { kind: "rejected", subject: property,
           reason: "Copied generic methods require an exact source object environment." };
+        sources.push({ property, shape: source });
+      }
+      const receiver = selectCsharpCopiedMethodReceiver(members, sources.map(source => source.shape), host.ast);
+      if (receiver.kind === "rejected") return { kind: "rejected", subject: objectLiteral,
+        reason: "Copied receiver-dependent methods require their exact native receiver and authored implementation." };
+      if (receiver.kind === "selected") return { kind: "resolved", shape: receiver.shape };
+      for (const { shape: source } of sources) {
         for (const sourceMember of source.members) {
           const environment = csharpMethodEnvironment(source, sourceMember);
           if (environment === undefined) continue;
@@ -813,11 +821,15 @@ export function createCsharpObjectShapePolicy(
   }
 
   return Object.freeze({
-    resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact {
+    resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined {
       const contract = shape.targetType.kind === "target-named" &&
         ((shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true ||
           (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface");
       if (!contract && shape.methodImplementation === undefined) return shape;
+      const original = shape.methodImplementation === undefined ? undefined : resolveNode(shape.methodImplementation.declaration);
+      const receiver = selectCsharpCopiedMethodReceiver(shape.members, original === undefined ? [shape] : [original], host.ast);
+      if (receiver.kind === "rejected") return undefined;
+      if (receiver.kind === "selected") return receiver.shape;
       const members = csharpCopiedObjectShapeMembers(shape);
       const implemented = contract ? [shape.targetType] : shape.implements;
       return rememberTargetShape({

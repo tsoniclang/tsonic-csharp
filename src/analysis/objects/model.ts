@@ -8,6 +8,7 @@ import type {
 export interface CsharpObjectShapeClassifications {
   structuralImplementations(type: TargetTypeRef): readonly import("../../target-model/types/model.js").CsharpStructuralInterfaceImplementation[];
   knownShapes(): readonly CsharpObjectShapeFact[];
+  methodImplementationHasCopies(shape: CsharpObjectShapeFact): boolean;
   resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;
   resolveObjectLiteralUnionShape(node: Node, type: TargetTypeRef): CsharpObjectShapeFact | undefined;
   resolveNode(
