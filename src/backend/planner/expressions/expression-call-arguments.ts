@@ -94,16 +94,25 @@ export function planCallArgumentCore(
     : planExpression(
         argument.storageExpression,
         sourceFile,
-        input,
+        { ...input, storageExpression: argument.storageExpression },
         diagnostics,
         state,
       );
   if (expression === undefined) {
     return undefined;
   }
+  const nativeLocation = passing === undefined ? undefined : input.program.storage.nativeLocation(argument.storageExpression);
+  if (passing !== undefined && (nativeLocation?.kind !== "resolved" || nativeLocation.address === undefined ||
+    (passing === "ref" || passing === "out") && nativeLocation.address.passing !== "byref-readwrite")) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, nativeLocation?.kind === "rejected" ? nativeLocation.reason
+      : "Native by-reference argument planning requires its sealed physical address and passing contract."));
+    return undefined;
+  }
   return {
     ...expression,
     ...(passing !== undefined ? { passing } : {}),
+    ...(nativeLocation?.kind === "resolved" ? { nativeLocation } : {}),
+    ...(input.program.sourceNavigation.expressionEffects(argument.storageExpression).suspends ? { suspends: true } : {}),
   };
 }
 

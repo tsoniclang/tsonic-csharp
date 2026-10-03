@@ -39,7 +39,8 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
-import { buildCsharpPlannedValue, projectCsharpPlannedValue } from "./planned-value-composition.js";
+import { buildCsharpPlannedValue, projectCsharpPlannedValue, planCsharpExpressionCompletion } from "./planned-value-composition.js";
+import { captureCsharpPlannedLocation } from "./planned-locations.js";
 import { translateCsharpPropertyAccess } from "./target-members/selected-property.js";
 import { sourceNodesEqual } from "@tsonic/target-api/source";
 
@@ -212,7 +213,8 @@ export function tryPlanCsharpTypedLocationOperation(
       const location = planExpression(
         operation.location.expression,
         sourceFile,
-        input,
+        operation.location.kind === "runtime-location" ? input
+          : { ...input, storageExpression: operation.location.expression },
         diagnostics,
       );
       const value = planExpressionWithExpectedType(
@@ -224,10 +226,21 @@ export function tryPlanCsharpTypedLocationOperation(
         undefined,
         operation.pointeeType,
       );
-      if (operation.location.kind === "native-ref-return" && value !== undefined && value.prelude.length !== 0) {
-        diagnostics.push(typedLocationDiagnostic(node, operation.kind,
-          "A native ref-return store across a sequenced value requires the sealed native address/lifetime authority."));
-        return { handled: true };
+      if (operation.location.kind === "native-ref-return" && location !== undefined && value !== undefined &&
+        (value.prelude.length !== 0 || value.completion.kind !== "value")) {
+        const fact = input.program.storage.nativeLocation(operation.location.expression);
+        if (fact?.kind !== "resolved" || !fact.writable || fact.address?.passing !== "byref-readwrite") {
+          diagnostics.push(typedLocationDiagnostic(node, operation.kind, fact?.kind === "rejected" ? fact.reason
+            : "A native ref-return store requires its sealed writable managed address."));
+          return { handled: true };
+        }
+        const captured = captureCsharpPlannedLocation(node, sourceFile, input, diagnostics, location, fact,
+          input.program.sourceNavigation.expressionEffects(operation.valueExpression).suspends);
+        if (captured === undefined || captured.completion.kind !== "value") return { handled: true, expression: captured };
+        const prelude = [...captured.prelude, ...value.prelude];
+        return { handled: true, expression: value.completion.kind === "never" ? { prelude, completion: value.completion }
+          : value.completion.kind === "void" ? undefined : planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
+            assignment(captured.completion.expression, value.completion.expression), undefined, prelude) };
       }
       return {
         handled: true,

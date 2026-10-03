@@ -15,7 +15,7 @@ import { getCsharpGenericOptionalParts } from "../../../target-model/types/proje
 import { planCsharpAbsentValue, planCsharpPresentValueGuard } from "./optional-storage.js";
 import {
   csharpPlannedValue, csharpPlannedEffect, sequenceCsharpPlannedValues,
-  selectCsharpPlannedBranch, type CsharpPlannedValue, type CsharpPlannedCapture,
+  selectCsharpPlannedBranch, type CsharpPlannedValue, type CsharpPlannedCapture, type CsharpPlannedLocationCapture,
 } from "./planned-values.js";
 
 export function planCsharpExpressionCompletion(
@@ -64,10 +64,12 @@ export function composeCsharpPlannedValues(
   diagnostics: TargetDiagnostic[],
   operands: readonly (CsharpPlannedValue | undefined)[],
   complete: (expressions: readonly CsharpExpression[]) => CsharpPlannedValue | undefined,
+  capture: (carrier: TargetTypeRef, operand: CsharpPlannedValue) => CsharpPlannedCapture | CsharpPlannedLocationCapture | undefined =
+    carrier => captureCsharpPlannedValue(node, input, diagnostics, carrier),
 ): CsharpPlannedValue | undefined {
   const selected = operands.filter((operand): operand is CsharpPlannedValue => operand !== undefined);
   if (selected.length !== operands.length) return undefined;
-  return sequenceCsharpPlannedValues(selected, carrier => captureCsharpPlannedValue(node, input, diagnostics, carrier), complete);
+  return sequenceCsharpPlannedValues(selected, capture, complete);
 }
 
 export function projectCsharpPlannedValue(

@@ -7,7 +7,8 @@ import { selectCsharpNativeRefReturn } from "../../policy/operations/typed-locat
 import { selectCsharpTargetElement, selectCsharpTargetProperty } from "../../policy/operations/members/index.js";
 import { isCsharpValueTypeTargetType } from "../../policy/types/index.js";
 import type { CsharpClassPropertyStorage } from "../operations/class-property-storage.js";
-import type { CsharpStorageClassifications } from "./model.js";
+import type { CsharpStorageClassifications, CsharpNativeObjectField, CsharpNativeArrayStorage } from "./model.js";
+import type { CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";
 
 export interface CsharpNativeManagedAddress {
   readonly passing: "byref-readonly" | "byref-readwrite";
@@ -20,10 +21,16 @@ export interface CsharpNativeLocationReceiver {
   readonly address: CsharpNativeManagedAddress;
 }
 
+export type CsharpNativeCellIdentity =
+  | { readonly kind: "local"; readonly layout: CsharpNativeMemoryLayout }
+  | { readonly kind: "field"; readonly backing: CsharpNativeObjectField }
+  | { readonly kind: "element"; readonly backing: CsharpNativeArrayStorage };
+
 export type CsharpNativeLocationSelection =
   | { readonly kind: "resolved"; readonly expression: Node; readonly storageType: TargetTypeRef;
       readonly assignment: CsharpAssignmentLocation; readonly writable: boolean;
-      readonly address?: CsharpNativeManagedAddress; readonly receiver?: CsharpNativeLocationReceiver }
+      readonly address?: CsharpNativeManagedAddress; readonly receiver?: CsharpNativeLocationReceiver;
+      readonly nativeCell?: CsharpNativeCellIdentity }
   | { readonly kind: "rejected"; readonly reason: string };
 
 export function classifyCsharpNativeLocation(
@@ -53,8 +60,18 @@ export function classifyCsharpNativeLocation(
         ? physical.type(storage.declaration) : undefined) ?? policy.types.resolveReadStorage(expression, sourceFile);
     if (storage === undefined || storageType === undefined) return rejected("The expression has no exact native storage and carrier evidence.");
     const assignment = selectCsharpAssignmentLocation(policy, expression, node => policy.types.resolveNode(node, sourceFile));
-    if (storage.declaration !== undefined && physical.nativeBacking(storage.declaration) !== undefined ||
-      physical.nativeArray(expression) !== undefined) return resolved(expression, storageType, assignment, storage.writable);
+    const localBacking = storage.declaration === undefined ? undefined : physical.nativeBacking(storage.declaration);
+    if (localBacking !== undefined) return targetTypeRefEquals(localBacking.pointeeType, storageType)
+      ? resolved(expression, storageType, assignment, storage.writable, undefined, undefined,
+        Object.freeze({ kind: "local", layout: localBacking }))
+      : rejected("Native backing must retain the finalized physical pointee carrier.");
+    const arrayBacking = physical.nativeArray(expression);
+    if (arrayBacking !== undefined) return arrayBacking.kind === "element"
+      ? targetTypeRefEquals(arrayBacking.layout.pointeeType, storageType)
+        ? resolved(expression, storageType, assignment, storage.writable, undefined, undefined,
+          Object.freeze({ kind: "element", backing: arrayBacking }))
+        : rejected("A native array cell must retain its finalized physical pointee carrier.")
+      : resolved(expression, storageType, assignment, storage.writable);
     if (policy.ast.is.IsIdentifier(expression)) {
       const declaration = storage.declaration;
       const local = declaration !== undefined &&
@@ -76,8 +93,12 @@ export function classifyCsharpNativeLocation(
       const shape = receiverType === undefined ? undefined : policy.objectShapes.resolveTarget(receiverType);
       const member = shape?.members.find(candidate => candidate.sourceDeclarations?.includes(declaration!) === true ||
         candidate.sourceSubjects?.includes(declaration!) === true);
-      if (shape !== undefined && member !== undefined && physical.nativeField(shape.targetType, member.targetName) !== undefined) {
-        return resolved(expression, storageType, assignment, storage.writable);
+      const fieldBacking = shape === undefined || member === undefined ? undefined : physical.nativeField(shape.targetType, member.targetName);
+      if (fieldBacking !== undefined) {
+        return targetTypeRefEquals(fieldBacking.layout.pointeeType, storageType)
+          ? resolved(expression, storageType, assignment, storage.writable, undefined, undefined,
+            Object.freeze({ kind: "field", backing: fieldBacking }))
+          : rejected("A native field cell must retain its finalized physical pointee carrier.");
       }
       const isStatic = selection.kind === "resolved" ? selection.receiver.kind === "none"
         : declaration !== undefined && policy.ast.hasModifierKind(declaration, "static");
@@ -109,9 +130,11 @@ export function classifyCsharpNativeLocation(
 }
 
 function resolved(expression: Node, storageType: TargetTypeRef, assignment: CsharpAssignmentLocation,
-  writable: boolean, passing?: CsharpNativeManagedAddress["passing"], receiver?: CsharpNativeLocationReceiver): CsharpNativeLocationSelection {
+  writable: boolean, passing?: CsharpNativeManagedAddress["passing"], receiver?: CsharpNativeLocationReceiver,
+  nativeCell?: CsharpNativeCellIdentity): CsharpNativeLocationSelection {
   return Object.freeze({ kind: "resolved", expression, storageType, assignment, writable,
     ...(receiver === undefined ? {} : { receiver }),
+    ...(nativeCell === undefined ? {} : { nativeCell }),
     ...(passing === undefined ? {} : { address: Object.freeze({ passing, capturedReferenceCrossesSuspension: false as const }) }) });
 }
 

@@ -102,6 +102,32 @@ test("physical native backing never masquerades as an ordinary managed local", (
   assert.equal(selected.kind, "resolved");
   assert.equal(selected.storageType, integer);
   assert.equal(selected.address, undefined);
+  assert.equal(selected.nativeCell.kind, "local");
+  assert.equal(selected.nativeCell.layout.pointeeType, integer);
+});
+
+test("native-backed identity retains exact layout and rejects a different physical pointee", () => {
+  const input = fixture();
+  const layout = Object.freeze({ pointeeType: integer });
+  const selected = select(input, "field", { ...physical, nativeBacking: () => layout });
+  assert.equal(selected.nativeCell.layout, layout);
+  assert.ok(Object.isFrozen(selected.nativeCell));
+  const rejected = select(input, "field", { ...physical,
+    nativeBacking: () => ({ pointeeType: { kind: "source-primitive", name: "uint64" } }) });
+  assert.equal(rejected.kind, "rejected");
+  assert.match(rejected.reason, /pointee carrier/u);
+});
+
+test("native-backed array cells keep pointer-cell identity without inventing a managed address", () => {
+  const input = fixture("element");
+  const backing = Object.freeze({ kind: "element", layout: Object.freeze({ pointeeType: integer }), stride: 4 });
+  const selected = select(input, "field", { ...physical, nativeArray: () => backing });
+  assert.equal(selected.nativeCell.backing, backing);
+  assert.equal(selected.address, undefined);
+  assert.ok(Object.isFrozen(selected.nativeCell));
+  const array = select(input, "field", { ...physical, nativeArray: () => ({ ...backing, kind: "reference" }) });
+  assert.equal(array.nativeCell, undefined);
+  assert.equal(array.address, undefined);
 });
 
 test("a native class field is addressable only through its sealed field representation", () => {

@@ -15,11 +15,18 @@ export interface CsharpPlannedValue {
 
 export interface CsharpPlannedArgument extends CsharpPlannedValue {
   readonly passing?: CsharpArgument["passing"];
+  readonly suspends?: true;
+  readonly nativeLocation?: Extract<import("../../../analysis/storage/native-locations.js").CsharpNativeLocationSelection, { readonly kind: "resolved" }>;
 }
 
 export interface CsharpPlannedCapture {
   readonly name: string;
   readonly type: CsharpTypeNode;
+}
+
+export interface CsharpPlannedLocationCapture {
+  readonly kind: "native-location";
+  readonly expression: CsharpExpression;
 }
 
 export function csharpPlannedValue(
@@ -56,7 +63,7 @@ export function mapCsharpPlannedValue(
 
 export function sequenceCsharpPlannedValues(
   operands: readonly CsharpPlannedValue[],
-  capture: (carrier: TargetTypeRef) => CsharpPlannedCapture | undefined,
+  capture: (carrier: TargetTypeRef, operand: CsharpPlannedValue) => CsharpPlannedCapture | CsharpPlannedLocationCapture | undefined,
   complete: (expressions: readonly CsharpExpression[]) => CsharpPlannedValue | undefined,
 ): CsharpPlannedValue | undefined {
   const preludesAfter: boolean[] = [];
@@ -77,8 +84,12 @@ export function sequenceCsharpPlannedValues(
       expressions.push(expression);
       continue;
     }
-    const selected = capture(operand.completion.carrier);
+    const selected = capture(operand.completion.carrier, operand);
     if (selected === undefined) return undefined;
+    if ("kind" in selected) {
+      expressions.push(selected.expression);
+      continue;
+    }
     prelude.push({ kind: "LocalDeclarationStatement", name: selected.name, type: selected.type, initializer: expression });
     expressions.push({ kind: "IdentifierName", name: selected.name });
   }

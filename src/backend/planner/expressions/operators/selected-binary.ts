@@ -43,6 +43,8 @@ import { planCsharpUnionEquality } from "../union-equality.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";
 import { buildCsharpPlannedValue, planCsharpValueBranch } from "../planned-value-composition.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/scalar-types.js";
+import { captureCsharpPlannedLocation } from "../planned-locations.js";
+import { captureCsharpPlannedValue } from "../planned-value-composition.js";
 
 export function planSelectedCsharpBinaryOperation(
   node: Node,
@@ -290,14 +292,44 @@ export function planSelectedCsharpBinaryOperation(
           input,
           diagnostics,
         );
-    return left === undefined || right === undefined
-      ? undefined
-      : {
-          kind: "AssignmentExpression",
-          left,
-          operatorToken: assignmentToken,
-          right,
-        };
+    if (left === undefined || right === undefined) return undefined;
+    if (left.completion.kind === "never") return left;
+    if (left.completion.kind !== "value") return undefined;
+    const direct = right.prelude.length === 0 && right.completion.kind === "value";
+    if (direct) return csharpPlannedValue(selection.resultType, { kind: "AssignmentExpression",
+      left: left.completion.expression, operatorToken: assignmentToken, right: right.completion.expression }, left.prelude);
+    const fact = input.program.storage.nativeLocation(storageExpression);
+    if (fact?.kind !== "resolved" || !fact.writable) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, fact?.kind === "rejected" ? fact.reason
+        : "A sequenced native assignment requires its sealed writable physical location."));
+      return undefined;
+    }
+    const captured = captureCsharpPlannedLocation(node, sourceFile, input, diagnostics, left, fact,
+      input.program.sourceNavigation.expressionEffects(selection.right).suspends);
+    if (captured === undefined || captured.completion.kind !== "value") return captured;
+    const prelude = [...captured.prelude];
+    let target = captured.completion.expression;
+    if (assignmentToken.kind !== "EqualsToken") {
+      const old = captureCsharpPlannedValue(node, input, diagnostics, selection.leftInputType);
+      if (old === undefined) return undefined;
+      prelude.push({ kind: "LocalDeclarationStatement", ...old, initializer: target });
+      target = { kind: "IdentifierName", name: old.name };
+    }
+    prelude.push(...right.prelude);
+    if (right.completion.kind === "never") return { prelude, completion: right.completion };
+    if (right.completion.kind !== "value") return undefined;
+    if (assignmentToken.kind === "EqualsToken") return csharpPlannedValue(selection.resultType, {
+      kind: "AssignmentExpression", left: target, operatorToken: assignmentToken, right: right.completion.expression,
+    }, prelude);
+    const result = captureCsharpPlannedValue(node, input, diagnostics, selection.resultType);
+    if (result === undefined) return undefined;
+    const completed: CsharpExpression = { kind: "IdentifierName", name: result.name };
+    return csharpPlannedValue(selection.resultType, completed, [...prelude,
+      { kind: "LocalDeclarationStatement", ...result, initializer: { kind: "AssignmentExpression",
+        left: target, operatorToken: assignmentToken, right: right.completion.expression } },
+      { kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", left: captured.completion.expression,
+        operatorToken: { kind: "EqualsToken" }, right: completed } },
+    ]);
   }
   const binaryToken = csharpBinaryOperatorTokenFromText(targetOperator);
   if (binaryToken === undefined) {

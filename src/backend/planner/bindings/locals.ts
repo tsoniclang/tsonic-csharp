@@ -130,7 +130,9 @@ export function planLocalDeclaration(
   const initializerCarrier = nativeRefTargetType ?? storageType ?? expectedTargetType ?? inferredTargetType;
   let initializer: CsharpPlannedValue | undefined;
   if (initializerOverride !== undefined) {
-    if (initializerCarrier !== undefined) initializer = csharpPlannedValue(initializerCarrier, initializerOverride);
+    if (initializerCarrier === undefined) diagnostics.push(unsupportedNodeDiagnostic(declarationNode,
+      "A supplied local initializer requires its finalized native storage carrier."));
+    else initializer = csharpPlannedValue(initializerCarrier, initializerOverride);
   } else if (variable.Initializer !== undefined) {
     initializer = planExpressionWithExpectedType(
       variable.Initializer,
