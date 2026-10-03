@@ -2,16 +2,32 @@ import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import {
   isCsharpVoidTargetType,
+  isCsharpNeverTargetType,
   getCsharpTaskResultTargetType,
   getCsharpNullableElementTargetType,
 } from "../../../target-model/types/index.js";
 import { planCsharpAbsentValue } from "../expressions/optional-storage.js";
+import { planCsharpNeverValue } from "../expressions/never-values.js";
+import { qualifiedCsharpType } from "../types/index.js";
 
 export function expressionStatement(expression: CsharpExpression): CsharpStatement {
   return {
     kind: "ExpressionStatement",
     expression,
   };
+}
+
+export function planCsharpDiscardedStatement(
+  expression: CsharpExpression,
+  targetType: TargetTypeRef | undefined,
+  explicit = false,
+): CsharpStatement {
+  if (isCsharpNeverTargetType(targetType)) {
+    return { kind: "ThrowStatement", expression: planCsharpNeverValue(expression, qualifiedCsharpType("System", "Exception")) };
+  }
+  return expressionStatement(explicit && targetType !== undefined
+    ? planExplicitlyDiscardedExpression(expression, targetType)
+    : planDiscardedExpression(expression, targetType));
 }
 
 export function planCsharpAbsenceReturn(

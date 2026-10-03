@@ -64,6 +64,7 @@ import {
   planExplicitlyDiscardedExpression,
   planCsharpVoidReturn,
   planCsharpAbsenceReturn,
+  planCsharpDiscardedStatement,
 } from "./statement-output.js";
 import { csharpVoidReturnCompletion } from "../../../target-model/types/index.js";
 import {
@@ -428,14 +429,12 @@ export function planExpressionStatement(
       }
       return [];
     }
-    return [expressionStatement(
-      planExplicitlyDiscardedExpression(planned, discardedType),
-    )];
+    return [planCsharpDiscardedStatement(planned, discardedType, true)];
   }
   const planned = planExpression(expression!, sourceFile, input, diagnostics, state);
-  return planned === undefined ? [] : [expressionStatement(planDiscardedExpression(
+  return planned === undefined ? [] : [planCsharpDiscardedStatement(
     planned, input.types.classifications.resolveNode(expression, sourceFile),
-  ))];
+  )];
 }
 
 function destructuringAssignmentExpressionStatementExpression(

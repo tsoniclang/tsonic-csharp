@@ -43,6 +43,7 @@ import type {
 import {
   planCsharpExactLiteralConversion,
 } from "./literal-conversions.js";
+import { planCsharpNeverValue } from "./never-values.js";
 import {
   planCsharpJsValueBox,
 } from "./js-value-operations.js";
@@ -116,11 +117,7 @@ export function applyCsharpConversionSelection(
       return planCsharpUnionMapping(node, expression, sourceType, targetType, selection, input, diagnostics);
     case "never": {
       const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
-      return type === undefined ? undefined : {
-        kind: "InvocationExpression",
-        callee: { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Value", typeArguments: [type] },
-        arguments: [],
-      };
+      return type === undefined ? undefined : planCsharpNeverValue(expression, type);
     }
     case "checked-native-integer": {
       const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
