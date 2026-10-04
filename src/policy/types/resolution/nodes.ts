@@ -4,7 +4,7 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { combineCsharpTargetUnionMembers, csharpEmptyObjectTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { combineCsharpTargetUnionMembers } from "../../../target-model/types/runtime-carriers.js";
 import { csharpJsArrayTargetType } from "./surface-types.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/collections.js";
 import { getCsharpNullableElementTargetType, csharpNullableTargetType } from "../../../target-model/types/nullable.js";
@@ -95,9 +95,6 @@ export function resolveNodeWithState(
   if (host.ast.is.IsFunctionTypeNode(node)) {
     const selected = queries.types.authoredType(node);
     return selected === undefined ? undefined : resolveCallableType(selected, queries, state);
-  }
-  if (host.ast.kindName(node) === "KindObjectKeyword" && selectedCsharpSourceProfileOwner(host.target) === "js") {
-    return csharpEmptyObjectTargetType();
   }
   if (host.ast.is.IsArrayTypeNode(node)) {
     const element = resolveNodeWithState(

@@ -5,6 +5,7 @@ import {
   csharpStringTargetType,
   csharpNeverTargetType,
   csharpVoidTargetType,
+  csharpObjectTargetType,
 } from "../../../target-model/types/scalar-types.js";
 import { csharpAnyTargetType, csharpTsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
 
@@ -26,6 +27,8 @@ export function resolveKeywordType(
       return csharpAnyTargetType();
     case "KindUnknownKeyword":
       return csharpTsValueTargetType();
+    case "KindObjectKeyword":
+      return csharpObjectTargetType();
     case "KindNeverKeyword":
       return csharpNeverTargetType();
     default:

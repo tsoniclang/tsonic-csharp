@@ -6,7 +6,7 @@ import type { CsharpClassDeclaration, CsharpConstructorDeclaration, CsharpStatem
 import { planAttributesForSubject } from "../attributes.js";
 import { planClassHeritage } from "./heritage.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../modifiers.js";
-import { csharpReferenceIdentityInterfaceType } from "../../objects/declarations/interfaces.js";
+import { csharpClosedValueCarrierInterfaceType } from "../../objects/declarations/interfaces.js";
 import { planCsharpStructuralInterfaceMembers } from "../interfaces/structural.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
 import { createCsharpTypeParameterPlanningContext } from "../../names/type-parameters.js";
@@ -41,7 +41,7 @@ export function planClassDeclaration(
   const heritage = planClassHeritage(node, input, diagnostics);
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
   const structuralInterfaces = objectShape?.implements ?? [];
-  const interfaces = [...heritage.interfaces];
+  const interfaces = [...heritage.interfaces, csharpClosedValueCarrierInterfaceType()];
   if (factory?.identity !== undefined) interfaces.push(csharpTypeFromTargetTypeRef(factory.identity.type, input.scope.typeParameterNames)!);
   for (const type of structuralInterfaces) {
     const rendered = csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames);
@@ -55,7 +55,6 @@ export function planClassDeclaration(
     registerSourceObjectShape(input, objectShape, diagnostics, node);
   }
   const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
-  const referenceIdentity = objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "reference-identity");
   if (objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "js-freeze") && heritage.baseType !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Object.freeze over a source class with inherited native storage requires a closed base-field write contract."));
   }
@@ -99,15 +98,10 @@ export function planClassDeclaration(
       ...planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics, node),
     ],
     ...(heritage.baseType === undefined ? {} : { baseType: heritage.baseType }),
-    ...(interfaces.length === 0 && !jsonSerializable && !referenceIdentity
-      ? {}
-      : {
-          interfaces: [
-            ...interfaces,
-            ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
-            ...(referenceIdentity ? [csharpReferenceIdentityInterfaceType()] : []),
-          ],
-        }),
+    interfaces: [
+      ...interfaces,
+      ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
+    ],
     members: [
       ...(staticRegion?.relocates ? [{ kind: "ConstructorDeclaration" as const, name: className,
         modifiers: ["static" as const], parameters: [], body: { kind: "Block" as const, statements: staticRegion.statements } }] : []),

@@ -13,7 +13,7 @@ import {
 } from "../../types/target-types.js";
 import { qualifiedCsharpType } from "../../types/csharp-type-primitives.js";
 
-export function csharpReferenceIdentityInterfaceType(): CsharpTypeNode {
+export function csharpClosedValueCarrierInterfaceType(): CsharpTypeNode {
   return qualifiedCsharpType("Tsonic.CSharp.Runtime", "ITsClosedValueCarrier");
 }
 

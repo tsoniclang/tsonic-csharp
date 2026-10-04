@@ -9,12 +9,14 @@ import {
 import { isCsharpEmptyObjectTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/collections.js";
+import { csharpObjectTargetType } from "../../../target-model/types/scalar-types.js";
 
 export function retainCsharpBroadValueCarrier(
   authored: TargetTypeRef | undefined,
   selected: TargetTypeRef | undefined,
 ): TargetTypeRef | undefined {
-  if (!isCsharpJsValueTargetType(authored) || selected === undefined) return undefined;
+  if (authored === undefined || selected === undefined ||
+    (!isCsharpJsValueTargetType(authored) && !targetTypeRefEquals(authored, csharpObjectTargetType()))) return undefined;
   const payload = getCsharpNullableElementTargetType(selected) ?? selected;
   return isCsharpEmptyObjectTargetType(payload) || payload.kind === "array" ||
     payload.kind === "tuple" || getCsharpJsArrayElementTargetType(payload) !== undefined

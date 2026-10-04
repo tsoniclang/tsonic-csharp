@@ -29,6 +29,7 @@ export function selectCsharpThrownOperandCarrier(
 }
 
 const closedThrownTypes = new Set([
+  "System.Object",
   "System.String", "System.Boolean", "System.Byte", "System.SByte", "System.Int16", "System.UInt16", "System.Int32",
   "System.UInt32", "System.Int64", "System.UInt64", "System.Single", "System.Double", "System.Decimal",
   "Tsonic.CSharp.Runtime.TsValue", "Tsonic.CSharp.Runtime.TsObject", "Tsonic.CSharp.Runtime.TsArray", "Tsonic.CSharp.Runtime.TsFunction",

@@ -56,7 +56,7 @@ import { isCsharpEmptyObjectTargetType } from "../../../target-model/types/runti
 import { guardCsharpFrozenDataProperties } from "./frozen-data-properties.js";
 import { renderCsharpStructuralInterfaceMembers } from "./declarations/structural-interfaces.js";
 import { renderCsharpMethodValueContracts } from "./declarations/method-values.js";
-import { csharpReferenceIdentityInterfaceType } from "./declarations/interfaces.js";
+import { csharpClosedValueCarrierInterfaceType } from "./declarations/interfaces.js";
 import { csharpEnumerableKeysContract, isCsharpEnumerableKeysMember, renderCsharpEnumerableKeys } from "./declarations/enumerable-keys.js";
 import { renderCsharpAuthoredObjectMethods } from "./declarations/authored-methods.js";
 import { renderCsharpCaptureFrameMethods } from "./declarations/capture-methods.js";
@@ -298,7 +298,7 @@ function renderObjectShapeDeclaration(
     return { kind: "InterfaceDeclaration", name: targetType.name,
       objectShapeIdentity: csharpStructuralObjectShapeIdentity(fact.targetType), modifiers: ["public"], typeParameters,
       interfaces: [...interfaces, ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
-        ...(referenceIdentity ? [csharpReferenceIdentityInterfaceType()] : [])],
+        ...(referenceIdentity ? [csharpClosedValueCarrierInterfaceType()] : [])],
       members: [...contractMembers, ...(capabilities.includes("enumerable-keys") && !inheritedEnumerableKeys ? [csharpEnumerableKeysContract()] : [])] };
   }
   const members = renderObjectShapeMembers(
@@ -344,7 +344,7 @@ function renderObjectShapeDeclaration(
           interfaces: [
             ...interfaces,
             ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
-            ...(referenceIdentity ? [csharpReferenceIdentityInterfaceType()] : []),
+            ...(referenceIdentity ? [csharpClosedValueCarrierInterfaceType()] : []),
           ],
         }),
     members: [

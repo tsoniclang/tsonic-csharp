@@ -27,7 +27,7 @@ import {
 } from "./type-parameters.js";
 import {
   renderObjectShapeInterfaces,
-  csharpReferenceIdentityInterfaceType,
+  csharpClosedValueCarrierInterfaceType,
 } from "./interfaces.js";
 import {
   csharpJsonValueInterfaceType,
@@ -66,7 +66,7 @@ export function objectShapeDeclarationMatches(
     : [
         ...baseInterfaces,
         ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
-        ...(referenceIdentity ? [csharpReferenceIdentityInterfaceType()] : []),
+        ...(referenceIdentity ? [csharpClosedValueCarrierInterfaceType()] : []),
       ];
   if (interfaces === undefined || !objectShapeInterfacesMatch(declaration.interfaces, interfaces)) {
     return false;
