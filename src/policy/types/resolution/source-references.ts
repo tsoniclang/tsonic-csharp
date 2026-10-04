@@ -105,6 +105,7 @@ export function resolveTypeReferenceNode(
     : resolveSourceProfileType(
         profileIdentity,
         typeArguments as readonly TargetTypeRef[],
+        state.sourceValueSubject ?? node,
       );
   if (sourceProfileType !== undefined) {
     return sourceProfileType;

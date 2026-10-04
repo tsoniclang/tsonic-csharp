@@ -28,6 +28,7 @@ export function resolveNodeWithState(
   if (node === undefined || state.depth > maximumTypeResolutionDepth) {
     return undefined;
   }
+  if (state.sourceValueSubject === undefined) state = { ...state, sourceValueSubject: node };
   if (
     host.ast.is.IsSourceFile(node) ||
     host.ast.is.IsImportDeclaration(node) ||

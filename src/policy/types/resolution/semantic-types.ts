@@ -148,6 +148,7 @@ export function resolveTypeWithState(
     const resolvedProfileType = resolveSourceProfileType(
       profileType,
       targetTypeArguments,
+      state.sourceValueSubject,
     );
     if (resolvedProfileType !== undefined) {
       return resolvedProfileType;

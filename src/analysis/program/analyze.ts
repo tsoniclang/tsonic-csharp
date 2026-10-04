@@ -107,6 +107,7 @@ import {
   analyzeCsharpModuleInitialization,
 } from "../module-initialization/index.js";
 import { createCsharpSourceProfileCallableAliasQuery } from "../../policy/operations/source-profiles/callable-aliases.js";
+import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-demands.js";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -140,6 +141,7 @@ export function analyzeCsharpTargetProgram(
     sourceIdentities,
   });
   const typeHost = {
+    errorStorageDemands: createCsharpErrorStorageDemandQuery(source),
     callOnlyAlias: createCsharpSourceProfileCallableAliasQuery(source),
     ast: source.ast,
     sourceFiles,

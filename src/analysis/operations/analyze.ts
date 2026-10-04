@@ -87,7 +87,7 @@ import type {
   CsharpSourceEvidenceIndex,
 } from "../source-evidence/index.js";
 import { classifyExactUnmodifiedCatchRethrow } from "./catch-rethrow.js";
-import { selectCsharpProgramErrorCarrier } from "../../policy/conversions/program-error.js";
+import { selectCsharpThrownOperandCarrier } from "../../policy/conversions/program-error.js";
 import {
   classifySourceOwnedProperty,
   classifyCsharpMemberReceiver,
@@ -688,7 +688,7 @@ function visit(
         builder,
         node,
         throwValueKey,
-        Object.freeze({ expression, sourceCarrier, targetCarrier: selectCsharpProgramErrorCarrier(policy, sourceCarrier) }),
+        Object.freeze({ expression, sourceCarrier, targetCarrier: selectCsharpThrownOperandCarrier(policy, sourceCarrier) }),
       );
       setClassification(
         builder,

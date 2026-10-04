@@ -30,6 +30,9 @@ export function resolveAuthoredAndSelectedSourceType(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   const { host, resolveNodeWithState, resolveTypeWithState } = scope;
+  if (state.sourceValueSubject === undefined && authoredTypeNode !== undefined) {
+    state = { ...state, sourceValueSubject: authoredTypeNode };
+  }
   const authoredQueries = host.hasSemantics(authoredSourceFile)
     ? host.semantics(authoredSourceFile)
     : undefined;

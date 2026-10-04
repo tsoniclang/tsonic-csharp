@@ -7,7 +7,7 @@ import type {
   SourceFileSemantics,
   SourceTypeComponentEvidence,
 } from "@tsonic/target-api/source";
-import type { Type } from "@tsonic/tsts";
+import type { Node, Type } from "@tsonic/tsts";
 import {
   csharpAsyncGeneratorTargetType,
   csharpGeneratorTargetType,
@@ -47,7 +47,7 @@ import { combineCsharpTargetUnionMembers } from "../../../target-model/types/run
 import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../target-model/types/delegates.js";
 import { csharpEnumerableTargetType } from "../../../target-model/types/collections.js";
 import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
-import { csharpRuntimeErrorTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/scalar-types.js";
+import { csharpExceptionTargetType, csharpRuntimeErrorTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/scalar-types.js";
 import { csharpTargetTypeFromBinding } from "../storage/bindings.js";
 import { definedValues } from "./source-evidence.js";
 import { csharpSourceErrorNames } from "../../../target-model/identities/source-errors.js";
@@ -58,6 +58,7 @@ export function resolveSourceProfileType(
   { generatorProtocol, generatorResultProtocol, host }: CsharpTypeResolutionScope,
   identity: ReturnType<typeof classifyCsharpSourceProfileType>,
   typeArguments: readonly TargetTypeRef[],
+  subject: Node | undefined,
 ): TargetTypeRef | undefined {
   if (identity === undefined) {
     return undefined;
@@ -75,11 +76,26 @@ export function resolveSourceProfileType(
       return typeArguments.length === 0
         ? csharpStringTargetType()
         : undefined;
-    case "error":
+    case "error": {
+      if (identity.sourceName === "Error" && typeArguments.length === 0) {
+        if (subject === undefined) return csharpExceptionTargetType();
+        const parent = host.ast.parent(subject);
+        if (host.ast.is.IsExpressionWithTypeArguments(subject) && host.ast.is.IsHeritageClause(parent)) {
+          return csharpRuntimeErrorTargetType();
+        }
+        const demand = host.errorStorageDemands.storageFor(subject);
+        if (demand.kind === "unresolved") return undefined;
+        if (demand.kind === "writable") return csharpRuntimeErrorTargetType();
+        const origins = host.errorStorageDemands.storageOriginsFor(subject);
+        return origins.kind === "resolved" && origins.origins.length > 0 &&
+          origins.origins.every(origin => host.errorStorageDemands.isNativeConstructor(origin))
+          ? csharpRuntimeErrorTargetType() : csharpExceptionTargetType();
+      }
       return typeArguments.length === 0
         ? csharpSourceErrorNames.includes(identity.sourceName as typeof csharpSourceErrorNames[number])
           ? csharpRuntimeErrorTargetType(identity.sourceName as typeof csharpSourceErrorNames[number]) : undefined
         : undefined;
+    }
     case "array":
     case "readonly-array": {
       const elementType = typeArguments.length === 1

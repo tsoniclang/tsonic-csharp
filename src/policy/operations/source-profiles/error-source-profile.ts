@@ -4,6 +4,8 @@ import type {
   CsharpSourceProfileCallPolicyResult,
   CsharpSourceProfileIdentitySelector,
   CsharpSourceProfilePropertyPolicy,
+  CsharpSourceProfilePropertyPolicyContext,
+  CsharpSourceProfilePropertyPolicyResult,
 } from "./source-profile-policy.js";
 import {
   csharpSourceProfileCall,
@@ -14,15 +16,22 @@ import type {
 } from "./source-profile-identity.js";
 import {
   csharpRuntimeErrorTargetType,
+  csharpExceptionTargetType,
   csharpStringTargetType,
   csharpVoidTargetType,
 } from "../../../target-model/types/scalar-types.js";
-import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
+import { csharpQualifiedTypeRenderShape } from "../../../target-model/types/render-shapes.js";
 import type { CsharpTargetMember, TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTargetId } from "../../../target-model/identities/source.js";
 import { csharpSourceErrorNames, type CsharpSourceErrorName } from "../../../target-model/identities/source-errors.js";
 
 const errorType = csharpRuntimeErrorTargetType();
+const exceptionType = csharpExceptionTargetType();
+const observationType = csharpTargetNamedType("Tsonic.CSharp.Runtime.ErrorObject", undefined,
+  csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "ErrorObject"));
 const stringType = csharpStringTargetType();
 const instanceReceiver = { kind: "instance" } as const;
 const noReceiver = { kind: "none" } as const;
@@ -115,20 +124,44 @@ export const csharpErrorSourceProfilePropertyPolicies:
         targetType,
       }) => Object.freeze({
         source: errorIdentity(owner, "member", sourceName),
-        select: () => ({
-          kind: "resolved" as const,
-          targetMember: Object.freeze({
-            id: targetId,
-            sourceName,
-            targetName,
-            kind: "property" as const,
-            declaringType: errorType,
-            parameters: Object.freeze([]),
-            returnType: targetType,
-          }),
-          receiver: instanceReceiver,
-          invocation: { kind: "member" as const },
-        }),
+        select: (context: CsharpSourceProfilePropertyPolicyContext): CsharpSourceProfilePropertyPolicyResult => {
+          const receiver = getCsharpNullableElementTargetType(context.receiverType) ?? context.receiverType;
+          if (receiver !== undefined && targetTypeRefEquals(receiver, exceptionType)) {
+            if (context.source.accessMode !== "read") return {
+              kind: "rejected",
+              diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_READONLY_STORAGE", 9100953,
+                "The selected native Exception storage does not admit source Error field mutation.", []),
+            };
+            return sourceName === "message" ? {
+              kind: "resolved",
+              targetMember: { id: "System.Exception.Message", sourceName, targetName: "Message", kind: "property",
+                readonly: true, declaringType: exceptionType, parameters: [], returnType: targetType },
+              receiver: instanceReceiver,
+              invocation: { kind: "member" },
+            } : {
+              kind: "resolved",
+              targetMember: { id: `Tsonic.CSharp.Runtime.ErrorObject.${sourceName}`, sourceName, targetName: sourceName,
+                kind: "method", static: true, declaringType: observationType,
+                parameters: [{ name: "error", type: exceptionType, passingMode: "by-value" }], returnType: targetType },
+              receiver: { kind: "target-parameter", targetParameterIndex: 0 },
+              invocation: { kind: "receiver-call" },
+            };
+          }
+          return {
+            kind: "resolved" as const,
+            targetMember: Object.freeze({
+              id: targetId,
+              sourceName,
+              targetName,
+              kind: "property" as const,
+              declaringType: errorType,
+              parameters: Object.freeze([]),
+              returnType: targetType,
+            }),
+            receiver: instanceReceiver,
+            invocation: { kind: "member" as const },
+          };
+        },
       })),
     ),
   );

@@ -45,6 +45,7 @@ import { planCsharpUnionProperty } from "../union-properties.js";
 import { planCsharpNativeUnionProjection } from "../union-projections.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { planCsharpExpressionCompletion, projectCsharpPlannedValue } from "../planned-value-composition.js";
+import { planCsharpReceiverCallProperty } from "./receiver-call-property.js";
 
 export function translateCsharpPropertyAccess(
   node: Node,
@@ -129,6 +130,9 @@ function translateSelectedProperty(
   planExpression: ExpressionPlanner,
 ): CsharpPlannedValue | undefined {
   const member = selection.targetMember;
+  if (selection.invocation.kind === "receiver-call") {
+    return planCsharpReceiverCallProperty(node, selection, sourceFile, input, diagnostics, planExpression);
+  }
   if (selection.invocation.kind === "source-name-indexer") {
     if (member.kind !== "indexer") {
       diagnostics.push(unsupportedNodeDiagnostic(

@@ -147,6 +147,7 @@ export function resolveSelectedValueWithState(
   const { host, resolveNodeWithState, resolvePropertyAccessTargetType, resolveSourceValueDeclaration, resolveTypeWithState, sourceValueDeclaration } = scope;
   const reference = host.navigation.referenceFor(node);
   const declaration = sourceValueDeclaration(node, reference?.declaration);
+  if (state.sourceValueSubject === undefined) state = { ...state, sourceValueSubject: declaration ?? node };
   const scopedTarget = host.representations.scopedTargetType(
     declaration ?? node,
   ) ?? host.representations.scopedTargetType(node) ??

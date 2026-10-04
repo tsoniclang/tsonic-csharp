@@ -43,11 +43,8 @@ import {
 import {
   csharpThrownValueFromExpression,
   isExactUnmodifiedCatchRethrow,
-  isCsharpJsThrowableValueCarrier,
 } from "../expressions/exception-flow.js";
-import {
-  planCsharpJsValueBox,
-} from "../expressions/js-value-operations.js";
+import { isCsharpJsValueTargetType } from "../../../target-model/types/index.js";
 import {
   findControlLabel,
 } from "./statement-labels.js";
@@ -272,28 +269,6 @@ export function planThrowStatement(
     return [];
   }
   if (thrown.targetCarrier === undefined) {
-    if (isCsharpJsThrowableValueCarrier(carrier)) {
-      const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
-      if (expression === undefined) return [];
-      return consumeCsharpPlannedValue(expression, value => {
-        const boxed = planCsharpJsValueBox(
-            sourceExpression,
-            input,
-            diagnostics,
-            carrier,
-            value,
-          );
-      const wrapped = boxed === undefined ? undefined : csharpThrownValueFromExpression(boxed);
-      if (wrapped === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(sourceExpression, "Throw statements require a renderable closed TsThrownValueException carrier before C# emission."));
-        return [];
-      }
-      return [{
-        kind: "ThrowStatement",
-        expression: wrapped,
-      }];
-      });
-    }
     const detail = carrier === undefined
       ? missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the thrown expression.")
       : { reason: "Resolved thrown expression carrier is not a target throwable carrier.", evidence: [] };
@@ -306,7 +281,15 @@ export function planThrowStatement(
   if (expression === undefined) {
     return [];
   }
-  return consumeCsharpPlannedValue(expression, value => [{ kind: "ThrowStatement", expression: value }]);
+  return consumeCsharpPlannedValue(expression, value => {
+    const native = isCsharpJsValueTargetType(thrown.targetCarrier) ? csharpThrownValueFromExpression(value) : value;
+    if (native === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(sourceExpression,
+        "Throw statements require a renderable closed TsThrownValueException carrier before C# emission."));
+      return [];
+    }
+    return [{ kind: "ThrowStatement", expression: native }];
+  });
 }
 
 export function planDebuggerStatement(): readonly CsharpStatement[] {
