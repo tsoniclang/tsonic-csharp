@@ -29,6 +29,7 @@ import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { csharpBoundSourceType, csharpSourceBindings, csharpSourceTemplateState } from "./type-bindings.js";
 import { csharpConditionalDeclaration, resolveCsharpConditionalApplication } from "./conditional-types.js";
+import { csharpSourceErrorComponentState } from "./error-storage-projection.js";
 
 export function resolveTypeReferenceNode(
   { host, resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts }: CsharpTypeResolutionScope,
@@ -55,7 +56,9 @@ export function resolveTypeReferenceNode(
     return direct;
   }
   const typeArguments = csharpSourceTypeArgumentNodes(host.ast, node).map((argument) =>
-    resolveNodeWithState(argument, queries.sourceFile, nextState(state))
+    resolveNodeWithState(argument, queries.sourceFile, nextState(semanticType !== undefined &&
+      queries.types.isArrayLike(semanticType) && !queries.types.isTuple(semanticType)
+      ? csharpSourceErrorComponentState(state, { kind: "array-element" }) : state))
   );
   if (typeArguments.some((argument) => argument === undefined)) {
     return undefined;
@@ -106,6 +109,7 @@ export function resolveTypeReferenceNode(
         profileIdentity,
         typeArguments as readonly TargetTypeRef[],
         state.sourceValueSubject ?? node,
+        state.sourceValueProjection,
       );
   if (sourceProfileType !== undefined) {
     return sourceProfileType;
@@ -203,7 +207,8 @@ export function resolveCheckerTransformedSourceType(
   }
   if (queries.types.isTuple(selectedType)) {
     const infos = queries.types.tupleElementInfos(selectedType);
-    const elements = infos.map((element) => {
+    const elements = infos.map((element, index) => {
+      const elementState = csharpSourceErrorComponentState(state, { kind: "tuple-element", index });
       const evidence = [
         ...sourceTupleElementTypeEvidenceNodes(host.ast, queries, element),
         ...sourceTransformedTypeFactEvidenceNodes(
@@ -217,11 +222,11 @@ export function resolveCheckerTransformedSourceType(
         evidence,
         element.type,
         queries,
-        state,
+        elementState,
       ) ?? resolveTypeWithState(
         element.type,
         queries.sourceFile,
-        nextState(state),
+        nextState(elementState),
       );
     });
     return infos.length === 0 || elements.some((element) => element === undefined)

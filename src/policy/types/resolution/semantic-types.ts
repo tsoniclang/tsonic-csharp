@@ -52,6 +52,8 @@ import { readCsharpRawLocation } from "../../operations/pointers/native-memory.j
 import { resolveTypeParameter, definedValues } from "./source-evidence.js";
 import { tsonicMemoryFieldBindingFactKey, tsonicMemoryRecordBindingFactKey, selectTsonicMemoryFieldBinding, selectTsonicMemoryRecordBinding } from "@tsonic/source-core/facts";
 
+import { csharpSourceErrorComponentState } from "./error-storage-projection.js";
+
 export function resolveTypeWithState(
   scope: CsharpTypeResolutionScope,
   type: Type | undefined,
@@ -133,8 +135,9 @@ export function resolveTypeWithState(
     if (sourceElements.length !== rawSourceElements.length) {
       return undefined;
     }
-    const elements = sourceElements.map((element) =>
-      resolveTypeWithState(element, sourceFile, nextState(state))
+    const elements = sourceElements.map((element, index) =>
+      resolveTypeWithState(element, sourceFile,
+        nextState(csharpSourceErrorComponentState(state, { kind: "tuple-element", index })))
     );
     return elements.some((element) => element === undefined)
       ? undefined
@@ -149,6 +152,7 @@ export function resolveTypeWithState(
       profileType,
       targetTypeArguments,
       state.sourceValueSubject,
+      state.sourceValueProjection,
     );
     if (resolvedProfileType !== undefined) {
       return resolvedProfileType;
@@ -467,8 +471,10 @@ export function resolveSemanticTypeArguments(
   if (sourceArguments === undefined) {
     return undefined;
   }
+  const argumentState = queries.types.isArrayLike(type) && !queries.types.isTuple(type)
+    ? csharpSourceErrorComponentState(state, { kind: "array-element" }) : state;
   const resolved = sourceArguments.map((argument) =>
-    resolveTypeWithState(argument, queries.sourceFile, nextState(state))
+    resolveTypeWithState(argument, queries.sourceFile, nextState(argumentState))
   );
   return resolved.some((argument) => argument === undefined)
     ? undefined

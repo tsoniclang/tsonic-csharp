@@ -167,6 +167,7 @@ export interface CsharpTypePolicy {
 export interface CsharpTypeResolutionState {
   readonly depth: number;
   readonly sourceValueSubject?: Node;
+  readonly sourceValueProjection?: readonly import("@tsonic/target-api/analysis").SourceErrorStorageProjection[];
   readonly sourceBindings?: ReadonlyMap<Node, {
     readonly sourceType: Type;
     readonly targetType: TargetTypeRef;

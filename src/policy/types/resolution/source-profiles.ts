@@ -59,6 +59,7 @@ export function resolveSourceProfileType(
   identity: ReturnType<typeof classifyCsharpSourceProfileType>,
   typeArguments: readonly TargetTypeRef[],
   subject: Node | undefined,
+  projection?: readonly import("@tsonic/target-api/analysis").SourceErrorStorageProjection[],
 ): TargetTypeRef | undefined {
   if (identity === undefined) {
     return undefined;
@@ -83,10 +84,10 @@ export function resolveSourceProfileType(
         if (host.ast.is.IsExpressionWithTypeArguments(subject) && host.ast.is.IsHeritageClause(parent)) {
           return csharpRuntimeErrorTargetType();
         }
-        const demand = host.errorStorageDemands.storageFor(subject);
+        const demand = host.errorStorageDemands.storageFor(subject, projection);
         if (demand.kind === "unresolved") return undefined;
         if (demand.kind === "writable") return csharpRuntimeErrorTargetType();
-        const origins = host.errorStorageDemands.storageOriginsFor(subject);
+        const origins = host.errorStorageDemands.storageOriginsFor(subject, projection);
         return origins.kind === "resolved" && origins.origins.length > 0 &&
           origins.origins.every(origin => host.errorStorageDemands.isNativeConstructor(origin))
           ? csharpRuntimeErrorTargetType() : csharpExceptionTargetType();
