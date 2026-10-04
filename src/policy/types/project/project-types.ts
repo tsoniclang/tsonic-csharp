@@ -115,6 +115,7 @@ export interface CsharpProjectTypePolicy {
   implicitConstructorForSignature(
     declaration: Node,
     signature: import("@tsonic/tsts").Signature,
+    parameters: import("@tsonic/target-api/source").ResolvedSourceCallInfo["sourceSelectedSignatureParameters"],
   ): CsharpProjectForwardingConstructor | undefined;
 }
 

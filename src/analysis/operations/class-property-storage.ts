@@ -1,4 +1,5 @@
 import type { Node } from "@tsonic/tsts";
+import { sourceObjectMemberDeclarations, sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 
@@ -25,9 +26,10 @@ export function classifyCsharpClassPropertyStorage(
       if ((shape?.implements?.length ?? 0) > 0) for (const member of shape!.members) {
         if (member.memberKind === "property") properties.add(member.sourceName);
       }
-      for (const member of policy.ast.members(node)) {
-        if (member === undefined || !policy.ast.is.IsPropertyDeclaration(member)) continue;
-        const declaration = policy.ast.as.AsPropertyDeclaration(member)!;
+      for (const member of sourceObjectMemberDeclarations(policy.ast, node)) {
+        if (member === undefined || !policy.ast.is.IsPropertyDeclaration(member) &&
+          !sourceParameterIsProperty(policy.ast, member)) continue;
+        const declaration = policy.ast.as.AsPropertyDeclaration(member) ?? policy.ast.as.AsParameterDeclaration(member)!;
         const field = evidence.sourceField([member, declaration.name, declaration.Type, declaration.Initializer]);
         const dispatch = policy.navigation.memberDispatch(member);
         selections.set(member, field !== undefined ? "field"

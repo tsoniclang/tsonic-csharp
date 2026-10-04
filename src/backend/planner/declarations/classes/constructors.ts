@@ -4,6 +4,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpArgument,
   CsharpConstructorDeclaration,
+  CsharpStatement,
 } from "../../../target-ast/roslyn/index.js";
 import {
   AsBlock,
@@ -42,6 +43,7 @@ import { planCsharpConstructorInitializerArgument } from "./initializer-argument
 import type { DestructuringPlannerState } from "../../bindings/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { planCsharpPreparedConstructor, type CsharpConstructorArgumentPlan } from "./constructor-entry.js";
+import { planCsharpParameterPropertyAssignments } from "./parameter-properties.js";
 
 export function planClassStaticBlockDeclaration(
   node: Node,
@@ -70,6 +72,7 @@ export function planConstructorDeclarations(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
+  initializers: readonly CsharpStatement[],
 ): readonly CsharpConstructorDeclaration[] {
   const declaration = AsConstructorDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "constructor declaration", diagnostics, ["public", "private", "protected"]);
@@ -94,7 +97,7 @@ export function planConstructorDeclarations(
   };
   if (baseArgumentPlans === undefined) return [constructor];
   if (leadingSuperCall !== undefined && parameters.prelude.length > 0) return planCsharpPreparedConstructor(node, declaration.Body, constructor,
-    parameters, baseArgumentPlans, sourceFile, input, diagnostics, state, leadingSuperCall !== undefined);
+    parameters, baseArgumentPlans, sourceFile, input, diagnostics, state, leadingSuperCall !== undefined, initializers);
   const baseArguments: CsharpArgument[] = [];
   for (const argument of baseArgumentPlans) {
     const syntax = planCsharpConstructorInitializerArgument(argument.node, argument.value, parameters.parameters, input, diagnostics, argument.expectedCarrier);
@@ -108,7 +111,8 @@ export function planConstructorDeclarations(
     body: {
       kind: "Block",
       statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state,
-        parameters.prelude, leadingSuperCall === undefined ? 0 : 1),
+        [...parameters.prelude, ...initializers, ...planCsharpParameterPropertyAssignments(node, input, diagnostics, state)],
+        leadingSuperCall === undefined ? 0 : 1),
     },
   }];
 }

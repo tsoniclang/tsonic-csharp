@@ -16,6 +16,7 @@ import { planCsharpGeneratedMethodCall } from "../generated-methods.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { planThisExpression } from "../../expressions/expression-this.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import { planCsharpParameterPropertyAssignments } from "./parameter-properties.js";
 
 export interface CsharpConstructorArgumentPlan {
   readonly node: Node;
@@ -28,6 +29,7 @@ export function planCsharpPreparedConstructor(
   parameters: PlannedParameterList, arguments_: readonly CsharpConstructorArgumentPlan[],
   sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState, hasBaseCall: boolean,
+  initializers: readonly CsharpStatement[],
 ): readonly CsharpConstructorDeclaration[] {
   if (bodyNode === undefined) return [];
   const frame = input.program.captureStorage.frame(bodyNode);
@@ -110,6 +112,7 @@ export function planCsharpPreparedConstructor(
     }
   }
   const baseArguments: readonly CsharpArgument[] = baseBindings.map((_, index) => ({ kind: "Argument", expression: field(bindings.length + index) }));
+  restored.push(...initializers, ...planCsharpParameterPropertyAssignments(node, input, diagnostics, state));
   const prepared: CsharpConstructorDeclaration = {
     kind: "ConstructorDeclaration", name: declaration.name,
     modifiers: ["private", ...declaration.modifiers.filter(modifier => modifier !== "public" && modifier !== "protected" && modifier !== "private")],

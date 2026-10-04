@@ -5,6 +5,7 @@ import {
   KindArrayBindingPattern,
   KindIdentifier,
   KindObjectBindingPattern,
+  sourceParameterIsProperty,
 } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -70,7 +71,8 @@ export function planParametersWithPrelude(
   for (const parameterNode of parameterNodes) {
     const parameter = AsParameterDeclaration(input.program.source.ast, parameterNode)!;
     const questionToken = input.program.source.ast.questionToken(parameterNode);
-    diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, parameterNode!, "parameter declaration", diagnostics);
+    diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, parameterNode!, "parameter declaration", diagnostics,
+      sourceParameterIsProperty(input.program.source.ast, parameterNode!) ? ["public", "private", "protected", "readonly"] : []);
     if (HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier)) {
       const typeSubject = getParameterTypeSubject(parameter);
       const type = getParameterType(parameterNode, sourceFile, input, diagnostics);

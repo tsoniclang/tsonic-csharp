@@ -3,9 +3,6 @@ import {
   type Node,
   type SourceFile,
 } from "@tsonic/tsts";
-import type {
-  CsharpSourceField,
-} from "../../../../analysis/source-evidence/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpFieldDeclaration,
@@ -24,6 +21,7 @@ import {
   KindArrayBindingPattern,
   KindGetAccessor,
   KindObjectBindingPattern,
+  sourceParameterIsProperty,
 } from "@tsonic/target-api/source";
 import {
   createDestructuringPlannerState,
@@ -67,9 +65,12 @@ export function planPropertyDeclaration(
   diagnostics: TargetDiagnostic[],
   initializer: CsharpExpression | undefined,
 ): CsharpFieldDeclaration | CsharpPropertyDeclaration {
-  const declaration = AsPropertyDeclaration(input.program.source.ast, node)!;
+  const parameterProperty = sourceParameterIsProperty(input.program.source.ast, node);
+  const declaration = parameterProperty ? AsParameterDeclaration(input.program.source.ast, node)! :
+    AsPropertyDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "property declaration", diagnostics, ["public", "private", "protected", "readonly", "abstract", "override"]);
-  const sourceField = getClassPropertySourceField(node, declaration, input);
+  const sourceField = input.program.sourceEvidence.sourceField([node, declaration.name, declaration.Type,
+    ...(parameterProperty ? [] : [declaration.Initializer])]);
   if (sourceField !== undefined) {
     diagnoseUnavailableCsharpSafetyAccessors(
       node,
@@ -105,7 +106,7 @@ export function planPropertyDeclaration(
       kind: "PropertyDeclaration", name: propertyName,
       modifiers: planPropertyModifiers(node, declaration.name, sourceFile, input),
       type, autoGetter: true, autoSetter: true,
-      attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+      attributes: parameterProperty ? [] : planAttributesForSubject(node, sourceFile, input, diagnostics),
     };
   }
   if (declaration.Initializer === undefined && modifiers.includes("static")) {
@@ -129,12 +130,12 @@ export function planPropertyDeclaration(
       kind: "FieldDeclaration",
       name: propertyName,
       modifiers: withCsharpSafetyModifiers(
-        modifiers,
+        input.program.source.ast.hasModifierKind(node, "readonly") ? [...modifiers, "readonly"] : modifiers,
         node,
         "declaration",
         input,
       ),
-      attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+      attributes: parameterProperty ? [] : planAttributesForSubject(node, sourceFile, input, diagnostics),
       type,
       ...(initializer === undefined ? {} : { initializer }),
     };
@@ -148,10 +149,10 @@ export function planPropertyDeclaration(
       "declaration",
       input,
     ),
-    attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+    attributes: parameterProperty ? [] : planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     autoGetter: true,
-    autoSetter: true,
+    autoSetter: !input.program.source.ast.hasModifierKind(node, "readonly"),
     getterModifiers: csharpSafetyAccessorModifiersForDeclaration(
       node,
       "getter",
@@ -192,19 +193,6 @@ export function mergeAccessorProperty(
   if (index >= 0) {
     planned[index] = next;
   }
-}
-
-function getClassPropertySourceField(
-  node: Node,
-  declaration: NonNullable<ReturnType<typeof AsPropertyDeclaration>>,
-  input: CsharpPlanningContext,
-): CsharpSourceField | undefined {
-  return input.program.sourceEvidence.sourceField([
-    node,
-    declaration.name,
-    declaration.Type,
-    declaration.Initializer,
-  ]);
 }
 
 function mergeGetterAccessor(

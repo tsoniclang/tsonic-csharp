@@ -89,7 +89,7 @@ export function resolveSourceProfileType(
         if (demand.kind === "writable") return csharpRuntimeErrorTargetType();
         const origins = host.errorStorageDemands.storageOriginsFor(subject, projection);
         return origins.kind === "resolved" && origins.origins.length > 0 &&
-          origins.origins.every(origin => host.errorStorageDemands.isNativeConstructor(origin))
+          origins.origins.every(origin => host.errorStorageDemands.isNativeConstructor(origin.node))
           ? csharpRuntimeErrorTargetType() : csharpExceptionTargetType();
       }
       return typeArguments.length === 0

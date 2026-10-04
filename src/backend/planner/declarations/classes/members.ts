@@ -13,6 +13,7 @@ import {
   KindGetAccessor,
   KindMethodDeclaration,
   KindPropertyDeclaration,
+  KindParameter,
   KindSetAccessor,
   SourceKind,
   sourceClassFieldIsTypeOnly,
@@ -56,7 +57,8 @@ export function planClassMembers(
     switch (SourceKind(input.program.source.ast, member)) {
       case KindConstructor:
         if (AsConstructorDeclaration(input.program.source.ast, member)?.Body !== undefined) {
-          planned.push(...planConstructorDeclarations(member, className, sourceFile, memberInput, diagnostics));
+          planned.push(...planConstructorDeclarations(member, className, sourceFile, memberInput, diagnostics,
+            initialization[0]?.statements ?? []));
         }
         break;
       case KindClassStaticBlockDeclaration:
@@ -71,6 +73,7 @@ export function planClassMembers(
         }
         break;
       case KindPropertyDeclaration:
+      case KindParameter:
         planned.push(planPropertyDeclaration(member, sourceFile, input, diagnostics,
           initialization.map(region => region.inline.get(member)).find(value => value !== undefined)));
         break;

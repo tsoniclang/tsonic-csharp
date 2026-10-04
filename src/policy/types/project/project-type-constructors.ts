@@ -9,7 +9,7 @@ import type {
   SourceFileSemantics,
   SourceProgramNavigation,
 } from "@tsonic/target-api/source";
-import { sourceNodeIdentity } from "@tsonic/target-api/source";
+import { sourceNodeIdentity, sourceConstructorParametersMatch } from "@tsonic/target-api/source";
 import {
   tryCsharpIdentifier,
 } from "../../../target-model/names/identifiers.js";
@@ -66,6 +66,7 @@ export interface CsharpProjectConstructorPolicy {
   implicitConstructorForSignature(
     declaration: CsharpProjectTypeDefinition["declaration"],
     signature: Signature,
+    parameters: import("@tsonic/target-api/source").ResolvedSourceCallInfo["sourceSelectedSignatureParameters"],
   ): CsharpProjectForwardingConstructor | undefined;
 }
 
@@ -179,8 +180,15 @@ export function createCsharpProjectConstructorPolicy(
     implicitConstructorForSignature(
       declaration: CsharpProjectTypeDefinition["declaration"],
       signature: Signature,
+      parameters: import("@tsonic/target-api/source").ResolvedSourceCallInfo["sourceSelectedSignatureParameters"],
     ) {
-      return bySignature.get(declaration)?.get(signature);
+      const exact = bySignature.get(declaration)?.get(signature);
+      if (exact !== undefined) return exact;
+      const selectedDeclaration = host.semanticsFor(declaration).declarations.signatureDeclaration(signature);
+      const candidates = byDeclaration.get(declaration)?.filter(candidate =>
+        candidate.source.declaration === selectedDeclaration &&
+        sourceConstructorParametersMatch(candidate.source.parameters, parameters));
+      return candidates?.length === 1 ? candidates[0] : undefined;
     },
   });
 }
@@ -269,11 +277,7 @@ function inheritedNativeBaseType(
     const constructors = host.navigation.classConstructors(definition.declaration);
     if (constructors.kind !== "resolved" || !constructors.implicit ||
       constructors.signatures.filter(signature => signature.declaration === source.declaration &&
-        signature.parameters.length === source.parameters.length && signature.parameters.every((parameter, index) => {
-          const selected = source.parameters[index];
-          return selected !== undefined && parameter.parameterDeclaration === selected.parameterDeclaration &&
-            parameter.acceptsOmission === selected.acceptsOmission && parameter.rest === selected.rest;
-        })).length !== 1) return undefined;
+        sourceConstructorParametersMatch(signature.parameters, source.parameters)).length !== 1) return undefined;
     current = heritageById.get(definition.id)?.baseType;
   }
   return undefined;

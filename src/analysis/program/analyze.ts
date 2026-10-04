@@ -475,6 +475,7 @@ function sourceCallableContract(
     const constructor = typeSystem?.projectTypes.implicitConstructorForSignature(
       selectedCallee,
       source.selectedSignature,
+      source.sourceSelectedSignatureParameters,
     );
     if (constructor !== undefined) {
       return callables.get({
