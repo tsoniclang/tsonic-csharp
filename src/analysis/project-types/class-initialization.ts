@@ -26,7 +26,7 @@ export function analyzeCsharpClassInitialization(
         (member): member is Node => member !== undefined && (ast.is.IsClassStaticBlockDeclaration(member) ||
           ast.is.IsPropertyDeclaration(member) && ast.hasModifierKind(member, "static")),
       )) }));
-      if (factory || instance.some(member => {
+      if (factory || ast.extendsHeritageElements(node).length !== 0 || instance.some(member => {
         const initializer = ast.as.AsPropertyDeclaration(member)?.Initializer;
         return initializer !== undefined && sourceExpressionUsesLexicalThis(ast, initializer);
       })) {

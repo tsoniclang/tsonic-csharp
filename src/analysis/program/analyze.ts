@@ -5,6 +5,7 @@ import { analyzeCsharpCaptureStorage } from "../callables/capture-storage.js";
 import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-adapters.js";
 import { analyzeCsharpClassFactories } from "../project-types/class-factories.js";
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
+import { analyzeCsharpNativeControlFlow } from "../control-flow/native-control-flow.js";
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual, type CsharpGenericProjectionIndex } from "../declarations/type-projections.js";
 import { csharpCallableValueType } from "../callables/value-type.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
@@ -127,6 +128,8 @@ export function analyzeCsharpTargetProgram(
     return rejectedTargetStage(project.diagnostics);
   }
   const source = input.source;
+  const nativeControlIssues = analyzeCsharpNativeControlFlow(source);
+  if (nativeControlIssues.length !== 0) return rejectedTargetStage(nativeControlIssues);
   const memoryBindings = createTsonicMemoryBindingIndex(source);
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
   const sourceIdentities = createCsharpSourceIdentityPolicy(
