@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { sourceBindingScope, sourceLexicalCaptures, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { sourceBindingScope, sourceLexicalCaptures, sourceBindingCapturedBeforeInitialization, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
 import type { CsharpStorageIssue } from "../storage/model.js";
@@ -20,7 +20,6 @@ export function selectCsharpFrameClosures(
   physicalType: (declaration: Node, type: TargetTypeRef) => TargetTypeRef,
   issues: CsharpStorageIssue[],
 ): readonly CsharpFrameClosure[] {
-  if (groups.size === 0) return [];
   const candidates: Node[] = [];
   const visit = (node: Node): void => {
     if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node) ||
@@ -35,6 +34,19 @@ export function selectCsharpFrameClosures(
       captures: lexical.captures.filter(capture => !evidence.isCompileTimeMetadata(capture.declaration)),
     } };
   });
+  for (const candidate of captures) for (const capture of candidate.selected.captures) {
+    if (!sourceBindingCapturedBeforeInitialization(capture.declaration, source.ast, source.navigation)) continue;
+    const scope = sourceBindingScope(capture.declaration, source.ast);
+    const type = evidence.storageTargetType(capture.declaration) ?? evidence.nodeTargetType(capture.declaration);
+    if (scope === undefined || type === undefined) {
+      issues.push({ node: capture.declaration, code: "CSHARP_DEFERRED_CAPTURE_NOT_CLOSED",
+        message: "Deferred captured initialization requires its exact native binding type and activation." });
+      continue;
+    }
+    const bindings = groups.get(scope) ?? new Map<Node, TargetTypeRef>();
+    bindings.set(capture.declaration, physicalType(capture.declaration, type));
+    groups.set(scope, bindings);
+  }
   const selected = new Map<Node, CsharpFrameClosure>();
   let changed = true;
   while (changed) {

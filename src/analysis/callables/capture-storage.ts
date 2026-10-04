@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { sourceBindingScope, sourceBindingHasSingleCaptureOwner, sourceNodeIdentity } from "@tsonic/target-api/source";
+import { sourceBindingScope, sourceBindingHasSingleCaptureOwner, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization } from "@tsonic/target-api/source";
 import { createHash } from "node:crypto";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeClassifications } from "../objects/model.js";
@@ -15,7 +15,8 @@ import { csharpTargetNamedType } from "../../target-model/types/factories.js";
 export interface CsharpCaptureFrame {
   readonly scope: Node;
   readonly shape: CsharpObjectShapeFact;
-  readonly bindings: readonly { readonly declaration: Node; readonly fieldName: string; readonly type: TargetTypeRef }[];
+  readonly bindings: readonly { readonly declaration: Node; readonly fieldName: string; readonly type: TargetTypeRef;
+    readonly initialization?: "deferred" }[];
   readonly parents: readonly { readonly frame: CsharpCaptureFrame; readonly fieldName: string }[];
   readonly methods: readonly CsharpFrameClosure[];
   readonly receivers: readonly { readonly owner: Node; readonly references: readonly Node[]; readonly type: TargetTypeRef; readonly fieldName: string }[];
@@ -115,6 +116,7 @@ export function analyzeCsharpCaptureStorage(
     const receivers = Object.freeze([...receiverMap.values()].map((receiver, index) => Object.freeze({ ...receiver, fieldName: `receiver${index}` })));
     const bindings = Object.freeze([...group].map(([declaration, type], index) => Object.freeze({
       declaration, type, fieldName: `value${index}`,
+      ...(sourceBindingCapturedBeforeInitialization(declaration, source.ast, source.navigation) ? { initialization: "deferred" as const } : {}),
     })));
     const fields = [...bindings, ...parents.map(parent => ({ fieldName: parent.fieldName, type: parent.frame.shape.targetType })), ...receivers];
     const members: readonly CsharpObjectShapeMemberFact[] = Object.freeze(fields.map(field => Object.freeze({

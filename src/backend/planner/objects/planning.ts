@@ -309,6 +309,8 @@ function renderObjectShapeDeclaration(
     undefined,
     undefined,
     input.program.storage,
+    new Set(input.program.captureStorage.forShape(fact.targetType)?.bindings
+      .filter(binding => binding.initialization === "deferred").map(binding => binding.fieldName)),
   );
   const methodValues = renderCsharpMethodValueContracts(fact, input);
   const genericMethods = renderCsharpAuthoredObjectMethods(fact, input, diagnostics);

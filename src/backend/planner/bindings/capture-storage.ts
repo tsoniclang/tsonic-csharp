@@ -42,6 +42,7 @@ export function planCsharpCaptureFrame(
   if (type === undefined) return [];
   const assignments: CsharpObjectInitializerAssignment[] = [];
   for (const binding of frame.bindings) {
+    if (binding.initialization === "deferred") continue;
     const bindingType = csharpTypeFromTargetTypeRef(binding.type, input.scope.typeParameterNames);
     if (bindingType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(binding.declaration,

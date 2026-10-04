@@ -38,6 +38,7 @@ import {
 import { renderCsharpStructuralInterfaceMembers } from "./structural-interfaces.js";
 import { csharpNullableTargetType } from "../../../../target-model/types/nullable.js";
 import { csharpObjectShapeMethodDeclaration } from "../../../../target-model/types/method-values.js";
+import { renderCsharpDeferredCaptureMember } from "./deferred-captures.js";
 
 export function renderObjectShapeMembers(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
@@ -47,6 +48,7 @@ export function renderObjectShapeMembers(
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
   storage: CsharpStorageClassifications,
+  deferredCaptures: ReadonlySet<string> = new Set(),
 ): CsharpClassDeclaration["members"] | undefined {
   const members = canonicalCsharpObjectShapeMembers(fact.members).flatMap((member) => {
     if ((member.typeParameters?.length ?? 0) > 0 || member.methodValueContract !== undefined) {
@@ -66,6 +68,7 @@ export function renderObjectShapeMembers(
       }
       return [undefined];
     }
+    if (deferredCaptures.has(member.targetName)) return renderCsharpDeferredCaptureMember(member.targetName, type);
     if (member.memberKind === "method") {
       return renderObjectShapeMethodMember(
         typeParameterNames,
