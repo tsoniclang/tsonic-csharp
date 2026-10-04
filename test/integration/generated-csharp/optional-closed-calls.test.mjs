@@ -12,7 +12,8 @@ export function invoke(value: any, argument: () => any): any { return value?.(ar
 ` });
   const output = [...compiled.artifacts.values()].join("\n");
   assert.doesNotMatch(output, /is Tsonic\.CSharp\.Runtime\.TsValue/);
-  assert.match(output, /!__tsonic_optionalReceiver_\w+\.isUndefined\(\)/);
+  assert.equal(/!__tsonic_present_\w+\.isUndefined\(\)/u.test(output), true,
+    "the exact selected native presence guard excludes absence");
   executeCsharpConstruction(compiled, "optional-closed-native-calls", false, false, [], `
 using System;
 using Tsonic.CSharp.Runtime;

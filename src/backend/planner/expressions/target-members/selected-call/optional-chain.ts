@@ -54,7 +54,7 @@ export function planCsharpOptionalReceiverChain(
     const entry = chain[index];
     if (entry === undefined) return value;
     const selected = entry.selected;
-    if (!targetTypeRefEquals(value.completion.carrier, selected.storage)) {
+    if (!targetTypeRefEquals(value.completion.carrier, selected.guard ? selected.storage : selected.type)) {
       diagnostics.push(unsupportedNodeDiagnostic(entry.node, "Optional receiver requires its exact native storage and present-value relation."));
       return undefined;
     }
