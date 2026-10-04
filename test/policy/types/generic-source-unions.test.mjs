@@ -24,7 +24,7 @@ test("union literal construction requires one total declaration-identity match",
   ];
   const union = csharpRuntimeUnionTargetType(shapes.map(shape => shape.targetType));
   const select = (elements, target = union) => selectCsharpObjectLiteralUnionShape(target, elements,
-    type => shapes.find(shape => targetTypeRefEquals(shape.targetType, type)));
+    type => shapes.find(shape => targetTypeRefEquals(shape.targetType, type)), element => element.sourceSelectedDeclarations);
   const first = { sourceSelectedDeclarations: [firstDeclaration] };
   const optional = { sourceSelectedDeclarations: [optionalDeclaration] };
   assert.equal(select([first]), shapes[0]);

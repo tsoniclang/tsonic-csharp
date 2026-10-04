@@ -13,7 +13,7 @@ import {
   targetTypeRefEquals,
   getCsharpRuntimeUnionArms,
 } from "../../policy/types/index.js";
-import { selectCsharpObjectLiteralUnionShape } from "../../policy/types/objects/object-shape-policy/union-construction.js";
+import { selectCsharpObjectLiteralUnionShape, csharpObjectLiteralDestinationDeclarations } from "../../policy/types/objects/object-shape-policy/union-construction.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
 import type { CsharpObjectShapeClassifications } from "./model.js";
@@ -150,7 +150,8 @@ export function analyzeCsharpObjectShapes(
       ? undefined : policy.semantics(sourceFile).operations.objectLiteralElement(element));
     for (const type of unionTypes) {
       reserveClassification();
-      const shape = selectCsharpObjectLiteralUnionShape(type, elements, policy.objectShapes.resolveTarget, policy.typeDefinitions);
+      const shape = selectCsharpObjectLiteralUnionShape(type, elements, policy.objectShapes.resolveTarget,
+        (element, candidate) => csharpObjectLiteralDestinationDeclarations(element, candidate, policy.semantics(sourceFile)), policy.typeDefinitions);
       if (shape !== undefined) {
         unionShapes.set(targetTypeRefKey(type), shape);
         rememberShape(shape);
