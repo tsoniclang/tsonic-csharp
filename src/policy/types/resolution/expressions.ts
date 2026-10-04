@@ -21,7 +21,7 @@ import { selectCsharpConditionalNumericCarrier } from "../conditional-numeric-ca
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
-import { resolveCsharpContextualObjectLiteralCarrier } from "./contextual-literals.js";
+import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
 
 export function resolveSelectedExpressionType(
   { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveTypeWithState, resolveReadStorage, resolveNonNullExpressionType, resolvePropertyAccessTargetType, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState, sourceUnions }: CsharpTypeResolutionScope,
@@ -108,8 +108,10 @@ export function resolveSelectedExpressionType(
   if (host.ast.is.IsConditionalExpression(node)) {
     const conditional = host.ast.as.AsConditionalExpression(node);
     if (conditional?.WhenTrue === undefined || conditional.WhenFalse === undefined) return undefined;
-    const left = resolveNodeWithState(conditional.WhenTrue, queries.sourceFile, nextState(state));
-    const right = resolveNodeWithState(conditional.WhenFalse, queries.sourceFile, nextState(state));
+    const trueCarrier = resolveNodeWithState(conditional.WhenTrue, queries.sourceFile, nextState(state));
+    const falseCarrier = resolveNodeWithState(conditional.WhenFalse, queries.sourceFile, nextState(state));
+    const left = resolveCsharpContextualLiteralCarrier(host, conditional.WhenTrue, falseCarrier) ?? trueCarrier;
+    const right = resolveCsharpContextualLiteralCarrier(host, conditional.WhenFalse, trueCarrier) ?? falseCarrier;
     const common = selectCsharpConditionalNumericCarrier(conditional.WhenTrue, conditional.WhenFalse, left, right, host.ast) ??
       commonTargetRepresentation(left, right);
     if (common !== undefined) return common;
@@ -132,7 +134,7 @@ export function resolveSelectedExpressionType(
       : resolveNodeWithState(binary?.Left, queries.sourceFile, nextState(state));
     const expected = operator === "??" || operator === "??="
       ? getCsharpNullableElementTargetType(left) ?? left : undefined;
-    const right = resolveCsharpContextualObjectLiteralCarrier(host, binary?.Right, expected) ??
+    const right = resolveCsharpContextualLiteralCarrier(host, binary?.Right, expected) ??
       resolveNodeWithState(binary?.Right, queries.sourceFile, nextState(state));
     return resolveBinaryTargetRepresentation(
       host.ast,

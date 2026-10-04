@@ -3,7 +3,7 @@ import { selectCsharpAssignmentLocation } from "./assignment-location.js";
 import { type CsharpAssignmentLocation } from "../../../target-model/operations/assignment-locations.js";
 import { selectCsharpGuardedIntegerPromotion } from "../numeric/guarded.js";
 import { selectCsharpGenericNumericOperation } from "../numeric/generic.js";
-import { resolveCsharpContextualObjectLiteralCarrier } from "../../types/resolution/contextual-literals.js";
+import { resolveCsharpContextualLiteralCarrier } from "../../types/resolution/contextual-literals.js";
 import { sourceBooleanShortCircuitBranch as csharpBooleanShortCircuitBranch,
   type SourceBooleanShortCircuitBranch as CsharpShortCircuitBranch } from "@tsonic/target-api/source";
 import type { CsharpReferenceEquality, CsharpUnionEqualityArm } from "../../../target-model/operations/binary.js";
@@ -487,7 +487,7 @@ function resolveBinaryOperandType(
     const storage = input.types.resolveReadStorage(node);
     if (getCsharpNullableElementTargetType(storage) !== undefined) return storage;
   }
-  const contextual = resolveCsharpContextualObjectLiteralCarrier(input, node, expectedType);
+  const contextual = resolveCsharpContextualLiteralCarrier(input, node, expectedType);
   if (contextual !== undefined) return contextual;
   return adaptLiteralToExpectedType(input, node, selected, expectedType);
 }
