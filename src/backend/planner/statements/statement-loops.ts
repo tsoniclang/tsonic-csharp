@@ -47,7 +47,7 @@ import {
 import type { CsharpPlannedValue } from "../expressions/planned-values.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
 import { planCsharpCollectionIndexedIteration } from "../expressions/collection-reads.js";
-import { selectCsharpCollectionElementRead } from "../../../target-model/types/collection-reads.js";
+import { csharpCollectionElementRead } from "../../../target-model/types/collection-reads.js";
 import { allocateExpressionTemp } from "../bindings/binding-state.js";
 
 export { planForInStatement } from "./statement-for-in.js";
@@ -143,7 +143,7 @@ export function planForOfStatement(
       );
   return consumeCsharpPlannedValue(sourceCollection, source => {
   if (selectedIteration.iterationKind === "for-of" &&
-    selectCsharpCollectionElementRead(sourceCollection.completion.carrier)?.kind === "method") {
+    csharpCollectionElementRead(sourceCollection.completion.carrier)?.kind === "method") {
     const name = allocateExpressionTemp(state);
     const receiver: CsharpExpression = { kind: "IdentifierName", name };
     const loop = planCsharpCollectionIndexedIteration(sourceCollection.completion.carrier, receiver, allocateExpressionTemp(state),

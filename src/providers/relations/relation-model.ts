@@ -1,3 +1,5 @@
+import type { CsharpProviderArgumentAdapter } from "../../target-model/conversions/selection.js";
+export type { CsharpProviderArgumentAdapter } from "../../target-model/conversions/selection.js";
 import type {
   ArgumentPassingMode,
   ExtensionDiagnostic,
@@ -7,7 +9,6 @@ import type {
 import type {
   CsharpTargetBindingFact,
   CsharpTargetMember,
-  TargetTypeRef,
 } from "../../target-model/types/model.js";
 import {
   canonicalProviderValue,
@@ -58,17 +59,6 @@ export type CsharpTargetReceiverRelation =
   | {
       readonly kind: "target-parameter";
       readonly targetParameterIndex: number;
-    };
-
-export type CsharpProviderArgumentAdapter =
-  | {
-      readonly kind: "static-method";
-      readonly id: string;
-      readonly declaringType: TargetTypeRef;
-      readonly targetName: string;
-      readonly inputType: TargetTypeRef;
-      readonly resultType: TargetTypeRef;
-      readonly nativeIntegerConversion?: "checked";
     };
 
 export interface CsharpProviderParameterRelation {

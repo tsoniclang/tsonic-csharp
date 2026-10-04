@@ -44,7 +44,7 @@ import {
 import { csharpRecordOptionalRead } from "../../objects/indexed-records.js";
 import type { CsharpPlannedArgument, CsharpPlannedValue } from "../planned-values.js";
 import { buildCsharpPlannedValue, planCsharpOptionalReceiverValue, projectCsharpPlannedValue } from "../planned-value-composition.js";
-import { selectCsharpCollectionElementRead } from "../../../../target-model/types/collection-reads.js";
+import { csharpCollectionElementRead } from "../../../../target-model/types/collection-reads.js";
 import { planCsharpCollectionElementRead } from "../collection-reads.js";
 
 export function translateCsharpElementAccess(
@@ -439,7 +439,7 @@ function translateSourceOwnedElement(
     input,
     diagnostics,
   );
-  const read = indexableReceiverType === undefined ? undefined : selectCsharpCollectionElementRead(indexableReceiverType);
+  const read = indexableReceiverType === undefined ? undefined : csharpCollectionElementRead(indexableReceiverType);
   if (read?.kind === "invalid") {
     diagnostics.push(unsupportedNodeDiagnostic(node, read.reason));
     return undefined;

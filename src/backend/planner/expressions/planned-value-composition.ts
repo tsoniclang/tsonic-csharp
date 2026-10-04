@@ -15,7 +15,7 @@ import { getCsharpGenericOptionalParts } from "../../../target-model/types/proje
 import { planCsharpAbsentValue, planCsharpPresentValueGuard } from "./optional-storage.js";
 import {
   csharpPlannedValue, csharpPlannedEffect, sequenceCsharpPlannedValues,
-  selectCsharpPlannedBranch, type CsharpPlannedValue, type CsharpPlannedCapture, type CsharpPlannedLocationCapture,
+  planCsharpPlannedBranch, type CsharpPlannedValue, type CsharpPlannedCapture, type CsharpPlannedLocationCapture,
 } from "./planned-values.js";
 
 export function planCsharpExpressionCompletion(
@@ -116,7 +116,7 @@ export function planCsharpValueBranch(
     consequent.completion.kind !== "value" || alternative.completion.kind !== "value";
   const capture = !statements || isCsharpVoidTargetType(carrier) || isCsharpNeverTargetType(carrier)
     ? undefined : captureCsharpPlannedValue(node, input, diagnostics, carrier);
-  return selectCsharpPlannedBranch(condition, consequent, alternative, carrier, capture);
+  return planCsharpPlannedBranch(condition, consequent, alternative, carrier, capture);
 }
 
 export function planCsharpOptionalReceiverValue(

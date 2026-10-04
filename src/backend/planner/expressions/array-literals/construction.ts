@@ -11,7 +11,7 @@ import { planCsharpSequenceAppendStatements, planCsharpSequenceLength, planCshar
 import { csharpPlannedValue, csharpPlannedExpressionIsStable, type CsharpPlannedValue } from "../planned-values.js";
 import { composeCsharpPlannedValues } from "../planned-value-composition.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { selectCsharpCollectionElementRead } from "../../../../target-model/types/collection-reads.js";
+import { csharpCollectionElementRead } from "../../../../target-model/types/collection-reads.js";
 
 interface Contribution {
   readonly node: Node;
@@ -63,7 +63,7 @@ export function planCsharpArrayConstruction(
   const type: CsharpTypeNode = construction?.type ?? { kind: "ArrayType", elementType };
   const nativeCollection = construction === undefined && contributions.every(contribution => contribution.spread === undefined ||
     contribution.spread.elements.every(element => element.conversion.kind === "identity") &&
-      selectCsharpCollectionElementRead(contribution.spread.carrier)?.kind !== "method" && contribution.spread.carrier.kind !== "tuple");
+      csharpCollectionElementRead(contribution.spread.carrier)?.kind !== "method" && contribution.spread.carrier.kind !== "tuple");
   if (nativeCollection) {
     const ordered = contributions.map((contribution, index) => {
       if (contribution.spread === undefined || !contributions.slice(index + 1).some(later => later.value.prelude.length !== 0)) return contribution.value;

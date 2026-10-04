@@ -63,7 +63,7 @@ export interface CsharpSourceProfilePropertyPolicyContext {
 
 export type CsharpTargetPropertyInvocation =
   | { readonly kind: "member" }
-  | { readonly kind: "array-like"; readonly projection: import("../../conversions/selection/model.js").CsharpArrayLikeUnionProjection }
+  | { readonly kind: "array-like"; readonly projection: import("../../../target-model/conversions/selection.js").CsharpArrayLikeUnionProjection }
   | { readonly kind: "source-name-indexer"; readonly optionalRead: boolean };
 
 export interface CsharpSourceProfileElementPolicyContext {

@@ -4,7 +4,7 @@ import type { CsharpPolicyContext } from "../../model/context.js";
 import type { TargetTypeRef } from "../../types/index.js";
 import { csharpReferenceIdentityCarrier } from "./reference-equality.js";
 
-export type CsharpAssignmentLocation = "direct" | "reference-receiver" | "unsupported";
+import type { CsharpAssignmentLocation } from "../../../target-model/operations/assignment-locations.js";
 
 export function selectCsharpAssignmentLocation(
   input: CsharpPolicyContext,

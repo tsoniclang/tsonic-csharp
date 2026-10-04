@@ -4,7 +4,7 @@ import {
   csharpPlannedEffect,
   csharpPlannedValue,
   mapCsharpPlannedValue,
-  selectCsharpPlannedBranch,
+  planCsharpPlannedBranch,
   sequenceCsharpPlannedValues,
 } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { csharpVoidTargetType, csharpNeverTargetType } from "../../../../dist/target-model/types/scalar-types.js";
@@ -68,7 +68,7 @@ test("native termination preserves preceding evaluations and excludes later oper
 });
 
 test("statement-bearing branches remain selected, not eager", () => {
-  const result = selectCsharpPlannedBranch(csharpPlannedValue(boolean, identifier("enabled"), [effect("condition")]),
+  const result = planCsharpPlannedBranch(csharpPlannedValue(boolean, identifier("enabled"), [effect("condition")]),
     csharpPlannedValue(integer, identifier("completed"), [effect("selected")]),
     csharpPlannedValue(integer, identifier("fallback"), [effect("otherwise")]), integer, capture(integer));
   assert.deepEqual(result.prelude[0], effect("condition"));
@@ -81,7 +81,7 @@ test("statement-bearing branches remain selected, not eager", () => {
 });
 
 test("pure branches preserve native conditional syntax without a temporary", () => {
-  const result = selectCsharpPlannedBranch(csharpPlannedValue(boolean, identifier("enabled")),
+  const result = planCsharpPlannedBranch(csharpPlannedValue(boolean, identifier("enabled")),
     csharpPlannedValue(integer, identifier("selected")), csharpPlannedValue(integer, identifier("otherwise")), integer, undefined);
   assert.equal(result.completion.expression.kind, "ConditionalExpression");
   assert.deepEqual(result.prelude, []);
@@ -92,6 +92,6 @@ test("void, never and unavailable values retain their distinct native planning o
   const omitted = csharpPlannedEffect(csharpVoidTargetType(), [effect("voidCall")]);
   assert.equal(mapCsharpPlannedValue(omitted, integer, () => assert.fail("void is not a value")), undefined);
   assert.equal(mapCsharpPlannedValue(undefined, integer, () => assert.fail("missing is not a value")), undefined);
-  assert.equal(selectCsharpPlannedBranch(csharpPlannedValue(boolean, identifier("enabled")), omitted, omitted,
+  assert.equal(planCsharpPlannedBranch(csharpPlannedValue(boolean, identifier("enabled")), omitted, omitted,
     csharpVoidTargetType(), undefined).completion.kind, "void");
 });

@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { ResolvedSourceCallInfo } from "../../../../../analysis/operations/index.js";
-import type { CsharpJsValueOperationSelection } from "../../../../../policy/js-value-operations/selection.js";
+import type { CsharpJsValueOperationSelection } from "../../../../../target-model/operations/js-values.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpExpression } from "../../../../target-ast/roslyn/index.js";

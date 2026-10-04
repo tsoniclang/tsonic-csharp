@@ -110,8 +110,20 @@ export function resolveSelectedExpressionType(
     if (conditional?.WhenTrue === undefined || conditional.WhenFalse === undefined) return undefined;
     const left = resolveNodeWithState(conditional.WhenTrue, queries.sourceFile, nextState(state));
     const right = resolveNodeWithState(conditional.WhenFalse, queries.sourceFile, nextState(state));
-    return selectCsharpConditionalNumericCarrier(conditional.WhenTrue, conditional.WhenFalse, left, right, host.ast) ??
+    const common = selectCsharpConditionalNumericCarrier(conditional.WhenTrue, conditional.WhenFalse, left, right, host.ast) ??
       commonTargetRepresentation(left, right);
+    if (common !== undefined) return common;
+    if (left === undefined || right === undefined) return undefined;
+    const trueType = queries.types.expressionType(conditional.WhenTrue);
+    const falseType = queries.types.expressionType(conditional.WhenFalse);
+    if (trueType === undefined || falseType === undefined) return undefined;
+    const trueSource = queries.types.literalBaseType(trueType);
+    const falseSource = queries.types.literalBaseType(falseType);
+    if (trueSource === undefined || falseSource === undefined) return undefined;
+    return sourceUnions.retain(combineCsharpTargetUnionMembers([left, right]), [
+      { source: trueSource, carrier: left },
+      { source: falseSource, carrier: right },
+    ], queries, state);
   }
   if (host.ast.is.IsBinaryExpression(node)) {
     const binary = host.ast.as.AsBinaryExpression(node);

@@ -40,6 +40,7 @@ import type { DestructuringPlannerState } from "../bindings/index.js";
 import { planExpression } from "../expressions/index.js";
 import { planClassFactoryExpression } from "../declarations/classes/factories.js";
 import { planLocalFunctionDeclaration } from "../declarations/callables/functions.js";
+import { planCsharpLexicalFunctionValues } from "../declarations/callables/lexical-values.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
@@ -98,20 +99,24 @@ export function planBlockStatements(
     }
   }
   const captures = planCsharpCaptureFrame(blockNode, input, diagnostics, state);
+  const values = planCsharpLexicalFunctionValues(statements, sourceFile, input, diagnostics, state);
+  const functions = statements.filter(statement => input.program.source.ast.is.IsFunctionDeclaration(statement));
+  const executable = (explicitUnsafe ? statements.slice(1) : statements)
+    .filter(statement => !input.program.source.ast.is.IsFunctionDeclaration(statement));
   const plan = () => [...captures, ...entryPrelude, ...planCsharpCaptureEntryBindings(blockNode, input, state), ...planResourceManagedBlockStatements(
     blockNode,
     input,
     diagnostics,
     state,
-    () => (explicitUnsafe ? statements.slice(1) : statements).flatMap(
-      (statement) => planStatements(
+    () => [...executable.flatMap(
+      (statement) => [...(values.get(statement) ?? []), ...planStatements(
         statement,
         sourceFile,
         input,
         diagnostics,
         state,
-      ),
-    ),
+      )],
+    ), ...functions.flatMap(statement => planLocalFunctionDeclaration(statement, sourceFile, input, diagnostics, state))],
   )];
   if (!explicitUnsafe) {
     return plan();

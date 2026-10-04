@@ -7,7 +7,7 @@ import type { ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpSelectedTargetCall } from "../../../../../analysis/operations/index.js";
 import type { SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { csharpConversionIsApplicable } from "../../../../../policy/conversions/index.js";
+import { csharpConversionIsApplicable } from "../../../../../target-model/conversions/selection.js";
 import { planCsharpSequenceValue } from "../../sequence-conversions.js";
 
 export function planCsharpRestSequence(

@@ -4,7 +4,7 @@ import type {
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api/artifacts";
-import type { CsharpJsValueInvocation } from "../../../policy/js-value-operations/selection.js";
+import type { CsharpJsValueInvocation } from "../../../target-model/operations/js-values.js";
 import type {
   TargetTypeRef,
 } from "../../../target-model/types/index.js";

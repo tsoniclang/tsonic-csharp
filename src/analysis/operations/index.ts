@@ -32,9 +32,7 @@ export type {
   CsharpTargetPropertySelection,
   ResolvedSourceCallInfo,
 } from "../../policy/operations/members/index.js";
-export type {
-  CsharpJsValueOperationSelection,
-} from "../../policy/js-value-operations/index.js";
+export type { CsharpJsValueOperationSelection } from "../../target-model/operations/js-values.js";
 export {
   isCsharpIndexKeyIteration,
   isCsharpKeyCollectionIteration,

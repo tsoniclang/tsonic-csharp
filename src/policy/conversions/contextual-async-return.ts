@@ -3,7 +3,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { selectCsharpAwaitCompletion } from "../../target-model/types/await-completions.js";
 import { csharpCarrierAdmitsSourceAbsence, getCsharpTaskResultTargetType, isCsharpVoidTargetType } from "../../target-model/types/index.js";
 import { selectCsharpConversion } from "./selection/core.js";
-import { csharpConversionIsApplicable } from "./selection/expression.js";
+import { csharpConversionIsApplicable } from "../../target-model/conversions/selection.js";
 
 export function selectCsharpContextualAsyncReturn(
   policy: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers" | "target">,

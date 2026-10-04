@@ -20,7 +20,7 @@ import {
   substituteTargetTypeParameters,
 } from "../../../target-model/types/substitution.js";
 import { conversionIsImplicitlyApplicable, selectCsharpConversion } from "./core.js";
-import { csharpConversionIsApplicable } from "./expression.js";
+import { csharpConversionIsApplicable } from "../../../target-model/conversions/selection.js";
 import { targetBindingSubstitutions } from "./provider-operators.js";
 import type {
   CsharpTargetNamedTypeRef,
@@ -28,7 +28,7 @@ import type {
   TargetTypeParameter,
   TargetTypeRef,
 } from "../../types/index.js";
-import type { CsharpConversionMode, CsharpConversionSelection } from "./model.js";
+import type { CsharpConversionMode, CsharpConversionSelection } from "../../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import { csharpUnionLeaves, csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "../../../target-model/types/union-relations.js";
 

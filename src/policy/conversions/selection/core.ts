@@ -12,14 +12,14 @@ import {
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../../target-model/types/index.js";
-import { csharpConversionIsApplicable } from "./expression.js";
+import { csharpConversionIsApplicable } from "../../../target-model/conversions/selection.js";
 import { namedTargetTypeImplicitlyAccepts, namedTargetTypesAreRelated, selectDelegateConversion, selectJsValueConversion, selectNullableConversion, selectRuntimeUnionConversion } from "./carriers.js";
 import { selectProviderConversionOperator } from "./provider-operators.js";
 import { sourcePrimitiveImplicitlyConverts } from "../source-primitives.js";
 import { selectCsharpEmptyRecordConversion } from "./empty-record.js";
 import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../../target-model/types/array-like.js";
 import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-carriers.js";
-import type { CsharpConversionMode, CsharpConversionSelection } from "./model.js";
+import type { CsharpConversionMode, CsharpConversionSelection } from "../../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { TargetTypeRef } from "../../types/index.js";
 import { getCsharpMethodValue, csharpMethodValueContractsEqual } from "../../../target-model/types/method-values.js";

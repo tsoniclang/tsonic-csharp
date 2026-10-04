@@ -3,7 +3,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import { csharpTupleElementMemberName, getCsharpReadOnlyIndexableCollectionElementTargetType } from "../../../target-model/types/index.js";
 import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
-import { selectCsharpCollectionElementRead } from "../../../target-model/types/collection-reads.js";
+import { csharpCollectionElementRead } from "../../../target-model/types/collection-reads.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
@@ -129,7 +129,7 @@ export function planCsharpJsArraySpreadAppend(
   const planned = planCsharpArraySpreadInput(node, operand, sourceFile, input, diagnostics, elementTarget, planner.planExpression);
   if (planned === undefined) return undefined;
   const source = planned.source;
-  const read = selectCsharpCollectionElementRead(source.carrier);
+  const read = csharpCollectionElementRead(source.carrier);
   if (read?.kind === "invalid") return reject(node, diagnostics, read.reason);
   if (source.carrier.kind !== "tuple" && !isCsharpValueTypeTargetType(source.carrier) &&
     read?.kind !== "method" && source.elements.every(element => element.conversion.kind === "identity")) {

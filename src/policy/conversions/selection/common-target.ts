@@ -1,10 +1,10 @@
 import { conversionIsImplicitlyApplicable, selectCsharpConversion } from "./core.js";
-import { csharpConversionIsApplicable } from "./expression.js";
+import { csharpConversionIsApplicable } from "../../../target-model/conversions/selection.js";
 import {
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../../target-model/types/index.js";
-import type { CsharpCommonImplicitTargetSelection, CsharpConversionTargetPreference } from "./model.js";
+import type { CsharpCommonImplicitTargetSelection, CsharpConversionTargetPreference } from "../../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { TargetTypeRef } from "../../types/index.js";
 

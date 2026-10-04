@@ -1,8 +1,9 @@
-import type { CsharpSourceCallResult, CsharpTypePolicyHost } from "./model.js";
+import type { CsharpTypePolicyHost } from "./model.js";
+import type { CsharpSourceCallResult } from "../../../target-model/operations/source-call-results.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { namedTargetTypeImplicitlyAccepts } from "../../conversions/selection/carriers.js";
 import { selectCsharpConversion } from "../../conversions/selection/core.js";
-import { csharpConversionIsApplicable } from "../../conversions/selection/expression.js";
+import { csharpConversionIsApplicable } from "../../../target-model/conversions/selection.js";
 import { getCsharpRuntimeUnionArms, isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";

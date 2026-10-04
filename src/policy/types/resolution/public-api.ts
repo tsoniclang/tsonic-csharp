@@ -1,7 +1,8 @@
 import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
-import type { ResolvedSourceCallInfo, CsharpScopedTypePolicyResult, CsharpTypeResolutionState, CsharpSourceCallResult } from "./model.js";
+import type { ResolvedSourceCallInfo, CsharpScopedTypePolicyResult, CsharpTypeResolutionState } from "./model.js";
+import type { CsharpSourceCallResult } from "../../../target-model/operations/source-call-results.js";
 import { selectCsharpSourceCallResult } from "./call-results.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";

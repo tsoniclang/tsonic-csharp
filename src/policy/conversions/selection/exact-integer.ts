@@ -3,7 +3,7 @@ import {
   isCsharpIntegralTargetType,
 } from "../../../target-model/types/index.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpConversionSelection } from "./model.js";
+import type { CsharpConversionSelection } from "../../../target-model/conversions/selection.js";
 
 export function selectCsharpExactIntegerConversion(
   source: TargetTypeRef,

@@ -7,7 +7,7 @@ export type CsharpCollectionElementRead =
   | { readonly kind: "method"; readonly element: TargetTypeRef; readonly member: CsharpTargetMember }
   | { readonly kind: "invalid"; readonly reason: string };
 
-export function selectCsharpCollectionElementRead(carrier: TargetTypeRef): CsharpCollectionElementRead | undefined {
+export function csharpCollectionElementRead(carrier: TargetTypeRef): CsharpCollectionElementRead | undefined {
   const element = getCsharpReadOnlyIndexableCollectionElementTargetType(carrier);
   const member = carrier.kind === "target-named" ? (carrier as CsharpTargetNamedTypeRef).csharpIndexableReadMember : undefined;
   if (element === undefined) return member === undefined ? undefined : invalid();

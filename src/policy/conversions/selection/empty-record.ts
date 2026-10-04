@@ -4,7 +4,7 @@ import { isCsharpEmptyObjectTargetType } from "../../../target-model/types/runti
 import {
   targetTypeRefEquals,
 } from "../../../target-model/types/index.js";
-import type { CsharpConversionSelection } from "./model.js";
+import type { CsharpConversionSelection } from "../../../target-model/conversions/selection.js";
 
 export function selectCsharpEmptyRecordConversion(
   input: Pick<Partial<CsharpPolicyContext>, "objectShapes">,

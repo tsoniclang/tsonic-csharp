@@ -19,6 +19,7 @@ export function sealCsharpStorage(
   const backing = analyzeCsharpNativeBacking(policy, evidence, operations, objectShapes);
   const issues = [...representations.issues, ...backing.issues];
   const nativeLocations = new WeakMap<Node, ReturnType<typeof classifyCsharpNativeLocation>>();
+  const sourceFiles = policy.sourceFiles;
   const classifications: CsharpStorageClassifications = {
     ...representations,
     closedNativeContracts: backing.closedContracts,
@@ -35,7 +36,7 @@ export function sealCsharpStorage(
         representations.requiresTypedLocationIdentity(declaration);
     },
   };
-  for (const sourceFile of policy.sourceFiles) visit(sourceFile);
+  for (const sourceFile of sourceFiles) visit(sourceFile);
   Object.freeze(issues);
   return Object.freeze(classifications);
 

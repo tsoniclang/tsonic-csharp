@@ -8,7 +8,7 @@ import {
 } from "../../../target-model/types/index.js";
 import { csharpNumericLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpConversionSelection } from "./model.js";
+import type { CsharpConversionSelection } from "../../../target-model/conversions/selection.js";
 
 const truncations = new Map([
   ["Tsonic.CSharp.Js.BigIntOps.asIntN", true],

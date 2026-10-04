@@ -99,7 +99,7 @@ export function sequenceCsharpPlannedValues(
   });
 }
 
-export function selectCsharpPlannedBranch(
+export function planCsharpPlannedBranch(
   condition: CsharpPlannedValue,
   consequent: CsharpPlannedValue,
   alternative: CsharpPlannedValue,

@@ -4,9 +4,7 @@ import type { CsharpSwitchSelection } from "../../policy/operations/control-flow
 import type { CsharpMemoryBindingSelection } from "../../policy/operations/memory-bindings.js";
 import type { CsharpElementDeletionSelection } from "../../policy/operations/collections/element-deletion.js";
 import type { CsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
-import type {
-  CsharpJsValueOperationSelection,
-} from "../../policy/js-value-operations/index.js";
+import type { CsharpJsValueOperationSelection } from "../../target-model/operations/js-values.js";
 import type {
   CsharpConversionSelection,
 } from "../../policy/conversions/index.js";
@@ -161,6 +159,7 @@ export interface CsharpUnaryClassification {
 }
 
 export interface CsharpTargetOperationClassifications {
+  awaitCompletion(node: Node): import("../../target-model/types/await-completions.js").CsharpAwaitCompletion | undefined;
   classPropertyStorage(declaration: Node): import("./class-property-storage.js").CsharpClassPropertyStorage | undefined;
   borrowedSequence(expression: Node): CsharpBorrowedSequenceInput | undefined;
   nativeGuardResult(expression: Node): boolean | undefined;

@@ -3,6 +3,7 @@ import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { finiteCompletionsSource } from "../../helpers/finite-completions.mjs";
+import { localFiniteAwaitBranches } from "../../../../tsonic/test/fixtures/local-finite-await-branches.mjs";
 
 const nativeProgram = `
 static async System.Threading.Tasks.Task<int> NativeCompleted(Tsonic.CSharp.Runtime.Union<int, System.Threading.Tasks.Task<int>> value) {
@@ -86,3 +87,11 @@ for (const surface of [undefined, "js"]) {
     executeCsharpConstruction(compiled, "finite-completions", false, false, [], nativeProgram);
   });
 }
+
+test("local finite await branches execute exact native values, futures and absence", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: localFiniteAwaitBranches });
+  const source = [...compiled.artifacts.values()].join("\n");
+  assert.doesNotMatch(source, /9007199254740993\.0|Convert\.ToDouble|ContinueWith|Task\.Run|\.Wait\(|\.Result\b/u);
+  executeCsharpConstruction(compiled, "local-finite-await", false, true, [],
+    "await Tsonic.Generated.Index.main();");
+});

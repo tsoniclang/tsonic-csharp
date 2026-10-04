@@ -1,6 +1,8 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { sourceBindingScope, sourceBindingHasSingleCaptureOwner, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization } from "@tsonic/target-api/source";
+import { sourceBindingScope, sourceBindingHasSingleCaptureOwner, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization,
+  sourceLexicalFunctionValueCreation, sourceLexicalFunctionValueOrder } from "@tsonic/target-api/source";
+import type { SourceLexicalValueCreation } from "@tsonic/target-api/source";
 import { createHash } from "node:crypto";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeClassifications } from "../objects/model.js";
@@ -35,6 +37,8 @@ export interface CsharpCaptureStorage {
   physicalType(declaration: Node, logicalType: TargetTypeRef): TargetTypeRef;
   closure(declaration: Node): { readonly frame: CsharpCaptureFrame; readonly method: CsharpFrameClosure } | undefined;
   forShape(type: TargetTypeRef): CsharpCaptureFrame | undefined;
+  valueDeclarationsAt(statement: Node): readonly Node[];
+  valueCreation(declaration: Node): SourceLexicalValueCreation | undefined;
 }
 
 export function analyzeCsharpCaptureStorage(
@@ -139,9 +143,37 @@ export function analyzeCsharpCaptureStorage(
     return frame;
   };
   for (const scope of groups.keys()) buildFrame(scope);
+  const valueDeclarations = new Map<Node, Node[]>();
+  const valueCreations = new Map<Node, SourceLexicalValueCreation>();
+  const visitValues = (node: Node): void => {
+    if (source.ast.is.IsFunctionDeclaration(node) && source.ast.body(node) !== undefined &&
+      !source.ast.is.IsSourceFile(source.ast.parent(node))) {
+      const creation = sourceLexicalFunctionValueCreation(node, source.ast, source.navigation,
+        use => !evidence.isCompileTimeMetadata(use.reference));
+      valueCreations.set(node, creation);
+      if (creation.kind === "unresolved") issues.push({ node, code: "CSHARP_LEXICAL_VALUE_ACTIVATION_NOT_CLOSED", message: creation.reason });
+      if (creation.kind === "resolved") {
+        const values = valueDeclarations.get(creation.statement) ?? [];
+        values.push(node);
+        valueDeclarations.set(creation.statement, values);
+      }
+    }
+    source.ast.forEachChild(node, child => { if (child !== undefined) visitValues(child); });
+  };
+  source.navigation.sourceFiles.forEach(visitValues);
+  const empty: readonly Node[] = Object.freeze([]);
+  const scheduledValues = new Map<Node, readonly Node[]>();
+  for (const [statement, values] of valueDeclarations) {
+    const ordered = sourceLexicalFunctionValueOrder(values, source.ast, source.navigation,
+      use => !evidence.isCompileTimeMetadata(use.reference));
+    if (ordered.kind === "resolved") scheduledValues.set(statement, ordered.declarations);
+    else issues.push({ node: statement, code: "CSHARP_LEXICAL_VALUE_ACTIVATION_NOT_CLOSED", message: ordered.reason });
+  }
   return Object.freeze({ issues: Object.freeze(issues), frames: Object.freeze([...byScope.values()]),
     frame: (scope: Node) => byScope.get(scope), binding: (declaration: Node) => byBinding.get(declaration), physicalType,
     closure: (declaration: Node) => byClosure.get(declaration), forShape: (type: TargetTypeRef) => byShape.get(targetTypeRefKey(type)),
+    valueDeclarationsAt: (statement: Node) => scheduledValues.get(statement) ?? empty,
+    valueCreation: (declaration: Node) => valueCreations.get(declaration),
   });
 }
 

@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpSourceCallResult } from "../../../../../policy/types/resolution/model.js";
+import type { CsharpSourceCallResult } from "../../../../../target-model/operations/source-call-results.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import { targetTypeRefEquals } from "../../../../../target-model/types/equality.js";
 import { applyCsharpConversionSelection } from "../../conversions.js";

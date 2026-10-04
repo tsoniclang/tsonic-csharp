@@ -26,10 +26,8 @@ export type ResolvedSourceCallInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["call"]>
 >;
 
-export interface CsharpSourceCallResult {
-  readonly nativeType: TargetTypeRef;
-  readonly selectedType: TargetTypeRef;
-}
+import type { CsharpSourceCallResult } from "../../../target-model/operations/source-call-results.js";
+export type { CsharpSourceCallResult } from "../../../target-model/operations/source-call-results.js";
 
 export interface CsharpPlanningRepresentationQueries {
   genericProjections?(declaration: Node): readonly import("../../../target-model/types/projections.js").CsharpProjectedType[];

@@ -259,6 +259,16 @@ export function allocateSyntheticParameter(state: DestructuringPlannerState): st
   return allocateSyntheticName(state, "__tsonic_param", "nextParameterIndex");
 }
 
+export function getCsharpExpressionOverride(
+  reference: Node, state: DestructuringPlannerState | undefined,
+): CsharpExpression | undefined {
+  for (let current = state; current !== undefined; current = current.parent) {
+    const expression = current.expressionOverrides.get(reference);
+    if (expression !== undefined) return expression;
+  }
+  return undefined;
+}
+
 export function redirectCsharpParameterStorage(
   name: Node, input: CsharpPlanningContext, state: DestructuringPlannerState,
 ): { readonly parameterName: string; readonly storageName: string } | undefined {

@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpAssignmentLocation } from "../../../../policy/operations/operators/assignment-location.js";
+import type { CsharpAssignmentLocation } from "../../../../target-model/operations/assignment-locations.js";
 import type { CsharpExpression, CsharpStatement } from "../../../target-ast/roslyn/index.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";

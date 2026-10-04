@@ -7,7 +7,7 @@ export type {
 export type {
   CsharpConversionMode,
   CsharpConversionSelection,
-} from "../../policy/conversions/index.js";
+} from "../../target-model/conversions/selection.js";
 export {
   csharpConversionIsApplicable,
-} from "../../policy/conversions/index.js";
+} from "../../target-model/conversions/selection.js";

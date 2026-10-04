@@ -1,9 +1,4 @@
-export type {
-  CsharpCommonImplicitTargetSelection,
-  CsharpConversionMode,
-  CsharpConversionSelection,
-  CsharpConversionTargetPreference,
-} from "./selection/model.js";
+export type { CsharpCommonImplicitTargetSelection, CsharpConversionMode, CsharpConversionSelection, CsharpConversionTargetPreference } from "../../target-model/conversions/selection.js";
 export {
   compareCsharpImplicitConversionTargets,
   selectCsharpCommonImplicitTarget,
@@ -11,9 +6,5 @@ export {
 export {
   selectCsharpConversion,
 } from "./selection/core.js";
-export {
-  csharpConversionIsApplicable,
-  selectCsharpExpressionConversion,
-  selectCsharpFlowReadConversion,
-  selectCsharpProviderArgumentConversion,
-} from "./selection/expression.js";
+export { selectCsharpExpressionConversion, selectCsharpFlowReadConversion, selectCsharpProviderArgumentConversion } from "./selection/expression.js";
+export { csharpConversionIsApplicable } from "../../target-model/conversions/selection.js";

@@ -32,6 +32,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { sourceNodesEqual } from "@tsonic/target-api/source";
 import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
+import { getCsharpExpressionOverride } from "../bindings/binding-state.js";
 import {
   planArrayLiteralExpressionFromFacts,
 } from "./array-literals/index.js";
@@ -128,7 +129,7 @@ function planExpressionCore(
     diagnostics.push(unsupportedNodeDiagnostic(node, "A class expression requires its sealed native factory."));
     return undefined;
   }
-  const expressionOverride = state?.expressionOverrides.get(node);
+  const expressionOverride = getCsharpExpressionOverride(node, state);
   if (expressionOverride !== undefined) {
     return complete(expressionOverride);
   }

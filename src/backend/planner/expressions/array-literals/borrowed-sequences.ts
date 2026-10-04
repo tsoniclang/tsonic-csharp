@@ -12,7 +12,7 @@ import { getCsharpNullableElementTargetType } from "../../../../target-model/typ
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import { getCsharpArrayLiteralElementTargetType, getCsharpCollectionElementTargetType, getCsharpIndexableLengthMemberName } from "../../../../target-model/types/collections.js";
 import { csharpVoidTargetType } from "../../../../target-model/types/scalar-types.js";
-import { csharpConversionIsApplicable, type CsharpConversionSelection } from "../../../../policy/conversions/index.js";
+import { csharpConversionIsApplicable, type CsharpConversionSelection } from "../../../../target-model/conversions/selection.js";
 import { planCsharpPresentValueGuard } from "../optional-storage.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { csharpPlannedEffect } from "../planned-values.js";

@@ -1,7 +1,9 @@
+import { classifyCsharpJsValueCallShape } from "./js-value-calls.js";
 import { classifyCsharpUnionCall } from "./union-calls.js";
 import { classifyCsharpSourceCallee } from "./source-callees.js";
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 import { classifyCsharpClassPropertyStorage } from "./class-property-storage.js";
+import { selectCsharpAwaitCompletion } from "../../target-model/types/await-completions.js";
 import { validateCsharpJsValueOperationSelection } from "../../policy/js-value-operations/selection.js";
 import { resolveCsharpInstanceType } from "../../policy/types/resolution/instance-tests.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
@@ -45,7 +47,6 @@ import {
 } from "../../policy/operations/members/index.js";
 import type {
   CsharpSelectedTargetCall,
-  ResolvedSourceCallInfo,
 } from "../../policy/operations/members/index.js";
 import {
   selectCsharpBinaryOperation,
@@ -97,6 +98,7 @@ import {
 const callKey = createTargetClassificationKey<CsharpCallClassification>(
   "csharp.operation.call",
 );
+const awaitKey = createTargetClassificationKey<ReturnType<typeof selectCsharpAwaitCompletion>>("csharp.operation.await");
 const memoryBindingKey = createTargetClassificationKey<ReturnType<typeof selectCsharpMemoryBinding>>("csharp.operation.memory-binding");
 const elementDeletionKey = createTargetClassificationKey<ReturnType<typeof selectCsharpElementDeletion>>("csharp.operation.element-deletion");
 const constructionKey = createTargetClassificationKey<CsharpConstructionClassification>(
@@ -193,6 +195,7 @@ export function analyzeCsharpTargetOperations(
   const selectedBinaryExecutionDriver =
     composeCsharpBinaryExecutionDriver(...binaryExecutionDrivers);
   const classifications: CsharpTargetOperationClassifications = {
+    awaitCompletion: node => facts.get(node, awaitKey),
     classPropertyStorage,
     borrowedSequence: node => facts.get(node, borrowedSequenceKey),
     nativeGuardResult: node => facts.get(node, nativeGuardResultKey),
@@ -244,6 +247,12 @@ function visit(
     return;
   }
   const { ast } = policy;
+  if (ast.is.IsAwaitExpression(node)) {
+    const expression = ast.as.AsAwaitExpression(node)?.Expression;
+    setClassification(builder, node, awaitKey, selectCsharpAwaitCompletion(
+      expression === undefined ? undefined : policy.types.resolveNode(expression, sourceFile),
+      policy.typeDefinitions));
+  }
   if (ast.is.IsSpreadElement(node)) {
     const expression = ast.as.AsSpreadElement(node)?.Expression;
     if (expression !== undefined) {
@@ -368,7 +377,7 @@ function visit(
     const expression = ast.as.AsCallExpression(node);
     const source = policy.semantics(sourceFile).operations.call(node);
     const callee = source?.sourceCallee.expression ?? expression?.Expression;
-    const shape = jsValueCallShape(policy, source);
+    const shape = classifyCsharpJsValueCallShape(policy.ast, source);
     const jsValue = validateCsharpJsValueOperationSelection(selectCsharpJsValueCallOperation(
       policy,
       callee,
@@ -876,28 +885,4 @@ function classifyMethodTypeArgumentProjections(
       ),
     })];
   }));
-}
-
-type JsValueCallShape =
-  | { readonly kind: "direct"; readonly receiver?: undefined }
-  | { readonly kind: "property" | "element"; readonly receiver: Node | undefined };
-
-function jsValueCallShape(
-  policy: CsharpPolicyContext,
-  source: ResolvedSourceCallInfo | undefined,
-): JsValueCallShape {
-  const access = source?.sourceCalleeAccess;
-  if (
-    access?.kind === "property" &&
-    policy.ast.is.IsPropertyAccessExpression(access.expression)
-  ) {
-    return { kind: "property", receiver: access.receiver.expression };
-  }
-  if (
-    access?.kind === "element" &&
-    policy.ast.is.IsElementAccessExpression(access.expression)
-  ) {
-    return { kind: "element", receiver: access.receiver.expression };
-  }
-  return { kind: "direct" };
 }

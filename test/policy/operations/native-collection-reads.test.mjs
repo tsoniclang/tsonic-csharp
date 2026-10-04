@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpTargetNamedType, csharpStringTargetType, csharpSourcePrimitiveTargetType,
   csharpQualifiedTypeRenderShape, csharpNullableTargetType } from "../../../dist/target-model/types/index.js";
-import { selectCsharpCollectionElementRead } from "../../../dist/target-model/types/collection-reads.js";
+import { csharpCollectionElementRead } from "../../../dist/target-model/types/collection-reads.js";
 import { planCsharpCollectionElementRead, planCsharpCollectionIndexedIteration } from "../../../dist/backend/planner/expressions/collection-reads.js";
 import { planCsharpSequenceAppendStatements } from "../../../dist/backend/planner/expressions/sequence-conversions.js";
 
@@ -22,8 +22,8 @@ const receiver = { kind: "IdentifierName", name: "values" };
 const index = { kind: "IdentifierName", name: "index" };
 
 test("native indexed reads share one exact typed member selection and AST lowering without wrappers", () => {
-  assert.deepEqual(selectCsharpCollectionElementRead(carrier), { kind: "method", element, member });
-  assert.deepEqual(selectCsharpCollectionElementRead(physical), { kind: "indexer", element });
+  assert.deepEqual(csharpCollectionElementRead(carrier), { kind: "method", element, member });
+  assert.deepEqual(csharpCollectionElementRead(physical), { kind: "indexer", element });
   assert.deepEqual(planCsharpCollectionElementRead(physical, receiver, index), {
     kind: "ElementAccessExpression", receiver, arguments: [index],
   });
@@ -52,10 +52,10 @@ test("native read signatures fail closed for wrong physical receiver, width, res
     { ...member, typeParameters: [{ identity: "T", name: "T" }] },
   ]) {
     const selected = { ...carrier, csharpIndexableReadMember: changed };
-    assert.equal(selectCsharpCollectionElementRead(selected).kind, "invalid", JSON.stringify(changed));
+    assert.equal(csharpCollectionElementRead(selected).kind, "invalid", JSON.stringify(changed));
     assert.equal(planCsharpCollectionElementRead(selected, receiver, index), undefined);
   }
-  assert.equal(selectCsharpCollectionElementRead({ ...carrier, csharpReadOnlyIndexableElementType: undefined }).kind, "invalid");
+  assert.equal(csharpCollectionElementRead({ ...carrier, csharpReadOnlyIndexableElementType: undefined }).kind, "invalid");
 });
 
 test("native readonly indexed iteration and identity spreads consume the exact read method without boxing or bypass", () => {

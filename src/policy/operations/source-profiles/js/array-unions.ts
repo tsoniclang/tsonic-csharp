@@ -1,6 +1,6 @@
 import type { ResolvedSourceElementAccessInfo, ResolvedSourcePropertyAccessInfo, SourceFile } from "@tsonic/tsts";
 import type { CsharpProviderCallSelectionHost } from "../../members/selection/call-selection.js";
-import type { CsharpArrayLikeUnionProjection } from "../../../conversions/selection/model.js";
+import type { CsharpArrayLikeUnionProjection } from "../../../../target-model/conversions/selection.js";
 import type { CsharpSourceProfileElementPolicyResult, CsharpSourceProfilePropertyPolicyResult } from "../source-profile-policy.js";
 import { sourceProfilePropertyIdentities } from "../source-profile-policy.js";
 import { csharpSourceProfileDeclarationIdentity, type CsharpSourceProfileDeclarationIdentity } from "../source-profile-identity.js";
