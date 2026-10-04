@@ -403,6 +403,8 @@ function analyzeIteration(
     declarations,
     names,
     typeProjections,
+    input.source,
+    operations,
   );
   const expectedTypes = analyzeCsharpExpectedTypes(
     policy,

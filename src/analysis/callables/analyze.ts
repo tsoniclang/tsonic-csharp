@@ -26,6 +26,10 @@ import type { CsharpCallableContractIndex } from "./model.js";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import type { CsharpGenericProjectionIndex } from "../declarations/type-projections.js";
 import { closeCsharpProjectCallableContracts } from "../project-types/callable-contracts.js";
+import { selectCsharpClosedCallableInputs } from "./contextual-inputs.js";
+import { csharpCallableValueType } from "./value-type.js";
+import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { CsharpTargetOperationClassifications } from "../operations/index.js";
 
 export function analyzeCsharpCallableContracts(
   policy: CsharpPolicyContext,
@@ -33,8 +37,11 @@ export function analyzeCsharpCallableContracts(
   declarations: CsharpDeclarationClassifications,
   names: CsharpSourceNameResolver,
   projections: CsharpGenericProjectionIndex,
+  source: TargetSourceProgram,
+  operations: CsharpTargetOperationClassifications,
 ): CsharpCallableContractIndex {
   const byDeclaration = new WeakMap<Node, CsharpSourceCallableContract>();
+  const closedInputs = new WeakSet<Node>();
   const byProjectConstructor = new Map<string, CsharpSourceCallableContract>();
   const contracts: CsharpSourceCallableContract[] = [];
   const declarationContracts: CsharpSourceCallableContract[] = [];
@@ -63,6 +70,10 @@ export function analyzeCsharpCallableContracts(
   return Object.freeze({
     contracts: Object.freeze(contracts),
     declarationContracts: nativeDeclarations,
+    closedInputType(declaration: Node) {
+      const contract = byDeclaration.get(declaration);
+      return contract === undefined || !closedInputs.has(declaration) ? undefined : csharpCallableValueType(contract);
+    },
     get(identity: CsharpSourceCallableArtifactIdentity) {
       return identity.kind === "declaration"
         ? byDeclaration.get(identity.declaration)
@@ -73,6 +84,7 @@ export function analyzeCsharpCallableContracts(
   function visit(node: Node, sourceFile: SourceFile): void {
     if (evidence.isCompileTimeMetadata(node)) return;
     if (isCsharpSourceCallableArtifactDeclaration(policy.ast, node)) {
+      const inputs = selectCsharpClosedCallableInputs(source, policy, operations, node);
       const contract = sourceCallableContract(
         policy,
         evidence,
@@ -81,11 +93,13 @@ export function analyzeCsharpCallableContracts(
         node,
         sourceFile,
         projections,
+        inputs,
       );
       if (contract !== undefined) {
         byDeclaration.set(node, contract);
         contracts.push(contract);
         declarationContracts.push(contract);
+        if (inputs !== undefined) closedInputs.add(node);
       }
     }
     policy.ast.forEachChild(node, (child) => {
@@ -104,6 +118,7 @@ function sourceCallableContract(
   declaration: Node,
   sourceFile: SourceFile,
   projections: CsharpGenericProjectionIndex,
+  contextualInputs: readonly (TargetTypeRef | undefined)[] | undefined,
 ): CsharpSourceCallableContract | undefined {
   const returnContract = declarations.returnContract(declaration);
   const returnType = evidence.generatorTargetType(declaration) ??
@@ -124,6 +139,7 @@ function sourceCallableContract(
       names,
       parameterNode,
       index,
+      contextualInputs?.[index],
     );
     if (parameter === undefined) {
       return undefined;
@@ -160,6 +176,7 @@ function sourceParameterContract(
   names: CsharpSourceNameResolver,
   parameterNode: Node | undefined,
   parameterIndex: number,
+  contextualInput: TargetTypeRef | undefined,
 ): CsharpSourceCallableParameterContract | undefined {
   if (parameterNode === undefined) {
     return undefined;
@@ -169,9 +186,9 @@ function sourceParameterContract(
     return undefined;
   }
   const typeSubject = parameter.Type ?? parameter.name;
-  const selectedType = typeSubject === undefined
+  const selectedType = contextualInput ?? (typeSubject === undefined
     ? undefined
-    : evidence.nodeTargetType(typeSubject);
+    : evidence.nodeTargetType(typeSubject));
   if (selectedType === undefined) {
     return undefined;
   }

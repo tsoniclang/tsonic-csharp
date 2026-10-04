@@ -210,7 +210,10 @@ export function analyzeCsharpStorage(
         const authored = declaration?.Type === undefined
           ? undefined
           : evidence.nodeTargetType(declaration.Type);
-        const effectiveAuthored = authored === undefined ||
+        const types = policy.semanticsFor(parameter).types;
+        const authoredType = declaration?.Type === undefined ? undefined : types.authoredType(declaration.Type);
+        const broad = authoredType !== undefined && (types.isUnknown(authoredType) || types.isAny(authoredType));
+        const effectiveAuthored = broad ? undefined : authored === undefined ||
             policy.ast.questionToken(parameter) === undefined
           ? authored
           : csharpNullableTargetType(authored);

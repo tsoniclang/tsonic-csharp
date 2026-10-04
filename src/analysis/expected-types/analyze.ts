@@ -251,9 +251,9 @@ export function analyzeCsharpExpectedTypes(
         : contextualTargets;
       const distinctTargets = new Map(effectiveTargets.map((use) =>
         [targetTypeRefKey(use.targetType), use.targetType]));
-      const targetType = distinctTargets.size === 1
+      const targetType = callables.closedInputType(declaration) ?? (distinctTargets.size === 1
         ? [...distinctTargets.values()][0]
-        : undefined;
+        : undefined);
       const previousTarget = callableTargets.get(declaration);
       if (
         previousTarget === undefined
