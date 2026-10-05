@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
-import { genericCallableOwnershipCases, unsupportedGenericCallableOwnershipCases } from "../../../fixtures/generic-callable-ownership.mjs";
+import { genericCallableOwnershipCases } from "../../../../../tsonic/test/fixtures/generic-callable-ownership.mjs";
+import { unsupportedGenericCallableOwnershipCases } from "../../../fixtures/generic-callable-ownership.mjs";
 import { receiverFieldUnconstrainedEqualitySource } from "../../../../../tsonic/test/fixtures/receiver-field-capture-edges.mjs";
 
 function compile(sourceText) {

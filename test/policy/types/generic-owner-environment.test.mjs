@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { closeCsharpOwnerTypeParameterEnvironment, csharpObjectShapeTypeParameters,
   csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../../dist/target-model/types/generic-references.js";
-import { snapshotCsharpTargetTypes } from "../../../dist/target-model/types/snapshot.js";
+import { isCsharpTargetTypeRef, snapshotCsharpTargetTypes } from "../../../dist/target-model/types/snapshot.js";
 import { csharpTargetTypeComponents } from "../../../dist/target-model/types/components.js";
 import { createCsharpMetadataBudget, maximumCsharpMetadataEntries, maximumCsharpMetadataDepth } from "../../../dist/target-model/metadata/immutable.js";
 import { csharpSourceTypeParameter } from "../../../dist/target-model/names/type-parameters.js";
@@ -115,6 +115,8 @@ test("malformed constraints, cycles, sparse arrays and executable metadata rejec
     { ...resolved([]), extra: true }, resolved([typeConstraint(cyclic)]), resolved(sparse),
     { kind: "unsupported", reason: "" }, { kind: "resolved", constraints: null }, accessor,
   ]) {
+    assert.equal(isCsharpTargetTypeRef({ ...outer, csharpConstraints: malformed }), false,
+      "the public carrier predicate independently rejects executable or malformed constraints");
     assert.throws(() => snapshotCsharpTargetTypes([{ ...outer, csharpConstraints: malformed }]), TypeError);
     assert.throws(() => closeCsharpOwnerTypeParameterEnvironment([outer], () => malformed), TypeError);
   }

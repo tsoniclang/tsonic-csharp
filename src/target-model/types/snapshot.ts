@@ -1,6 +1,6 @@
 import type { TargetTypeRef } from "./model.js";
 import { csharpTargetTypeComponents } from "./components.js";
-import { snapshotCsharpMetadata, createCsharpMetadataBudget, maximumCsharpMetadataEntries, maximumCsharpMetadataDepth } from "../metadata/immutable.js";
+import { snapshotCsharpMetadata, csharpMetadataDescriptors, createCsharpMetadataBudget, maximumCsharpMetadataEntries, maximumCsharpMetadataDepth } from "../metadata/immutable.js";
 
 export function snapshotCsharpTargetTypes(
   types: readonly TargetTypeRef[],
@@ -47,8 +47,12 @@ export function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
   const active = new Set<object>();
   let count = 0;
   const string = (input: unknown): input is string => typeof input === "string" && input.length > 0;
+  const data = (input: object): boolean => {
+    try { csharpMetadataDescriptors(input); return true; } catch { return false; }
+  };
   const list = (input: unknown, depth: number): boolean => {
-    if (!Array.isArray(input) || input.length > maximumCsharpMetadataEntries - count) return false;
+    if (!Array.isArray(input) || input.length > maximumCsharpMetadataEntries - count || !data(input) ||
+        Object.keys(input).length !== input.length) return false;
     for (let index = 0; index < input.length; index += 1) {
       if (!visit(input[index], depth + 1)) return false;
     }
@@ -56,7 +60,7 @@ export function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
   };
   const visit = (input: unknown, depth: number): boolean => {
     if (++count > maximumCsharpMetadataEntries || depth > maximumCsharpMetadataDepth || typeof input !== "object" || input === null || active.has(input)) return false;
-    if (Object.getPrototypeOf(input) !== Object.prototype && Object.getPrototypeOf(input) !== null) return false;
+    if (Array.isArray(input) || !data(input)) return false;
     const type = input as Readonly<Record<string, unknown>>;
     active.add(input);
     let valid = false;
@@ -87,15 +91,16 @@ export function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
     return valid;
   };
   const constraintResolution = (input: unknown, depth: number): boolean => {
-    if (typeof input !== "object" || input === null || depth > maximumCsharpMetadataDepth) return false;
+    if (typeof input !== "object" || input === null || depth > maximumCsharpMetadataDepth || Array.isArray(input) || !data(input)) return false;
     const resolution = input as Readonly<Record<string, unknown>>;
     const keys = Object.keys(resolution);
     if (resolution.kind === "unsupported") return keys.length === 2 && keys.includes("reason") && string(resolution.reason);
     if (resolution.kind !== "resolved" || keys.length !== 2 || !keys.includes("constraints") || !Array.isArray(resolution.constraints) ||
-        resolution.constraints.length > maximumCsharpMetadataEntries - count) return false;
+        resolution.constraints.length > maximumCsharpMetadataEntries - count || !data(resolution.constraints) ||
+        Object.keys(resolution.constraints).length !== resolution.constraints.length) return false;
     const constraints: readonly unknown[] = resolution.constraints;
     for (const input of constraints) {
-      if (++count > maximumCsharpMetadataEntries || typeof input !== "object" || input === null) return false;
+      if (++count > maximumCsharpMetadataEntries || typeof input !== "object" || input === null || Array.isArray(input) || !data(input)) return false;
       const constraint = input as Readonly<Record<string, unknown>>;
       const keys = Object.keys(constraint);
       if (constraint.kind === "type" ? keys.length !== 2 || !keys.includes("type") || !visit(constraint.type, depth + 1)
