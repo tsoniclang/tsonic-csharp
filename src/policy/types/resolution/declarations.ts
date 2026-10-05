@@ -59,6 +59,10 @@ export function resolveSelectedDeclarationResult(
     queries.types.relationship(declaredMemberType, semanticType) === "identical";
   const removesNullish = !unchanged && declaredMemberType !== undefined && semanticType !== undefined &&
     sourceRefinementOnlyRemovesNullish(declaredMemberType, semanticType, queries);
+  const refinement = !unchanged && declaredMemberType !== undefined && semanticType !== undefined
+    ? queries.types.refinement(declaredMemberType, semanticType) : undefined;
+  const excludesNullish = refinement?.kind === "members" && refinement.types.length > 0 &&
+    refinement.types.every(type => !queries.types.isNullish(type));
   const authored = resolveAuthoredAndSelectedSourceType(
     declarationType,
     declarationSourceFile,
@@ -69,8 +73,8 @@ export function resolveSelectedDeclarationResult(
   const selected = authored !== undefined && declaration !== undefined && host.ast.questionToken(declaration) !== undefined
     ? csharpNullableTargetType(authored) : authored;
   const result = instantiate(selected);
-  return declarationType !== undefined && removesNullish && result !== undefined
-    ? getCsharpNullableElementTargetType(result) ?? getCsharpGenericOptionalParts(result)?.element
+  return declarationType !== undefined && (removesNullish || excludesNullish) && result !== undefined
+    ? getCsharpNullableElementTargetType(result) ?? getCsharpGenericOptionalParts(result)?.element ?? result
     : result;
 }
 
