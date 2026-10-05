@@ -3,10 +3,13 @@ import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { selectCsharpNativeFlowMembers } from "../../../dist/policy/types/resolution/native-flow-refinement.js";
-import { csharpJsArrayTargetType, csharpJsRegExpTargetType } from "../../../dist/policy/types/resolution/surface-types.js";
+import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsRegExpTargetType } from "../../../dist/policy/types/resolution/surface-types.js";
 import { csharpStringTargetType, csharpObjectTargetType } from "../../../dist/target-model/types/scalar-types.js";
-import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
+import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/runtime-carriers.js";
 import { resolveCsharpInstanceType } from "../../../dist/policy/types/resolution/instance-tests.js";
+import { resolveSelectedValueWithState } from "../../../dist/policy/types/resolution/public-api.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/nullable.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 
 test("native nominal guard selection completes partial typeof evidence through the exact constructor owner", () => {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
@@ -92,4 +95,60 @@ test("literal guards retain exact native integer widths and broad unknown payloa
   const carrier = csharpRuntimeUnionTargetType(carriers);
   const selected = reads.map(reference => selectCsharpNativeFlowMembers(context, reference, carrier, () => undefined));
   assert.deepEqual(selected, [carriers.slice(0, 3), carriers.slice(0, 3), carriers.slice(2)]);
+});
+
+test("selected native values materialize all surviving exact union arms and retain object evidence", () => {
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
+    declare class Bytes { bytes: number; }
+    declare class Packet { tag: string; }
+    declare function observe(value: unknown): void;
+    function run(value: string | number | Bytes | Packet | null): void {
+      if (value == null) return;
+      if (value instanceof Bytes) return;
+      observe(value);
+      if (typeof value === "string") observe(value);
+    }
+  ` }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
+  assert.equal(checked.diagnostics.length, 0);
+  const source = createTargetSourceProgram(checked);
+  const file = checked.getSourceFile("/src/index.ts");
+  const reads = [];
+  const visit = node => {
+    const call = source.semantics.forNode(node).operations.call(node);
+    if (source.ast.text(call?.sourceCallee.expression) === "observe") reads.push(call.sourceArguments[0].expression);
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  visit(file);
+  assert.equal(reads.length, 2);
+  const string = csharpStringTargetType();
+  const integer = { kind: "source-primitive", name: "int64" };
+  const bytes = csharpJsRegExpTargetType();
+  const packet = csharpJsDateTargetType();
+  const shape = { targetType: packet, members: [] };
+  const storage = csharpNullableTargetType(csharpRuntimeUnionTargetType([string, integer, bytes, packet]));
+  const declaration = source.navigation.referenceFor(reads[0]).declaration;
+  const scope = {
+    host: {
+      ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts,
+      semantics: selectedFile => source.semantics.forFile(selectedFile),
+      semanticsFor: node => source.semantics.forNode(node),
+      representations: { scopedTargetType: node => node === declaration ? storage : undefined },
+      structuralTypes: { resolveTarget: carrier => targetTypeRefEquals(carrier, packet) ? shape : undefined },
+      closedTypeGuard: () => undefined,
+    },
+    sourceValueDeclaration: (_node, referenced) => referenced,
+    resolveTypeWithState: () => bytes,
+    resolveNodeWithState: () => { assert.fail("a proven native subset must not reconstruct its checker carrier"); },
+  };
+  const selected = reads.map(node => resolveSelectedValueWithState(scope, node,
+    source.semantics.forNode(node).types.expressionType(node), file, { depth: 0 }));
+  const arms = getCsharpRuntimeUnionArms(selected[0]);
+  assert.equal(arms?.length, 3);
+  for (const carrier of [string, integer, packet]) {
+    assert.equal(arms?.filter(arm => targetTypeRefEquals(arm, carrier)).length, 1);
+  }
+  assert.equal(arms?.some(arm => targetTypeRefEquals(arm, bytes)), false);
+  assert.equal(getCsharpNullableElementTargetType(selected[0]) === undefined, true);
+  assert.equal(selected[0]?.csharpRuntimeUnionObjectShapes?.some(retained => retained === shape), true);
+  assert.equal(targetTypeRefEquals(selected[1], string), true);
 });

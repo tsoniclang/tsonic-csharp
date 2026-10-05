@@ -6,13 +6,13 @@ import type { CsharpSourceCallResult } from "../../../target-model/operations/so
 import { selectCsharpSourceCallResult } from "./call-results.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { combineCsharpTargetUnionMembers, csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { csharpTargetParameterValueType } from "../../../target-model/types/member-facts.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 import { nextState } from "./state.js";
 import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
-import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
+import { retainCsharpUnionObjectShapes, selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import { Node_Expression } from "@tsonic/target-api/source";
@@ -171,7 +171,7 @@ export function resolveSelectedValueWithState(
         const nominal = resolveTypeWithState(selectedType, sourceFile, nextState(state));
         if (host.projectTypeCatalog.definitionForTarget(nominal)?.kind === "class") return nominal;
       }
-      if (guarded.length === 1) return guarded[0];
+      return retainCsharpUnionObjectShapes(combineCsharpTargetUnionMembers(guarded), host.structuralTypes.resolveTarget);
     }
   }
   if (declaredType !== undefined && declaredType !== selectedType &&
