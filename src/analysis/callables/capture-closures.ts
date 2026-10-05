@@ -1,5 +1,5 @@
-import type { AstReader, Node } from "@tsonic/tsts";
-import { sourceBindingScope, sourceLexicalCaptures, sourceBindingCapturedBeforeInitialization, type TargetSourceProgram } from "@tsonic/target-api/source";
+import type { Node } from "@tsonic/tsts";
+import { sourceBindingScope, sourceBindingIterationScope, sourceLexicalCaptures, sourceBindingCapturedBeforeInitialization, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
 import type { CsharpStorageIssue } from "../storage/model.js";
@@ -54,7 +54,7 @@ export function selectCsharpFrameClosures(
   };
   for (const candidate of captures) for (const capture of candidate.selected.captures) {
     const scope = sourceBindingScope(capture.declaration, source.ast);
-    const iteration = scope !== undefined && isCsharpIterationCapture(capture.declaration, scope, source.ast);
+    const iteration = scope !== undefined && sourceBindingIterationScope(capture.declaration, source.ast) === scope;
     if (!iteration && !sourceBindingCapturedBeforeInitialization(capture.declaration, source.ast, source.navigation)) continue;
     const type = evidence.storageTargetType(capture.declaration) ?? evidence.nodeTargetType(capture.declaration);
     if (scope === undefined || type === undefined) {
@@ -114,15 +114,4 @@ export function selectCsharpFrameClosures(
   return Object.freeze({ closures: Object.freeze([...selected.values()]),
     namedSelfBindings: Object.freeze(captures.flatMap(candidate => candidate.namedSelf === undefined ? [] : [candidate.namedSelf])),
   });
-}
-
-function isCsharpIterationCapture(declaration: Node, scope: Node, ast: AstReader): boolean {
-  if (!ast.is.IsForStatement(scope)) return false;
-  const initializer = ast.as.AsForStatement(scope)?.Initializer;
-  if (initializer === undefined || !ast.is.IsVariableDeclarationList(initializer) ||
-    ast.variableDeclarationKind(initializer) !== "let") return false;
-  for (let current: Node | undefined = declaration; current !== undefined && current !== scope; current = ast.parent(current)) {
-    if (ast.is.IsVariableDeclaration(current)) return ast.parent(current) === initializer;
-  }
-  return false;
 }

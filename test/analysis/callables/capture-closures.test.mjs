@@ -27,7 +27,7 @@ function fixture(text) {
     if (source.ast.is.IsVariableDeclaration(node) || source.ast.is.IsBindingElement(node) ||
       source.ast.is.IsParameterDeclaration(node) || source.ast.is.IsFunctionDeclaration(node)) {
       const name = source.ast.name(node);
-      if (name !== undefined) declarations.set(source.ast.text(name), node);
+      if (name !== undefined && source.ast.is.IsIdentifier(name)) declarations.set(source.ast.text(name), node);
       types.set(node, source.ast.is.IsFunctionDeclaration(node) ? callable : scalar);
     }
     if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) types.set(node, callable);
