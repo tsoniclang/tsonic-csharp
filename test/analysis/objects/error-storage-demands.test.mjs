@@ -57,7 +57,7 @@ for (const jsEnabled of [false, true]) {
       const origins = demand.storageOriginsFor(declaration);
       assert.equal(origins.kind, "resolved", name);
       assert.equal(origins.origins.length, 1, name);
-      assert.equal(demand.isNativeConstructor(origins.origins[0]), name !== "native", name);
+      assert.equal(demand.isNativeConstructor(origins.origins[0].node), name !== "native", name);
     }
     for (const constructor of demand.nativeConstructors) assert.equal(demand.isNativeConstructor(constructor), true);
     assert.equal(demand.isNativeConstructor(declarations.get("record")), false);
