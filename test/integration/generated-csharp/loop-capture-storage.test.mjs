@@ -42,6 +42,46 @@ for (const surface of ["native", "js"]) {
       "one delegate allocation site per authored creation, never a frame cache");
     executeCsharpConstruction(compiled, `loop-named-self-multiple-creations-${surface}`);
   });
+
+  test(`inferred loop delegates compare original identities without invocation allocation in ${surface}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      export function create(): () => boolean {
+        let selected = (): boolean => false;
+        let previous: (() => number) | undefined;
+        for (let index = 0; index < 2; index++) {
+          const read = () => index;
+          const alias = read;
+          const before = previous;
+          selected = (): boolean => alias === read && read === alias &&
+            before !== undefined && before !== read && read !== before &&
+            before() === index - 1 && read() === index;
+          previous = read;
+        }
+        return selected;
+      }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const source = compiled.artifacts.get("src/Index.cs");
+    assert.equal(typeof source, "string");
+    assert.equal((source.match(/object\.ReferenceEquals\(/gu) ?? []).length, 4,
+      "identity comparisons use original delegates rather than adapted values");
+    if (surface === "native") {
+      assert.match(source, /Func<int>/u, "inferred counted-loop result remains native integer");
+      assert.match(source, /Func<double>/u, "authored callable contract retains its declared carrier");
+    }
+    executeCsharpConstruction(compiled, `loop-inferred-delegate-identity-cost-${surface}`, false, false, [], `
+var verify = Tsonic.Generated.Index.create();
+for (var warmup = 0; warmup < 100; warmup++) {
+    if (!verify()) throw new System.Exception("captured delegate identity");
+}
+var before = System.GC.GetAllocatedBytesForCurrentThread();
+for (var iteration = 0; iteration < 10000; iteration++) {
+    if (!verify()) throw new System.Exception("captured delegate identity");
+}
+if (System.GC.GetAllocatedBytesForCurrentThread() != before) throw new System.Exception("identity comparison allocation");
+System.GC.KeepAlive(verify);
+`);
+  });
 }
 
 test("retained loop named-self recursion uses its original live frame without per-call allocation", { timeout: 300_000 }, () => {
