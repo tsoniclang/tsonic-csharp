@@ -50,7 +50,8 @@ for (const surface of [undefined, "js"]) {
     const awaiting = input.awaiting.find(node => {
       const operand = input.source.ast.as.AsAwaitExpression(node).Expression;
       const callee = input.source.ast.as.AsCallExpression(operand)?.Expression;
-      return callee !== undefined && input.source.ast.text(callee) === "storedCompletion";
+      return callee !== undefined && input.source.ast.is.IsIdentifier(callee) &&
+        input.source.ast.text(callee) === "storedCompletion";
     });
     assert.equal(awaiting !== undefined, true, "direct stored callable await");
     const completion = input.program.operations.awaitCompletion(awaiting);
@@ -124,8 +125,9 @@ for (const surface of [undefined, "js"]) {
     assert.equal(statements.length, 0, "call-only promotion adds no module delegate allocation");
   });
 
-  test(`direct async promotion preserves its native int64 result on ${surface ?? "native"}`, () => {
-    const input = fixture(surface, ordinaryAsyncResultSource);
+  for (const exported of [false, true]) test(`${exported ? "exported" : "direct"} async storage preserves its native int64 result on ${surface ?? "native"}`, () => {
+    const input = fixture(surface, exported ? ordinaryAsyncResultSource
+      : ordinaryAsyncResultSource.replace("export const explicit", "const explicit"));
     const declaration = input.variables.get("explicit");
     assert.equal(declaration !== undefined, true, "authored wide async producer");
     const context = createCsharpMemberPlanningContext(createCsharpPlanningContext(input.program));
@@ -136,12 +138,17 @@ for (const surface of [undefined, "js"]) {
     planTopLevelVariableStatement(statement, input.file, context, diagnostics, [], members, statements,
       createDestructuringPlannerState(input.file, input.source.ast), false);
     assert.equal(diagnostics.length, 0);
-    const method = members.find(member => member.kind === "MethodDeclaration" && member.name === "explicit");
-    assert.equal(method !== undefined, true, "exact native static producer");
+    const name = context.names.resolve(input.source.ast.name(declaration));
+    assert.equal(name.kind, "resolved", "exact source identifier including native keyword escaping");
+    const method = members.find(member => member.kind === "MethodDeclaration" && member.name === name.name);
     const signature = getCsharpDelegateSignature(input.program.storage.type(declaration));
     assert.equal(signature !== undefined, true, "sealed native callable");
     assert.equal(targetTypeRefEquals(getCsharpTaskResultTargetType(signature.returnType),
       csharpSourcePrimitiveTargetType("int64")), true, "the result never passes through a floating carrier");
+    assert.equal(method !== undefined, true, "exact native static producer");
+    const visibility = input.program.moduleInitialization.directCallableVisibility(declaration);
+    assert.equal(visibility !== undefined, true, "exact call-only native method classification");
+    assert.equal(method.modifiers.includes(visibility), true, "sealed native visibility survives promotion");
     assert.equal(sameCsharpType(method.returnType, csharpTypeFromTargetTypeRef(signature.returnType)), true,
       "promoted native Task<long> matches its body and caller");
     assert.equal(method.modifiers.includes("async"), true);
