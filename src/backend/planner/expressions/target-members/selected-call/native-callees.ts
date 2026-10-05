@@ -1,6 +1,6 @@
 import type { SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpSourceCalleeSelection } from "../../../../../analysis/operations/source-callees.js";
+import type { CsharpSourceCalleeSelection } from "../../../../../policy/types/callables/source-callees.js";
 import type { CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { ExpressionPlanner } from "../../expression-planner-types.js";

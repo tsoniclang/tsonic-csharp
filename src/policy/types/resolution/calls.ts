@@ -1,11 +1,10 @@
-import type { CsharpSourceCallableContract } from "../callables/source-callable-contract.js";
+import type { CsharpSourceCallContract } from "../callables/source-callable-contract.js";
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { ResolvedSourceCallInfo, CsharpTypeResolutionState } from "./model.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { combineCsharpTargetUnionMembers } from "../../../target-model/types/runtime-carriers.js";
 import { csharpTargetParameterValueType } from "../../../target-model/types/member-facts.js";
-import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { nextState } from "./state.js";
 import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
@@ -16,8 +15,6 @@ import { selectCsharpObjectLiteralUnionShape, csharpObjectLiteralDestinationDecl
 import { csharpNumericLiteralValue, csharpBigIntLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
 import { getCsharpArrayLiteralElementTargetType } from "../../../target-model/types/collections.js";
 import { resolveTypeParameter, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
-import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
-import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";
 
@@ -132,7 +129,7 @@ export function resolveSourceCallInstantiation(
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
   expectedTypeParameterIdentities?: readonly string[],
-  callable?: CsharpSourceCallableContract,
+  callable?: CsharpSourceCallContract,
 ):
   | {
       readonly arguments: readonly TargetTypeRef[];
@@ -316,7 +313,7 @@ export function resolveSourceCallSelectedType(
 export function resolveSourceCallableContractType(
   { host, resolveSourceCallInstantiation, resolveSourceCallReceiverTargetType }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
-  callable: CsharpSourceCallableContract,
+  callable: CsharpSourceCallContract,
   type: TargetTypeRef,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
@@ -364,7 +361,7 @@ export function resolveSourceCallableContractType(
 export function inferSourceCallTargetTypeArguments(
   scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
-  callable: CsharpSourceCallableContract,
+  callable: CsharpSourceCallContract,
   sourceFile: SourceFile,
   parameterIdentities: ReadonlySet<string>,
   state: CsharpTypeResolutionState,
@@ -469,6 +466,9 @@ export function resolveSourceCallReceiverTargetType(
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  if (host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword") {
+    return resolveNodeWithState(source.sourceCallee.expression, selectedSourceFile, nextState(state));
+  }
   if (host.ast.is.IsNewExpression(source.call) && (
     host.ast.is.IsClassDeclaration(source.sourceCallee.selectedDeclaration) &&
     host.navigation.isProjectDeclaration(source.sourceCallee.selectedDeclaration) ||
@@ -489,40 +489,13 @@ export function resolveSourceCallReceiverTargetType(
 }
 
 
-export function sourceCallCalleeDelegateSignature(
-  { host, resolveSelectedValueWithState, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
-  source: ResolvedSourceCallInfo,
-  sourceFile: SourceFile,
-  state: CsharpTypeResolutionState,
-): ReturnType<typeof getCsharpDelegateSignature> {
-  const carrier = resolveSelectedValueWithState(
-    source.sourceCallee.expression,
-    source.sourceCallee.type,
-    sourceFile,
-    nextState(state),
-  );
-  const receiver = source.sourceReceiver;
-  const receiverCarrier = receiver === undefined ? undefined : resolveSelectedValueWithState(
-    receiver.expression, receiver.type, sourceFile, nextState(state));
-  const shape = receiverCarrier === undefined ? undefined : host.structuralTypes.resolveTarget(receiverCarrier);
-  const member = shape === undefined ? undefined : resolveCsharpObjectShapeMemberBySelectedSubject(shape,
-    [source.sourceCallee.selectedDeclaration, source.sourceCallee.declaration, source.sourceCallee.selectedSymbol, source.sourceCallee.symbol]
-      .filter(subject => subject !== undefined));
-  const selected = member?.kind === "resolved" ? member.member.type : carrier;
-  const contract = getCsharpMethodValue(selected)?.contract ?? selected;
-  if (getCsharpDelegateSignature(contract) === undefined) return undefined;
-  const instantiation = resolveSourceCallInstantiation(source, sourceFile, nextState(state));
-  return contract === undefined || instantiation === undefined ? undefined
-    : getCsharpDelegateSignature(substituteTargetTypeParameters(contract, instantiation.substitutions));
-}
-
-
 export function sourceCallableTypeParametersMatch(
   { host }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
-  callable: CsharpSourceCallableContract,
+  callable: CsharpSourceCallContract,
+  kind: "declaration" | "value",
 ): boolean {
-  if (callable.methodTypeParameterIdentities.length === 0) {
+  if (kind === "declaration" && callable.methodTypeParameterIdentities.length === 0) {
     return true;
   }
   const selected = source.sourceSelectedMethodTypeArguments ?? [];

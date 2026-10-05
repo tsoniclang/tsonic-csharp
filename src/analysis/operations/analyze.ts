@@ -1,6 +1,6 @@
 import { classifyCsharpJsValueCallShape } from "./js-value-calls.js";
 import { classifyCsharpUnionCall } from "./union-calls.js";
-import { classifyCsharpSourceCallee } from "./source-callees.js";
+import { classifyCsharpSourceCallee } from "../../policy/types/callables/source-callees.js";
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 import { classifyCsharpClassPropertyStorage } from "./class-property-storage.js";
 import { selectCsharpAwaitCompletion } from "../../target-model/types/await-completions.js";

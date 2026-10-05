@@ -54,7 +54,7 @@ import type {
 } from "../../policy/operations/index.js";
 
 export interface CsharpSourceCallArgumentClassification {
-  readonly sourceCall?: import("./source-callees.js").CsharpSourceCalleeSelection;
+  readonly sourceCall?: import("../../policy/types/callables/source-callees.js").CsharpSourceCalleeSelection;
   readonly sourceNativeParameters?: readonly import("../../target-model/types/model.js").CsharpTargetParameter[];
   readonly sourceMethodValue?: NonNullable<import("../../target-model/types/model.js").CsharpTargetNamedTypeRef["csharpMethodValue"]>;
   readonly sourceParameterTypes?: readonly (TargetTypeRef | undefined)[];

@@ -57,7 +57,8 @@ export function analyzeCsharpModuleInitialization(
       for (const declaration of input.source.ast.children(declarations)) {
         if (declaration === undefined || !input.source.ast.is.IsVariableDeclaration(declaration)) continue;
         const initializer = AsVariableDeclaration(input.source.ast, declaration)?.Initializer;
-        if (initializer === undefined || !input.source.ast.is.IsArrowFunction(initializer)) continue;
+        if (initializer === undefined || !input.source.ast.is.IsArrowFunction(initializer) ||
+          input.source.ast.typeParameters(initializer).length !== 0) continue;
         const summary = input.source.navigation.declarationUseSummary(declaration);
         if (summary.bindingWritten || summary.memberWritten ||
           summary.uses.some(use => use.role !== "call-target" && use.kind !== "type-only" && use.kind !== "source-linkage") ||

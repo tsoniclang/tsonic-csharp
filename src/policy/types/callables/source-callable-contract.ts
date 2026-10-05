@@ -7,18 +7,27 @@ import type {
   TargetTypeRef,
 } from "../../../target-model/types/model.js";
 
-export interface CsharpSourceCallableParameterContract {
-  readonly sourceParameter: Node;
+export interface CsharpSourceCallParameterContract {
+  readonly sourceParameter?: Node;
   readonly targetParameter: CsharpTargetParameter;
 }
 
-export interface CsharpSourceCallableContract {
-  readonly sourceDeclaration: Node;
+export interface CsharpSourceCallContract {
+  readonly sourceDeclaration?: Node;
   readonly methodTypeParameterIdentities: readonly string[];
   readonly receiverTypeOwner?: Node;
-  readonly parameters: readonly CsharpSourceCallableParameterContract[];
+  readonly parameters: readonly CsharpSourceCallParameterContract[];
   readonly returnType: TargetTypeRef;
   readonly sourceReturnType?: TargetTypeRef;
+}
+
+export interface CsharpSourceCallableParameterContract extends CsharpSourceCallParameterContract {
+  readonly sourceParameter: Node;
+}
+
+export interface CsharpSourceCallableContract extends CsharpSourceCallContract {
+  readonly sourceDeclaration: Node;
+  readonly parameters: readonly CsharpSourceCallableParameterContract[];
 }
 
 export type CsharpSourceCallableArtifactIdentity =

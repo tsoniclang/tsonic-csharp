@@ -131,6 +131,25 @@ test("native generic methods remain native calls alongside generic callable fiel
   assert.doesNotMatch(source, /\.identity\.Invoke/u);
 });
 
+for (const surface of ["native", "js"]) test(`static member values follow exact member policy in ${surface}`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    export class Value {
+      static count = 3;
+      static identity(value: number): number { return value; }
+      static generic<Item>(value: Item): Item { return value; }
+    }
+    export function run(): boolean {
+      const identity = Value.identity;
+      return identity(Value.count) === 3 && Value.generic("value") === "value";
+    }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const source = compiled.artifacts.get("src/Index.cs");
+  assert.equal(typeof source, "string", "native static member source");
+  assert.match(source, /Value\.identity/u);
+  assert.match(source, /Value\.generic<string>\("value"\)/u);
+});
+
 test("nested generic callable owners retain outer payloads and distinct invocation binders", () => {
   const { source, owners } = compile(`
     export const create = <Outer>(seed: Outer) =>
@@ -164,7 +183,7 @@ for (const surface of ["native", "js"]) test(`quantified ownership retains the o
 test("captured native constraints survive generated owner declarations", () => {
   const example = genericCallableOwnershipCases.find(example => example.name === "captured-native-constraint");
   const { owners } = compile(example.source);
-  assert.match(owners, /class __TsonicCallable_\w+<Outer>[^]*where Outer : Seed/u);
+  assert.match(owners, /class ObjectShape_callable_\w+<Outer>[^]*where Outer : Seed/u);
   assert.match(owners, /Invoke<Item>\(/u);
 });
 
@@ -172,7 +191,7 @@ test("transitive native constraint dependencies are finalized on the physical ow
   const example = genericCallableOwnershipCases.find(example => example.name === "transitive-native-constraint");
   const { owners } = compile(example.source);
   assert.match(owners, /where Outer : Container<Payload>/u);
-  assert.match(owners, /class __TsonicCallable_\w+<(?:Outer, Payload|Payload, Outer)>/u);
+  assert.match(owners, /class ObjectShape_callable_\w+<(?:Outer, Payload|Payload, Outer)>/u);
   assert.doesNotMatch(owners, /System\.Object|EqualityComparer|\bdynamic\b/u);
 });
 

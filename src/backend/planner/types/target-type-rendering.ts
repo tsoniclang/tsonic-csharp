@@ -25,8 +25,9 @@ export function csharpTypeFromTargetTypeRef(
     return { kind: "IdentifierName", name: "Never", requiredUsingNamespace: "Tsonic.CSharp.Runtime" };
   }
   const method = getCsharpMethodValue(type);
-  if (method !== undefined) return csharpTypeFromTargetTypeRef(method.owner, typeParameterNames);
-  const rendered = csharpTypeFromEnrichedTargetTypeRef(type, typeParameterNames);
+  const rendered = method === undefined
+    ? csharpTypeFromEnrichedTargetTypeRef(type, typeParameterNames)
+    : csharpTypeFromTargetTypeRef(method.owner, typeParameterNames);
   return rendered === undefined
     ? undefined
     : isCsharpNullableReferenceTargetType(type) && rendered.kind !== "NullableType"

@@ -18,6 +18,7 @@ import { getCsharpNullableElementTargetType } from "../../../target-model/types/
 import { Node_Expression } from "@tsonic/target-api/source";
 import { selectCsharpNativeFlowMembers } from "./native-flow-refinement.js";
 import { resolveCsharpInstanceType } from "./instance-tests.js";
+import type { CsharpSourceCallContractSelection } from "./call-contracts.js";
 
 export function resolveNode(
   { resolveNodeWithState }: CsharpTypeResolutionScope,
@@ -364,11 +365,13 @@ export function resolveTypedLocationOperationPointeeWithState(
 
 
 export function resolveSourceCallTypeArguments(
-  { host, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
+  { resolveSourceCallContract, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
 ): readonly TargetTypeRef[] | undefined {
-  const callable = host.representations.sourceCallable(source, sourceFile, "checked");
+  const selected = resolveSourceCallContract(source, sourceFile, { depth: 0 }, "checked");
+  if (selected.kind === "rejected") return undefined;
+  const callable = selected.contract;
   return resolveSourceCallInstantiation(
     source,
     sourceFile,
@@ -380,22 +383,34 @@ export function resolveSourceCallTypeArguments(
 
 
 export function resolveSourceCallParameter(
-  { host, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch, sourceCallCalleeDelegateSignature }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   parameterIndex: number,
   sourceFile: SourceFile,
+): TargetTypeRef | undefined {
+  return resolveSelectedSourceCallParameter(scope, source, parameterIndex, sourceFile,
+    scope.resolveSourceCallContract(source, sourceFile, { depth: 0 }, "checked"));
+}
+
+function resolveSelectedSourceCallParameter(
+  { resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch }: CsharpTypeResolutionScope,
+  source: ResolvedSourceCallInfo,
+  parameterIndex: number,
+  sourceFile: SourceFile,
+  selected: CsharpSourceCallContractSelection,
 ): TargetTypeRef | undefined {
   const parameter = source.sourceSelectedSignatureParameters[parameterIndex];
   if (parameter === undefined) {
     return undefined;
   }
-  const callable = host.representations.sourceCallable(source, sourceFile, "checked");
+  if (selected.kind === "rejected") return undefined;
+  const callable = selected.contract;
   const contractedParameter = callable?.parameters[parameterIndex];
   if (callable !== undefined && contractedParameter !== undefined) {
     if (
       contractedParameter.sourceParameter !==
         parameter.parameterDeclaration ||
-      !sourceCallableTypeParametersMatch(source, callable)
+      !sourceCallableTypeParametersMatch(source, callable, selected.kind)
     ) {
       return undefined;
     }
@@ -407,14 +422,7 @@ export function resolveSourceCallParameter(
       { depth: 0 },
     );
   }
-  const delegateParameter = sourceCallCalleeDelegateSignature(
-    source,
-    sourceFile,
-    { depth: 0 },
-  )?.parameters[parameterIndex];
-  if (delegateParameter !== undefined) {
-    return delegateParameter;
-  }
+  if (selected.kind === "value") return undefined;
   return resolveSourceCallSelectedType(
         source,
         parameter.parameterDeclaration,
@@ -431,28 +439,22 @@ export function resolveSourceCallParameters(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
 ): readonly import("../../../target-model/types/model.js").CsharpTargetParameter[] | undefined {
-  const callable = scope.host.representations.sourceCallable(source, sourceFile, "checked");
-  const signature = callable === undefined
-    ? scope.sourceCallCalleeDelegateSignature(source, sourceFile, { depth: 0 }) : undefined;
-  const parameters = signature === undefined
-    ? source.sourceSelectedSignatureParameters.map((parameter, index) => {
-      const type = scope.resolveSourceCallParameter(source, index, sourceFile);
-      return type === undefined ? undefined : {
-        name: parameter.parameterName, type, passingMode: "by-value" as const,
-        optional: parameter.acceptsOmission, paramsArray: parameter.rest,
-      };
-    })
-    : signature.parameters.map((type, index) => ({
-      name: `parameter${index}`, type, passingMode: "by-value" as const,
-      optional: signature.optionalParameterIndexes?.includes(index) === true,
-      paramsArray: signature.restParameterIndex === index,
-    }));
+  const selected = scope.resolveSourceCallContract(source, sourceFile, { depth: 0 }, "checked");
+  if (selected.kind === "rejected") return undefined;
+  const parameters = source.sourceSelectedSignatureParameters.map((parameter, index) => {
+    const type = resolveSelectedSourceCallParameter(scope, source, index, sourceFile, selected);
+    const contract = selected.contract?.parameters[index]?.targetParameter;
+    return type === undefined ? undefined : {
+      ...(contract ?? { name: parameter.parameterName, passingMode: "by-value" as const,
+        optional: parameter.acceptsOmission, paramsArray: parameter.rest }), type,
+    };
+  });
   return parameters.some(parameter => parameter === undefined) ? undefined
     : Object.freeze(parameters.map(parameter => Object.freeze(parameter!)));
 }
 
 export function resolveSourceCallArgumentParameter(
-  { host, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch, sourceCallCalleeDelegateSignature }: CsharpTypeResolutionScope,
+  { resolveSourceCallContract, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
   sourceFile: SourceFile,
@@ -463,7 +465,9 @@ export function resolveSourceCallArgumentParameter(
   if (parameter === undefined) {
     return undefined;
   }
-  const callable = host.representations.sourceCallable(source, sourceFile, "checked");
+  const selected = resolveSourceCallContract(source, sourceFile, { depth: 0 }, "checked");
+  if (selected.kind === "rejected") return undefined;
+  const callable = selected.contract;
   const contractedParameter = callable?.parameters[
     binding.sourceParameterIndex
   ];
@@ -471,7 +475,7 @@ export function resolveSourceCallArgumentParameter(
     if (
       contractedParameter.sourceParameter !==
         parameter.parameterDeclaration ||
-      !sourceCallableTypeParametersMatch(source, callable)
+      !sourceCallableTypeParametersMatch(source, callable, selected.kind)
     ) {
       return undefined;
     }
@@ -492,21 +496,8 @@ export function resolveSourceCallArgumentParameter(
           binding.sourceForm,
         );
   }
-  const signature = sourceCallCalleeDelegateSignature(
-    source,
-    sourceFile,
-    { depth: 0 },
-  );
-  const parameterIndex = signature?.restParameterIndex === undefined ? binding.effectiveArgumentIndex
-    : Math.min(binding.effectiveArgumentIndex, signature.restParameterIndex);
-  const delegateParameter = signature?.parameters[parameterIndex];
-  if (delegateParameter !== undefined) {
-    return csharpTargetParameterValueType({ name: `parameter${parameterIndex}`,
-      type: delegateParameter, passingMode: "by-value",
-      paramsArray: signature?.restParameterIndex === parameterIndex,
-    }, binding.sourceForm);
-  }
-  const selected = resolveSourceCallSelectedType(
+  if (selected.kind === "value") return undefined;
+  const selectedType = resolveSourceCallSelectedType(
     source,
     parameter.parameterDeclaration,
     parameter.authoredTypeNode,
@@ -514,8 +505,8 @@ export function resolveSourceCallArgumentParameter(
     sourceFile,
     { depth: 0 },
   );
-  return selected === undefined ? undefined : csharpTargetParameterValueType({
-    name: parameter.parameterName, type: selected, passingMode: "by-value", paramsArray: parameter.rest,
+  return selectedType === undefined ? undefined : csharpTargetParameterValueType({
+    name: parameter.parameterName, type: selectedType, passingMode: "by-value", paramsArray: parameter.rest,
   }, binding.sourceForm);
 }
 
@@ -536,14 +527,13 @@ export function resolveSourceCallResult(
 
 
 export function resolveSourceCallResultWithState(
-  { host, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch, sourceCallCalleeDelegateSignature, sourceCallSelectedDeclaration }: CsharpTypeResolutionScope,
+  { host, resolveSourceCallContract, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch, sourceCallSelectedDeclaration }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
   nativeType: TargetTypeRef | undefined,
 ): CsharpSourceCallResult | undefined {
   const declaration = sourceCallSelectedDeclaration(source);
-  const callable = host.representations.sourceCallable(source, sourceFile, "implementation");
   const result = host.semantics(sourceFile).operations.callResult(source);
   const retain = (nativeType: TargetTypeRef | undefined): CsharpSourceCallResult | undefined => {
     const selected = selectCsharpSourceCallResult(host, nativeType, () =>
@@ -552,8 +542,11 @@ export function resolveSourceCallResultWithState(
     return selected;
   };
   if (nativeType !== undefined) return retain(nativeType);
+  const selection = resolveSourceCallContract(source, sourceFile, state, "implementation");
+  if (selection.kind === "rejected") return undefined;
+  const callable = selection.contract;
   if (callable !== undefined) {
-    if (!sourceCallableTypeParametersMatch(source, callable)) {
+    if (!sourceCallableTypeParametersMatch(source, callable, selection.kind)) {
       return undefined;
     }
     if (callable.sourceReturnType !== undefined) {
@@ -570,14 +563,7 @@ export function resolveSourceCallResultWithState(
       state,
     ));
   }
-  const delegateResult = sourceCallCalleeDelegateSignature(
-    source,
-    sourceFile,
-    nextState(state),
-  )?.returnType;
-  if (delegateResult !== undefined) {
-    return retain(delegateResult);
-  }
+  if (selection.kind === "value") return undefined;
   if (result === undefined) {
     return undefined;
   }

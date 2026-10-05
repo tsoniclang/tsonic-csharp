@@ -200,10 +200,6 @@ export function planProjectSourceModuleMemberReference(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  const sourceTypeMemberReference = tryPlanProjectSourceTypeMemberReference(node, sourceFile, input, diagnostics);
-  if (sourceTypeMemberReference !== undefined) {
-    return sourceTypeMemberReference;
-  }
   const sourceReference = getProjectSourceReferenceForModuleMemberNode(node, sourceFile, input);
   if (sourceReference === undefined) {
     return undefined;
@@ -245,10 +241,6 @@ export function tryPlanProjectSourceModuleStaticMemberReference(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  const sourceTypeMemberReference = tryPlanProjectSourceTypeMemberReference(node, sourceFile, input, diagnostics);
-  if (sourceTypeMemberReference !== undefined) {
-    return sourceTypeMemberReference;
-  }
   const sourceReference = getProjectSourceReferenceForModuleMemberNode(node, sourceFile, input);
   if (sourceReference === undefined ||
     isExternalDeclarationReference(sourceReference, sourceFile, input) ||
@@ -328,45 +320,6 @@ function isModuleStaticValueDeclaration(declaration: Node, input: CsharpPlanning
 function isModuleTypeValueDeclaration(declaration: Node, input: CsharpPlanningContext): boolean {
   return HasSourceKind(input.program.source.ast, declaration, KindClassDeclaration) ||
     HasSourceKind(input.program.source.ast, declaration, KindEnumDeclaration);
-}
-
-function tryPlanProjectSourceTypeMemberReference(
-  node: Node,
-  _sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-): CsharpExpression | undefined {
-  if (!HasSourceKind(input.program.source.ast, node, KindPropertyAccessExpression)) {
-    return undefined;
-  }
-  const propertyAccess = AsPropertyAccessExpression(input.program.source.ast, node);
-  if (propertyAccess?.Expression === undefined || propertyAccess.name === undefined) {
-    return undefined;
-  }
-  const receiverReference = input.program.sourceNavigation.referenceFor(propertyAccess.Expression);
-  if (receiverReference === undefined ||
-    receiverReference.sourceFile.IsDeclarationFile ||
-    isProviderVirtualSourceFile(input, receiverReference.sourceFile) ||
-    !isModuleTypeValueDeclaration(receiverReference.declaration, input)) {
-    return undefined;
-  }
-  const selectedMemberReference = input.program.sourceNavigation.referenceFor(node) ??
-    input.program.sourceNavigation.referenceFor(propertyAccess.name);
-  if (selectedMemberReference === undefined ||
-    selectedMemberReference.sourceFile.IsDeclarationFile ||
-    isProviderVirtualSourceFile(input, selectedMemberReference.sourceFile) ||
-    input.program.source.ast.parent(selectedMemberReference.declaration) !== receiverReference.declaration ||
-    !isProjectSourceTypeMemberDeclaration(selectedMemberReference.declaration, input)) {
-    return undefined;
-  }
-  return {
-    kind: "SimpleMemberAccessExpression",
-    receiver: input.scope.classValues?.get(receiverReference.declaration) ?? {
-      kind: "IdentifierName",
-      name: planCsharpSourceModuleMemberName(receiverReference.declaration, input, diagnostics),
-    },
-    name: planCsharpSourceModuleMemberName(selectedMemberReference.declaration, input, diagnostics),
-  };
 }
 
 function isProjectSourceTypeMemberDeclaration(declaration: Node, input: CsharpPlanningContext): boolean {

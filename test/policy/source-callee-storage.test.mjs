@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { classifyCsharpSourceCallee } from "../../dist/analysis/operations/source-callees.js";
+import { classifyCsharpSourceCallee } from "../../dist/policy/types/callables/source-callees.js";
 import { csharpDelegateTargetType } from "../../dist/target-model/types/delegates.js";
 import { csharpNullableTargetType } from "../../dist/target-model/types/nullable.js";
 
@@ -11,13 +11,13 @@ const methodDeclaration = { kind: "method" };
 const variableDeclaration = { kind: "variable" };
 const delegate = csharpDelegateTargetType("System.Action", []);
 const owner = { kind: "target-named", id: "owner", csharpRender: { kind: "name", namespace: [], name: "Owner" } };
-function classify(declaration, selected, access, carrier = delegate) {
+function classify(declaration, selected, access, carrier = delegate, isStatic = false) {
   return classifyCsharpSourceCallee({
     ast: { is: { IsFunctionDeclaration: node => node?.kind === "function", IsMethodDeclaration: node => node?.kind === "method",
       IsClassDeclaration: node => node?.kind === "class" }, parent: node => node.parent,
-      kindName: node => node.kind, hasModifierKind: () => false },
+      kindName: node => node.kind, hasModifierKind: () => isStatic },
     navigation: { sourceReferenceFor: () => declaration === undefined ? undefined : { declaration } },
-    types: { resolveReadStorage: () => carrier, resolveNode: () => carrier, resolveSelectedValue: () => owner },
+    types: { resolveSelectedValue: node => node === expression ? carrier : owner },
   }, { sourceCallee: { expression, selectedDeclaration: selected }, sourceCalleeAccess: access }, {});
 }
 
@@ -42,6 +42,14 @@ test("direct methods supply receiver acquisition without delegate construction",
   assert.equal(selected.receiver.expression, receiver);
   assert.equal(selected.receiver.type, owner);
   assert.equal(Object.isFrozen(selected.receiver), true);
+});
+
+test("static nominal methods use their exact native member receiver rather than module linkage", () => {
+  const method = { kind: "method", parent: { kind: "class" } };
+  const selected = classify(method, method, { kind: "property", expression, receiver: { expression: receiver } }, delegate, true);
+  assert.equal(selected.kind, "method");
+  assert.equal(selected.receiver.expression === receiver, true, "exact static declaring type expression");
+  assert.equal(selected.receiver.type === owner, true, "native receiver carrier");
 });
 
 test("method-value protocols and optional delegates retain their physical storage", () => {

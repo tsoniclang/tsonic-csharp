@@ -1,9 +1,15 @@
 import type { Node, ResolvedSourceCallInfo, SourceFile } from "@tsonic/tsts";
-import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
-import { getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../target-model/types/delegates.js";
-import { getCsharpNullableElementTargetType } from "../../target-model/types/nullable.js";
+import type { CsharpTypePolicyBaseHost, CsharpTypePolicy } from "../resolution/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
+import { getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+
+export interface CsharpSourceCalleeHost {
+  readonly ast: CsharpTypePolicyBaseHost["ast"];
+  readonly navigation: CsharpTypePolicyBaseHost["navigation"];
+  readonly types: Pick<CsharpTypePolicy, "resolveSelectedValue">;
+}
 
 export type CsharpSourceCalleeSelection =
   | { readonly kind: "function"; readonly expression: Node; readonly declaration: Node }
@@ -13,7 +19,7 @@ export type CsharpSourceCalleeSelection =
   | { readonly kind: "rejected"; readonly reason: string };
 
 export function classifyCsharpSourceCallee(
-  policy: CsharpPolicyContext,
+  policy: CsharpSourceCalleeHost,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
 ): CsharpSourceCalleeSelection {
@@ -21,7 +27,7 @@ export function classifyCsharpSourceCallee(
   const selected = source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
   const reference = policy.navigation.sourceReferenceFor(expression);
   const declaration = reference?.declaration ?? source.sourceCalleeAccess?.declaration ?? source.sourceCallee.declaration;
-  const type = policy.types.resolveReadStorage(expression, sourceFile) ?? policy.types.resolveNode(expression, sourceFile);
+  const type = policy.types.resolveSelectedValue(expression, source.sourceCallee.type, sourceFile);
   const reject = (reason: string): CsharpSourceCalleeSelection => Object.freeze({ kind: "rejected", reason });
   if (selected === undefined || declaration === undefined) {
     if (type === undefined || getCsharpCallableValueSignature(getCsharpNullableElementTargetType(type) ?? type) === undefined) {
@@ -33,7 +39,6 @@ export function classifyCsharpSourceCallee(
       policy.ast.is.IsClassDeclaration(policy.ast.parent(declaration))) && source.sourceCalleeAccess?.kind === "property" &&
       (policy.ast.is.IsMethodDeclaration(declaration) || policy.ast.kindName(declaration) === "KindMethodSignature") &&
       (policy.ast.is.IsMethodDeclaration(selected) || policy.ast.kindName(selected) === "KindMethodSignature")) {
-    if (policy.ast.hasModifierKind(selected, "static")) return Object.freeze({ kind: "function", expression, declaration: selected });
     const access = source.sourceCalleeAccess;
     const receiver = policy.types.resolveSelectedValue(access.receiver.expression, access.receiver.type, sourceFile);
     if (receiver === undefined) return reject("A direct source method requires its exact native receiver contract.");

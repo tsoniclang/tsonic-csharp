@@ -167,7 +167,7 @@ export function analyzeCsharpObjectShapes(
       undefined,
       byNode.get(literal),
       contextualShape,
-      ...byTarget.values(),
+      ...[...byTarget.values()].filter(shape => shape.sourceType !== undefined),
     ]);
     for (const shape of expectedShapes) {
       classifyLiteral(shape);

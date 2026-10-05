@@ -11,7 +11,9 @@ import type {
   SourceTypeComponentEvidence,
 } from "@tsonic/target-api/source";
 import { sourceTypeSyntaxRoot, sourceNodeIsNativeUnreachable } from "@tsonic/target-api/source";
-import type { CsharpSourceCallableContract } from "../callables/source-callable-contract.js";
+import type { CsharpSourceCallContract } from "../callables/source-callable-contract.js";
+import { resolveSourceCallContract as resolveSourceCallContractImplementation } from "./call-contracts.js";
+import type { CsharpSourceCallContractSelection } from "./call-contracts.js";
 import { resolveCsharpPointerReturnContract } from "../callables/pointer-return.js";
 import type { CsharpPointerReturnContract } from "../callables/pointer-return.js";
 import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
@@ -19,7 +21,6 @@ import type { ResolvedSourceCallInfo, CsharpRecursiveTypeResolver, CsharpTypePol
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
-import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 import { createCsharpSourceUnionIndex, type CsharpSourceUnionIndex } from "./source-unions.js";
 import { createCsharpSourceUnionDefinitions } from "./union-definitions.js";
 import { createCsharpFixedArrayTypeQuery } from "./source-markers.js";
@@ -87,7 +88,6 @@ import {
   inferSourceCallTargetTypeArguments as inferSourceCallTargetTypeArgumentsImplementation,
   sourceCallSelectedDeclaration as sourceCallSelectedDeclarationImplementation,
   resolveSourceCallReceiverTargetType as resolveSourceCallReceiverTargetTypeImplementation,
-  sourceCallCalleeDelegateSignature as sourceCallCalleeDelegateSignatureImplementation,
   sourceCallableTypeParametersMatch as sourceCallableTypeParametersMatchImplementation,
   sourceValueDeclaration as sourceValueDeclarationImplementation,
   sourceValueDeclarationSyntax as sourceValueDeclarationSyntaxImplementation,
@@ -360,7 +360,7 @@ export interface CsharpTypeResolutionScope {
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
   expectedTypeParameterNames?: readonly string[],
-  callable?: CsharpSourceCallableContract,
+  callable?: CsharpSourceCallContract,
 ):
   | {
       readonly arguments: readonly TargetTypeRef[];
@@ -377,14 +377,14 @@ export interface CsharpTypeResolutionScope {
 ): TargetTypeRef | undefined;
   resolveSourceCallableContractType(
   source: ResolvedSourceCallInfo,
-  callable: CsharpSourceCallableContract,
+  callable: CsharpSourceCallContract,
   type: TargetTypeRef,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
   inferSourceCallTargetTypeArguments(
   source: ResolvedSourceCallInfo,
-  callable: CsharpSourceCallableContract,
+  callable: CsharpSourceCallContract,
   sourceFile: SourceFile,
   parameterNames: ReadonlySet<string>,
   state: CsharpTypeResolutionState,
@@ -397,14 +397,16 @@ export interface CsharpTypeResolutionScope {
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
-  sourceCallCalleeDelegateSignature(
+  resolveSourceCallContract(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
-): ReturnType<typeof getCsharpDelegateSignature>;
+  selection: "checked" | "implementation",
+): CsharpSourceCallContractSelection;
   sourceCallableTypeParametersMatch(
   source: ResolvedSourceCallInfo,
-  callable: CsharpSourceCallableContract,
+  callable: CsharpSourceCallContract,
+  kind: "declaration" | "value",
 ): boolean;
   sourceValueDeclaration(
   node: Node,
@@ -663,8 +665,8 @@ export function createCsharpTypeResolutionServices(
       sourceCallSelectedDeclarationImplementation(scope, ...args),
     resolveSourceCallReceiverTargetType: (...args: DropScope<Parameters<typeof resolveSourceCallReceiverTargetTypeImplementation>>) =>
       resolveSourceCallReceiverTargetTypeImplementation(scope, ...args),
-    sourceCallCalleeDelegateSignature: (...args: DropScope<Parameters<typeof sourceCallCalleeDelegateSignatureImplementation>>) =>
-      sourceCallCalleeDelegateSignatureImplementation(scope, ...args),
+    resolveSourceCallContract: (...args: DropScope<Parameters<typeof resolveSourceCallContractImplementation>>) =>
+      resolveSourceCallContractImplementation(scope, ...args),
     sourceCallableTypeParametersMatch: (...args: DropScope<Parameters<typeof sourceCallableTypeParametersMatchImplementation>>) =>
       sourceCallableTypeParametersMatchImplementation(scope, ...args),
     sourceValueDeclaration: (...args: DropScope<Parameters<typeof sourceValueDeclarationImplementation>>) =>

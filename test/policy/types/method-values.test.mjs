@@ -31,6 +31,19 @@ test("a quantified method reference renders only its existing native environment
   assert.equal(csharpMethodValueCoversContract(value, csharpDelegateTargetType("System.Action", [])), false);
 });
 
+test("nullable quantified callable storage renders the original environment with one native absence", () => {
+  const value = methodValue("Item");
+  const nullable = csharpNullableTargetType(value);
+  const rendered = csharpTypeFromTargetTypeRef(nullable);
+  assert.deepEqual(rendered, { kind: "NullableType", inner: csharpTypeFromTargetTypeRef(value) });
+  assert.deepEqual(csharpTypeFromTargetTypeRef(csharpNullableTargetType(nullable)), rendered);
+  const scalar = { kind: "source-primitive", name: "float64" };
+  const selected = substituteTargetTypeParameters(nullable, new Map([["Outer", scalar]]));
+  assert.deepEqual(csharpTypeFromTargetTypeRef(selected), {
+    kind: "NullableType", inner: csharpTypeFromTargetTypeRef(substituteTargetTypeParameters(value, new Map([["Outer", scalar]]))),
+  });
+});
+
 test("free environment substitution cannot capture the method's own quantifiers", () => {
   const value = methodValue("Item");
   const scalar = { kind: "source-primitive", name: "float64" };
