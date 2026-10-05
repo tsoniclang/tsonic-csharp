@@ -1,15 +1,43 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression, CsharpObjectInitializerAssignment } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpStatement } from "../../target-ast/roslyn/index.js";
+import type { CsharpNamedSelfBinding } from "../../../analysis/callables/named-self.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import { csharpCaptureFrameExpression, csharpCapturedBindingExpression } from "./capture-storage.js";
 import { csharpTypeFromObjectShapeFact } from "../objects/planning.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
-import { getCsharpLocalBindingName } from "./binding-state.js";
+import { allocateExpressionTemp, getCsharpLocalBindingName } from "./binding-state.js";
 import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import { planThisExpression } from "../expressions/expression-this.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
+
+export function planCsharpNamedSelfCaptureContext(
+  self: CsharpNamedSelfBinding, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState,
+): { readonly context: CsharpPlanningContext; readonly prelude: readonly CsharpStatement[] } | undefined {
+  const captureFrames = new Map(input.scope.captureFrames);
+  const capturedBindings = new Map(input.scope.capturedBindings);
+  const prelude: CsharpStatement[] = [];
+  for (const declaration of self.captures) {
+    const frame = input.program.captureStorage.binding(declaration)?.frame;
+    if (frame === undefined || captureFrames.has(frame.scope)) continue;
+    const initializer = csharpCaptureFrameExpression(frame.scope, input, state);
+    const type = csharpTypeFromObjectShapeFact(input, frame.shape, diagnostics, self.declaration);
+    if (initializer === undefined || type === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(self.declaration,
+        "A named self callable requires its exact captured activation frame."));
+      return undefined;
+    }
+    const name = allocateExpressionTemp(state);
+    const retained: CsharpExpression = { kind: "IdentifierName", name };
+    prelude.push({ kind: "LocalDeclarationStatement", name, type, initializer });
+    captureFrames.set(frame.scope, retained);
+    for (const binding of frame.bindings) capturedBindings.set(binding.declaration, {
+      kind: "SimpleMemberAccessExpression", receiver: retained, name: binding.fieldName,
+    });
+  }
+  return { context: { ...input, scope: { ...input.scope, captureFrames, capturedBindings } }, prelude };
+}
 
 export function planCsharpFrameClosureReference(
   node: Node, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state?: DestructuringPlannerState,

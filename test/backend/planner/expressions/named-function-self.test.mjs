@@ -73,4 +73,33 @@ for (const surface of ["native", "js"]) {
     assert.doesNotMatch(source, /\boriginal\(/u);
     assert.doesNotMatch(source, /__TsonicCapture_/u);
   });
+
+  test(`named self values retain the current counted-loop frame in ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      export function create(): (count: number) => number {
+        let selected = (count: number): number => -1;
+        for (let index = 0; index < 3; index++) {
+          selected = function original(count: number): number {
+            const same = original;
+            const identity = (): boolean => same === original;
+            if (!identity()) return -1;
+            return count === 0 ? index : original(count - 1);
+          };
+          index += 1;
+        }
+        return selected;
+      }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const source = compiled.artifacts.get("src/Index.cs");
+    assert.equal(typeof source, "string");
+    const retained = source.match(/ObjectShape_capture_\w+ (__tsonic_value\d+) = (__tsonic_captures\d+);/u);
+    assert.equal(retained !== null, true, "one alias to the current native owner");
+    const method = source.match(/double __tsonic_self_\d+\(double count\)([\s\S]*?)\n\s*__tsonic_self_\d+Value =/u);
+    assert.equal(method !== null, true, "fixed native recursive method");
+    assert.equal(method[1].includes(`${retained[1]}.value0`), true, "body reads the retained activation");
+    assert.equal(method[1].includes(`${retained[2]}.value0`), false, "body never reads the rotating frame local");
+    assert.equal((source.match(/new Func<double, double>\(__tsonic_self_\d+\)/gu) ?? []).length, 1);
+    assert.match(method[1], /object\.ReferenceEquals\(same, __tsonic_self_\d+Value\)/u);
+  });
 }

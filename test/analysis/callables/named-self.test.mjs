@@ -33,10 +33,12 @@ test("named self retains exact call/value identity and immutable closed selectio
   assert.equal(selected?.calls[0] === input.call, true);
   assert.equal(selected?.values.length, 1);
   assert.equal(selected?.values[0] === input.value, true);
-  assert.equal(selected?.captures, false);
+  assert.equal(selected?.captures.length, 0);
+  assert.equal(selected?.capturesReceiver, false);
   assert.equal(Object.isFrozen(selected), true);
   assert.equal(Object.isFrozen(selected.calls), true);
   assert.equal(Object.isFrozen(selected.values), true);
+  assert.equal(Object.isFrozen(selected.captures), true);
 });
 
 test("arrow, anonymous and unused named functions require no fixed-self owner", () => {
@@ -56,13 +58,17 @@ test("named-self capture selection excludes erased metadata but retains real rec
   const evidence = { isCompileTimeMetadata: node => node === metadata };
   const issues = [];
   const erased = selectCsharpNamedSelfBinding(input.source, input.declaration, lexical, evidence, issues);
-  assert.equal(erased?.captures, false);
+  assert.equal(erased?.captures.length, 0);
+  assert.equal(erased?.capturesReceiver, false);
   const captured = selectCsharpNamedSelfBinding(input.source, input.declaration,
     { ...lexical, captures: [...lexical.captures, { declaration: input.otherDeclaration, references: [] }] }, evidence, issues);
-  assert.equal(captured?.captures, true);
+  assert.equal(captured?.captures.length, 1);
+  assert.equal(captured?.captures[0] === input.otherDeclaration, true);
+  assert.equal(captured?.capturesReceiver, false);
   const receiver = selectCsharpNamedSelfBinding(input.source, input.declaration,
     { ...input.lexical, receivers: [{ owner: input.otherDeclaration, references: [input.call] }] }, evidence, issues);
-  assert.equal(receiver?.captures, true);
+  assert.equal(receiver?.captures.length, 0);
+  assert.equal(receiver?.capturesReceiver, true);
   assert.equal(issues.length, 0);
 });
 

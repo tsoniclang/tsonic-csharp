@@ -64,7 +64,7 @@ import {
   planCsharpGeneratorFunction,
 } from "../statements/generators.js";
 import { planLambdaParameterStorage } from "./lambda-parameter-storage.js";
-import { planCsharpFrameClosureReference } from "../bindings/capture-closures.js";
+import { planCsharpFrameClosureReference, planCsharpNamedSelfCaptureContext } from "../bindings/capture-closures.js";
 import { consumeCsharpPlannedValue, planCsharpVoidReturn, planCsharpAbsenceReturn } from "../statements/statement-output.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
@@ -215,9 +215,15 @@ export function planFunctionExpression(
   if (!generatorSyntax && isAsyncExpression(input.program.source.ast, node) && returnContext === undefined) {
     return undefined;
   }
+  const creationState = state ?? createDestructuringPlannerState(node, input.program.source.ast);
+  const self = input.program.captureStorage.closure(node) === undefined ? input.program.captureStorage.namedSelf(node) : undefined;
+  const captureContext = self === undefined ? undefined
+    : planCsharpNamedSelfCaptureContext(self, input, diagnostics, creationState);
+  if (self !== undefined && captureContext === undefined) return undefined;
+  const plannerState = state === undefined ? creationState : createNestedPlannerState(state, node, input.program.source.ast);
   const scopedInput = createLambdaPlanningContext(
     expression.Parameters?.Nodes ?? [],
-    input,
+    captureContext?.context ?? input,
     diagnostics,
     targetContext,
   );
@@ -225,10 +231,6 @@ export function planFunctionExpression(
     return undefined;
   }
   const parameterNodes = expression.Parameters?.Nodes ?? [];
-  const plannerState = state === undefined
-    ? createDestructuringPlannerState(node, input.program.source.ast)
-    : createNestedPlannerState(state, node, input.program.source.ast);
-  const self = input.program.captureStorage.closure(node) === undefined ? input.program.captureStorage.namedSelf(node) : undefined;
   const methodName = self === undefined ? undefined : input.names.temporaryName(`__tsonic_self_${input.program.source.ast.pos(node)}`);
   const valueName = self === undefined || self.values.length === 0 ? undefined : input.names.temporaryName(`${methodName}Value`);
   if (self !== undefined) {
@@ -249,12 +251,13 @@ export function planFunctionExpression(
       return undefined;
     }
     const method: CsharpStatement = { kind: "LocalFunctionStatement", name: methodName!, returnType,
-      modifiers: withCsharpSafetyModifiers([...(self.captures || valueName !== undefined ? [] : ["static" as const]),
+      modifiers: withCsharpSafetyModifiers([...(self.captures.length > 0 || self.capturesReceiver || valueName !== undefined ? [] : ["static" as const]),
         ...(async ? ["async" as const] : [])], node, "declaration", input),
       parameters: nativeParameters as NonNullable<typeof nativeParameters[number]>[], body };
     const value: CsharpExpression = { kind: "ObjectCreationExpression", type: targetContext.type,
       arguments: [{ kind: "Argument", expression: { kind: "IdentifierName", name: methodName! } }] };
-    return valueName === undefined ? complete(value, [method]) : complete({ kind: "IdentifierName", name: valueName }, [
+    return valueName === undefined ? complete(value, [...captureContext?.prelude ?? [], method]) : complete({ kind: "IdentifierName", name: valueName }, [
+      ...captureContext?.prelude ?? [],
       { kind: "LocalDeclarationStatement", name: valueName, type: targetContext.type,
         initializer: { kind: "DefaultExpression", type: targetContext.type, nullForgiving: true } }, method,
       { kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", left: { kind: "IdentifierName", name: valueName },

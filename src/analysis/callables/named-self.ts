@@ -7,7 +7,8 @@ export interface CsharpNamedSelfBinding {
   readonly declaration: Node;
   readonly calls: readonly Node[];
   readonly values: readonly Node[];
-  readonly captures: boolean;
+  readonly captures: readonly Node[];
+  readonly capturesReceiver: boolean;
 }
 
 export function selectCsharpNamedSelfBinding(
@@ -34,6 +35,8 @@ export function selectCsharpNamedSelfBinding(
   }
   if (calls.length === 0 && values.length === 0) return undefined;
   return Object.freeze({ declaration, calls: Object.freeze(calls), values: Object.freeze(values),
-    captures: lexical.receivers.length > 0 || lexical.captures.some(capture => !evidence.isCompileTimeMetadata(capture.declaration)),
+    captures: Object.freeze(lexical.captures.filter(capture => !evidence.isCompileTimeMetadata(capture.declaration))
+      .map(capture => capture.declaration)),
+    capturesReceiver: lexical.receivers.length > 0,
   });
 }
