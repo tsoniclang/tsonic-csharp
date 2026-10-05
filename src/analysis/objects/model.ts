@@ -10,7 +10,7 @@ export interface CsharpObjectShapeClassifications {
   knownShapes(): readonly CsharpObjectShapeFact[];
   methodImplementationHasCopies(shape: CsharpObjectShapeFact): boolean;
   resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;
-  resolveObjectLiteralUnionShape(node: Node, type: TargetTypeRef): CsharpObjectShapeFact | undefined;
+  resolveObjectLiteralUnionCarrier(node: Node, type: TargetTypeRef): TargetTypeRef | undefined;
   resolveNode(
     node: Node | undefined,
     sourceFile?: SourceFile,

@@ -11,7 +11,7 @@ import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { selectCsharpAuthoredUnionRefinement, sourceRefinementOnlyRemovesNullish } from "./source-union-refinement.js";
 import { Node_Expression, ObjectLiteralProperty_Value } from "@tsonic/target-api/source";
-import { selectCsharpObjectLiteralUnionShape, csharpObjectLiteralDestinationDeclarations } from "../objects/object-shape-policy/union-construction.js";
+import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDeclarations } from "../objects/object-shape-policy/union-construction.js";
 import { csharpNumericLiteralValue, csharpBigIntLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
 import { getCsharpArrayLiteralElementTargetType } from "../../../target-model/types/collections.js";
 import { resolveTypeParameter, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
@@ -433,9 +433,9 @@ function sourceArgumentInferencePairs(
     return initializer === undefined || evidence === undefined ? undefined : { initializer, evidence };
   });
   if (elements.some(element => element === undefined)) return undefined;
-  const shape = selectCsharpObjectLiteralUnionShape(pattern, elements.map(element => element!.evidence), host.structuralTypes.resolveTarget,
-    (element, candidate) => csharpObjectLiteralDestinationDeclarations(element, candidate, host.semantics(sourceFile)))
-    ?? host.structuralTypes.resolveTarget(pattern);
+  const carrier = selectCsharpObjectLiteralUnionCarrier(pattern, elements.map(element => element!.evidence), host.structuralTypes.resolveTarget,
+    (element, candidate) => csharpObjectLiteralDestinationDeclarations(element, candidate, host.semantics(sourceFile)), host.typeDefinitions);
+  const shape = host.structuralTypes.resolveTarget(carrier ?? pattern);
   if (shape === undefined) return undefined;
   const pairs: { readonly pattern: TargetTypeRef; readonly actual: TargetTypeRef }[] = [];
   for (const element of elements) {

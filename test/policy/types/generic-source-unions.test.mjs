@@ -6,7 +6,9 @@ import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.j
 import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeFactTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 import { selectCsharpAuthoredUnionRefinement, sourceRefinementOnlyRemovesNullish } from "../../../dist/policy/types/resolution/source-union-refinement.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/selection/core.js";
-import { selectCsharpObjectLiteralUnionShape } from "../../../dist/policy/types/objects/object-shape-policy/union-construction.js";
+import { selectCsharpObjectLiteralUnionCarrier } from "../../../dist/policy/types/objects/object-shape-policy/union-construction.js";
+import { csharpSourceUnionTargetType } from "../../../dist/target-model/types/source-union-definitions.js";
+import { csharpStringTargetType } from "../../../dist/target-model/types/scalar-types.js";
 
 const byte = { kind: "source-primitive", name: "uint8" };
 const integer = { kind: "source-primitive", name: "int32" };
@@ -23,19 +25,55 @@ test("union literal construction requires one total declaration-identity match",
     { targetType: arm("Second", byte), members: [member(secondDeclaration)] },
   ];
   const union = csharpRuntimeUnionTargetType(shapes.map(shape => shape.targetType));
-  const select = (elements, target = union) => selectCsharpObjectLiteralUnionShape(target, elements,
+  const select = (elements, target = union) => selectCsharpObjectLiteralUnionCarrier(target, elements,
     type => shapes.find(shape => targetTypeRefEquals(shape.targetType, type)), element => element.sourceSelectedDeclarations);
   const first = { sourceSelectedDeclarations: [firstDeclaration] };
   const optional = { sourceSelectedDeclarations: [optionalDeclaration] };
-  assert.equal(select([first]), shapes[0]);
-  assert.equal(select([optional, first]), shapes[0]);
-  assert.equal(select([first], csharpNullableTargetType(union)), shapes[0]);
+  assert.equal(select([first]) === shapes[0].targetType, true);
+  assert.equal(select([optional, first]) === shapes[0].targetType, true);
+  assert.equal(select([first], csharpNullableTargetType(union)) === shapes[0].targetType, true);
   assert.equal(select([]), undefined);
   assert.equal(select([optional]), undefined);
   assert.equal(select([first, first]), undefined);
   assert.equal(select([undefined]), undefined);
   assert.equal(select([{ sourceSelectedDeclarations: [{}] }]), undefined);
   assert.equal(select([{ sourceSelectedDeclarations: [firstDeclaration, secondDeclaration] }]), undefined);
+});
+
+test("indexed record union construction retains exact carriers and rejects ambiguous or unavailable arms", () => {
+  const string = csharpStringTargetType();
+  const integer = { kind: "source-primitive", name: "int64" };
+  const record = { kind: "target-named", id: "System.Collections.Generic.Dictionary`2",
+    typeArguments: [string, integer], csharpCollectionSurface: "record" };
+  const alternate = { ...record, typeArguments: [string, byte] };
+  const root = csharpSourceUnionTargetType("record-root", "RecordRoot", []);
+  const definitions = { sourceUnionArms: carrier => carrier === root ? [string, integer, record] : undefined };
+  const select = (target, elements = [{}], source) => selectCsharpObjectLiteralUnionCarrier(target, elements,
+    () => undefined, () => undefined, definitions, source);
+  assert.equal(select(root) === record, true);
+  assert.equal(select(csharpNullableTargetType(root)) === record, true);
+  assert.equal(select(root, []) === record, true);
+  assert.equal(select(root, [undefined]) === undefined, true);
+  assert.equal(select(csharpRuntimeUnionTargetType([string, integer])) === undefined, true);
+  assert.equal(select(csharpRuntimeUnionTargetType([record, alternate])) === undefined, true);
+  assert.equal(select(csharpRuntimeUnionTargetType([record, alternate]), [{}], record) === record, true);
+  assert.equal(select(csharpRuntimeUnionTargetType([record, record]), [{}], record) === undefined, true);
+  assert.equal(select(root, [{}], { ...record, typeArguments: [string, parameter] }) === record, true);
+  assert.equal(select(csharpSourceUnionTargetType("missing", "Missing", [])) === undefined, true);
+});
+
+test("record and declaration-shaped literal matches cannot select an arbitrary union constructor", () => {
+  const declaration = {};
+  const record = { kind: "target-named", id: "System.Collections.Generic.Dictionary`2",
+    typeArguments: [csharpStringTargetType(), byte], csharpCollectionSurface: "record" };
+  const shape = { targetType: arm("Declared", byte), members: [{ type: byte, sourceDeclarations: [declaration] }] };
+  const union = csharpRuntimeUnionTargetType([record, shape.targetType]);
+  const select = source => selectCsharpObjectLiteralUnionCarrier(union, [{ sourceSelectedDeclarations: [declaration] }],
+    carrier => targetTypeRefEquals(carrier, shape.targetType) ? shape : undefined,
+    element => element.sourceSelectedDeclarations, undefined, source);
+  assert.equal(select() === undefined, true);
+  assert.equal(select(shape.targetType) === shape.targetType, true);
+  assert.equal(select(record) === record, true);
 });
 
 test("generic nullable union inference uses one exact arm and retains concrete widths", () => {

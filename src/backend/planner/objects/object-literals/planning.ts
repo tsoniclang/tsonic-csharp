@@ -58,13 +58,13 @@ export function planObjectLiteralExpressionWithExpectedType(
   expectedTargetType?: TargetTypeRef,
   state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
-  const unionShape = expectedTargetType === undefined ? undefined
-    : input.types.objectShapes.resolveObjectLiteralUnionShape(node, expectedTargetType);
-  if (getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(expectedTargetType) ?? expectedTargetType, input.program.typeDefinitions) !== undefined && unionShape === undefined) {
+  const unionCarrier = expectedTargetType === undefined ? undefined
+    : input.types.objectShapes.resolveObjectLiteralUnionCarrier(node, expectedTargetType);
+  if (getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(expectedTargetType) ?? expectedTargetType, input.program.typeDefinitions) !== undefined && unionCarrier === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal requires one exact sealed union-arm construction contract."));
     return undefined;
   }
-  const expectedObjectShape = unionShape ?? getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input, expectedTargetType);
+  const expectedObjectShape = input.types.objectShapes.resolveTarget(unionCarrier) ?? getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input, expectedTargetType);
   const resolved = input.types.objectShapes.resolveObjectLiteralTargetShape(
     expectedObjectShape ?? getExpectedObjectShapeFact(node, sourceFile, input),
     node,

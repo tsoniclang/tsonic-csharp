@@ -182,29 +182,38 @@ export function planExpressionWithExpectedTypeCore(
       ? sourceRepresentation(expression) : expectedRepresentation(expression);
   }
   if (HasSourceKind(input.program.source.ast, node, KindObjectLiteralExpression)) {
-    const dictionaryDiagnosticsStart = diagnostics.length;
-    const dictionaryLiteral = tryPlanRecordDictionaryLiteralWithExpectedType(node, sourceFile, input, diagnostics,
-      expectedTypeSubject, planners.planExpressionWithExpectedType, effectiveExpectedTargetType);
-    if (dictionaryLiteral !== undefined) {
-      return expectedRepresentation(dictionaryLiteral);
-    }
-    if (diagnostics.length > dictionaryDiagnosticsStart) {
+    const unionCarrier = effectiveExpectedTargetType === undefined ? undefined
+      : input.types.objectShapes.resolveObjectLiteralUnionCarrier(node, effectiveExpectedTargetType);
+    const constructionTarget = unionCarrier ?? effectiveExpectedTargetType;
+    const constructionType = unionCarrier === undefined ? expectedType
+      : csharpTypeFromTargetTypeRef(unionCarrier, input.scope.typeParameterNames);
+    if (constructionType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal requires a renderable sealed construction carrier."));
       return undefined;
     }
-    return expectedRepresentation(
-      planObjectLiteralExpressionWithExpectedType(
-        node,
-        sourceFile,
-        input,
-        diagnostics,
-        expectedType,
-        expectedTypeSubject,
-        planners.planExpression,
-        planners.planExpressionWithExpectedType,
-        effectiveExpectedTargetType,
-        state,
-      ),
+    const dictionaryDiagnosticsStart = diagnostics.length;
+    const dictionaryLiteral = tryPlanRecordDictionaryLiteralWithExpectedType(node, sourceFile, input, diagnostics,
+      expectedTypeSubject, planners.planExpressionWithExpectedType, constructionTarget);
+    if (dictionaryLiteral === undefined && diagnostics.length > dictionaryDiagnosticsStart) {
+      return undefined;
+    }
+    const literal = dictionaryLiteral ?? planObjectLiteralExpressionWithExpectedType(
+      node,
+      sourceFile,
+      input,
+      diagnostics,
+      constructionType,
+      expectedTypeSubject,
+      planners.planExpression,
+      planners.planExpressionWithExpectedType,
+      constructionTarget,
+      state,
     );
+    if (unionCarrier === undefined || effectiveExpectedTargetType === undefined) return expectedRepresentation(literal);
+    const conversion = readCsharpConversionClassification(node, input, diagnostics, unionCarrier, effectiveExpectedTargetType, "implicit");
+    return conversion === undefined ? undefined : expectedRepresentation(mapCsharpPlannedValue(literal, effectiveExpectedTargetType,
+      expression => applyCsharpConversionSelection(node, sourceFile, input, diagnostics, unionCarrier,
+        effectiveExpectedTargetType, conversion, expression)));
   }
   if (HasSourceKind(input.program.source.ast, node, KindBinaryExpression)) {
     const binaryDiagnosticsStart = diagnostics.length;

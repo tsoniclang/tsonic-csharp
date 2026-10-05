@@ -658,7 +658,8 @@ export function analyzeCsharpExpectedTypes(
       return;
     }
     if (policy.ast.is.IsObjectLiteralExpression(expression)) {
-      const carrier = getCsharpNullableElementTargetType(targetType) ?? targetType;
+      const construction = objectShapes.resolveObjectLiteralUnionCarrier(expression, targetType) ?? targetType;
+      const carrier = getCsharpNullableElementTargetType(construction) ?? construction;
       const indexedValueType = isCsharpJsValueTargetType(carrier) ? carrier
         : isCsharpRecordDictionaryTargetType(carrier) && carrier.kind === "target-named"
         ? carrier.typeArguments?.[1] : undefined;
@@ -679,7 +680,7 @@ export function analyzeCsharpExpectedTypes(
         }
         return;
       }
-      const expectedShape = objectShapes.resolveObjectLiteralUnionShape(expression, targetType) ?? objectShapes.resolveTarget(targetType);
+      const expectedShape = objectShapes.resolveTarget(construction);
       const resolution = objectShapes.resolveObjectLiteralTargetShape(
         expectedShape,
         expression,

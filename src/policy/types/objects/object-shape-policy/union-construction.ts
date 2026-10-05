@@ -4,17 +4,21 @@ import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../../target-mo
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/nullable.js";
 import type { CsharpTypeDefinitions } from "../../../../target-model/types/source-union-definitions.js";
+import { isCsharpRecordDictionaryTargetType } from "../../../../target-model/types/collections.js";
+import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
-export function selectCsharpObjectLiteralUnionShape(
+export function selectCsharpObjectLiteralUnionCarrier(
   target: TargetTypeRef,
   elements: readonly (ResolvedSourceObjectLiteralElementInfo | undefined)[],
   resolveShape: (type: TargetTypeRef) => CsharpObjectShapeFact | undefined,
   destinationDeclarations: (element: ResolvedSourceObjectLiteralElementInfo, shape: CsharpObjectShapeFact) => readonly Node[] | undefined,
   definitions?: CsharpTypeDefinitions,
-): CsharpObjectShapeFact | undefined {
+  source?: TargetTypeRef,
+): TargetTypeRef | undefined {
   const arms = getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(target) ?? target, definitions);
   if (arms === undefined || elements.some(element => element === undefined)) return undefined;
   const candidates = arms.flatMap(arm => {
+    if (isCsharpRecordDictionaryTargetType(arm)) return [arm];
     const shape = resolveShape(arm);
     if (shape === undefined) return [];
     const selected = elements.map(element => {
@@ -25,9 +29,10 @@ export function selectCsharpObjectLiteralUnionShape(
     if (selected.some(members => members.length !== 1)) return [];
     const members = new Set(selected.map(matches => matches[0]!));
     if (members.size !== selected.length || shape.members.some(member => !member.optional && !members.has(member))) return [];
-    return [shape];
+    return [arm];
   });
-  return candidates.length === 1 ? candidates[0] : undefined;
+  const exact = source === undefined ? [] : candidates.filter(carrier => targetTypeRefEquals(carrier, source));
+  return exact.length === 1 ? exact[0] : candidates.length === 1 ? candidates[0] : undefined;
 }
 
 export function csharpObjectLiteralDestinationDeclarations(

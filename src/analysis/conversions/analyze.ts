@@ -159,6 +159,9 @@ export function analyzeCsharpConversions(
           expectedTypes.requiresExactIntegerConversion(node, targetType));
       }
       classifyArrayCarrier(node, targetType, expectedTypes, operations, storage);
+      if (policy.ast.is.IsObjectLiteralExpression(node)) {
+        classifyPair(objectShapes.resolveObjectLiteralUnionCarrier(node, targetType), targetType, "implicit", node);
+      }
     }
     if (
       sourceType !== undefined &&

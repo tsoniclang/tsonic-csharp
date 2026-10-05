@@ -13,7 +13,7 @@ import {
   targetTypeRefEquals,
   getCsharpRuntimeUnionArms,
 } from "../../policy/types/index.js";
-import { selectCsharpObjectLiteralUnionShape, csharpObjectLiteralDestinationDeclarations } from "../../policy/types/objects/object-shape-policy/union-construction.js";
+import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDeclarations } from "../../policy/types/objects/object-shape-policy/union-construction.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
 import type { CsharpObjectShapeClassifications } from "./model.js";
@@ -141,23 +141,24 @@ export function analyzeCsharpObjectShapes(
     Node,
     ReadonlyMap<string, CsharpObjectLiteralTargetShapeResolution>
   >();
-  const literalUnionShapes = new WeakMap<Node, ReadonlyMap<string, CsharpObjectShapeFact>>();
+  const literalUnionCarriers = new WeakMap<Node, ReadonlyMap<string, TargetTypeRef>>();
   const unionTypes = evidence.targetTypes.filter(type =>
     getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(type) ?? type, policy.typeDefinitions) !== undefined);
   for (const [literal, sourceFile] of objectLiterals) {
-    const unionShapes = new Map<string, CsharpObjectShapeFact>();
+    const unionCarriers = new Map<string, TargetTypeRef>();
     const elements = policy.ast.properties(literal).map(element => element === undefined
       ? undefined : policy.semantics(sourceFile).operations.objectLiteralElement(element));
     for (const type of unionTypes) {
       reserveClassification();
-      const shape = selectCsharpObjectLiteralUnionShape(type, elements, policy.objectShapes.resolveTarget,
-        (element, candidate) => csharpObjectLiteralDestinationDeclarations(element, candidate, policy.semantics(sourceFile)), policy.typeDefinitions);
-      if (shape !== undefined) {
-        unionShapes.set(targetTypeRefKey(type), shape);
-        rememberShape(shape);
+      const carrier = selectCsharpObjectLiteralUnionCarrier(type, elements, policy.objectShapes.resolveTarget,
+        (element, candidate) => csharpObjectLiteralDestinationDeclarations(element, candidate, policy.semantics(sourceFile)),
+        policy.typeDefinitions, evidence.nodeTargetType(literal));
+      if (carrier !== undefined) {
+        unionCarriers.set(targetTypeRefKey(type), carrier);
+        rememberShape(policy.objectShapes.resolveTarget(carrier));
       }
     }
-    literalUnionShapes.set(literal, unionShapes);
+    literalUnionCarriers.set(literal, unionCarriers);
     const results = new Map<string, CsharpObjectLiteralTargetShapeResolution>();
     const contextualShape = policy.objectShapes.resolveType(
       evidence.contextualType(literal),
@@ -268,8 +269,8 @@ export function analyzeCsharpObjectShapes(
       const { registerStructuralInterface: _register, seal: _seal, ...snapshot } = classifications;
       return Object.freeze(snapshot);
     },
-    resolveObjectLiteralUnionShape(node, type) {
-      return literalUnionShapes.get(node)?.get(targetTypeRefKey(type));
+    resolveObjectLiteralUnionCarrier(node, type) {
+      return literalUnionCarriers.get(node)?.get(targetTypeRefKey(type));
     },
     resolveCopyShape(shape) {
       return copies.get(targetTypeRefKey(shape.targetType));
