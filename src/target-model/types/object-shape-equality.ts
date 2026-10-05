@@ -2,6 +2,7 @@ import { canonicalCsharpObjectShapeImplementedTypes, canonicalCsharpObjectShapeM
 import { targetTypeRefEquals } from "./equality.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "./model.js";
 import { csharpSourceMemberKeysEqual } from "./source-member-keys.js";
+import { csharpOwnerTypeParameterConstraintKey } from "../declarations/generic-constraints.js";
 
 export function csharpObjectShapesEqual(
   left: CsharpObjectShapeFact,
@@ -10,6 +11,7 @@ export function csharpObjectShapesEqual(
   const leftMembers = canonicalCsharpObjectShapeMembers(left.members);
   const rightMembers = canonicalCsharpObjectShapeMembers(right.members);
   return targetTypeRefEquals(left.targetType, right.targetType) &&
+    csharpOwnerTypeParameterConstraintKey(left.targetType) === csharpOwnerTypeParameterConstraintKey(right.targetType) &&
     JSON.stringify(left.covariantTypeParameterIdentities ?? []) === JSON.stringify(right.covariantTypeParameterIdentities ?? []) &&
     left.methodImplementation?.identity === right.methodImplementation?.identity &&
     left.methodImplementation?.declaration === right.methodImplementation?.declaration &&

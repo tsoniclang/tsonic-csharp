@@ -13,7 +13,9 @@ const delegate = csharpDelegateTargetType("System.Action", []);
 const owner = { kind: "target-named", id: "owner", csharpRender: { kind: "name", namespace: [], name: "Owner" } };
 function classify(declaration, selected, access, carrier = delegate) {
   return classifyCsharpSourceCallee({
-    ast: { is: { IsFunctionDeclaration: node => node?.kind === "function", IsMethodDeclaration: node => node?.kind === "method" }, kindName: node => node.kind, hasModifierKind: () => false },
+    ast: { is: { IsFunctionDeclaration: node => node?.kind === "function", IsMethodDeclaration: node => node?.kind === "method",
+      IsClassDeclaration: node => node?.kind === "class" }, parent: node => node.parent,
+      kindName: node => node.kind, hasModifierKind: () => false },
     navigation: { sourceReferenceFor: () => declaration === undefined ? undefined : { declaration } },
     types: { resolveReadStorage: () => carrier, resolveNode: () => carrier, resolveSelectedValue: () => owner },
   }, { sourceCallee: { expression, selectedDeclaration: selected }, sourceCalleeAccess: access }, {});
@@ -51,4 +53,14 @@ test("method-value protocols and optional delegates retain their physical storag
 test("missing native callee storage evidence rejects without printed-name guessing", () => {
   assert.equal(classify(variableDeclaration, functionDeclaration, undefined, { kind: "source-primitive", name: "uint64" }).kind, "rejected");
   assert.equal(classify(undefined, undefined, undefined, { kind: "source-primitive", name: "uint64" }).kind, "rejected");
+});
+
+test("nominal generic class methods retain native calls rather than structural callable storage", () => {
+  const method = { kind: "method", parent: { kind: "class" } };
+  const methodValue = { ...owner, csharpMethodValue: { owner, contract: delegate, method: "Invoke", identity: "method", typeParameters: ["Item"] } };
+  const selected = classify(method, method, { kind: "property", receiver: { expression: receiver } }, methodValue);
+  assert.equal(selected.kind, "method", "native nominal method call");
+  assert.equal(selected.receiver.expression === receiver, true, "exact native receiver");
+  assert.equal(classify(methodDeclaration, methodDeclaration,
+    { kind: "property", receiver: { expression: receiver } }, methodValue).kind, "value", "structural callable protocol remains distinct");
 });

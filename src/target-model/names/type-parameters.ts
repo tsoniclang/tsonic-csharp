@@ -18,7 +18,7 @@ export function csharpSourceTypeParameter(declaration: Node, ast: AstReader): Ex
   const identity = sourceNodeIdentity(ast, declaration);
   if (nameNode === undefined || identity === undefined) return undefined;
   const name = ast.text(nameNode);
-  return name.length === 0 ? undefined : Object.freeze({ kind: "type-parameter", identity, name });
+  return name.length === 0 ? undefined : Object.freeze({ kind: "type-parameter", identity, name, csharpDeclaration: declaration });
 }
 
 export {

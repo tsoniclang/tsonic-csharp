@@ -15,6 +15,8 @@ import { selectCsharpFrameClosures, type CsharpFrameClosure } from "./capture-cl
 import { csharpTargetNamedType } from "../../target-model/types/factories.js";
 import { selectCsharpGenericFrameClosures } from "./generic-closures.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
+import type { CsharpSourceNameResolver } from "../names/source-names.js";
+import { createCsharpTypeParameterEnvironment } from "../../policy/constraints/type-parameter-environment.js";
 
 export interface CsharpCaptureFrame {
   readonly scope: Node;
@@ -42,6 +44,7 @@ export interface CsharpCaptureStorage {
   forShape(type: TargetTypeRef): CsharpCaptureFrame | undefined;
   valueDeclarationsAt(statement: Node): readonly Node[];
   valueCreation(declaration: Node): SourceLexicalValueCreation | undefined;
+  valueName(declaration: Node): string | undefined;
 }
 
 export function analyzeCsharpCaptureStorage(
@@ -50,7 +53,9 @@ export function analyzeCsharpCaptureStorage(
   storage: CsharpStorageClassifications,
   evidence: CsharpSourceEvidenceIndex,
   classCaptures: readonly import("../project-types/class-factories.js").CsharpClassCapture[],
+  names: CsharpSourceNameResolver,
 ): CsharpCaptureStorage {
+  const environment = createCsharpTypeParameterEnvironment(source.ast, declaration => evidence.typeParameterConstraints(declaration));
   const groups = new Map<Node, Map<Node, TargetTypeRef>>();
   const issues: CsharpStorageIssue[] = [];
   const physicalType = (declaration: Node, logicalType: TargetTypeRef): TargetTypeRef => {
@@ -137,7 +142,7 @@ export function analyzeCsharpCaptureStorage(
       const protocol = getCsharpMethodValue(method.type);
       return protocol === undefined ? [] : [protocol.owner];
     }));
-    const selectedType = createStructuralObjectShapeTarget(members, implementations);
+    const selectedType = createStructuralObjectShapeTarget(members, implementations, environment);
     const identity = sourceNodeIdentity(source.ast, scope);
     if (identity === undefined || selectedType.kind !== "target-named") throw new Error("A native capture frame requires an exact named source identity.");
     const digest = createHash("sha256").update(identity).digest("hex");
@@ -155,7 +160,8 @@ export function analyzeCsharpCaptureStorage(
   };
   for (const scope of groups.keys()) buildFrame(scope);
   const valueFrames: CsharpCaptureFrame[] = [];
-  for (const method of genericClosures.filter(method => method.scope === method.declaration)) {
+  const valueMethods = genericClosures.filter(method => method.scope === method.declaration);
+  for (const method of valueMethods) {
     const captured = method.captures.map(declaration => {
       const type = evidence.storageTargetType(declaration) ?? evidence.nodeTargetType(declaration);
       return type === undefined ? undefined : { declaration, type: physicalType(declaration, type), shared: byBinding.get(declaration) };
@@ -177,7 +183,7 @@ export function analyzeCsharpCaptureStorage(
       sourceKey: { kind: "property" as const, name: field.fieldName }, sourceName: field.fieldName,
       targetName: field.fieldName, type: field.type, memberKind: "property" as const,
     })));
-    const selectedType = createStructuralObjectShapeTarget(members, [contract]);
+    const selectedType = createStructuralObjectShapeTarget(members, [contract], environment);
     const digest = createHash("sha256").update(identity).digest("hex");
     const type = csharpTargetNamedType(`tsonic.shape:callable_${digest}`, selectedType.kind === "target-named" ? selectedType.typeArguments : undefined,
       { kind: "named", name: `__TsonicCallable_${digest}` }, { typeofRuntimeKind: "function" });
@@ -190,14 +196,34 @@ export function analyzeCsharpCaptureStorage(
   }
   const valueDeclarations = new Map<Node, Node[]>();
   const valueCreations = new Map<Node, SourceLexicalValueCreation>();
+  const valueNames = new Map<Node, string>();
   const visitValues = (node: Node): void => {
     if (source.ast.is.IsFunctionDeclaration(node) && source.ast.body(node) !== undefined &&
-      !source.ast.is.IsSourceFile(source.ast.parent(node))) {
+      !evidence.isCompileTimeMetadata(node)) {
+      const quantifiedUse = source.ast.typeParameters(node).length === 0 ? undefined
+        : source.navigation.declarationUseSummary(node).uses.find(use => use.kind === "first-class" &&
+          !evidence.isCompileTimeMetadata(use.reference) &&
+          (getCsharpMethodValue(evidence.nodeTargetType(use.reference))?.typeParameters.length ?? 0) > 0);
+      if (quantifiedUse !== undefined) {
+        issues.push({ node: quantifiedUse.reference, code: "CSHARP_QUANTIFIED_NAMED_CALLABLE_NOT_SUPPORTED",
+          message: "A named quantified function has no supported native callable-value owner." });
+      }
+      if (source.ast.is.IsSourceFile(source.ast.parent(node))) {
+        source.ast.forEachChild(node, child => { if (child !== undefined) visitValues(child); });
+        return;
+      }
       const creation = sourceLexicalFunctionValueCreation(node, source.ast, source.navigation,
         use => !evidence.isCompileTimeMetadata(use.reference));
       valueCreations.set(node, creation);
       if (creation.kind === "unresolved") issues.push({ node, code: "CSHARP_LEXICAL_VALUE_ACTIVATION_NOT_CLOSED", message: creation.reason });
       if (creation.kind === "resolved") {
+        if (creation.inlineReference === undefined) {
+          const selectedName = names.resolve(source.ast.name(node), node);
+          if (selectedName.kind !== "resolved") {
+            issues.push({ node, code: "CSHARP_LEXICAL_VALUE_ACTIVATION_NOT_CLOSED",
+              message: "A lexical function value requires an exact stable declaration identity." });
+          } else valueNames.set(node, names.temporaryName(`${selectedName.name}Callable`));
+        }
         const values = valueDeclarations.get(creation.statement) ?? [];
         values.push(node);
         valueDeclarations.set(creation.statement, values);
@@ -219,6 +245,7 @@ export function analyzeCsharpCaptureStorage(
     closure: (declaration: Node) => byClosure.get(declaration), forShape: (type: TargetTypeRef) => byShape.get(targetTypeRefKey(type)),
     valueDeclarationsAt: (statement: Node) => scheduledValues.get(statement) ?? empty,
     valueCreation: (declaration: Node) => valueCreations.get(declaration),
+    valueName: (declaration: Node) => valueNames.get(declaration),
   });
 }
 

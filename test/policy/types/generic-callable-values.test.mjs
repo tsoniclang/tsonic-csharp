@@ -6,6 +6,9 @@ import { getCsharpMethodValue, rebindCsharpMethodValueTypeParameters } from "../
 import { targetTypeRefEquals, targetTypeRefIsClosed } from "../../../dist/target-model/types/equality.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-types.js";
 import { substituteTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
+import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/types/generic-references.js";
+
+const unconstrainedEnvironment = () => ({ kind: "resolved", constraints: [] });
 
 function quantifiedChoice(identity, constraints = []) {
   const parameter = { kind: "type-parameter", identity, name: identity };
@@ -15,7 +18,7 @@ function quantifiedChoice(identity, constraints = []) {
     [{ identity, name: identity, declaration: {}, constraints }], shape => {
       shapes.push(shape);
       return shape;
-    });
+    }, unconstrainedEnvironment);
   return { parameter, signature, shapes, value };
 }
 
@@ -62,13 +65,45 @@ test("generic callable protocols retain constraints and reject malformed quantif
   assert.equal(rebindCsharpMethodValueTypeParameters(selected.value, []) === undefined, true, "arity mismatch");
   assert.equal(rebindCsharpMethodValueTypeParameters(selected.value, [{ ...selected.parameter, identity: "" }]) === undefined,
     true, "empty quantifier identity");
-  assert.equal(retainCsharpGenericCallableValue(selected.signature, [], shape => shape) === undefined, true,
+  assert.equal(retainCsharpGenericCallableValue(selected.signature, [], shape => shape, unconstrainedEnvironment) === undefined, true,
     "non-generic signatures use ordinary delegates");
   assert.equal(retainCsharpGenericCallableValue(selected.parameter,
-    [{ identity: "Item", name: "Item", declaration: {}, constraints: [] }], shape => shape) === undefined, true,
+    [{ identity: "Item", name: "Item", declaration: {}, constraints: [] }], shape => shape, unconstrainedEnvironment) === undefined, true,
     "not a callable signature");
   assert.equal(retainCsharpGenericCallableValue(selected.signature,
     [{ identity: "Item", name: "Item", declaration: {}, constraints: [] },
-      { identity: "Item", name: "Item", declaration: {}, constraints: [] }], shape => shape) === undefined, true,
+      { identity: "Item", name: "Item", declaration: {}, constraints: [] }], shape => shape, unconstrainedEnvironment) === undefined, true,
     "duplicate quantifier identity");
+});
+
+test("nested callable invocation binders are not free captured owner parameters", () => {
+  const inner = quantifiedChoice("Inner");
+  const outer = { kind: "type-parameter", identity: "Outer", name: "Outer" };
+  const signature = csharpDelegateTargetType("System.Func", [outer], inner.value);
+  assert.deepEqual([...csharpFreeTypeParameterIdentities([signature])], ["Outer"]);
+  const shapes = [];
+  const selected = retainCsharpGenericCallableValue(signature,
+    [{ identity: "Outer", name: "Outer", declaration: {}, constraints: [] }], shape => {
+      shapes.push(shape);
+      return shape;
+    }, unconstrainedEnvironment);
+  assert.equal(selected !== undefined, true, "closed outer invocation contract");
+  assert.equal(targetTypeRefIsClosed(selected), true, "one closed physical owner");
+  assert.equal(getCsharpMethodValue(getCsharpCallableValueSignature(selected).returnType).typeParameters[0], "Inner");
+  assert.equal(shapes.length, 1);
+  const scalar = { kind: "source-primitive", name: "float64" };
+  const substituted = substituteTargetTypeParameters(selected, new Map([["Outer", scalar], ["Inner", scalar]]));
+  assert.equal(targetTypeRefEquals(getCsharpCallableValueSignature(substituted).parameters[0], outer), true,
+    "substitution cannot capture the outer invocation binder");
+  assert.equal(targetTypeRefEquals(getCsharpCallableValueSignature(getCsharpCallableValueSignature(substituted).returnType).returnType,
+    inner.parameter), true, "substitution cannot capture the nested invocation binder");
+});
+
+test("free parameter discovery distinguishes the same type inside and outside a nested quantifier", () => {
+  const inner = quantifiedChoice("Item");
+  const signature = csharpDelegateTargetType("System.Func", [inner.value, inner.parameter], inner.value);
+  assert.deepEqual([...csharpFreeTypeParameterIdentities([signature])], ["Item"], "unbound sibling remains visible");
+  assert.equal(retainCsharpGenericCallableValue(signature,
+    [{ identity: "Outer", name: "Outer", declaration: {}, constraints: [] }], shape => shape, unconstrainedEnvironment) === undefined, true,
+    "a genuinely free foreign parameter is still rejected");
 });

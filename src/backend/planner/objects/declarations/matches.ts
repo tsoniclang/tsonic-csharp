@@ -208,5 +208,5 @@ function objectShapeTypeParametersMatch(
 ): boolean {
   const actualParameters = actual ?? [];
   return actualParameters.length === expected.length &&
-    actualParameters.every((parameter, index) => parameter.name === expected[index]?.name);
+    actualParameters.every((parameter, index) => JSON.stringify(parameter) === JSON.stringify(expected[index]));
 }

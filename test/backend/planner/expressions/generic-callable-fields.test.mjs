@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
+import { genericCallableOwnershipCases, unsupportedGenericCallableOwnershipCases } from "../../../fixtures/generic-callable-ownership.mjs";
+import { receiverFieldUnconstrainedEqualitySource } from "../../../../../tsonic/test/fixtures/receiver-field-capture-edges.mjs";
 
 function compile(sourceText) {
   const compiled = compileCsharpSource({ sourceText });
@@ -94,8 +96,10 @@ test("generic escaping callables share mutable lexical storage with ordinary cal
 
 test("nested generic callable owners are discovered before the synthetic source contract is finalized", () => {
   const { source, owners } = compile(`
-    export const create = <Outer>(seed: Outer) =>
-      <T>(left: T, right: T): T => seed === seed ? left : right;
+    export const create = <Outer>(seed: Outer) => {
+      const held: Outer[] = [seed];
+      return <T>(left: T, right: T): T => held.length !== 0 ? left : right;
+    };
     export function run(): string {
       const choose = create(3);
       return choose("left", "right");
@@ -105,7 +109,7 @@ test("nested generic callable owners are discovered before the synthetic source 
   assert.match(source, /choose\.Invoke<string>\(/u);
   assert.match(owners, /\bInvoke<Outer>\(/u);
   assert.match(owners, /\bInvoke<T>\(T left, T right\)/u);
-  assert.match(owners, /value0 == /u);
+  assert.match(owners, /\.Length/u);
 });
 
 test("native generic methods remain native calls alongside generic callable fields", () => {
@@ -124,4 +128,78 @@ test("native generic methods remain native calls alongside generic callable fiel
   assert.match(source, /identity<string>\(/u);
   assert.match(source, /\.choose\.Invoke<string>\(/u);
   assert.doesNotMatch(source, /\.identity\.Invoke/u);
+});
+
+test("nested generic callable owners retain outer payloads and distinct invocation binders", () => {
+  const { source, owners } = compile(`
+    export const create = <Outer>(seed: Outer) =>
+      <T>(value: T): { seed: Outer; value: T } => ({ seed, value });
+    export function run(): boolean {
+      const first = create(3);
+      const second = create("seed");
+      const left = first("left");
+      const right = second(7);
+      return left.seed === 3 && left.value === "left" && right.seed === "seed" && right.value === 7;
+    }
+  `);
+  assert.match(source, /create\.Invoke<double>\(/u);
+  assert.match(source, /create\.Invoke<string>\(/u);
+  assert.match(source, /first\.Invoke<string>\(/u);
+  assert.match(source, /second\.Invoke<double>\(/u);
+  assert.match(owners, /value0/u);
+  assert.doesNotMatch(owners, /System\.Object|\bdynamic\b/u);
+});
+
+for (const surface of ["native", "js"]) test(`quantified ownership retains the original unconstrained equality rejection in ${surface}`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: receiverFieldUnconstrainedEqualitySource });
+  assert.equal(compiled.result.diagnostics.some(diagnostic =>
+    diagnostic.code === "CSHARP_UNSUPPORTED_AST" && diagnostic.message.includes("over a type parameter")), true,
+  "unconstrained generic operator rejection remains exact");
+  assert.equal(compiled.result.diagnostics.some(diagnostic =>
+    diagnostic.code === "CSHARP_GENERIC_CALLABLE_CONTRACT_NOT_CLOSED"), false,
+  "nested invocation ownership is independently closed");
+});
+
+test("captured native constraints survive generated owner declarations", () => {
+  const example = genericCallableOwnershipCases.find(example => example.name === "captured-native-constraint");
+  const { owners } = compile(example.source);
+  assert.match(owners, /class __TsonicCallable_\w+<Outer>[^]*where Outer : Seed/u);
+  assert.match(owners, /Invoke<Item>\(/u);
+});
+
+test("transitive native constraint dependencies are finalized on the physical owner", () => {
+  const example = genericCallableOwnershipCases.find(example => example.name === "transitive-native-constraint");
+  const { owners } = compile(example.source);
+  assert.match(owners, /where Outer : Container<Payload>/u);
+  assert.match(owners, /class __TsonicCallable_\w+<(?:Outer, Payload|Payload, Outer)>/u);
+  assert.doesNotMatch(owners, /System\.Object|EqualityComparer|\bdynamic\b/u);
+});
+
+for (const example of unsupportedGenericCallableOwnershipCases) for (const surface of ["native", "js"]) {
+  test(`unimplemented quantified ownership rejects ${example.name} in ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: example.source, files: example.files });
+    assert.equal(compiled.result.diagnostics.some(diagnostic =>
+      diagnostic.code === example.code && diagnostic.message.includes(example.message)), true, example.name);
+    assert.equal(compiled.artifacts.size, 0, "no partial native artifact for an unsupported quantified owner");
+  });
+}
+
+test("supported named local monomorphic values retain their existing native delegate ownership", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    export function create(seed: number) {
+      function choose(left: number, right: number): number { return seed > 0 ? left : right; }
+      const first = choose;
+      const second = choose;
+      return { first, second };
+    }
+    export function main(): void {
+      const selected = create(1);
+      if (selected.first !== selected.second || selected.first(3, 4) !== 3) throw new Error("native delegate");
+    }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const source = compiled.artifacts.get("src/Index.cs");
+  assert.equal(typeof source, "string", "existing named local source");
+  assert.match(source, /chooseCallable/u);
+  assert.doesNotMatch(source, /\.Invoke<|EqualityComparer|\bdynamic\b/u);
 });

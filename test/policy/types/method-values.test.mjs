@@ -17,6 +17,7 @@ function contract(name) {
   return csharpDelegateTargetType("System.Func", [type], type);
 }
 const methodValue = (name, method = "identity") => csharpMethodValueType(owner, method, method, contract(name), [name]);
+const unconstrained = () => ({ kind: "resolved", constraints: [] });
 
 test("a quantified method reference renders only its existing native environment", () => {
   const value = methodValue("Item");
@@ -58,7 +59,7 @@ test("optional native method storage retains a required present protocol without
     typeParameters: [{ identity: "Item", name: "Item", declaration: {}, constraints: [] }] };
   const recorded = [];
   const shape = retainCsharpMethodValueContracts({ targetType: { ...owner, csharpStructuralContract: true }, members: [member] },
-    fact => { recorded.push(fact); return fact; });
+    fact => { recorded.push(fact); return fact; }, unconstrained);
   assert.equal(shape.members[0].optional, true);
   assert.equal(recorded[0].members[0].optional, undefined);
   assert.equal(getCsharpNullableElementTargetType(recorded[0].members[0].type), undefined);
@@ -79,14 +80,14 @@ test("copied generic methods retain only the exact original environment and mini
     memberKind: "method", type: contract("Item"), typeParameters: [{ identity: "Item", name: "Item", declaration: {}, constraints: [] }] };
   const recorded = [];
   const shape = retainCsharpMethodValueContracts({ targetType: owner, members: [member],
-    methodImplementation: { declaration: {}, identity: "body", methods: [], captures: [] } }, fact => { recorded.push(fact); return fact; });
+    methodImplementation: { declaration: {}, identity: "body", methods: [], captures: [] } }, fact => { recorded.push(fact); return fact; }, unconstrained);
   assert.equal(recorded.length, 1);
   assert.equal(recorded[0].members.length, 1);
   assert.equal(targetTypeRefEquals(recorded[0].targetType, shape.members[0].methodValueContract), true);
   assert.equal(targetTypeRefEquals(csharpCopiedObjectShapeMembers(shape)[0].methodStorageType, owner), true);
   const abstract = retainCsharpMethodValueContracts({ targetType: { ...owner, id: "tsonic.shape:interface", csharpStructuralContract: true },
     members: [member, { sourceKey: { kind: "property", name: "extra" }, sourceName: "extra", targetName: "extra",
-      memberKind: "property", type: { kind: "source-primitive", name: "float64" } }] }, fact => fact);
+      memberKind: "property", type: { kind: "source-primitive", name: "float64" } }] }, fact => fact, unconstrained);
   const copied = csharpCopiedObjectShapeMembers(abstract);
   assert.equal(targetTypeRefEquals(copied[0].methodStorageType, shape.members[0].methodValueContract), true);
   assert.equal(copied[1].methodStorageType, undefined);

@@ -11,15 +11,18 @@ import { csharpTargetNamedType } from "../../../../target-model/types/factories.
 import { csharpEmptyObjectTargetType, csharpTsValueTargetType } from "../../../../target-model/types/runtime-carriers.js";
 import { isPlainCsharpIdentifier } from "../../../../target-model/names/identifiers.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
-import { csharpObjectShapeTypeParameters } from "../../../../target-model/types/generic-references.js";
+import { csharpObjectShapeTypeParameters, closeCsharpOwnerTypeParameterEnvironment,
+  type CsharpTypeParameterConstraintResolver } from "../../../../target-model/types/generic-references.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey, TargetTypeRef } from "../../../../target-model/types/model.js";
 import {
   csharpWellKnownSymbolTargetMemberName,
 } from "../../../../target-model/types/source-member-keys.js";
+import { csharpTypeParameterConstraintResolutionKey } from "../../../../target-model/declarations/generic-constraints.js";
 
 export function createStructuralObjectShapeTarget(
   members: readonly CsharpObjectShapeMemberFact[],
   implemented: readonly TargetTypeRef[] | undefined,
+  environment: CsharpTypeParameterConstraintResolver,
   contract = false,
   implementation?: CsharpObjectShapeFact["methodImplementation"],
 ): TargetTypeRef {
@@ -31,11 +34,16 @@ export function createStructuralObjectShapeTarget(
     (implemented ?? []).filter(type => !members.some(member => member.methodValueContract !== undefined &&
       targetTypeRefKey(member.methodValueContract) === targetTypeRefKey(type))),
   );
+  const typeParameters = closeCsharpOwnerTypeParameterEnvironment(csharpObjectShapeTypeParameters(
+    canonicalMembers, canonicalImplemented, implementation,
+  ), environment);
   const key = JSON.stringify({
     members: canonicalMembers.map(member => contract
       ? [csharpObjectShapeMemberContractParts(member), member.readonly === true]
       : csharpObjectShapeMemberContractParts(member)),
     implements: canonicalImplemented.map(targetTypeRefKey),
+    ...(typeParameters.length === 0 ? {} : { parameters: typeParameters.map(parameter => [parameter.identity,
+      csharpTypeParameterConstraintResolutionKey(parameter.csharpConstraints)]) }),
     ...(!contract && canonicalMembers.some(member => member.methodStorageType !== undefined) ? {
       methodStorage: canonicalMembers.map(member => member.methodStorageType === undefined ? null : targetTypeRefKey(member.methodStorageType)),
     } : {}),
@@ -46,18 +54,13 @@ export function createStructuralObjectShapeTarget(
   });
   const identity = createHash("sha256").update(key).digest("hex");
   const name = `__TsonicShape_${identity}`;
-  const typeParameters = csharpObjectShapeTypeParameters(
-    canonicalMembers,
-    canonicalImplemented,
-    implementation,
-  );
   const jsValueCarrier =
     canUseCsharpJsValueObjectShapeCarrier(
       canonicalMembers,
       canonicalImplemented,
     );
   const jsValueType = csharpTsValueTargetType();
-  return csharpTargetNamedType(
+  return Object.freeze(csharpTargetNamedType(
     `${csharpStructuralObjectShapeIdPrefix}${identity}`,
     typeParameters.length === 0 ? undefined : typeParameters,
     jsValueCarrier && jsValueType.kind === "target-named"
@@ -72,7 +75,7 @@ export function createStructuralObjectShapeTarget(
           typeofRuntimeKind: "object",
         }
       : { typeofRuntimeKind: "object", ...(contract ? { structuralContract: true } : {}) },
-  );
+  ));
 }
 
 

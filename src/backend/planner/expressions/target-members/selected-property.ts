@@ -319,6 +319,20 @@ function translateSourceOwnedProperty(
   const methodValue = objectShape !== undefined && shapeMember?.kind === "resolved" &&
     shapeMember.member.memberKind === "method" && (!selection.source.callCallee || shapeMember.member.optional === true);
   const genericMethodValue = getCsharpMethodValue(rawReadType);
+  const sourceProperty = declaration !== undefined && (
+    input.program.source.ast.is.IsPropertyDeclaration(declaration) ||
+    input.program.source.ast.is.IsPropertySignatureDeclaration(declaration) ||
+    input.program.source.ast.is.IsGetAccessorDeclaration(declaration) ||
+    sourceParameterIsProperty(input.program.source.ast, declaration)
+  );
+  if (genericMethodValue !== undefined && genericMethodValue.typeParameters.length > 0 &&
+      !selection.source.callCallee && declaration !== undefined &&
+      input.program.source.ast.is.IsMethodDeclaration(declaration) &&
+      input.program.source.ast.is.IsClassDeclaration(input.program.source.ast.parent(declaration))) {
+    diagnostics.push(unsupportedNodeDiagnostic(node,
+      "An extracted quantified nominal method has no supported native callable-value owner."));
+    return undefined;
+  }
   if (methodValue) {
     const required = input.artifacts.requireObjectShapeCapability(undefined, objectShape.targetType,
       sourceFile, "method-values", "object-shape");
@@ -348,8 +362,10 @@ function translateSourceOwnedProperty(
   if (receiver === undefined) {
     return undefined;
   }
-  if (genericMethodValue !== undefined && shapeMember?.kind === "resolved" && shapeMember.member.memberKind === "property") {
-    if (rawReadType === undefined || !targetTypeRefEquals(shapeMember.member.type, rawReadType)) {
+  if (genericMethodValue !== undefined && (sourceProperty ||
+      shapeMember?.kind === "resolved" && shapeMember.member.memberKind === "property")) {
+    if (shapeMember?.kind === "resolved" &&
+        (rawReadType === undefined || !targetTypeRefEquals(shapeMember.member.type, rawReadType))) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "A stored generic method value lost its exact selected native storage type."));
       return undefined;
     }
@@ -394,16 +410,9 @@ function translateSourceOwnedProperty(
   ) {
     return planned;
   }
-  const selectedDeclaration = selection.source.selectedDeclaration;
   if (
     shapeMember?.kind !== "resolved" &&
-    (
-      selectedDeclaration === undefined ||
-      !input.program.source.ast.is.IsPropertyDeclaration(selectedDeclaration) &&
-        !input.program.source.ast.is.IsPropertySignatureDeclaration(selectedDeclaration) &&
-        !input.program.source.ast.is.IsGetAccessorDeclaration(selectedDeclaration) &&
-        !sourceParameterIsProperty(input.program.source.ast, selectedDeclaration)
-    )
+    !sourceProperty
   ) {
     return planned;
   }

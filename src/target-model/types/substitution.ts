@@ -19,6 +19,7 @@ import {
 import { csharpTypeProjection, type CsharpOptionalTypeProjection } from "./projections.js";
 import { resolveCsharpOptionalStorage } from "./optional-storage.js";
 import { csharpFreeTypeParameterIdentities } from "./generic-references.js";
+import type { CsharpTypeParameterConstraint } from "../declarations/generic-constraints.js";
 
 export function substituteTargetTypeParameters(
   type: TargetTypeRef,
@@ -37,7 +38,10 @@ export function substituteTargetTypeParameters(
             return selected;
           }
         }
-        return type;
+        return type.csharpConstraints?.kind !== "resolved" ? type : { ...type,
+          csharpConstraints: Object.freeze({ kind: "resolved", constraints:
+            substituteConstraints(type.csharpConstraints.constraints, substitutions) }),
+        };
       }
       return isCsharpNullableReferenceTargetType(type)
         ? csharpNullableTargetType(substitution)
@@ -327,8 +331,7 @@ export function substituteObjectShapeFactTargetTypeParameters(
             }),
             ...(member.typeParameters === undefined ? {} : {
               typeParameters: member.typeParameters.map(parameter => ({ ...parameter,
-                constraints: parameter.constraints.map(constraint => constraint.kind !== "type" ? constraint
-                  : { ...constraint, type: substituteTargetTypeParameters(constraint.type, freeSubstitutions) }),
+                constraints: substituteConstraints(parameter.constraints, freeSubstitutions),
               })),
             }),
           };
@@ -337,4 +340,12 @@ export function substituteObjectShapeFactTargetTypeParameters(
           ? {}
           : { implements: objectShape.implements.map((implemented) => substituteTargetTypeParameters(implemented, substitutions)) }),
       };
+}
+
+function substituteConstraints(
+  constraints: readonly CsharpTypeParameterConstraint[],
+  substitutions: ReadonlyMap<string, TargetTypeRef>,
+): readonly CsharpTypeParameterConstraint[] {
+  return Object.freeze(constraints.map(constraint => constraint.kind !== "type" ? constraint
+    : Object.freeze({ ...constraint, type: substituteTargetTypeParameters(constraint.type, substitutions) })));
 }

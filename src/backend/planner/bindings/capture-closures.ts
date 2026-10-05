@@ -17,6 +17,8 @@ export function planCsharpFrameClosureReference(
   const selected = input.program.captureStorage.closure(node);
   if (selected === undefined) return undefined;
   if (selected.frame.ownership === "value") {
+    const retained = input.scope.captureFrames?.get(selected.frame.scope);
+    if (retained !== undefined) return retained;
     const type = csharpTypeFromObjectShapeFact(input, selected.frame.shape, diagnostics, node);
     if (type === undefined) return undefined;
     const assignments: CsharpObjectInitializerAssignment[] = [];

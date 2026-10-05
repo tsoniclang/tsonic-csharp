@@ -18,15 +18,20 @@ export function resolveSelectedDeclarationResult(
   receiverType?: TargetTypeRef,
   declaredMemberType?: Type,
 ): TargetTypeRef | undefined {
+  const instantiate = (type: TargetTypeRef | undefined): TargetTypeRef | undefined => {
+    if (type === undefined) return undefined;
+    const selected = host.projectTypes().instantiateMemberType(declaration, receiverType, type);
+    return selected.kind === "unresolved" ? undefined : selected.kind === "resolved" ? selected.type : type;
+  };
   const sourceField = readCsharpSourceField(host.sourceFacts, [declaration]);
   if (sourceField !== undefined) {
     const fieldSourceFile = host.ast.getSourceFile(sourceField.sourceType) ??
       queries.sourceFile;
-    return resolveNodeWithState(
+    return instantiate(resolveNodeWithState(
       sourceField.sourceType,
       fieldSourceFile,
       nextState(state),
-    );
+    ));
   }
   const enumMemberTarget = resolveProjectEnumMemberTarget(declaration);
   if (enumMemberTarget !== undefined) {
@@ -34,11 +39,11 @@ export function resolveSelectedDeclarationResult(
   }
   const callableType = sourcePresentCallableType(semanticType, queries);
   if (callableType !== undefined) {
-    const resolved = resolveCallableType(
+    const resolved = instantiate(resolveCallableType(
       callableType,
       queries,
       nextState(state),
-    );
+    ));
     return resolved !== undefined && semanticType !== undefined &&
         sourceRefinementOnlyRemovesNullish(semanticType, callableType, queries)
       ? csharpNullableTargetType(resolved) : resolved;
@@ -63,20 +68,7 @@ export function resolveSelectedDeclarationResult(
   );
   const selected = authored !== undefined && declaration !== undefined && host.ast.questionToken(declaration) !== undefined
     ? csharpNullableTargetType(authored) : authored;
-  let result = selected;
-  if (selected !== undefined) {
-    const instantiated = host.projectTypes().instantiateMemberType(
-      declaration,
-      receiverType,
-      selected,
-    );
-    if (instantiated.kind === "unresolved") {
-      return undefined;
-    }
-    if (instantiated.kind === "resolved") {
-      result = instantiated.type;
-    }
-  }
+  const result = instantiate(selected);
   return declarationType !== undefined && removesNullish && result !== undefined
     ? getCsharpNullableElementTargetType(result) ?? getCsharpGenericOptionalParts(result)?.element
     : result;

@@ -1,4 +1,4 @@
-import { csharpObjectShapeTypeParameters } from "../../../../target-model/types/generic-references.js";
+import { csharpObjectShapeTypeParameters, csharpFreeTypeParameterIdentities } from "../../../../target-model/types/generic-references.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpTypeParameter,
@@ -15,6 +15,7 @@ import {
 import {
   pushObjectShapeDeclarationDiagnostic,
 } from "./diagnostics.js";
+import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../../types/type-parameters.js";
 
 export function renderObjectShapeTypeParameters(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
@@ -28,6 +29,8 @@ export function renderObjectShapeTypeParameters(
   const declaredTypeParameters: CsharpTypeParameter[] = [];
   const declaredNames = new Set<string>();
   const declaredIdentities = new Set<string>();
+  const availableIdentities = new Set((fact.targetType.typeArguments ?? []).filter(argument => argument.kind === "type-parameter")
+    .map(argument => argument.identity));
   for (const typeArgument of fact.targetType.typeArguments ?? []) {
     if (typeArgument.kind !== "type-parameter") {
       pushObjectShapeDeclarationDiagnostic(
@@ -54,7 +57,26 @@ export function renderObjectShapeTypeParameters(
       }
       declaredIdentities.add(typeArgument.identity);
       declaredNames.add(name);
+      const resolution = typeArgument.csharpConstraints;
+      if (resolution === undefined || resolution.kind === "unsupported") {
+        pushObjectShapeDeclarationDiagnostic(diagnostics, diagnosticSubject,
+          resolution?.kind === "unsupported" ? resolution.reason :
+            `Generated object-shape carrier '${fact.targetType.id}' has no sealed constraints for '${typeArgument.name}'.`);
+        return undefined;
+      }
+      const selectedConstraints = resolution.constraints;
+      if ([...csharpFreeTypeParameterIdentities(selectedConstraints.flatMap(constraint => constraint.kind === "type" ? [constraint.type] : []))]
+          .some(identity => !availableIdentities.has(identity))) {
+        pushObjectShapeDeclarationDiagnostic(diagnostics, diagnosticSubject,
+          `Generated object-shape carrier '${fact.targetType.id}' has a constraint with an undeclared native generic dependency.`);
+        return undefined;
+      }
+      const constraints = selectedConstraints
+        .map(constraint => csharpGenericConstraintFromTargetTypeParameterConstraint(typeParameterNames, constraint,
+          typeArgument.csharpDeclaration ?? diagnosticSubject!, diagnostics ?? []));
+      if (constraints.some(constraint => constraint === undefined)) return undefined;
       declaredTypeParameters.push({ name,
+        ...(constraints.length === 0 ? {} : { constraints: constraints as NonNullable<typeof constraints[number]>[] }),
         ...(fact.covariantTypeParameterIdentities?.includes(typeArgument.identity) === true ? { variance: "out" as const } : {}),
       });
     }

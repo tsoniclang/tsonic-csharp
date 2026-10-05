@@ -49,6 +49,8 @@ import { csharpObjectShapeMethodRequiresProtocol } from "../../../../target-mode
 import { parameterizeCsharpStructuralContract } from "./structural-contracts.js";
 import { selectCsharpCopiedMethodReceiver } from "../../../ownership/copied-methods.js";
 import { retainCsharpGenericCallableValue } from "../../callables/generic-values.js";
+import { createCsharpTypeParameterEnvironment } from "../../../constraints/type-parameter-environment.js";
+import { resolveCsharpTypeParameterConstraints } from "../../../constraints/type-parameter-constraints.js";
 
 import type {
   CsharpObjectLiteralTargetShapeResolution,
@@ -60,6 +62,12 @@ import type {
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
 ): CsharpRecursiveObjectShapePolicy {
+  const environment = createCsharpTypeParameterEnvironment(host.ast, (declaration, parameter) => {
+    const file = host.ast.getSourceFile(declaration);
+    return file === undefined ? undefined : resolveCsharpTypeParameterConstraints(declaration, parameter, file, {
+      ast: host.ast, types: { resolveNode: (node, sourceFile) => host.typeResolver.resolveNode(node, sourceFile, { depth: 0 }) },
+    });
+  });
   const { deriveMembers, instantiateMemberEvidence, resolvePropertyType, retainLiteralMemberEvidence } = createCsharpObjectShapeMemberResolver(host);
   const activeNodes = new WeakSet<object>();
   const activeTypes = new WeakSet<object>();
@@ -385,6 +393,7 @@ export function createCsharpObjectShapePolicy(
       targetType: createStructuralObjectShapeTarget(
         members,
         implemented,
+        environment,
         false,
         methodImplementation,
       ),
@@ -480,6 +489,7 @@ export function createCsharpObjectShapePolicy(
       targetType: createStructuralObjectShapeTarget(
         members,
         [targetType],
+        environment,
       ),
       members,
       implements: [targetType],
@@ -505,7 +515,7 @@ export function createCsharpObjectShapePolicy(
     ) {
       return shape;
     }
-    shape = retainCsharpMethodValueContracts(shape, rememberTargetShape);
+    shape = retainCsharpMethodValueContracts(shape, rememberTargetShape, environment);
     if (shape.declarationTemplate !== undefined) rememberTargetShape(shape.declarationTemplate);
     const key = targetTypeRefKey(shape.targetType);
     const existing = targetShapes.get(key);
@@ -728,7 +738,7 @@ export function createCsharpObjectShapePolicy(
           host.ast.is.IsTypeLiteralNode(declaration) || host.ast.is.IsMappedTypeNode(declaration));
       const methodImplementation = structuralContract ? undefined : selectCsharpObjectMethodImplementation(members, host, state, authoredLiteral);
       const shape: CsharpObjectShapeFact = {
-        targetType: unionDefinitions.reference(type) ?? createStructuralObjectShapeTarget(members, implemented, structuralContract, methodImplementation),
+        targetType: unionDefinitions.reference(type) ?? createStructuralObjectShapeTarget(members, implemented, environment, structuralContract, methodImplementation),
         sourceType: type,
         members: unionDefinitions.substituteMembers(type, members),
         ...(methodImplementation === undefined ? {} : { methodImplementation }),
@@ -741,7 +751,7 @@ export function createCsharpObjectShapePolicy(
       }
       return structuralContract && unionDefinitions.reference(type) === undefined &&
         !host.representations.requiresClosedStructuralContract(shape.targetType)
-        ? parameterizeCsharpStructuralContract(shape) : shape;
+        ? parameterizeCsharpStructuralContract(shape, environment) : shape;
     } finally {
       activeTypes.delete(type);
     }
@@ -823,7 +833,7 @@ export function createCsharpObjectShapePolicy(
 
   return Object.freeze({
     resolveCallableValue: (signature: TargetTypeRef, typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>) =>
-      retainCsharpGenericCallableValue(signature, typeParameters, rememberTargetShape),
+      retainCsharpGenericCallableValue(signature, typeParameters, rememberTargetShape, environment),
     resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined {
       const contract = shape.targetType.kind === "target-named" &&
         ((shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true ||
@@ -836,7 +846,7 @@ export function createCsharpObjectShapePolicy(
       const members = csharpCopiedObjectShapeMembers(shape);
       const implemented = contract ? [shape.targetType] : shape.implements;
       return rememberTargetShape({
-        targetType: createStructuralObjectShapeTarget(members, implemented),
+        targetType: createStructuralObjectShapeTarget(members, implemented, environment),
         members,
         ...(implemented === undefined ? {} : { implements: implemented }),
       });

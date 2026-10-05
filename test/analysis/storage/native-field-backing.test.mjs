@@ -3,6 +3,7 @@ import test from "node:test";
 import { createCsharpNativeFieldBacking } from "../../../dist/analysis/storage/native-field-backing.js";
 
 const integer = { kind: "source-primitive", name: "uint32" };
+const noFreeParameters = () => { throw new Error("Nongeneric native field backing must not query generic constraints."); };
 const field = {
   sourceKey: { kind: "property", name: "value" }, sourceName: "value", targetName: "value",
   memberKind: "property", type: integer,
@@ -20,7 +21,7 @@ test("native field requirements reach transitive and diamond implementations wit
     ...field, sourceKey: { kind: "property", name: "valueLocation" }, sourceName: "valueLocation", targetName: "valueLocation",
   }]);
   const unrelated = shape("unrelated");
-  const index = createCsharpNativeFieldBacking([root, left, right, concrete, unrelated]);
+  const index = createCsharpNativeFieldBacking([root, left, right, concrete, unrelated], noFreeParameters);
   assert.deepEqual(index.select(root, field, layout), { kind: "resolved" });
   for (const owner of [root, left, right, concrete]) {
     const backing = index.get(owner.targetType, "value");
@@ -40,7 +41,7 @@ test("native field closure separates generic identities and terminates on cycles
   other.targetType.typeArguments = [{ kind: "source-primitive", name: "int32" }];
   const child = shape("child", [root.targetType]);
   root.implements = [child.targetType];
-  const index = createCsharpNativeFieldBacking([root, other, child]);
+  const index = createCsharpNativeFieldBacking([root, other, child], noFreeParameters);
   assert.deepEqual(index.select(root, field, layout), { kind: "resolved" });
   assert.equal(index.values().length, 2);
   assert.equal(index.get(other.targetType, "value"), undefined);
@@ -51,11 +52,11 @@ test("native field closure rejects incompatible implementations and layouts tran
   for (const changed of [{ readonly: true }, { accessor: { getter: true, setter: true } },
     { optional: true }, { bound: true }, { type: { kind: "source-primitive", name: "int32" } }]) {
     const child = shape("child", [root.targetType], [{ ...field, ...changed }]);
-    const index = createCsharpNativeFieldBacking([root, child]);
+    const index = createCsharpNativeFieldBacking([root, child], noFreeParameters);
     assert.equal(index.select(root, field, layout).kind, "rejected");
     assert.deepEqual(index.values(), []);
   }
-  const index = createCsharpNativeFieldBacking([root]);
+  const index = createCsharpNativeFieldBacking([root], noFreeParameters);
   assert.equal(index.select(root, field, layout).kind, "resolved");
   assert.equal(index.select(root, field, { ...layout, littleEndian: false }).kind, "rejected");
   assert.deepEqual(index.get(root.targetType, "value").layout, layout);

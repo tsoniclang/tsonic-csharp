@@ -4,37 +4,54 @@ import type {
   CsharpTargetNamedTypeRef,
   TargetTypeRef,
 } from "./model.js";
-import {
-  targetTypeRefKey,
-} from "./equality.js";
+import { createCsharpMetadataBudget } from "../metadata/immutable.js";
 
 export function csharpTargetTypeComponents(
   type: TargetTypeRef,
   objectShape?: CsharpObjectShapeFact,
 ): readonly TargetTypeRef[] {
   const components: TargetTypeRef[] = [];
+  const budget = createCsharpMetadataBudget();
+  const add = (type: TargetTypeRef | undefined): void => {
+    if (type !== undefined) {
+      budget.reserve(1);
+      components.push(type);
+    }
+  };
+  const addAll = (types: readonly TargetTypeRef[] | undefined): void => {
+    if (types === undefined) return;
+    budget.reserve(types.length);
+    for (const type of types) components.push(type);
+  };
   switch (type.kind) {
     case "source-global":
     case "target-named":
-      components.push(...type.typeArguments ?? []);
+      addAll(type.typeArguments);
       break;
     case "array":
-      components.push(type.element);
+      add(type.element);
       break;
     case "tuple":
-      components.push(...type.elements);
+      addAll(type.elements);
       break;
     case "pointer":
-      components.push(type.pointee);
+      add(type.pointee);
       break;
     case "function-pointer":
-      components.push(...type.args, type.result);
+      addAll(type.args);
+      add(type.result);
       break;
     case "associated-type":
-      components.push(type.owner);
+      add(type.owner);
       break;
     case "type-parameter":
-      components.push(...type.csharpProjection?.arguments ?? []);
+      addAll(type.csharpProjection?.arguments);
+      if (type.csharpConstraints?.kind === "resolved") {
+        budget.reserve(type.csharpConstraints.constraints.length);
+        for (const constraint of type.csharpConstraints.constraints) {
+          if (constraint.kind === "type") add(constraint.type);
+        }
+      }
       break;
     case "source-primitive":
     case "opaque":
@@ -44,66 +61,57 @@ export function csharpTargetTypeComponents(
   }
   if (type.kind === "target-named") {
     const target = type as CsharpTargetNamedTypeRef;
-    addDefined(components, target.csharpArrayLiteralElementType);
-    addDefined(components, target.csharpArrayLiteralConstructionType);
-    addDefined(components, target.csharpImplicitArrayInputElementType);
-    addDefined(components, target.csharpEnumerableElementType);
-    addDefined(components, target.csharpArrayLikeElementType);
-    addDefined(components, target.csharpReadOnlyIndexableElementType);
-    addDefined(components, target.csharpDenseMutableElementType);
+    add(target.csharpArrayLiteralElementType);
+    add(target.csharpArrayLiteralConstructionType);
+    add(target.csharpImplicitArrayInputElementType);
+    add(target.csharpEnumerableElementType);
+    add(target.csharpArrayLikeElementType);
+    add(target.csharpReadOnlyIndexableElementType);
+    add(target.csharpDenseMutableElementType);
     const indexedRead = target.csharpIndexableReadMember;
     if (indexedRead !== undefined) {
-      addDefined(components, indexedRead.declaringType);
-      addDefined(components, indexedRead.returnType);
-      components.push(...indexedRead.parameters.map(parameter => parameter.type));
+      add(indexedRead.declaringType);
+      add(indexedRead.returnType);
+      budget.reserve(indexedRead.parameters.length);
+      for (const parameter of indexedRead.parameters) add(parameter.type);
     }
-    addDefined(components, target.csharpBaseType);
-    addDefined(components, target.csharpMethodValue?.owner);
-    addDefined(components, target.csharpMethodValue?.contract);
-    addDefined(components, target.csharpClassFactory?.instance);
-    addDefined(components, target.csharpTaskResultType);
-    addDefined(components, target.csharpGeneratorProtocol?.yieldType);
-    addDefined(components, target.csharpGeneratorProtocol?.returnType);
-    addDefined(components, target.csharpGeneratorProtocol?.nextType);
-    addDefined(components, target.csharpIteratorResultProtocol?.yieldType);
-    addDefined(components, target.csharpIteratorResultProtocol?.returnType);
-    components.push(...target.csharpDelegateSignature?.parameters ?? []);
-    addDefined(components, target.csharpDelegateSignature?.returnType);
+    add(target.csharpBaseType);
+    add(target.csharpMethodValue?.owner);
+    add(target.csharpMethodValue?.contract);
+    add(target.csharpClassFactory?.instance);
+    add(target.csharpTaskResultType);
+    add(target.csharpGeneratorProtocol?.yieldType);
+    add(target.csharpGeneratorProtocol?.returnType);
+    add(target.csharpGeneratorProtocol?.nextType);
+    add(target.csharpIteratorResultProtocol?.yieldType);
+    add(target.csharpIteratorResultProtocol?.returnType);
+    addAll(target.csharpDelegateSignature?.parameters);
+    add(target.csharpDelegateSignature?.returnType);
     const union = target as Partial<CsharpRuntimeUnionTargetTypeRef>;
-    components.push(...union.csharpRuntimeUnionArms ?? []);
+    addAll(union.csharpRuntimeUnionArms);
+    budget.reserve(union.csharpRuntimeUnionObjectShapes?.length ?? 0);
     for (const shape of union.csharpRuntimeUnionObjectShapes ?? []) {
-      addObjectShapeComponents(components, shape);
+      addObjectShapeComponents(shape);
     }
   }
-  addObjectShapeComponents(components, objectShape);
-  const unique = new Map<string, TargetTypeRef>();
-  for (const component of components) {
-    unique.set(targetTypeRefKey(component), component);
-  }
-  return Object.freeze([...unique.values()]);
-}
+  addObjectShapeComponents(objectShape);
+  return Object.freeze([...new Set(components)]);
 
-function addDefined(
-  components: TargetTypeRef[],
-  type: TargetTypeRef | undefined,
-): void {
-  if (type !== undefined) {
-    components.push(type);
+  function addObjectShapeComponents(shape: CsharpObjectShapeFact | undefined): void {
+    if (shape === undefined) return;
+    budget.reserve(shape.members.length);
+    for (const member of shape.members) {
+      add(member.type);
+      add(member.methodStorageType);
+      add(member.methodValueContract);
+      budget.reserve(member.typeParameters?.length ?? 0);
+      for (const parameter of member.typeParameters ?? []) {
+        budget.reserve(parameter.constraints.length);
+        for (const constraint of parameter.constraints) if (constraint.kind === "type") add(constraint.type);
+      }
+    }
+    budget.reserve(shape.methodImplementation?.captures.length ?? 0);
+    for (const capture of shape.methodImplementation?.captures ?? []) add(capture.type);
+    addAll(shape.implements);
   }
-}
-
-function addObjectShapeComponents(
-  components: TargetTypeRef[],
-  shape: CsharpObjectShapeFact | undefined,
-): void {
-  if (shape === undefined) {
-    return;
-  }
-  components.push(...shape.members.map((member) => member.type));
-  components.push(...shape.members.flatMap(member => [member.methodStorageType, member.methodValueContract]
-    .filter((type): type is TargetTypeRef => type !== undefined)));
-  components.push(...shape.members.flatMap(member => member.typeParameters?.flatMap(parameter =>
-    parameter.constraints.flatMap(constraint => constraint.kind === "type" ? [constraint.type] : [])) ?? []));
-  components.push(...shape.methodImplementation?.captures.map(capture => capture.type) ?? []);
-  components.push(...shape.implements ?? []);
 }

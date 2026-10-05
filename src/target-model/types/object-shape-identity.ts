@@ -19,6 +19,7 @@ import {
   scopedTargetTypeRefKey,
 } from "./equality.js";
 import { csharpSourceMemberKeyParts } from "./source-member-keys.js";
+import { csharpOwnerTypeParameterConstraintKey } from "../declarations/generic-constraints.js";
 
 export function csharpObjectShapeMemberContractParts(
   member: CsharpObjectShapeMemberFact,
@@ -61,6 +62,7 @@ export function csharpObjectShapeContractKey(
 ): string {
   return JSON.stringify([
     targetTypeRefKey(shape.targetType),
+    csharpOwnerTypeParameterConstraintKey(shape.targetType),
     String(shape.constructible),
     shape.covariantTypeParameterIdentities ?? [],
     canonicalCsharpObjectShapeImplementedTypes(shape.implements ?? [])

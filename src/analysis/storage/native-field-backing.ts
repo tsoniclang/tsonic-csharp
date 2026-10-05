@@ -4,8 +4,9 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/
 import { csharpNativeMemoryLayoutsEqual, type CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";
 import type { CsharpNativeObjectField } from "./model.js";
 import { createStructuralObjectShapeTarget } from "../../policy/types/objects/object-shape-policy/construction.js";
+import type { CsharpTypeParameterConstraintResolver } from "../../target-model/types/generic-references.js";
 
-export function createCsharpNativeFieldBacking(shapes: readonly CsharpObjectShapeFact[]) {
+export function createCsharpNativeFieldBacking(shapes: readonly CsharpObjectShapeFact[], environment: CsharpTypeParameterConstraintResolver) {
   const fields = new Map<string, CsharpNativeObjectField>();
   const closedContracts = new Map<string, TargetTypeRef>();
   const dependents = new Map<string, { readonly base: TargetTypeRef; readonly shape: CsharpObjectShapeFact }[]>();
@@ -61,7 +62,7 @@ export function createCsharpNativeFieldBacking(shapes: readonly CsharpObjectShap
       }
       for (const shape of selected) {
         if (shape.targetType.kind === "target-named" && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true) {
-          const contract = createStructuralObjectShapeTarget(shape.members, shape.implements, true);
+          const contract = createStructuralObjectShapeTarget(shape.members, shape.implements, environment, true);
           closedContracts.set(targetTypeRefKey(contract), contract);
         }
         fields.set(fieldKey(shape.targetType, member.targetName), Object.freeze({

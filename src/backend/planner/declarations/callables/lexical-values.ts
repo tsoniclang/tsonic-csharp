@@ -38,7 +38,11 @@ export function planCsharpLexicalFunctionValues(
       state.expressionOverrides.set(creation.inlineReference, initializer);
       continue;
     }
-    const name = input.program.names.temporaryName(`${methodName}Callable`);
+    const name = input.program.captureStorage.valueName(declaration);
+    if (name === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(declaration, "A lexical callable owner requires its stable analyzed storage name."));
+      continue;
+    }
     for (const reference of references) state.expressionOverrides.set(reference.reference, { kind: "IdentifierName", name });
     const scheduled = statements.get(statement) ?? [];
     scheduled.push({ kind: "LocalDeclarationStatement", type, name,

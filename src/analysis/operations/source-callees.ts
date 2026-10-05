@@ -29,7 +29,8 @@ export function classifyCsharpSourceCallee(
     }
   } else if (policy.ast.is.IsFunctionDeclaration(declaration) && policy.ast.is.IsFunctionDeclaration(selected)) {
     return Object.freeze({ kind: "function", expression, declaration: selected });
-  } else if (getCsharpMethodValue(type) === undefined && source.sourceCalleeAccess?.kind === "property" &&
+  } else if ((getCsharpMethodValue(type) === undefined ||
+      policy.ast.is.IsClassDeclaration(policy.ast.parent(declaration))) && source.sourceCalleeAccess?.kind === "property" &&
       (policy.ast.is.IsMethodDeclaration(declaration) || policy.ast.kindName(declaration) === "KindMethodSignature") &&
       (policy.ast.is.IsMethodDeclaration(selected) || policy.ast.kindName(selected) === "KindMethodSignature")) {
     if (policy.ast.hasModifierKind(selected, "static")) return Object.freeze({ kind: "function", expression, declaration: selected });

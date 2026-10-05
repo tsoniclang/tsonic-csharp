@@ -3,9 +3,11 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/
 import { createStructuralObjectShapeTarget } from "./construction.js";
 import { csharpStructuralObjectShapeIdentity } from "../../../../target-model/types/object-shape-identity.js";
 import { csharpObjectShapeMethodDeclaration, csharpObjectShapeMethodRequiresProtocol, csharpPresentObjectShapeMethod } from "../../../../target-model/types/method-values.js";
+import type { CsharpTypeParameterConstraintResolver } from "../../../../target-model/types/generic-references.js";
 
 export function retainCsharpMethodValueContracts(
   shape: CsharpObjectShapeFact, remember: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
+  environment: CsharpTypeParameterConstraintResolver,
 ): CsharpObjectShapeFact {
   if (csharpStructuralObjectShapeIdentity(shape.targetType) === undefined &&
     (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") return shape;
@@ -16,7 +18,7 @@ export function retainCsharpMethodValueContracts(
     if (contract === undefined) {
       const signature = csharpPresentObjectShapeMethod(member);
       if (signature === undefined) return member;
-      contract = createStructuralObjectShapeTarget([signature], undefined, true);
+      contract = createStructuralObjectShapeTarget([signature], undefined, environment, true);
       remember({ targetType: contract, members: [{ ...signature, methodValueContract: contract }] });
     }
     if (!targetTypeRefEquals(shape.targetType, contract) &&

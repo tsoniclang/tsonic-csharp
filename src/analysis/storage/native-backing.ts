@@ -10,6 +10,7 @@ import type { CsharpTargetOperationClassifications } from "../operations/index.j
 import type { CsharpNativeArrayStorage, CsharpStorageIssue } from "./model.js";
 import type { CsharpObjectShapeClassifications } from "../objects/model.js";
 import { createCsharpNativeFieldBacking } from "./native-field-backing.js";
+import { createCsharpTypeParameterEnvironment } from "../../policy/constraints/type-parameter-environment.js";
 
 export function analyzeCsharpNativeBacking(
   policy: CsharpPolicyContext, evidence: CsharpSourceEvidenceIndex,
@@ -17,7 +18,8 @@ export function analyzeCsharpNativeBacking(
   objectShapes: CsharpObjectShapeClassifications,
 ) {
   const backings = new Map<Node, CsharpNativeMemoryLayout>();
-  const fields = createCsharpNativeFieldBacking(objectShapes.knownShapes());
+  const fields = createCsharpNativeFieldBacking(objectShapes.knownShapes(),
+    createCsharpTypeParameterEnvironment(policy.ast, declaration => evidence.typeParameterConstraints(declaration)));
   const arrays = new Map<Node, CsharpNativeArrayStorage>();
   const issues: CsharpStorageIssue[] = [];
   const reject = (node: Node, message: string): void => {

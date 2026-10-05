@@ -13,12 +13,12 @@ export function csharpMetadataDescriptors(input: object): Readonly<Record<string
 export function snapshotCsharpMetadata<Value>(
   value: Value,
   identityAt?: (path: readonly (string | number)[]) => boolean,
+  budget = createCsharpMetadataBudget(),
 ): Value {
   const copies = new Map<object, unknown>();
   const active = new Set<object>();
-  let count = 0;
   const copy = (input: unknown, depth: number, path: readonly (string | number)[]): unknown => {
-    if (++count > 1_048_576 || depth > 128) throw new TypeError("C# immutable metadata exceeds its finite resource budget.");
+    budget.reserve(1, depth);
     if (input === undefined || input === null || typeof input === "string" || typeof input === "boolean" ||
       typeof input === "bigint" || typeof input === "number") return input;
     if (typeof input !== "object") throw new TypeError("C# immutable metadata requires data values.");
@@ -30,7 +30,7 @@ export function snapshotCsharpMetadata<Value>(
     active.add(input);
     let result: unknown;
     if (Array.isArray(input)) {
-      if (input.length > 1_048_576 - count || keys.length !== input.length + 1) {
+      if (input.length > budget.remaining() || keys.length !== input.length + 1) {
         throw new TypeError("C# immutable metadata requires bounded dense arrays.");
       }
       const entries: unknown[] = [];
@@ -49,4 +49,23 @@ export function snapshotCsharpMetadata<Value>(
     return result;
   };
   return copy(value, 0, []) as Value;
+}
+export const maximumCsharpMetadataEntries = 1_048_576;
+export const maximumCsharpMetadataDepth = 128;
+
+export function createCsharpMetadataBudget(): {
+  readonly reserve: (entries: number, depth?: number) => void;
+  readonly remaining: () => number;
+} {
+  let remaining = maximumCsharpMetadataEntries;
+  return {
+    reserve(entries, depth = 0): void {
+      if (!Number.isInteger(entries) || entries < 0 || entries > remaining ||
+          !Number.isInteger(depth) || depth < 0 || depth > maximumCsharpMetadataDepth) {
+        throw new TypeError("C# immutable metadata exceeds its finite resource budget.");
+      }
+      remaining -= entries;
+    },
+    remaining: () => remaining,
+  };
 }
