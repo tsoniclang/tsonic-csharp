@@ -57,6 +57,7 @@ test("an already retained native method activation requires no further alias", (
   const { planned, diagnostics } = input.select(context);
   assert.equal(diagnostics.length, 0);
   assert.equal(planned?.prelude.length, 0);
+  assert.equal(planned?.context === context, true, "already retained context adds no host maps");
   assert.equal(planned?.context.scope.captureFrames.get(input.scope) === retained, true);
   assert.equal(planned?.context.scope.capturedBindings.get(input.first) === first, true);
   assert.equal(input.registered.length, 0);
@@ -97,6 +98,7 @@ test("unframed native captures need no extra storage and existing overrides are 
   const { planned, diagnostics } = input.select(context, { ...input.self, captures: [input.ordinary] });
   assert.equal(diagnostics.length, 0);
   assert.equal(planned?.prelude.length, 0);
+  assert.equal(planned?.context === context, true, "ordinary native capture context stays unchanged");
   assert.equal(planned?.context.scope.capturedBindings.get(input.ordinary) === override, true);
   assert.equal(input.registered.length, 0);
 });
