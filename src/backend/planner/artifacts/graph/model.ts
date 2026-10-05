@@ -47,10 +47,12 @@ export interface CsharpArtifactGraph {
   >;
   captureDependencies<Value>(
     owner: string,
+    dependencies: readonly TargetArtifactDependency<CsharpArtifactFacet>[],
     build: () => Value,
   ): {
     readonly value: Value;
     readonly dependencies: readonly TargetArtifactDependency<CsharpArtifactFacet>[];
+    readonly stable: boolean;
   };
   registerObjectShape(
     fact: CsharpObjectShapeFact,
@@ -99,6 +101,11 @@ export interface CsharpArtifactGraph {
     owner: string,
   ): TargetArtifactReconstruction<CsharpArtifactFacet, CsharpArtifactSnapshot>;
   verifyContractClosure(): CsharpArtifactRequestResult;
+}
+
+export interface CsharpArtifactDependencyRead {
+  readonly dependency: TargetArtifactDependency<CsharpArtifactFacet>;
+  readonly revision: number;
 }
 
 export interface CsharpArtifactGraphHost {

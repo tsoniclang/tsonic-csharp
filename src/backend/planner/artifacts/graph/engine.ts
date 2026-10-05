@@ -5,7 +5,7 @@ import type {
   CsharpObjectShapeProjectionKind,
   TargetTypeRef,
 } from "../../../../target-model/types/index.js";
-import type { CsharpArtifactRequestResult, CsharpObjectShapeProjectionRequestResult, CsharpObjectShapeArtifact, CsharpArtifactGraph, CsharpArtifactGraphHost, MutableObjectShapeArtifact, JsonClosureState, PreparedObjectShapeBatch } from "./model.js";
+import type { CsharpArtifactRequestResult, CsharpObjectShapeProjectionRequestResult, CsharpObjectShapeArtifact, CsharpArtifactGraph, CsharpArtifactGraphHost, MutableObjectShapeArtifact, JsonClosureState, PreparedObjectShapeBatch, CsharpArtifactDependencyRead } from "./model.js";
 import type { CsharpArtifactSnapshot, CsharpArtifactFacet } from "../contracts.js";
 import type { CsharpGeneratedHelper } from "../generated-helpers.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
@@ -67,14 +67,16 @@ export interface CsharpArtifactGraphScope {
   readonly contracts: TargetArtifactContractGraph<CsharpArtifactFacet, CsharpArtifactSnapshot>;
   readonly helpers: ReturnType<typeof createCsharpGeneratedHelperRegistry>;
   readonly dependencyCapture: {
-    active: Map<string, TargetArtifactDependency<CsharpArtifactFacet>> | undefined;
+    active: Map<string, CsharpArtifactDependencyRead> | undefined;
   };
   captureDependencies<Value>(
   owner: string,
+  dependencies: readonly TargetArtifactDependency<CsharpArtifactFacet>[],
   build: () => Value,
 ): {
   readonly value: Value;
   readonly dependencies: readonly TargetArtifactDependency<CsharpArtifactFacet>[];
+  readonly stable: boolean;
 };
   dependOn(
   owner: string,
@@ -238,8 +240,8 @@ export function createCsharpArtifactGraph(
   const helpers = createCsharpGeneratedHelperRegistry(contracts);
   let scope!: CsharpArtifactGraphScope;
   const methods = {
-    captureDependencies: <Value>(owner: string, build: () => Value) =>
-      captureDependenciesImplementation(scope, owner, build),
+    captureDependencies: <Value>(owner: string, dependencies: readonly TargetArtifactDependency<CsharpArtifactFacet>[], build: () => Value) =>
+      captureDependenciesImplementation(scope, owner, dependencies, build),
     dependOn: (...args: DropScope<Parameters<typeof dependOnImplementation>>) =>
       dependOnImplementation(scope, ...args),
     registerObjectShape: (...args: DropScope<Parameters<typeof registerObjectShapeImplementation>>) =>

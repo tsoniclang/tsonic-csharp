@@ -176,10 +176,16 @@ function reconstructSourceArtifact<Value>(
   build: (diagnostics: TargetDiagnostic[]) => { readonly value: Value; readonly unit: CsharpCompilationUnit | undefined },
   retain: (value: Value) => void,
 ): TargetArtifactReconstruction<CsharpArtifactFacet, CsharpArtifactSnapshot> {
-  const revision = graph.revision;
+  const inventory = owner === objectShapeSourceOwner ? objectShapeSourceInventory(input) : undefined;
   const candidateDiagnostics: TargetDiagnostic[] = [];
-  const captured = input.artifacts.captureDependencies(owner, () => build(candidateDiagnostics));
-  if (graph.revision !== revision) return {
+  const captured = input.artifacts.captureDependencies(owner, dependencies, () => build(candidateDiagnostics));
+  let stable = captured.stable;
+  if (inventory !== undefined) {
+    const currentInventory = objectShapeSourceInventory(input);
+    stable &&= inventory.length === currentInventory.length &&
+      inventory.every((identity, index) => identity === currentInventory[index]);
+  }
+  if (!stable) return {
     kind: "retry", reason: "Planning discovered or strengthened an exact prerequisite target artifact contract.",
   };
   const selectedDependencies = uniqueDependencies([...dependencies, ...captured.dependencies]);
@@ -200,6 +206,11 @@ function reconstructSourceArtifact<Value>(
   retain(captured.value.value);
   return { kind: "resolved", contract: candidate.candidate.contract,
     dependencies: candidate.candidate.dependencies, artifact: candidate.candidate.artifact };
+}
+
+function objectShapeSourceInventory(input: CsharpPlanningContext): readonly string[] {
+  return input.artifacts.objectShapeArtifacts()
+    .map(artifact => JSON.stringify([artifact.key, artifact.materialization])).sort();
 }
 
 function unpublishedDependencies(
