@@ -13,9 +13,12 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
 import { selectCsharpFrameClosures, type CsharpFrameClosure } from "./capture-closures.js";
 import { csharpTargetNamedType } from "../../target-model/types/factories.js";
+import { selectCsharpGenericFrameClosures } from "./generic-closures.js";
+import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 
 export interface CsharpCaptureFrame {
   readonly scope: Node;
+  readonly ownership: "activation" | "value";
   readonly shape: CsharpObjectShapeFact;
   readonly bindings: readonly { readonly declaration: Node; readonly fieldName: string; readonly type: TargetTypeRef;
     readonly initialization?: "deferred" }[];
@@ -95,7 +98,10 @@ export function analyzeCsharpCaptureStorage(
     bindings.set(capture.declaration, type);
     groups.set(scope, bindings);
   }
-  const closures = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues);
+  const genericClosures = selectCsharpGenericFrameClosures(source, evidence, groups, physicalType, issues);
+  const genericDeclarations = new Set(genericClosures.map(closure => closure.declaration));
+  const closures = [...selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, genericDeclarations),
+    ...genericClosures.filter(closure => closure.scope !== closure.declaration)];
   const byScope = new Map<Node, CsharpCaptureFrame>();
   const byBinding = new Map<Node, CsharpCapturedBinding>();
   const byClosure = new Map<Node, { readonly frame: CsharpCaptureFrame; readonly method: CsharpFrameClosure }>();
@@ -127,14 +133,19 @@ export function analyzeCsharpCaptureStorage(
       sourceKey: { kind: "property" as const, name: field.fieldName }, sourceName: field.fieldName,
       targetName: field.fieldName, type: field.type, memberKind: "property" as const,
     })));
-    const selectedType = createStructuralObjectShapeTarget(members, undefined);
+    const implementations = Object.freeze(methods.flatMap(method => {
+      const protocol = getCsharpMethodValue(method.type);
+      return protocol === undefined ? [] : [protocol.owner];
+    }));
+    const selectedType = createStructuralObjectShapeTarget(members, implementations);
     const identity = sourceNodeIdentity(source.ast, scope);
     if (identity === undefined || selectedType.kind !== "target-named") throw new Error("A native capture frame requires an exact named source identity.");
     const digest = createHash("sha256").update(identity).digest("hex");
     const type = csharpTargetNamedType(`tsonic.shape:capture_${digest}`, selectedType.typeArguments,
       { kind: "named", name: `__TsonicCapture_${digest}` });
-    const frame: CsharpCaptureFrame = Object.freeze({ scope, bindings, parents, methods, receivers, shape: Object.freeze({
+    const frame: CsharpCaptureFrame = Object.freeze({ scope, ownership: "activation", bindings, parents, methods, receivers, shape: Object.freeze({
       targetType: type, members,
+      implements: implementations,
     }) });
     byScope.set(scope, frame);
     byShape.set(targetTypeRefKey(type), frame);
@@ -143,6 +154,40 @@ export function analyzeCsharpCaptureStorage(
     return frame;
   };
   for (const scope of groups.keys()) buildFrame(scope);
+  const valueFrames: CsharpCaptureFrame[] = [];
+  for (const method of genericClosures.filter(method => method.scope === method.declaration)) {
+    const captured = method.captures.map(declaration => {
+      const type = evidence.storageTargetType(declaration) ?? evidence.nodeTargetType(declaration);
+      return type === undefined ? undefined : { declaration, type: physicalType(declaration, type), shared: byBinding.get(declaration) };
+    });
+    const contract = getCsharpMethodValue(method.type)?.owner;
+    const identity = sourceNodeIdentity(source.ast, method.declaration);
+    if (contract === undefined || identity === undefined || captured.some(binding => binding === undefined)) {
+      issues.push({ node: method.declaration, code: "CSHARP_GENERIC_CALLABLE_OWNER_NOT_CLOSED",
+        message: "A generic callable value requires its exact invocation protocol and captured owner fields." });
+      continue;
+    }
+    const bindings = Object.freeze(captured.filter(binding => binding!.shared === undefined).map((binding, index) =>
+      Object.freeze({ declaration: binding!.declaration, type: binding!.type, fieldName: `value${index}` })));
+    const parents = Object.freeze([...new Set(captured.flatMap(binding => binding!.shared === undefined ? [] : [binding!.shared.frame]))]
+      .map((frame, index) => Object.freeze({ frame, fieldName: `parent${index}` })));
+    const receivers = Object.freeze(method.receivers.map((receiver, index) => Object.freeze({ ...receiver, fieldName: `receiver${index}` })));
+    const fields = [...bindings, ...parents.map(parent => ({ fieldName: parent.fieldName, type: parent.frame.shape.targetType })), ...receivers];
+    const members: readonly CsharpObjectShapeMemberFact[] = Object.freeze(fields.map(field => Object.freeze({
+      sourceKey: { kind: "property" as const, name: field.fieldName }, sourceName: field.fieldName,
+      targetName: field.fieldName, type: field.type, memberKind: "property" as const,
+    })));
+    const selectedType = createStructuralObjectShapeTarget(members, [contract]);
+    const digest = createHash("sha256").update(identity).digest("hex");
+    const type = csharpTargetNamedType(`tsonic.shape:callable_${digest}`, selectedType.kind === "target-named" ? selectedType.typeArguments : undefined,
+      { kind: "named", name: `__TsonicCallable_${digest}` }, { typeofRuntimeKind: "function" });
+    const frame: CsharpCaptureFrame = Object.freeze({ scope: method.declaration, ownership: "value", bindings, parents, methods: Object.freeze([method]), receivers,
+      shape: Object.freeze({ targetType: type, members, implements: Object.freeze([contract]) }),
+    });
+    byClosure.set(method.declaration, Object.freeze({ frame, method }));
+    byShape.set(targetTypeRefKey(type), frame);
+    valueFrames.push(frame);
+  }
   const valueDeclarations = new Map<Node, Node[]>();
   const valueCreations = new Map<Node, SourceLexicalValueCreation>();
   const visitValues = (node: Node): void => {
@@ -169,7 +214,7 @@ export function analyzeCsharpCaptureStorage(
     if (ordered.kind === "resolved") scheduledValues.set(statement, ordered.declarations);
     else issues.push({ node: statement, code: "CSHARP_LEXICAL_VALUE_ACTIVATION_NOT_CLOSED", message: ordered.reason });
   }
-  return Object.freeze({ issues: Object.freeze(issues), frames: Object.freeze([...byScope.values()]),
+  return Object.freeze({ issues: Object.freeze(issues), frames: Object.freeze([...byScope.values(), ...valueFrames]),
     frame: (scope: Node) => byScope.get(scope), binding: (declaration: Node) => byBinding.get(declaration), physicalType,
     closure: (declaration: Node) => byClosure.get(declaration), forShape: (type: TargetTypeRef) => byShape.get(targetTypeRefKey(type)),
     valueDeclarationsAt: (statement: Node) => scheduledValues.get(statement) ?? empty,

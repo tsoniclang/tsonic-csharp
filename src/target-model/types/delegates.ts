@@ -5,6 +5,7 @@ import type {
   CsharpDelegateSignatureShape,
   CsharpDelegateTargetTypeRef,
   CsharpTaskTargetTypeRef,
+  CsharpTargetNamedTypeRef,
 } from "./model.js";
 import {
   isCsharpVoidTargetType,
@@ -106,6 +107,11 @@ export function getCsharpDelegateSignature(type: TargetTypeRef | undefined): Csh
   return type?.kind === "target-named"
     ? (type as Partial<CsharpDelegateTargetTypeRef>).csharpDelegateSignature
     : undefined;
+}
+
+export function getCsharpCallableValueSignature(type: TargetTypeRef | undefined): CsharpDelegateSignatureShape | undefined {
+  const contract = type?.kind === "target-named" ? (type as CsharpTargetNamedTypeRef).csharpMethodValue?.contract : undefined;
+  return getCsharpDelegateSignature(contract ?? type);
 }
 
 export function isCsharpSourceDelegateTargetType(type: TargetTypeRef | undefined): boolean {

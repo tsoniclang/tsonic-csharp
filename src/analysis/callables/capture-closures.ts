@@ -19,12 +19,13 @@ export function selectCsharpFrameClosures(
   groups: Map<Node, Map<Node, TargetTypeRef>>,
   physicalType: (declaration: Node, type: TargetTypeRef) => TargetTypeRef,
   issues: CsharpStorageIssue[],
+  valueOwned: ReadonlySet<Node>,
 ): readonly CsharpFrameClosure[] {
   const candidates: Node[] = [];
   const visit = (node: Node): void => {
-    if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node) ||
+    if (!valueOwned.has(node) && (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node) ||
       source.ast.is.IsFunctionDeclaration(node) && source.ast.parent(node) !== undefined &&
-      !source.ast.is.IsSourceFile(source.ast.parent(node)!)) candidates.push(node);
+      !source.ast.is.IsSourceFile(source.ast.parent(node)!))) candidates.push(node);
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   for (const file of source.navigation.sourceFiles) visit(file);

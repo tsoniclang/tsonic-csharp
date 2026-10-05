@@ -18,6 +18,7 @@ import {
   csharpSourceArgumentExpectedType,
   csharpTargetParameterValueType,
   getCsharpDelegateSignature,
+  getCsharpCallableValueSignature,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   getCsharpArrayLiteralElementTargetType,
@@ -59,6 +60,8 @@ import type {
 import {
   csharpTargetRepresentationContractId,
 } from "../../target-model/contracts/identities.js";
+import { getCsharpMethodValue, rebindCsharpMethodValueTypeParameters } from "../../target-model/types/method-values.js";
+import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 
 const expectedBinaryKey = createTargetClassificationKey<
   ReturnType<typeof selectCsharpBinaryOperation>
@@ -212,7 +215,7 @@ export function analyzeCsharpExpectedTypes(
     callable: CsharpCallableContractIndex["contracts"][number],
     callableTarget?: TargetTypeRef,
   ): TargetTypeRef | undefined {
-    const selectedReturnType = getCsharpDelegateSignature(callableTarget)
+    const selectedReturnType = getCsharpCallableValueSignature(callableTarget)
       ?.returnType;
     if (selectedReturnType !== undefined) {
       return HasSyntacticModifier(
@@ -251,9 +254,11 @@ export function analyzeCsharpExpectedTypes(
         : contextualTargets;
       const distinctTargets = new Map(effectiveTargets.map((use) =>
         [targetTypeRefKey(use.targetType), use.targetType]));
+      const sourceTarget = evidence.nodeTargetType(declaration);
+      const intrinsic = getCsharpMethodValue(sourceTarget) === undefined ? undefined : sourceTarget;
       const targetType = callables.closedInputType(declaration) ?? (distinctTargets.size === 1
         ? [...distinctTargets.values()][0]
-        : undefined);
+        : distinctTargets.size === 0 ? intrinsic : undefined);
       const previousTarget = callableTargets.get(declaration);
       if (
         previousTarget === undefined
@@ -295,6 +300,12 @@ export function analyzeCsharpExpectedTypes(
 
   function callableContextTarget(declaration: Node, target: TargetTypeRef): TargetTypeRef | undefined {
     const value = getCsharpNullableElementTargetType(target) ?? target;
+    if (getCsharpMethodValue(value) !== undefined) {
+      const parameters = policy.ast.typeParameters(declaration).map(parameter => parameter === undefined
+        ? undefined : csharpSourceTypeParameter(parameter, policy.ast));
+      return parameters.some(parameter => parameter === undefined) ? undefined
+        : rebindCsharpMethodValueTypeParameters(value, parameters as NonNullable<typeof parameters[number]>[]);
+    }
     const signature = getCsharpDelegateSignature(value);
     if (signature !== undefined) {
       const callable = callables.get({ kind: "declaration", declaration });

@@ -399,7 +399,9 @@ function visit(
       : policy.types.resolveNode(node, sourceFile);
     const optionalReceiver = classifyCsharpOptionalCallReceiver(policy, source, target, sourceFile);
     const optionalCallee = classifyCsharpOptionalCallCallee(policy, source, sourceFile);
-    const sourceMethodValue = source === undefined ? undefined
+    const sourceCall = source === undefined || target?.kind !== "source-owned" ? undefined
+      : classifyCsharpSourceCallee(policy, source, sourceFile);
+    const sourceMethodValue = source === undefined || sourceCall?.kind !== "value" ? undefined
       : getCsharpMethodValue(policy.types.resolveNode(source.sourceCallee.expression, sourceFile));
     setClassification(builder, node, callKey, Object.freeze({
       ...(typeTest === undefined ? {} : { typeTest }),
@@ -408,7 +410,7 @@ function visit(
       ...(optionalCallee === undefined ? {} : { optionalCallee }),
       unionCall: classifyCsharpUnionCall(policy, source, sourceFile),
       ...(source === undefined ? {} : { source }),
-      ...(source === undefined || target?.kind !== "source-owned" ? {} : { sourceCall: classifyCsharpSourceCallee(policy, source, sourceFile) }),
+      ...(sourceCall === undefined ? {} : { sourceCall }),
       ...(source === undefined || target?.kind !== "source-owned" && !(target?.kind === "resolved" &&
         target.call.targetMember.kind === "method" && policy.navigation.isProjectDeclaration(
           source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration)) ? {} : {

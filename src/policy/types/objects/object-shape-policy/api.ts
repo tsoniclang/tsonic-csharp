@@ -48,6 +48,7 @@ import { csharpCopiedObjectShapeMembers, csharpMethodEnvironment, retainCsharpMe
 import { csharpObjectShapeMethodRequiresProtocol } from "../../../../target-model/types/method-values.js";
 import { parameterizeCsharpStructuralContract } from "./structural-contracts.js";
 import { selectCsharpCopiedMethodReceiver } from "../../../ownership/copied-methods.js";
+import { retainCsharpGenericCallableValue } from "../../callables/generic-values.js";
 
 import type {
   CsharpObjectLiteralTargetShapeResolution,
@@ -821,6 +822,8 @@ export function createCsharpObjectShapePolicy(
   }
 
   return Object.freeze({
+    resolveCallableValue: (signature: TargetTypeRef, typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>) =>
+      retainCsharpGenericCallableValue(signature, typeParameters, rememberTargetShape),
     resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined {
       const contract = shape.targetType.kind === "target-named" &&
         ((shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true ||

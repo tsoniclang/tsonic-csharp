@@ -28,15 +28,23 @@ import type {
 import {
   csharpSourceFileContractCandidate,
 } from "./source-file-contract.js";
+import { planCsharpObjectShapeSourceFile } from "../objects/planning.js";
+import type { CsharpCompilationUnit } from "../../target-ast/roslyn/index.js";
 
 const minimumCsharpArtifactReconstructionCount = 64;
 const maximumReconstructionsPerSourceFile = 32;
+const objectShapeSourceOwner = "generated-source-file:object-shapes";
+
+export interface CsharpReconstructedSourceFiles {
+  readonly sourceFiles: readonly PlannedCsharpSourceFile[];
+  readonly objectShapes: ReturnType<typeof planCsharpObjectShapeSourceFile>;
+}
 
 export function reconstructCsharpSourceFiles(
   input: CsharpPlanningContext,
   moduleInitialization: CsharpModuleInitializationIndex,
   diagnostics: TargetDiagnostic[],
-): readonly PlannedCsharpSourceFile[] | undefined {
+): CsharpReconstructedSourceFiles | undefined {
   const sourceFilesByOwner = new Map<string, SourceFile>();
   const ownerBySourceFile = new Map<SourceFile, string>();
   for (const sourceFile of input.program.sourceNavigation.sourceFiles) {
@@ -60,8 +68,9 @@ export function reconstructCsharpSourceFiles(
   }
 
   const plannedByOwner = new Map<string, PlannedCsharpSourceFile | undefined>();
+  let objectShapes: ReturnType<typeof planCsharpObjectShapeSourceFile>;
   const maximumReconstructionCount = csharpArtifactReconstructionBudget(
-    sourceFilesByOwner.size,
+    sourceFilesByOwner.size + input.program.captureStorage.frames.length + 1,
   );
   if (maximumReconstructionCount === undefined) {
     diagnostics.push(reconstructionDiagnostic(
@@ -73,20 +82,40 @@ export function reconstructCsharpSourceFiles(
   const diagnosticsByOwner = new Map<string, readonly TargetDiagnostic[]>();
   const reconstruction = reconstructTargetArtifacts(
     input.artifacts.contractGraph,
-    [...sourceFilesByOwner.keys()].sort((left, right) =>
+    [...sourceFilesByOwner.keys(), objectShapeSourceOwner].sort((left, right) =>
       left.localeCompare(right)
     ),
     (owner, graph): TargetArtifactReconstruction<
       CsharpArtifactFacet,
       CsharpArtifactSnapshot
     > => {
+      if (owner === objectShapeSourceOwner) {
+        const dependencies = uniqueDependencies([
+          ...[...sourceFilesByOwner.keys()].map(sourceOwner => ({
+            owner: sourceOwner, facet: "source-file-implementation" as const,
+          })),
+          ...input.artifacts.objectShapeArtifacts().flatMap(artifact => [
+            { owner: artifact.key, facet: "object-shape-type-surface" as const },
+            { owner: artifact.key, facet: "object-shape-behavior" as const },
+            { owner: artifact.key, facet: "object-shape-materialization" as const },
+          ]),
+        ]);
+        const unpublished = unpublishedDependencies(graph, dependencies);
+        if (unpublished.length > 0) return {
+          kind: "blocked", reason: "Synthetic C# source requires finalized source and object-shape contracts.",
+          dependencies: unpublished,
+        };
+        return reconstructSourceArtifact(owner, graph, input, dependencies, diagnosticsByOwner,
+          candidateDiagnostics => {
+            const value = planCsharpObjectShapeSourceFile(input, candidateDiagnostics);
+            return { value, unit: value?.source.unit };
+          }, value => { objectShapes = value; });
+      }
       const sourceFile = sourceFilesByOwner.get(owner);
       if (sourceFile === undefined) {
         return input.artifacts.reconstructArtifact(owner);
       }
 
-      const revision = graph.revision;
-      const candidateDiagnostics: TargetDiagnostic[] = [];
       const moduleDependencies = sourceFilePublicDependencies(
         input,
         sourceFile,
@@ -96,61 +125,11 @@ export function reconstructCsharpSourceFiles(
       if (moduleDependencies.kind === "rejected") {
         return moduleDependencies;
       }
-      const captured = input.artifacts.captureDependencies(owner, () =>
-        planSourceFile(
-          sourceFile,
-          input,
-          candidateDiagnostics,
-          moduleInitialization,
-        )
-      );
-      if (graph.revision !== revision) {
-        return {
-          kind: "retry",
-          reason:
-            "Planning discovered or strengthened an exact prerequisite target artifact contract.",
-        };
-      }
-      if (candidateDiagnostics.length > 0) {
-        const unpublished = unpublishedDependencies(
-          graph,
-          captured.dependencies,
-        );
-        if (unpublished.length > 0) {
-          return {
-            kind: "blocked",
-            reason:
-              "C# source planning requires finalized imported public surfaces before its diagnostics are authoritative.",
-            dependencies: unpublished,
-          };
-        }
-        diagnosticsByOwner.set(owner, Object.freeze([...candidateDiagnostics]));
-        return {
-          kind: "rejected",
-          code: "CSHARP_SOURCE_FILE_RECONSTRUCTION_REJECTED",
-          reason:
-            `C# source artifact '${owner}' produced target diagnostics during reconstruction.`,
-        };
-      }
-      const candidate = csharpSourceFileContractCandidate(
-        owner,
-        captured.value?.unit,
-        [...moduleDependencies.dependencies, ...captured.dependencies],
-      );
-      if (candidate.kind === "rejected") {
-        return {
-          kind: "rejected",
-          code: "CSHARP_SOURCE_FILE_CONTRACT_INVALID",
-          reason: candidate.reason,
-        };
-      }
-      plannedByOwner.set(owner, captured.value);
-      return {
-        kind: "resolved",
-        contract: candidate.candidate.contract,
-        dependencies: candidate.candidate.dependencies,
-        artifact: candidate.candidate.artifact,
-      };
+      return reconstructSourceArtifact(owner, graph, input, moduleDependencies.dependencies, diagnosticsByOwner,
+        candidateDiagnostics => {
+          const value = planSourceFile(sourceFile, input, candidateDiagnostics, moduleInitialization);
+          return { value, unit: value?.unit };
+        }, value => { plannedByOwner.set(owner, value); });
     },
     { maximumReconstructionCount },
   );
@@ -180,13 +159,47 @@ export function reconstructCsharpSourceFiles(
     ));
     return undefined;
   }
-  return Object.freeze(
-    input.program.sourceNavigation.sourceFiles.flatMap((sourceFile) => {
+  return Object.freeze({
+    sourceFiles: Object.freeze(input.program.sourceNavigation.sourceFiles.flatMap((sourceFile) => {
       const owner = ownerBySourceFile.get(sourceFile);
       const planned = owner === undefined ? undefined : plannedByOwner.get(owner);
       return planned === undefined ? [] : [planned];
-    }),
-  );
+    })),
+    objectShapes,
+  });
+}
+
+function reconstructSourceArtifact<Value>(
+  owner: string, graph: TargetArtifactContractGraph<CsharpArtifactFacet, CsharpArtifactSnapshot>,
+  input: CsharpPlanningContext, dependencies: readonly TargetArtifactDependency<CsharpArtifactFacet>[],
+  diagnosticsByOwner: Map<string, readonly TargetDiagnostic[]>,
+  build: (diagnostics: TargetDiagnostic[]) => { readonly value: Value; readonly unit: CsharpCompilationUnit | undefined },
+  retain: (value: Value) => void,
+): TargetArtifactReconstruction<CsharpArtifactFacet, CsharpArtifactSnapshot> {
+  const revision = graph.revision;
+  const candidateDiagnostics: TargetDiagnostic[] = [];
+  const captured = input.artifacts.captureDependencies(owner, () => build(candidateDiagnostics));
+  if (graph.revision !== revision) return {
+    kind: "retry", reason: "Planning discovered or strengthened an exact prerequisite target artifact contract.",
+  };
+  const selectedDependencies = uniqueDependencies([...dependencies, ...captured.dependencies]);
+  if (candidateDiagnostics.length > 0) {
+    const unpublished = unpublishedDependencies(graph, selectedDependencies);
+    if (unpublished.length > 0) return {
+      kind: "blocked", reason: "C# source planning requires finalized prerequisite contracts before diagnostics are authoritative.",
+      dependencies: unpublished,
+    };
+    diagnosticsByOwner.set(owner, Object.freeze([...candidateDiagnostics]));
+    return { kind: "rejected", code: "CSHARP_SOURCE_FILE_RECONSTRUCTION_REJECTED",
+      reason: `C# source artifact '${owner}' produced target diagnostics during reconstruction.` };
+  }
+  const candidate = csharpSourceFileContractCandidate(owner, captured.value.unit, selectedDependencies);
+  if (candidate.kind === "rejected") return {
+    kind: "rejected", code: "CSHARP_SOURCE_FILE_CONTRACT_INVALID", reason: candidate.reason,
+  };
+  retain(captured.value.value);
+  return { kind: "resolved", contract: candidate.candidate.contract,
+    dependencies: candidate.candidate.dependencies, artifact: candidate.candidate.artifact };
 }
 
 function unpublishedDependencies(

@@ -26,6 +26,8 @@ export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
 }
 
 export interface CsharpObjectShapePolicy {
+  resolveCallableValue(signature: TargetTypeRef,
+    typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>): TargetTypeRef | undefined;
   resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;
   resolveNode(
     node: Node | undefined,

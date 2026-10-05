@@ -10,9 +10,8 @@ import { nextState } from "../../resolution/state.js";
 import { objectShapeMemberTargetNameForKey } from "./construction.js";
 import { typeIncludesNullish } from "./source-evidence.js";
 import { resolveObjectShapeSourceMemberKey } from "./source-member-identity.js";
-import { resolveCsharpTypeParameterConstraints } from "../../../constraints/type-parameter-constraints.js";
-import { csharpMethodValueCoversContract } from "../../../../target-model/types/method-values.js";
-import { csharpSourceTypeParameter } from "../../../../target-model/names/type-parameters.js";
+import { resolveCsharpCallableTypeParameters } from "../../../constraints/callable-type-parameters.js";
+import { csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../../target-model/types/method-values.js";
 import { isCsharpIntegralTargetType } from "../../../../target-model/types/scalar-types.js";
 import { csharpNumericLiteralValue } from "../../../../target-model/syntax/numeric-literals.js";
 
@@ -158,6 +157,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     if (memberType === undefined) {
       return undefined;
     }
+    if (method) memberType = getCsharpMethodValue(memberType)?.contract ?? memberType;
     if (!method && declarations.length === 1) {
       const declaration = declarations[0]!;
       const value = host.ast.is.IsPropertyAssignment(declaration) || host.ast.is.IsShorthandPropertyAssignment(declaration)
@@ -169,19 +169,11 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     const signatures = callableType === undefined ? [] : queries.types.callSignatures(callableType);
     const methodDeclaration = signatures.length === 1
       ? queries.declarations.signatureDeclaration(signatures[0]!) : undefined;
-    const typeParameters = methodDeclaration === undefined ? [] : host.ast.typeParameters(methodDeclaration).map(declaration => {
-      if (declaration === undefined) return undefined;
-      const parameter = csharpSourceTypeParameter(declaration, host.ast);
-      if (parameter === undefined) return undefined;
-      const selected = resolveCsharpTypeParameterConstraints(declaration, parameter, queries.sourceFile, {
-        ast: host.ast,
-        types: { resolveNode: (node, sourceFile) => host.typeResolver.resolveNode(node, sourceFile, nextState(state)) },
-      });
-      return selected.kind !== "resolved" ? undefined : Object.freeze({ declaration, identity: parameter.identity, name: parameter.name,
-        constraints: Object.freeze([...selected.constraints]),
-      });
+    const typeParameters = resolveCsharpCallableTypeParameters(methodDeclaration, queries.sourceFile, {
+      ast: host.ast,
+      types: { resolveNode: (node, sourceFile) => host.typeResolver.resolveNode(node, sourceFile, nextState(state)) },
     });
-    if (typeParameters.some(parameter => parameter === undefined)) return undefined;
+    if (typeParameters === undefined) return undefined;
     const optional = property.optional;
     const bound = host.memoryBindings.hasBoundField([property.symbol, ...declarations]);
     if (bound && (optional || typeIncludesNullish(sourceType, queries) || method || getters.length !== 0 || setters.length !== 0)) return undefined;

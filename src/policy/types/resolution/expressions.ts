@@ -10,6 +10,7 @@ import { resolveBinaryTargetRepresentation, commonTargetRepresentation, getTaskR
 import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../operations/members/selection/target-selection.js";
 import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 import { selectCsharpMethodValue } from "../objects/method-values.js";
+import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";
 import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/collections.js";
@@ -309,10 +310,17 @@ export function resolvePropertyAccessTargetType(
     ? selectedType ?? selection.source.sourceReadType ?? selection.source.sourceWriteType
     : undefined;
   const declaredMemberType = queries.types.typeOfSymbol(selection.source.selectedSymbol);
+  const invocationType = (type: TargetTypeRef | undefined): TargetTypeRef | undefined => {
+    const declaration = selection.source.selectedDeclaration;
+    return selection.source.callCallee && declaration !== undefined &&
+      (host.ast.is.IsMethodDeclaration(declaration) || host.ast.is.IsMethodSignatureDeclaration(declaration)) &&
+      host.ast.questionToken(declaration) === undefined
+      ? getCsharpMethodValue(type)?.contract ?? type : type;
+  };
   if (host.projectTypeCatalog.definitionContainingDeclaration(selection.source.selectedDeclaration) !== undefined) {
     const member = resolveSelectedDeclarationResult(selection.source.selectedDeclaration, selectedSourceType ?? declaredMemberType, queries, state, receiverType,
       declaredMemberType);
-    return member === undefined ? undefined : optionalAccessTargetType(member, selection.source.optionalChain);
+    return member === undefined ? undefined : optionalAccessTargetType(invocationType(member), selection.source.optionalChain);
   }
   const structuralMemberType = host.structuralTypes.resolveSelectedProperty(
     receiverType,
@@ -334,7 +342,7 @@ export function resolvePropertyAccessTargetType(
         state,
       );
   return optionalAccessTargetType(
-    structuralMemberType ?? selectedSymbolType ??
+    invocationType(structuralMemberType ?? selectedSymbolType ??
       resolveSelectedDeclarationResult(
         selection.source.selectedDeclaration,
         selectedSourceType,
@@ -342,7 +350,7 @@ export function resolvePropertyAccessTargetType(
         state,
         receiverType,
         declaredMemberType,
-      ),
+      )),
     selection.source.optionalChain,
   );
 }

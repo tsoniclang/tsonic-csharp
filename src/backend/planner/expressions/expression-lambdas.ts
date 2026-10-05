@@ -54,6 +54,7 @@ import {
   isCsharpVoidTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
+  getCsharpCallableValueSignature,
 } from "../../../target-model/types/index.js";
 import {
   csharpSourceTypeArgumentNodes,
@@ -470,9 +471,7 @@ export function getLambdaTargetContext(
 export function csharpDelegateSignatureFromTargetTypeRef(
   type: TargetTypeRef | undefined,
 ): CsharpDelegateSignatureShape | undefined {
-  const signature = type?.kind === "target-named"
-    ? (type as { readonly csharpDelegateSignature?: CsharpDelegateSignatureShape }).csharpDelegateSignature
-    : undefined;
+  const signature = getCsharpCallableValueSignature(type);
   return signature?.returnType === undefined ? undefined : signature;
 }
 

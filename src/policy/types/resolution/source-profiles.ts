@@ -53,6 +53,7 @@ import { definedValues } from "./source-evidence.js";
 import { csharpSourceErrorNames } from "../../../target-model/identities/source-errors.js";
 import { nextState } from "./state.js";
 import { csharpRuntimeParameterDefault } from "../../../target-model/types/parameter-defaults.js";
+import { resolveCsharpCallableTypeParameters } from "../../constraints/callable-type-parameters.js";
 
 export function resolveSourceProfileType(
   { generatorProtocol, generatorResultProtocol, host }: CsharpTypeResolutionScope,
@@ -359,7 +360,7 @@ export function resolveCallableType(
 
 
 export function resolveCallableEvidence(
-  { resolveSignatureParameterEvidence, resolveSourceTypeComponentEvidence }: CsharpTypeResolutionScope,
+  { host, resolveNodeWithState, resolveSignatureParameterEvidence, resolveSourceTypeComponentEvidence }: CsharpTypeResolutionScope,
   callable: SourceCallableTypeEvidence,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -403,7 +404,7 @@ export function resolveCallableEvidence(
       ? {}
       : { restParameterIndex: restParameterIndexes[0] }),
   };
-  return returnType.kind === "target-named" &&
+  const signature = returnType.kind === "target-named" &&
       (returnType as CsharpTargetNamedTypeRef).csharpSpecialType === "void"
     ? csharpDelegateTargetType(
         "System.Action",
@@ -417,6 +418,11 @@ export function resolveCallableEvidence(
         returnType,
         delegateOptions,
       );
+  const typeParameters = resolveCsharpCallableTypeParameters(callable.result.declaration, queries.sourceFile, {
+    ast: host.ast, types: { resolveNode: (node, file) => resolveNodeWithState(node, file, nextState(state)) },
+  });
+  return typeParameters === undefined ? undefined : typeParameters.length === 0 ? signature
+    : host.objectShapes.resolveCallableValue(signature, typeParameters);
 }
 
 export function resolveSignatureParameterEvidence(

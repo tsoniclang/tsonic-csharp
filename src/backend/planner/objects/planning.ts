@@ -170,6 +170,8 @@ export function materializeObjectShapeDeclarations(
       fact.targetType.kind === "target-named"
         ? (fact.targetType.typeArguments ?? []).filter(argument => argument.kind === "type-parameter") : [],
       [...fact.members.flatMap(member => (member.typeParameters ?? []).map(parameter => parameter.name)),
+        ...(input.program.captureStorage.forShape(fact.targetType)?.methods.flatMap(method =>
+          csharpAuthoredTypeParameterNames(method.declaration, input.program.source.ast)) ?? []),
         ...(fact.methodImplementation === undefined ? [] : csharpAuthoredTypeParameterNames(
           fact.methodImplementation.declaration, input.program.source.ast))],
     );

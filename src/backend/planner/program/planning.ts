@@ -18,9 +18,6 @@ import {
   validateSourceFileOutputIdentities,
 } from "../artifacts/source-paths.js";
 import {
-  planCsharpObjectShapeSourceFile,
-} from "../objects/index.js";
-import {
   planCsharpGeneratedHelperSourceFile,
 } from "../artifacts/generated-helper-source.js";
 import {
@@ -38,18 +35,16 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
     return rejectedTargetStage(diagnostics);
   }
   const moduleInitialization = input.program.moduleInitialization;
-  const plannedSources = reconstructCsharpSourceFiles(
+  const reconstructed = reconstructCsharpSourceFiles(
     input,
     moduleInitialization,
     diagnostics,
   );
-  if (plannedSources === undefined || diagnostics.length > 0) {
+  if (reconstructed === undefined || diagnostics.length > 0) {
     return rejectedTargetStage(diagnostics);
   }
-  const objectShapes = planCsharpObjectShapeSourceFile(input, diagnostics);
-  if (diagnostics.length > 0) {
-    return rejectedTargetStage(diagnostics);
-  }
+  const plannedSources = reconstructed.sourceFiles;
+  const objectShapes = reconstructed.objectShapes;
   const generatedHelpers = planCsharpGeneratedHelperSourceFile(input);
   const sourceUnions = planCsharpSourceUnionFile(input);
   const startup = planCsharpStartupSourceFile(

@@ -5,6 +5,7 @@ import { targetTypeRefEquals, scopedTargetTypeRefKey } from "./equality.js";
 import { getCsharpDelegateSignature } from "./delegates.js";
 import { getCsharpNullableElementTargetType } from "./nullable.js";
 import { csharpFreeTypeParameterIdentities } from "./generic-references.js";
+import { substituteTargetTypeParameters } from "./substitution.js";
 
 export function csharpObjectShapeMethodRequiresProtocol(member: CsharpObjectShapeMemberFact): boolean {
   return member.memberKind === "method" && ((member.typeParameters?.length ?? 0) > 0 ||
@@ -41,6 +42,7 @@ export function csharpMethodValueType(
   return Object.freeze({ kind: "target-named", id: `tsonic.method-value:${JSON.stringify([owner.id, identity])}`,
     ...(owner.typeArguments === undefined ? {} : { typeArguments: owner.typeArguments }),
     csharpRender: selected.csharpRender,
+    csharpTypeofRuntimeKind: "function",
     csharpMethodValue: Object.freeze({ owner, method, identity, contract, typeParameters: Object.freeze([...typeParameters]) }),
   });
 }
@@ -61,4 +63,14 @@ export function csharpMethodValueContractsEqual(left: TargetTypeRef, right: Targ
 
 export function getCsharpMethodValue(type: TargetTypeRef | undefined): CsharpTargetNamedTypeRef["csharpMethodValue"] {
   return type?.kind === "target-named" ? (type as CsharpTargetNamedTypeRef).csharpMethodValue : undefined;
+}
+
+export function rebindCsharpMethodValueTypeParameters(
+  type: TargetTypeRef, parameters: readonly Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[],
+): TargetTypeRef | undefined {
+  const value = getCsharpMethodValue(type);
+  if (value === undefined || value.typeParameters.length !== parameters.length) return undefined;
+  const substitutions = new Map(value.typeParameters.map((identity, index) => [identity, parameters[index]!]));
+  return csharpMethodValueType(value.owner, value.method, value.identity,
+    substituteTargetTypeParameters(value.contract, substitutions), parameters.map(parameter => parameter.identity));
 }
