@@ -55,9 +55,6 @@ export function planClassDeclaration(
     registerSourceObjectShape(input, objectShape, diagnostics, node);
   }
   const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
-  if (objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "js-freeze") && heritage.baseType !== undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Object.freeze over a source class with inherited native storage requires a closed base-field write contract."));
-  }
   const memberNodes = sourceObjectMemberDeclarations(input.program.source.ast, node).filter(member => factory === undefined && !staticCompanion ||
     member === undefined || !input.program.source.ast.hasModifierKind(member, "static") && !input.program.source.ast.is.IsClassStaticBlockDeclaration(member));
   const initializerInput = factory === undefined ? input : classFactoryContext(factory,

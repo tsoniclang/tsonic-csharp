@@ -26,6 +26,7 @@ import { maximumJsonClosureDepth } from "../model.js";
 import { objectShapeArtifactKey } from "./identity.js";
 import { objectShapeProjectionKey } from "../../contracts.js";
 import { collectCsharpReferenceClosure } from "./reference-closure.js";
+import { resolveCsharpSourceClassStorage } from "./native-storage.js";
 
 export function collectJsonClosure(
   { collectJsonShape, collectJsonType, visibleObjectShapes }: CsharpArtifactGraphScope,
@@ -292,15 +293,25 @@ export function collectJsonShape(
 
 
 export function inheritedObjectShapeCapabilities(
-  { records }: CsharpArtifactGraphScope,
+  scope: CsharpArtifactGraphScope,
   fact: CsharpObjectShapeFact,
 ): readonly CsharpObjectShapeCapability[] {
   const inherited = new Set<CsharpObjectShapeCapability>();
   for (const implemented of fact.implements ?? []) {
-    for (const record of records.values()) {
+    for (const record of scope.records.values()) {
       if (targetTypeRefEquals(implemented, record.fact.targetType)) {
         record.capabilities.forEach((capability) => inherited.add(capability));
       }
+    }
+  }
+  const nativeBase = resolveCsharpSourceClassStorage(scope, fact.targetType)?.baseType;
+  const nativeOwner = nativeBase === undefined ? undefined
+    : resolveCsharpSourceClassStorage(scope, nativeBase)?.declaration.targetType;
+  if (nativeBase !== undefined) for (const record of scope.records.values()) {
+    if (record.capabilities.has("js-freeze") &&
+      (targetTypeRefEquals(nativeBase, record.fact.targetType) ||
+        nativeOwner !== undefined && targetTypeRefEquals(nativeOwner, record.fact.targetType))) {
+      inherited.add("js-freeze");
     }
   }
   return Object.freeze([...inherited].sort());

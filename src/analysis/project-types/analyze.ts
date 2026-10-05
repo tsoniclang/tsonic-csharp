@@ -9,6 +9,8 @@ import type {
 import type {
   CsharpProjectTypeClassifications,
 } from "./model.js";
+import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 export function sealCsharpProjectTypeClassifications(
   policy: CsharpProjectTypePolicy,
@@ -23,6 +25,9 @@ export function sealCsharpProjectTypeClassifications(
     Node,
     NonNullable<ReturnType<CsharpProjectTypePolicy["heritageForDeclaration"]>>
   >();
+  const heritageById = new Map<string, NonNullable<
+    ReturnType<CsharpProjectTypePolicy["heritageForDeclaration"]>
+  >>();
   const constructorsByDeclaration = new WeakMap<
     Node,
     readonly import("../../policy/types/index.js").CsharpProjectForwardingConstructor[]
@@ -32,6 +37,7 @@ export function sealCsharpProjectTypeClassifications(
     const heritage = policy.heritageForDeclaration(definition.declaration);
     if (heritage !== undefined) {
       heritageByDeclaration.set(definition.declaration, heritage);
+      heritageById.set(definition.id, heritage);
     }
     const constructors = policy.implicitConstructorsForDeclaration(
       definition.declaration,
@@ -55,6 +61,23 @@ export function sealCsharpProjectTypeClassifications(
       : containingDefinitions.get(declaration),
     heritageForDeclaration: (declaration) =>
       heritageByDeclaration.get(declaration),
+    heritageForTarget(type: TargetTypeRef) {
+      if (type.kind !== "target-named") return undefined;
+      const heritage = heritageById.get(type.id);
+      const arguments_ = type.typeArguments ?? [];
+      if (heritage === undefined ||
+        arguments_.length !== heritage.definition.typeParameterBindings.length) return undefined;
+      const substitutions = new Map(heritage.definition.typeParameterBindings.map((parameter, index) =>
+        [parameter.identity, arguments_[index]!]));
+      return Object.freeze({
+        definition: heritage.definition,
+        ...(heritage.baseType === undefined ? {} : {
+          baseType: substituteTargetTypeParameters(heritage.baseType, substitutions),
+        }),
+        interfaces: Object.freeze(heritage.interfaces.map(candidate =>
+          substituteTargetTypeParameters(candidate, substitutions))),
+      });
+    },
     implicitConstructorsForDeclaration: (declaration) =>
       constructorsByDeclaration.get(declaration),
   };

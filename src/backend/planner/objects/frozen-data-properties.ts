@@ -30,7 +30,7 @@ export function guardCsharpFrozenDataProperties(
   } };
   return members.flatMap((member): readonly CsharpTypeMember[] => {
     if ((member.kind !== "FieldDeclaration" && member.kind !== "PropertyDeclaration") ||
-      member.modifiers.includes("static")) return [member];
+      member.modifiers.includes("static") || member.modifiers.includes("abstract")) return [member];
     const selected = shape.members.find(candidate => candidate.accessor === undefined &&
       (objectShapeStorageMemberName(shape, candidate) === member.name ||
         candidate.memberKind === "method" && candidate.targetName === member.name));

@@ -21,7 +21,7 @@ import { selectCsharpStructuralInterface, type CsharpStructuralInterfaceRegistra
 import { mergeCsharpObjectShapeSubjects } from "../../policy/types/objects/object-shape-policy/construction.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/nullable.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
-import type { CsharpStructuralInterfaceImplementation } from "../../target-model/types/model.js";
+import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 
 const noExpectedShape = "<none>";
@@ -259,6 +259,10 @@ export function analyzeCsharpObjectShapes(
           }
         }
         pending.push(...csharpTargetTypeComponents(type, shape));
+        if (type.kind === "target-named" &&
+          (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "class") {
+          pending.push(...policy.projectTypes.directSupertypes(type) ?? []);
+        }
       }
       sealed = true;
       const { registerStructuralInterface: _register, seal: _seal, ...snapshot } = classifications;

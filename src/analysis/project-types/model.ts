@@ -1,4 +1,5 @@
 import type { Node } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type {
   CsharpProjectForwardingConstructor,
   CsharpProjectTypeDefinition,
@@ -13,6 +14,9 @@ export interface CsharpProjectTypeClassifications {
   ): CsharpProjectTypeDefinition | undefined;
   heritageForDeclaration(
     declaration: Node,
+  ): CsharpProjectTypeHeritage | undefined;
+  heritageForTarget(
+    type: TargetTypeRef,
   ): CsharpProjectTypeHeritage | undefined;
   implicitConstructorsForDeclaration(
     declaration: Node,
