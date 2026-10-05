@@ -3,6 +3,7 @@ import { sourceBindingScope, sourceLexicalCaptures, sourceBindingCapturedBeforeI
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
 import type { CsharpStorageIssue } from "../storage/model.js";
+import { selectCsharpNamedSelfBinding, type CsharpNamedSelfBinding } from "./named-self.js";
 
 export interface CsharpFrameClosure {
   readonly declaration: Node;
@@ -20,7 +21,7 @@ export function selectCsharpFrameClosures(
   physicalType: (declaration: Node, type: TargetTypeRef) => TargetTypeRef,
   issues: CsharpStorageIssue[],
   valueOwned: ReadonlySet<Node>,
-): readonly CsharpFrameClosure[] {
+): { readonly closures: readonly CsharpFrameClosure[]; readonly namedSelfBindings: readonly CsharpNamedSelfBinding[] } {
   const candidates: Node[] = [];
   const visit = (node: Node): void => {
     if (!valueOwned.has(node) && (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node) ||
@@ -31,10 +32,11 @@ export function selectCsharpFrameClosures(
   for (const file of source.navigation.sourceFiles) visit(file);
   const captures = candidates.map(declaration => {
     const lexical = sourceLexicalCaptures(declaration, [declaration], source.ast, source.navigation);
-    return { declaration, selected: { ...lexical,
+    return { declaration, namedSelf: selectCsharpNamedSelfBinding(source, declaration, lexical, evidence, issues), selected: { ...lexical,
       captures: lexical.captures.filter(capture => !evidence.isCompileTimeMetadata(capture.declaration)),
     } };
   });
+  const namedSelfDeclarations = new Set(captures.flatMap(candidate => candidate.namedSelf === undefined ? [] : [candidate.declaration]));
   for (const candidate of captures) for (const capture of candidate.selected.captures) {
     if (!sourceBindingCapturedBeforeInitialization(capture.declaration, source.ast, source.navigation)) continue;
     const scope = sourceBindingScope(capture.declaration, source.ast);
@@ -53,7 +55,8 @@ export function selectCsharpFrameClosures(
   while (changed) {
     changed = false;
     for (const candidate of captures) {
-      if (selected.has(candidate.declaration) || !candidate.selected.captures.some(capture => {
+      if (selected.has(candidate.declaration) || (candidate.namedSelf?.values.length ?? 0) > 0 ||
+        candidate.selected.captures.some(capture => namedSelfDeclarations.has(capture.declaration)) || !candidate.selected.captures.some(capture => {
         const scope = sourceBindingScope(capture.declaration, source.ast);
         return scope !== undefined && groups.get(scope)?.has(capture.declaration);
       })) continue;
@@ -95,5 +98,7 @@ export function selectCsharpFrameClosures(
       changed = true;
     }
   }
-  return Object.freeze([...selected.values()]);
+  return Object.freeze({ closures: Object.freeze([...selected.values()]),
+    namedSelfBindings: Object.freeze(captures.flatMap(candidate => candidate.namedSelf === undefined ? [] : [candidate.namedSelf])),
+  });
 }

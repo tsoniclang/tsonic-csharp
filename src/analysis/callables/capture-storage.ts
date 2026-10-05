@@ -17,6 +17,7 @@ import { selectCsharpGenericFrameClosures } from "./generic-closures.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import type { CsharpSourceNameResolver } from "../names/source-names.js";
 import { createCsharpTypeParameterEnvironment } from "../../policy/constraints/type-parameter-environment.js";
+import type { CsharpNamedSelfBinding } from "./named-self.js";
 
 export interface CsharpCaptureFrame {
   readonly scope: Node;
@@ -41,6 +42,7 @@ export interface CsharpCaptureStorage {
   binding(declaration: Node): CsharpCapturedBinding | undefined;
   physicalType(declaration: Node, logicalType: TargetTypeRef): TargetTypeRef;
   closure(declaration: Node): { readonly frame: CsharpCaptureFrame; readonly method: CsharpFrameClosure } | undefined;
+  namedSelf(declaration: Node): CsharpNamedSelfBinding | undefined;
   forShape(type: TargetTypeRef): CsharpCaptureFrame | undefined;
   valueDeclarationsAt(statement: Node): readonly Node[];
   valueCreation(declaration: Node): SourceLexicalValueCreation | undefined;
@@ -105,7 +107,9 @@ export function analyzeCsharpCaptureStorage(
   }
   const genericClosures = selectCsharpGenericFrameClosures(source, evidence, groups, physicalType, issues);
   const genericDeclarations = new Set(genericClosures.map(closure => closure.declaration));
-  const closures = [...selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, genericDeclarations),
+  const frameClosures = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, genericDeclarations);
+  const namedSelfBindings = new Map(frameClosures.namedSelfBindings.map(binding => [binding.declaration, binding]));
+  const closures = [...frameClosures.closures,
     ...genericClosures.filter(closure => closure.scope !== closure.declaration)];
   const byScope = new Map<Node, CsharpCaptureFrame>();
   const byBinding = new Map<Node, CsharpCapturedBinding>();
@@ -243,6 +247,7 @@ export function analyzeCsharpCaptureStorage(
   return Object.freeze({ issues: Object.freeze(issues), frames: Object.freeze([...byScope.values(), ...valueFrames]),
     frame: (scope: Node) => byScope.get(scope), binding: (declaration: Node) => byBinding.get(declaration), physicalType,
     closure: (declaration: Node) => byClosure.get(declaration), forShape: (type: TargetTypeRef) => byShape.get(targetTypeRefKey(type)),
+    namedSelf: (declaration: Node) => namedSelfBindings.get(declaration),
     valueDeclarationsAt: (statement: Node) => scheduledValues.get(statement) ?? empty,
     valueCreation: (declaration: Node) => valueCreations.get(declaration),
     valueName: (declaration: Node) => valueNames.get(declaration),
