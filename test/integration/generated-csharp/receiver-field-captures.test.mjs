@@ -36,6 +36,7 @@ for (const example of genericCallableOwnershipCases) for (const surface of ["nat
     assertCsharpCompilationSucceeded(compiled);
     assert.equal(/\bdynamic\b|System\.Object|Unsafe\.|Activator/u.test([...compiled.artifacts.values()].join("\n")), false,
       `exact native quantified ownership ${example.name}`);
-    executeCsharpConstruction(compiled, `generic-callable-${example.name}-${surface}`);
+    executeCsharpConstruction(compiled, `generic-callable-${example.name}-${surface}`,
+      false, false, [], "Tsonic.Generated.Index.main();");
   });
 }

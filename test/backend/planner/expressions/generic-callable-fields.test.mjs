@@ -99,7 +99,7 @@ test("nested generic callable owners are discovered before the synthetic source 
   const { source, owners } = compile(`
     export const create = <Outer>(seed: Outer) => {
       const held: Outer[] = [seed];
-      return <T>(left: T, right: T): T => held.length !== 0 ? left : right;
+      return <T>(left: T, right: T): T => held.Length !== 0 ? left : right;
     };
     export function run(): string {
       const choose = create(3);

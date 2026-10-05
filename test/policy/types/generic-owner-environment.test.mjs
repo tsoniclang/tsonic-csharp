@@ -160,14 +160,24 @@ test("outer substitutions update retained constraint dependencies without changi
 });
 
 test("generic traversal and constraint snapshots share the existing finite work and depth budgets", () => {
+  const available = createCsharpMetadataBudget();
+  const snapshot = snapshotCsharpTargetTypes([parameter("outer")], available);
+  assert.equal(snapshot[0].identity, "outer", "valid snapshot with adequate budget");
+  assert.equal(Object.isFrozen(snapshot), true, "the accepted snapshot remains immutable");
+  assert.equal(available.remaining() < maximumCsharpMetadataEntries, true, "the selected budget accounts for the snapshot");
   const budget = createCsharpMetadataBudget();
   for (const invalid of [NaN, Infinity, -1, 0.5]) {
     assert.throws(() => budget.reserve(invalid), TypeError);
     assert.throws(() => budget.reserve(1, invalid), TypeError);
   }
+  assert.equal(budget.remaining(), maximumCsharpMetadataEntries, "invalid reservations leave the budget unchanged");
   budget.reserve(maximumCsharpMetadataEntries - 1);
-  assert.throws(() => snapshotCsharpTargetTypes([parameter("outer")], budget), /finite resource budget/u,
+  assert.equal(budget.remaining(), 1, "one reservation remains before the snapshot");
+  assert.throws(() => snapshotCsharpTargetTypes([parameter("outer")], budget),
+    { name: "TypeError", message: "C# immutable metadata requires bounded dense arrays." },
     "snapshots do not reset a selected traversal budget");
+  assert.equal(budget.remaining(), 0, "the same budget reserved the root before rejecting its dense entries");
+  assert.throws(() => budget.reserve(1), /finite resource budget/u, "the selected budget remains exhausted after rejection");
   const excessive = new Array(maximumCsharpMetadataEntries + 1);
   assert.throws(() => csharpFreeTypeParameterIdentities(excessive), TypeError, "reject before pending allocation");
   assert.throws(() => closeCsharpOwnerTypeParameterEnvironment(excessive, () => resolved([])), TypeError);
