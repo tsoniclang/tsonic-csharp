@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { absenceCallableConversionSource, broadCallableConversionSource, broadAsyncCallableConversionSource, nativeCallableAdapterCostSource } from "../../../../tsonic/test/fixtures/callable-conversion-evaluation.mjs";
+import { absenceCallableConversionSource, broadCallableConversionSource, broadAsyncCallableConversionSource, nativeCallableAdapterCostSource, nativeCallableInputBorrowSource } from "../../../../tsonic/test/fixtures/callable-conversion-evaluation.mjs";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
@@ -10,6 +10,15 @@ for (const surface of [undefined, "js"]) {
     const compiled = compileCsharpSource({ surface, sourceText: absenceCallableConversionSource });
     assertCsharpCompilationSucceeded(compiled);
     executeCsharpConstruction(compiled, `absence-callable-conversion-${lane}`);
+  });
+}
+
+for (const surface of [undefined, "js"]) {
+  const lane = surface ?? "native";
+  test(`source callable input adaptation retains native string parameters in ${lane}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: nativeCallableInputBorrowSource });
+    assertCsharpCompilationSucceeded(compiled);
+    executeCsharpConstruction(compiled, `source-callable-input-borrow-${lane}`);
   });
 }
 
