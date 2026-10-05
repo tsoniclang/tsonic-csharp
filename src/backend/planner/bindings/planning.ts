@@ -17,7 +17,7 @@ import {
 } from "./binding-patterns.js";
 import type { CsharpEntryBinding } from "./binding-patterns.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
-import { planExpression, planExpressionWithExpectedType } from "../expressions/index.js";
+import { planExpressionWithExpectedType } from "../expressions/index.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 
 export {
@@ -65,7 +65,15 @@ export function planVariableBindingStatements(
   const sourceName = allocateDestructuringTemp(state);
   const sourceExpression: CsharpExpression = { kind: "IdentifierName", name: sourceName };
   const sourceType = getCsharpTypeForExpressionCarrier(initializer, sourceFile, input, diagnostics, bindingName, "Destructuring source expression");
-  const initializerExpression = planExpression(initializer, sourceFile, input, diagnostics);
+  const initializerExpression = planExpressionWithExpectedType(
+    initializer,
+    sourceFile,
+    input,
+    diagnostics,
+    sourceType,
+    initializer,
+    state,
+  );
   if (initializerExpression === undefined) {
     return [];
   }
