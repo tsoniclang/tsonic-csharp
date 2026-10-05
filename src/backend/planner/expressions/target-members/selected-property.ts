@@ -2,6 +2,7 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
+import { sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpTargetPropertySelection,
@@ -400,7 +401,8 @@ function translateSourceOwnedProperty(
       selectedDeclaration === undefined ||
       !input.program.source.ast.is.IsPropertyDeclaration(selectedDeclaration) &&
         !input.program.source.ast.is.IsPropertySignatureDeclaration(selectedDeclaration) &&
-        !input.program.source.ast.is.IsGetAccessorDeclaration(selectedDeclaration)
+        !input.program.source.ast.is.IsGetAccessorDeclaration(selectedDeclaration) &&
+        !sourceParameterIsProperty(input.program.source.ast, selectedDeclaration)
     )
   ) {
     return planned;

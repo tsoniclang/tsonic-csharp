@@ -42,6 +42,10 @@ export function planFlowReadUseSiteProjection(
   if (storageType === undefined) {
     return baseExpression;
   }
+  if (storageType.kind === "type-parameter" && selectedType !== undefined && targetTypeRefEquals(storageType, selectedType) &&
+    deferredConstructorFieldRead(node, input)) {
+    return { kind: "PostfixUnaryExpression", operand: baseExpression, operatorToken: { kind: "ExclamationToken" } };
+  }
   const refinementClassification = input.program.sourceEvidence.valueRefinement(node);
   if (refinementClassification === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -123,4 +127,18 @@ export function planFlowReadUseSiteProjection(
     },
     baseExpression,
   );
+}
+
+function deferredConstructorFieldRead(node: Node, input: CsharpPlanningContext): boolean {
+  const ast = input.program.source.ast;
+  if (!ast.is.IsPropertyAccessExpression(node) && !ast.is.IsElementAccessExpression(node)) return false;
+  let callable = false;
+  let current = ast.parent(node);
+  for (let depth = 0; current !== undefined && depth < 256; depth += 1, current = ast.parent(current)) {
+    if (ast.is.IsArrowFunction(current) || ast.is.IsFunctionExpression(current)) callable = true;
+    if (ast.is.IsMethodDeclaration(current) || ast.is.IsGetAccessorDeclaration(current) || ast.is.IsSetAccessorDeclaration(current)) return false;
+    if (ast.is.IsPropertyDeclaration(current) || ast.is.IsConstructorDeclaration(current)) return callable;
+    if (ast.is.IsClassDeclaration(current) || ast.is.IsClassExpression(current)) return false;
+  }
+  return false;
 }
