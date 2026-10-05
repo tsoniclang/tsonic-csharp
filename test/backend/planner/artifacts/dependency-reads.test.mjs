@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { captureDependencies, dependOn } from "../../../../dist/backend/planner/artifacts/graph/dependencies.js";
+import { createCsharpArtifactGraph } from "../../../../dist/backend/planner/artifacts/graph.js";
 
 function fixture() {
   const revisions = new Map();
@@ -50,6 +51,55 @@ test("explicit prerequisites participate in the same read capture", () => {
   assert.equal(captured.dependencies.length, 1);
   assert.equal(captured.dependencies[0].owner, "module");
 });
+
+test("first-demand helper publication precedes its exact captured read", () => {
+  const artifacts = artifactFixture();
+  const captured = artifacts.captureDependencies("source", [], () =>
+    artifacts.requireGeneratedHelper("lifted-provider-argument-adapter"));
+  assert.equal(captured.value.kind, "accepted");
+  assert.equal(captured.stable, true);
+  assert.deepEqual(captured.dependencies, [{
+    owner: "generated-helper:lifted-provider-argument-adapter",
+    facet: "generated-helper-surface",
+  }]);
+  assert.equal(artifacts.contractGraph.hasPublishedFacet(captured.dependencies[0]), true);
+});
+
+test("publication after an explicit absent-facet snapshot requires reconstruction", () => {
+  const artifacts = artifactFixture();
+  const dependency = {
+    owner: "generated-helper:lifted-provider-argument-adapter",
+    facet: "generated-helper-surface",
+  };
+  assert.equal(artifacts.contractGraph.hasPublishedFacet(dependency), false);
+  const captured = artifacts.captureDependencies("source", [dependency], () =>
+    artifacts.requireGeneratedHelper("lifted-provider-argument-adapter"));
+  assert.equal(captured.value.kind, "accepted");
+  assert.equal(captured.stable, false);
+  assert.deepEqual(captured.dependencies, [dependency]);
+  const finalized = artifacts.captureDependencies("source", [dependency], () =>
+    artifacts.requireGeneratedHelper("lifted-provider-argument-adapter"));
+  assert.equal(finalized.value.kind, "accepted");
+  assert.equal(finalized.stable, true);
+  assert.deepEqual(finalized.dependencies, [dependency]);
+});
+
+test("unavailable object-shape capabilities fail at their exact owner without publication", () => {
+  const artifacts = artifactFixture();
+  const captured = artifacts.captureDependencies("source", [], () =>
+    artifacts.requireObjectShapeCapability(undefined, { kind: "target-named", id: "MissingShape" }, {},
+      "json-serialization", "object-shape"));
+  assert.equal(captured.value.kind, "rejected");
+  assert.equal(captured.value.reason,
+    "Selected 'json-serialization' operation requires an exact closed object-shape argument.");
+  assert.equal(captured.stable, true);
+  assert.equal(captured.dependencies.length, 0);
+  assert.equal(artifacts.contractGraph.artifactCount, 0);
+});
+
+function artifactFixture() {
+  return createCsharpArtifactGraph({ ast: {}, objectShapes: { resolveTarget() {}, resolveNode() {} } });
+}
 
 test("nested or throwing builds cannot retain a dependency capture", () => {
   const selected = fixture();

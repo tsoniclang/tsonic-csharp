@@ -105,7 +105,7 @@ export function reconstructCsharpSourceFiles(
           kind: "blocked", reason: "Synthetic C# source requires finalized source and object-shape contracts.",
           dependencies: unpublished,
         };
-        return reconstructSourceArtifact(owner, graph, input, dependencies, diagnosticsByOwner,
+        return reconstructSourceArtifact(owner, input, dependencies, diagnosticsByOwner,
           candidateDiagnostics => {
             const value = planCsharpObjectShapeSourceFile(input, candidateDiagnostics);
             return { value, unit: value?.source.unit };
@@ -125,7 +125,7 @@ export function reconstructCsharpSourceFiles(
       if (moduleDependencies.kind === "rejected") {
         return moduleDependencies;
       }
-      return reconstructSourceArtifact(owner, graph, input, moduleDependencies.dependencies, diagnosticsByOwner,
+      return reconstructSourceArtifact(owner, input, moduleDependencies.dependencies, diagnosticsByOwner,
         candidateDiagnostics => {
           const value = planSourceFile(sourceFile, input, candidateDiagnostics, moduleInitialization);
           return { value, unit: value?.unit };
@@ -170,7 +170,7 @@ export function reconstructCsharpSourceFiles(
 }
 
 function reconstructSourceArtifact<Value>(
-  owner: string, graph: TargetArtifactContractGraph<CsharpArtifactFacet, CsharpArtifactSnapshot>,
+  owner: string,
   input: CsharpPlanningContext, dependencies: readonly TargetArtifactDependency<CsharpArtifactFacet>[],
   diagnosticsByOwner: Map<string, readonly TargetDiagnostic[]>,
   build: (diagnostics: TargetDiagnostic[]) => { readonly value: Value; readonly unit: CsharpCompilationUnit | undefined },
@@ -190,11 +190,6 @@ function reconstructSourceArtifact<Value>(
   };
   const selectedDependencies = uniqueDependencies([...dependencies, ...captured.dependencies]);
   if (candidateDiagnostics.length > 0) {
-    const unpublished = unpublishedDependencies(graph, selectedDependencies);
-    if (unpublished.length > 0) return {
-      kind: "blocked", reason: "C# source planning requires finalized prerequisite contracts before diagnostics are authoritative.",
-      dependencies: unpublished,
-    };
     diagnosticsByOwner.set(owner, Object.freeze([...candidateDiagnostics]));
     return { kind: "rejected", code: "CSHARP_SOURCE_FILE_RECONSTRUCTION_REJECTED",
       reason: `C# source artifact '${owner}' produced target diagnostics during reconstruction.` };
