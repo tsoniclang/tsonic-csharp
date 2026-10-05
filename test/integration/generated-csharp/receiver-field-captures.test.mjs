@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { receiverFieldCapturesSource } from "../../../../tsonic/test/fixtures/receiver-field-captures.mjs";
-import { receiverFieldCaptureEdges } from "../../../../tsonic/test/fixtures/receiver-field-capture-edges.mjs";
+import { receiverFieldCaptureEdges, receiverFieldFreezeSource, receiverFieldFreezeEdges } from "../../../../tsonic/test/fixtures/receiver-field-capture-edges.mjs";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
@@ -15,7 +15,13 @@ for (const surface of ["native", "js"]) {
   });
 }
 
-for (const example of receiverFieldCaptureEdges) for (const surface of ["native", "js"]) {
+test("retained receiver field writes preserve the selected object's freeze identity", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: receiverFieldFreezeSource });
+  assertCsharpCompilationSucceeded(compiled);
+  executeCsharpConstruction(compiled, "receiver-field-freeze");
+});
+
+for (const example of [...receiverFieldCaptureEdges, ...receiverFieldFreezeEdges]) for (const surface of receiverFieldFreezeEdges.includes(example) ? ["js"] : ["native", "js"]) {
   test(`receiver field edge ${example.name} in ${surface}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: example.source });
     assertCsharpCompilationSucceeded(compiled);
