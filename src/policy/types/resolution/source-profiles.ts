@@ -469,6 +469,9 @@ export function resolveSourceTypeComponentEvidence(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  if (component.declaration !== undefined) {
+    state = { ...state, sourceValueSubject: component.declaration, sourceValueProjection: undefined };
+  }
   const pointer = component.declaration === undefined
     ? undefined
     : resolvePointerReturn(component.declaration, state);

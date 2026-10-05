@@ -97,3 +97,37 @@ test("provider method parameter projections survive an indirect tuple alias", ()
   assert.match(generated, /(?:System\.)?Exception forward\((?:System\.)?Exception value\)/u);
   assert.match(generated, /ValueTuple<(?:System\.)?Exception\?>/u);
 });
+
+test("provider-derived error union carriers do not depend on prior scalar alias resolution", () => {
+  const declarations = {
+    handlers: "export function handlers(values: Handler[]): Handler[] { return values; }",
+    control: "export function control(value: NextControl): NextControl { return value; }",
+    failure: "export function failure(value: RequestFailure): RequestFailure { return value; }",
+    transport: "export function transport(value: TransportError): TransportError { return value; }",
+  };
+  for (const first of Object.keys(declarations)) {
+    const order = [first, ...Object.keys(declarations).filter(name => name !== first)];
+    const compiled = compileCsharpSource({
+      surface: "js",
+      capabilities: [nodejsCapability()],
+      sourceText: `
+        import type { Handler, NextControl, RequestFailure, TransportError } from "./contracts.js";
+        ${order.map(name => declarations[name]).join("\n")}
+      `,
+      files: {
+        "contracts.ts": `
+          import type { Readable } from "node:stream";
+          export type TransportError = NonNullable<Parameters<Readable["destroy"]>[0]>;
+          export type RequestFailure = Error | TransportError;
+          export type NextControl = string | RequestFailure | null | undefined;
+          export type NextFunction = (value?: NextControl) => void | Promise<void>;
+          export interface Handler { (next: NextFunction): void; }
+        `,
+      },
+    });
+    assertCsharpCompilationSucceeded(compiled);
+    const generated = [...compiled.artifacts.values()].join("\n");
+    assert.match(generated, /(?:System\.)?Exception failure\((?:System\.)?Exception value\)/u, first);
+    assert.doesNotMatch(generated, /source-alias-representation-unavailable|source-fact-dependent-type-transform|DynamicInvoke|System\.Reflection/u, first);
+  }
+});
