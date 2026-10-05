@@ -13,7 +13,8 @@ test("native JS async bodies retain contextual union completion, captures, alias
 test("inline contextual async unions execute after native promise lifetime closure", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: inlineContextualAsyncResultSource });
   assertCsharpCompilationSucceeded(compiled);
-  executeCsharpConstruction(compiled, "inline-contextual-async-results", true);
+  executeCsharpConstruction(compiled, "inline-contextual-async-results", true, false, [],
+    "await Tsonic.Generated.Index.main();");
 });
 
 for (const surface of [undefined, "js"]) {

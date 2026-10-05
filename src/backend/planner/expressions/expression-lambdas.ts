@@ -68,7 +68,7 @@ import { planCsharpFrameClosureReference, planCsharpNamedSelfCaptureContext } fr
 import { consumeCsharpPlannedValue, planCsharpVoidReturn, planCsharpAbsenceReturn } from "../statements/statement-output.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
-import { withCsharpSafetyModifiers } from "../safety/explicit-safety.js";
+import { planCsharpLocalLambdaCreation } from "./lambda-creation.js";
 
 export interface LambdaTargetContext {
   readonly type: CsharpTypeNode;
@@ -92,9 +92,24 @@ export function planArrowFunctionExpression(
   expectedTargetType?: TargetTypeRef,
   planExpressionWithExpectedType?: ExpectedExpressionPlanner,
 ): CsharpPlannedValue | undefined {
-  const complete = (expression: CsharpExpression | undefined): CsharpPlannedValue | undefined =>
-    planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression,
-      expectedTargetType ?? input.types.classifications.resolveNode(node, sourceFile));
+  const complete = (expression: CsharpExpression | undefined): CsharpPlannedValue | undefined => {
+    const carrier = expectedTargetType ?? input.types.classifications.resolveNode(node, sourceFile);
+    if (expression?.kind !== "LambdaExpression" || input.scope.nativeCallableBody === node ||
+      !input.program.captureStorage.identityObserved(node)) {
+      return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression, carrier);
+    }
+    const body: CsharpBlock = expression.body.kind === "Block" ? expression.body : {
+      kind: "Block", statements: targetContext?.signature.returnTargetType !== undefined &&
+        isCsharpVoidTargetType(targetContext.signature.returnTargetType)
+        ? [{ kind: "ExpressionStatement", expression: expression.body }]
+        : [{ kind: "ReturnStatement", expression: expression.body }],
+    };
+    const creation = planCsharpLocalLambdaCreation(node, input, diagnostics, targetContext,
+      input.names.temporaryName(`__tsonic_callable_${input.program.source.ast.pos(node)}`),
+      expression.parameters, body, expression.async === true, false);
+    return creation === undefined ? undefined : planCsharpExpressionCompletion(
+      node, sourceFile, input, diagnostics, creation.value, carrier, [creation.method]);
+  };
   if (input.scope.nativeCallableBody !== node && input.program.captureStorage.closure(node) !== undefined) {
     return complete(planCsharpFrameClosureReference(node, input, diagnostics, state));
   }
@@ -238,24 +253,15 @@ export function planFunctionExpression(
     for (const reference of self.values) plannerState.expressionOverrides.set(reference, { kind: "IdentifierName", name: valueName! });
   }
   const completeBody = (body: CsharpBlock, async = false): CsharpPlannedValue | undefined => {
-    if (self === undefined) return complete({ kind: "LambdaExpression", ...(async ? { async: true } : {}), parameters, body });
-    const returnType = targetContext?.signature.returnTargetType === undefined ? undefined
-      : csharpTypeFromTargetTypeRef(targetContext.signature.returnTargetType, input.scope.typeParameterNames);
-    const nativeParameters = parameters.map((parameter, index) => {
-      const type = parameter.type ?? targetContext?.signature.parameters[index];
-      return type === undefined ? undefined : { name: parameter.name, type,
-        ...(targetContext?.signature.restParameterIndex === index ? { isParams: true } : {}) };
-    });
-    if (targetContext === undefined || returnType === undefined || nativeParameters.some(parameter => parameter === undefined)) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "A named function-expression self owner requires its exact native delegate signature."));
-      return undefined;
+    if (self === undefined && (input.scope.nativeCallableBody === node || !input.program.captureStorage.identityObserved(node))) {
+      return complete({ kind: "LambdaExpression", ...(async ? { async: true } : {}), parameters, body });
     }
-    const method: CsharpStatement = { kind: "LocalFunctionStatement", name: methodName!, returnType,
-      modifiers: withCsharpSafetyModifiers([...(self.captures.length > 0 || self.capturesReceiver || valueName !== undefined ? [] : ["static" as const]),
-        ...(async ? ["async" as const] : [])], node, "declaration", input),
-      parameters: nativeParameters as NonNullable<typeof nativeParameters[number]>[], body };
-    const value: CsharpExpression = { kind: "ObjectCreationExpression", type: targetContext.type,
-      arguments: [{ kind: "Argument", expression: { kind: "IdentifierName", name: methodName! } }] };
+    const creation = planCsharpLocalLambdaCreation(node, input, diagnostics, targetContext,
+      methodName ?? input.names.temporaryName(`__tsonic_callable_${input.program.source.ast.pos(node)}`),
+      parameters, body, async,
+      self !== undefined && self.captures.length === 0 && !self.capturesReceiver && valueName === undefined);
+    if (creation === undefined || targetContext === undefined) return undefined;
+    const { method, value } = creation;
     return valueName === undefined ? complete(value, [...captureContext?.prelude ?? [], method]) : complete({ kind: "IdentifierName", name: valueName }, [
       ...captureContext?.prelude ?? [],
       { kind: "LocalDeclarationStatement", name: valueName, type: targetContext.type,

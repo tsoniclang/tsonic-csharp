@@ -77,10 +77,12 @@ export function planTopLevelVariableStatement(
       topLevelStatements.push(...planned.statements);
       continue;
     }
-    const planned = planLocalDeclaration(declaration, sourceFile, input, diagnostics, state);
+    const callableVisibility = input.program.moduleInitialization.directCallableVisibility(declaration);
+    const initializerInput = callableVisibility === undefined || variable.Initializer === undefined ? input
+      : { ...input, scope: { ...input.scope, nativeCallableBody: variable.Initializer } };
+    const planned = planLocalDeclaration(declaration, sourceFile, initializerInput, diagnostics, state);
     const { initializer: initial, ...binding } = planned;
     const field = { ...binding, ...(initial?.completion.kind === "value" ? { initializer: initial.completion.expression } : {}) };
-    const callableVisibility = input.program.moduleInitialization.directCallableVisibility(declaration);
     if (callableVisibility !== undefined) {
       const lambda = field.initializer;
       const signature = initial?.completion.kind !== "value" ? undefined

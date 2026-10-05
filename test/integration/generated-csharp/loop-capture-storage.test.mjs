@@ -1,10 +1,29 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loopCaptureStorageSource } from "../../../../tsonic/test/fixtures/loop-capture-storage.mjs";
+import { observableCallableCreationSource } from "../../../../tsonic/test/fixtures/observable-callable-creation.mjs";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 for (const surface of ["native", "js"]) {
+  test(`observable callable creations retain fresh native identities in ${surface}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: observableCallableCreationSource });
+    assertCsharpCompilationSucceeded(compiled);
+    executeCsharpConstruction(compiled, `observable-callable-creation-${surface}`, false, false, [], `
+if (!Tsonic.Generated.Index.run()) throw new System.Exception("native creation identity");
+var read = Tsonic.Generated.Index.createStateless();
+for (var warmup = 0; warmup < 100; warmup++) {
+    if (read() != 7) throw new System.Exception("native callable result");
+}
+var before = System.GC.GetAllocatedBytesForCurrentThread();
+for (var iteration = 0; iteration < 10000; iteration++) {
+    if (read() != 7) throw new System.Exception("native callable result");
+}
+if (System.GC.GetAllocatedBytesForCurrentThread() != before) throw new System.Exception("native invocation allocation");
+System.GC.KeepAlive(read);
+`);
+  });
+
   test(`lexical loop activations retain copied and live captures in ${surface}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: loopCaptureStorageSource });
     assertCsharpCompilationSucceeded(compiled);
@@ -43,12 +62,13 @@ for (const surface of ["native", "js"]) {
     executeCsharpConstruction(compiled, `loop-named-self-multiple-creations-${surface}`);
   });
 
-  test(`inferred loop delegates compare original identities without invocation allocation in ${surface}`, { timeout: 300_000 }, () => {
+  test(`native-width loop delegates compare original identities without invocation allocation in ${surface}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { int32 } from "@tsonic/core/types.js";
       export function create(): () => boolean {
         let selected = (): boolean => false;
         let previous: (() => number) | undefined;
-        for (let index = 0; index < 2; index++) {
+        for (let index: int32 = 0; index < 2; index++) {
           const read = () => index;
           const alias = read;
           const before = previous;
@@ -61,14 +81,12 @@ for (const surface of ["native", "js"]) {
       }
     ` });
     assertCsharpCompilationSucceeded(compiled);
-    const source = compiled.artifacts.get("src/Index.cs");
-    assert.equal(typeof source, "string");
+    const source = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs"))
+      .map(([, text]) => text).join("\n");
     assert.equal((source.match(/object\.ReferenceEquals\(/gu) ?? []).length, 4,
       "identity comparisons use original delegates rather than adapted values");
-    if (surface === "native") {
-      assert.match(source, /Func<int>/u, "inferred counted-loop result remains native integer");
-      assert.match(source, /Func<double>/u, "authored callable contract retains its declared carrier");
-    }
+    assert.match(source, /Func<int>/u, "selected native-width result remains integer on every surface");
+    assert.match(source, /Func<double>/u, "authored callable contract retains its declared carrier");
     executeCsharpConstruction(compiled, `loop-inferred-delegate-identity-cost-${surface}`, false, false, [], `
 var verify = Tsonic.Generated.Index.create();
 for (var warmup = 0; warmup < 100; warmup++) {

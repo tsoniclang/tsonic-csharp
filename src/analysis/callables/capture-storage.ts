@@ -43,6 +43,7 @@ export interface CsharpCaptureStorage {
   physicalType(declaration: Node, logicalType: TargetTypeRef): TargetTypeRef;
   closure(declaration: Node): { readonly frame: CsharpCaptureFrame; readonly method: CsharpFrameClosure } | undefined;
   namedSelf(declaration: Node): CsharpNamedSelfBinding | undefined;
+  identityObserved(declaration: Node): boolean;
   forShape(type: TargetTypeRef): CsharpCaptureFrame | undefined;
   valueDeclarationsAt(statement: Node): readonly Node[];
   valueCreation(declaration: Node): SourceLexicalValueCreation | undefined;
@@ -109,6 +110,7 @@ export function analyzeCsharpCaptureStorage(
   const genericDeclarations = new Set(genericClosures.map(closure => closure.declaration));
   const frameClosures = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, genericDeclarations);
   const namedSelfBindings = new Map(frameClosures.namedSelfBindings.map(binding => [binding.declaration, binding]));
+  const observedIdentities = new Set<Node>();
   const closures = [...frameClosures.closures,
     ...genericClosures.filter(closure => closure.scope !== closure.declaration)];
   const byScope = new Map<Node, CsharpCaptureFrame>();
@@ -202,6 +204,11 @@ export function analyzeCsharpCaptureStorage(
   const valueCreations = new Map<Node, SourceLexicalValueCreation>();
   const valueNames = new Map<Node, string>();
   const visitValues = (node: Node): void => {
+    if (evidence.isCompileTimeMetadata(node)) return;
+    if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
+      const flow = source.navigation.expressionValueFlow(node);
+      if (flow.identityCompared || flow.escapes) observedIdentities.add(node);
+    }
     if (source.ast.is.IsFunctionDeclaration(node) && source.ast.body(node) !== undefined &&
       !evidence.isCompileTimeMetadata(node)) {
       const quantifiedUse = source.ast.typeParameters(node).length === 0 ? undefined
@@ -248,6 +255,7 @@ export function analyzeCsharpCaptureStorage(
     frame: (scope: Node) => byScope.get(scope), binding: (declaration: Node) => byBinding.get(declaration), physicalType,
     closure: (declaration: Node) => byClosure.get(declaration), forShape: (type: TargetTypeRef) => byShape.get(targetTypeRefKey(type)),
     namedSelf: (declaration: Node) => namedSelfBindings.get(declaration),
+    identityObserved: (declaration: Node) => observedIdentities.has(declaration),
     valueDeclarationsAt: (statement: Node) => scheduledValues.get(statement) ?? empty,
     valueCreation: (declaration: Node) => valueCreations.get(declaration),
     valueName: (declaration: Node) => valueNames.get(declaration),
