@@ -21,6 +21,7 @@ import {
   KindSwitchStatement,
   KindThrowStatement,
   KindTryStatement,
+  KindTypeAliasDeclaration,
   KindVariableStatement,
   KindWhileStatement,
   HasSourceKind,
@@ -140,6 +141,7 @@ export function planStatements(
     case KindFunctionDeclaration:
       return planLocalFunctionDeclaration(node, sourceFile, input, diagnostics, state);
     case KindEmptyStatement:
+    case KindTypeAliasDeclaration:
       return [];
     case KindBlock:
       return [{
