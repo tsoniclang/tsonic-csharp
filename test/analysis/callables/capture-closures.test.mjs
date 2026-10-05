@@ -131,6 +131,34 @@ test("nested lexical function declarations retain the exact loop binding frame",
   assert.equal(selected.closures[0]?.scope === input.loops[0], true);
 });
 
+test("first-class named self retains exact existing loop captures without becoming a cached frame method", () => {
+  const input = fixture(`export function outer() {
+    for (let index = 0; index < 3; index++) {
+      const read = function original(depth: number): number {
+        const same = original;
+        const identity = (): boolean => same === original;
+        if (!identity()) return -1;
+        return depth === 0 ? index : original(depth - 1);
+      };
+      return read;
+    }
+  }`);
+  const selected = input.select();
+  assert.equal(selected.issues.length, 0);
+  assert.equal(selected.groups.size, 1, "reuse the current counted-loop owner");
+  assert.equal(selected.groups.get(input.loops[0])?.size, 1);
+  assert.equal(selected.groups.get(input.loops[0])?.get(input.declaration("index")) === scalar, true);
+  assert.equal(selected.closures.length, 0, "self identity remains per creation, not per frame method");
+  assert.equal(selected.namedSelfBindings.length, 1);
+  const self = selected.namedSelfBindings[0];
+  assert.equal(self.declaration === input.owner("read"), true);
+  assert.equal(self.calls.length, 1);
+  assert.equal(self.values.length, 2, "own identity and nested identity select the same immutable self");
+  assert.equal(self.captures.length, 1);
+  assert.equal(self.captures[0] === input.declaration("index"), true);
+  assert.equal(Object.isFrozen(self.captures), true);
+});
+
 for (const [name, text] of [
   ["function-scoped var", `export function outer() {
     for (var index = 0; index < 3; index++) { const read = () => index; return read; }
