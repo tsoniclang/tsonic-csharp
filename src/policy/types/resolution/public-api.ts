@@ -171,6 +171,14 @@ export function resolveSelectedValueWithState(
         const nominal = resolveTypeWithState(selectedType, sourceFile, nextState(state));
         if (host.projectTypeCatalog.definitionForTarget(nominal)?.kind === "class") return nominal;
       }
+      if (storage !== undefined && queries.types.refinement(declaredType, selectedType).kind === "members") {
+        const refinement = selectCsharpAuthoredUnionRefinement(
+          storage, declaredType, selectedType, queries,
+          type => resolveCsharpUnionMemberCarrier(scope, storage, type, queries, state),
+          host.structuralTypes.resolveTarget, host.typeDefinitions,
+        );
+        if (refinement.kind === "resolved") return refinement.type;
+      }
       return retainCsharpUnionObjectShapes(combineCsharpTargetUnionMembers(guarded), host.structuralTypes.resolveTarget);
     }
   }
