@@ -253,5 +253,5 @@ function hasSingleCaptureOwner(source: TargetSourceProgram, declaration: Node, s
   const implementation = shape.methodImplementation;
   if (implementation === undefined) return false;
   return sourceBindingHasSingleCaptureOwner(declaration, implementation.declaration,
-    implementation.methods, source.ast, source.navigation);
+    implementation.methods, source.ast, source.navigation, use => use.role !== "value");
 }

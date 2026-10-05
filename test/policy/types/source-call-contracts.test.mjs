@@ -109,11 +109,26 @@ test("direct declarations retain their native ABI and stored optional/rest metad
   const selected = scope.resolveSourceCallContract(source, {}, { depth: 0 }, "checked");
   assert.equal(selected.kind, "declaration");
   assert.equal(selected.contract === openContract, true, "direct declaration authority");
-  const stored = fixture(csharpDelegateTargetType("System.Action", [integer], undefined,
-    { optionalParameterIndexes: [0], restParameterIndex: 0 }));
-  const contract = stored.scope.resolveSourceCallContract(stored.source, {}, { depth: 0 }, "checked").contract;
-  assert.equal(contract.parameters[0].targetParameter.optional, true);
-  assert.equal(contract.parameters[0].targetParameter.paramsArray, true);
+  const optional = csharpNullableTargetType(integer);
+  const stored = fixture(csharpDelegateTargetType("System.Action", [optional], undefined,
+    { optionalParameterIndexes: [0] }));
+  stored.source.sourceSelectedSignatureParameters[0].acceptsOmission = true;
+  const contract = resolveSourceCallParameters(stored.scope, stored.source, {});
+  assert.equal(contract[0].optional, true);
+  assert.equal(contract[0].paramsArray, false);
+  assert.equal(targetTypeRefEquals(resolveSourceCallArgumentParameter(stored.scope, stored.source,
+    { sourceParameterIndex: 0, sourceForm: "value" }, {}), optional), true);
+  const sequence = { kind: "array", element: integer };
+  const rest = fixture(csharpDelegateTargetType("System.Action", [sequence], undefined, { restParameterIndex: 0 }));
+  rest.source.sourceSelectedSignatureParameters[0].rest = true;
+  const restContract = resolveSourceCallParameters(rest.scope, rest.source, {});
+  assert.equal(restContract[0].paramsArray, true);
+  assert.equal(restContract[0].optional, false);
+  for (const sourceForm of ["value", "spread-element", "spread-sequence"]) {
+    assert.equal(targetTypeRefEquals(resolveSourceCallArgumentParameter(rest.scope, rest.source,
+      { sourceParameterIndex: 0, sourceForm }, {}), sourceForm === "spread-sequence" ? sequence : integer), true,
+      sourceForm);
+  }
 });
 
 function checkedBinders(current) {
@@ -190,6 +205,23 @@ test("bulk parameter resolution selects the complete stored contract once", () =
   assert.equal(parameters.length, 12);
   assert.equal(parameters.every(parameter => targetTypeRefEquals(parameter.type, integer)), true);
   assert.equal(selections, 1, "no quadratic complete contract reconstruction");
+});
+
+test("wide optional signatures collect optional indexes once rather than scanning them per parameter", () => {
+  const count = 128;
+  const optional = csharpNullableTargetType(integer);
+  const indexes = Array.from({ length: count }, (_value, index) => index);
+  indexes.includes = () => assert.fail("wide invocation cannot repeatedly scan its optional-index array");
+  const carrier = csharpDelegateTargetType("System.Action", Array(count).fill(optional), undefined,
+    { optionalParameterIndexes: indexes });
+  const { scope, source } = fixture({ ...carrier, csharpDelegateSignature: {
+    ...carrier.csharpDelegateSignature, optionalParameterIndexes: indexes,
+  } });
+  source.sourceSelectedSignatureParameters = Array.from({ length: count }, (_value, index) =>
+    ({ parameterDeclaration: {}, parameterName: `value${index}`, acceptsOmission: true }));
+  const parameters = resolveSourceCallParameters(scope, source, {});
+  assert.equal(parameters.length, count);
+  assert.equal(parameters.every(parameter => parameter.optional && targetTypeRefEquals(parameter.type, optional)), true);
 });
 
 test("super construction obtains its exact selected native base environment", () => {

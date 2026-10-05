@@ -36,12 +36,13 @@ export function resolveSourceCallContract(
   if (signature === undefined ||
       signature.parameters.length !== source.sourceSelectedSignatureParameters.length) return reject();
   const parameters: CsharpSourceCallParameterContract[] = [];
+  const optionalParameters = new Set(signature.optionalParameterIndexes ?? []);
   for (const [index, type] of signature.parameters.entries()) {
     const parameter = source.sourceSelectedSignatureParameters[index];
     if (parameter === undefined) return reject();
     parameters.push(Object.freeze({ ...(parameter.parameterDeclaration === undefined ? {} : { sourceParameter: parameter.parameterDeclaration }),
       targetParameter: Object.freeze({ name: parameter.parameterName, type, passingMode: "by-value" as const,
-        optional: signature.optionalParameterIndexes?.includes(index) === true,
+        optional: optionalParameters.has(index),
         paramsArray: signature.restParameterIndex === index }),
     }));
   }
