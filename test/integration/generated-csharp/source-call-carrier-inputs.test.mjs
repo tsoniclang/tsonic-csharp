@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { sourceCallCarrierInputs } from "../../../../tsonic/test/fixtures/source-call-carrier-inputs.mjs";
 import { createTsonicPlugin } from "../../../../csharp-nodejs/dist/index.js";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
@@ -10,5 +11,6 @@ test("source-call inputs retain exact native-width integer carriers", { timeout:
   assertCsharpCompilationSucceeded(compiled);
   const output = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
   assert.equal(/9007199254740992|Convert\.ToDouble/u.test(output), false);
-  executeCsharpConstruction(compiled, "source-call-carrier-inputs");
+  const references = [fileURLToPath(new URL("../../../../csharp-nodejs/csharp/src/Tsonic.CSharp.Node/Tsonic.CSharp.Node.csproj", import.meta.url))];
+  executeCsharpConstruction(compiled, "source-call-carrier-inputs", false, false, references);
 });
