@@ -9,6 +9,7 @@ function fixture() {
   const parameter = Object.freeze({ kind: "type-parameter", identity: "owner:T", name: "T" });
   const definition = Object.freeze({
     id: "owner:Derived", kind: "class", declaration, sourceFile,
+    scopeName: "ExactScope",
     typeParameterBindings: Object.freeze([parameter]),
   });
   const heritage = Object.freeze({
@@ -52,6 +53,8 @@ test("sealed native storage heritage instantiates exact outer binders without po
   assert.equal(Object.isFrozen(selection.interfaces), true, "immutable interface rows");
   assert.equal(classifications.heritageForDeclaration(declaration).baseType.typeArguments[0] === parameter,
     true, "authored heritage remains generic");
+  assert.deepEqual(classifications.declarationScopeNames, ["ExactScope"]);
+  assert.equal(Object.isFrozen(classifications.declarationScopeNames), true, "sealed declaration scopes");
 });
 
 test("native storage heritage rejects absent identities and malformed generic selections", () => {

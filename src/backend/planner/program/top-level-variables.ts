@@ -32,7 +32,7 @@ export function planTopLevelVariableStatement(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-  namespaceMembers: CsharpTypeDeclaration[],
+  appendTypeDeclaration: (node: Node, declaration: CsharpTypeDeclaration) => void,
   moduleMembers: CsharpTypeMember[],
   topLevelStatements: CsharpStatement[],
   state: DestructuringPlannerState,
@@ -59,7 +59,7 @@ export function planTopLevelVariableStatement(
     if (input.program.sourceEvidence.isCompileTimeMetadata(declaration)) continue;
     const valueType = input.program.sourceEvidence.sourceStruct(declaration);
     if (valueType !== undefined) {
-      namespaceMembers.push(planValueTypeDeclaration(declaration, valueType, sourceFile, input, diagnostics));
+      appendTypeDeclaration(declaration, planValueTypeDeclaration(declaration, valueType, sourceFile, input, diagnostics));
       continue;
     }
     const variable = AsVariableDeclaration(input.program.source.ast, declaration)!;

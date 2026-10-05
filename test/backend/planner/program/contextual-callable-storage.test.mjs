@@ -97,7 +97,7 @@ for (const surface of [undefined, "js"]) {
       assert.equal(input.program.moduleInitialization.directCallableVisibility(declaration) !== undefined, true,
         `${name}: exact call-only native method selection`);
       const statement = input.source.ast.parent(input.source.ast.parent(declaration));
-      planTopLevelVariableStatement(statement, input.file, context, diagnostics, [], members, statements, state, false);
+      planTopLevelVariableStatement(statement, input.file, context, diagnostics, () => assert.fail("Unexpected type declaration"), members, statements, state, false);
       assert.equal(diagnostics.length, 0, name);
       const method = members.find(member => member.kind === "MethodDeclaration" && member.name === name);
       assert.equal(method !== undefined, true, `${name}: promoted native method`);
@@ -135,7 +135,7 @@ for (const surface of [undefined, "js"]) {
     const members = [];
     const statements = [];
     const statement = input.source.ast.parent(input.source.ast.parent(declaration));
-    planTopLevelVariableStatement(statement, input.file, context, diagnostics, [], members, statements,
+    planTopLevelVariableStatement(statement, input.file, context, diagnostics, () => assert.fail("Unexpected type declaration"), members, statements,
       createDestructuringPlannerState(input.file, input.source.ast), false);
     assert.equal(diagnostics.length, 0);
     const name = context.names.resolve(input.source.ast.name(declaration));

@@ -219,6 +219,9 @@ export function analyzeCsharpObjectShapes(
       rememberShape(destinationShape);
       const selected = selectCsharpStructuralInterface(policy, expression, sourceShape, destinationShape, sourceType);
       if (selected === undefined || selected.sourceType.kind !== "target-named") return false;
+      if (selected.interfaceType.kind === "target-named" && selected.sourceType.id === selected.interfaceType.id) {
+        return targetTypeRefEquals(selected.sourceType, selected.interfaceType);
+      }
       const key = selected.sourceType.id;
       const targetKey = targetTypeRefKey(selected.interfaceType);
       let interfaces = structuralInterfaces.get(key);

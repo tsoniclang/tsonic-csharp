@@ -105,7 +105,18 @@ export function planSourceFile(
     moduleInitialization.isAsync(sourceFile);
   const members: CsharpTypeMember[] = [];
   const namespaceMembers: CsharpTypeDeclaration[] = [];
+  const scopedTypeMembers = new Map<string, CsharpTypeDeclaration[]>();
   const localTypeScopes: CsharpCompilationUnit["members"][number][] = [];
+  const appendTypeDeclaration = (node: Node, declaration: CsharpTypeDeclaration): void => {
+    const scopeName = input.types.projectTypes.definitionContainingDeclaration(node)?.scopeName;
+    if (scopeName === undefined) {
+      namespaceMembers.push(declaration);
+    } else {
+      const declarations = scopedTypeMembers.get(scopeName) ?? [];
+      declarations.push(declaration);
+      scopedTypeMembers.set(scopeName, declarations);
+    }
+  };
   for (const factory of input.program.classFactories.factories) {
     if (factory.sourceFile !== sourceFile) continue;
     const instance = planClassDeclaration(factory.declaration, sourceFile, input, diagnostics);
@@ -146,10 +157,10 @@ export function planSourceFile(
             break;
           }
           case KindInterfaceDeclaration:
-            namespaceMembers.push(planInterfaceDeclaration(statement, sourceFile, input, diagnostics));
+            appendTypeDeclaration(statement, planInterfaceDeclaration(statement, sourceFile, input, diagnostics));
             break;
           case KindEnumDeclaration:
-            namespaceMembers.push(planEnumDeclaration(statement, sourceFile, input, diagnostics));
+            appendTypeDeclaration(statement, planEnumDeclaration(statement, sourceFile, input, diagnostics));
             break;
           case KindFunctionDeclaration:
             if (AsFunctionDeclaration(input.program.source.ast, statement)?.Body !== undefined) {
@@ -157,13 +168,13 @@ export function planSourceFile(
             }
             break;
           case KindClassDeclaration: {
-            namespaceMembers.push(planClassDeclaration(statement, sourceFile, input, diagnostics));
+            appendTypeDeclaration(statement, planClassDeclaration(statement, sourceFile, input, diagnostics));
             const statics = planGenericClassStaticMembers(statement, sourceFile, input, diagnostics);
-            if (statics !== undefined) namespaceMembers.push(statics);
+            if (statics !== undefined) appendTypeDeclaration(statement, statics);
             break;
           }
           case KindVariableStatement:
-            planTopLevelVariableStatement(statement, sourceFile, input, diagnostics, namespaceMembers, members, topLevelStatements, topLevelState, hasModuleInitializer);
+            planTopLevelVariableStatement(statement, sourceFile, input, diagnostics, appendTypeDeclaration, members, topLevelStatements, topLevelState, hasModuleInitializer);
             break;
           case KindExpressionStatement:
           case KindIfStatement:
@@ -322,17 +333,19 @@ export function planSourceFile(
       members,
     });
   }
-  if (namespaceMembers.length === 0) {
+  if (namespaceMembers.length === 0 && scopedTypeMembers.size === 0 && localTypeScopes.length === 0) {
     return undefined;
   }
   const unit: CsharpCompilationUnit = {
     kind: "CompilationUnit",
     usings: [],
-    members: [{
-      kind: "NamespaceDeclaration",
+    members: [...(namespaceMembers.length === 0 ? [] : [{
+      kind: "NamespaceDeclaration" as const,
       name: readNamespace(input),
       members: namespaceMembers,
-    }, ...localTypeScopes],
+    }]), ...localTypeScopes, ...[...scopedTypeMembers].map(([scopeName, declarations]) => ({
+      kind: "NamespaceDeclaration" as const, name: `${readNamespace(input)}.${scopeName}`, members: declarations,
+    }))],
   };
   const finalized = finalizeCsharpCompilationUnit(
     unit,

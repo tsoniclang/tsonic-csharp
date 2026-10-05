@@ -107,9 +107,9 @@ export function createCsharpPlanningContext(
     ast: program.source.ast,
     sourceFiles: program.sourceFiles,
     paths: program.host.paths,
-    generatedTypeNames: program.classFactories.factories.flatMap(factory => [
+    generatedTypeNames: [...projectTypes.declarationScopeNames, ...program.classFactories.factories.flatMap(factory => [
       factory.instanceScope, factory.factoryName, ...(factory.identity === undefined ? [] : [factory.identity.name]),
-    ]),
+    ])],
   });
   const names = program.names;
   return Object.freeze({

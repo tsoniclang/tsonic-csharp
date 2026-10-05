@@ -96,15 +96,19 @@ export function getCsharpTypeFromProjectSourceReference(
     diagnostics?.push(unsupportedNodeDiagnostic(reference.declaration, "Project source type reference requires a declaration name resolved by TSTS."));
     return invalidCsharpType("project source type reference");
   }
-  return {
+  const scopeName = input.types.projectTypes.definitionContainingDeclaration(reference.declaration)?.scopeName;
+  const name = planIdentifierName(
+    nameNode,
+    "InvalidProjectSourceTypeReference",
+    input,
+    diagnostics ?? [],
+    "Project source type reference",
+  );
+  return scopeName === undefined ? {
     kind: "IdentifierName",
-    name: planIdentifierName(
-      nameNode,
-      "InvalidProjectSourceTypeReference",
-      input,
-      diagnostics ?? [],
-      "Project source type reference",
-    ),
+    name,
+  } : {
+    kind: "QualifiedName", left: { kind: "IdentifierName", name: sanitizeIdentifier(scopeName) }, name,
   };
 }
 

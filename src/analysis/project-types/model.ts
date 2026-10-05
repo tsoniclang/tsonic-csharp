@@ -9,6 +9,7 @@ import type {
 
 export interface CsharpProjectTypeClassifications {
   readonly issues: readonly CsharpProjectTypeIssue[];
+  readonly declarationScopeNames: readonly string[];
   definitionContainingDeclaration(
     declaration: Node | undefined,
   ): CsharpProjectTypeDefinition | undefined;
