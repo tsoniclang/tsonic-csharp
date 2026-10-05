@@ -55,6 +55,22 @@ export function resolveTypeReferenceNode(
   if (direct !== undefined) {
     return direct;
   }
+  const standardTransformation = semanticType === undefined
+    ? undefined
+    : queries.types.standardTransformation(node, semanticType);
+  if (
+    standardTransformation !== undefined &&
+    standardTransformation.kind !== "structural" &&
+    semanticType !== undefined
+  ) {
+    return resolveStandardSourceTypeTransformation(
+      standardTransformation,
+      queries,
+      state,
+      node,
+      semanticType,
+    );
+  }
   const typeArguments = csharpSourceTypeArgumentNodes(host.ast, node).map((argument) =>
     resolveNodeWithState(argument, queries.sourceFile, nextState(semanticType !== undefined &&
       queries.types.isArrayLike(semanticType) && !queries.types.isTuple(semanticType)
@@ -75,22 +91,6 @@ export function resolveTypeReferenceNode(
   );
   if (projectType !== undefined) {
     return projectType;
-  }
-  const standardTransformation = semanticType === undefined
-    ? undefined
-    : queries.types.standardTransformation(node, semanticType);
-  if (
-    standardTransformation !== undefined &&
-    standardTransformation.kind !== "structural" &&
-    semanticType !== undefined
-  ) {
-    return resolveStandardSourceTypeTransformation(
-      standardTransformation,
-      queries,
-      state,
-      node,
-      semanticType,
-    );
   }
   const providerType = resolveProviderType(
     subjects,
