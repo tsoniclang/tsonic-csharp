@@ -1,9 +1,10 @@
-import type { Node } from "@tsonic/tsts";
+import type { AstReader, Node } from "@tsonic/tsts";
 import { sourceBindingScope, sourceLexicalCaptures, sourceBindingCapturedBeforeInitialization, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
 import type { CsharpStorageIssue } from "../storage/model.js";
 import { selectCsharpNamedSelfBinding, type CsharpNamedSelfBinding } from "./named-self.js";
+import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 
 export interface CsharpFrameClosure {
   readonly declaration: Node;
@@ -24,6 +25,7 @@ export function selectCsharpFrameClosures(
 ): { readonly closures: readonly CsharpFrameClosure[]; readonly namedSelfBindings: readonly CsharpNamedSelfBinding[] } {
   const candidates: Node[] = [];
   const visit = (node: Node): void => {
+    if (evidence.isCompileTimeMetadata(node)) return;
     if (!valueOwned.has(node) && (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node) ||
       source.ast.is.IsFunctionDeclaration(node) && source.ast.parent(node) !== undefined &&
       !source.ast.is.IsSourceFile(source.ast.parent(node)!))) candidates.push(node);
@@ -37,18 +39,33 @@ export function selectCsharpFrameClosures(
     } };
   });
   const namedSelfDeclarations = new Set(captures.flatMap(candidate => candidate.namedSelf === undefined ? [] : [candidate.declaration]));
+  const retainBinding = (declaration: Node, scope: Node, type: TargetTypeRef): boolean => {
+    const bindings = groups.get(scope) ?? new Map<Node, TargetTypeRef>();
+    const previous = bindings.get(declaration);
+    if (previous !== undefined) {
+      if (targetTypeRefEquals(previous, type)) return true;
+      issues.push({ node: declaration, code: "CSHARP_CAPTURE_STORAGE_CONFLICT",
+        message: "One captured binding cannot have incompatible physical storage contracts." });
+      return false;
+    }
+    bindings.set(declaration, type);
+    groups.set(scope, bindings);
+    return true;
+  };
   for (const candidate of captures) for (const capture of candidate.selected.captures) {
-    if (!sourceBindingCapturedBeforeInitialization(capture.declaration, source.ast, source.navigation)) continue;
     const scope = sourceBindingScope(capture.declaration, source.ast);
+    const iteration = scope !== undefined && isCsharpIterationCapture(capture.declaration, scope, source.ast);
+    if (!iteration && !sourceBindingCapturedBeforeInitialization(capture.declaration, source.ast, source.navigation)) continue;
     const type = evidence.storageTargetType(capture.declaration) ?? evidence.nodeTargetType(capture.declaration);
     if (scope === undefined || type === undefined) {
-      issues.push({ node: capture.declaration, code: "CSHARP_DEFERRED_CAPTURE_NOT_CLOSED",
-        message: "Deferred captured initialization requires its exact native binding type and activation." });
+      issues.push({ node: capture.declaration,
+        code: iteration ? "CSHARP_ITERATION_CAPTURE_NOT_CLOSED" : "CSHARP_DEFERRED_CAPTURE_NOT_CLOSED",
+        message: iteration
+          ? "Iteration capture requires its exact native binding type and activation."
+          : "Deferred captured initialization requires its exact native binding type and activation." });
       continue;
     }
-    const bindings = groups.get(scope) ?? new Map<Node, TargetTypeRef>();
-    bindings.set(capture.declaration, physicalType(capture.declaration, type));
-    groups.set(scope, bindings);
+    retainBinding(capture.declaration, scope, physicalType(capture.declaration, type));
   }
   const selected = new Map<Node, CsharpFrameClosure>();
   let changed = true;
@@ -86,11 +103,7 @@ export function selectCsharpFrameClosures(
           message: "A captured callable requires an enclosing native frame activation." });
         continue;
       }
-      for (const binding of bindings) {
-        const group = groups.get(binding!.scope) ?? new Map<Node, TargetTypeRef>();
-        group.set(binding!.declaration, binding!.type);
-        groups.set(binding!.scope, group);
-      }
+      if (!bindings.every(binding => retainBinding(binding!.declaration, binding!.scope, binding!.type))) continue;
       selected.set(candidate.declaration, Object.freeze({ declaration: candidate.declaration, scope,
         methodName: `invoke${selected.size}`, type, captures: Object.freeze(bindings.map(binding => binding!.declaration)),
         receivers: Object.freeze(receivers as NonNullable<typeof receivers[number]>[]),
@@ -101,4 +114,15 @@ export function selectCsharpFrameClosures(
   return Object.freeze({ closures: Object.freeze([...selected.values()]),
     namedSelfBindings: Object.freeze(captures.flatMap(candidate => candidate.namedSelf === undefined ? [] : [candidate.namedSelf])),
   });
+}
+
+function isCsharpIterationCapture(declaration: Node, scope: Node, ast: AstReader): boolean {
+  if (!ast.is.IsForStatement(scope)) return false;
+  const initializer = ast.as.AsForStatement(scope)?.Initializer;
+  if (initializer === undefined || !ast.is.IsVariableDeclarationList(initializer) ||
+    ast.variableDeclarationKind(initializer) !== "let") return false;
+  for (let current: Node | undefined = declaration; current !== undefined && current !== scope; current = ast.parent(current)) {
+    if (ast.is.IsVariableDeclaration(current)) return ast.parent(current) === initializer;
+  }
+  return false;
 }
