@@ -120,8 +120,8 @@ export function planLocalDeclaration(
       ? undefined
       : csharpTypeFromTargetTypeRef(nativeRefTargetType, input.scope.typeParameterNames)) ??
     requiredStorageType ??
-    inferredLambdaType ??
     explicitType ??
+    inferredLambdaType ??
     (storageType === undefined
       ? undefined
       : csharpTypeFromTargetTypeRef(storageType, input.scope.typeParameterNames)) ??

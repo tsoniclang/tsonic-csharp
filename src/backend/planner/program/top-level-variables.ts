@@ -24,7 +24,7 @@ import { planValueTypeDeclaration } from "../declarations/value-types.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planResourceRegistrationStatement } from "../statements/resource-management.js";
-import { getLambdaTargetContext } from "../expressions/expression-lambdas.js";
+import { lambdaTargetContextFromTargetRef } from "../expressions/expression-lambdas.js";
 import { getCsharpTaskResultTargetType, isCsharpVoidTargetType } from "../../../target-model/types/index.js";
 
 export function planTopLevelVariableStatement(
@@ -83,8 +83,8 @@ export function planTopLevelVariableStatement(
     const callableVisibility = input.program.moduleInitialization.directCallableVisibility(declaration);
     if (callableVisibility !== undefined) {
       const lambda = field.initializer;
-      const signature = variable.Initializer === undefined ? undefined :
-        getLambdaTargetContext(variable.Initializer, sourceFile, input)?.signature;
+      const signature = initial?.completion.kind !== "value" ? undefined
+        : lambdaTargetContextFromTargetRef(input.scope.typeParameterNames, initial.completion.carrier)?.signature;
       if ((initial?.prelude.length ?? 0) !== 0 || lambda?.kind !== "LambdaExpression" || signature === undefined ||
         lambda.parameters.some(parameter => parameter.type === undefined)) {
         diagnostics.push(unsupportedNodeDiagnostic(declaration, "Direct callable planning requires its sealed lambda signature and body."));
