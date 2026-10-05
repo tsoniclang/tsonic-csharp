@@ -10,6 +10,7 @@ import type {
   CsharpProjectTypeClassifications,
 } from "./model.js";
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
+import { snapshotCsharpTargetTypes } from "../../target-model/types/snapshot.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 export function sealCsharpProjectTypeClassifications(
@@ -62,9 +63,16 @@ export function sealCsharpProjectTypeClassifications(
     heritageForDeclaration: (declaration) =>
       heritageByDeclaration.get(declaration),
     heritageForTarget(type: TargetTypeRef) {
-      if (type.kind !== "target-named") return undefined;
-      const heritage = heritageById.get(type.id);
-      const arguments_ = type.typeArguments ?? [];
+      let selected: TargetTypeRef | undefined;
+      try {
+        [selected] = snapshotCsharpTargetTypes([type]);
+      } catch (error) {
+        if (error instanceof TypeError) return undefined;
+        throw error;
+      }
+      if (selected?.kind !== "target-named") return undefined;
+      const heritage = heritageById.get(selected.id);
+      const arguments_ = selected.typeArguments ?? [];
       if (heritage === undefined ||
         arguments_.length !== heritage.definition.typeParameterBindings.length) return undefined;
       const substitutions = new Map(heritage.definition.typeParameterBindings.map((parameter, index) =>
