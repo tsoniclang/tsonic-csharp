@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { contextualAsyncResultSource, ordinaryAsyncResultSource } from "../../../../tsonic/test/fixtures/contextual-async-results.mjs";
+import { contextualAsyncResultSource, inlineContextualAsyncResultSource, ordinaryAsyncResultSource } from "../../../../tsonic/test/fixtures/contextual-async-results.mjs";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
@@ -8,6 +8,12 @@ test("native JS async bodies retain contextual union completion, captures, alias
   const compiled = compileCsharpSource({ surface: "js", sourceText: contextualAsyncResultSource });
   assertCsharpCompilationSucceeded(compiled);
   executeCsharpConstruction(compiled, "contextual-async-results", true);
+});
+
+test("inline contextual async unions execute after native promise lifetime closure", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: inlineContextualAsyncResultSource });
+  assertCsharpCompilationSucceeded(compiled);
+  executeCsharpConstruction(compiled, "inline-contextual-async-results", true);
 });
 
 for (const surface of [undefined, "js"]) {
