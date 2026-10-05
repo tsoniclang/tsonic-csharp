@@ -6,6 +6,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 for (const surface of ["native", "js"]) {
   test(`fixed self and written lexical bindings retain distinct native identities in ${surface}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: lexicalSelfBindingSource });
-    executeCsharpConstruction(compiled, `lexical-self-binding-${surface}`);
+    executeCsharpConstruction(compiled, `lexical-self-binding-${surface}`,
+      false, false, [], "Tsonic.Generated.Index.main();");
   });
 }
