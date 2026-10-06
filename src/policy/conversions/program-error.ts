@@ -3,7 +3,6 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpExceptionTargetType, csharpTsValueTargetType, isCsharpClosedJsRuntimeCarrier } from "../../target-model/types/index.js";
 import { isCsharpThrowableType } from "../types/resolution/target-hierarchy.js";
 import { selectCsharpConversion } from "./selection/core.js";
-import { csharpConversionIsApplicable } from "../../target-model/conversions/selection.js";
 
 export function selectCsharpProgramErrorCarrier(
   input: Pick<CsharpPolicyContext, "projectTypes" | "providers" | "typeDefinitions" | "target">,
@@ -12,7 +11,9 @@ export function selectCsharpProgramErrorCarrier(
   if (source === undefined) return undefined;
   if (isCsharpThrowableType(input, source)) return source;
   const target = csharpExceptionTargetType();
-  return csharpConversionIsApplicable(selectCsharpConversion(input, source, target, "implicit"), "implicit") ? target : undefined;
+  const conversion = selectCsharpConversion(input, source, target, "implicit");
+  return conversion.kind === "runtime-union-reference" || conversion.kind === "implicit" &&
+    (conversion.proof === "reference" || conversion.proof === "provider-operator") ? target : undefined;
 }
 
 export function selectCsharpThrownOperandCarrier(

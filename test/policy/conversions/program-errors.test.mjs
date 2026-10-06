@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpProgramErrorCarrier } from "../../../dist/policy/conversions/program-error.js";
+import { selectCsharpProgramErrorCarrier, selectCsharpThrownOperandCarrier } from "../../../dist/policy/conversions/program-error.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
 import { csharpExceptionTargetType, csharpRuntimeErrorTargetType, csharpRuntimeUnionTargetType,
-  csharpNullableTargetType, csharpSourcePrimitiveTargetType, csharpTargetNamedType } from "../../../dist/target-model/types/index.js";
+  csharpNullableTargetType, csharpSourcePrimitiveTargetType, csharpTargetNamedType,
+  csharpTsValueTargetType } from "../../../dist/target-model/types/index.js";
 
 const native = csharpExceptionTargetType();
 const source = csharpRuntimeErrorTargetType();
@@ -43,4 +44,13 @@ test("throw selection requires the native hierarchy instead of a same-spelled so
   const cyclic = { ...host, projectTypes: { directSupertypes: carrier => carrier === local ? [unrelated] : [local] } };
   assert.equal(selectCsharpProgramErrorCarrier(cyclic, local), undefined);
   assert.equal(selectCsharpProgramErrorCarrier(cyclic, csharpRuntimeUnionTargetType([native, local])), undefined);
+});
+
+test("a checked closed-value cast is not native throwable evidence", () => {
+  const closed = csharpTsValueTargetType();
+  const selected = { ...host, objectShapes: { resolveTarget: () => undefined } };
+  const conversion = selectCsharpConversion(selected, closed, native, "implicit");
+  assert.equal(conversion.kind, "js-value-cast");
+  assert.equal(selectCsharpProgramErrorCarrier(selected, closed), undefined);
+  assert.deepEqual(selectCsharpThrownOperandCarrier(selected, closed), closed);
 });
