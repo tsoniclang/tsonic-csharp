@@ -6,7 +6,7 @@ import type { CsharpPlanningContext } from "../../../context.js";
 import type { ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpPlannedValue } from "../../planned-values.js";
 import { planIdentifierExpression, tryPlanProjectSourceModuleStaticMemberReference } from "../../expression-source-references.js";
-import { translateCsharpSelectedReceiver } from "../../receivers.js";
+import { csharpProjectTypeReceiver, translateCsharpSelectedReceiver } from "../../receivers.js";
 import { planCsharpSourceMemberName } from "../source-member-names.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 
@@ -30,7 +30,10 @@ export function planCsharpNativeMethodCallee(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): { readonly receiver: CsharpPlannedValue; readonly name: string } | undefined {
+):
+  | { readonly kind: "type"; readonly receiver: CsharpExpression; readonly name: string }
+  | { readonly kind: "value"; readonly receiver: CsharpPlannedValue; readonly name: string }
+  | undefined {
   const classification = input.program.operations.property(selected.expression);
   const selection = classification?.selection;
   const sourceOwned = classification?.sourceOwned;
@@ -43,7 +46,14 @@ export function planCsharpNativeMethodCallee(
     return undefined;
   }
   const name = planCsharpSourceMemberName(selected.expression, selection.source.selectedDeclaration, sourceOwned, false, input, diagnostics);
+  if (name === undefined) return undefined;
+  const projectType = csharpProjectTypeReceiver(selection.source.receiver, input, diagnostics);
+  if (projectType !== undefined && classification.receiverProjection?.conversion.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(selected.expression, classification.receiverProjection.conversion.reason));
+    return undefined;
+  }
+  if (projectType !== undefined) return { kind: "type", receiver: projectType, name };
   const receiver = translateCsharpSelectedReceiver(selection.source.receiver, sourceFile, input, diagnostics,
     planExpression, classification.receiverProjection);
-  return name === undefined || receiver === undefined ? undefined : { receiver, name };
+  return receiver === undefined ? undefined : { kind: "value", receiver, name };
 }

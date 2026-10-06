@@ -40,6 +40,7 @@ import {
 import { csharpCapturedBindingExpression } from "../bindings/capture-storage.js";
 import { planCsharpFrameClosureReference } from "../bindings/capture-closures.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
+import { getCsharpTypeFromProjectSourceReference } from "../types/project-source-types.js";
 
 export function planIdentifierExpression(
   identifier: Node,
@@ -208,10 +209,7 @@ export function planProjectSourceModuleMemberReference(
     return undefined;
   }
   if (isModuleTypeValueDeclaration(sourceReference.declaration, input)) {
-    return {
-      kind: "IdentifierName",
-      name: planCsharpSourceModuleMemberName(sourceReference.declaration, input, diagnostics),
-    };
+    return getCsharpTypeFromProjectSourceReference(sourceReference, input, diagnostics);
   }
   if (isNestedProjectSourceMemberDeclaration(sourceReference.declaration, input)) {
     return undefined;

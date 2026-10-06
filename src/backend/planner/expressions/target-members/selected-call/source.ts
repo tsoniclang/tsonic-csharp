@@ -102,6 +102,10 @@ export function translateSourceOwnedCall(
   }
   if (selected.kind === "method") {
     const callee = planCsharpNativeMethodCallee(selected, sourceFile, input, diagnostics, planExpression);
+    if (callee?.kind === "type") {
+      return composeCsharpPlannedCall(node, sourceFile, input, diagnostics, undefined, arguments_, (_, args) =>
+        invoke({ kind: "SimpleMemberAccessExpression", receiver: callee.receiver, name: callee.name }, args));
+    }
     return callee === undefined ? undefined : composeCsharpPlannedCall(node, sourceFile, input, diagnostics,
       callee.receiver, arguments_, (receiver, args) => invoke({ kind: "SimpleMemberAccessExpression", receiver: receiver!, name: callee.name }, args));
   }

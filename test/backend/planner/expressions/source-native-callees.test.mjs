@@ -23,12 +23,14 @@ test("native method planning requires one exact closed member contract", () => {
   };
   const invoke = fact => {
     const diagnostics = [];
-    const input = { program: { operations: { property: () => fact } } };
+    const input = { program: { operations: { property: () => fact },
+      sourceNavigation: { sourceReferenceFor: () => undefined, referenceFor: () => undefined } } };
     const result = planCsharpNativeMethodCallee(selected, {}, input, diagnostics, plan);
     return { result, diagnostics };
   };
   const valid = invoke(classification);
   assert.equal(valid.result?.name, "read");
+  assert.equal(valid.result?.kind, "value");
   assert.equal(valid.diagnostics.length, 0);
   for (const [label, fact] of [
     ["missing classification", undefined],
@@ -45,6 +47,49 @@ test("native method planning requires one exact closed member contract", () => {
     assert.equal(rejected.result === undefined, true, label);
     assert.equal(rejected.diagnostics.length, 1, label);
   }
+});
+
+test("generic class static callees remain exact namespace syntax, never runtime receiver operands", () => {
+  const expression = {};
+  const receiver = {};
+  const declaration = {};
+  const classDeclaration = {};
+  const className = {};
+  const methodName = {};
+  const file = { IsDeclarationFile: false };
+  const sourceOwned = { jsValueOperation: { kind: "not-js-value" }, runtimeUnionProperty: { kind: "not-runtime-union" } };
+  const classification = { selection: { kind: "source-owned", source: { callCallee: true,
+    selectedDeclaration: declaration, receiver: { expression: receiver, type: {} } } }, sourceOwned };
+  const input = {
+    program: {
+      operations: { property: () => classification },
+      sourceNavigation: { referenceFor: () => ({ declaration: classDeclaration, sourceFile: file }),
+        sourceReferenceFor: () => ({ declaration: classDeclaration, sourceFile: file }),
+        isProjectDeclaration: candidate => candidate === classDeclaration },
+      classFactories: { get: () => undefined },
+      source: { ast: { kindName: () => "KindClassDeclaration", getFileName: () => "/project/entry.ts",
+        name: candidate => candidate === classDeclaration ? className : methodName,
+        is: { IsClassExpression: () => false } } },
+    },
+    types: { projectTypes: { definitionContainingDeclaration: () => ({ scopeName: "ModuleScope" }) } },
+    names: { resolve: name => ({ kind: "resolved", name: name === className ? "Entry" : "identity" }) },
+  };
+  const diagnostics = [];
+  const result = planCsharpNativeMethodCallee({ kind: "method", expression, declaration }, file, input, diagnostics,
+    () => assert.fail("native static calls must not acquire or capture a constructor delegate"));
+  assert.equal(result?.kind, "type");
+  assert.equal(result?.name, "identity");
+  assert.deepEqual(result.receiver,
+    { kind: "QualifiedName", left: { kind: "IdentifierName", name: "ModuleScope" }, name: "Entry" });
+  assert.equal(diagnostics.length, 0);
+  input.program.operations.property = () => ({ ...classification, receiverProjection: {
+    conversion: { kind: "rejected", reason: "missing selected native receiver proof" },
+  } });
+  const rejected = planCsharpNativeMethodCallee({ kind: "method", expression, declaration }, file, input, diagnostics,
+    () => assert.fail("rejected evidence must not acquire a constructor delegate"));
+  assert.equal(rejected === undefined, true, "native type syntax cannot conceal rejected source evidence");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /missing selected native receiver proof/u);
 });
 
 for (const surface of ["native", "js"]) {
