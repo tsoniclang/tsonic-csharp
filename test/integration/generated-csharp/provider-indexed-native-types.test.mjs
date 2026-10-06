@@ -14,6 +14,8 @@ test("provider indexed types preserve native fields, aliases and unannotated ret
   assertCsharpCompilationSucceeded(compiled);
   const output = [...compiled.artifacts.values()].join("\n");
   assert.match(output, /long size/u);
+  assert.match(output, /long written/u);
+  assert.match(output, /long writtenBytes\(long value\)/u);
   assert.match(output, /long direct/u);
   assert.match(output, /long\? optional/u);
   assert.match(output, /long forward\(long size\)/u);
