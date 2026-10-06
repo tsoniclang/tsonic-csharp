@@ -142,7 +142,7 @@ test("typed-location equality preserves exact carrier identity and undefined", (
         }
         public static bool bothMissing()
         {
-            return Tsonic.CSharp.Runtime.Location<int>.Same(null, null);
+            return Tsonic.CSharp.Runtime.Location<int>.Same(default(Tsonic.CSharp.Runtime.Location<int>?), default(Tsonic.CSharp.Runtime.Location<int>?));
         }
     }
 }
@@ -379,7 +379,7 @@ test("loop bindings preserve assignment, lexical, and function-scoped storage id
   );
   assert.match(
     source,
-    /object (__tsonic_locationIdentity\d+) = new object\(\);\s*int index = 0;\s*for \(; index < 1; index\+\+\)[\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?return result && [\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?CreateLocal\(\1, \(\) => index,/u,
+    /object (__tsonic_locationIdentity\d+) = new object\(\);\s*int index = 0;\s*for \(; index < 1; index\+\+\)[\s\S]*?result = result \? [\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?: false;[\s\S]*?return result \? [\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?: false;/u,
   );
 });
 
@@ -545,9 +545,9 @@ test("optional pointer projection retains missingness and evaluates exact callba
     export function hash(pointer: Pointer<int32> | undefined): number { return hashptr(pointer); }
     export function missing(): number { return hashptr<int32>(undefined); }
   `);
-  assert.match(compiled.artifacts.get("src/Index.cs"), /ProjectOptional<int>\(pointer,/u);
+  assert.match(compiled.artifacts.get("src/Index.cs"), /Location<int>\? (__tsonic_value_\d+) = pointer;[\s\S]*?return Tsonic\.CSharp\.Runtime\.Location<int>\.ProjectOptional<int>\(\1,/u);
   assert.match(compiled.artifacts.get("src/Index.cs"), /Location<int>\.Hash\(pointer\)/u);
-  assert.match(compiled.artifacts.get("src/Index.cs"), /Location<int>\.Hash\(null\)/u);
+  assert.match(compiled.artifacts.get("src/Index.cs"), /Location<int>\.Hash\(default\(Tsonic\.CSharp\.Runtime\.Location<int>\?\)\)/u);
 });
 
 for (const localName of ["keepAlive", "keepalive"]) {

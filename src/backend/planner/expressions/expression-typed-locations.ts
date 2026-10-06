@@ -341,6 +341,7 @@ function planCsharpTypedLocationStorage(
         storage,
         locationType,
         value,
+        input,
         diagnostics,
         state,
       );
@@ -514,12 +515,22 @@ function planDirectLocation(
   }>,
   locationType: CsharpTypeNode,
   planned: CsharpExpression,
+  input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   const valueName = allocateSyntheticParameter(state);
   switch (storage.identity.kind) {
     case "local-storage": {
+      const captured = input.program.captureStorage.binding(storage.identity.declaration);
+      if (captured !== undefined) {
+        if (planned.kind !== "SimpleMemberAccessExpression" || planned.name !== captured.fieldName) {
+          diagnostics.push(typedLocationDiagnostic(storage.expression, "location-address",
+            "The captured local did not emit its exact sealed native frame field."));
+          return undefined;
+        }
+        return planReferencePropertyLocation(planned, locationType, storage.expression, captured.fieldName, diagnostics, state);
+      }
       const identityName = getCsharpTypedLocationIdentityName(
         storage.identity.declaration,
         state,
@@ -545,26 +556,8 @@ function planDirectLocation(
         lambda([valueName], assignment(planned, identifier(valueName))),
       ]);
     case "instance-member-storage": {
-      if (planned.kind !== "SimpleMemberAccessExpression") {
-        diagnostics.push(typedLocationDiagnostic(
-          storage.expression,
-          "location-address",
-          "The selected direct instance storage did not render as member access.",
-        ));
-        return undefined;
-      }
-      const receiverName = allocateSyntheticParameter(state);
-      const receiver = identifier(receiverName);
-      const access = member(receiver, planned.name);
-      return invokeMember(locationType, "CreateMember", [
-        planned.receiver,
-        literal(storage.identity.memberIdentity),
-        lambda([receiverName], access),
-        lambda(
-          [receiverName, valueName],
-          assignment(access, identifier(valueName)),
-        ),
-      ]);
+      return planReferencePropertyLocation(planned, locationType, storage.expression,
+        storage.identity.memberIdentity, diagnostics, state);
     }
   }
 }

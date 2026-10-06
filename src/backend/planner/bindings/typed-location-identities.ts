@@ -47,7 +47,7 @@ export function planCsharpTypedLocationIdentityDeclaration(
   input: CsharpPlanningContext,
   state: DestructuringPlannerState,
 ): Extract<CsharpStatement, { readonly kind: "LocalDeclarationStatement" }> | undefined {
-  if (!input.program.storage.requiresTypedLocationIdentity(declaration)) {
+  if (input.program.captureStorage.binding(declaration) !== undefined || !input.program.storage.requiresTypedLocationIdentity(declaration)) {
     return undefined;
   }
   return {
