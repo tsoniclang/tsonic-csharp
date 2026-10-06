@@ -5,6 +5,7 @@ import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target
 import type { ExtensionFactSubject, Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { nextState } from "../../resolution/state.js";
+import { classifyCsharpSourceProfileType } from "../../resolution/source-profile.js";
 
 interface SelectedObjectShapeSource {
   readonly type: Type | undefined;
@@ -104,6 +105,7 @@ export function requiresUnresolvedStructuralProjection(
 export function typeIsExcludedFromObjectShape(
   type: Type,
   queries: SourceFileSemantics,
+  host: CsharpObjectShapePolicyHost,
 ): boolean {
   return queries.types.isAny(type) ||
     queries.types.isUnknown(type) ||
@@ -114,6 +116,7 @@ export function typeIsExcludedFromObjectShape(
     queries.types.isNumberLike(type) ||
     queries.types.isBooleanLike(type) ||
     queries.types.isBigIntLike(type) ||
+    classifyCsharpSourceProfileType(type, queries, host.ast) !== undefined ||
     queries.types.isUnion(type) ||
     queries.types.isTuple(type) ||
     queries.types.callSignatures(type).length > 0 ||

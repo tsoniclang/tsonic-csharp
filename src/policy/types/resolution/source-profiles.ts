@@ -81,6 +81,8 @@ export function resolveSourceProfileType(
     case "error": {
       if (identity.sourceName === "Error" && typeArguments.length === 0) {
         if (subject === undefined) return csharpExceptionTargetType();
+        const sourceFile = host.ast.getSourceFile(subject);
+        if (sourceFile !== undefined && !host.hasSemantics(sourceFile)) return csharpExceptionTargetType();
         const parent = host.ast.parent(subject);
         if (host.ast.is.IsExpressionWithTypeArguments(subject) && host.ast.is.IsHeritageClause(parent)) {
           return csharpRuntimeErrorTargetType();
@@ -374,7 +376,7 @@ export function resolveCallableEvidence(
   const returnType = resolveSourceTypeComponentEvidence(
     callable.result,
     queries,
-    state,
+    { ...state, sourceValueSubject: callable.result.declaration, sourceValueProjection: undefined },
   );
   if (returnType === undefined) {
     return undefined;
@@ -449,7 +451,9 @@ export function resolveSignatureParameterEvidence(
           }),
     },
     queries,
-    state,
+    use === "callable"
+      ? { ...state, sourceValueSubject: parameter.declaration, sourceValueProjection: undefined }
+      : state,
   );
   const runtimeDefault = parameter.omissionKind === "initializer" && resolved !== undefined
     ? csharpRuntimeParameterDefault(resolved) : undefined;
@@ -469,7 +473,7 @@ export function resolveSourceTypeComponentEvidence(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  if (component.declaration !== undefined) {
+  if (state.sourceValueSubject === undefined && component.declaration !== undefined) {
     state = { ...state, sourceValueSubject: component.declaration, sourceValueProjection: undefined };
   }
   const pointer = component.declaration === undefined

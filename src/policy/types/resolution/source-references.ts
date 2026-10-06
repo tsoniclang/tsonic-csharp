@@ -103,16 +103,13 @@ export function resolveTypeReferenceNode(
   const profileIdentity = selectedDeclaration === undefined
     ? semanticType === undefined ? undefined : classifyCsharpSourceProfileType(semanticType, queries, host.ast)
     : classifyCsharpSourceProfileDeclaration(selectedDeclaration, host.ast);
-  const sourceProfileType = profileIdentity === undefined
-    ? undefined
-    : resolveSourceProfileType(
+  if (profileIdentity !== undefined) {
+    return resolveSourceProfileType(
         profileIdentity,
         typeArguments as readonly TargetTypeRef[],
         state.sourceValueSubject ?? node,
         state.sourceValueProjection,
       );
-  if (sourceProfileType !== undefined) {
-    return sourceProfileType;
   }
   if (
     standardTransformation !== undefined &&

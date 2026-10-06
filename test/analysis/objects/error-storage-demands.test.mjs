@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { collectTargetSourceProfileContributions } from "../../../../tsonic/packages/host/dist/target/source-profile.js";
 import { createCsharpErrorStorageDemandQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
 import { csharpSourceProfileContributions, csharpJsSurfaceSourceProfileContributions } from "../../../dist/source/profiles/source-profile-declarations.js";
@@ -41,7 +42,8 @@ for (const jsEnabled of [false, true]) {
     assert.equal(checked.diagnostics.length, 0,
       formatDiagnostics(checked.diagnostics.filter(diagnostic => diagnostic !== undefined), "/src"));
     const source = createTargetSourceProgram(checked);
-    const demand = createCsharpErrorStorageDemandQuery(source);
+    const projectFiles = source.sourceFiles.filter(file => files[source.ast.getFileName(file)] !== undefined);
+    const demand = createCsharpErrorStorageDemandQuery(source, createSourceStorageQuery(source, projectFiles));
     const declarations = new Map();
     const visit = node => {
       if (source.ast.is.IsVariableDeclaration(node)) declarations.set(source.ast.text(source.ast.name(node)), node);

@@ -112,6 +112,10 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       ),
     ])]
       .filter((declaration): declaration is Node => declaration !== undefined);
+    const memberState: CsharpTypeResolutionState = { ...state,
+      sourceValueSubject: declarations.length === 1 ? declarations[0] : undefined,
+      sourceValueProjection: undefined,
+    };
     const sourceType = property.type;
     const sourceKey = resolveObjectShapeSourceMemberKey(
       declarations,
@@ -145,13 +149,13 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       ? host.typeResolver.resolveType(
           sourceType,
           queries.sourceFile,
-          nextState(state),
+          nextState(memberState),
         )
       : resolvePropertyType(
           property,
           sourceType,
           queries,
-          state,
+          memberState,
           authoredTypeRoot,
         );
     if (memberType === undefined) {

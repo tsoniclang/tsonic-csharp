@@ -148,15 +148,12 @@ export function resolveTypeWithState(
   }
   const profileType = classifyCsharpSourceProfileType(type, queries, host.ast);
   if (profileType !== undefined) {
-    const resolvedProfileType = resolveSourceProfileType(
+    return resolveSourceProfileType(
       profileType,
       targetTypeArguments,
       state.sourceValueSubject,
       state.sourceValueProjection,
     );
-    if (resolvedProfileType !== undefined) {
-      return resolvedProfileType;
-    }
   }
   const constructor = resolveCsharpConstructorValueType(scope, type, queries, state);
   if (constructor !== undefined) return constructor;

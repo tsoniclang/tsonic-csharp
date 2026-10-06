@@ -634,7 +634,7 @@ export function createCsharpObjectShapePolicy(
       type === undefined ||
       activeTypes.has(type) ||
       requiresUnresolvedStructuralProjection(type, node, queries, host) ||
-      typeIsExcludedFromObjectShape(type, queries)
+      typeIsExcludedFromObjectShape(type, queries, host)
     ) {
       return undefined;
     }
