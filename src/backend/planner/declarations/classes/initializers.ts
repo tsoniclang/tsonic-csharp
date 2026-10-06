@@ -10,6 +10,7 @@ import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { planClassStaticBlockDeclaration } from "./constructors.js";
 import { consumeCsharpPlannedValue } from "../../statements/statement-output.js";
 import type { CsharpPlannedValue } from "../../expressions/planned-values.js";
+import { getCsharpNullableElementTargetType, isCsharpValueTypeTargetType } from "../../../../target-model/types/index.js";
 
 export interface CsharpClassInitializationRegion {
   readonly relocates: boolean;
@@ -21,6 +22,7 @@ export interface CsharpClassInitializationEntry {
   readonly node: Node;
   readonly name?: string;
   readonly value?: CsharpPlannedValue;
+  readonly defaultValue?: CsharpExpression;
   readonly statements?: readonly CsharpStatement[];
 }
 
@@ -30,6 +32,7 @@ export function planClassInitializationRegion(
 ): CsharpClassInitializationRegion {
   const ast = input.program.source.ast;
   const fields = new Map<Node, CsharpPlannedValue>();
+  const defaults = new Map<Node, CsharpExpression>();
   const blocks = new Map<Node, readonly CsharpStatement[]>();
   let relocates = factory || !isStatic && input.program.classInitialization.requiresConstructor(declaration);
   const region = input.program.classInitialization.orderedRegion(declaration, isStatic);
@@ -51,6 +54,10 @@ export function planClassInitializationRegion(
       continue;
     }
     fields.set(node, value);
+    if (value.completion.kind === "value" && target !== undefined && type !== undefined &&
+      !isCsharpValueTypeTargetType(target) && getCsharpNullableElementTargetType(target) === undefined) {
+      defaults.set(node, { kind: "DefaultExpression", type, nullForgiving: true });
+    }
     relocates ||= value.prelude.length !== 0 || value.completion.kind !== "value";
   }
   const entries: CsharpClassInitializationEntry[] = [];
@@ -61,7 +68,8 @@ export function planClassInitializationRegion(
     if (value === undefined) continue;
     const property = ast.as.AsPropertyDeclaration(node)!;
     const name = planIdentifierName(property.name, "Field", input, diagnostics, "Class field");
-    entries.push({ node, name, value });
+    const defaultValue = defaults.get(node);
+    entries.push({ node, name, value, ...(defaultValue === undefined ? {} : { defaultValue }) });
   }
   return completeCsharpClassInitializationRegion(entries, relocates, isStatic && !factory ? className : "this");
 }
@@ -79,6 +87,7 @@ export function completeCsharpClassInitializationRegion(
       inline.set(entry.node, value.completion.expression);
       continue;
     }
+    if (entry.defaultValue !== undefined) inline.set(entry.node, entry.defaultValue);
     if (entry.name === undefined) throw new Error("An ordered class value requires its exact field name.");
     const name = entry.name;
     statements.push(...consumeCsharpPlannedValue(value, expression => [{ kind: "ExpressionStatement", expression: {

@@ -127,6 +127,19 @@ test("direct class initialization retains source-node identities and terminating
   assert.equal(stopped.statements[1].kind, "ThrowStatement");
 });
 
+test("relocated reference initialization retains one native default and one ordered source store", () => {
+  const source = {};
+  const defaultValue = { kind: "DefaultExpression", type, nullForgiving: true };
+  const entry = { node: source, name: "callback", value: value("create"), defaultValue };
+  const relocated = completeCsharpClassInitializationRegion([entry], true, "this");
+  assert.equal(relocated.inline.get(source) === defaultValue, true);
+  assert.equal(relocated.statements.length, 1);
+  assert.equal(relocated.statements[0].expression.right.callee.name, "create");
+  const direct = completeCsharpClassInitializationRegion([entry], false, "this");
+  assert.equal(direct.inline.get(source).callee.name, "create");
+  assert.equal(direct.statements.length, 0);
+});
+
 test("base initializer sequencing uses one exact static method and direct native parameter references", () => {
   const input = context();
   const node = {};
