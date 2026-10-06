@@ -63,7 +63,7 @@ for (const surface of [undefined, "js"]) {
     executeCsharpConstruction(compiled, `module-type-scopes-${surface ?? "native"}`);
     const source = [...compiled.artifacts.values()].join("\n");
     assert.equal((source.match(/public interface CookieOptions\b/gu) ?? []).length, 2);
-    assert.equal((source.match(/public class Entry<T>\b/gu) ?? []).length, 2);
+    assert.equal((source.match(/public class Entry<T>(?=\s|:)/gu) ?? []).length, 2);
     assert.equal((source.match(/public struct Packet\b/gu) ?? []).length, 2);
     assert.doesNotMatch(source, /\b(?:CookieOptions_[0-9]+|Entry_[0-9]+|cookie_options)\b/u);
     assert.doesNotMatch(source, /\(\(T argument0\) =>/u);

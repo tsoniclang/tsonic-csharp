@@ -568,7 +568,8 @@ export function createCsharpObjectShapePolicy(
         return undefined;
       }
       const selectedType = queries.types.expressionType(definition.declaration) ?? queries.types.authoredType(definition.declaration);
-      const selectedMembers = selectedType === undefined ? undefined : deriveMembers(selectedType, queries, state);
+      if (selectedType === undefined) return undefined;
+      const selectedMembers = deriveMembers(selectedType, queries, state);
       const initializer = Node_Initializer(host.ast, definition.declaration);
       const shapeNode = initializer === undefined || readCsharpSourceStruct(host.sourceFacts, initializer) === undefined
         ? undefined : host.ast.arguments(initializer)[0];
@@ -613,6 +614,7 @@ export function createCsharpObjectShapePolicy(
         ? undefined
         : {
             targetType,
+            sourceType: selectedType,
             members: members as readonly CsharpObjectShapeMemberFact[],
             constructible: true,
           };

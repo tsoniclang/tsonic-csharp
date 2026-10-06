@@ -60,7 +60,7 @@ export function resolveSourceProfileType(
   identity: ReturnType<typeof classifyCsharpSourceProfileType>,
   typeArguments: readonly TargetTypeRef[],
   subject: Node | undefined,
-  projection?: readonly import("@tsonic/target-api/analysis").SourceErrorStorageProjection[],
+  projection?: readonly import("@tsonic/target-api/analysis").SourceStorageProjection[],
 ): TargetTypeRef | undefined {
   if (identity === undefined) {
     return undefined;

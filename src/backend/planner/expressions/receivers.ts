@@ -32,7 +32,8 @@ export function csharpProjectTypeReceiver(
   const declaration = receiver.valueDeclaration ??
     input.program.sourceNavigation.sourceReferenceFor(receiver.expression)?.declaration;
   if (declaration === undefined) return undefined;
-  const reference = input.program.sourceNavigation.referenceFor(receiver.expression);
+  const reference = input.program.sourceNavigation.referenceFor(receiver.valueDeclaration === undefined
+    ? receiver.expression : input.program.source.ast.name(declaration));
   return reference === undefined || reference.declaration !== declaration || input.program.classFactories.get(declaration) !== undefined
     ? undefined : getCsharpTypeFromProjectSourceReference(reference, input, diagnostics);
 }

@@ -109,6 +109,7 @@ import {
 } from "../module-initialization/index.js";
 import { createCsharpSourceProfileCallableAliasQuery } from "../../policy/operations/source-profiles/callable-aliases.js";
 import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-demands.js";
+import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -132,6 +133,11 @@ export function analyzeCsharpTargetProgram(
   if (nativeControlIssues.length !== 0) return rejectedTargetStage(nativeControlIssues);
   const memoryBindings = createTsonicMemoryBindingIndex(source);
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
+  const sourceStorage = createSourceStorageQuery(source, sourceFiles);
+  const sourceStorageFailure = sourceStorage.failureReason();
+  if (sourceStorageFailure !== undefined) return rejectedTargetStage([{
+    code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", category: "error", source: "tsonic-csharp", message: sourceStorageFailure,
+  }]);
   const sourceIdentities = createCsharpSourceIdentityPolicy(
     source.ast,
     input.paths.projectRoot,
@@ -144,7 +150,7 @@ export function analyzeCsharpTargetProgram(
     sourceIdentities,
   });
   const typeHost = {
-    errorStorageDemands: createCsharpErrorStorageDemandQuery(source),
+    errorStorageDemands: createCsharpErrorStorageDemandQuery(source, sourceStorage),
     callOnlyAlias: createCsharpSourceProfileCallableAliasQuery(source),
     ast: source.ast,
     sourceFiles,
