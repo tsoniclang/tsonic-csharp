@@ -113,6 +113,7 @@ export function resolveProviderObjectLiteralShape(
   }
   return {
     targetType: input.selectedTarget,
+    sourceType: input.type,
     members: members as readonly CsharpObjectShapeMemberFact[],
     constructible: true,
   };
@@ -218,7 +219,11 @@ function deriveProviderObjectLiteralMember(
     (
       relation.targetMember.kind !== "property" &&
       relation.targetMember.kind !== "field"
-    )
+    ) ||
+    relation.source.memberStatic ||
+    relation.targetMember.static === true ||
+    relation.receiver.kind !== "instance" ||
+    relation.targetMember.parameters.length !== 0
   ) {
     return undefined;
   }
@@ -258,7 +263,7 @@ function deriveProviderObjectLiteralMember(
       );
   const targetReadonly = relation.targetMember.readonly === true;
   const exactNumericStorage = sourceTarget !== undefined && memberTarget !== undefined &&
-    providerSelectsNumericStorage(property, sourceTarget, memberTarget, input);
+    csharpProviderSelectsNumericStorage(property, sourceTarget, memberTarget, input);
   if (
     sourceTarget === undefined ||
     memberTarget === undefined ||
@@ -273,7 +278,11 @@ function deriveProviderObjectLiteralMember(
   return {
     sourceKey,
     sourceName: csharpSourceMemberDisplayName(sourceKey),
-    sourceSubjects: [property.symbol, ...declarations],
+    sourceSubjects: Object.freeze([...new Set([
+      property.symbol,
+      ...property.rootSymbols,
+      ...declarations,
+    ])]),
     ...(declarations.length === 0
       ? {}
       : { sourceDeclarations: Object.freeze([...declarations]) }),
@@ -287,11 +296,14 @@ function deriveProviderObjectLiteralMember(
   };
 }
 
-function providerSelectsNumericStorage(
+export function csharpProviderSelectsNumericStorage(
   property: TypePropertyInfo,
   source: TargetTypeRef,
   target: TargetTypeRef,
-  input: CsharpProviderObjectLiteralInput,
+  input: {
+    readonly queries: SourceFileSemantics;
+    readonly host: Pick<CsharpTypePolicyBaseHost, "ast" | "sourceFacts">;
+  },
 ): boolean {
   const sourceElement = getCsharpNullableElementTargetType(source);
   const targetElement = getCsharpNullableElementTargetType(target);
@@ -316,7 +328,7 @@ function resolveProviderMemberRelation(
   input: CsharpProviderObjectLiteralInput,
 ): CsharpProviderMemberRelation | undefined {
   let selected: CsharpProviderMemberRelation | undefined;
-  for (const subject of [property.symbol, ...declarations]) {
+  for (const subject of [property.symbol, ...property.rootSymbols, ...declarations]) {
     const declaration = input.host.sourceFacts?.getFact(
       subject,
       providerVirtualDeclarationFactKey,

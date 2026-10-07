@@ -4,6 +4,7 @@ import type {
   SourceFile,
   Type,
 } from "@tsonic/tsts";
+import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { emptyCsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 import { selectCsharpArrayTypeGuard } from "../../operations/source-profiles/js/type-tests.js";
 import type {
@@ -41,9 +42,14 @@ import {
   createCsharpBindingProjectionPolicy,
 } from "../objects/binding-projection-policy.js";
 import {
+  createCsharpNativeConstructionDemandQuery,
+  type CsharpNativeConstructionDemandQueries,
+} from "../objects/native-construction-demand.js";
+import {
   csharpTargetTypeComponents,
 } from "../../../target-model/types/components.js";
 import type {
+  CsharpObjectShapeFact,
   TargetTypeRef,
 } from "../../../target-model/types/model.js";
 
@@ -52,6 +58,7 @@ export interface CsharpTypeSystem {
   readonly analysisTypes: CsharpTypePolicy;
   readonly objectShapes: CsharpObjectShapePolicy;
   readonly projectTypes: CsharpProjectTypePolicy;
+  readonly nativeConstruction: CsharpNativeConstructionDemandQueries;
 }
 
 export function createCsharpTypeSystem(
@@ -59,10 +66,18 @@ export function createCsharpTypeSystem(
   projectTypeCatalog: CsharpProjectTypeCatalog,
   representations: CsharpPlanningRepresentationQueries =
     emptyPlanningRepresentations,
+  sourceStorage: SourceStorageQueries,
 ): CsharpTypeSystem {
   let objectShapes: CsharpRecursiveObjectShapePolicy | undefined;
   let bindingProjections: CsharpBindingProjectionPolicy | undefined;
   let projectTypes: CsharpProjectTypePolicy | undefined;
+  let nativeConstruction: CsharpNativeConstructionDemandQueries | undefined;
+  const selectedRepresentations: CsharpPlanningRepresentationQueries = Object.freeze({
+    ...representations,
+    scopedTargetType(node: Node): TargetTypeRef | undefined {
+      return nativeConstruction?.shapeFor(node)?.targetType ?? representations.scopedTargetType(node);
+    },
+  });
   const requireProjectTypes = (): CsharpProjectTypePolicy => {
     if (projectTypes === undefined) throw new Error("C# project heritage was requested before the type system was fully initialized.");
     return projectTypes;
@@ -180,11 +195,11 @@ export function createCsharpTypeSystem(
         },
       },
     });
-  const typeResolution = createTypeResolution(representations);
+  const typeResolution = createTypeResolution(selectedRepresentations);
   const types = typeResolution.policy;
   objectShapes = createCsharpObjectShapePolicy({
     ...host,
-    representations,
+    representations: selectedRepresentations,
     projectTypeCatalog,
     projectTypes: requireProjectTypes,
     typeResolver: typeResolution.recursive,
@@ -198,11 +213,19 @@ export function createCsharpTypeSystem(
     { ...host, types },
     projectTypeCatalog,
   );
+  nativeConstruction = createCsharpNativeConstructionDemandQuery(sourceStorage, {
+    ...host,
+    scopedTargetType: representations.scopedTargetType,
+    resolveShape(type: Type, file: SourceFile): CsharpObjectShapeFact | undefined {
+      return objectShapes?.resolveType(type, file);
+    },
+  });
   return Object.freeze({
     typeDefinitions: host.typeDefinitions ?? emptyCsharpTypeDefinitions,
     analysisTypes: types,
     objectShapes,
     projectTypes,
+    nativeConstruction,
   });
 }
 
