@@ -53,14 +53,19 @@ export function renderCsharpStructuralInterfaceMembers(typeParameterNames: Reado
       }
     }
   }
-  const inheritedNames = new Set<string>();
+  const inheritedMembers: CsharpInterfaceMember[] = [];
   for (const parent of inherited) {
     const members = renderCsharpStructuralInterfaceMembers(typeParameterNames, parent, storage, methodValues, []);
     if (members === undefined) return undefined;
-    for (const member of members) {
-      if (member.kind !== "IndexerDeclaration") inheritedNames.add(member.name);
-    }
+    inheritedMembers.push(...members);
   }
-  return result.map(member => member.kind !== "IndexerDeclaration" && inheritedNames.has(member.name)
-    ? { ...member, modifiers: ["new"] } : member);
+  return shadowCsharpInheritedInterfaceMembers(result, inheritedMembers);
+}
+
+export function shadowCsharpInheritedInterfaceMembers(
+  members: readonly CsharpInterfaceMember[], inherited: readonly CsharpInterfaceMember[],
+): readonly CsharpInterfaceMember[] {
+  const inheritedNames = new Set(inherited.flatMap(member => member.kind === "IndexerDeclaration" ? [] : [member.name]));
+  return members.map(member => member.kind !== "IndexerDeclaration" && inheritedNames.has(member.name)
+    ? { ...member, modifiers: ["new", ...member.modifiers ?? []] } : member);
 }

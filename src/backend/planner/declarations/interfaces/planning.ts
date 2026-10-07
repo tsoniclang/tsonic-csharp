@@ -42,7 +42,7 @@ import {
 import {
   registerSourceObjectShape,
 } from "../../objects/index.js";
-import { renderCsharpStructuralInterfaceMembers } from "../../objects/declarations/structural-interfaces.js";
+import { renderCsharpStructuralInterfaceMembers, shadowCsharpInheritedInterfaceMembers } from "../../objects/declarations/structural-interfaces.js";
 import { objectShapeStorageMemberName } from "../../objects/object-shape-storage.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../../target-model/types/object-shape-members.js";
 import {
@@ -59,8 +59,8 @@ export function planInterfaceDeclaration(
 ): CsharpInterfaceDeclaration {
   const declaration = AsInterfaceDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "interface declaration", diagnostics);
-  const interfaces = planInterfaceHeritage(node, input, diagnostics);
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
+  const interfaces = planInterfaceHeritage(node, objectShape, input, diagnostics);
   if (objectShape !== undefined) {
     registerSourceObjectShape(input, objectShape, diagnostics, node);
     if (objectShape.members.some(member => member.memberKind === "method" && member.optional === true)) {
@@ -95,6 +95,13 @@ export function planInterfaceDeclaration(
     if (rendered === undefined) diagnostics.push(unsupportedNodeDiagnostic(node, "An interface method value requires its exact native callable storage contract."));
     else members.push(...rendered.filter(member => member.kind === "PropertyDeclaration" && storageNames.has(member.name)));
   }
+  const inheritedMembers = (objectShape?.implements ?? []).flatMap(type => {
+    const shape = input.types.objectShapes.resolveTarget(type);
+    if (shape === undefined) return [];
+    const rendered = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, shape, input.program.storage, false, []);
+    if (rendered === undefined) diagnostics.push(unsupportedNodeDiagnostic(node, "An inherited interface requires exact native member signatures."));
+    return rendered ?? [];
+  });
   return {
     kind: "InterfaceDeclaration",
     name: planIdentifierName(declaration.name, "AnonymousInterface", input, diagnostics, "Interface name"),
@@ -109,7 +116,7 @@ export function planInterfaceDeclaration(
             ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
           ],
         }),
-    members,
+    members: shadowCsharpInheritedInterfaceMembers(members, inheritedMembers),
   };
 }
 

@@ -3,8 +3,10 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
 import type {
+  CsharpObjectShapeFact,
   TargetTypeRef,
 } from "../../../../target-model/types/index.js";
+import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
@@ -17,6 +19,7 @@ export interface CsharpClassHeritage {
 
 export function planClassHeritage(
   classDeclaration: Node,
+  objectShape: CsharpObjectShapeFact | undefined,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpClassHeritage {
@@ -39,6 +42,7 @@ export function planClassHeritage(
   const interfaces = planHeritageTypes(
     input.scope.typeParameterNames,
     heritage.interfaces,
+    objectShape,
     classDeclaration,
     diagnostics,
   );
@@ -47,6 +51,7 @@ export function planClassHeritage(
 
 export function planInterfaceHeritage(
   interfaceDeclaration: Node,
+  objectShape: CsharpObjectShapeFact | undefined,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeNode[] {
@@ -63,6 +68,7 @@ export function planInterfaceHeritage(
   return planHeritageTypes(
     input.scope.typeParameterNames,
     heritage.interfaces,
+    objectShape,
     interfaceDeclaration,
     diagnostics,
   );
@@ -71,10 +77,12 @@ export function planInterfaceHeritage(
 function planHeritageTypes(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   types: readonly TargetTypeRef[],
+  objectShape: CsharpObjectShapeFact | undefined,
   declaration: Node,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeNode[] {
-  return types.flatMap((type) => {
+  const contracts = [...types, ...objectShape?.implements ?? []];
+  return [...new Map(contracts.map(type => [targetTypeRefKey(type), type])).values()].flatMap((type) => {
     const planned = planHeritageType(
       typeParameterNames,
       type,

@@ -17,7 +17,6 @@ import { getCsharpObjectShapeFactForNode } from "../../objects/fact-queries.js";
 import { registerSourceObjectShape } from "../../objects/index.js";
 import { planImplicitForwardingConstructors } from "../../project/type-constructors.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { csharpSafetyModifiersForDeclaration } from "../../safety/explicit-safety.js";
 import { guardCsharpFrozenDataProperties } from "../../objects/frozen-data-properties.js";
 import { createCsharpMemberPlanningContext } from "../../context.js";
@@ -38,19 +37,10 @@ export function planClassDeclaration(
   const staticCompanion = input.types.projectTypes.definitionContainingDeclaration(node)?.staticCompanion === true;
   const className = declaration.name === undefined && factory !== undefined ? factory.instanceName
     : planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
-  const heritage = planClassHeritage(node, input, diagnostics);
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
-  const structuralInterfaces = objectShape?.implements ?? [];
+  const heritage = planClassHeritage(node, objectShape, input, diagnostics);
   const interfaces = [...heritage.interfaces, csharpClosedValueCarrierInterfaceType()];
   if (factory?.identity !== undefined) interfaces.push(csharpTypeFromTargetTypeRef(factory.identity.type, input.scope.typeParameterNames)!);
-  for (const type of structuralInterfaces) {
-    const rendered = csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames);
-    if (rendered === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "An analyzed structural interface has no C# type representation."));
-    } else if (!interfaces.some(existing => JSON.stringify(existing) === JSON.stringify(rendered))) {
-      interfaces.push(rendered);
-    }
-  }
   if (objectShape !== undefined) {
     registerSourceObjectShape(input, objectShape, diagnostics, node);
   }
