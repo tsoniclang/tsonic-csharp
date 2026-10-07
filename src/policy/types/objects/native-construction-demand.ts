@@ -113,9 +113,10 @@ export function createCsharpNativeConstructionDemandQuery(
   };
   const emptyOriginsMatch = (subject: SourceStorageSubject, selected: CsharpNativeConstructionType,
     destination: CsharpObjectShapeFact): boolean => {
-    const origins = storage.originsFor(subject);
-    if (origins.kind !== "resolved") {
-      issue(subject, origins.reason);
+    const origins = storage.closedOriginsFor(subject);
+    if (origins.kind !== "complete") {
+      issue(subject, origins.kind === "unresolved" ? origins.reason
+        : "Native empty construction requires a complete source storage domain.");
       return false;
     }
     let present = false;

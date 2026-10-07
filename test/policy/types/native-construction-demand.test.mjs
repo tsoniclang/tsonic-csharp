@@ -29,6 +29,7 @@ function fixture() {
   const fresh = new Set();
   const foreign = new Set();
   const originFailures = new Map();
+  const openOrigins = new Set();
   const primitive = {};
   let failure;
   let relationshipQueries = 0;
@@ -136,8 +137,15 @@ function fixture() {
       return origins.length === 0 ? { kind: "unresolved", reason: "A source storage cycle has no proven original owner." }
         : { kind: "resolved", origins };
     },
+    closedOriginsFor(value) {
+      const selected = this.originsFor(value);
+      return selected.kind === "unresolved" ? selected : {
+        kind: openOrigins.has(value) ? "open" : "complete", origins: selected.origins,
+        ...(openOrigins.has(value) ? { boundaries: [{}] } : {}),
+      };
+    },
   };
-  return { row, subject, alias, host, storage, rows, existing, explicit, primitive, unresolved, semantics, foreign, originFailures,
+  return { row, subject, alias, host, storage, rows, existing, explicit, primitive, unresolved, semantics, foreign, originFailures, openOrigins,
     literal(type, properties = [], projection = []) {
       const value = subject(type, projection);
       fresh.add(value.node);
@@ -399,6 +407,20 @@ test("a shared empty semantic type cannot transfer fresh-allocation authority to
   assert.equal(selected.issues.some(issue => issue.node === open.node), true, "open parameter is rejected independently");
   assert.equal(selected.issues.some(issue => issue.node === producer.node), false, "fresh owner remains exactly proven");
   assert.equal(selected.constructionFor(producer.node) === undefined, true, "failed analysis publishes no partial selection");
+});
+
+test("observed empty callers cannot prove a complete native allocation domain", () => {
+  const value = fixture();
+  const expectedType = value.row([{ identity: "user", optional: true }], native, { provider: true });
+  const actualType = value.row([]);
+  const producer = value.literal(actualType);
+  const parameter = value.subject(actualType);
+  value.connect(producer, parameter);
+  value.connect(parameter, value.subject(expectedType));
+  value.openOrigins.add(parameter);
+  const selected = value.freeze();
+  assert.equal(selected.issues.some(issue => issue.node === parameter.node && /complete source storage domain/u.test(issue.message)), true);
+  assert.equal(selected.constructionFor(producer.node) === undefined, true, "an incomplete proof publishes no partial native retargeting");
 });
 
 test("native indexed construction preserves empty allocation provenance and exact native aliases", () => {

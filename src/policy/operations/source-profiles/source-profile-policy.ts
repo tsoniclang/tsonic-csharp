@@ -4,7 +4,7 @@ import type {
   SourceFile,
   Type,
 } from "@tsonic/tsts";
-import { selectedSourcePropertyDeclarations, type SourceFileSemantics } from "@tsonic/target-api/source";
+import { selectedSourceIndexedDeclarations, selectedSourcePropertyDeclarations, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type {
   CsharpTargetReceiverRelation,
 } from "../../../providers/relations/index.js";
@@ -261,18 +261,10 @@ export function selectCsharpSourceProfileElementPolicy(
   let readonly = false;
   for (const type of types) {
     const selected = semantics.types.selectIndexedAccess(type, source.argument.type);
-    if (selected?.kind !== "resolved" || selected.members.length !== 1) return undefined;
-    const member = selected.members[0]!;
-    readonly ||= member.kind === "property" ? member.property.readonly : member.index.readonly;
-    const components = member.kind === "property"
-      ? selectedSourcePropertyDeclarations(semantics, undefined, member.property.symbol, [type])
-      : member.index.declaration === undefined ? member.index.components : [member.index.declaration];
-    if (components === undefined) return undefined;
-    if (components.length === 0) return undefined;
-    for (const declaration of components) {
-      if (declaration === undefined) return undefined;
-      declarations.add(declaration);
-    }
+    const evidence = selectedSourceIndexedDeclarations(semantics, selected);
+    if (evidence === undefined) return undefined;
+    readonly ||= evidence.readonly;
+    for (const declaration of evidence.declarations) declarations.add(declaration);
   }
   const identities = [...declarations].map(declaration => csharpSourceProfileDeclarationIdentity(
     host.ast, semantics, host.sourceFacts, declaration));

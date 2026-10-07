@@ -226,6 +226,9 @@ test("stored Error throws preserve identity across parameters, return values and
 test("open objects cannot silently use a closed frozen carrier", () => {
   for (const sourceText of [
     `function freeze(value: object): object { return Object.freeze(value); } export function example(): object { return freeze({ count: 1 }); }`,
+    `export function freeze(value: object): object { return Object.freeze(value); }`,
+    `type Open = object; export function freeze(value: Open): Open { const alias = value; return Object.freeze(alias); }`,
+    `export function frozen(value: { inner: object }): boolean { return Object.isFrozen(value.inner); }`,
   ]) {
     const compiled = compileCsharpSource({ surface: "js", sourceText });
     assert.equal(compiled.sourceDiagnosticsText, "");
