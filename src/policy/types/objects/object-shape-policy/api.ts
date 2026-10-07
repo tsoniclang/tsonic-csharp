@@ -75,7 +75,7 @@ export function createCsharpObjectShapePolicy(
   const targetShapes = new Map<string, CsharpObjectShapeFact>();
   const genericShapes = new Map<string, CsharpObjectShapeFact>();
   const unionDefinitions = createCsharpStructuralUnionDefinitions(host, (type, file, state) =>
-    resolveTypeWithState(type, file, undefined, state));
+    resolveTypeWithState(type, file, undefined, state), environment);
 
   function resolveNode(
     node: Node | undefined,

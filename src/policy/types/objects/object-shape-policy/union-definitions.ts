@@ -10,6 +10,8 @@ import { csharpStructuralObjectShapeIdPrefix } from "../../../../target-model/ty
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import { nextState } from "../../resolution/state.js";
 import { substituteTargetTypeParameters } from "../../../../target-model/types/substitution.js";
+import { closeCsharpOwnerTypeParameterEnvironment, visitCsharpTargetTypeParameters,
+  type CsharpTypeParameterConstraintResolver } from "../../../../target-model/types/generic-references.js";
 
 interface Definition {
   readonly arms: readonly TargetTypeRef[];
@@ -21,6 +23,7 @@ interface Definition {
 export function createCsharpStructuralUnionDefinitions(
   host: CsharpObjectShapePolicyHost,
   define: (type: Type, sourceFile: SourceFile, state: CsharpTypeResolutionState) => CsharpObjectShapeFact | undefined,
+  environment: CsharpTypeParameterConstraintResolver,
 ) {
   const definitions = new Map<string, Definition>();
   const selected = new WeakMap<Type, Definition>();
@@ -60,7 +63,13 @@ export function createCsharpStructuralUnionDefinitions(
     const arguments_ = application.bindings.map(binding => host.typeResolver.resolveType(binding.argument, sourceFile, nextState(state)));
     const identities = declarations.map(declaration => sourceNodeIdentity(host.ast, declaration));
     if (arguments_.some(argument => argument === undefined) || identities.some(identity => identity === undefined)) return { kind: "rejected" };
-    const typeArguments = arguments_ as readonly TargetTypeRef[];
+    const argumentParameters: Extract<TargetTypeRef, { kind: "type-parameter" }>[] = [];
+    for (const argument of arguments_ as readonly TargetTypeRef[]) {
+      visitCsharpTargetTypeParameters(argument, parameter => argumentParameters.push(parameter));
+    }
+    const closedParameters = closeCsharpOwnerTypeParameterEnvironment(argumentParameters, environment);
+    const parameterEnvironment = new Map(closedParameters.map(parameter => [parameter.identity, parameter]));
+    const typeArguments = arguments_.map(argument => substituteTargetTypeParameters(argument!, parameterEnvironment));
     const parameters = application.bindings.map(binding =>
       host.typeResolver.resolveType(binding.parameter, sourceFile, nextState(state)));
     if (parameters.some(parameter => parameter?.kind !== "type-parameter")) return { kind: "rejected" };
