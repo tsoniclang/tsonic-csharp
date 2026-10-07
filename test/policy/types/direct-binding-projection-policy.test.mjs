@@ -13,9 +13,107 @@ import { csharpEmptyObjectTargetType, csharpTsValueTargetType } from "../../../d
 import { retainCsharpBroadValueCarrier } from "../../../dist/policy/types/resolution/selected-type-evidence.js";
 import { csharpNullableReferenceTargetType, csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
 import { conversionIsImplicitlyApplicable } from "../../../dist/policy/conversions/selection/core.js";
+import { createCompilerSessionFromFiles } from "@tsonic/tsts";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { createCsharpBindingProjectionPolicy } from "../../../dist/policy/types/objects/binding-projection-policy.js";
 
 const int32 = csharpSourcePrimitiveTargetType("int32");
 const string = csharpStringTargetType();
+
+function checkedBinding(sourceText) {
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/project",
+    files: { "/project/index.ts": sourceText },
+    compilerOptions: { strict: true, target: "es2022", module: "esnext" },
+  }).checkSource();
+  assert.equal(checked.diagnostics.length, 0, "valid source binding");
+  const source = createTargetSourceProgram(checked);
+  const file = checked.getSourceFile("/project/index.ts");
+  const bindings = [];
+  let iteration;
+  const visit = node => {
+    if (source.ast.is.IsBindingElement(node)) bindings.push(node);
+    if (source.ast.is.IsForOfStatement(node)) iteration = node;
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  visit(file);
+  return { source, file, bindings, iteration };
+}
+
+test("object rest projection consumes exact checked binding identity and retains recursion state", () => {
+  const { source, file, bindings } = checkedBinding(`
+    export function read({ omitted, ...rest }: { omitted: number; label: string }): string { return rest.label; }
+  `);
+  const rest = bindings.find(binding => source.ast.as.AsBindingElement(binding).DotDotDotToken !== undefined);
+  assert.equal(rest !== undefined, true, "one authored rest binding");
+  const type = source.semantics.forFile(file).declarations.declaredValueType(rest);
+  assert.equal(type !== undefined, true, "exact checked rest type");
+  const targetType = { kind: "target-named", id: "Rest" };
+  const subject = {};
+  const state = { depth: 2, sourceValueSubject: subject };
+  let calls = 0;
+  let policy;
+  const host = { ast: source.ast, navigation: {}, typeResolver: { resolveNode: () => undefined },
+    semantics: selected => source.semantics.forFile(selected),
+    objectShapes: { resolveTypeWithState(selected, selectedFile, syntax, selectedState) {
+      calls += 1;
+      assert.equal(selected === type, true, "declared binding authority");
+      assert.equal(selectedFile === file, true, "owning checker/file");
+      assert.equal(syntax === undefined, true, "no invented authored type syntax");
+      assert.equal(selectedState.depth, 3, "existing recursive budget advances");
+      assert.equal(selectedState.sourceValueSubject === subject, true, "retained selection context");
+      assert.equal(policy.resolveProjection(rest, file, state) === undefined, true, "reentrant binding fails closed");
+      return { targetType };
+    } },
+  };
+  policy = createCsharpBindingProjectionPolicy(host);
+  const selected = policy.resolveProjection(rest, file, state);
+  assert.equal(selected.storageCarrier === targetType && selected.bindingCarrier === targetType, true);
+  assert.equal(calls, 1);
+  assert.equal(Object.isFrozen(selected), true);
+  host.objectShapes.resolveTypeWithState = () => undefined;
+  assert.equal(policy.resolveProjection(rest, file, state) === undefined, true, "missing exact shape has no selected-type fallback");
+});
+
+test("iteration destructuring requires checked iteration evidence and its native element carrier", () => {
+  const { source, file, bindings, iteration } = checkedBinding(`
+    export function read(rows: [string, number][]): string {
+      for (const [label, value] of rows) { return label + value; }
+      return "";
+    }
+  `);
+  const tuple = { kind: "tuple", elements: [string, int32] };
+  const iterable = { kind: "array", element: tuple };
+  const expression = source.ast.as.AsForInOrOfStatement(iteration).Expression;
+  const semantics = source.semantics.forFile(file);
+  const selectedIteration = semantics.operations.iteration(iteration);
+  assert.equal(selectedIteration?.iterationKind, "for-of");
+  let native = iterable;
+  let evidence = selectedIteration;
+  const state = { depth: 2 };
+  const policy = createCsharpBindingProjectionPolicy({ ast: source.ast, navigation: {}, objectShapes: {},
+    semantics: selected => {
+      assert.equal(selected === file, true, "owning source file");
+      return { ...semantics, operations: { ...semantics.operations, iteration: selected => {
+        assert.equal(selected === iteration, true, "exact iteration subject");
+        return evidence;
+      } } };
+    },
+    typeResolver: { resolveNode(selected, selectedFile, selectedState) {
+      assert.equal(selected === expression && selectedFile === file, true, "existing native iterable owner");
+      assert.equal(selectedState.depth, 3);
+      return native;
+    } },
+  });
+  assert.equal(policy.resolveNode(bindings[0], file, state) === string, true);
+  assert.equal(policy.resolveNode(bindings[1], file, state) === int32, true, "native integer is not widened by checker number");
+  native = undefined;
+  assert.equal(policy.resolveNode(bindings[0], file, state) === undefined, true, "missing native element fails closed");
+  native = iterable;
+  for (const invalid of [undefined, { ...selectedIteration, iterationKind: "for-in" }]) {
+    evidence = invalid;
+    assert.equal(policy.resolveNode(bindings[0], file, state) === undefined, true, "no unchecked iteration fallback");
+  }
+});
 
 test("native construction proof does not inherit source payload extraction through nested conversions", () => {
   const wrap = conversion => ({ kind: "implicit", proof: "runtime-union-arm", armIndex: 0,

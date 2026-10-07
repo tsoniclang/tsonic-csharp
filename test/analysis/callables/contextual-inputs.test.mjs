@@ -65,6 +65,7 @@ function fixture(body, overrides = {}) {
     } } };
   } };
   const policy = { ast: source.ast, sourceFiles: [file],
+    semantics: sourceFile => source.semantics.forFile(sourceFile),
     semanticsFor: node => source.semantics.forNode(node),
     projectTypes: { catalog: { definitions: [] } },
   };

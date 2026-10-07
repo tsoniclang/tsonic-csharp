@@ -6,12 +6,11 @@ import type {
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
 import { csharpBindingDefaultCarrier } from "../../../target-model/types/binding-normalization.js";
+import { getCsharpCollectionElementTargetType } from "../../../target-model/types/collections.js";
 import {
   resolveCsharpObjectShapeMemberBySourceContract,
 } from "../../../target-model/types/object-shape-members.js";
-import type {
-  CsharpObjectShapePolicy,
-} from "./object-shape-policy.js";
+import type { CsharpRecursiveObjectShapePolicy } from "./object-shape-policy/model.js";
 import type {
   CsharpRecursiveTypeResolver,
   CsharpTypeResolutionState,
@@ -29,7 +28,7 @@ export interface CsharpBindingProjectionPolicyHost {
   readonly ast: AstReader;
   readonly navigation: SourceProgramNavigation;
   readonly typeResolver: CsharpRecursiveTypeResolver;
-  readonly objectShapes: CsharpObjectShapePolicy;
+  readonly objectShapes: CsharpRecursiveObjectShapePolicy;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
 }
 
@@ -78,7 +77,7 @@ export function createCsharpBindingProjectionPolicy(
         (node, file, state) => resolveProjection(node, file, state)?.bindingCarrier,
       );
       const projected = host.ast.is.IsObjectBindingPattern(pattern)
-        ? resolveObjectBindingProjection(binding, ownerType, host)
+        ? resolveObjectBindingProjection(binding, ownerType, state, host)
         : host.ast.is.IsArrayBindingPattern(pattern)
         ? resolveArrayBindingProjection(binding, pattern, ownerType, host)
         : undefined;
@@ -135,6 +134,18 @@ function resolveBindingOwnerType(
   }
   if (host.ast.is.IsVariableDeclaration(owner)) {
     const declaration = host.ast.as.AsVariableDeclaration(owner);
+    const declarations = host.ast.parent(owner);
+    const statement = declarations === undefined ? undefined : host.ast.parent(declarations);
+    if (declaration?.Type === undefined && declaration?.Initializer === undefined &&
+      declarations !== undefined && host.ast.is.IsVariableDeclarationList(declarations) &&
+      statement !== undefined && host.ast.is.IsForOfStatement(statement)) {
+      const iteration = host.ast.as.AsForInOrOfStatement(statement);
+      const selected = sourceFile === undefined ? undefined : host.semantics(sourceFile).operations.iteration(statement);
+      if (iteration?.Initializer !== declarations || iteration.Expression === undefined || selected === undefined ||
+        selected.iterationKind !== "for-of" && selected.iterationKind !== "for-await-of") return undefined;
+      return getCsharpCollectionElementTargetType(host.typeResolver.resolveNode(
+        iteration.Expression, sourceFile, nextState(state)));
+    }
     return host.typeResolver.resolveNode(
       declaration?.Type ?? declaration?.Initializer,
       sourceFile,
@@ -160,11 +171,15 @@ function resolveBindingOwnerType(
 function resolveObjectBindingProjection(
   binding: Node,
   ownerType: TargetTypeRef | undefined,
+  state: CsharpTypeResolutionState,
   host: CsharpBindingProjectionPolicyHost,
 ): TargetTypeRef | undefined {
   const declaration = host.ast.as.AsBindingElement(binding);
   if (declaration?.DotDotDotToken !== undefined) {
-    return undefined;
+    const sourceFile = host.ast.getSourceFile(binding);
+    return sourceFile === undefined ? undefined : host.objectShapes.resolveTypeWithState(
+      host.semantics(sourceFile).declarations.declaredValueType(binding), sourceFile, undefined, nextState(state),
+    )?.targetType;
   }
   const property = declaration?.PropertyName ?? declaration?.name;
   if (

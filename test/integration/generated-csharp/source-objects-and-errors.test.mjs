@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { join } from "node:path";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 import { explicitErrorStackSource, invalidErrorStackSources } from "../../../../tsonic/test/fixtures/explicit-error-stacks.mjs";
 import { sourceClassAnnotationSource, invalidSourceClassAnnotations } from "../../../../tsonic/test/fixtures/source-class-annotations.mjs";
@@ -147,6 +147,7 @@ export function run(): boolean {
   copy.count = 9;
   return read(view) === 7 && copy.count === 9 && item.count === 7;
 }` });
+    assertCsharpCompilationSucceeded(compiled);
     const generated = [...compiled.artifacts.values()].join("\n");
     assert.match(generated, /interface ObjectShape_\w+<out Property0, out Property1>/u);
     assert.match(generated, /interface ObjectShape_\w+<Property0, Property1> : ObjectShape_\w+<Property0, Property1>/u);

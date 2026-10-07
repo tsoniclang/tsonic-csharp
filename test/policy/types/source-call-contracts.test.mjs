@@ -12,6 +12,7 @@ import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.j
 import { sourceCallableTypeParametersMatch, resolveSourceCallReceiverTargetType } from "../../../dist/policy/types/resolution/calls.js";
 import { csharpSourceTypeParameter } from "../../../dist/target-model/names/type-parameters.js";
 import { selectSourceCallParameterSlots } from "../../../../tsonic/packages/target-api/dist/source-semantics/call-parameter-slots.js";
+import { resolveCallableEvidence } from "../../../dist/policy/types/resolution/source-profiles.js";
 
 const integer = { kind: "source-primitive", name: "int64" };
 const string = { kind: "source-primitive", name: "string" };
@@ -128,6 +129,7 @@ test("direct declarations retain their native ABI and stored optional/rest metad
   const sequence = { kind: "array", element: integer };
   const rest = fixture(csharpDelegateTargetType("System.Action", [sequence], undefined, { restParameterIndex: 0 }));
   rest.source.sourceSelectedSignatureParameters[0].rest = true;
+  rest.source.sourceSelectedSignatureParameters[0].acceptsOmission = true;
   const restContract = resolveSourceCallParameters(rest.scope, rest.source, {});
   assert.equal(restContract[0].paramsArray, true);
   assert.equal(restContract[0].optional, false);
@@ -136,6 +138,44 @@ test("direct declarations retain their native ABI and stored optional/rest metad
       { sourceParameterIndex: 0, effectiveArgumentIndex: 0, sourceForm }, {}), sourceForm === "spread-sequence" ? sequence : integer), true,
       sourceForm);
   }
+});
+
+test("checked callable evidence keeps variadic omission separate from optional native slots", () => {
+  const sequence = { kind: "array", element: integer };
+  const scope = { host: { ast: {} },
+    resolveSignatureParameterEvidence: parameter => parameter.type,
+    resolveSourceTypeComponentEvidence: result => result.selectedType,
+  };
+  const required = { type: integer, parameterKind: "required", acceptsOmission: false };
+  const optional = { type: csharpNullableTargetType(integer), parameterKind: "optional", acceptsOmission: true };
+  const rest = { type: sequence, parameterKind: "rest", acceptsOmission: true };
+  for (const parameters of [[rest], [required, rest], [optional, rest]]) {
+    const selected = resolveCallableEvidence(scope, { parameters, result: { selectedType: integer } },
+      { sourceFile: {} }, { depth: 0 });
+    assert.equal(selected !== undefined, true, "one exact native callable");
+    assert.equal(selected.csharpDelegateSignature.restParameterIndex, parameters.length - 1);
+    assert.deepEqual(selected.csharpDelegateSignature.optionalParameterIndexes ?? [],
+      parameters[0] === optional ? [0] : []);
+    assert.equal(selected.csharpDelegateSignature.parameters.at(-1) === sequence, true, "unchanged rest carrier");
+  }
+  for (const parameters of [[rest, required], [rest, rest]]) {
+    assert.equal(resolveCallableEvidence(scope, { parameters, result: { selectedType: integer } },
+      { sourceFile: {} }, { depth: 0 }) === undefined, true, "malformed rest ABI rejected");
+  }
+});
+
+test("direct selected rest declarations also retain the distinct native variadic slot", () => {
+  const { scope, source } = fixture(undefined, true);
+  const sequence = { kind: "array", element: integer };
+  scope.resolveSourceCallContract = () => ({ kind: "declaration" });
+  scope.resolveSourceCallSelectedType = () => sequence;
+  source.sourceSelectedSignatureParameters[0].rest = true;
+  source.sourceSelectedSignatureParameters[0].acceptsOmission = true;
+  const parameters = resolveSourceCallParameters(scope, source, {});
+  assert.equal(parameters.length, 1);
+  assert.equal(parameters[0].type === sequence, true, "exact native sequence carrier");
+  assert.equal(parameters[0].paramsArray, true);
+  assert.equal(parameters[0].optional, false, "rest omission never becomes a CLR default");
 });
 
 function checkedBinders(current) {

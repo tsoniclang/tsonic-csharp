@@ -42,6 +42,9 @@ export function collectShapeDependencies(
     }
     shapes.set(key, shape);
     const targets = [...csharpTargetTypeComponents(shape.targetType, shape)];
+    if (shape.declarationTemplate !== undefined) {
+      targets.push(...csharpTargetTypeComponents(shape.declarationTemplate.targetType, shape.declarationTemplate));
+    }
     const visitedTypes = new Set<string>();
     for (let index = 0; index < targets.length; index++) {
       const target = targets[index]!;

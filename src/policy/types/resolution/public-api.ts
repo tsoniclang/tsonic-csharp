@@ -15,7 +15,7 @@ import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
 import { retainCsharpUnionObjectShapes, selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
-import { Node_Expression, Node_Type } from "@tsonic/target-api/source";
+import { Node_Expression } from "@tsonic/target-api/source";
 import { selectCsharpNativeFlowMembers } from "./native-flow-refinement.js";
 import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
 import { resolveCsharpInstanceType } from "./instance-tests.js";
@@ -466,7 +466,7 @@ export function resolveSourceCallParameters(
     const type = resolveSelectedSourceCallParameter(scope, source, index, sourceFile, selected);
     return type === undefined ? undefined : {
       name: parameter.parameterName, passingMode: "by-value" as const,
-      optional: parameter.acceptsOmission, paramsArray: parameter.rest, type,
+      optional: parameter.acceptsOmission && !parameter.rest, paramsArray: parameter.rest, type,
     };
   });
   return parameters.some(parameter => parameter === undefined) ? undefined
@@ -554,12 +554,9 @@ export function resolveSourceCallResultWithState(
   const declaration = sourceCallSelectedDeclaration(source);
   const queries = host.semantics(sourceFile);
   const result = queries.operations.callResult(source);
-  const signatureDeclaration = queries.declarations.signatureDeclaration(source.selectedSignature);
-  const inferred = signatureDeclaration !== undefined && host.navigation.isProjectDeclaration(signatureDeclaration) &&
-    host.ast.body(signatureDeclaration) !== undefined && Node_Type(host.ast, signatureDeclaration) === undefined;
   const retain = (nativeType: TargetTypeRef | undefined): CsharpSourceCallResult | undefined => {
     const selected = selectCsharpSourceCallResult(host, nativeType, () =>
-      inferred ? nativeType : result === undefined ? undefined : resolveSourceCallSelectedType(source, declaration,
+      result === undefined ? undefined : resolveSourceCallSelectedType(source, declaration,
         result.authoredTypeNode, result.selectedReturnType, sourceFile, nextState(state)));
     return selected;
   };

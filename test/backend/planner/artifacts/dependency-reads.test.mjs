@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { captureDependencies, dependOn } from "../../../../dist/backend/planner/artifacts/graph/dependencies.js";
 import { createCsharpArtifactGraph } from "../../../../dist/backend/planner/artifacts/graph.js";
+import { collectShapeDependencies } from "../../../../dist/backend/planner/artifacts/graph/object-shapes/batches.js";
+import { objectShapeArtifactKey } from "../../../../dist/backend/planner/artifacts/graph/object-shapes/identity.js";
+import { targetTypeRefKey } from "../../../../dist/target-model/types/equality.js";
 
 function fixture() {
   const revisions = new Map();
@@ -13,6 +16,29 @@ function fixture() {
     revisions.set(key, (revisions.get(key) ?? 0) + 1);
   } };
 }
+
+test("artifact closure includes exact generic declaration-template parents alongside concrete components", () => {
+  const integer = { kind: "source-primitive", name: "int32" };
+  const parameter = { kind: "type-parameter", identity: "Root:Property", name: "Property" };
+  const target = (id, argument) => ({ kind: "target-named", id, typeArguments: [argument] });
+  const parent = { targetType: target("Parent", parameter), members: [] };
+  const concreteParent = { targetType: target("Parent", integer), members: [] };
+  const template = { targetType: target("Root", parameter), members: [], implements: [parent.targetType] };
+  const root = { targetType: target("Root", integer), members: [], implements: [concreteParent.targetType],
+    declarationTemplate: template };
+  const shapes = new Map([parent, concreteParent, root].map(shape => [targetTypeRefKey(shape.targetType), shape]));
+  const scope = { host: { objectShapes: { resolveTarget: type => shapes.get(targetTypeRefKey(type)) } } };
+  const selected = collectShapeDependencies(scope, root);
+  assert.equal(selected.kind, "accepted");
+  assert.equal(selected.shapes.get(objectShapeArtifactKey(parent)) === parent, true, "the emitted generic parent exists");
+  assert.equal(selected.shapes.get(objectShapeArtifactKey(concreteParent)) === concreteParent, true, "concrete identity remains distinct");
+  assert.deepEqual([...selected.dependencies.get(objectShapeArtifactKey(root))].sort(),
+    [objectShapeArtifactKey(parent), objectShapeArtifactKey(concreteParent)].sort());
+  parent.implements = [root.targetType];
+  const cyclic = collectShapeDependencies(scope, root);
+  assert.equal(cyclic.kind, "accepted", "existing finite graph handles template cycles");
+  assert.equal(cyclic.shapes.size, 3, "cycle introduces no duplicate artifact");
+});
 
 test("unrelated contract updates do not invalidate exact source reads", () => {
   const selected = fixture();
