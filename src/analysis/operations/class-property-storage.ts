@@ -2,8 +2,14 @@ import type { Node } from "@tsonic/tsts";
 import { sourceObjectMemberDeclarations, sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
+import { isCsharpValueTypeTargetType } from "../../target-model/types/identity.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/nullable.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 
-export type CsharpClassPropertyStorage = "field" | "property";
+export interface CsharpClassPropertyStorage {
+  readonly kind: "field" | "property";
+  readonly readonly: boolean;
+}
 
 export function classifyCsharpClassPropertyStorage(
   policy: CsharpPolicyContext,
@@ -16,43 +22,34 @@ export function classifyCsharpClassPropertyStorage(
   function visit(node: Node): void {
     if (evidence.isCompileTimeMetadata(node)) return;
     if (policy.ast.is.IsClassDeclaration(node) || policy.ast.is.IsClassExpression(node)) {
-      const properties = new Set<string>();
-      const seen = new Set<Node>();
-      const heritage = policy.navigation.declaredHeritage(node);
-      if (heritage.kind === "resolved") for (const edge of heritage.edges) {
-        if (edge.kind === "implements") collectInterface(edge.target.declaration, properties, seen);
-      }
       const shape = policy.objectShapes.resolveNode(node, policy.ast.getSourceFile(node));
-      if ((shape?.implements?.length ?? 0) > 0) for (const member of shape!.members) {
-        if (member.memberKind === "property") properties.add(member.sourceName);
-      }
+      const properties = new Set((shape?.implements?.length ?? 0) > 0 ? shape!.members
+        .filter(member => member.memberKind === "property").flatMap(member => member.sourceSubjects ?? []) : []);
       for (const member of sourceObjectMemberDeclarations(policy.ast, node)) {
         if (member === undefined || !policy.ast.is.IsPropertyDeclaration(member) &&
           !sourceParameterIsProperty(policy.ast, member)) continue;
         const declaration = policy.ast.as.AsPropertyDeclaration(member) ?? policy.ast.as.AsParameterDeclaration(member)!;
         const field = evidence.sourceField([member, declaration.name, declaration.Type, declaration.Initializer]);
         const dispatch = policy.navigation.memberDispatch(member);
-        selections.set(member, field !== undefined ? "field"
+        const contracts = policy.navigation.memberContracts(member);
+        const interfaceProperty = contracts.kind === "resolved" && contracts.contracts.some(contract =>
+          policy.ast.is.IsPropertySignatureDeclaration(contract));
+        const kind = field !== undefined ? "field"
           : policy.ast.hasModifierKind(member, "abstract") ||
-            properties.has(policy.ast.text(declaration.name)) || dispatch?.overridesBase === true ||
-            dispatch?.hasDerivedOverride === true ? "property" : "field");
+            interfaceProperty || properties.has(member) || dispatch?.overridesBase === true ||
+            dispatch?.hasDerivedOverride === true ? "property" : "field";
+        const sourceReadonly = policy.ast.hasModifierKind(member, "readonly");
+        const type = kind === "field" && sourceReadonly && field === undefined
+          ? policy.types.resolveStorage(member, policy.ast.getSourceFile(member)) : undefined;
+        selections.set(member, Object.freeze({ kind, readonly: sourceReadonly &&
+          (kind === "property" || field !== undefined || type !== undefined && readonlyFieldPreservesStorage(type)) }));
       }
     }
     policy.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   }
+}
 
-  function collectInterface(declaration: Node, properties: Set<string>, seen: Set<Node>): void {
-    if (seen.has(declaration) || !policy.ast.is.IsInterfaceDeclaration(declaration)) return;
-    seen.add(declaration);
-    for (const member of policy.ast.members(declaration)) {
-      if (member !== undefined && policy.ast.is.IsPropertySignatureDeclaration(member)) {
-        const name = policy.ast.name(member);
-        if (name !== undefined) properties.add(policy.ast.text(name));
-      }
-    }
-    const heritage = policy.navigation.declaredHeritage(declaration);
-    if (heritage.kind === "resolved") for (const edge of heritage.edges) {
-      if (edge.kind === "extends") collectInterface(edge.target.declaration, properties, seen);
-    }
-  }
+function readonlyFieldPreservesStorage(type: TargetTypeRef): boolean {
+  const selected = getCsharpNullableElementTargetType(type) ?? type;
+  return selected.kind !== "type-parameter" && (selected.kind === "source-primitive" || !isCsharpValueTypeTargetType(selected));
 }

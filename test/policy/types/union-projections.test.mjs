@@ -27,7 +27,12 @@ test("nested union payload paths are exact, immutable and independently checked"
   }
   const signed = csharpSourcePrimitiveTargetType("int64");
   assert.equal(csharpUnionProjectionPath(nested, signed), undefined);
-  assert.equal(selectCsharpRuntimeUnionProjection(policy, nested, csharpNullableTargetType(integer)).kind, "rejected");
+  const optional = csharpNullableTargetType(integer);
+  const optionalProjection = selectCsharpRuntimeUnionProjection(policy, nested, optional);
+  assert.deepEqual(optionalProjection, { kind: "runtime-union-projection", path, armType: integer, retainsAbsence: false });
+  assert.equal(csharpRuntimeUnionProjectionMatches(policy, nested, optional, optionalProjection), true);
+  assert.equal(selectCsharpRuntimeUnionProjection(policy, nested, csharpNullableTargetType(signed)).kind, "rejected",
+    "absence injection cannot change native width or signedness");
   assert.equal(csharpUnionProjectionPath(csharpRuntimeUnionTargetType([integer, inner]), integer), undefined);
   const cycle = csharpSourceUnionTargetType("fixture.Cycle", "Cycle", []);
   const definitions = { sourceUnionArms: carrier => carrier === cycle ? [cycle] : undefined };

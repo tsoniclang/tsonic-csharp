@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { classifyCsharpNativeLocation } from "../../../dist/analysis/storage/native-locations.js";
 import { classifyCsharpClassPropertyStorage } from "../../../dist/analysis/operations/class-property-storage.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
 
 const integer = { kind: "source-primitive", name: "int32" };
 const owner = { kind: "target-named", id: "Project.Owner" };
@@ -68,7 +69,8 @@ function fixture(kind = "identifier", options = {}) {
 }
 
 function select(input, classStorage = "field", storage = physical) {
-  return classifyCsharpNativeLocation(input.policy, input.expression, sourceFile, () => classStorage, storage);
+  return classifyCsharpNativeLocation(input.policy, input.expression, sourceFile, () => classStorage === null ? undefined
+    : { kind: classStorage, readonly: input.storage.writable === false }, storage);
 }
 
 for (const kind of ["variable", "parameter", "binding"]) {
@@ -219,16 +221,42 @@ test("class declaration emission and byref checking share one immutable represen
     : node === directInterface ? [{ kind: "extends", target: { declaration: parentInterface } }]
     : node === parentInterface ? [{ kind: "extends", target: { declaration: directInterface } }] : [] });
   const policy = { ast, sourceFiles: [root], navigation: { declaredHeritage: heritage,
+    memberContracts: node => ({ kind: "resolved", contracts: node === contractual ? directInterface.members
+      : node === inherited ? parentInterface.members : [] }),
     memberDispatch: node => node === overridden ? { overridesBase: true } : undefined },
     objectShapes: { resolveNode: () => ({ implements: [owner], members: [
-      { memberKind: "property", sourceName: "structural", targetName: "structural" } ] }) } };
+      { memberKind: "property", sourceName: "structural", targetName: "structural", sourceSubjects: [structural] } ] }) } };
   const evidence = { isCompileTimeMetadata: () => false,
     sourceField: subjects => subjects[0] === explicit ? {} : undefined };
   const selected = classifyCsharpClassPropertyStorage(policy, evidence);
-  assert.equal(selected(field), "field");
-  for (const node of [contractual, inherited, overridden, structural]) assert.equal(selected(node), "property");
-  assert.equal(selected(explicit), "field");
+  assert.deepEqual(selected(field), { kind: "field", readonly: false });
+  for (const node of [contractual, inherited, overridden, structural]) assert.deepEqual(selected(node), { kind: "property", readonly: false });
+  assert.deepEqual(selected(explicit), { kind: "field", readonly: false });
   assert.equal(selected({ kind: "field", name: named("direct") }), undefined);
   policy.objectShapes.resolveNode = () => { throw Error("Sealed queries must not reconstruct emission decisions"); };
-  assert.equal(selected(field), "field");
+  assert.deepEqual(selected(field), { kind: "field", readonly: false });
+});
+
+test("readonly source value fields retain mutable native contents without a setter or defensive copy", () => {
+  const scalar = { kind: "field", modifiers: ["readonly"] };
+  const reference = { kind: "field", modifiers: ["readonly"] };
+  const aggregate = { kind: "field", modifiers: ["readonly"] };
+  const generic = { kind: "field", modifiers: ["readonly"] };
+  const optional = { kind: "field", modifiers: ["readonly"] };
+  const symbolName = { kind: "computed" };
+  const computed = { kind: "field", name: symbolName };
+  const contract = { kind: "signature", name: symbolName };
+  const declaration = { kind: "class", members: [scalar, reference, aggregate, generic, optional, computed] };
+  const root = { kind: "file", children: [declaration] };
+  const types = new Map([[scalar, integer], [reference, owner], [aggregate, { ...owner, csharpValueType: true }],
+    [generic, { kind: "type-parameter", identity: "T", name: "T" }],
+    [optional, csharpNullableTargetType(integer)]]);
+  const policy = { ast: { ...ast, text: node => { assert.notEqual(node, symbolName, "computed names are not text"); return node?.text ?? ""; } },
+    sourceFiles: [root], types: { resolveStorage: node => types.get(node) }, objectShapes: { resolveNode: () => undefined },
+    navigation: { memberDispatch: () => undefined, memberContracts: node => ({ kind: "resolved", contracts: node === computed ? [contract] : [] }) } };
+  const selected = classifyCsharpClassPropertyStorage(policy, { isCompileTimeMetadata: () => false, sourceField: () => undefined });
+  for (const node of [scalar, reference, optional]) assert.deepEqual(selected(node), { kind: "field", readonly: true });
+  for (const node of [aggregate, generic]) assert.deepEqual(selected(node), { kind: "field", readonly: false });
+  assert.deepEqual(selected(computed), { kind: "property", readonly: false }, "exact computed contract remains a property");
+  assert.equal(Object.isFrozen(selected(aggregate)), true, "one sealed physical representation");
 });

@@ -98,9 +98,12 @@ export function classifyCsharpNativeLocation(
       if (selection?.kind !== "resolved" && selection?.kind !== "source-owned") return rejected("The property has no exact selected native member.");
       if (selection.source.optionalChain) return rejected("An optional property access is not a native storage address.");
       const declaration = selection.source.selectedDeclaration;
+      const classStorage = declaration === undefined ? undefined : classProperty(declaration);
+      const sourceField = declaration === undefined ? undefined : readCsharpSourceField(policy.sourceFacts, [declaration]);
       const field = selection.kind === "resolved" ? selection.targetMember.kind === "field"
-        : declaration !== undefined && (classProperty(declaration) === "field" ||
-          readCsharpSourceField(policy.sourceFacts, [declaration]) !== undefined);
+        : classStorage?.kind === "field" || sourceField !== undefined;
+      const nativeReadonly = selection.kind === "resolved" || sourceField !== undefined
+        ? !storage.writable : classStorage?.readonly !== false;
       const receiverExpression = selection.source.receiver.expression;
       const receiverType = physical.type(receiverExpression) ??
         policy.types.resolveSelectedValue(receiverExpression, selection.source.receiver.type, sourceFile);
@@ -122,11 +125,11 @@ export function classifyCsharpNativeLocation(
         if (receiver.kind !== "resolved" || receiver.address === undefined ||
           !targetTypeRefEquals(receiver.storageType, receiverType)) return resolved(expression, storageType, assignment, storage.writable);
         return resolved(expression, storageType, assignment, storage.writable,
-          field ? storage.writable && receiver.address.passing === "byref-readwrite" ? "byref-readwrite" : "byref-readonly" : undefined,
+          field ? !nativeReadonly && receiver.address.passing === "byref-readwrite" ? "byref-readwrite" : "byref-readonly" : undefined,
           Object.freeze({ expression: receiverExpression, storageType: receiver.storageType, address: receiver.address }));
       }
       return resolved(expression, storageType, assignment, storage.writable,
-        field ? storage.writable ? "byref-readwrite" : "byref-readonly" : undefined);
+        field ? nativeReadonly ? "byref-readonly" : "byref-readwrite" : undefined);
     }
     if (element) {
       const selection = memberSelection;

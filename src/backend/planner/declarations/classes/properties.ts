@@ -101,11 +101,14 @@ export function planPropertyDeclaration(
   );
   const propertyName = planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name");
   const modifiers = planClassMemberModifiers(node, declaration.name, input);
+  const storage = input.program.operations.classPropertyStorage(node);
+  if (storage === undefined) diagnostics.push(unsupportedNodeDiagnostic(node,
+    "The class property has no sealed native field/property representation."));
   if (input.program.source.ast.hasModifierKind(node, "abstract")) {
     return {
       kind: "PropertyDeclaration", name: propertyName,
       modifiers: planPropertyModifiers(node, declaration.name, sourceFile, input),
-      type, autoGetter: true, autoSetter: true,
+      type, autoGetter: true, autoSetter: storage?.readonly !== true,
       attributes: parameterProperty ? [] : planAttributesForSubject(node, sourceFile, input, diagnostics),
     };
   }
@@ -116,10 +119,7 @@ export function planPropertyDeclaration(
       "A static class field requires an explicit initializer. Use defaultValue<T>() when target-native default initialization is intended; an uninitialized TypeScript field has undefined runtime semantics and cannot be replaced by a C# default value.",
     ));
   }
-  const storage = input.program.operations.classPropertyStorage(node);
-  if (storage === undefined) diagnostics.push(unsupportedNodeDiagnostic(node,
-    "The class property has no sealed native field/property representation."));
-  if (storage === "field") {
+  if (storage?.kind === "field") {
     diagnoseUnavailableCsharpSafetyAccessors(
       node,
       [],
@@ -130,7 +130,7 @@ export function planPropertyDeclaration(
       kind: "FieldDeclaration",
       name: propertyName,
       modifiers: withCsharpSafetyModifiers(
-        input.program.source.ast.hasModifierKind(node, "readonly") ? [...modifiers, "readonly"] : modifiers,
+        storage.readonly ? [...modifiers, "readonly"] : modifiers,
         node,
         "declaration",
         input,
@@ -152,7 +152,7 @@ export function planPropertyDeclaration(
     attributes: parameterProperty ? [] : planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     autoGetter: true,
-    autoSetter: !input.program.source.ast.hasModifierKind(node, "readonly"),
+    autoSetter: storage?.readonly !== true,
     getterModifiers: csharpSafetyAccessorModifiersForDeclaration(
       node,
       "getter",

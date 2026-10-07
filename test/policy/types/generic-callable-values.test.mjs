@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { retainCsharpGenericCallableValue } from "../../../dist/policy/types/callables/generic-values.js";
 import { csharpDelegateTargetType, getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../../dist/target-model/types/delegates.js";
-import { getCsharpMethodValue, rebindCsharpMethodValueTypeParameters } from "../../../dist/target-model/types/method-values.js";
+import { csharpMethodValueType, getCsharpMethodValue, rebindCsharpMethodValueTypeParameters } from "../../../dist/target-model/types/method-values.js";
 import { targetTypeRefEquals, targetTypeRefIsClosed } from "../../../dist/target-model/types/equality.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-types.js";
 import { substituteTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
@@ -103,7 +103,11 @@ test("free parameter discovery distinguishes the same type inside and outside a 
   const inner = quantifiedChoice("Item");
   const signature = csharpDelegateTargetType("System.Func", [inner.value, inner.parameter], inner.value);
   assert.deepEqual([...csharpFreeTypeParameterIdentities([signature])], ["Item"], "unbound sibling remains visible");
-  assert.equal(retainCsharpGenericCallableValue(signature,
-    [{ identity: "Outer", name: "Outer", declaration: {}, constraints: [] }], shape => shape, unconstrainedEnvironment) === undefined, true,
-    "a genuinely free foreign parameter is still rejected");
+  const retained = retainCsharpGenericCallableValue(signature,
+    [{ identity: "Outer", name: "Outer", declaration: {}, constraints: [] }], shape => shape, unconstrainedEnvironment);
+  assert.equal(retained !== undefined, true, "an exact enclosing parameter is retained on its native generic owner");
+  assert.deepEqual([...csharpFreeTypeParameterIdentities([getCsharpMethodValue(retained).owner])], ["Item"]);
+  const unrelatedOwner = getCsharpMethodValue(quantifiedChoice("Other").value).owner;
+  assert.equal(csharpMethodValueType(unrelatedOwner, "Invoke", "foreign-owner", signature, ["Outer"]) === undefined, true,
+    "a genuinely foreign parameter absent from the owner and invocation binders is rejected");
 });
