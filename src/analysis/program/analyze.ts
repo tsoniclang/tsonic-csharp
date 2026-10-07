@@ -110,6 +110,7 @@ import {
 import { createCsharpSourceProfileCallableAliasQuery } from "../../policy/operations/source-profiles/callable-aliases.js";
 import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-demands.js";
 import { createSourceStorageQuery, type SourceStorageQueries } from "@tsonic/target-api/analysis";
+import { createCsharpSourceProfileStorageEffects } from "../../policy/operations/source-profiles/source-storage-effects.js";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -133,7 +134,7 @@ export function analyzeCsharpTargetProgram(
   if (nativeControlIssues.length !== 0) return rejectedTargetStage(nativeControlIssues);
   const memoryBindings = createTsonicMemoryBindingIndex(source);
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
-  const sourceStorage = createSourceStorageQuery(source, sourceFiles);
+  const sourceStorage = createSourceStorageQuery(source, sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source));
   const sourceStorageFailure = sourceStorage.failureReason();
   if (sourceStorageFailure !== undefined) return rejectedTargetStage([{
     code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", category: "error", source: "tsonic-csharp", message: sourceStorageFailure,
@@ -395,6 +396,7 @@ function analyzeIteration(
     callOnlyAlias: typeHost.callOnlyAlias,
     input,
     sourceFiles,
+    sourceStorage,
     providers,
     sourceIdentities,
     typeSystem,

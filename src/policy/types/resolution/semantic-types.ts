@@ -22,6 +22,7 @@ import {
   csharpJsStringTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  csharpObjectTargetType,
   csharpNeverTargetType,
   csharpVoidTargetType,
 } from "../../../target-model/types/scalar-types.js";
