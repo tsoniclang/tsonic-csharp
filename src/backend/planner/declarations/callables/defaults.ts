@@ -16,7 +16,7 @@ export function planCsharpRuntimeParameterDefault(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): { readonly valueType: CsharpTypeNode; readonly parameterType: CsharpTypeNode;
-  readonly defaultValue: CsharpExpression; readonly value: CsharpPlannedValue } | undefined {
+  readonly defaultValue?: CsharpExpression; readonly value: CsharpPlannedValue } | undefined {
   const contract = input.program.declarations.runtimeDefault(node);
   const declaration = input.program.source.ast.as.AsParameterDeclaration(node);
   if (contract === undefined || declaration?.Initializer === undefined) return undefined;
@@ -32,8 +32,10 @@ export function planCsharpRuntimeParameterDefault(
   if (value === undefined) return undefined;
   return {
     valueType, parameterType,
-    defaultValue: contract.kind === "nullable" ? { kind: "LiteralExpression", value: null }
-      : { kind: "DefaultExpression", type: parameterType },
+    ...(contract.acceptsOmission ? {
+      defaultValue: contract.kind === "nullable" ? { kind: "LiteralExpression", value: null } as const
+        : { kind: "DefaultExpression", type: parameterType } as const,
+    } : {}),
     value,
   };
 }

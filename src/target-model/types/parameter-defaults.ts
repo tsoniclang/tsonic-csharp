@@ -20,7 +20,7 @@ export function csharpRuntimeParameterDefault(type: TargetTypeRef, incomingType?
     (type as CsharpTargetNamedTypeRef).csharpAbsorbsNullish === true) {
     return Object.freeze({ kind: "closed-value", valueType: type, parameterType: type });
   }
-  if ((type.kind === "array" || type.kind === "target-named" || type.kind === "source-primitive") &&
+  if ((type.kind === "array" || type.kind === "tuple" || type.kind === "target-named" || type.kind === "source-primitive") &&
     !isCsharpVoidTargetType(type) &&
     getCsharpNullableElementTargetType(type) === undefined &&
     !(type.kind === "target-named" && (type as CsharpTargetNamedTypeRef).csharpAbsorbsNullish === true)) {

@@ -83,11 +83,11 @@ export function planParametersWithPrelude(
         if (selected === undefined) continue;
         parameters.push({ name: incomingName, type: selected.parameterType,
           attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
-          defaultValue: selected.defaultValue });
+          ...(selected.defaultValue === undefined ? {} : { defaultValue: selected.defaultValue }) });
         prelude.push(...consumeCsharpPlannedValue(selected.value, initializer => [
           { kind: "LocalDeclarationStatement", name: sourceName, type: selected.valueType, initializer }]));
         completeIdentifierEntry(parameterNode!, sourceName, selected.valueType);
-        hasDefaultParameter = true;
+        hasDefaultParameter ||= selected.defaultValue !== undefined;
         continue;
       }
       const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, typeSubject, state);
@@ -117,11 +117,12 @@ export function planParametersWithPrelude(
         const selected = planCsharpRuntimeParameterDefault(parameterNode!, incomingName, sourceFile, input, diagnostics, state);
         if (selected === undefined) continue;
         parameters.push({ name: incomingName, type: selected.parameterType,
-          attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics), defaultValue: selected.defaultValue });
+          attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
+          ...(selected.defaultValue === undefined ? {} : { defaultValue: selected.defaultValue }) });
         prelude.push(...consumeCsharpPlannedValue(selected.value, initializer => [
           { kind: "LocalDeclarationStatement", name: valueName, type: selected.valueType, initializer }]));
         prelude.push(...planParameterBindingPrelude(bindingName, valueName, sourceFile, input, diagnostics, state, retainBinding));
-        hasDefaultParameter = true;
+        hasDefaultParameter ||= selected.defaultValue !== undefined;
         continue;
       }
       const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, typeSubject, state);

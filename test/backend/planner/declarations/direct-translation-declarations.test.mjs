@@ -229,7 +229,7 @@ namespace Tsonic.Generated
         }
         public static string main()
         {
-            string __tsonic_callable_229(int value)
+            static string __tsonic_callable_229(int value)
             {
                 return "N=" + value;
             }
@@ -286,7 +286,7 @@ namespace Tsonic.Generated
         }
         public static string run()
         {
-            string __tsonic_callable_129()
+            static string __tsonic_callable_129()
             {
                 return "ready";
             }

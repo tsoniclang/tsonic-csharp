@@ -380,7 +380,7 @@ namespace Tsonic.Generated
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
         {
-            int? __tsonic_callable_94(string text)
+            static int? __tsonic_callable_94(string text)
             {
                 _ = text;
                 return default(int?);

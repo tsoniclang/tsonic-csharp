@@ -379,7 +379,7 @@ test("loop bindings preserve assignment, lexical, and function-scoped storage id
   );
   assert.match(
     source,
-    /object (__tsonic_locationIdentity\d+) = new object\(\);\s*int index = 0;\s*for \(; index < 1; index\+\+\)[\s\S]*?result = result \? [\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?: false;[\s\S]*?return result \? [\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?: false;/u,
+    /object (__tsonic_locationIdentity\d+) = new object\(\);\s*int index = 0;\s*for \(; index < 1; index\+\+\)[\s\S]*?result = result && Tsonic\.CSharp\.Runtime\.Location<int>\.Same\([\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?\);[\s\S]*?return result && Tsonic\.CSharp\.Runtime\.Location<int>\.Same\([\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?\);/u,
   );
 });
 

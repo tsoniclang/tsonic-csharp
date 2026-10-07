@@ -6,8 +6,12 @@ export type CsharpReturnTargetContract =
   | { readonly kind: "resolved"; readonly type: TargetTypeRef; readonly undefinedReturn?: boolean; readonly fallthroughUndefined?: boolean }
   | { readonly kind: "rejected"; readonly reason: string };
 
+export type CsharpDefaultParameterContract = CsharpRuntimeParameterDefault & {
+  readonly acceptsOmission: boolean;
+};
+
 export interface CsharpDeclarationClassifications {
   returnContract(node: Node): CsharpReturnTargetContract | undefined;
-  runtimeDefault(node: Node): CsharpRuntimeParameterDefault | undefined;
+  runtimeDefault(node: Node): CsharpDefaultParameterContract | undefined;
   methodWrite(node: Node): { readonly type: TargetTypeRef; readonly storageName: string; readonly implementationName: string } | undefined;
 }

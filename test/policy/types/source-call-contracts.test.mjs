@@ -33,7 +33,7 @@ function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], in
   const scope = { host: {
     ast: { is: { IsNewExpression: () => false, IsFunctionDeclaration: node => node?.kind === "function",
       IsMethodDeclaration: () => false, IsClassDeclaration: () => false }, parent: () => undefined, kindName: node => node?.kind },
-    navigation: { sourceReferenceFor: () => ({ declaration }) },
+    navigation: { sourceReferenceFor: () => ({ declaration }), isProjectDeclaration: () => false },
     semantics: () => ({ declarations: { signatureDeclaration: () => signatureDeclaration }, operations: {
       callResult: () => undefined, callParameterSlots: selected => selectSourceCallParameterSlots(selected, { isTuple: () => false }),
     } }),

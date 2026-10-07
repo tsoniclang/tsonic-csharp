@@ -378,6 +378,7 @@ test(".NET reflection provider exposes delegates with source shells and target d
   assert.equal(targetBinding?.csharpType.kind === "target-named" ? idEndsWith(targetBinding.csharpType.id, "System.Predicate`1") : false, true);
   assert.deepEqual(targetBinding?.csharpType.csharpDelegateSignature, {
     parameters: [{ kind: "type-parameter", identity: targetBinding.typeParameters[0].identity, name: "T" }],
+    parameterPassingModes: ["by-value"],
     returnType: { kind: "source-primitive", name: "bool" },
   });
 });

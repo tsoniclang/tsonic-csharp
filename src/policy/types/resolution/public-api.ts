@@ -59,7 +59,7 @@ export function resolveStorage(
   }
   return resolveNode(
     declaration,
-    reference?.sourceFile ?? host.ast.getSourceFile(declaration) ?? sourceFile,
+    host.ast.getSourceFile(declaration) ?? sourceFile,
   );
 }
 

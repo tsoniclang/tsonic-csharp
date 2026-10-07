@@ -31,7 +31,14 @@ test("native defaults select one explicit incoming absence ABI without wrapping 
 });
 
 test("contextual default parameters retain one exact nullable input and present value carrier", () => {
-  for (const value of [csharpSourcePrimitiveTargetType("int32"), csharpSourcePrimitiveTargetType("int64"), csharpStringTargetType()]) {
+  const tuple = { kind: "tuple", elements: [csharpSourcePrimitiveTargetType("int32")] };
+  const tupleDefault = csharpRuntimeParameterDefault(tuple);
+  assert.deepEqual(tupleDefault, { kind: "nullable", valueType: tuple, parameterType: csharpNullableTargetType(tuple) });
+  assert.equal(tupleDefault.valueType === tuple, true);
+  assert.equal(csharpRuntimeParameterDefault(csharpNullableTargetType(tuple)), undefined);
+  assert.equal(csharpRuntimeParameterDefault(tuple,
+    csharpNullableTargetType({ kind: "tuple", elements: [csharpSourcePrimitiveTargetType("int64")] })), undefined);
+  for (const value of [csharpSourcePrimitiveTargetType("int32"), csharpSourcePrimitiveTargetType("int64"), csharpStringTargetType(), tuple]) {
     const incoming = csharpNullableTargetType(value);
     const selected = csharpRuntimeParameterDefault(value, incoming);
     assert.deepEqual(selected, { kind: "nullable", valueType: value, parameterType: incoming });

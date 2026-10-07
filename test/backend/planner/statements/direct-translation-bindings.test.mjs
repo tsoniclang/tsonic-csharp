@@ -52,6 +52,7 @@ test("direct C# binding translation preserves tuple ordinals, defaults, rests, o
             int[] __tsonic_destructure3 = values;
             left = __tsonic_destructure3[0];
             right = __tsonic_destructure3[1];
+            _ = __tsonic_destructure3;
             return first + tail.Length + count + age + left + right + (identity.active ? 1 : 0);
         }
     }

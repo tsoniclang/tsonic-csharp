@@ -26,11 +26,12 @@ import {
   getCsharpTaskResultTargetType,
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { csharpRuntimeParameterDefault, type CsharpRuntimeParameterDefault } from "../../target-model/types/parameter-defaults.js";
+import { csharpRuntimeParameterDefault } from "../../target-model/types/parameter-defaults.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
 import type {
   CsharpDeclarationClassifications,
+  CsharpDefaultParameterContract,
   CsharpReturnTargetContract,
 } from "./model.js";
 
@@ -40,7 +41,7 @@ export function analyzeCsharpDeclarations(
   operations: CsharpTargetOperationClassifications,
 ): CsharpDeclarationClassifications {
   const returnContracts = new WeakMap<Node, CsharpReturnTargetContract>();
-  const runtimeDefaults = new WeakMap<Node, CsharpRuntimeParameterDefault>();
+  const runtimeDefaults = new WeakMap<Node, CsharpDefaultParameterContract>();
   const methodWrites = new WeakMap<Node, { readonly type: TargetTypeRef; readonly storageName: string; readonly implementationName: string }>();
   for (const sourceFile of policy.sourceFiles) {
     visit(sourceFile);
@@ -98,7 +99,12 @@ export function analyzeCsharpDeclarations(
         const runtimeDefault = incoming !== undefined && value !== undefined && presentInitializer
           ? csharpRuntimeParameterDefault(parameter.Type === undefined ? value : selected, incoming)
           : csharpRuntimeParameterDefault(selected);
-        if (runtimeDefault !== undefined) runtimeDefaults.set(node, runtimeDefault);
+        if (runtimeDefault !== undefined) {
+          const slot = owner === undefined ? undefined : queries.types.declarationSignatureInfo(owner)
+            ?.parameters.find(parameter => parameter.declaration === node);
+          if (slot === undefined) throw new Error("A native parameter default requires its exact checked declaration slot.");
+          runtimeDefaults.set(node, Object.freeze({ ...runtimeDefault, acceptsOmission: slot.acceptsOmission }));
+        }
       }
     }
     if (isCallableDeclaration(policy, node)) {

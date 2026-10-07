@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceBindingIterationScope, sourceLexicalCaptures, sourceBindingCapturedBeforeInitialization, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { sourceCallableDefinitionIsDiscarded, sourceCallableValueExpression, sourceBindingScope, sourceBindingIterationScope, sourceLexicalCaptures, sourceBindingCapturedBeforeInitialization, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
 import type { CsharpStorageIssue } from "../storage/model.js";
@@ -78,7 +78,9 @@ export function selectCsharpFrameClosures(
       constructorEntry.storage.nativeBacking(capture.declaration) === undefined &&
       csharpConstructorRequiresPreparation(source.ast, constructor, constructorEntry.declarations, constructorEntry.storage,
         parameter => groups.get(scope!)?.has(parameter) === true);
-    if (!iteration && !prepared && !sourceBindingCapturedBeforeInitialization(capture.declaration, source.ast, source.navigation)) continue;
+    const selfInitializer = source.ast.is.IsVariableDeclaration(capture.declaration) &&
+      sourceCallableValueExpression(source.ast, source.ast.as.AsVariableDeclaration(capture.declaration)?.Initializer) === candidate.declaration;
+    if (!iteration && !prepared && !selfInitializer && !sourceBindingCapturedBeforeInitialization(capture.declaration, source.ast, source.navigation)) continue;
     const type = evidence.storageTargetType(capture.declaration) ?? evidence.nodeTargetType(capture.declaration);
     if (scope === undefined || type === undefined) {
       issues.push({ node: capture.declaration,

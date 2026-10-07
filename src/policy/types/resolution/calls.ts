@@ -565,7 +565,7 @@ export function sourceValueDeclaration(
   } else if (host.ast.is.IsElementAccessExpression(node)) {
     referenced = host.semanticsFor(node).operations.elementAccess(node)?.selectedDeclaration;
   }
-  return referenced !== undefined &&
+  return referenced !== undefined && host.navigation.isProjectDeclaration(referenced) &&
       (
         host.ast.is.IsVariableDeclaration(referenced) ||
         host.ast.is.IsBindingElement(referenced) ||

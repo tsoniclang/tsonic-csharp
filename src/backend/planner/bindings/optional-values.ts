@@ -7,7 +7,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { planCsharpPresentValueGuard } from "../expressions/optional-storage.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../expressions/planned-values.js";
-import { planCsharpValueBranch } from "../expressions/planned-value-composition.js";
+import { planCsharpCoalescingValue, planCsharpValueBranch } from "../expressions/planned-value-composition.js";
 import { convertCsharpPlannedValue } from "../expressions/planned-value-conversions.js";
 import { planCsharpDiscardedStatement } from "../statements/statement-output.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
@@ -38,6 +38,11 @@ export function planCsharpBindingDefaultValue(
   }
   const element = getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier);
   const optional = element !== undefined || isCsharpJsValueTargetType(carrier);
+  if (presence === undefined && getCsharpGenericOptionalParts(carrier) === undefined &&
+    element !== undefined && targetTypeRefEquals(element, resultCarrier)) {
+    return planCsharpCoalescingValue(node, sourceFile, input, diagnostics,
+      csharpPlannedValue(carrier, value), defaultValue, resultCarrier);
+  }
   if (isCsharpAbsenceTargetType(carrier)) {
     const discarded = planCsharpDiscardedStatement(value, carrier);
     const absent = { prelude: [...(discarded === undefined ? [] : [discarded]), ...defaultValue.prelude], completion: defaultValue.completion };
