@@ -6,12 +6,15 @@ import { getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import type { CsharpProjectTypePolicy } from "../project/project-types.js";
 import { resolveCsharpStaticMemberReceiver } from "../project/static-members.js";
+import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-carriers.js";
+import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 
 export interface CsharpSourceCalleeHost {
   readonly ast: CsharpTypePolicyBaseHost["ast"];
   readonly navigation: CsharpTypePolicyBaseHost["navigation"];
   readonly projectTypes: Pick<CsharpProjectTypePolicy, "catalog">;
   readonly types: Pick<CsharpTypePolicy, "resolveSelectedValue">;
+  readonly typeDefinitions?: CsharpTypeDefinitions;
 }
 
 export function classifyCsharpSourceCallee(
@@ -28,6 +31,15 @@ export function classifyCsharpSourceCallee(
     return Object.freeze({ kind: "function", expression, declaration: selected });
   }
   const access = source.sourceCalleeAccess;
+  if (access !== undefined && selected === undefined && declaration === undefined) {
+    const receiver = policy.types.resolveSelectedValue(access.receiver.expression, access.receiver.type, sourceFile);
+    const arms = getCsharpRuntimeUnionArms(receiver, policy.typeDefinitions);
+    if (receiver !== undefined && arms !== undefined && arms.length > 1 &&
+      arms.every(arm => policy.projectTypes.catalog.definitionForTarget(arm)?.kind === "class")) {
+      return Object.freeze({ kind: "union-method", expression: access.expression,
+        receiver: Object.freeze({ expression: access.receiver.expression, type: receiver }) });
+    }
+  }
   const staticReceiver = access === undefined ? undefined : resolveCsharpStaticMemberReceiver(
     policy.ast, policy.navigation, policy.projectTypes.catalog, selected, access.receiver.expression);
   if (staticReceiver !== undefined && declaration !== undefined && selected !== undefined &&

@@ -12,6 +12,8 @@ import {
   csharpSourceMemberDisplayName,
   csharpSourceMemberKeysEqual,
 } from "./source-member-keys.js";
+import { isCsharpStringTargetType } from "./identity.js";
+import { isCsharpJsValueTargetType } from "./runtime-carriers.js";
 
 export type CsharpObjectShapeMemberLookupProvenance =
   | "checked-property-access"
@@ -124,13 +126,22 @@ export function resolveCsharpObjectShapeMemberReadTargetType(
   selectedSourceType: Type | undefined,
   sourceTypesAgree: (left: Type, right: Type) => boolean =
     (left, right) => left === right,
+  selectedTargetType?: TargetTypeRef,
 ): TargetTypeRef | undefined {
   return selectedSourceType !== undefined &&
       member.sourceTypes?.some((sourceType) =>
         sourceTypesAgree(sourceType, selectedSourceType)
       ) === true
-    ? member.type
+    ? csharpObjectShapeMemberRetainsNativeReference(selectedTargetType, member.type)
+      ? selectedTargetType : member.type
     : undefined;
+}
+
+export function csharpObjectShapeMemberRetainsNativeReference(
+  source: TargetTypeRef | undefined,
+  storage: TargetTypeRef,
+): boolean {
+  return isCsharpStringTargetType(source) && isCsharpJsValueTargetType(storage);
 }
 
 export function csharpObjectShapeMemberLookupFailureMessage(

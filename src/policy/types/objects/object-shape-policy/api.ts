@@ -218,9 +218,16 @@ export function createCsharpObjectShapePolicy(
     if (type === undefined) {
       return undefined;
     }
+    const authoredLiteral = authoredTypeRoot !== undefined && host.ast.is.IsObjectLiteralExpression(authoredTypeRoot)
+      ? authoredTypeRoot : undefined;
+    if (authoredLiteral !== undefined) {
+      const queries = host.semanticsFor(authoredLiteral);
+      const expressionType = queries.types.expressionType(authoredLiteral);
+      if (expressionType === undefined || !queries.types.isIdentical(expressionType, type)) return undefined;
+    }
     const shape = resolveSemanticShape(
       type,
-      undefined,
+      authoredLiteral,
       host.semantics(sourceFile),
       state,
       undefined,
@@ -842,6 +849,11 @@ export function createCsharpObjectShapePolicy(
   }
 
   return Object.freeze({
+    retainConstructionSource(node: Node, type: Type, shape: CsharpObjectShapeFact, sourceFile: SourceFile): CsharpObjectShapeFact | undefined {
+      const queries = host.semantics(sourceFile);
+      const members = instantiateMemberEvidence(shape.members, type, queries, shape.sourceType);
+      return members === undefined ? undefined : remember(node, { ...shape, sourceType: type, members });
+    },
     resolveCallableValue: (signature: TargetTypeRef, typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>) =>
       retainCsharpGenericCallableValue(signature, typeParameters, rememberTargetShape, environment),
     resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined {

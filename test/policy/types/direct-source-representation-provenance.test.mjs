@@ -7,6 +7,8 @@ import {
 import {
   compileCsharpSource,
 } from "../../helpers/direct-csharp-session.mjs";
+import { csharpStringTargetType } from "../../../dist/target-model/types/scalar-types.js";
+import { csharpTsValueTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
 
 test("object-shape reads retain exact authored member carriers through utility projections", () => {
   const compiled = compileCsharpSource({
@@ -66,6 +68,24 @@ test("object-shape read provenance fails closed for a different selected source 
     resolveCsharpObjectShapeMemberReadTargetType(member, unrelatedSourceType),
     undefined,
   );
+});
+
+test("a checked native string read projects its original reference out of an opaque provider slot", () => {
+  const source = {};
+  const other = {};
+  const string = csharpStringTargetType();
+  const storage = csharpTsValueTargetType();
+  const member = { sourceName: "checked", sourceTypes: [source], targetName: "native",
+    memberKind: "property", type: storage };
+  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, source, undefined, string) === string,
+    true, "a checked reference read remains native string, not a dynamic operation");
+  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, other, undefined, string) === undefined,
+    true, "target expectation alone cannot manufacture source correspondence");
+  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, source) === storage,
+    true, "unrefined unknown provider reads retain their exact opaque storage");
+  const integer = { kind: "source-primitive", name: "int64" };
+  assert.equal(resolveCsharpObjectShapeMemberReadTargetType(member, source, undefined, integer) === storage,
+    true, "opaque numeric fields cannot acquire speculative native storage");
 });
 
 test("destructuring assignment expressions retain the right-hand value carrier", () => {

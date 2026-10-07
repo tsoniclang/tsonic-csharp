@@ -13,9 +13,9 @@ const source = Object.freeze({ property: { symbol: sourceSymbol, rootSymbols: []
 const member = Object.freeze({ sourceName: "count", targetName: "count", type: carrier,
   sourceSubjects: [destinationSymbol], sourceDeclarations: [], memberKind: "property" });
 
-function select(pairs, kind = "available") {
+function select(pairs, kind = "available", selectedMember = member) {
   const resolver = createCsharpObjectShapeMemberResolver({});
-  return resolver.instantiateMemberEvidence([member], sourceType, {
+  return resolver.instantiateMemberEvidence([selectedMember], sourceType, {
     types: { structuralMembers(actual, expected) {
       assert.strictEqual(actual, sourceType);
       assert.strictEqual(expected, destinationType);
@@ -32,6 +32,17 @@ test("structural receiver evidence uses exact checker correspondence without cha
   assert.deepEqual(selected[0].sourceDeclarations, [sourceDeclaration]);
   assert.strictEqual(selected[0].sourceTypes[0], source.property.type);
   assert.equal(Object.isFrozen(selected[0].sourceSubjects), true);
+});
+
+test("structural instance declarations retain only the exact selected producer occurrence", () => {
+  const earlierDeclaration = {};
+  const selectedMember = { ...member, sourceSubjects: [destinationSymbol, earlierDeclaration],
+    sourceDeclarations: [earlierDeclaration] };
+  const selected = select([{ kind: "present", source, destination }], "available", selectedMember);
+  assert.deepEqual(selected[0].sourceDeclarations, [sourceDeclaration]);
+  assert.equal(selected[0].sourceSubjects.includes(earlierDeclaration), true);
+  assert.deepEqual(selectedMember.sourceDeclarations, [earlierDeclaration]);
+  assert.equal(Object.isFrozen(selected[0].sourceDeclarations), true);
 });
 
 test("structural receiver evidence rejects absent, ambiguous and unrelated destination identities", () => {

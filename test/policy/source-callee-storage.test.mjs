@@ -3,6 +3,7 @@ import test from "node:test";
 import { classifyCsharpSourceCallee } from "../../dist/policy/types/callables/source-callees.js";
 import { csharpDelegateTargetType } from "../../dist/target-model/types/delegates.js";
 import { csharpNullableTargetType } from "../../dist/target-model/types/nullable.js";
+import { csharpRuntimeUnionTargetType } from "../../dist/target-model/types/runtime-carriers.js";
 
 const expression = {};
 const receiver = {};
@@ -86,4 +87,36 @@ test("nominal generic class methods retain native calls rather than structural c
   assert.equal(selected.receiver.expression === receiver, true, "exact native receiver");
   assert.equal(classify(methodDeclaration, methodDeclaration,
     { kind: "property", receiver: { expression: receiver } }, methodValue).kind, "value", "structural callable protocol remains distinct");
+});
+
+test("a checked composite class method selects its closed receiver without acquiring a delegate", () => {
+  const right = { ...owner, id: "right", csharpRender: { kind: "name", namespace: [], name: "Right" } };
+  const union = csharpRuntimeUnionTargetType([owner, right]);
+  const selected = classifyCsharpSourceCallee({
+    ast: { is: {}, parent: () => undefined },
+    navigation: { sourceReferenceFor: () => undefined },
+    projectTypes: { catalog: { definitionForTarget: type => type === owner || type === right ? { kind: "class" } : undefined } },
+    types: { resolveSelectedValue: node => {
+      assert.equal(node === receiver, true, "only the exact native receiver is acquired");
+      return union;
+    } },
+  }, { sourceCallee: { expression }, sourceCalleeAccess: { kind: "property", expression, receiver: { expression: receiver } } }, {});
+  assert.equal(selected.kind === "union-method" && selected.receiver.type === union, true, "closed candidate awaits the existing per-arm method proof");
+  assert.equal(selected.receiver.expression === receiver && selected.expression === expression, true, "exact selected AST nodes retained");
+  assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.receiver), true);
+});
+
+test("composite calls do not manufacture class-union evidence for interface, foreign or scalar arms", () => {
+  const right = { ...owner, id: "right", csharpRender: { kind: "name", namespace: [], name: "Right" } };
+  for (const kind of ["interface", "foreign", "scalar"]) {
+    const union = csharpRuntimeUnionTargetType([owner, kind === "scalar" ? { kind: "source-primitive", name: "int32" } : right]);
+    const selected = classifyCsharpSourceCallee({
+      ast: { is: {}, parent: () => undefined },
+      navigation: { sourceReferenceFor: () => undefined },
+      projectTypes: { catalog: { definitionForTarget: type => type === owner ? { kind: "class" }
+        : type === right && kind === "interface" ? { kind: "interface" } : undefined } },
+      types: { resolveSelectedValue: node => node === receiver ? union : { kind: "source-primitive", name: "uint32" } },
+    }, { sourceCallee: { expression }, sourceCalleeAccess: { kind: "property", expression, receiver: { expression: receiver } } }, {});
+    assert.equal(selected.kind === "rejected", true, kind);
+  }
 });

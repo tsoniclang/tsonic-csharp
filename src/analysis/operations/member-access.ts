@@ -186,6 +186,7 @@ export function classifySourceOwnedMember(
         selection.source.sourceReadType,
         (left, right) =>
           semantics.types.relationship(left, right) !== "unrelated",
+        selectedSourceReadType,
       )
     : undefined;
   const selectedReadType = selectedMethodValue ?? (shapeMember?.kind === "resolved"

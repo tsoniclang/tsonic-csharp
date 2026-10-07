@@ -88,7 +88,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       return { ...member,
         sourceSubjects: Object.freeze([...new Set([...member.sourceSubjects ?? [],
           property.symbol, ...property.rootSymbols, ...declarations])]),
-        sourceDeclarations: Object.freeze([...new Set([...member.sourceDeclarations ?? [], ...declarations])]),
+        sourceDeclarations: Object.freeze([...new Set(declarations)]),
         sourceTypes: Object.freeze([property.type]),
       };
     });

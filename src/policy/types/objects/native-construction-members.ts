@@ -1,7 +1,7 @@
 import type { Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
-import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
+import { resolveCsharpObjectShapeMemberBySelectedSubject, csharpObjectShapeMemberRetainsNativeReference } from "../../../target-model/types/object-shape-members.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import type { CsharpTypePolicyBaseHost } from "../resolution/model.js";
@@ -61,7 +61,9 @@ export function csharpNativeConstructionMembersMatch(
     if (!targetTypeRefEquals(sourceElement ?? actual.member.type, destinationElement ?? expected.member.type) &&
       !(expected.member.exactNumericStorage === true && csharpProviderSelectsNumericStorage(
         pair.source.property, sourceElement ?? actual.member.type, destinationElement ?? expected.member.type,
-        { queries, host }))) return false;
+        { queries, host })) &&
+      !csharpObjectShapeMemberRetainsNativeReference(sourceElement ?? actual.member.type,
+        destinationElement ?? expected.member.type)) return false;
   }
   return sourceMembers.size === source.members.length && destinationMembers.size === destination.members.length;
 }

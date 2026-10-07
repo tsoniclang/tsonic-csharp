@@ -31,22 +31,6 @@ export function translateSourceOwnedCall(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpPlannedValue | undefined {
-  const signatureDeclaration = input.program.sourceEvidence.signatureDeclaration(
-    source.selectedSignature,
-  );
-  if (
-    !isProjectSourceDeclaration(
-      input,
-      source.sourceCallee.selectedDeclaration,
-    ) &&
-    !isProjectSourceDeclaration(input, signatureDeclaration)
-  ) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "The exact selected source callee is external to the project and has no C# target relation.",
-    ));
-    return undefined;
-  }
   if (classification.unionCall.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, classification.unionCall.reason));
     return undefined;
@@ -61,8 +45,16 @@ export function translateSourceOwnedCall(
           planCsharpUnionDispatcherCall(node, source, classification, value!, args, input, diagnostics), union.resultType));
   }
   const selected = classification.sourceCall;
-  if (selected === undefined || selected.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, selected?.reason ?? "Source call has no exact sealed callee acquisition contract."));
+  if (selected === undefined || selected.kind === "rejected" || selected.kind === "union-method") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, selected?.kind === "rejected" ? selected.reason
+      : "Source call has no exact sealed callee acquisition contract."));
+    return undefined;
+  }
+  const signatureDeclaration = input.program.sourceEvidence.signatureDeclaration(source.selectedSignature);
+  if (!isProjectSourceDeclaration(input, source.sourceCallee.selectedDeclaration) &&
+    !isProjectSourceDeclaration(input, signatureDeclaration)) {
+    diagnostics.push(unsupportedNodeDiagnostic(node,
+      "The exact selected source callee is external to the project and has no C# target relation."));
     return undefined;
   }
   const optionalCallee = classification.optionalCallee !== undefined && !input.scope.presentOptionalValues?.has(classification.optionalCallee.expression)

@@ -25,10 +25,11 @@ export function resolveSourceCallContract(
   if (host.ast.is.IsNewExpression(source.call) || host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword") return direct();
   const callee = classifyCsharpSourceCallee({ ast: host.ast, navigation: host.navigation,
     projectTypes: host.projectTypes(),
+    typeDefinitions: host.typeDefinitions,
     types: { resolveSelectedValue: (expression, type, file) =>
       resolveSelectedValueWithState(expression, type, file, nextState(state)) },
   }, source, sourceFile);
-  if (callee.kind === "function" || callee.kind === "method") return direct();
+  if (callee.kind === "function" || callee.kind === "method" || callee.kind === "union-method") return direct();
   const reject = (): CsharpSourceCallContractSelection => Object.freeze({ kind: "rejected" });
   if (callee.kind === "rejected") return reject();
   const type = getCsharpNullableElementTargetType(callee.type) ?? callee.type;

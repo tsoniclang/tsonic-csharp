@@ -4,6 +4,22 @@ import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { csharpBoundSourceType, csharpSourceBindings } from "./type-bindings.js";
 import { nextState } from "./state.js";
+import type { SourceFileSemantics } from "@tsonic/target-api/source";
+
+export function bindCsharpSourceTypeArguments(
+  scope: CsharpTypeResolutionScope,
+  type: Type,
+  queries: SourceFileSemantics,
+  state: CsharpTypeResolutionState,
+): CsharpTypeResolutionState | undefined {
+  const bindings = queries.types.typeArgumentBindings(type);
+  if (bindings === undefined || bindings.length === 0) return state;
+  if (new Set(bindings.map(binding => binding.declaration)).size !== bindings.length) return undefined;
+  const targets = bindings.map(binding => scope.resolveTypeWithState(binding.argumentType, queries.sourceFile, nextState(state)));
+  if (targets.some(target => target === undefined)) return undefined;
+  return csharpSourceBindings(bindings.map(binding => binding.declaration),
+    bindings.map(binding => binding.argumentType), targets as readonly TargetTypeRef[], state);
+}
 
 export function bindCsharpSourceDeclarationArguments(
   scope: CsharpTypeResolutionScope,

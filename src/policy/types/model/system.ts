@@ -19,7 +19,9 @@ import {
 import {
   resolveCsharpObjectShapeMemberBySelectedSubject,
   resolveCsharpObjectShapeMemberReadTargetType,
+  csharpObjectShapeMemberRetainsNativeReference,
 } from "../../../target-model/types/object-shape-members.js";
+import { isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
 import type {
   CsharpPlanningRepresentationQueries,
   CsharpTypePolicy,
@@ -178,8 +180,12 @@ export function createCsharpTypeSystem(
             selectedSubjects,
           );
           if (selected.kind === "resolved" && selectedType === undefined) return selected.member.type;
+          const sourceTarget = selected.kind === "resolved" && selectedType !== undefined &&
+            isCsharpJsValueTargetType(selected.member.type)
+            ? typeResolution.recursive.resolveType(selectedType, sourceFile, { depth: 0 }) : undefined;
           if (selected.kind === "resolved" && selectedType !== undefined && declaredMemberType !== undefined &&
-            host.semantics(sourceFile).types.relationship(declaredMemberType, selectedType) === "identical") {
+            host.semantics(sourceFile).types.relationship(declaredMemberType, selectedType) === "identical" &&
+            !csharpObjectShapeMemberRetainsNativeReference(sourceTarget, selected.member.type)) {
             return selected.member.type;
           }
           return selected.kind === "resolved"
@@ -189,6 +195,7 @@ export function createCsharpTypeSystem(
                 (left, right) =>
                   host.semantics(sourceFile).types.relationship(left, right) !==
                     "unrelated",
+                sourceTarget,
               )
             : undefined;
         },
@@ -215,8 +222,11 @@ export function createCsharpTypeSystem(
   nativeConstruction = createCsharpNativeConstructionDemandQuery(sourceStorage, {
     ...host,
     scopedTargetType: representations.scopedTargetType,
-    resolveShape(type: Type, file: SourceFile): CsharpObjectShapeFact | undefined {
-      return objectShapes?.resolveType(type, file);
+    resolveShape(type: Type, file: SourceFile, authoredTypeRoot?: Node): CsharpObjectShapeFact | undefined {
+      return objectShapes?.resolveType(type, file, authoredTypeRoot);
+    },
+    retainSourceShape(node: Node, type: Type, shape: CsharpObjectShapeFact, file: SourceFile): CsharpObjectShapeFact | undefined {
+      return objectShapes?.retainConstructionSource(node, type, shape, file);
     },
   });
   return Object.freeze({

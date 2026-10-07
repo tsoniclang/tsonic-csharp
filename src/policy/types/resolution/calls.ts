@@ -19,6 +19,7 @@ import { resolveTypeParameter, resolveCsharpUnionMemberCarrier } from "./source-
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";
 import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
+import { bindCsharpSourceTypeArguments } from "./generic-arguments.js";
 
 export function resolveAuthoredAndSelectedSourceType(
   scope: CsharpTypeResolutionScope,
@@ -233,7 +234,7 @@ export function resolveSourceCallInstantiation(
   };
 }
 export function resolveSourceCallSelectedType(
-  { host, resolveAuthoredAndSelectedSourceType, resolveNodeWithState, resolveSourceCallInstantiation, resolveSourceCallReceiverTargetType }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   declaration: Node | undefined,
   authoredTypeNode: Node | undefined,
@@ -241,6 +242,7 @@ export function resolveSourceCallSelectedType(
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const { host, resolveAuthoredAndSelectedSourceType, resolveNodeWithState, resolveSourceCallInstantiation, resolveSourceCallReceiverTargetType } = scope;
   const instantiation = resolveSourceCallInstantiation(
     source,
     selectedSourceFile,
@@ -248,6 +250,12 @@ export function resolveSourceCallSelectedType(
   );
   if (instantiation === undefined) {
     return undefined;
+  }
+  const receiver = source.sourceReceiver ?? source.sourceCalleeAccess?.receiver;
+  if (receiver !== undefined && (declaration === undefined || !host.navigation.isProjectDeclaration(declaration))) {
+    const bound = bindCsharpSourceTypeArguments(scope, receiver.type, host.semantics(selectedSourceFile), state);
+    if (bound === undefined) return undefined;
+    state = bound;
   }
   if (authoredTypeNode !== undefined && host.ast.is.IsThisTypeNode(authoredTypeNode)) {
     return resolveAuthoredAndSelectedSourceType(

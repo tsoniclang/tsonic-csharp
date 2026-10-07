@@ -5,6 +5,8 @@ import { createCsharpNativeConstructionDemandQuery } from "../../../dist/policy/
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/nullable.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { maximumCsharpMetadataEntries } from "../../../dist/target-model/metadata/immutable.js";
+import { csharpStringTargetType } from "../../../dist/target-model/types/scalar-types.js";
+import { csharpTsValueTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int64" });
 const floating = Object.freeze({ kind: "source-primitive", name: "float64" });
@@ -24,6 +26,9 @@ function fixture() {
   const existing = new Map();
   const explicit = new Set();
   const unresolved = new Map();
+  const fresh = new Set();
+  const foreign = new Set();
+  const originFailures = new Map();
   const primitive = {};
   let failure;
   let relationshipQueries = 0;
@@ -72,6 +77,9 @@ function fixture() {
       unionOrIntersectionTypes: type => type.union,
       isNullish: type => type.absent === true,
       isNumberLike: type => type === primitive,
+      propertyInfos: type => rows.get(type)?.fields.map(field => field.property) ?? [],
+      expressionType: node => subjectTypes.get(nodeSubjects.get(node)),
+      isIdentical: (source, destination) => source === destination,
       constructSignatures: type => rows.get(type)?.constructs ?? [],
       structuralMembers(source, destination) {
         relationshipQueries += 1;
@@ -88,7 +96,8 @@ function fixture() {
     },
   };
   const host = {
-    ast: {},
+    ast: { is: { IsObjectLiteralExpression: node => fresh.has(node) }, properties: node => node.properties ?? [] },
+    navigation: { isProjectDeclaration: node => !foreign.has(node) },
     providers: { resolveType(fact) { return { kind: "resolved", relations: [{ kind: "type",
       objectLiteralConstruction: { kind: "object-initializer" }, targetBinding: fact.target }] }; } },
     sourceFacts: { getFact(value, key) {
@@ -96,18 +105,46 @@ function fixture() {
         : key === sourcePrimitiveFactKey && explicit.has(value) ? { name: "float64" } : undefined;
     } },
     semanticsFor: () => semantics,
-    resolveShape: type => rows.get(type)?.shape,
+    semantics: () => semantics,
+    resolveShape: (type, file, authoredTypeRoot) => {
+      const row = rows.get(type);
+      return row?.requiresAuthoredRoot && !fresh.has(authoredTypeRoot) ? undefined : row?.shape;
+    },
     scopedTargetType: node => existing.get(node),
+    retainSourceShape: (node, type, shape) => shape,
   };
   const storage = {
+    invocations: [],
     subjects, nodes, failureReason: () => failure,
     subjectFor: node => nodeSubjects.has(node) ? { kind: "resolved", subject: nodeSubjects.get(node) }
       : { kind: "unresolved", reason: "outside exact graph" },
     typeFor: value => unresolved.has(value) ? { kind: "unresolved", reason: unresolved.get(value) }
-      : { kind: "resolved", type: subjectTypes.get(value) },
+      : { kind: "resolved", type: subjectTypes.get(value), sourceFile },
     incomingFor: value => ({ kind: "resolved", subjects: incoming.get(value) ?? [] }),
+    originsFor(value) {
+      if (originFailures.has(value)) return { kind: "unresolved", reason: originFailures.get(value) };
+      const visited = new Set();
+      const origins = [];
+      const pending = [value];
+      for (const current of pending) {
+        if (visited.has(current)) continue;
+        visited.add(current);
+        const parents = incoming.get(current) ?? [];
+        if (parents.length === 0) origins.push({ subject: current, type: subjectTypes.get(current), sourceFile });
+        else pending.push(...parents);
+      }
+      return origins.length === 0 ? { kind: "unresolved", reason: "A source storage cycle has no proven original owner." }
+        : { kind: "resolved", origins };
+    },
   };
-  return { row, subject, alias, host, storage, rows, existing, explicit, primitive, unresolved, semantics,
+  return { row, subject, alias, host, storage, rows, existing, explicit, primitive, unresolved, semantics, foreign, originFailures,
+    literal(type, properties = [], projection = []) {
+      const value = subject(type, projection);
+      fresh.add(value.node);
+      value.node.properties = properties;
+      rows.get(type).requiresAuthoredRoot = true;
+      return value;
+    },
     connect(origin, destination) { incoming.get(destination).push(origin); },
     freeze: () => createCsharpNativeConstructionDemandQuery(storage, host),
     fail(value) { failure = value; },
@@ -318,4 +355,187 @@ test("native demand preserves transport and immutable metadata budget failures",
   selected = value.freeze();
   assert.equal(selected.issues.some(issue => /finite target metadata budget/.test(issue.message)), true);
   assert.equal(selected.shapeFor(producer.node) === undefined, true);
+});
+
+test("empty native construction retains exact authored origins through aliases, returns and cycles", () => {
+  const value = fixture();
+  const expectedType = value.row([{ identity: "user", optional: true }, { identity: "system", optional: true }],
+    native, { provider: true });
+  const actualType = value.row([]);
+  const producer = value.literal(actualType);
+  const binding = value.subject(actualType);
+  const returned = value.subject(actualType);
+  const sibling = value.subject(actualType);
+  const destination = value.subject(expectedType);
+  value.connect(producer, binding);
+  value.connect(binding, returned);
+  value.connect(returned, sibling);
+  value.connect(sibling, binding);
+  value.connect(returned, destination);
+  const selected = value.freeze();
+  assert.equal(selected.issues.length, 0);
+  for (const subject of [producer, binding, returned, sibling, destination]) {
+    assert.equal(selected.shapeFor(subject.node)?.targetType === native, true, "one native allocation and carrier");
+  }
+  const queries = value.queryCount();
+  selected.shapeFor(sibling.node);
+  assert.equal(value.queryCount(), queries, "finalized provenance has no runtime or late checker work");
+});
+
+test("a shared empty semantic type cannot transfer fresh-allocation authority to an open parameter", () => {
+  const value = fixture();
+  const expectedType = value.row([{ identity: "user", optional: true }], native, { provider: true });
+  const actualType = value.row([]);
+  const producer = value.literal(actualType);
+  const open = value.subject(actualType);
+  const destination = value.subject(expectedType);
+  value.connect(producer, destination);
+  value.connect(open, destination);
+  const selected = value.freeze();
+  assert.equal(selected.issues.some(issue => issue.node === open.node), true, "open parameter is rejected independently");
+  assert.equal(selected.issues.some(issue => issue.node === producer.node), false, "fresh owner remains exactly proven");
+  assert.equal(selected.shapeFor(producer.node) === undefined, true, "failed analysis publishes no partial selection");
+});
+
+test("empty alias transport uses exact checker identity while literal ownership keeps expression identity", () => {
+  for (const identical of [false, true]) {
+    const value = fixture();
+    const expectedType = value.row([{ identity: "user", optional: true }], native, { provider: true });
+    const literalType = value.row([]);
+    const bindingType = value.row([]);
+    const producer = value.literal(literalType);
+    const binding = value.subject(bindingType);
+    value.connect(producer, binding);
+    value.connect(binding, value.subject(expectedType));
+    value.semantics.types.isIdentical = (source, destination) => source === destination ||
+      identical && source === bindingType && destination === literalType;
+    const selected = value.freeze();
+    assert.equal(selected.issues.length === 0, identical, "only exact checked regular/fresh equivalence admits transport");
+    assert.equal(selected.shapeFor(binding.node)?.targetType === native, identical);
+  }
+});
+
+test("fresh expression queries may return noninterned but exactly checker-identical types", () => {
+  const value = fixture();
+  const expectedType = value.row([{ identity: "user", optional: true }], native, { provider: true });
+  const actualType = value.row([]);
+  const producer = value.literal(actualType);
+  value.connect(producer, value.subject(expectedType));
+  value.semantics.types.expressionType = () => ({ equivalentTo: actualType });
+  value.semantics.types.isIdentical = (source, destination) => source === destination || source.equivalentTo === destination;
+  assert.equal(value.semantics.types.expressionType(producer.node) === value.semantics.types.expressionType(producer.node), false);
+  const selected = value.freeze();
+  assert.equal(selected.issues.length, 0);
+  assert.equal(selected.shapeFor(producer.node)?.targetType === native, true);
+});
+
+test("empty native construction rejects nonfresh, foreign, projected, mixed and unresolved origins", () => {
+  const controls = [
+    (value, type) => value.subject(type),
+    (value, type) => { const owner = value.literal(type); value.foreign.add(owner.node); return owner; },
+    (value, type) => value.literal(type, [], [{ kind: "array-element" }]),
+    (value, type) => value.literal(type, [{}]),
+    (value, type) => {
+      const owner = value.literal(type);
+      value.semantics.types.expressionType = () => ({});
+      return owner;
+    },
+    (value, type) => {
+      const owner = value.subject(type);
+      value.connect(value.literal(type), owner);
+      value.connect(value.subject(type), owner);
+      return owner;
+    },
+    (value, type) => { const owner = value.subject(type); value.connect(owner, owner); return owner; },
+    (value, type) => {
+      const owner = value.literal(type);
+      value.originFailures.set(owner, "exact origin evidence exceeds its bounded budget");
+      return owner;
+    },
+  ];
+  for (const [index, control] of controls.entries()) {
+    const value = fixture();
+    const expectedType = value.row([{ identity: "user", optional: true }], native, { provider: true });
+    const actualType = value.row([]);
+    const producer = control(value, actualType);
+    value.connect(producer, value.subject(expectedType));
+    const selected = value.freeze();
+    assert.equal(selected.issues.length > 0, true, `origin control ${index}`);
+    assert.equal(selected.shapeFor(producer.node) === undefined, true, `origin control ${index} fails closed`);
+  }
+});
+
+test("fresh empty origins retain required-field, callable, indexed and preselected-storage rejection", () => {
+  const controls = [
+    { required: true },
+    { calls: [{}] },
+    { indexes: [{}] },
+    { shape: { methodImplementation: {} } },
+    { shape: { targetType: { ...structural, csharpSourceDeclarationKind: "class" } } },
+    { selected: { kind: "pointer", pointee: native } },
+  ];
+  for (const [index, control] of controls.entries()) {
+    const value = fixture();
+    const expectedType = value.row([{ identity: "user", optional: !control.required }], native, { provider: true });
+    const actualType = value.row([], structural, control);
+    const producer = value.literal(actualType);
+    value.connect(producer, value.subject(expectedType));
+    if (control.selected !== undefined) value.existing.set(producer.node, control.selected);
+    const selected = value.freeze();
+    assert.equal(selected.issues.length > 0, true, `storage control ${index}`);
+    assert.equal(selected.shapeFor(producer.node) === undefined, true, `storage control ${index} fails before emission`);
+  }
+});
+
+test("fresh empty construction keeps nullable aliases and full-width provider fields unchanged", () => {
+  const value = fixture();
+  const expectedType = value.row([{ identity: "user", optional: true, carrier: csharpNullableTargetType(integer) }],
+    native, { provider: true });
+  const actualType = value.row([]);
+  const producer = value.literal(actualType);
+  const absent = { absent: true };
+  const alias = value.subject({ union: [actualType, absent, { absent: true }] });
+  value.connect(producer, alias);
+  value.connect(value.subject(absent), alias);
+  value.connect(alias, value.subject({ union: [expectedType, absent] }));
+  const selected = value.freeze();
+  assert.equal(selected.issues.length, 0);
+  assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(selected.shapeFor(alias.node)?.targetType), native), true);
+  assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(selected.shapeFor(producer.node)?.members[0].type), integer), true);
+});
+
+test("an existing exact empty native carrier needs no fabricated literal allocation", () => {
+  const value = fixture();
+  const type = value.row([], native, { provider: true });
+  const parameter = value.subject(type);
+  value.storage.originsFor = () => { throw new Error("an exact native carrier needs no new construction origin"); };
+  const selected = value.freeze();
+  assert.equal(selected.issues.length, 0);
+  assert.equal(selected.shapeFor(parameter.node)?.targetType === native, true);
+});
+
+test("native opaque reference fields retain string payloads without admitting numeric heap boxing", () => {
+  for (const [sourceCarrier, accepted] of [[csharpStringTargetType(), true], [integer, false],
+    [floating, false], [boolean, false], [{ kind: "tuple", elements: [integer] }, false]]) {
+    const value = fixture();
+    const expectedType = value.row([{ identity: "user", carrier: csharpTsValueTargetType() }], native, { provider: true });
+    const actualType = value.row([{ identity: "user", carrier: sourceCarrier }]);
+    const producer = value.subject(actualType);
+    value.connect(producer, value.subject(expectedType));
+    const selected = value.freeze();
+    assert.equal(selected.issues.length === 0, accepted, "only the native reference payload can retain its allocation");
+    assert.equal(selected.shapeFor(producer.node) !== undefined, accepted, "no partial publication or boxed numeric storage");
+  }
+});
+
+test("native storage publication requires exact source-member correspondence", () => {
+  const value = fixture();
+  const expectedType = value.row([{ identity: "user" }], native, { provider: true });
+  const producer = value.subject(value.row([{ identity: "user" }]));
+  value.connect(producer, value.subject(expectedType));
+  value.host.retainSourceShape = () => undefined;
+  const selected = value.freeze();
+  assert.equal(selected.issues.some(issue => /source-member correspondence/u.test(issue.message)), true,
+    "construction compatibility does not substitute for exact read/write correspondence");
+  assert.equal(selected.shapeFor(producer.node) === undefined, true, "incomplete publication fails closed");
 });

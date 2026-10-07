@@ -111,6 +111,20 @@ test("opaque native references use the existing managed-ref declaration only wit
   }
 });
 
+test("native this and base member locations preserve direct initialization and immutable receivers", () => {
+  for (const receiverName of ["this", "base"]) {
+    const { input, diagnostics } = context();
+    const source = {};
+    const expression = { kind: "SimpleMemberAccessExpression", receiver: identifier(receiverName), name: "Value" };
+    const prelude = [effect("earlier")];
+    const captured = captureCsharpPlannedLocation(source, {}, input, diagnostics,
+      csharpPlannedValue(integer, expression, prelude), location(source, "reference-receiver"), true);
+    assert.deepEqual(captured.prelude, prelude);
+    assert.deepEqual(captured.completion.expression, expression);
+    assertNoTargetDiagnostics(diagnostics);
+  }
+});
+
 test("ordinary canonical composition snapshots values and only an exact location hook retains a cell", () => {
   const earlier = csharpPlannedValue(integer, identifier("cell"));
   const later = csharpPlannedValue(integer, identifier("right"), [effect("later")]);

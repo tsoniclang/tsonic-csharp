@@ -21,8 +21,9 @@ export interface CsharpNativeConstructionDemandQueries {
 }
 
 interface CsharpNativeConstructionDemandHost extends Pick<CsharpTypePolicyBaseHost,
-  "ast" | "providers" | "sourceFacts" | "semanticsFor"> {
-  resolveShape(type: Type, file: SourceFile): CsharpObjectShapeFact | undefined;
+  "ast" | "navigation" | "providers" | "sourceFacts" | "semantics" | "semanticsFor"> {
+  resolveShape(type: Type, file: SourceFile, authoredTypeRoot?: Node): CsharpObjectShapeFact | undefined;
+  retainSourceShape(node: Node, type: Type, shape: CsharpObjectShapeFact, file: SourceFile): CsharpObjectShapeFact | undefined;
   scopedTargetType(node: Node): TargetTypeRef | undefined;
 }
 
@@ -43,6 +44,7 @@ export function createCsharpNativeConstructionDemandQuery(
   const nullableShapes = new WeakMap<CsharpObjectShapeFact, CsharpObjectShapeFact>();
   const shapes = new WeakMap<Type, CsharpObjectShapeFact | null>();
   const compatibility = new WeakMap<Type, WeakMap<CsharpObjectShapeFact, boolean>>();
+  const emptyCompatibility = new Map<SourceStorageSubject, WeakMap<CsharpObjectShapeFact, boolean>>();
   const destinations = new Map<SourceStorageSubject, SourceStorageSubject[]>();
   const nodeShapes = new Map<Node, CsharpObjectShapeFact>();
   const pending: { readonly subject: SourceStorageSubject; readonly shape: CsharpObjectShapeFact }[] = [];
@@ -68,7 +70,7 @@ export function createCsharpNativeConstructionDemandQuery(
       types.set(subject, undefined);
       return undefined;
     }
-    const queries = host.semanticsFor(subject.node);
+    const queries = host.semantics(selected.sourceFile);
     const members = queries.types.isUnion(selected.type)
       ? queries.types.unionOrIntersectionTypes(selected.type).filter(type => !queries.types.isNullish(type))
       : queries.types.isNullish(selected.type) ? [] : [selected.type];
@@ -98,23 +100,57 @@ export function createCsharpNativeConstructionDemandQuery(
     nullableShapes.set(shape, nullable);
     return nullable;
   };
+  const nativeShape = (type: Type, queries: SourceFileSemantics): CsharpObjectShapeFact | undefined => {
+    const present = queries.types.isUnion(type)
+      ? queries.types.unionOrIntersectionTypes(type).filter(member => !queries.types.isNullish(member))
+      : queries.types.isNullish(type) ? [] : [type];
+    if (present.length !== 1 || queries.types.constructSignatures(present[0]!).length !== 0) return undefined;
+    let native = false;
+    for (const subject of queries.facts.typeSubjects(present[0]!)) {
+      budget.reserve(1);
+      const fact = host.sourceFacts?.getFact(subject, providerVirtualDeclarationFactKey);
+      if (fact === undefined) continue;
+      const provider = host.providers.resolveType(fact);
+      if (provider.kind === "resolved" && provider.relations.some(relation =>
+        relation.kind === "type" && relation.objectLiteralConstruction?.kind === "object-initializer")) native = true;
+    }
+    return native ? shapeForType(present[0]!, queries) : undefined;
+  };
+  const emptyOriginsMatch = (subject: SourceStorageSubject, selected: CsharpNativeConstructionType,
+    destination: CsharpObjectShapeFact): boolean => {
+    const origins = storage.originsFor(subject);
+    if (origins.kind !== "resolved") {
+      issue(subject, origins.reason);
+      return false;
+    }
+    let present = false;
+    for (const origin of origins.origins) {
+      budget.reserve(1);
+      const queries = host.semantics(origin.sourceFile);
+      if (queries.types.isNullish(origin.type)) {
+        if (!selected.nullable) return false;
+        continue;
+      }
+      const expressionType = queries.types.expressionType(origin.subject.node);
+      if (origin.subject.kind !== "value" || origin.subject.projection.length !== 0 ||
+        !host.ast.is.IsObjectLiteralExpression(origin.subject.node) ||
+        !host.navigation.isProjectDeclaration(origin.subject.node) || host.ast.properties(origin.subject.node).length !== 0 ||
+        expressionType === undefined || !queries.types.isIdentical(expressionType, origin.type) ||
+        !selected.queries.types.isIdentical(selected.type, origin.type)) return false;
+      const shape = host.resolveShape(origin.type, queries.sourceFile, origin.subject.node);
+      if (!csharpNativeConstructionMembersMatch(origin.type, shape, destination, queries, host, budget.reserve)) return false;
+      present = true;
+    }
+    return present;
+  };
   let current: SourceStorageSubject | undefined;
   try {
     for (const subject of storage.subjects) {
       current = subject;
       const selected = selectedType(subject);
       if (selected === undefined || selected.queries.types.constructSignatures(selected.type).length !== 0) continue;
-      let native = false;
-      for (const factSubject of selected.queries.facts.typeSubjects(selected.type)) {
-        budget.reserve(1);
-        const fact = host.sourceFacts?.getFact(factSubject, providerVirtualDeclarationFactKey);
-        if (fact === undefined) continue;
-        const provider = host.providers.resolveType(fact);
-        if (provider.kind === "resolved" && provider.relations.some(relation =>
-          relation.kind === "type" && relation.objectLiteralConstruction?.kind === "object-initializer")) native = true;
-      }
-      if (!native) continue;
-      const shape = shapeForType(selected.type, selected.queries);
+      const shape = nativeShape(selected.type, selected.queries);
+      if (shape === undefined) continue;
       if (shape?.constructible !== true || shape.sourceType === undefined) {
         issue(subject, "An exact native construction demand has no finalized provider object-initializer contract.");
         continue;
@@ -150,14 +186,21 @@ export function createCsharpNativeConstructionDemandQuery(
       const selected = selectedType(subject, true);
       if (selected === undefined) continue;
       const key = targetTypeRefKey(shape.targetType);
-      const choices = compatibility.get(selected.type) ?? new WeakMap<CsharpObjectShapeFact, boolean>();
+      const properties = selected.queries.types.propertyInfos(selected.type);
+      budget.reserve(properties.length + 1);
+      const sourceShape = shapeForType(selected.type, selected.queries);
+      const empty = properties.length === 0 &&
+        (sourceShape === undefined || !targetTypeRefEquals(sourceShape.targetType, shape.targetType));
+      const choices = (empty ? emptyCompatibility.get(subject) : compatibility.get(selected.type)) ??
+        new WeakMap<CsharpObjectShapeFact, boolean>();
       let matches = choices.get(shape);
       if (matches === undefined) {
         budget.reserve(1);
-        const sourceShape = shapeForType(selected.type, selected.queries);
-        matches = csharpNativeConstructionMembersMatch(selected.type, sourceShape, shape, selected.queries, host, budget.reserve);
+        matches = empty ? emptyOriginsMatch(subject, selected, shape)
+          : csharpNativeConstructionMembersMatch(selected.type, sourceShape, shape, selected.queries, host, budget.reserve);
         choices.set(shape, matches);
-        compatibility.set(selected.type, choices);
+        if (empty) emptyCompatibility.set(subject, choices);
+        else compatibility.set(selected.type, choices);
       }
       if (!matches) {
         issue(subject, `A source producer cannot retain all exact fields, absence and native storage in '${key}' without a copied or adapted object.`);
@@ -193,7 +236,13 @@ export function createCsharpNativeConstructionDemandQuery(
         }
       }
       budget.reserve(1);
-      nodeShapes.set(node, shape);
+      const source = types.get(selected.subject);
+      const retained = source === undefined ? undefined : host.retainSourceShape(node, source.type, shape, source.queries.sourceFile);
+      if (retained === undefined) {
+        issue(selected.subject, "Native construction has no exact source-member correspondence for its selected storage.");
+        continue;
+      }
+      nodeShapes.set(node, retained);
     }
     const failure = storage.failureReason();
     if (failure !== undefined && current !== undefined) issue(current, failure);
