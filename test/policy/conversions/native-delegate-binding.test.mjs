@@ -77,6 +77,14 @@ test("mutated delegate modes fail closed and cannot masquerade as System.Func", 
   }
   const invalidReturn = { ...source, csharpDelegateSignature: { ...source.csharpDelegateSignature, returnPassing: "wrong" } };
   assert.equal(selectCsharpConversion(policy, invalidReturn, target, "implicit").kind, "rejected");
+  for (const parameters of [new Array(1), [undefined]]) {
+    const changed = { ...source, csharpDelegateSignature: { ...source.csharpDelegateSignature, parameters } };
+    assert.equal(selectCsharpConversion(policy, changed, target, "implicit").kind, "rejected",
+      "a sparse parameter vector cannot hide an unchecked native ABI slot");
+    assert.equal(isCsharpSourceDelegateTargetType(changed), false);
+    assert.equal(csharpDelegateSignaturesMatchNativeBinding(changed.csharpDelegateSignature, target.csharpDelegateSignature),
+      false, "native binding requires every actual parameter");
+  }
 });
 
 test("byref function shapes require their exact named delegate instead of Func or Action", () => {

@@ -121,15 +121,16 @@ export function getCsharpCallableValueSignature(type: TargetTypeRef | undefined)
 }
 
 export function csharpDelegateSignatureHasSupportedPassingModes(signature: CsharpDelegateSignatureShape): boolean {
-  return Array.isArray(signature.parameterPassingModes) &&
-    signature.parameterPassingModes.length === signature.parameters.length &&
-    (signature.returnPassing === undefined || signature.returnPassing === "byref-readwrite" ||
-      signature.returnPassing === "byref-readonly") &&
-    signature.parameters.every((_parameter, index) => {
-      const mode = signature.parameterPassingModes[index];
-      return mode === "by-value" || mode === "byref-readonly" ||
-        mode === "byref-readwrite" || mode === "byref-writeonly-must-init";
-    });
+  if (!Array.isArray(signature.parameters) || !Array.isArray(signature.parameterPassingModes) ||
+    signature.parameterPassingModes.length !== signature.parameters.length ||
+    signature.returnPassing !== undefined && signature.returnPassing !== "byref-readwrite" &&
+      signature.returnPassing !== "byref-readonly") return false;
+  for (const [index, parameter] of signature.parameters.entries()) {
+    const mode = signature.parameterPassingModes[index];
+    if (parameter === undefined || mode !== "by-value" && mode !== "byref-readonly" &&
+      mode !== "byref-readwrite" && mode !== "byref-writeonly-must-init") return false;
+  }
+  return true;
 }
 
 export function csharpDelegateSignaturesMatchNativeBinding(
