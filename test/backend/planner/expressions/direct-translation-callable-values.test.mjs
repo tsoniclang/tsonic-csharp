@@ -51,7 +51,7 @@ namespace Tsonic.Generated
             _ = __tsonic_module_initialization.Value;
         }
     }
-    public class Parser
+    public class Parser : Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
         public static string parse(string value)
         {

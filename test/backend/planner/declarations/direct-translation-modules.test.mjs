@@ -69,7 +69,7 @@ test("direct C# translation qualifies same-module values only across generated t
             _ = __tsonic_module_initialization.Value;
         }
     }
-    public class Counter
+    public class Counter : Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
         public double value;
         public Counter(double value)

@@ -24,7 +24,7 @@ test("implicit derived constructors forward exact selected generic and optional 
             return new Derived("ready", 1);
         }
     }
-    public class Base<T>
+    public class Base<T> : Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
         public Base(T value, int? count = null)
         {
@@ -32,7 +32,7 @@ test("implicit derived constructors forward exact selected generic and optional 
             _ = count;
         }
     }
-    public class Derived : Base<string>
+    public class Derived : Base<string>, Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
         public Derived(string value) : base(value)
         {
@@ -62,7 +62,7 @@ test("inherited required constructors prevent invalid C# object initializers", (
     [{
       code: "CSHARP_UNSUPPORTED_AST",
       message:
-        "Class object literal emission requires an exact constructible source class with a parameterless constructor.",
+        "No exact C# implicit conversion relates 'target:tsonic.shape:44639bed4d12f1b4314c2348fe897fc4502999828df96ede6be5f488c2424c1f<>' to 'target:tsonic.source:/project/index.ts\u0000264\u0000108\u0000149<>'.",
     }],
   );
   assert.deepEqual([...compiled.artifacts], []);

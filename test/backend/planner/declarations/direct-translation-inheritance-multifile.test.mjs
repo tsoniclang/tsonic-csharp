@@ -23,16 +23,16 @@ test("direct C# translation preserves exact project heritage across source modul
   assert.deepEqual(compiled.targetDiagnostics, []);
   assert.equal(compiled.artifacts.get("src/Models.cs"), `namespace Tsonic.Generated
 {
-    public class Base<T>
+    public class Base<T> : Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
     }
-    public class Middle<T> : Base<T>
+    public class Middle<T> : Base<T>, Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
         public Middle() : base()
         {
         }
     }
-    public class Derived : Middle<string>
+    public class Derived : Middle<string>, Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
         public Derived() : base()
         {
