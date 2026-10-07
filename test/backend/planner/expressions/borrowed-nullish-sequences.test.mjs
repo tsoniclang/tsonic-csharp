@@ -11,7 +11,8 @@ for (const surface of [undefined, "js"]) {
     const compiled = compileCsharpSource({ surface, capabilities: [createTsonicPlugin()], sourceText: borrowedNullishSequencesSource });
     assertCsharpCompilationSucceeded(compiled);
     const output = [...compiled.artifacts.values()].join("\n");
-    assert.doesNotMatch(output, /\.ToArray\(|\.Select\(|IEnumerable<|foreach|Func</u);
+    assert.doesNotMatch(output, /\.ToArray\(|\.Select\(|IEnumerable<|foreach/u);
+    assert.equal((output.match(/\bFunc</gu) ?? []).length, 1, "only the authored fallback parameter requires a delegate");
     assert.match(output, /Microsoft\.Extensions\.Primitives\.StringValues/u);
     assert.doesNotMatch(output, /IReadOnlyList<string>|Array\.Empty<string>\(\).*\?\?/u);
     const references = [fileURLToPath(new URL("../../../../../csharp-nodejs/csharp/src/Tsonic.CSharp.Node/Tsonic.CSharp.Node.csproj", import.meta.url))];
