@@ -342,6 +342,7 @@ export function analyzeCsharpExpectedTypes(
       "contextual",
     );
     recordIntrinsicArrayLiteralElements(node);
+    recordIntrinsicObjectLiteralMembers(node);
 
     const call = operations.call(node);
     const typedLocation = operations.typedLocation(node);
@@ -733,6 +734,12 @@ export function analyzeCsharpExpectedTypes(
         }
       }
     }
+  }
+
+  function recordIntrinsicObjectLiteralMembers(node: Node): void {
+    if (!policy.ast.is.IsObjectLiteralExpression(node)) return;
+    const resolution = objectShapes.resolveObjectLiteralTargetShape(objectShapes.resolveNode(node), node);
+    if (resolution?.kind === "resolved") record(node, resolution.shape.targetType, "contextual");
   }
 
   function recordIntrinsicArrayLiteralElements(node: Node): void {
