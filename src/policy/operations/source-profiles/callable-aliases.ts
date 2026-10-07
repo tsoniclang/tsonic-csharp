@@ -24,7 +24,7 @@ function acceptsSourceProfileAlias(
   );
   if (identity === undefined) return false;
   if (alias.property === undefined) return policy.ast.is.IsFunctionDeclaration(alias.selectedDeclaration);
-  const receiver = alias.property.receiver.declaration;
+  const receiver = alias.receiverDeclaration;
   const file = receiver === undefined ? undefined : policy.ast.getSourceFile(receiver);
   return receiver !== undefined && file !== undefined && policy.ast.is.IsVariableDeclaration(receiver) &&
     policy.ast.as.AsVariableDeclaration(receiver)?.Initializer === undefined &&
