@@ -29,7 +29,8 @@ export function selectCsharpFrameClosures(
     readonly declarations: Pick<CsharpDeclarationClassifications, "runtimeDefault">;
     readonly storage: Pick<CsharpStorageClassifications, "nativeBacking" | "requiresTypedLocationIdentity">;
   },
-): { readonly closures: readonly CsharpFrameClosure[]; readonly namedSelfBindings: readonly CsharpNamedSelfBinding[] } {
+): { readonly closures: readonly CsharpFrameClosure[]; readonly namedSelfBindings: readonly CsharpNamedSelfBinding[];
+  readonly captureFreeDeclarations: readonly Node[] } {
   const candidates: Node[] = [];
   const visit = (node: Node): void => {
     if (evidence.isCompileTimeMetadata(node)) return;
@@ -139,5 +140,7 @@ export function selectCsharpFrameClosures(
   }
   return Object.freeze({ closures: Object.freeze([...selected.values()]),
     namedSelfBindings: Object.freeze(captures.flatMap(candidate => candidate.namedSelf === undefined ? [] : [candidate.namedSelf])),
+    captureFreeDeclarations: Object.freeze(captures.filter(candidate =>
+      candidate.selected.captures.length === 0 && candidate.selected.receivers.length === 0).map(candidate => candidate.declaration)),
   });
 }

@@ -2,6 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { sourceBindingScope, sourceBindingHasSingleCaptureOwner, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization,
   sourceLexicalFunctionValueCreation, sourceLexicalFunctionValueOrder } from "@tsonic/target-api/source";
+import { sourceClosedCallableArguments } from "@tsonic/target-api/source";
 import type { SourceLexicalValueCreation } from "@tsonic/target-api/source";
 import { createHash } from "node:crypto";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
@@ -20,6 +21,14 @@ import { createCsharpTypeParameterEnvironment } from "../../policy/constraints/t
 import type { CsharpNamedSelfBinding } from "./named-self.js";
 import { csharpCapturedMemberAccess } from "./captured-member-access.js";
 import type { CsharpDeclarationClassifications } from "../declarations/model.js";
+import type { CsharpTargetOperationClassifications } from "../operations/model.js";
+
+export interface CsharpLambdaCreation {
+  readonly kind: "inline" | "fresh" | "cached";
+  readonly staticBody: boolean;
+}
+
+const unknownLambdaCreation: CsharpLambdaCreation = Object.freeze({ kind: "fresh", staticBody: false });
 
 export interface CsharpCaptureFrame {
   readonly scope: Node;
@@ -45,7 +54,7 @@ export interface CsharpCaptureStorage {
   physicalType(declaration: Node, logicalType: TargetTypeRef): TargetTypeRef;
   closure(declaration: Node): { readonly frame: CsharpCaptureFrame; readonly method: CsharpFrameClosure } | undefined;
   namedSelf(declaration: Node): CsharpNamedSelfBinding | undefined;
-  identityObserved(declaration: Node): boolean;
+  lambdaCreation(declaration: Node): CsharpLambdaCreation;
   requiresHelperAccess(declaration: Node): boolean;
   forShape(type: TargetTypeRef): CsharpCaptureFrame | undefined;
   valueDeclarationsAt(statement: Node): readonly Node[];
@@ -61,6 +70,7 @@ export function analyzeCsharpCaptureStorage(
   classCaptures: readonly import("../project-types/class-factories.js").CsharpClassCapture[],
   names: CsharpSourceNameResolver,
   declarations: CsharpDeclarationClassifications,
+  operations: CsharpTargetOperationClassifications,
 ): CsharpCaptureStorage {
   const environment = createCsharpTypeParameterEnvironment(source.ast, declaration => evidence.typeParameterConstraints(declaration));
   const groups = new Map<Node, Map<Node, TargetTypeRef>>();
@@ -115,7 +125,8 @@ export function analyzeCsharpCaptureStorage(
   const frameClosures = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, genericDeclarations,
     { declarations, storage });
   const namedSelfBindings = new Map(frameClosures.namedSelfBindings.map(binding => [binding.declaration, binding]));
-  const observedIdentities = new Set<Node>();
+  const captureFreeDeclarations = new Set(frameClosures.captureFreeDeclarations);
+  const lambdaCreations = new Map<Node, CsharpLambdaCreation>();
   const closures = [...frameClosures.closures,
     ...genericClosures.filter(closure => closure.scope !== closure.declaration)];
   const byScope = new Map<Node, CsharpCaptureFrame>();
@@ -212,7 +223,12 @@ export function analyzeCsharpCaptureStorage(
     if (evidence.isCompileTimeMetadata(node)) return;
     if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
       const flow = source.navigation.expressionValueFlow(node);
-      if (flow.identityCompared || flow.escapes) observedIdentities.add(node);
+      const invocationOnly = flow.passedAsArgument && hasOnlyInvocationArguments(node, source, operations);
+      const fresh = flow.identityCompared || flow.captured || flow.returned || flow.yielded ||
+        flow.storedOutsideBinding || flow.exported || flow.hasUnclassifiedUse || flow.memberWritten ||
+        flow.receiverUsed || flow.passedAsArgument && !invocationOnly || (namedSelfBindings.get(node)?.values.length ?? 0) > 0;
+      const staticBody = captureFreeDeclarations.has(node);
+      lambdaCreations.set(node, Object.freeze({ kind: fresh ? "fresh" : invocationOnly && staticBody ? "cached" : "inline", staticBody }));
     }
     if (source.ast.is.IsFunctionDeclaration(node) && source.ast.body(node) !== undefined &&
       !evidence.isCompileTimeMetadata(node)) {
@@ -262,11 +278,43 @@ export function analyzeCsharpCaptureStorage(
     frame: (scope: Node) => byScope.get(scope), binding: (declaration: Node) => byBinding.get(declaration), physicalType,
     closure: (declaration: Node) => byClosure.get(declaration), forShape: (type: TargetTypeRef) => byShape.get(targetTypeRefKey(type)),
     namedSelf: (declaration: Node) => namedSelfBindings.get(declaration),
-    identityObserved: (declaration: Node) => observedIdentities.has(declaration),
+    lambdaCreation: (declaration: Node) => lambdaCreations.get(declaration) ?? unknownLambdaCreation,
     requiresHelperAccess: (declaration: Node) => helperMembers.has(declaration),
     valueDeclarationsAt: (statement: Node) => scheduledValues.get(statement) ?? empty,
     valueCreation: (declaration: Node) => valueCreations.get(declaration),
     valueName: (declaration: Node) => valueNames.get(declaration),
+  });
+}
+
+function hasOnlyInvocationArguments(
+  expression: Node,
+  source: TargetSourceProgram,
+  operations: CsharpTargetOperationClassifications,
+): boolean {
+  const flow = source.navigation.expressionValueFlow(expression);
+  let arguments_ = sourceClosedCallableArguments(expression, source);
+  if (arguments_ === undefined && flow.aliasDeclarations.length === 0 && flow.uses.length === 1) {
+    const use = flow.uses[0]!;
+    if (use.role !== "argument" || use.throughMember) return false;
+    let argument = use.reference;
+    let call = source.ast.parent(argument);
+    for (let depth = 0; call !== undefined && source.ast.is.IsParenthesizedExpression(call) && depth < 256; depth += 1) {
+      if (source.ast.as.AsParenthesizedExpression(call)?.Expression !== argument) return false;
+      argument = call;
+      call = source.ast.parent(argument);
+    }
+    if (call === undefined || !source.ast.is.IsCallExpression(call) ||
+      source.ast.as.AsCallExpression(call)?.QuestionDotToken !== undefined) return false;
+    const argumentIndex = source.ast.arguments(call).indexOf(argument);
+    if (argumentIndex < 0 || operations.call(call)?.source?.sourceArguments[argumentIndex]?.expression !== argument) return false;
+    arguments_ = [{ call, argument, argumentIndex }];
+  }
+  return arguments_ !== undefined && arguments_.every(argument => {
+    const selected = operations.call(argument.call)?.target;
+    if (selected?.kind !== "resolved" || selected.call.origin !== "source-profile" ||
+      !selected.call.invocationOnlyCallableArgumentIndexes?.includes(argument.argumentIndex)) return false;
+    const bindings = selected.call.arguments.filter(binding => binding.sourceArgumentIndex === argument.argumentIndex);
+    return bindings.length === 1 && bindings[0]?.sourceForm === "value";
   });
 }
 

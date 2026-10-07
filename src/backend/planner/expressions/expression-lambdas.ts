@@ -95,10 +95,11 @@ export function planArrowFunctionExpression(
 ): CsharpPlannedValue | undefined {
   const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
   const closure = input.scope.nativeCallableBody === node ? undefined : input.program.captureStorage.closure(node);
+  const creationPolicy = input.program.captureStorage.lambdaCreation(node);
   const complete = (expression: CsharpExpression | undefined): CsharpPlannedValue | undefined => {
     const carrier = closure?.method.type ?? targetContext?.carrier;
     if (expression?.kind !== "LambdaExpression" || input.scope.nativeCallableBody === node ||
-      !input.program.captureStorage.identityObserved(node)) {
+      creationPolicy.kind === "inline") {
       return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression, carrier);
     }
     const body: CsharpBlock = expression.body.kind === "Block" ? expression.body : {
@@ -109,7 +110,7 @@ export function planArrowFunctionExpression(
     };
     const creation = planCsharpLocalLambdaCreation(node, input, diagnostics, targetContext,
       input.names.temporaryName(`__tsonic_callable_${input.program.source.ast.pos(node)}`),
-      expression.parameters, body, expression.async === true, false);
+      expression.parameters, body, expression.async === true, creationPolicy);
     return creation === undefined ? undefined : planCsharpExpressionCompletion(
       node, sourceFile, input, diagnostics, creation.value, carrier, [creation.method]);
   };
@@ -235,6 +236,7 @@ export function planFunctionExpression(
   }
   const creationState = state ?? createDestructuringPlannerState(node, input.program.source.ast);
   const self = input.program.captureStorage.closure(node) === undefined ? input.program.captureStorage.namedSelf(node) : undefined;
+  const creationPolicy = input.program.captureStorage.lambdaCreation(node);
   const captureContext = self === undefined ? undefined
     : planCsharpNamedSelfCaptureContext(self, input, diagnostics, creationState);
   if (self !== undefined && captureContext === undefined) return undefined;
@@ -256,13 +258,13 @@ export function planFunctionExpression(
     for (const reference of self.values) plannerState.expressionOverrides.set(reference, { kind: "IdentifierName", name: valueName! });
   }
   const completeBody = (body: CsharpBlock, async = false): CsharpPlannedValue | undefined => {
-    if (self === undefined && (input.scope.nativeCallableBody === node || !input.program.captureStorage.identityObserved(node))) {
+    if (self === undefined && (input.scope.nativeCallableBody === node || creationPolicy.kind === "inline")) {
       return complete({ kind: "LambdaExpression", ...(async ? { async: true } : {}), parameters, body });
     }
     const creation = planCsharpLocalLambdaCreation(node, input, diagnostics, targetContext,
       methodName ?? input.names.temporaryName(`__tsonic_callable_${input.program.source.ast.pos(node)}`),
       parameters, body, async,
-      self !== undefined && self.captures.length === 0 && !self.capturesReceiver && valueName === undefined);
+      { ...creationPolicy, staticBody: creationPolicy.staticBody && valueName === undefined });
     if (creation === undefined || targetContext === undefined) return undefined;
     const { method, value } = creation;
     return valueName === undefined ? complete(value, [...captureContext?.prelude ?? [], method]) : complete({ kind: "IdentifierName", name: valueName }, [

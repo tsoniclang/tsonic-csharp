@@ -60,6 +60,26 @@ function fixture(text) {
   return { source, loops, declaration, owner, types, storageTypes, metadata, runtimeDefaults, nativeBackings, select };
 }
 
+test("capture-free declaration identities reuse exact lexical binding and receiver evidence", () => {
+  const input = fixture(`let globalValue = 1;
+    export function outer(value: number) {
+      const stateless = () => globalValue;
+      const captured = () => value;
+      const named = function self(count: number): number { return count === 0 ? 1 : self(count - 1); };
+      return stateless() + captured() + named(1);
+    }
+    export class Receiver { value = 1; read() { const receiver = () => this.value; return receiver(); } }
+    export class Derived extends Receiver { read() { const superRead = () => super.read(); return superRead(); } }`);
+  const selected = input.select();
+  assert.equal(selected.issues.length, 0);
+  assert.equal(selected.captureFreeDeclarations.includes(input.owner("stateless")), true, "module storage is not a lexical activation");
+  assert.equal(selected.captureFreeDeclarations.includes(input.owner("named")), true, "exact self recursion is not an outer capture");
+  assert.equal(selected.captureFreeDeclarations.includes(input.owner("captured")), false, "lexical parameter capture");
+  assert.equal(selected.captureFreeDeclarations.includes(input.owner("receiver")), false, "lexical this receiver capture");
+  assert.equal(selected.captureFreeDeclarations.includes(input.owner("superRead")), false, "lexical super receiver capture");
+  assert.equal(Object.isFrozen(selected.captureFreeDeclarations), true);
+});
+
 test("prepared constructor default and body closures share the exact parameter activation", () => {
   const input = fixture(`class Base { constructor(callback: () => number) { callback(); } }
     export class Derived extends Base {
