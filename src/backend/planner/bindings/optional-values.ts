@@ -39,7 +39,8 @@ export function planCsharpBindingDefaultValue(
   const element = getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier);
   const optional = element !== undefined || isCsharpJsValueTargetType(carrier);
   if (isCsharpAbsenceTargetType(carrier)) {
-    const absent = { prelude: [planCsharpDiscardedStatement(value, carrier), ...defaultValue.prelude], completion: defaultValue.completion };
+    const discarded = planCsharpDiscardedStatement(value, carrier);
+    const absent = { prelude: [...(discarded === undefined ? [] : [discarded]), ...defaultValue.prelude], completion: defaultValue.completion };
     return presence === undefined ? absent : planCsharpValueBranch(node, sourceFile, input, diagnostics,
       csharpPlannedValue(csharpSourcePrimitiveTargetType("bool"), presence), absent, defaultValue, resultCarrier);
   }

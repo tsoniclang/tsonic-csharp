@@ -27,9 +27,11 @@ export function consumeCsharpPlannedValue(
 export function planCsharpPlannedDiscard(
   planned: CsharpPlannedValue, explicit = false,
 ): readonly CsharpStatement[] {
-  return consumeCsharpPlannedValue(planned, expression => csharpPlannedExpressionIsStable(expression) ? [] : [
-    planCsharpDiscardedStatement(expression, planned.completion.carrier, explicit),
-  ]);
+  return consumeCsharpPlannedValue(planned, expression => {
+    if (csharpPlannedExpressionIsStable(expression)) return [];
+    const statement = planCsharpDiscardedStatement(expression, planned.completion.carrier, explicit);
+    return statement === undefined ? [] : [statement];
+  });
 }
 
 export function expressionStatement(expression: CsharpExpression): CsharpStatement {
@@ -50,13 +52,14 @@ export function planCsharpDiscardedStatement(
   expression: CsharpExpression,
   targetType: TargetTypeRef | undefined,
   explicit = false,
-): CsharpStatement {
+): CsharpStatement | undefined {
   if (isCsharpNeverTargetType(targetType)) {
     return { kind: "ThrowStatement", expression: planCsharpNeverValue(expression, qualifiedCsharpType("System", "Exception")) };
   }
-  return expressionStatement(explicit && targetType !== undefined
+  const discarded = explicit && targetType !== undefined
     ? planExplicitlyDiscardedExpression(expression, targetType)
-    : planDiscardedExpression(expression, targetType));
+    : planDiscardedExpression(expression, targetType);
+  return discarded === undefined ? undefined : expressionStatement(discarded);
 }
 
 export function planCsharpAbsenceReturn(
@@ -85,7 +88,7 @@ export function isVoidCsharpType(type: CsharpTypeNode): boolean {
 export function planDiscardedExpression(
   expression: CsharpExpression,
   targetType: TargetTypeRef | undefined,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const task = getCsharpTaskResultTargetType(getCsharpNullableElementTargetType(targetType) ?? targetType);
   return task === undefined && isValidCsharpExpressionStatement(expression)
     ? expression
@@ -95,7 +98,7 @@ export function planDiscardedExpression(
 export function planExplicitlyDiscardedExpression(
   expression: CsharpExpression,
   targetType: TargetTypeRef,
-): CsharpExpression {
+): CsharpExpression | undefined {
   return isCsharpVoidTargetType(targetType)
     ? expression
     : discardAssignment(expression);
@@ -117,7 +120,11 @@ function isValidCsharpExpressionStatement(expression: CsharpExpression): boolean
   }
 }
 
-function discardAssignment(expression: CsharpExpression): CsharpExpression {
+function discardAssignment(expression: CsharpExpression): CsharpExpression | undefined {
+  let selected = expression;
+  let depth = 0;
+  while (selected.kind === "ParenthesizedExpression" && depth++ < 2048) selected = selected.expression;
+  if (selected.kind === "LambdaExpression") return undefined;
   return {
     kind: "AssignmentExpression",
     left: { kind: "IdentifierName", name: "_" },
