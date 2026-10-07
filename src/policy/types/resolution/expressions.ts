@@ -214,7 +214,7 @@ export function resolveSelectedExpressionType(
 
 
 export function resolveMemberAccessTargetType(
-  { host, optionalAccessTargetType, policy, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSelectedSymbolType }: CsharpTypeResolutionScope,
+  { host, optionalAccessTargetType, policy, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSelectedSymbolType, resolveSelectedValueWithState }: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -266,6 +266,13 @@ export function resolveMemberAccessTargetType(
     ? selectedType ?? selection.source.sourceReadType ?? selection.source.sourceWriteType
     : undefined;
   const declaredMemberType = queries.types.typeOfSymbol(selection.source.selectedSymbol);
+  if (selection.source.selectedDeclaration !== undefined && host.ast.is.IsBindingElement(selection.source.selectedDeclaration)) {
+    const selected = selectedSourceType ?? declaredMemberType;
+    const projected = mode === "storage" || selected === undefined
+      ? host.bindingProjection(selection.source.selectedDeclaration, queries.sourceFile)?.bindingCarrier
+      : resolveSelectedValueWithState(node, selected, queries.sourceFile, nextState(state));
+    return optionalAccessTargetType(projected, selection.source.optionalChain);
+  }
   const invocationType = (type: TargetTypeRef | undefined): TargetTypeRef | undefined => {
     const declaration = selection.source.selectedDeclaration;
     return selection.source.callCallee && declaration !== undefined &&

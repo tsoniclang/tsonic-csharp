@@ -9,8 +9,44 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeParameter } from "../../../target-ast/roslyn/index.js";
 import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../../types/type-parameters.js";
 import { csharpNullableTargetType } from "../../../../target-model/types/nullable.js";
+import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import type { CsharpPlanningContext } from "../../context.js";
 
-export function renderCsharpStructuralInterfaceMembers(typeParameterNames: ReadonlyMap<string, string> | undefined, shape: CsharpObjectShapeFact, storage: CsharpStorageClassifications, methodValues: boolean, inherited: readonly CsharpObjectShapeFact[]): readonly CsharpInterfaceMember[] | undefined {
+export interface CsharpInheritedStructuralInterface {
+  readonly shape: CsharpObjectShapeFact;
+  readonly methodValues: boolean;
+}
+
+export function csharpInheritedStructuralInterfaces(
+  shape: CsharpObjectShapeFact,
+  input: CsharpPlanningContext,
+): readonly CsharpInheritedStructuralInterface[] {
+  return (shape.implements ?? []).flatMap(type => {
+    const parent = input.types.objectShapes.resolveTarget(type);
+    return parent === undefined ? [] : [{
+      shape: parent, methodValues: input.artifacts.objectShapeHasCapability(parent, "method-values"),
+    }];
+  });
+}
+
+export function csharpMethodValueHandleIsInherited(
+  shape: CsharpObjectShapeFact,
+  member: CsharpObjectShapeFact["members"][number],
+  inherited: readonly CsharpInheritedStructuralInterface[],
+): boolean {
+  const name = objectShapeStorageMemberName(shape, member);
+  const valueType = member.methodValueContract ?? member.type;
+  return inherited.some(parent => parent.shape.members.some(candidate => {
+    if (candidate.memberKind !== "method" || !parent.methodValues && candidate.optional !== true ||
+      objectShapeStorageMemberName(parent.shape, candidate) !== name) return false;
+    const inheritedType = candidate.methodValueContract ?? candidate.type;
+    return inheritedType !== undefined && valueType !== undefined && targetTypeRefEquals(
+      member.optional === true ? csharpNullableTargetType(valueType) : valueType,
+      candidate.optional === true ? csharpNullableTargetType(inheritedType) : inheritedType);
+  }));
+}
+
+export function renderCsharpStructuralInterfaceMembers(typeParameterNames: ReadonlyMap<string, string> | undefined, shape: CsharpObjectShapeFact, storage: CsharpStorageClassifications, methodValues: boolean, inherited: readonly CsharpInheritedStructuralInterface[]): readonly CsharpInterfaceMember[] | undefined {
   const result: CsharpInterfaceMember[] = [];
   for (const member of shape.members) {
     if (member.memberKind === "method") {
@@ -19,7 +55,9 @@ export function renderCsharpStructuralInterfaceMembers(typeParameterNames: Reado
         const type = valueType === undefined ? undefined : csharpTypeFromTargetTypeRef(
           member.optional === true ? csharpNullableTargetType(valueType) : valueType, typeParameterNames);
         if (type === undefined) return undefined;
-        result.push({ kind: "PropertyDeclaration", name: objectShapeStorageMemberName(shape, member), type, writable: false });
+        const name = objectShapeStorageMemberName(shape, member);
+        if (!csharpMethodValueHandleIsInherited(shape, member, inherited))
+          result.push({ kind: "PropertyDeclaration", name, type, writable: false });
         if (member.optional === true) continue;
       }
       const signature = getCsharpDelegateSignature(member.type);
@@ -55,7 +93,7 @@ export function renderCsharpStructuralInterfaceMembers(typeParameterNames: Reado
   }
   const inheritedMembers: CsharpInterfaceMember[] = [];
   for (const parent of inherited) {
-    const members = renderCsharpStructuralInterfaceMembers(typeParameterNames, parent, storage, methodValues, []);
+    const members = renderCsharpStructuralInterfaceMembers(typeParameterNames, parent.shape, storage, parent.methodValues, []);
     if (members === undefined) return undefined;
     inheritedMembers.push(...members);
   }

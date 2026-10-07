@@ -54,7 +54,7 @@ export {
 
 import { isCsharpEmptyObjectTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { guardCsharpFrozenDataProperties } from "./frozen-data-properties.js";
-import { renderCsharpStructuralInterfaceMembers } from "./declarations/structural-interfaces.js";
+import { csharpInheritedStructuralInterfaces, renderCsharpStructuralInterfaceMembers } from "./declarations/structural-interfaces.js";
 import { renderCsharpMethodValueContracts } from "./declarations/method-values.js";
 import { csharpClosedValueCarrierInterfaceType } from "./declarations/interfaces.js";
 import { csharpEnumerableKeysContract, isCsharpEnumerableKeysMember, renderCsharpEnumerableKeys } from "./declarations/enumerable-keys.js";
@@ -287,10 +287,7 @@ function renderObjectShapeDeclaration(
       input.artifacts.objectShapeArtifacts().some(artifact =>
         targetTypeRefEquals(artifact.fact.targetType, base) &&
         artifact.capabilities.includes("enumerable-keys")));
-    const inherited = (fact.implements ?? []).flatMap(type => {
-      const shape = input.types.objectShapes.resolveTarget(type);
-      return shape === undefined ? [] : [shape];
-    });
+    const inherited = csharpInheritedStructuralInterfaces(fact, input);
     const contractMembers = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, fact, input.program.storage, capabilities.includes("method-values"), inherited);
     if (contractMembers === undefined || interfaces === undefined || typeParameters === undefined) {
       diagnostics.push({ code: "CSHARP_STRUCTURAL_INTERFACE_NOT_CLOSED", category: "error", source: "tsonic-csharp",

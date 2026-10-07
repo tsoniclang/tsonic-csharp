@@ -60,7 +60,7 @@ export function planBindingPatternFromExpression(
   state: DestructuringPlannerState,
   sourceCarrier?: TargetTypeRef,
   planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
-  retainBinding?: (binding: CsharpEntryBinding) => void,
+  retainBinding?: (binding: CsharpEntryBinding, declaration: Node) => void,
 ): readonly CsharpStatement[] {
   const projectionPlanner: BindingProjectionPlanner = (
     name,
@@ -106,7 +106,7 @@ function planBindingNameFromProjection(
   state: DestructuringPlannerState,
   projectedCarrier?: TargetTypeRef,
   planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
-  retainBinding?: (binding: CsharpEntryBinding) => void,
+  retainBinding?: (binding: CsharpEntryBinding, declaration: Node) => void,
 ): readonly CsharpStatement[] {
   if (HasSourceKind(input.program.source.ast, name, KindIdentifier)) {
     const declaration = input.program.sourceNavigation.sourceReferenceFor(name)?.declaration ?? projectionNode;
@@ -130,8 +130,12 @@ function planBindingNameFromProjection(
           getCsharpTypeForNode(name, sourceFile, input, invalidCsharpType("missing destructured binding type"), diagnostics),
         initializer: projected,
       } : undefined;
-    if (identity !== undefined) retainBinding?.(identity);
-    if (local !== undefined) retainBinding?.(local);
+    if (retainBinding !== undefined && declaration === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(name, "A retained binding requires its exact source declaration."));
+      return [];
+    }
+    if (identity !== undefined) retainBinding?.(identity, declaration!);
+    if (local !== undefined) retainBinding?.(local, declaration!);
     return [...(identity === undefined ? [] : [identity]), ...(local === undefined ? [captured!] : [local])];
   }
   if (HasSourceKind(input.program.source.ast, name, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, name, KindArrayBindingPattern)) {

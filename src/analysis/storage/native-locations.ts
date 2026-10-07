@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { readCsharpSourceField } from "../../policy/types/resolution/source-markers.js";
-import { sourceParameterIsProperty } from "@tsonic/target-api/source";
+import { sourceDeclarationIsModuleScoped, sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
@@ -41,7 +41,7 @@ export function classifyCsharpNativeLocation(
   expression: Node,
   sourceFile: SourceFile,
   classProperty: (declaration: Node) => CsharpClassPropertyStorage | undefined,
-  physical: Pick<CsharpStorageClassifications, "nativeBacking" | "nativeField" | "nativeArray" | "type">,
+  physical: Pick<CsharpStorageClassifications, "nativeBacking" | "nativeField" | "nativeArray" | "nativeModuleField" | "type">,
   active = new WeakSet<Node>(),
 ): CsharpNativeLocationSelection {
   if (active.has(expression)) return rejected("The selected native storage contains a receiver cycle.");
@@ -78,8 +78,9 @@ export function classifyCsharpNativeLocation(
     if (policy.ast.is.IsIdentifier(expression)) {
       const declaration = storage.declaration;
       const local = declaration !== undefined &&
-        (policy.ast.is.IsParameterDeclaration(declaration) || policy.ast.is.IsBindingElement(declaration) ||
-          policy.ast.is.IsVariableDeclaration(declaration) && !isModuleVariable(policy, declaration));
+        (policy.ast.is.IsParameterDeclaration(declaration) ||
+          (policy.ast.is.IsBindingElement(declaration) || policy.ast.is.IsVariableDeclaration(declaration)) &&
+          (!sourceDeclarationIsModuleScoped(declaration, policy.ast) || physical.nativeModuleField(declaration)));
       return resolved(expression, storageType, assignment, storage.writable,
         local ? "byref-readwrite" : undefined);
     }
@@ -100,10 +101,11 @@ export function classifyCsharpNativeLocation(
       const declaration = selection.source.selectedDeclaration;
       const classStorage = declaration === undefined ? undefined : classProperty(declaration);
       const sourceField = declaration === undefined ? undefined : readCsharpSourceField(policy.sourceFacts, [declaration]);
+      const moduleField = declaration !== undefined && physical.nativeModuleField(declaration);
       const field = selection.kind === "resolved" ? selection.targetMember.kind === "field"
-        : classStorage?.kind === "field" || sourceField !== undefined;
+        : classStorage?.kind === "field" || sourceField !== undefined || moduleField;
       const nativeReadonly = selection.kind === "resolved" || sourceField !== undefined
-        ? !storage.writable : classStorage?.readonly !== false;
+        ? !storage.writable : !moduleField && classStorage?.readonly !== false;
       const receiverExpression = selection.source.receiver.expression;
       const receiverType = physical.type(receiverExpression) ??
         policy.types.resolveSelectedValue(receiverExpression, selection.source.receiver.type, sourceFile);
@@ -118,7 +120,7 @@ export function classifyCsharpNativeLocation(
           : rejected("A native field cell must retain its finalized physical pointee carrier.");
       }
       const isStatic = selection.kind === "resolved" ? selection.receiver.kind === "none"
-        : declaration !== undefined && policy.ast.hasModifierKind(declaration, "static");
+        : moduleField || declaration !== undefined && policy.ast.hasModifierKind(declaration, "static");
       if (!isStatic && receiverType === undefined) return resolved(expression, storageType, assignment, storage.writable);
       if (!isStatic && receiverType !== undefined && isCsharpValueTypeTargetType(receiverType)) {
         const receiver = classifyCsharpNativeLocation(policy, receiverExpression, sourceFile, classProperty, physical, active);
@@ -153,14 +155,6 @@ function resolved(expression: Node, storageType: TargetTypeRef, assignment: Csha
     ...(receiver === undefined ? {} : { receiver }),
     ...(nativeCell === undefined ? {} : { nativeCell }),
     ...(passing === undefined ? {} : { address: Object.freeze({ passing, capturedReferenceCrossesSuspension: false as const }) }) });
-}
-
-function isModuleVariable(policy: CsharpPolicyContext, declaration: Node): boolean {
-  const list = policy.ast.parent(declaration);
-  const statement = list === undefined ? undefined : policy.ast.parent(list);
-  const parent = statement === undefined ? undefined : policy.ast.parent(statement);
-  return list !== undefined && policy.ast.is.IsVariableDeclarationList(list) && statement !== undefined &&
-    policy.ast.is.IsVariableStatement(statement) && parent !== undefined && policy.ast.is.IsSourceFile(parent);
 }
 
 function rejected(reason: string): CsharpNativeLocationSelection { return { kind: "rejected", reason }; }

@@ -22,6 +22,7 @@ export interface CsharpNativeArrayStorage {
 }
 
 export interface CsharpStorageClassifications extends CsharpStorageRepresentationClassifications {
+  nativeModuleField(declaration: Node): boolean;
   nativeLocation(expression: Node): import("./native-locations.js").CsharpNativeLocationSelection | undefined;
   readonly closedNativeContracts: readonly TargetTypeRef[];
   readonly nativeArrays: readonly { readonly subject: Node; readonly storage: CsharpNativeArrayStorage }[];

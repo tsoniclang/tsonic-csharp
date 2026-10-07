@@ -181,10 +181,9 @@ export function analyzeCsharpExpectedTypes(
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([, type]) => type)),
     forExpression(expression) {
-      return Object.freeze([...(byExpression.get(expression)?.entries() ?? [])]
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([, use]) => use.targetType));
+      return expressionTypes(expression);
     },
+    requiredTypesForExpression(expression) { return expressionTypes(expression, "required"); },
     requiresExactIntegerConversion(expression, targetType) {
       return byExpression.get(expression)?.get(targetTypeRefKey(targetType))?.exactInteger === true;
     },
@@ -210,6 +209,13 @@ export function analyzeCsharpExpectedTypes(
     },
   };
   return Object.freeze(classifications);
+
+  function expressionTypes(expression: Node, strength?: ExpectedTypeStrength): readonly TargetTypeRef[] {
+    return Object.freeze([...(byExpression.get(expression)?.entries() ?? [])]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .filter(([, use]) => strength === undefined || use.strength === strength)
+      .map(([, use]) => use.targetType));
+  }
 
   function returnExpressionTarget(
     callable: CsharpCallableContractIndex["contracts"][number],

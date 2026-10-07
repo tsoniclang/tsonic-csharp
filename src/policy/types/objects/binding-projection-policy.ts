@@ -54,7 +54,7 @@ export function createCsharpBindingProjectionPolicy(
 
   function resolveProjection(
     node: Node | undefined,
-    sourceFile: SourceFile | undefined,
+    _sourceFile: SourceFile | undefined,
     state: CsharpTypeResolutionState,
   ): CsharpBindingProjection | undefined {
     const binding = selectedBindingElement(node, host);
@@ -65,12 +65,14 @@ export function createCsharpBindingProjectionPolicy(
     if (pattern === undefined) {
       return undefined;
     }
+    const declarationFile = host.ast.getSourceFile(binding);
+    if (declarationFile === undefined) return undefined;
     activeBindings.add(binding);
     try {
       const ownerType = resolveBindingOwnerType(
         host.ast.parent(pattern),
         pattern,
-        sourceFile ?? host.ast.getSourceFile(binding),
+        declarationFile,
         state,
         host,
         (node, file, state) => resolveProjection(node, file, state)?.bindingCarrier,
@@ -86,7 +88,7 @@ export function createCsharpBindingProjectionPolicy(
       const declaration = host.ast.as.AsBindingElement(binding);
       if (declaration?.Initializer === undefined) return Object.freeze({ storageCarrier: projected, bindingCarrier: projected });
       const storageCarrier = csharpNullableTargetType(projected);
-      const defaultValue = host.typeResolver.resolveNode(declaration.Initializer, sourceFile, nextState(state));
+      const defaultValue = host.typeResolver.resolveNode(declaration.Initializer, declarationFile, nextState(state));
       if (defaultValue === undefined) return undefined;
       const bindingCarrier = csharpBindingDefaultCarrier(projected, defaultValue);
       return Object.freeze({ storageCarrier, bindingCarrier });

@@ -16,6 +16,7 @@ import {
   KindSetAccessor,
   KindVariableDeclaration,
   Node_Text,
+  sourceDeclarationIsModuleScoped,
 } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -287,32 +288,11 @@ function isProviderVirtualDeclarationIdentifier(
 }
 
 function isModuleStaticValueDeclaration(declaration: Node, input: CsharpPlanningContext): boolean {
-  if (
-    HasSourceKind(input.program.source.ast, declaration, KindFunctionDeclaration) ||
-    HasSourceKind(input.program.source.ast, declaration, KindExportAssignment)
-  ) {
-    const parent = input.program.source.ast.parent(declaration);
-    return parent !== undefined && input.program.source.ast.is.IsSourceFile(parent);
-  }
-  if (!HasSourceKind(input.program.source.ast, declaration, KindVariableDeclaration)) {
-    return false;
-  }
-  const declarationList = input.program.source.ast.parent(declaration);
-  if (
-    declarationList === undefined ||
-    !input.program.source.ast.is.IsVariableDeclarationList(declarationList)
-  ) {
-    return false;
-  }
-  const statement = input.program.source.ast.parent(declarationList);
-  if (
-    statement === undefined ||
-    !input.program.source.ast.is.IsVariableStatement(statement)
-  ) {
-    return false;
-  }
-  const sourceFile = input.program.source.ast.parent(statement);
-  return sourceFile !== undefined && input.program.source.ast.is.IsSourceFile(sourceFile);
+  return (HasSourceKind(input.program.source.ast, declaration, KindFunctionDeclaration) ||
+    HasSourceKind(input.program.source.ast, declaration, KindExportAssignment) ||
+    HasSourceKind(input.program.source.ast, declaration, KindVariableDeclaration) ||
+    input.program.source.ast.is.IsBindingElement(declaration)) &&
+    sourceDeclarationIsModuleScoped(declaration, input.program.source.ast);
 }
 
 function isModuleTypeValueDeclaration(declaration: Node, input: CsharpPlanningContext): boolean {

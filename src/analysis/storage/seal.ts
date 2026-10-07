@@ -8,6 +8,7 @@ import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications } from "./model.js";
 import { analyzeCsharpNativeBacking } from "./native-backing.js";
 import { classifyCsharpNativeLocation } from "./native-locations.js";
+import { classifyCsharpModuleFieldDemand } from "./module-fields.js";
 
 export function sealCsharpStorage(
   policy: CsharpPolicyContext,
@@ -22,6 +23,7 @@ export function sealCsharpStorage(
   const sourceFiles = policy.sourceFiles;
   const classifications: CsharpStorageClassifications = {
     ...representations,
+    nativeModuleField: classifyCsharpModuleFieldDemand(policy, evidence),
     closedNativeContracts: backing.closedContracts,
     nativeArrays: backing.arrays,
     nativeArray: backing.array,

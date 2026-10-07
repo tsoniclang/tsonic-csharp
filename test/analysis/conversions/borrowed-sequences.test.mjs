@@ -34,7 +34,7 @@ function sealedConversions(inputs, elementTarget = int64) {
   return analysis.seal({
     operations: { nativeUnreachable: () => false, resultType: () => undefined, call: () => undefined,
       borrowedSequence: node => node === expression ? sequence : undefined },
-    expectedTypes: { forExpression: () => [], callableTarget: () => undefined },
+    expectedTypes: { forExpression: () => [], requiredTypesForExpression: () => [], callableTarget: () => undefined },
     storage: { type: () => undefined },
   });
 }

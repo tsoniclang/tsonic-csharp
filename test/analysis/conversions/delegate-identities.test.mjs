@@ -27,7 +27,7 @@ function fixture(text) {
     if (source.ast.is.IsCallExpression(node)) {
       const argument = source.ast.as.AsCallExpression(node)?.Arguments?.Nodes?.[0];
       if (argument !== undefined) expressions.set(argument, new Map([["exact", Object.freeze({
-        source: sourceType, target: targetType, selection: conversion, identityRequired: true,
+        source: sourceType, target: targetType, selection: conversion, runtimeDemand: true, identityRequired: true,
       })]]));
     }
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
@@ -50,6 +50,21 @@ test("sealing reuses exact immutable binding and alias identities without creati
   assert.equal(records[0].delegateIdentity === records[1].delegateIdentity, true);
   assert.equal(Object.isFrozen(records[0].delegateIdentity), true);
   assert.equal(Object.isFrozen([...scopes.values()][0]), true);
+});
+
+test("contextual queries cannot demand an adapter or contribute a second identity use", () => {
+  for (const demanded of [0, 1]) {
+    const input = fixture("function consume(callback: (value: number) => void): void {} export function use(callback: (value: number) => void): void { consume(callback); consume(callback); }");
+    for (const [index, classifications] of [...input.expressions.values()].entries()) {
+      classifications.set("exact", Object.freeze({ ...classifications.get("exact"),
+        runtimeDemand: index < demanded, identityRequired: index < demanded }));
+    }
+    const selected = input.seal();
+    assert.equal(selected.scopes.size, 0);
+    assert.equal(selected.issues.length, demanded, "an event-removal demand still needs real retained identity");
+    assert.equal([...input.expressions.values()].some(records => records.get("exact").delegateIdentity !== undefined),
+      false, "queried conversions never materialize native adapters");
+  }
 });
 
 test("sealing does not conflate same-spelled distinct declarations or separate callable activations", () => {

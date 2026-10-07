@@ -7,6 +7,7 @@ import { objectShapeStorageMemberName } from "../object-shape-storage.js";
 import { csharpNullableTargetType } from "../../../../target-model/types/nullable.js";
 import { csharpObjectShapeMethodDeclaration } from "../../../../target-model/types/method-values.js";
 import { csharpPresentObjectShapeMethod } from "../../../../target-model/types/method-values.js";
+import { csharpInheritedStructuralInterfaces, csharpMethodValueHandleIsInherited } from "./structural-interfaces.js";
 
 export function renderCsharpMethodValueContracts(
   shape: CsharpObjectShapeFact,
@@ -24,10 +25,12 @@ export function renderCsharpMethodValueContracts(
     if (contract === undefined) return undefined;
     pending.push(...contract.implements ?? []);
     if (!input.artifacts.objectShapeHasCapability(contract, "method-values")) continue;
+    const inherited = csharpInheritedStructuralInterfaces(contract, input);
     const explicitInterface = csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames);
     if (explicitInterface === undefined) return undefined;
     for (const required of contract.members) {
       if (required.memberKind !== "method") continue;
+      if (csharpMethodValueHandleIsInherited(contract, required, inherited)) continue;
       const nativeMethod = required.methodValueContract !== undefined;
       const requiredSignature = csharpPresentObjectShapeMethod(required);
       const exact = shape.members.filter(candidate => {

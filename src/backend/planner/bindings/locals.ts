@@ -29,6 +29,7 @@ import {
   declareCsharpLocalBindingName,
 } from "./index.js";
 import type { DestructuringPlannerState } from "./index.js";
+import type { CsharpEntryBinding } from "./binding-patterns.js";
 import { planCsharpCapturedInitialization } from "./capture-storage.js";
 import {
   csharpTypeFromTargetTypeRef,
@@ -198,6 +199,7 @@ export function planLocalDeclarationStatements(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
+  retainBinding?: (binding: CsharpEntryBinding, declaration: Node) => void,
 ): readonly CsharpStatement[] {
   if (input.program.sourceEvidence.isCompileTimeMetadata(declarationNode)) return [];
   const variable = AsVariableDeclaration(input.program.source.ast, declarationNode)!;
@@ -298,7 +300,7 @@ export function planLocalDeclarationStatements(
       },
     ];
   }
-  const destructured = planVariableBindingStatements(variable.name, variable.Initializer, sourceFile, input, diagnostics, state);
+  const destructured = planVariableBindingStatements(variable.name, variable.Initializer, sourceFile, input, diagnostics, state, retainBinding);
   if (destructured !== undefined) {
     return destructured;
   }

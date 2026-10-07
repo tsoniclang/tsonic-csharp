@@ -15,7 +15,7 @@ export function sealCsharpDelegateAdapterIdentities(
     readonly uses: Map<Node, string> }>>();
   for (const [expression, classifications] of expressions) for (const [key, classification] of classifications) {
     const selection = classification.selection;
-    if (selection.kind !== "delegate-adapter" || selection.strategy !== "adaptation") continue;
+    if (!classification.runtimeDemand || selection.kind !== "delegate-adapter" || selection.strategy !== "adaptation") continue;
     const declaration = stableSourceBinding(expression, policy, classification.source);
     const scope = declaration === undefined ? undefined : sourceBindingScope(declaration, policy.ast);
     if (declaration === undefined || scope === undefined || !policy.ast.is.IsBlock(scope) ||

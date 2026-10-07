@@ -63,8 +63,10 @@ export function planTopLevelVariableStatement(
       continue;
     }
     const variable = AsVariableDeclaration(input.program.source.ast, declaration)!;
+    const retainedBindings = new Map<string, Node>();
     const destructured = isBindingPattern(variable.name, input)
-      ? planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state)
+      ? planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state,
+        (binding, sourceDeclaration) => retainedBindings.set(binding.name, sourceDeclaration))
       : undefined;
     if (destructured !== undefined) {
       const planned = topLevelBindingFields(
@@ -72,6 +74,8 @@ export function planTopLevelVariableStatement(
         diagnostics,
         declaration,
         reassignable,
+        retainedBindings,
+        input,
       );
       moduleMembers.push(...planned.fields);
       topLevelStatements.push(...planned.statements);
@@ -115,6 +119,7 @@ export function planTopLevelVariableStatement(
       field.type,
       "public",
       reassignable,
+      input.program.storage.nativeModuleField(declaration),
     ));
     if (initial !== undefined) topLevelStatements.push(...initial.prelude);
     if (field.initializer !== undefined) {
@@ -146,6 +151,8 @@ function topLevelBindingFields(
   diagnostics: TargetDiagnostic[],
   diagnosticNode: Node,
   reassignable: boolean,
+  bindings: ReadonlyMap<string, Node>,
+  input: CsharpPlanningContext,
 ): TopLevelBindingPlan {
   const fields: CsharpTypeMember[] = [];
   const initializers: CsharpStatement[] = [];
@@ -154,12 +161,13 @@ function topLevelBindingFields(
       diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "Top-level destructuring requires field-initializable binding projections."));
       continue;
     }
-    const synthetic = statement.name.startsWith("__tsonic_destructure");
+    const declaration = bindings.get(statement.name);
     fields.push(topLevelBindingMember(
       statement.name,
       statement.type,
-      synthetic ? "private" : "public",
+      declaration === undefined ? "private" : "public",
       reassignable,
+      declaration !== undefined && input.program.storage.nativeModuleField(declaration),
     ));
     if (statement.initializer !== undefined) {
       initializers.push(topLevelFieldAssignment(statement.name, statement.initializer));
@@ -176,12 +184,16 @@ export function topLevelBindingMember(
   type: CsharpTypeNode,
   accessibility: "public" | "private",
   reassignable = false,
+  nativeField = false,
 ): CsharpTypeMember {
   const initializer = {
     kind: "DefaultExpression",
     type,
     nullForgiving: true,
   } as const;
+  if (nativeField) return {
+    kind: "FieldDeclaration", name, type, modifiers: [accessibility, "static"], initializer,
+  };
   return {
     kind: "PropertyDeclaration",
     name,

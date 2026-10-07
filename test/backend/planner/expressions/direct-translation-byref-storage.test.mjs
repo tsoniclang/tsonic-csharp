@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   compileCsharpSource,
 } from "../../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 
 const libraryModuleInitializer = `namespace Tsonic.Generated
 {
@@ -117,11 +118,7 @@ test("public storage changes reconstruct transitive module callers to a fixed po
             get;
             private set;
         } = default(System.Collections.Generic.Dictionary<int, Todo>)!;
-        public static Todo? current
-        {
-            get;
-            internal set;
-        } = default(Todo?)!;
+        public static Todo? current = default(Todo?)!;
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
         {
@@ -185,6 +182,38 @@ test("public storage changes reconstruct transitive module callers to a fixed po
 `,
     "generated/TsonicModuleInitializer.cs": libraryModuleInitializer,
   });
+  executeCsharpConstruction(compiled, "transitive-module-byref-storage", false, false, [],
+    "if (Tsonic.Generated.Index.forward() is not null) throw new System.Exception(\"native absence was lost\");");
+});
+
+test("native module byref storage preserves destructured leaves and namespace identity", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import { Int32 } from "@tsonic/dotnet/System.js";
+      import { out } from "@tsonic/csharp/lang.js";
+      import * as state from "./state.js";
+      import { read } from "./reader.js";
+      export function run(): boolean {
+        if (!Int32.TryParse("42", out(state.parsed))) return false;
+        if (read() !== 42 || state.spare !== 7) return false;
+        if (Int32.TryParse("invalid", out(state.parsed))) return false;
+        return read() === 0 && state.spare === 7;
+      }
+    `,
+    files: {
+      "state.ts": `import type { int32 } from "@tsonic/core/types.js";
+        export let [parsed, spare] = [0 as int32, 7 as int32];`,
+      "reader.ts": `import { parsed } from "./state.js";
+        export function read() { return parsed; }`,
+    },
+  });
+  executeCsharpConstruction(compiled, "destructured-namespace-module-byref");
+  assert.match(compiled.artifacts.get("src/State.cs"), /public static int parsed =/u);
+  assert.match(compiled.artifacts.get("src/State.cs"), /public static int spare\s*\{\s*get;/u);
+  assert.match(compiled.artifacts.get("src/Index.cs"), /TryParse\("42", out State\.parsed\)/u);
+  assert.match(compiled.artifacts.get("src/Index.cs"), /TryParse\("invalid", out State\.parsed\)/u);
+  assert.match(compiled.artifacts.get("src/Reader.cs"), /return State\.parsed;/u);
+  assert.doesNotMatch([...compiled.artifacts.values()].join("\n"), /State\.parsed(?:!|\.Value)|copy.?back/iu);
 });
 
 function sourceArtifacts(compiled) {

@@ -50,6 +50,7 @@ export function planVariableBindingStatements(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
+  retainBinding?: (binding: CsharpEntryBinding, declaration: Node) => void,
 ): readonly CsharpStatement[] | undefined {
   if (bindingName === undefined || HasSourceKind(input.program.source.ast, bindingName, KindIdentifier)) {
     return undefined;
@@ -84,7 +85,7 @@ export function planVariableBindingStatements(
       type: sourceType,
       initializer: expression,
     },
-    ...planBindingPatternFromExpression(bindingName, sourceExpression, initializer, sourceFile, input, diagnostics, state, undefined, planExpressionWithExpectedType),
+    ...planBindingPatternFromExpression(bindingName, sourceExpression, initializer, sourceFile, input, diagnostics, state, undefined, planExpressionWithExpectedType, retainBinding),
   ]);
 }
 
@@ -95,7 +96,7 @@ export function planParameterBindingPrelude(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-  retainBinding?: (binding: CsharpEntryBinding) => void,
+  retainBinding?: (binding: CsharpEntryBinding, declaration: Node) => void,
 ): readonly CsharpStatement[] {
   if (bindingName === undefined || HasSourceKind(input.program.source.ast, bindingName, KindIdentifier)) {
     return [];

@@ -8,7 +8,7 @@ const integer = { kind: "source-primitive", name: "int32" };
 const owner = { kind: "target-named", id: "Project.Owner" };
 const sourceFile = { kind: "file" };
 const physical = { nativeBacking: () => undefined, nativeField: () => undefined,
-  nativeArray: () => undefined, type: () => undefined };
+  nativeArray: () => undefined, nativeModuleField: () => false, type: () => undefined };
 const ast = {
   is: Object.fromEntries([
     ["ParenthesizedExpression", "parentheses"], ["Identifier", "identifier"],
@@ -29,7 +29,9 @@ const ast = {
     AsElementAccessExpression: node => node },
   parent: node => node?.parent,
   kindName: node => ({ class: "KindClassDeclaration", "class-expression": "KindClassExpression",
-    field: "KindPropertyDeclaration", identifier: "KindIdentifier", parameter: "KindParameter" })[node?.kind],
+    field: "KindPropertyDeclaration", identifier: "KindIdentifier", parameter: "KindParameter",
+    variable: "KindVariableDeclaration", binding: "KindBindingElement", "variable-statement": "KindVariableStatement",
+    file: "KindSourceFile" })[node?.kind],
   name: node => node?.name,
   text: node => node?.text ?? "",
   members: node => node.members ?? [],
@@ -98,6 +100,22 @@ test("module properties and unproven names cannot manufacture managed addresses"
     kind: "variable-statement", parent: sourceFile } } };
   assert.equal(select(fixture("identifier", { declaration })).address, undefined);
   assert.equal(select(fixture("identifier", { declaration: { kind: "unresolved" } })).address, undefined);
+});
+
+test("only the exact sealed module field supplies a native address, including namespace and destructured storage", () => {
+  const statement = { kind: "variable-statement", parent: sourceFile };
+  const variable = { kind: "variable", parent: { kind: "variable-list", parent: statement } };
+  const binding = { kind: "binding", parent: { kind: "pattern", parent: variable } };
+  for (const declaration of [variable, binding]) {
+    for (const kind of ["identifier", "property"]) {
+      const input = fixture(kind, { declaration, writable: false });
+      const selected = select(input, null, { ...physical, nativeModuleField: node => node === declaration });
+      assert.equal(selected.kind, "resolved");
+      assert.equal(selected.address?.passing, "byref-readwrite");
+      assert.equal(selected.writable, false, "native contents do not authorize source reassignment");
+      assert.equal(select(input, null, { ...physical, nativeModuleField: node => node === {} }).address, undefined);
+    }
+  }
 });
 
 test("physical native backing never masquerades as an ordinary managed local", () => {

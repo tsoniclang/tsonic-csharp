@@ -560,6 +560,11 @@ export function sourceValueDeclaration(
   ) {
     return node;
   }
+  if (host.ast.is.IsPropertyAccessExpression(node)) {
+    referenced = host.semanticsFor(node).operations.propertyAccess(node)?.selectedDeclaration;
+  } else if (host.ast.is.IsElementAccessExpression(node)) {
+    referenced = host.semanticsFor(node).operations.elementAccess(node)?.selectedDeclaration;
+  }
   return referenced !== undefined &&
       (
         host.ast.is.IsVariableDeclaration(referenced) ||

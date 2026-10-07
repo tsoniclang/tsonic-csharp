@@ -15,7 +15,7 @@ import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
 import { retainCsharpUnionObjectShapes, selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
-import { Node_Expression } from "@tsonic/target-api/source";
+import { Node_Expression, Node_Type } from "@tsonic/target-api/source";
 import { selectCsharpNativeFlowMembers } from "./native-flow-refinement.js";
 import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
 import { resolveCsharpInstanceType } from "./instance-tests.js";
@@ -154,10 +154,9 @@ export function resolveSelectedValueWithState(
     declaration ?? node,
   ) ?? host.representations.scopedTargetType(node) ??
     (declaration !== undefined && host.ast.is.IsBindingElement(declaration)
-      ? resolveNodeWithState(node, sourceFile, nextState(state)) : undefined);
-  const declaredType = declaration === undefined ? undefined : host.semanticsFor(declaration)
-    .declarations.declaredValueType(declaration);
+      ? host.bindingProjection(declaration, sourceFile)?.bindingCarrier : undefined);
   const queries = host.semantics(sourceFile);
+  const declaredType = declaration === undefined ? undefined : queries.declarations.declaredValueType(declaration);
   if (declaredType !== undefined && queries.types.isUnion(declaredType)) {
     const storage = scopedTarget ?? resolveNodeWithState(declaration, sourceFile, nextState(state));
     const guarded = storage === undefined ? undefined : selectCsharpNativeFlowMembers(host, node, storage,
@@ -553,10 +552,14 @@ export function resolveSourceCallResultWithState(
   nativeType: TargetTypeRef | undefined,
 ): CsharpSourceCallResult | undefined {
   const declaration = sourceCallSelectedDeclaration(source);
-  const result = host.semantics(sourceFile).operations.callResult(source);
+  const queries = host.semantics(sourceFile);
+  const result = queries.operations.callResult(source);
+  const signatureDeclaration = queries.declarations.signatureDeclaration(source.selectedSignature);
+  const inferred = signatureDeclaration !== undefined && host.navigation.isProjectDeclaration(signatureDeclaration) &&
+    host.ast.body(signatureDeclaration) !== undefined && Node_Type(host.ast, signatureDeclaration) === undefined;
   const retain = (nativeType: TargetTypeRef | undefined): CsharpSourceCallResult | undefined => {
     const selected = selectCsharpSourceCallResult(host, nativeType, () =>
-      result === undefined ? undefined : resolveSourceCallSelectedType(source, declaration,
+      inferred ? nativeType : result === undefined ? undefined : resolveSourceCallSelectedType(source, declaration,
         result.authoredTypeNode, result.selectedReturnType, sourceFile, nextState(state)));
     return selected;
   };

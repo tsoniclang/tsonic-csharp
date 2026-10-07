@@ -33,6 +33,7 @@ export interface CsharpExpressionConversionClassification {
   readonly source: TargetTypeRef;
   readonly target: TargetTypeRef;
   readonly selection: CsharpConversionSelection;
+  readonly runtimeDemand: boolean;
   readonly identityRequired?: boolean;
   readonly delegateIdentity?: CsharpDelegateAdapterIdentity;
 }

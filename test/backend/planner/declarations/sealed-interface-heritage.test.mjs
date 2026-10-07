@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { planClassHeritage, planInterfaceHeritage } from "../../../../dist/backend/planner/declarations/classes/heritage.js";
-import { shadowCsharpInheritedInterfaceMembers } from "../../../../dist/backend/planner/objects/declarations/structural-interfaces.js";
+import { renderCsharpStructuralInterfaceMembers, shadowCsharpInheritedInterfaceMembers } from "../../../../dist/backend/planner/objects/declarations/structural-interfaces.js";
+import { csharpDelegateTargetType } from "../../../../dist/target-model/types/delegates.js";
 
 function type(argument, id = "Native.View") {
   return { kind: "target-named", id, name: "View", typeArguments: [argument], csharpRender: { kind: "named", name: "View" } };
@@ -53,4 +54,28 @@ test("inherited interface hiding preserves existing modifiers and untouched memb
   assert.deepEqual(result[1].modifiers, ["new", "safe"]);
   assert.equal(result[2] === members[2] && result[3] === members[3], true, "unrelated members retain exact native AST identity");
   assert.deepEqual(members[0].modifiers, ["unsafe"], "sealed inputs remain immutable");
+});
+
+test("generated method-value handles reuse only the identical available inherited storage", () => {
+  const integer = { kind: "source-primitive", name: "int32" };
+  const member = { memberKind: "method", sourceName: "read", targetName: "read",
+    sourceKey: { kind: "property", name: "read" }, type: csharpDelegateTargetType("System.Func", [integer]) };
+  const shape = { members: [member] };
+  const storage = { nativeField: () => undefined };
+  const inherited = [{ shape, methodValues: true }];
+  const rendered = renderCsharpStructuralInterfaceMembers(undefined, shape, storage, true, inherited);
+  assert.equal(rendered.length, 1);
+  assert.equal(rendered[0].kind, "MethodDeclaration");
+  assert.deepEqual(rendered[0].modifiers, ["new"]);
+  for (const parent of [
+    { shape, methodValues: false },
+    { shape: { members: [{ ...member, optional: true }] }, methodValues: true },
+    { shape: { members: [{ ...member, type: csharpDelegateTargetType("System.Func",
+      [{ kind: "source-primitive", name: "uint32" }]) }] }, methodValues: true },
+    { shape: { members: [{ ...member, targetName: "other" }] }, methodValues: true },
+  ]) {
+    const members = renderCsharpStructuralInterfaceMembers(undefined, shape, storage, true, [parent]);
+    assert.equal(members.some(candidate => candidate.kind === "PropertyDeclaration"), true,
+      "capability, absence, signedness and exact native storage name remain independent gates");
+  }
 });

@@ -523,7 +523,7 @@ export function resolveSourceValueDeclaration(
     }
   }
   if (host.ast.is.IsBindingElement(declaration)) {
-    return undefined;
+    return host.bindingProjection(declaration, sourceFile)?.bindingCarrier;
   }
   const declarationQueries = host.semantics(sourceFile);
   const induction = sourceIntegerInduction(declaration, host.ast, host.navigation, {
@@ -568,17 +568,17 @@ export function resolveSourceValueDeclaration(
   if (node === declaration) {
     return initializerTarget;
   }
-  const declaredType = declarationQueries.declarations.declaredValueType(declaration);
+  const declaredType = queries.declarations.declaredValueType(declaration);
   const selectedValueType = selectedType ?? queries.types.expressionType(node);
   if (declaredType === undefined || selectedValueType === undefined) {
     return initializerTarget;
   }
-  const refinement = declarationQueries.types.refinement(
+  const refinement = queries.types.refinement(
     declaredType,
     selectedValueType,
   );
   const selectedUnion = selectCsharpAuthoredUnionRefinement(initializerTarget, declaredType, selectedValueType,
-    declarationQueries, type => resolveCsharpUnionMemberCarrier(scope, initializerTarget, type, declarationQueries, state),
+    queries, type => resolveCsharpUnionMemberCarrier(scope, initializerTarget, type, queries, state),
     host.structuralTypes.resolveTarget, host.typeDefinitions);
   if (selectedUnion.kind !== "not-applicable") return selectedUnion.kind === "resolved" ? selectedUnion.type : undefined;
   if (refinement.kind === "ambiguous") {
@@ -588,13 +588,13 @@ export function resolveSourceValueDeclaration(
     return reconcileCsharpSelectedTargetType(
       initializerTarget,
       resolveTypeWithState(selectedValueType, queries.sourceFile, nextState(state)),
-      declarationQueries.types.relationship(declaredType, selectedValueType),
+      queries.types.relationship(declaredType, selectedValueType),
     );
   }
   if (
     refinement.kind === "members" &&
     refinement.types.length > 0 &&
-    refinement.types.every((member) => !declarationQueries.types.isNullish(member))
+    refinement.types.every((member) => !queries.types.isNullish(member))
   ) {
     return getCsharpNullableElementTargetType(initializerTarget) ??
       initializerTarget;

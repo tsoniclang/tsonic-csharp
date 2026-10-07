@@ -42,7 +42,7 @@ import {
 import {
   registerSourceObjectShape,
 } from "../../objects/index.js";
-import { renderCsharpStructuralInterfaceMembers, shadowCsharpInheritedInterfaceMembers } from "../../objects/declarations/structural-interfaces.js";
+import { csharpInheritedStructuralInterfaces, renderCsharpStructuralInterfaceMembers, shadowCsharpInheritedInterfaceMembers } from "../../objects/declarations/structural-interfaces.js";
 import { objectShapeStorageMemberName } from "../../objects/object-shape-storage.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../../target-model/types/object-shape-members.js";
 import {
@@ -88,17 +88,16 @@ export function planInterfaceDeclaration(
         return [];
     }
   });
+  const inherited = objectShape === undefined ? [] : csharpInheritedStructuralInterfaces(objectShape, input);
   if (objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "method-values")) {
     const storageNames = new Set(objectShape.members.filter(member => member.memberKind === "method")
       .map(member => objectShapeStorageMemberName(objectShape, member)));
-    const rendered = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, objectShape, input.program.storage, true, []);
+    const rendered = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, objectShape, input.program.storage, true, inherited);
     if (rendered === undefined) diagnostics.push(unsupportedNodeDiagnostic(node, "An interface method value requires its exact native callable storage contract."));
     else members.push(...rendered.filter(member => member.kind === "PropertyDeclaration" && storageNames.has(member.name)));
   }
-  const inheritedMembers = (objectShape?.implements ?? []).flatMap(type => {
-    const shape = input.types.objectShapes.resolveTarget(type);
-    if (shape === undefined) return [];
-    const rendered = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, shape, input.program.storage, false, []);
+  const inheritedMembers = inherited.flatMap(parent => {
+    const rendered = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, parent.shape, input.program.storage, parent.methodValues, []);
     if (rendered === undefined) diagnostics.push(unsupportedNodeDiagnostic(node, "An inherited interface requires exact native member signatures."));
     return rendered ?? [];
   });
