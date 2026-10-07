@@ -89,9 +89,9 @@ export function resolveSourceProfileType(
         const demand = host.errorStorageDemands.storageFor(subject, projection);
         if (demand.kind === "unresolved") return undefined;
         if (demand.kind === "writable") return csharpRuntimeErrorTargetType();
-        const origins = host.errorStorageDemands.storageOriginsFor(subject, projection);
-        return origins.kind === "resolved" && origins.origins.length > 0 &&
-          origins.origins.every(origin => host.errorStorageDemands.isNativeConstructor(origin.node))
+        const origins = host.errorStorageDemands.closedStorageOriginsFor(subject, projection);
+        return origins.kind === "complete" && origins.origins.length > 0 &&
+          origins.origins.every(origin => host.errorStorageDemands.isNativeConstructor(origin.subject.node))
           ? csharpRuntimeErrorTargetType() : csharpExceptionTargetType();
       }
       return typeArguments.length === 0 ? csharpRuntimeErrorTargetType(identity.errorName) : undefined;
