@@ -80,7 +80,7 @@ export function sequenceCsharpPlannedValues(
     preludesAfter[index] = subsequentPrelude;
     const selected = operands[index]!;
     const operand = "kind" in selected ? selected.effect : selected;
-    subsequentPrelude ||= operand.prelude.length > 0 || operand.completion.kind !== "value";
+    subsequentPrelude ||= operand.prelude.length > 0 || operand.completion.kind === "never";
   }
   const prelude: CsharpStatement[] = [];
   const expressions: CsharpExpression[] = [];

@@ -101,11 +101,22 @@ test("project-owned implicit constructors adapt an exact inherited provider sign
   assert.equal(selected.call.targetMember.declaringType.id, "tsonic.source:project");
 });
 
+test("project-owned aliases of exact provider methods do not request constructor forwarding", () => {
+  const selectedCalleeDeclaration = {};
+  const member = providerMethod();
+  const fixture = createCallFixture({ selectedCalleeDeclaration,
+    projectDeclarations: [selectedCalleeDeclaration], member });
+  const selected = selectCsharpTargetCall(fixture.host, fixture.call, fixture.sourceFile);
+  assert.equal(selected.kind, "resolved");
+  assert.deepEqual(selected.call.targetMember, member);
+});
+
 test("project-owned inherited provider signatures fail closed without an exact forwarding constructor", () => {
   const selectedCalleeDeclaration = {};
   const fixture = createCallFixture({
     selectedCalleeDeclaration,
     projectDeclarations: [selectedCalleeDeclaration],
+    member: providerConstructor(),
   });
   const selected = selectCsharpTargetCall(
     fixture.host,

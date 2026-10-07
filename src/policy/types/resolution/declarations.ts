@@ -127,6 +127,9 @@ export function declarationResultTypeNode(
   if (host.ast.is.IsPropertyDeclaration(declaration)) {
     return host.ast.as.AsPropertyDeclaration(declaration)?.Type;
   }
+  if (host.ast.is.IsParameterDeclaration(declaration)) {
+    return host.ast.as.AsParameterDeclaration(declaration)?.Type;
+  }
   if (host.ast.is.IsPropertySignatureDeclaration(declaration)) {
     return host.ast.as.AsPropertySignatureDeclaration(declaration)?.Type;
   }

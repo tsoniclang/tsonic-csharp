@@ -15,15 +15,15 @@ test("two independently invalid source files report both diagnostics in one buil
     `,
     files: {
       "broken-a.ts": `
-        function defaultValue(): number { return 1; }
-        export function firstBroken(value: number = defaultValue()): number {
-          return value;
+        export function firstBroken(): number {
+          eval("1");
+          return 1;
         }
       `,
       "broken-b.ts": `
-        function defaultValue(): number { return 2; }
-        export function secondBroken(value: number = defaultValue()): number {
-          return value;
+        export function secondBroken(): number {
+          eval("2");
+          return 2;
         }
       `,
     },
@@ -36,10 +36,10 @@ test("two independently invalid source files report both diagnostics in one buil
     `expected one diagnostic per invalid file, got: ${compiled.result.diagnostics.map((diagnostic) => diagnostic.message).join("\n")}`,
   );
   for (const diagnostic of compiled.result.diagnostics) {
-    assert.equal(diagnostic.code, "CSHARP_UNSUPPORTED_AST");
+    assert.equal(diagnostic.code, "TS9101002");
     assert.match(
       diagnostic.message,
-      /C# parameter defaults require compile-time literal values/u,
+      /eval requires runtime source evaluation with lexical-scope access/u,
     );
   }
   assert.deepEqual(

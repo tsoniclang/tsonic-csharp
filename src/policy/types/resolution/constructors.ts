@@ -28,7 +28,8 @@ export function resolveCsharpConstructorValueType(
     })) return undefined;
     const instance = scope.resolveTypeWithState(result, queries.sourceFile, nextState(state));
     if (instance?.kind !== "target-named" || instance.id !== owner.id) return undefined;
-    const names = new Set(scope.host.ast.members(owner.declaration).map(member => scope.host.ast.text(scope.host.ast.name(member))));
+    const names = new Set([...queries.types.propertyInfos(result), ...queries.types.propertyInfos(type)]
+      .map(member => member.name));
     let createMethodName = "Create";
     while (names.has(createMethodName)) createMethodName = `_${createMethodName}`;
     names.add(createMethodName);

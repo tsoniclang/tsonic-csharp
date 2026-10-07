@@ -23,7 +23,8 @@ test("native method planning requires one exact closed member contract", () => {
   };
   const invoke = fact => {
     const diagnostics = [];
-    const input = { program: { operations: { property: () => fact },
+    const input = { program: { operations: { property: () => fact, element: () => undefined,
+      sourceMember: () => fact?.sourceOwned },
       sourceNavigation: { sourceReferenceFor: () => undefined, referenceFor: () => undefined } } };
     const result = planCsharpNativeMethodCallee(selected, {}, input, diagnostics, plan);
     return { result, diagnostics };
@@ -62,7 +63,8 @@ test("generic class static callees remain exact namespace syntax, never runtime 
     selectedDeclaration: declaration, receiver: { expression: receiver, type: {} } } }, sourceOwned };
   const input = {
     program: {
-      operations: { property: () => classification },
+      operations: { property: () => classification, element: () => undefined,
+        sourceMember: () => input.program.operations.property()?.sourceOwned },
       sourceNavigation: { referenceFor: () => ({ declaration: classDeclaration, sourceFile: file }),
         sourceReferenceFor: () => ({ declaration: classDeclaration, sourceFile: file }),
         isProjectDeclaration: candidate => candidate === classDeclaration },

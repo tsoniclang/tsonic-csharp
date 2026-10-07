@@ -6,7 +6,7 @@ import {
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
   getCsharpDelegateSignature,
-  targetTypeRefEquals,
+  csharpArgumentVectorCallbackResultMatches,
 } from "../../../types/index.js";
 import {
   jsRuntimeTargetType,
@@ -43,7 +43,7 @@ export function csharpJsArgumentVectorCallbackParameter(
   const sourceSignature = getCsharpDelegateSignature(sourceCallableType);
   if (
     sourceSignature === undefined ||
-    !targetTypeRefEquals(sourceSignature.returnType, resultType)
+    !csharpArgumentVectorCallbackResultMatches(sourceSignature.returnType, resultType)
   ) {
     return undefined;
   }

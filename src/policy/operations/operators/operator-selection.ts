@@ -670,8 +670,11 @@ export function selectCsharpUnaryOperation(
       "The checked update expression has incomplete exact AST operator evidence.",
     );
   }
-  const operandType = input.types.resolveNode(operand, sourceFile);
-  const resultType = input.types.resolveNode(node, sourceFile);
+  const update = sourceOperator === "++" || sourceOperator === "--";
+  const operandType = update
+    ? input.types.resolveReadStorage(operand, sourceFile)
+    : input.types.resolveNode(operand, sourceFile);
+  const resultType = update ? operandType : input.types.resolveNode(node, sourceFile);
   if (operandType === undefined || resultType === undefined) {
     return rejected(
       "The checked update expression has no closed C# representation for its operand and result.",

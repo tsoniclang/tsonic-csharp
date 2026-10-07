@@ -40,9 +40,9 @@ test("native collection construction fills only its declared native builder", { 
   const carrier = csharpListTargetType(element);
   const diagnostics = [];
   const planner = { planExpression, planExpressionWithExpectedType };
-  const expression = planNativeCollectionArrayLiteralExpression(node, source.ast.getSourceFile(node), context,
+  const planned = planNativeCollectionArrayLiteralExpression(node, source.ast.getSourceFile(node), context,
     diagnostics, carrier, element, planner);
-  assert.ok(expression);
+  assert.equal(planned?.completion.kind, "value");
   assertNoTargetDiagnostics(diagnostics);
   const output = printCsharpCompilationUnit({ kind: "CompilationUnit", usings: [], members: [{
     kind: "NamespaceDeclaration", name: "Tsonic.Generated", members: [{ kind: "ClassDeclaration", name: "Index",
@@ -50,7 +50,8 @@ test("native collection construction fills only its declared native builder", { 
         { kind: "MethodDeclaration", name: "widen", modifiers: ["public", "static"],
           returnType: csharpTypeFromTargetTypeRef(carrier),
           parameters: [{ name: "values", type: { kind: "ArrayType", elementType: { kind: "PredefinedType", name: "byte" } } }],
-          body: { kind: "Block", statements: [{ kind: "ReturnStatement", expression }] } },
+          body: { kind: "Block", statements: [...planned.prelude,
+            { kind: "ReturnStatement", expression: planned.completion.expression }] } },
         ...context.scope.generatedMethods.values(),
       ] }],
   }] });

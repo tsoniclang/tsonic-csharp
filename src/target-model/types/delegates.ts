@@ -17,6 +17,7 @@ import {
 } from "./render-shapes.js";
 import {
   csharpVoidTargetType,
+  isCsharpNeverTargetType,
 } from "./scalar-types.js";
 import {
   csharpTargetNamedType,
@@ -101,6 +102,10 @@ export function csharpVoidReturnCompletion(source: TargetTypeRef | undefined, ta
   if (!isCsharpVoidTargetType(source)) return undefined;
   if (isCsharpVoidTargetType(target)) return "void";
   return csharpCarrierAdmitsSourceAbsence(target) ? "absence" : undefined;
+}
+
+export function csharpArgumentVectorCallbackResultMatches(source: TargetTypeRef, target: TargetTypeRef): boolean {
+  return targetTypeRefEquals(source, target) || isCsharpNeverTargetType(source) && isCsharpVoidTargetType(target);
 }
 
 export function getCsharpDelegateSignature(type: TargetTypeRef | undefined): CsharpDelegateSignatureShape | undefined {

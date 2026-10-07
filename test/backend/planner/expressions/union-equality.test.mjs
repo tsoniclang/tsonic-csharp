@@ -6,6 +6,7 @@ import { planCsharpUnionEquality } from "../../../../dist/backend/planner/expres
 import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType,
   csharpStringTargetType, csharpTargetNamedType } from "../../../../dist/target-model/types/index.js";
 import { printCsharpExpression } from "../../../../dist/print/source/printer.js";
+import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
 
 test("union equality rejects stale carriers, paths, operations, coverage and polarity", () => {
   const integer = csharpSourcePrimitiveTargetType("int64");
@@ -17,14 +18,17 @@ test("union equality rejects stale carriers, paths, operations, coverage and pol
   const operation = { kind: "union-equality", negated: false, arms };
   const selection = { kind: "resolved", sourceOperator: "===", targetOperation: operation,
     left: {}, right: {}, leftType: union, rightType: string, resultType: csharpSourcePrimitiveTargetType("bool") };
-  const input = { program: { operations: { binary: () => ({ target: selection }) } }, scope: {} };
+  const input = { program: { operations: { binary: () => ({ target: selection }) } }, scope: {},
+    types: { classifications: { resolveNode: () => selection.resultType } } };
   const diagnostics = [];
   const state = () => ({ nextTempIndex: 0, usedNames: new Set() });
-  const plan = () => ({ kind: "IdentifierName", name: "operand" });
+  const plan = node => csharpPlannedValue(node === selection.left ? union : string,
+    { kind: "IdentifierName", name: "operand" });
   const planned = planCsharpUnionEquality({}, selection, {}, input, diagnostics, plan, state());
   assertNoTargetDiagnostics(diagnostics);
-  assert.equal(planned.kind, "SwitchExpression");
-  assert.equal(planned.expression.elements.length, 2);
+  assert.equal(planned.completion.expression.kind, "SwitchExpression");
+  assert.equal(planned.completion.expression.expression.elements.length, 2);
+  assert.deepEqual(planned.prelude, []);
   for (const mutation of [
     { left: {} }, { leftType: string }, { rightType: integer }, { resultType: integer },
     { sourceOperator: "!==" },
@@ -59,16 +63,19 @@ test("nullable union equality plans canonical native presence guards with each o
       const selection = { kind: "resolved", sourceOperator: negated ? "!==" : "===",
         targetOperation: { kind: "union-equality", negated, arms }, left, right, leftType: union, rightType,
         resultType: csharpSourcePrimitiveTargetType("bool") };
-      const input = { program: { operations: { binary: () => ({ target: selection }) } }, scope: {} };
+      const input = { program: { operations: { binary: () => ({ target: selection }) } }, scope: {},
+        types: { classifications: { resolveNode: () => selection.resultType } } };
       const seen = [];
       const diagnostics = [];
       const planned = planCsharpUnionEquality({}, selection, {}, input, diagnostics, node => {
         seen.push(node);
-        return { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: node === left ? "produceLeft" : "produceRight" }, arguments: [] };
+        return csharpPlannedValue(node === left ? union : rightType, { kind: "InvocationExpression",
+          callee: { kind: "IdentifierName", name: node === left ? "produceLeft" : "produceRight" }, arguments: [] });
       }, { nextTempIndex: 0, usedNames: new Set() });
       assertNoTargetDiagnostics(diagnostics);
       assert.deepEqual(seen, [left, right]);
-      const output = printCsharpExpression(planned);
+      assert.deepEqual(planned.prelude, []);
+      const output = printCsharpExpression(planned.completion.expression);
       assert.equal(output.match(/produceLeft\(\)/gu)?.length, 1);
       assert.equal(output.match(/produceRight\(\)/gu)?.length, 1);
       assert.ok(output.indexOf("produceLeft()") < output.indexOf("produceRight()"));

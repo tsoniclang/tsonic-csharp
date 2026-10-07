@@ -2,8 +2,8 @@ import { applyCsharpConversionSelection } from "../../conversions.js";
 import {
   csharpTargetParameterValueType,
   getCsharpDelegateSignature,
+  csharpArgumentVectorCallbackResultMatches,
   getCsharpJsArrayElementTargetType,
-  targetTypeRefEquals,
 } from "../../../../../target-model/types/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { targetArgumentOrderIsRepresentable } from "./helpers.js";
@@ -355,7 +355,7 @@ function translateEcmascriptArgumentVectorCallback(
     targetSignature === undefined ||
     targetSignature.parameters.length !== 1 ||
     vectorType === undefined ||
-    !targetTypeRefEquals(
+    !csharpArgumentVectorCallbackResultMatches(
       sourceSignature.returnType,
       targetSignature.returnType,
     ) ||

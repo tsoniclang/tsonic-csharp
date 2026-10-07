@@ -69,24 +69,25 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     members: readonly CsharpObjectShapeMemberFact[],
     type: Type,
     queries: SourceFileSemantics,
+    destinationType: Type,
   ): readonly CsharpObjectShapeMemberFact[] | undefined {
-    const properties = queries.types.propertyInfos(type);
+    const correspondence = queries.types.structuralMembers(type, destinationType);
+    if (correspondence.kind !== "available") return undefined;
     const instantiated = members.map(member => {
-      const matching = properties.filter(property => {
-        const subjects = [property.symbol, ...property.rootSymbols,
-          ...queries.declarations.symbolDeclarations(property.symbol),
-          ...property.rootSymbols.flatMap(symbol => queries.declarations.symbolDeclarations(symbol))];
+      const matching = correspondence.members.filter(pair => {
+        const property = pair.destination.property;
+        const subjects = [property.symbol, ...property.rootSymbols, ...pair.destination.declarations];
         return member.sourceSubjects?.some(subject => subjects.some(candidate => candidate === subject)) === true;
       });
       if (matching.length !== 1) return undefined;
-      const property = matching[0]!;
-      const declarations = [...new Set([
-        ...queries.declarations.symbolDeclarations(property.symbol),
-        ...property.rootSymbols.flatMap(symbol => queries.declarations.symbolDeclarations(symbol)),
-      ])];
+      const pair = matching[0]!;
+      if (pair.kind !== "present") return undefined;
+      const property = pair.source.property;
+      const declarations = pair.source.declarations;
       return { ...member,
-        sourceSubjects: Object.freeze([property.symbol, ...property.rootSymbols, ...declarations]),
-        sourceDeclarations: Object.freeze(declarations),
+        sourceSubjects: Object.freeze([...new Set([...member.sourceSubjects ?? [],
+          property.symbol, ...property.rootSymbols, ...declarations])]),
+        sourceDeclarations: Object.freeze([...new Set([...member.sourceDeclarations ?? [], ...declarations])]),
         sourceTypes: Object.freeze([property.type]),
       };
     });

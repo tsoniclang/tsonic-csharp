@@ -125,7 +125,7 @@ export function createCsharpObjectShapePolicy(
       const selectedShape = resolveTarget(selectedTarget);
       const source = selectedObjectShapeSource(node, queries, host, state);
       if (selectedShape !== undefined && source.type !== undefined && !host.ast.is.IsObjectLiteralExpression(node)) {
-        const members = instantiateMemberEvidence(selectedShape.members, source.type, queries);
+        const members = instantiateMemberEvidence(selectedShape.members, source.type, queries, selectedShape.sourceType);
         if (members !== undefined) return state.sourceBindings === undefined
           ? remember(node, { ...selectedShape, sourceType: source.type, members })
           : rememberTargetShape({ ...selectedShape, sourceType: source.type, members });
@@ -693,7 +693,7 @@ export function createCsharpObjectShapePolicy(
         ? resolveProjectDeclarationShape(contextualProjectType, state) : undefined;
       const members = declaredShape === undefined
         ? deriveMembers(type, queries, nextState(state), authoredTypeRoot)
-        : instantiateMemberEvidence(declaredShape.members, type, queries);
+        : instantiateMemberEvidence(declaredShape.members, type, queries, declaredShape.sourceType);
       if (members === undefined) {
         return undefined;
       }

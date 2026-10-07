@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { createTestWorkspace } from "../../../../tsonic/test/scripts/test-workspaces.mjs";
+import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
 
 function nativeAttributeProject(compiled, name, program) {
   assertCsharpCompilationSucceeded(compiled);
@@ -19,7 +20,9 @@ function nativeAttributeProject(compiled, name, program) {
   writeFileSync(join(root, "Program.cs"), program);
   writeFileSync(join(root, "Proof.csproj"), `<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup>
 <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable>
-<TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup></Project>`);
+<TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup><ItemGroup>
+<ProjectReference Include="${join(testRepositoryRoots.csharpRuntime, "src/Tsonic.CSharp.Runtime/Tsonic.CSharp.Runtime.csproj")}" />
+</ItemGroup></Project>`);
   return spawnSync("dotnet", ["run", "--project", join(root, "Proof.csproj"), "-c", "Release", "--verbosity", "quiet"], {
     encoding: "utf8", timeout: 240_000, maxBuffer: 4_194_304,
   });
