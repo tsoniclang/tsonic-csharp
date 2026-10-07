@@ -343,8 +343,8 @@ function planExpressionCore(
         node, property, sourceFile, input, diagnostics, scopedPlanExpression, state,
       );
     }
-    case KindElementAccessExpression:
-      return planElementAccessExpression(
+    case KindElementAccessExpression: {
+      const element = planElementAccessExpression(
         node,
         sourceFile,
         input,
@@ -374,6 +374,10 @@ function planExpressionCore(
             selectedTargetParameter,
           ),
       );
+      return element === undefined ? undefined : planCsharpProjectedFieldWrite(
+        node, element, sourceFile, input, diagnostics, scopedPlanExpression, state,
+      );
+    }
     case KindArrowFunction:
       return planArrowFunctionExpression(
         node,

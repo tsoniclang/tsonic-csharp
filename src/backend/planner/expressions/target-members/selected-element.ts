@@ -40,12 +40,18 @@ import {
 } from "../conversions.js";
 import {
   translateCsharpSelectedReceiver,
+  csharpProjectTypeReceiver,
 } from "../receivers.js";
 import { csharpRecordOptionalRead } from "../../objects/indexed-records.js";
 import type { CsharpPlannedArgument, CsharpPlannedValue } from "../planned-values.js";
-import { buildCsharpPlannedValue, planCsharpOptionalReceiverValue, projectCsharpPlannedValue } from "../planned-value-composition.js";
+import { buildCsharpPlannedValue, composeCsharpPlannedValues, planCsharpOptionalReceiverValue, projectCsharpPlannedValue } from "../planned-value-composition.js";
+import { csharpPlannedValue } from "../planned-values.js";
+import { planCsharpDiscardedOperand } from "../../statements/statement-output.js";
+import { translateCsharpSourceOwnedMember } from "./source-owned-members.js";
 import { csharpCollectionElementRead } from "../../../../target-model/types/collection-reads.js";
 import { planCsharpCollectionElementRead } from "../collection-reads.js";
+import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
+import { captureCsharpPlannedMemberReceiver } from "../planned-locations.js";
 
 export function translateCsharpElementAccess(
   node: Node,
@@ -374,6 +380,33 @@ function translateSourceOwnedElement(
   planExpression: ExpressionPlanner,
 ): CsharpPlannedValue | undefined {
   const receiverType = classification.receiverType;
+  if (classification.sourceOwned !== undefined) {
+    const member = classification.sourceOwned;
+    const receiver = translateCsharpSelectedReceiver(selection.source.receiver, sourceFile, input,
+      diagnostics, planExpression, classification.receiverProjection);
+    const argument = planExpression(selection.source.argument.expression, sourceFile, input, diagnostics);
+    if (csharpProjectTypeReceiver(selection.source.receiver, input, diagnostics) !== undefined) {
+      return receiver === undefined ? undefined : composeCsharpPlannedValues(node, sourceFile, input, diagnostics,
+        [planCsharpDiscardedOperand(argument)], () => translateCsharpSourceOwnedMember(
+          node, selection, member, sourceFile, input, diagnostics, receiver, false));
+    }
+    const access = (target: CsharpPlannedValue): CsharpPlannedValue | undefined =>
+      composeCsharpPlannedValues(node, sourceFile, input, diagnostics, [target, planCsharpDiscardedOperand(argument)],
+        values => translateCsharpSourceOwnedMember(node, selection, member, sourceFile, input, diagnostics,
+          csharpPlannedValue(target.completion.carrier, values[0]!), false),
+        (carrier, operand) => captureCsharpPlannedMemberReceiver(node, sourceFile, input, diagnostics,
+          selection.source.receiver.expression, carrier, operand,
+          input.program.sourceNavigation.expressionEffects(selection.source.argument.expression).suspends,
+          selection.source.accessMode !== "read"));
+    return selection.source.optionalChain
+      ? planCsharpOptionalReceiverValue(node, sourceFile, input, diagnostics, receiver,
+        present => {
+          const carrier = receiver?.completion.carrier;
+          return carrier === undefined ? undefined : access(csharpPlannedValue(
+            getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier) ?? carrier, present));
+        })
+      : receiver === undefined ? undefined : access(receiver);
+  }
   const indexableReceiverType =
     getCsharpNullableElementTargetType(receiverType) ?? receiverType;
   if (

@@ -1,3 +1,4 @@
+import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { nativeUnionProjectionMutations } from "../../../../../tsonic/test/fixtures/native-union-projection-mutations.mjs";
@@ -15,7 +16,7 @@ test("native union projection proves every carrier and selection without delegat
     variant => variant.operation, payload => payload);
   const diagnostics = [];
   const result = plan(fact, diagnostics);
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
   assert.equal(result.kind, "SwitchExpression");
   assert.equal(result.expression, receiver);
   assert.equal(result.arms.length, 3);

@@ -22,13 +22,14 @@ import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-c
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { TargetTypeRef } from "../../types/index.js";
+import type { CsharpConversionShapeQueries } from "../shape-queries.js";
 import { getCsharpMethodValue, csharpMethodValueContractsEqual } from "../../../target-model/types/method-values.js";
 
 export function selectCsharpConversion(
   input: Pick<
     CsharpPolicyContext,
     "typeDefinitions" | "projectTypes" | "providers" | "target"
-  > & Pick<Partial<CsharpPolicyContext>, "objectShapes">,
+  > & CsharpConversionShapeQueries,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
   mode: CsharpConversionMode,

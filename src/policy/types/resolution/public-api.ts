@@ -19,6 +19,7 @@ import { Node_Expression } from "@tsonic/target-api/source";
 import { selectCsharpNativeFlowMembers } from "./native-flow-refinement.js";
 import { resolveCsharpInstanceType } from "./instance-tests.js";
 import type { CsharpSourceCallContractSelection } from "./call-contracts.js";
+import { csharpSourceCallArgumentParameter } from "../callables/source-callable-contract.js";
 
 export function resolveNode(
   { resolveNodeWithState }: CsharpTypeResolutionScope,
@@ -63,14 +64,14 @@ export function resolveStorage(
 
 
 export function resolveReadStorage(
-  { activeNodes, host, resolvePropertyAccessTargetType, resolveStorage }: CsharpTypeResolutionScope,
+  { activeNodes, host, resolveMemberAccessTargetType, resolveStorage }: CsharpTypeResolutionScope,
   node: Node | undefined,
   sourceFile?: SourceFile,
 ): TargetTypeRef | undefined {
   if (node === undefined) {
     return undefined;
   }
-  if (!host.ast.is.IsPropertyAccessExpression(node)) {
+  if (!host.ast.is.IsPropertyAccessExpression(node) && !host.ast.is.IsElementAccessExpression(node)) {
     return resolveStorage(node, sourceFile);
   }
   if (activeNodes.has(node)) {
@@ -81,7 +82,7 @@ export function resolveReadStorage(
     const queries = sourceFile === undefined
       ? host.semanticsFor(node)
       : host.semantics(sourceFile);
-    return resolvePropertyAccessTargetType(
+    return resolveMemberAccessTargetType(
       node,
       queries,
       { depth: 0 },
@@ -144,7 +145,7 @@ export function resolveSelectedValueWithState(
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const { host, resolveNodeWithState, resolvePropertyAccessTargetType, resolveSourceValueDeclaration, resolveTypeWithState, sourceValueDeclaration } = scope;
+  const { host, resolveNodeWithState, resolveMemberAccessTargetType, resolveSourceValueDeclaration, resolveTypeWithState, sourceValueDeclaration } = scope;
   const reference = host.navigation.referenceFor(node);
   const declaration = sourceValueDeclaration(node, reference?.declaration);
   if (state.sourceValueSubject === undefined) state = { ...state, sourceValueSubject: declaration ?? node };
@@ -221,10 +222,8 @@ export function resolveSelectedValueWithState(
     }
     return scopedTarget;
   }
-  if (host.ast.is.IsPropertyAccessExpression(node)) {
-    return resolvePropertyAccessTargetType(node, host.semantics(sourceFile), nextState(state), "selected", selectedType);
-  }
-  if (declaration !== undefined) {
+  const member = host.ast.is.IsPropertyAccessExpression(node) || host.ast.is.IsElementAccessExpression(node);
+  if (!member && declaration !== undefined) {
     const declared = resolveSourceValueDeclaration(
       node,
       host.semantics(sourceFile),
@@ -236,11 +235,9 @@ export function resolveSelectedValueWithState(
     }
     return undefined;
   }
-  const resolved = resolveNodeWithState(
-    node,
-    sourceFile,
-    nextState(state),
-  );
+  const resolved = member
+    ? resolveMemberAccessTargetType(node, queries, nextState(state), "selected", selectedType)
+    : resolveNodeWithState(node, sourceFile, nextState(state));
   const expressionType = queries.types.expressionType(node);
   if (resolved !== undefined && expressionType !== undefined) {
     const refinement = selectCsharpAuthoredUnionRefinement(
@@ -250,6 +247,7 @@ export function resolveSelectedValueWithState(
     );
     if (refinement.kind !== "not-applicable") return refinement.kind === "resolved" ? refinement.type : undefined;
   }
+  if (member) return resolved;
   return resolved ?? resolveTypeWithState(
     selectedType,
     sourceFile,
@@ -447,14 +445,22 @@ export function resolveSourceCallParameters(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
 ): readonly import("../../../target-model/types/model.js").CsharpTargetParameter[] | undefined {
-  const selected = scope.resolveSourceCallContract(source, sourceFile, { depth: 0 }, "checked");
+  const selected = scope.resolveSourceCallContract(source, sourceFile, { depth: 0 }, "implementation");
   if (selected.kind === "rejected") return undefined;
+  const callable = selected.contract;
+  if (callable !== undefined) {
+    if (!scope.sourceCallableTypeParametersMatch(source, callable, selected.kind)) return undefined;
+    const parameters = callable.parameters.map(parameter => {
+      const type = scope.resolveSourceCallableContractType(source, callable, parameter.targetParameter.type, sourceFile, { depth: 0 });
+      return type === undefined ? undefined : Object.freeze({ ...parameter.targetParameter, type });
+    });
+    return parameters.some(parameter => parameter === undefined) ? undefined : Object.freeze(parameters as import("../../../target-model/types/model.js").CsharpTargetParameter[]);
+  }
   const parameters = source.sourceSelectedSignatureParameters.map((parameter, index) => {
     const type = resolveSelectedSourceCallParameter(scope, source, index, sourceFile, selected);
-    const contract = selected.contract?.parameters[index]?.targetParameter;
     return type === undefined ? undefined : {
-      ...(contract ?? { name: parameter.parameterName, passingMode: "by-value" as const,
-        optional: parameter.acceptsOmission, paramsArray: parameter.rest }), type,
+      name: parameter.parameterName, passingMode: "by-value" as const,
+      optional: parameter.acceptsOmission, paramsArray: parameter.rest, type,
     };
   });
   return parameters.some(parameter => parameter === undefined) ? undefined
@@ -473,16 +479,13 @@ export function resolveSourceCallArgumentParameter(
   if (parameter === undefined) {
     return undefined;
   }
-  const selected = resolveSourceCallContract(source, sourceFile, { depth: 0 }, "checked");
+  const selected = resolveSourceCallContract(source, sourceFile, { depth: 0 }, "implementation");
   if (selected.kind === "rejected") return undefined;
   const callable = selected.contract;
-  const contractedParameter = callable?.parameters[
-    binding.sourceParameterIndex
-  ];
+  const contractedParameter = callable === undefined ? undefined : csharpSourceCallArgumentParameter(callable, binding.effectiveArgumentIndex);
   if (callable !== undefined && contractedParameter !== undefined) {
     if (
-      contractedParameter.sourceParameter !==
-        parameter.parameterDeclaration ||
+      selected.kind === "value" && contractedParameter.sourceParameter !== parameter.parameterDeclaration ||
       !sourceCallableTypeParametersMatch(source, callable, selected.kind)
     ) {
       return undefined;
@@ -504,6 +507,7 @@ export function resolveSourceCallArgumentParameter(
           binding.sourceForm,
         );
   }
+  if (callable !== undefined) return undefined;
   if (selected.kind === "value") return undefined;
   const selectedType = resolveSourceCallSelectedType(
     source,

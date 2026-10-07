@@ -1,3 +1,4 @@
+import { assertNoTargetDiagnostics } from "../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeCsharpConversions } from "../../../dist/analysis/conversions/analyze.js";
@@ -164,7 +165,7 @@ test("C# nominal union emission retains one evaluation and native payload refere
   const expression = { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "Produce" }, arguments: [] };
   const diagnostics = [];
   const planned = planCsharpUnionMapping({}, expression, source, target, selection, context, diagnostics);
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned.kind, "SwitchExpression");
   assert.equal(planned.expression, expression);
   assert.equal(JSON.stringify(planned).match(/Produce/gu).length, 1);

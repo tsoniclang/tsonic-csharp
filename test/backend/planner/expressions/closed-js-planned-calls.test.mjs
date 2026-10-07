@@ -1,3 +1,4 @@
+import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { planCsharpJsValueCall } from "../../../../dist/backend/planner/expressions/target-members/selected-call/js-values.js";
@@ -43,7 +44,7 @@ function setup(optionalReceiver = false, optionalCall = false, element = false) 
 test("closed member call acquires original receiver and callee before argument preludes", () => {
   const context = setup();
   const planned = planCsharpJsValueCall(context.call, {}, context.input, context.diagnostics, context.selected, context.source, context.plan);
-  assert.deepEqual(context.diagnostics, []);
+  assertNoTargetDiagnostics(context.diagnostics);
   assert.equal(planned.prelude[0].kind, "LocalDeclarationStatement");
   assert.deepEqual(planned.prelude[0].initializer, identifier("receiver"));
   assert.equal(planned.prelude[1].initializer.callee.name, "ReadDynamicSlot");
@@ -56,7 +57,7 @@ test("closed member call acquires original receiver and callee before argument p
 test("optional receiver owns key and argument preludes exclusively inside its native branch", () => {
   const context = setup(true, false, true);
   const planned = planCsharpJsValueCall(context.call, {}, context.input, context.diagnostics, context.selected, context.source, context.plan);
-  assert.deepEqual(context.diagnostics, []);
+  assertNoTargetDiagnostics(context.diagnostics);
   const branch = planned.prelude.find(statement => statement.kind === "IfStatement");
   assert.ok(branch);
   assert.equal(nodes(branch.condition).some(node => node.name === "isUndefined"), true);
@@ -71,7 +72,7 @@ test("optional receiver owns key and argument preludes exclusively inside its na
 test("optional callee is checked after member acquisition and before argument completion", () => {
   const context = setup(false, true);
   const planned = planCsharpJsValueCall(context.call, {}, context.input, context.diagnostics, context.selected, context.source, context.plan);
-  assert.deepEqual(context.diagnostics, []);
+  assertNoTargetDiagnostics(context.diagnostics);
   const branch = planned.prelude.find(statement => statement.kind === "IfStatement");
   assert.ok(branch);
   assert.equal(nodes(branch.condition).some(node => node.name === "ReadDynamicSlot"), true);

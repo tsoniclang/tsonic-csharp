@@ -25,7 +25,7 @@ import { getCsharpNullableElementTargetType } from "../../../target-model/types/
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
 
 export function resolveSelectedExpressionType(
-  { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveTypeWithState, resolveReadStorage, resolveNonNullExpressionType, resolvePropertyAccessTargetType, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState, sourceUnions }: CsharpTypeResolutionScope,
+  { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveTypeWithState, resolveReadStorage, resolveNonNullExpressionType, resolveMemberAccessTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState, sourceUnions }: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -205,67 +205,14 @@ export function resolveSelectedExpressionType(
     }
     return undefined;
   }
-  if (host.ast.is.IsPropertyAccessExpression(node)) {
-    return resolvePropertyAccessTargetType(
-      node,
-      queries,
-      state,
-      "selected",
-    );
-  }
-  if (host.ast.is.IsElementAccessExpression(node)) {
-    const selection = selectCsharpTargetElement(
-      { ...host, projectTypes: host.projectTypes(), types: policy },
-      node,
-      queries.sourceFile,
-    );
-    if (selection.kind === "resolved") {
-      return optionalAccessTargetType(
-        selection.targetMember.returnType,
-        selection.source.optionalChain,
-      );
-    }
-    if (selection.kind === "source-owned") {
-      const receiver = resolveSelectedReceiverTargetType(
-        selection.source.receiver,
-        queries,
-        state,
-      );
-      if (
-        receiver?.kind === "tuple" &&
-        selection.source.selectedElementIndex !== undefined
-      ) {
-        return optionalAccessTargetType(
-          receiver.elements[selection.source.selectedElementIndex],
-          selection.source.optionalChain,
-        );
-      }
-      if (receiver?.kind === "array") {
-        return optionalAccessTargetType(
-          receiver.element,
-          selection.source.optionalChain,
-        );
-      }
-      return optionalAccessTargetType(
-        resolveSelectedDeclarationResult(
-          selection.source.selectedDeclaration,
-          selection.source.sourceReadType ??
-            selection.source.sourceWriteType,
-          queries,
-          state,
-          receiver,
-          queries.types.typeOfSymbol(selection.source.selectedSymbol),
-        ),
-        selection.source.optionalChain,
-      );
-    }
-    return undefined;
+  if (host.ast.is.IsPropertyAccessExpression(node) || host.ast.is.IsElementAccessExpression(node)) {
+    return resolveMemberAccessTargetType(node, queries, state, "selected");
   }
   return undefined;
 }
 
 
-export function resolvePropertyAccessTargetType(
+export function resolveMemberAccessTargetType(
   { host, optionalAccessTargetType, policy, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSelectedSymbolType }: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
@@ -273,11 +220,12 @@ export function resolvePropertyAccessTargetType(
   mode: "selected" | "storage",
   selectedType?: Type,
 ): TargetTypeRef | undefined {
-  const selection = selectCsharpTargetProperty(
-    { ...host, projectTypes: host.projectTypes(), types: policy },
-    node,
-    queries.sourceFile,
-  );
+  const selectionHost = { ...host, projectTypes: host.projectTypes(), types: policy };
+  const selection = host.ast.is.IsElementAccessExpression(node)
+    ? selectCsharpTargetElement(selectionHost, node, queries.sourceFile)
+    : selectCsharpTargetProperty(selectionHost, node, queries.sourceFile);
+  if (selection.kind === "project-indexer") return optionalAccessTargetType(
+    mode === "selected" ? selection.selectedReadType ?? selection.valueType : selection.valueType, selection.source.optionalChain);
   if (selection.kind === "union-property") return selection.resultCarrier;
   const presentCallable = selection.kind === "resolved" || selection.kind === "source-owned"
     ? sourcePresentCallableType(selection.source.sourceReadType, queries) : undefined;
@@ -306,6 +254,12 @@ export function resolvePropertyAccessTargetType(
     queries,
     state,
   );
+  if (host.ast.is.IsElementAccessExpression(node)) {
+    const index = "selectedElementIndex" in selection.source ? selection.source.selectedElementIndex : undefined;
+    if (receiverType?.kind === "tuple" && index !== undefined)
+      return optionalAccessTargetType(receiverType.elements[index], selection.source.optionalChain);
+    if (receiverType?.kind === "array") return optionalAccessTargetType(receiverType.element, selection.source.optionalChain);
+  }
   const selectedSourceType = mode === "selected"
     ? selectedType ?? selection.source.sourceReadType ?? selection.source.sourceWriteType
     : undefined;

@@ -63,6 +63,7 @@ import {
 import {
   applyCsharpConversionSelection,
   readCsharpConversionClassification,
+  readCsharpExpressionConversionClassification,
 } from "./conversions.js";
 import type {
   DestructuringPlannerState,
@@ -209,10 +210,12 @@ export function planExpressionWithExpectedTypeCore(
       constructionTarget,
       state,
     );
-    if (unionCarrier === undefined || effectiveExpectedTargetType === undefined) return expectedRepresentation(literal);
-    const conversion = readCsharpConversionClassification(node, input, diagnostics, unionCarrier, effectiveExpectedTargetType, "implicit");
+    const constructedCarrier = literal?.completion.carrier;
+    if (effectiveExpectedTargetType === undefined || constructedCarrier === undefined ||
+      targetTypeRefEquals(constructedCarrier, effectiveExpectedTargetType)) return expectedRepresentation(literal);
+    const conversion = readCsharpExpressionConversionClassification(node, input, diagnostics, constructedCarrier, effectiveExpectedTargetType, "implicit");
     return conversion === undefined ? undefined : expectedRepresentation(mapCsharpPlannedValue(literal, effectiveExpectedTargetType,
-      expression => applyCsharpConversionSelection(node, sourceFile, input, diagnostics, unionCarrier,
+      expression => applyCsharpConversionSelection(node, sourceFile, input, diagnostics, constructedCarrier,
         effectiveExpectedTargetType, conversion, expression)));
   }
   if (HasSourceKind(input.program.source.ast, node, KindBinaryExpression)) {

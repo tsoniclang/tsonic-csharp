@@ -89,7 +89,8 @@ import type {
 import { classifyExactUnmodifiedCatchRethrow } from "./catch-rethrow.js";
 import { selectCsharpThrownOperandCarrier } from "../../policy/conversions/program-error.js";
 import {
-  classifySourceOwnedProperty,
+  classifySourceOwnedMember,
+  classifySourceOwnedElementMember,
   classifyCsharpMemberReceiver,
   elementSelectedTypes,
   optionalResultType,
@@ -206,6 +207,7 @@ export function analyzeCsharpTargetOperations(
     call: (node) => facts.get(node, callKey),
     construction: (node) => facts.get(node, constructionKey),
     property: (node) => facts.get(node, propertyKey),
+    sourceMember: node => facts.get(node, propertyKey)?.sourceOwned ?? facts.get(node, elementKey)?.sourceOwned,
     element: (node) => facts.get(node, elementKey),
     binary: (node) => facts.get(node, binaryKey),
     switchStatement: (node) => facts.get(node, switchKey),
@@ -524,7 +526,7 @@ function visit(
         ...(receiverProjection === undefined ? {} : { receiverProjection }),
         ...(selection.kind === "source-owned"
           ? {
-              sourceOwned: classifySourceOwnedProperty(
+              sourceOwned: classifySourceOwnedMember(
                 policy,
                 selection,
                 sourceFile,
@@ -544,15 +546,16 @@ function visit(
       "element-read",
       expression?.QuestionDotToken !== undefined,
     ));
+    const target = jsValue.kind === "not-js-value" ? selectCsharpTargetElement(policy, node, sourceFile) : undefined;
+    const sourceOwned = classifySourceOwnedElementMember(policy, target, sourceFile);
     setClassification(builder, node, elementKey, Object.freeze({
       jsValue,
       ...(receiverProjection === undefined ? {} : { receiverProjection }),
       ...(source === undefined
         ? {}
         : elementSelectedTypes(policy, source, sourceFile)),
-      ...(jsValue.kind === "not-js-value"
-        ? { target: selectCsharpTargetElement(policy, node, sourceFile) }
-        : {}),
+      ...(target === undefined ? {} : { target }),
+      ...(sourceOwned === undefined ? {} : { sourceOwned }),
     }));
   } else if (ast.is.IsBinaryExpression(node)) {
     const expression = ast.as.AsBinaryExpression(node);

@@ -1,3 +1,4 @@
+import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpStringTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
@@ -18,7 +19,7 @@ test("nullable union projections require exact payload and absence facts", () =>
     matchesUnionProjection: (source, target, selection) => csharpRuntimeUnionProjectionMatches(policy, source, target, selection),
   } } };
   const projected = planCsharpRuntimeUnionProjection({}, source, target, selection, input, diagnostics, context);
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
   assert.deepEqual(projected, { kind: "InvocationExpression", callee: { kind: "ConditionalAccessExpression", receiver: input, name: "As2" }, arguments: [] });
   for (const [selectedSource, selectedTarget, selected] of [
     [union, target, selection], [source, string, selection], [source, target, { ...selection, retainsAbsence: false }],

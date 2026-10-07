@@ -1,3 +1,4 @@
+import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
@@ -21,7 +22,7 @@ test("native throw planning requires its exact sealed operand, source carrier an
     providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
   });
   assert.equal(analysis.kind, "resolved");
-  assert.deepEqual(analysis.diagnostics, []);
+  assertNoTargetDiagnostics(analysis.diagnostics);
   const program = analysis.value;
   const declaration = program.sourceFiles.flatMap(file => source.ast.statements(file))
     .find(node => source.ast.text(source.ast.name(node)) === "fail");
@@ -31,7 +32,7 @@ test("native throw planning requires its exact sealed operand, source carrier an
   const context = createCsharpPlanningContext(program);
   const diagnostics = [];
   assert.equal(planThrowStatement(statement, source.ast.getSourceFile(statement), context, diagnostics).length, 1);
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
   for (const selected of [undefined, { ...classification, expression: declaration },
     { ...classification, sourceCarrier: csharpStringTargetType() }]) {
     const changed = { ...program, operations: { ...program.operations, throwValue: () => selected } };

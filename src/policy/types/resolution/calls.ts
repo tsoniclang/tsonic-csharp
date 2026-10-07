@@ -1,4 +1,5 @@
 import type { CsharpSourceCallContract } from "../callables/source-callable-contract.js";
+import { csharpSourceCallArgumentParameter } from "../callables/source-callable-contract.js";
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { ResolvedSourceCallInfo, CsharpTypeResolutionState } from "./model.js";
@@ -17,6 +18,7 @@ import { getCsharpArrayLiteralElementTargetType } from "../../../target-model/ty
 import { resolveTypeParameter, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";
+import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
 
 export function resolveAuthoredAndSelectedSourceType(
   scope: CsharpTypeResolutionScope,
@@ -140,18 +142,15 @@ export function resolveSourceCallInstantiation(
   const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
   const owner = callable?.sourceDeclaration ?? source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
   const projections = owner === undefined ? [] : host.representations.genericProjections?.(owner) ?? [];
-  const queries = host.semantics(sourceFile);
-  const parameterIdentities = selectedArguments.map(argument => {
-    const parameter = resolveTypeParameter(argument.typeParameter, queries, host.ast);
-    return parameter?.kind === "type-parameter" ? parameter.identity : undefined;
-  });
-  if (parameterIdentities.some(name => name === undefined)) return undefined;
   if (expectedTypeParameterIdentities?.length === 0) {
     return {
       arguments: Object.freeze([]),
       substitutions: new Map(),
     };
   }
+  const parameterIdentities = sourceCallTypeParameterIdentities(scope, source, callable,
+    callable === undefined ? "value" : "declaration");
+  if (parameterIdentities === undefined) return undefined;
   if (
     expectedTypeParameterIdentities !== undefined &&
     (
@@ -368,8 +367,7 @@ export function inferSourceCallTargetTypeArguments(
 ): ReadonlyMap<string, TargetTypeRef> | undefined {
   const inferred = new Map<string, TargetTypeRef>();
   for (const binding of source.sourceArgumentBindings) {
-    const parameter = callable.parameters[binding.sourceParameterIndex]
-      ?.targetParameter;
+    const parameter = csharpSourceCallArgumentParameter(callable, binding.effectiveArgumentIndex)?.targetParameter;
     const argument = source.sourceArguments[binding.sourceArgumentIndex];
     if (parameter === undefined || argument === undefined) {
       return undefined;
@@ -490,7 +488,7 @@ export function resolveSourceCallReceiverTargetType(
 
 
 export function sourceCallableTypeParametersMatch(
-  { host }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   callable: CsharpSourceCallContract,
   kind: "declaration" | "value",
@@ -499,17 +497,45 @@ export function sourceCallableTypeParametersMatch(
     return true;
   }
   const selected = source.sourceSelectedMethodTypeArguments ?? [];
-  const file = host.ast.getSourceFile(source.sourceCallee.expression);
-  if (file === undefined) return false;
-  const queries = host.semantics(file);
+  const { host } = scope;
+  const identities = sourceCallTypeParameterIdentities(scope, source, callable, kind);
+  if (identities === undefined) return false;
   const projections = callable.sourceDeclaration === undefined ? []
     : host.representations.genericProjections?.(callable.sourceDeclaration) ?? [];
   return selected.length + projections.length === callable.methodTypeParameterIdentities.length &&
     projections.every((projection, index) => projection.identity === callable.methodTypeParameterIdentities[selected.length + index]) &&
-    selected.every((argument, index) => {
-      const parameter = resolveTypeParameter(argument.typeParameter, queries, host.ast);
-      return parameter?.kind === "type-parameter" && parameter.identity === callable.methodTypeParameterIdentities[index];
-    });
+    identities.every((identity, index) => identity === callable.methodTypeParameterIdentities[index]);
+}
+
+function sourceCallTypeParameterIdentities(
+  { host }: CsharpTypeResolutionScope,
+  source: ResolvedSourceCallInfo,
+  callable: CsharpSourceCallContract | undefined,
+  kind: "declaration" | "value",
+): readonly string[] | undefined {
+  const selected = source.sourceSelectedMethodTypeArguments ?? [];
+  if (selected.length === 0) return [];
+  const file = host.ast.getSourceFile(source.sourceCallee.expression);
+  if (file === undefined) return undefined;
+  const queries = host.semantics(file);
+  const checked = queries.declarations.signatureDeclaration(source.selectedSignature);
+  const remap = kind === "declaration" && callable?.sourceDeclaration !== undefined &&
+    checked !== undefined && checked !== callable.sourceDeclaration;
+  if (remap) {
+    const implementation = host.navigation.callableImplementation(checked);
+    if (implementation.kind !== "resolved" || implementation.implementation.declaration !== callable.sourceDeclaration ||
+        host.ast.typeParameters(checked).length !== selected.length ||
+        host.ast.typeParameters(callable.sourceDeclaration!).length !== selected.length) return undefined;
+  }
+  const identities = selected.map((argument, index) => {
+    const parameter = resolveTypeParameter(argument.typeParameter, queries, host.ast);
+    if (parameter?.kind !== "type-parameter") return undefined;
+    if (!remap) return parameter.identity;
+    const checkedParameter = csharpSourceTypeParameter(host.ast.typeParameters(checked!)[index]!, host.ast);
+    if (checkedParameter?.identity !== parameter.identity) return undefined;
+    return csharpSourceTypeParameter(host.ast.typeParameters(callable!.sourceDeclaration!)[index]!, host.ast)?.identity;
+  });
+  return identities.some(identity => identity === undefined) ? undefined : identities as readonly string[];
 }
 
 

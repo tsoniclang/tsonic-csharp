@@ -1,3 +1,4 @@
+import { assertNoTargetDiagnostics } from "../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpRuntimeUnionTargetType, csharpNullableTargetType } from "../../../dist/target-model/types/index.js";
@@ -36,7 +37,7 @@ test("union mappings require complete exact coverage and reject forged or numeri
   const expression = { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "Next" }, arguments: [] };
   const diagnostics = [];
   const planned = planCsharpUnionMapping({}, expression, csharpNullableTargetType(wide), csharpNullableTargetType(narrow), selection, context, diagnostics);
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned.kind, "SwitchExpression");
   assert.equal(planned.expression, expression);
   assert.equal(planned.arms[2].pattern.kind, "ConstantPattern");
@@ -70,7 +71,7 @@ test("nested union paths preserve each native grouping and reject stale intermed
   const selection = { kind: "union-map", coverage: "source", arms };
   const diagnostics = [];
   const planned = planCsharpUnionMapping({}, expression, flat, nested, selection, context, diagnostics);
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned.arms[0].expression.callee.name, "From2");
   assert.equal(planned.arms[0].expression.arguments[0].expression.callee.name, "From2");
   for (const target of [arms[0].target.slice(1), arms[0].target.toReversed(),

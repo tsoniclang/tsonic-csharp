@@ -37,19 +37,23 @@ test("function-selected alias storage remains a real callable value", () => {
 });
 
 test("direct methods supply receiver acquisition without delegate construction", () => {
-  const selected = classify(methodDeclaration, methodDeclaration, { kind: "property", expression, receiver: { expression: receiver } });
-  assert.equal(selected.kind, "method");
-  assert.equal(selected.receiver.expression, receiver);
-  assert.equal(selected.receiver.type, owner);
-  assert.equal(Object.isFrozen(selected.receiver), true);
+  for (const kind of ["property", "element"]) {
+    const selected = classify(methodDeclaration, methodDeclaration, { kind, expression, receiver: { expression: receiver } });
+    assert.equal(selected.kind, "method");
+    assert.equal(selected.receiver.expression, receiver);
+    assert.equal(selected.receiver.type, owner);
+    assert.equal(Object.isFrozen(selected.receiver), true);
+  }
 });
 
 test("static nominal methods use their exact native member receiver rather than module linkage", () => {
   const method = { kind: "method", parent: { kind: "class" } };
-  const selected = classify(method, method, { kind: "property", expression, receiver: { expression: receiver } }, delegate, true);
-  assert.equal(selected.kind, "method");
-  assert.equal(selected.receiver.expression === receiver, true, "exact static declaring type expression");
-  assert.equal(selected.receiver.type === owner, true, "native receiver carrier");
+  for (const kind of ["property", "element"]) {
+    const selected = classify(method, method, { kind, expression, receiver: { expression: receiver } }, delegate, true);
+    assert.equal(selected.kind, "method");
+    assert.equal(selected.receiver.expression === receiver, true, "exact static declaring type expression");
+    assert.equal(selected.receiver.type === owner, true, "native receiver carrier");
+  }
 });
 
 test("method-value protocols and optional delegates retain their physical storage", () => {

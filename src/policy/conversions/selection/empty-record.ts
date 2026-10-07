@@ -1,4 +1,4 @@
-import type { CsharpPolicyContext } from "../../model/context.js";
+import type { CsharpConversionShapeQueries } from "../shape-queries.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
 import { isCsharpEmptyObjectTargetType } from "../../../target-model/types/runtime-carriers.js";
 import {
@@ -7,7 +7,7 @@ import {
 import type { CsharpConversionSelection } from "../../../target-model/conversions/selection.js";
 
 export function selectCsharpEmptyRecordConversion(
-  input: Pick<Partial<CsharpPolicyContext>, "objectShapes">,
+  input: CsharpConversionShapeQueries,
   source: TargetTypeRef,
   target: TargetTypeRef,
 ): CsharpConversionSelection | undefined {

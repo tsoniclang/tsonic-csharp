@@ -10,6 +10,11 @@ import type {
 } from "../../policy/conversions/index.js";
 import {
   csharpAbsenceTargetType,
+  getCsharpNullableElementTargetType,
+  isCsharpJsValueTargetType,
+  isCsharpJsValueObjectShapeTargetType,
+  isCsharpRecordDictionaryTargetType,
+  projectCsharpJsValueObjectLiteralShape,
   getCsharpGeneratorProtocol,
   getCsharpJsArrayElementTargetType,
   getCsharpArrayLiteralElementTargetType,
@@ -160,7 +165,25 @@ export function analyzeCsharpConversions(
       }
       classifyArrayCarrier(node, targetType, expectedTypes, operations, storage);
       if (policy.ast.is.IsObjectLiteralExpression(node)) {
-        classifyPair(objectShapes.resolveObjectLiteralUnionCarrier(node, targetType), targetType, "implicit", node);
+        const unionCarrier = objectShapes.resolveObjectLiteralUnionCarrier(node, targetType);
+        const constructionTarget = unionCarrier ?? getCsharpNullableElementTargetType(targetType) ?? targetType;
+        const dictionary = isCsharpRecordDictionaryTargetType(constructionTarget) ? constructionTarget
+          : sourceTypes.find(isCsharpRecordDictionaryTargetType);
+        if (dictionary !== undefined) {
+          classifyExpression(node, dictionary, targetType, "implicit");
+        } else {
+          const shape = objectShapes.resolveTarget(constructionTarget) ?? objectShapes.resolveNode(node);
+          const construction = objectShapes.resolveObjectLiteralTargetShape(shape, node, sourceFile);
+          if (construction?.kind === "resolved") {
+            const projection = isCsharpJsValueTargetType(targetType) &&
+              !isCsharpJsValueObjectShapeTargetType(construction.shape.targetType)
+              ? projectCsharpJsValueObjectLiteralShape(construction.shape) : undefined;
+            const constructed = projection?.kind === "resolved" ? projection.shape.targetType
+              : construction.shape.targetType;
+            classifyExpression(node, constructed, targetType, "implicit");
+          }
+        }
+        classifyPair(unionCarrier, targetType, "implicit", node);
       }
     }
     if (
@@ -582,7 +605,7 @@ export function analyzeCsharpConversions(
       directCallables.set(expression, Object.freeze({ ...reference }));
     }
     let candidate = selectCsharpIntegerTruncationConversion(policy, expression, sourceFile, source, target) ?? selectCsharpExpressionConversion(
-      policy,
+      { ...policy, objectShapes },
       expression,
       source,
       target,

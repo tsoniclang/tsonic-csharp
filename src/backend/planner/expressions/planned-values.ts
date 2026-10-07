@@ -13,6 +13,13 @@ export interface CsharpPlannedValue {
   readonly completion: CsharpPlannedCompletion;
 }
 
+export interface CsharpPlannedEffectOperand {
+  readonly kind: "effect";
+  readonly effect: CsharpPlannedValue;
+}
+
+export type CsharpPlannedOperand = CsharpPlannedValue | CsharpPlannedEffectOperand;
+
 export interface CsharpPlannedArgument extends CsharpPlannedValue {
   readonly passing?: CsharpArgument["passing"];
   readonly suspends?: true;
@@ -27,6 +34,7 @@ export interface CsharpPlannedCapture {
 export interface CsharpPlannedLocationCapture {
   readonly kind: "native-location";
   readonly expression: CsharpExpression;
+  readonly prelude?: readonly CsharpStatement[];
 }
 
 export function csharpPlannedValue(
@@ -62,7 +70,7 @@ export function mapCsharpPlannedValue(
 }
 
 export function sequenceCsharpPlannedValues(
-  operands: readonly CsharpPlannedValue[],
+  operands: readonly CsharpPlannedOperand[],
   capture: (carrier: TargetTypeRef, operand: CsharpPlannedValue) => CsharpPlannedCapture | CsharpPlannedLocationCapture | undefined,
   complete: (expressions: readonly CsharpExpression[]) => CsharpPlannedValue | undefined,
 ): CsharpPlannedValue | undefined {
@@ -70,14 +78,18 @@ export function sequenceCsharpPlannedValues(
   let subsequentPrelude = false;
   for (let index = operands.length - 1; index >= 0; index -= 1) {
     preludesAfter[index] = subsequentPrelude;
-    const operand = operands[index]!;
+    const selected = operands[index]!;
+    const operand = "kind" in selected ? selected.effect : selected;
     subsequentPrelude ||= operand.prelude.length > 0 || operand.completion.kind !== "value";
   }
   const prelude: CsharpStatement[] = [];
   const expressions: CsharpExpression[] = [];
-  for (const [index, operand] of operands.entries()) {
+  for (const [index, entry] of operands.entries()) {
+    const operand = "kind" in entry ? entry.effect : entry;
+    if ("kind" in entry && operand.completion.kind === "value") return undefined;
     prelude.push(...operand.prelude);
     if (operand.completion.kind === "never") return csharpPlannedEffect(operand.completion.carrier, prelude);
+    if ("kind" in entry) continue;
     if (operand.completion.kind !== "value") return undefined;
     const expression = operand.completion.expression;
     if (!preludesAfter[index] || csharpPlannedExpressionIsStable(expression)) {
@@ -87,6 +99,7 @@ export function sequenceCsharpPlannedValues(
     const selected = capture(operand.completion.carrier, operand);
     if (selected === undefined) return undefined;
     if ("kind" in selected) {
+      prelude.push(...selected.prelude ?? []);
       expressions.push(selected.expression);
       continue;
     }

@@ -62,7 +62,7 @@ test("stored aliases use their selected closed input and result, not creation te
       assert.equal(targetTypeRefEquals(resolveSourceCallParameter(scope, source, 0, {}), type), true);
       assert.equal(targetTypeRefEquals(resolveSourceCallParameters(scope, source, {})[0].type, type), true);
       assert.equal(targetTypeRefEquals(resolveSourceCallArgumentParameter(scope, source,
-        { sourceParameterIndex: 0, sourceForm: "value" }, {}), type), true);
+        { sourceParameterIndex: 0, effectiveArgumentIndex: 0, sourceForm: "value" }, {}), type), true);
       const result = resolveSourceCallResultWithState(scope, source, {}, { depth: 0 }, undefined);
       assert.equal(targetTypeRefEquals(result.nativeType, type), true);
       assert.equal(targetTypeRefEquals(result.selectedType, type), true);
@@ -117,7 +117,7 @@ test("direct declarations retain their native ABI and stored optional/rest metad
   assert.equal(contract[0].optional, true);
   assert.equal(contract[0].paramsArray, false);
   assert.equal(targetTypeRefEquals(resolveSourceCallArgumentParameter(stored.scope, stored.source,
-    { sourceParameterIndex: 0, sourceForm: "value" }, {}), optional), true);
+    { sourceParameterIndex: 0, effectiveArgumentIndex: 0, sourceForm: "value" }, {}), optional), true);
   const sequence = { kind: "array", element: integer };
   const rest = fixture(csharpDelegateTargetType("System.Action", [sequence], undefined, { restParameterIndex: 0 }));
   rest.source.sourceSelectedSignatureParameters[0].rest = true;
@@ -126,7 +126,7 @@ test("direct declarations retain their native ABI and stored optional/rest metad
   assert.equal(restContract[0].optional, false);
   for (const sourceForm of ["value", "spread-element", "spread-sequence"]) {
     assert.equal(targetTypeRefEquals(resolveSourceCallArgumentParameter(rest.scope, rest.source,
-      { sourceParameterIndex: 0, sourceForm }, {}), sourceForm === "spread-sequence" ? sequence : integer), true,
+      { sourceParameterIndex: 0, effectiveArgumentIndex: 0, sourceForm }, {}), sourceForm === "spread-sequence" ? sequence : integer), true,
       sourceForm);
   }
 });
@@ -192,6 +192,42 @@ test("selected stored contracts do not require invented signature or parameter s
   assert.equal(selected.contract.sourceDeclaration === undefined, true);
   assert.equal(selected.contract.parameters[0].sourceParameter === undefined, true);
   assert.equal(targetTypeRefEquals(resolveSourceCallParameter(scope, source, 0, {}), integer), true);
+});
+
+test("checked narrow overload arguments use the selected native implementation carrier", () => {
+  const current = fixture(undefined, true);
+  const native = { kind: "tuple", elements: [integer, string] };
+  current.openContract.parameters[0].targetParameter.type = native;
+  const argument = { sourceParameterIndex: 0, effectiveArgumentIndex: 0, sourceForm: "value" };
+  assert.equal(targetTypeRefEquals(resolveSourceCallArgumentParameter(current.scope, current.source, argument, {}), native), true,
+    "the selected implementation owns physical argument storage");
+  assert.equal(resolveSourceCallArgumentParameter(current.scope, current.source, { ...argument, effectiveArgumentIndex: 3 }, {}) === undefined, true,
+    "missing implementation slots cannot fall back to a checked narrow carrier");
+});
+
+test("native overload binders remap only through exact checked implementation correspondence", () => {
+  const current = fixture(undefined, true);
+  const binders = checkedBinders(current);
+  const checked = current.signatureDeclaration;
+  const implementation = { kind: "function" };
+  current.openContract.sourceDeclaration = implementation;
+  current.openContract.methodTypeParameterIdentities = [binders[1].type.identity];
+  current.source.sourceSelectedMethodTypeArguments = [{ typeParameter: binders[0].declaration }];
+  current.scope.host.ast.typeParameters = node => node === checked ? [binders[0].declaration] : [binders[1].declaration];
+  current.scope.host.navigation.callableImplementation = () => ({ kind: "resolved", implementation: { declaration: implementation } });
+  assert.equal(sourceCallableTypeParametersMatch(current.scope, current.source, current.openContract, "declaration"), true,
+    "different authored binder names preserve the exact native implementation slot");
+  current.source.sourceSelectedMethodTypeArguments = [{ typeParameter: binders[1].declaration }];
+  assert.equal(sourceCallableTypeParametersMatch(current.scope, current.source, current.openContract, "declaration"), false,
+    "a foreign binder is not accepted merely because its target identity matches");
+  current.source.sourceSelectedMethodTypeArguments = [{ typeParameter: binders[0].declaration }];
+  current.scope.host.navigation.callableImplementation = () => ({ kind: "resolved", implementation: { declaration: {} } });
+  assert.equal(sourceCallableTypeParametersMatch(current.scope, current.source, current.openContract, "declaration"), false,
+    "unrelated native declarations cannot own the checked overload");
+  current.scope.host.navigation.callableImplementation = () => ({ kind: "resolved", implementation: { declaration: implementation } });
+  current.scope.host.ast.typeParameters = node => node === checked ? [binders[0].declaration] : [binders[1].declaration, {}];
+  assert.equal(sourceCallableTypeParametersMatch(current.scope, current.source, current.openContract, "declaration"), false,
+    "implementation arity cannot be repaired through binder spelling or a partial prefix");
 });
 
 test("bulk parameter resolution selects the complete stored contract once", () => {

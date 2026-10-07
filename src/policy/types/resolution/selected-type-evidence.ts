@@ -9,7 +9,7 @@ import {
 import { isCsharpEmptyObjectTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/collections.js";
-import { csharpObjectTargetType } from "../../../target-model/types/scalar-types.js";
+import { csharpBigIntegerTargetType, csharpObjectTargetType, isCsharpIntegralTargetType } from "../../../target-model/types/scalar-types.js";
 
 export function retainCsharpBroadValueCarrier(
   authored: TargetTypeRef | undefined,
@@ -32,6 +32,7 @@ export function reconcileCsharpSelectedTargetType(
     return authored ?? selected;
   }
   if (selected.kind === "opaque" && selected.id === "never") return authored;
+  if (isCsharpIntegralTargetType(authored) && targetTypeRefEquals(selected, csharpBigIntegerTargetType())) return authored;
   const retained = retainCsharpBroadValueCarrier(authored, selected);
   if (retained !== undefined) return retained;
   if (

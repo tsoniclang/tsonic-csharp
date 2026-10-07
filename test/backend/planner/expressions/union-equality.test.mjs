@@ -1,3 +1,4 @@
+import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpUnionEquality } from "../../../../dist/policy/operations/operators/union-equality.js";
@@ -21,7 +22,7 @@ test("union equality rejects stale carriers, paths, operations, coverage and pol
   const state = () => ({ nextTempIndex: 0, usedNames: new Set() });
   const plan = () => ({ kind: "IdentifierName", name: "operand" });
   const planned = planCsharpUnionEquality({}, selection, {}, input, diagnostics, plan, state());
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned.kind, "SwitchExpression");
   assert.equal(planned.expression.elements.length, 2);
   for (const mutation of [
@@ -65,7 +66,7 @@ test("nullable union equality plans canonical native presence guards with each o
         seen.push(node);
         return { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: node === left ? "produceLeft" : "produceRight" }, arguments: [] };
       }, { nextTempIndex: 0, usedNames: new Set() });
-      assert.deepEqual(diagnostics, []);
+      assertNoTargetDiagnostics(diagnostics);
       assert.deepEqual(seen, [left, right]);
       const output = printCsharpExpression(planned);
       assert.equal(output.match(/produceLeft\(\)/gu)?.length, 1);

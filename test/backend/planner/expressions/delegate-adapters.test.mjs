@@ -1,3 +1,4 @@
+import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { planCsharpDelegateAdapter } from "../../../../dist/backend/planner/expressions/delegate-adapters.js";
@@ -29,7 +30,7 @@ test("native adapters snapshot an effectful callable once outside its invocation
   const factory = { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "make" }, arguments: [] };
   const diagnostics = [];
   const planned = planCsharpDelegateAdapter({}, {}, context(), diagnostics, source, target, selection, factory, applyCsharpConversionSelection);
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned.kind, "SwitchExpression");
   assert.equal(planned.expression.expression, factory);
   const adapter = planned.arms[0].expression.expression;
@@ -43,7 +44,7 @@ test("an adapted authored lambda invokes a native local function, never an inner
   const diagnostics = [];
   const planned = planCsharpDelegateAdapter({}, {}, context(), diagnostics, source, target, selection,
     { kind: "LambdaExpression", parameters: [], body: observed }, applyCsharpConversionSelection);
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned.kind, "LambdaExpression");
   const [local, invocation, returned] = planned.body.statements;
   assert.equal(local.kind, "LocalFunctionStatement");
@@ -60,7 +61,7 @@ test("an adapted captured method binds its sealed native frame, not a source del
   input.program.captureStorage.closure = () => ({ method: { methodName: "invoke", type: source } });
   const diagnostics = [];
   const planned = planCsharpDelegateAdapter({}, {}, input, diagnostics, source, target, selection, method, applyCsharpConversionSelection);
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned.kind, "SwitchExpression");
   assert.equal(planned.expression, frame);
   const invocation = planned.arms[0].expression.expression.body.statements[0].expression;
@@ -75,7 +76,7 @@ test("an adapted captured method binds its sealed native frame, not a source del
     assert.equal(unchanged.expression.kind, "CastExpression");
     assert.equal(unchanged.expression.expression, method);
   }
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
 });
 
 test("native adapters reject missing signatures and mismatched conversion arity", () => {
@@ -107,7 +108,7 @@ test("exact absence conversion retains an effectful producer and rejects present
     const diagnostics = [];
     const planned = applyCsharpConversionSelection({}, {}, context(), diagnostics, csharpAbsenceTargetType(), to,
       { kind: "absence" }, effect);
-    assert.deepEqual(diagnostics, []);
+    assertNoTargetDiagnostics(diagnostics);
     assert.equal(planned.kind, "SwitchExpression");
     assert.equal(planned.expression.expression, effect);
     assert.equal(planned.arms[0].expression.kind, "DefaultExpression");

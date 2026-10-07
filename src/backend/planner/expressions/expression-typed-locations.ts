@@ -128,7 +128,7 @@ export function tryPlanCsharpTypedLocationOperation(
         return { handled: true };
       }
       if (operation.storage.kind === "reference-property-storage") {
-        const source = input.program.operations.property(operation.storage.expression)?.sourceOwned;
+        const source = input.program.operations.sourceMember(operation.storage.expression);
         const shape = source?.objectShape;
         const member = source?.shapeMember?.kind === "resolved" ? source.shapeMember.member : undefined;
         const backing = shape === undefined || member === undefined ? undefined
@@ -296,7 +296,7 @@ export function planCsharpProjectedFieldWrite(
   planExpression: ExpressionPlanner,
   state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
-  const selection = input.program.operations.property(node)?.sourceOwned?.projectedWrite;
+  const selection = input.program.operations.sourceMember(node)?.projectedWrite;
   if (selection === undefined) return planned;
   if (selection.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
@@ -473,7 +473,7 @@ function planValuePropertyLocation(
 }
 
 function boundRecordStorage(node: Node, input: CsharpPlanningContext): { readonly name: string; readonly type: CsharpTypeNode } | undefined {
-  const selected = input.program.operations.property(node)?.sourceOwned;
+  const selected = input.program.operations.sourceMember(node);
   const shape = selected?.objectShape;
   const field = selected?.shapeMember?.kind === "resolved" ? selected.shapeMember.member : undefined;
   if (shape === undefined || field?.bound !== true) return undefined;

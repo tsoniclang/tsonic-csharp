@@ -3,12 +3,34 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpNativeLocationSelection } from "../../../analysis/storage/native-locations.js";
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../context.js";
-import type { CsharpPlannedValue } from "./planned-values.js";
+import type { CsharpPlannedValue, CsharpPlannedCapture, CsharpPlannedLocationCapture } from "./planned-values.js";
 import { csharpPlannedValue } from "./planned-values.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { isCsharpValueTypeTargetType } from "../../../target-model/types/index.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import { captureCsharpPlannedValue } from "./planned-value-composition.js";
 
 type NativeLocation = Extract<CsharpNativeLocationSelection, { readonly kind: "resolved" }>;
+
+export function captureCsharpPlannedMemberReceiver(
+  node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
+  receiver: Node, carrier: TargetTypeRef, operand: CsharpPlannedValue, suspends: boolean, writable: boolean,
+): CsharpPlannedCapture | CsharpPlannedLocationCapture | undefined {
+  if (operand.completion.kind !== "value") return undefined;
+  if (!isCsharpValueTypeTargetType(carrier)) return captureCsharpPlannedValue(node, input, diagnostics, carrier);
+  const location = input.program.storage.nativeLocation(receiver);
+  if (location?.kind !== "resolved" || location.address === undefined) {
+    if (!writable) return captureCsharpPlannedValue(node, input, diagnostics, carrier);
+    diagnostics.push(unsupportedNodeDiagnostic(node, "A computed value-member write requires its exact native receiver address."));
+    return undefined;
+  }
+  const retained = captureCsharpPlannedLocation(receiver, sourceFile, input, diagnostics,
+    csharpPlannedValue(carrier, operand.completion.expression), location, suspends);
+  return retained?.completion.kind !== "value" ? undefined : {
+    kind: "native-location", expression: retained.completion.expression, prelude: retained.prelude,
+  };
+}
 
 export function captureCsharpPlannedLocation(
   node: Node, _sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
@@ -31,7 +53,8 @@ export function captureCsharpPlannedLocation(
         }
         return { ...syntax, receiver: temporary(syntax.receiver) };
       }
-      const property = input.program.operations.property(selected.expression)?.selection;
+      const property = input.program.operations.property(selected.expression)?.selection ??
+        input.program.operations.element(selected.expression)?.target;
       if (property?.kind === "resolved" && property.receiver.kind === "none" || property?.kind === "source-owned" &&
         property.source.selectedDeclaration !== undefined && input.program.source.ast.hasModifierKind(property.source.selectedDeclaration, "static")) return syntax;
       if (selected.assignment === "unsupported" && selected.receiver === undefined && selected.address === undefined && selected.nativeCell === undefined) {

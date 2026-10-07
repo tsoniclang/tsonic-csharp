@@ -130,13 +130,13 @@ function withAbsenceCompletion(
     : !asynchronous && inferred && isCsharpVoidTargetType(contract.type) && csharpCarrierAdmitsSourceAbsence(contextual)
       ? contextual! : contract.type;
   const value = asynchronous ? getCsharpTaskResultTargetType(type) : type;
-  if (!csharpCarrierAdmitsSourceAbsence(value)) return type === contract.type ? contract : { ...contract, type };
+  if (!isCsharpVoidTargetType(value) && !csharpCarrierAdmitsSourceAbsence(value)) return type === contract.type ? contract : { ...contract, type };
   const completion = policy.semanticsFor(declaration).operations.callableCompletion(declaration);
   if (policy.ast.body(declaration) !== undefined && completion === undefined) {
     return { kind: "rejected", reason: "An absence-bearing callable requires exact source completion evidence." };
   }
   return Object.freeze({ kind: "resolved", type, undefinedReturn: true,
-    fallthroughUndefined: completion?.canFallThrough === true });
+    fallthroughUndefined: !isCsharpVoidTargetType(value) && completion?.canFallThrough === true });
 }
 
 function classifyReturnContract(

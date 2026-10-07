@@ -17,14 +17,16 @@ export function classifyCsharpBoundFieldWrite(
   valueType: TargetTypeRef | undefined,
 ): CsharpTypedLocationStorageSelection | undefined {
   const semantics = policy.semantics(sourceFile);
-  const source = semantics.operations.propertyAccess(expression);
+  const selectedMember = (node: Node) => policy.ast.is.IsElementAccessExpression(node)
+    ? semantics.operations.elementAccess(node) : semantics.operations.propertyAccess(node);
+  const source = selectedMember(expression);
   if (source === undefined ||
       (source.accessMode !== "write" && source.accessMode !== "read-write")) return undefined;
   let receiver = source.receiver.expression;
-  while (policy.ast.is.IsPropertyAccessExpression(receiver)) {
+  while (policy.ast.is.IsPropertyAccessExpression(receiver) || policy.ast.is.IsElementAccessExpression(receiver)) {
     const type = policy.types.resolveReadStorage(receiver, sourceFile);
     if (type === undefined || !isCsharpValueTypeTargetType(type)) return undefined;
-    const selected = semantics.operations.propertyAccess(receiver);
+    const selected = selectedMember(receiver);
     if (selected === undefined) return undefined;
     const shape = policy.objectShapes.resolveNode(selected.receiver.expression, sourceFile);
     const field = shape === undefined ? undefined : resolveCsharpObjectShapeMemberBySelectedSubject(

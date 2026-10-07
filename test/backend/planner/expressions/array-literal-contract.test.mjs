@@ -1,3 +1,4 @@
+import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
@@ -25,7 +26,7 @@ test("native collection construction fills only its declared native builder", { 
     providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
   });
   assert.equal(analysis.kind, "resolved");
-  assert.deepEqual(analysis.diagnostics, []);
+  assertNoTargetDiagnostics(analysis.diagnostics);
   const arrays = [];
   const visit = node => {
     if (source.ast.is.IsArrayLiteralExpression(node)) arrays.push(node);
@@ -42,7 +43,7 @@ test("native collection construction fills only its declared native builder", { 
   const expression = planNativeCollectionArrayLiteralExpression(node, source.ast.getSourceFile(node), context,
     diagnostics, carrier, element, planner);
   assert.ok(expression);
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
   const output = printCsharpCompilationUnit({ kind: "CompilationUnit", usings: [], members: [{
     kind: "NamespaceDeclaration", name: "Tsonic.Generated", members: [{ kind: "ClassDeclaration", name: "Index",
       modifiers: ["public", "static"], members: [

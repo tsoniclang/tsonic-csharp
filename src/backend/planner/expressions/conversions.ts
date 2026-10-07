@@ -18,6 +18,7 @@ import {
   getCsharpRuntimeUnionArms,
   isCsharpNullableReferenceTargetType,
   targetTypeRefEquals,
+  targetTypeRefKey,
   isCsharpAbsenceTargetType,
 } from "../../../target-model/types/index.js";
 import type {
@@ -93,7 +94,7 @@ export function readCsharpExpressionConversionClassification(
   if (selection === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
-      "C# planning requires a sealed expression-conversion classification that analysis did not produce.",
+      `C# planning requires a sealed ${mode} expression conversion from '${sourceType === undefined ? "<unresolved>" : targetTypeRefKey(sourceType)}' to '${targetType === undefined ? "<unresolved>" : targetTypeRefKey(targetType)}'.`,
     ));
   }
   return selection;

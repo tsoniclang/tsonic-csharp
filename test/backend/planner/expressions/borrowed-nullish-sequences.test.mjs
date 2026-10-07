@@ -61,12 +61,14 @@ var directHeaderSnapshot = Index.snapshotFromHeaders(headers, "x-item");
 if (directHeaderSnapshot.${count} != 2 || directHeaderSnapshot[1] != "tail") throw new System.Exception("actual native header snapshot");
 headerBacking[0] = "live";
 if (Index.firstFromHeaders(headers, "x-item") != "live" || Index.joinFromHeaders(headers, "x-item") != "livetail") throw new System.Exception("actual indexed and foreach reads retain live backing");
+if (Index.firstFromHeaderHolder(headers, "x-item") != "live" || Index.guardedFirstFromHeaderHolder(headers, "x-item") != "live") throw new System.Exception("nested native header selection retains present payload and live backing");
 if (nativeHeaderSnapshot[0] != "header" || directHeaderSnapshot[0] != "header") throw new System.Exception("actual header snapshot retains independent storage");
 nativeHeaderSnapshot[1] = "changed";
 if (headerBacking[1] != "tail") throw new System.Exception("actual header snapshot does not mutate provider backing");
 foreach (var key in new[] { "missing", "empty" }) {
     if (Index.chooseFromHeaders(null, headers, key).${count} != 0 || Index.snapshotFromHeaders(headers, key).${count} != 0 ||
         Index.firstFromHeaders(headers, key) is not null || Index.joinFromHeaders(headers, key) != "") throw new System.Exception("actual header native absence");
+    if (Index.firstFromHeaderHolder(headers, key) is not null || Index.guardedFirstFromHeaderHolder(headers, key) is not null) throw new System.Exception("nested native header selection preserves absence");
 }
 if (Index.chooseFromHeaders(authored, headers, "bad header")[0] != "authored") throw new System.Exception("header operand is lazy when source is present");
 for (var index = 0; index < 1000; index++) { System.GC.KeepAlive(Index.choose(authored, native)); System.GC.KeepAlive(Handwritten(authored, native)); }
@@ -91,11 +93,14 @@ foreach (var selected in new ${carrier}?[] { authored, null }) {
 }
 headerBacking[1] = null;
 if (Index.firstFromHeaders(headers, "x-item") != "live" || Index.chooseFromHeaders(authored, headers, "x-item")[0] != "authored") throw new System.Exception("header null check must not pre-scan an unused payload");
+if (Index.firstFromHeaderHolder(headers, "x-item") != "live" || Index.guardedFirstFromHeaderHolder(headers, "x-item") != "live") throw new System.Exception("nested native header selection must not copy or pre-scan unused payloads");
 ExpectAbsentPayloadRejected(() => { Index.chooseFromHeaders(null, headers, "x-item"); });
 ExpectAbsentPayloadRejected(() => { Index.snapshotFromHeaders(headers, "x-item"); });
 ExpectAbsentPayloadRejected(() => { Index.joinFromHeaders(headers, "x-item"); });
 headerBacking[0] = null;
 ExpectAbsentPayloadRejected(() => { Index.firstFromHeaders(headers, "x-item"); });
+ExpectAbsentPayloadRejected(() => { Index.firstFromHeaderHolder(headers, "x-item"); });
+ExpectAbsentPayloadRejected(() => { Index.guardedFirstFromHeaderHolder(headers, "x-item"); });
 static ${carrier} Handwritten(${carrier}? authored, Microsoft.Extensions.Primitives.StringValues? native) { ${hand} }
 static ${carrier} HandwrittenHeaders(${carrier}? authored, IncomingHttpHeaders headers, string key) { ${handHeaders} }
 static void ExpectAbsentPayloadRejected(System.Action action) {

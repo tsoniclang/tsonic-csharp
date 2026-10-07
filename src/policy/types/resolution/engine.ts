@@ -56,7 +56,7 @@ import {
 } from "./nodes.js";
 import {
   resolveSelectedExpressionType as resolveSelectedExpressionTypeImplementation,
-  resolvePropertyAccessTargetType as resolvePropertyAccessTargetTypeImplementation,
+  resolveMemberAccessTargetType as resolveMemberAccessTargetTypeImplementation,
   resolveNonNullExpressionType as resolveNonNullExpressionTypeImplementation,
   resolveProjectThisTargetType as resolveProjectThisTargetTypeImplementation,
   resolveSourceOwnedCallResult as resolveSourceOwnedCallResultImplementation,
@@ -236,7 +236,7 @@ export interface CsharpTypeResolutionScope {
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
-  resolvePropertyAccessTargetType(
+  resolveMemberAccessTargetType(
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -613,8 +613,8 @@ export function createCsharpTypeResolutionServices(
       tupleElementIsRestImplementation(scope, ...args),
     resolveSelectedExpressionType: (...args: DropScope<Parameters<typeof resolveSelectedExpressionTypeImplementation>>) =>
       resolveSelectedExpressionTypeImplementation(scope, ...args),
-    resolvePropertyAccessTargetType: (...args: DropScope<Parameters<typeof resolvePropertyAccessTargetTypeImplementation>>) =>
-      resolvePropertyAccessTargetTypeImplementation(scope, ...args),
+    resolveMemberAccessTargetType: (...args: DropScope<Parameters<typeof resolveMemberAccessTargetTypeImplementation>>) =>
+      resolveMemberAccessTargetTypeImplementation(scope, ...args),
     resolveNonNullExpressionType: (...args: DropScope<Parameters<typeof resolveNonNullExpressionTypeImplementation>>) =>
       resolveNonNullExpressionTypeImplementation(scope, ...args),
     resolveProjectThisTargetType: (...args: DropScope<Parameters<typeof resolveProjectThisTargetTypeImplementation>>) =>

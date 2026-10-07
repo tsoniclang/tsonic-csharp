@@ -1,3 +1,4 @@
+import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { captureCsharpPlannedLocation } from "../../../../dist/backend/planner/expressions/planned-locations.js";
@@ -24,7 +25,9 @@ function context() {
   const input = { scope: {}, names: { temporaryName: () => `capture${counter++}` },
     program: { source: { ast }, storage: { nativeLocation: node => selections.get(node) },
       sourceNavigation: { expressionEffects: node => ({ suspends: node.suspends === true }) },
-      sourceEvidence: { storageTargetType: () => integer }, operations: { property: node => properties.get(node) } } };
+      sourceEvidence: { storageTargetType: () => integer }, operations: {
+        property: node => properties.get(node), element: () => undefined,
+        sourceMember: node => properties.get(node)?.sourceOwned } } };
   return { input, selections, properties, diagnostics: [] };
 }
 
@@ -39,7 +42,7 @@ test("native local location capture retains the cell, not its present value, acr
   const captured = captureCsharpPlannedLocation(source, {}, input, diagnostics, csharpPlannedValue(integer, identifier("cell")), location(source), true);
   assert.deepEqual(captured.prelude, []);
   assert.deepEqual(captured.completion.expression, identifier("cell"));
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
 });
 
 test("a sealed native-backed cell captures its pointer handle rather than rereading a later rebound holder", () => {
@@ -52,7 +55,7 @@ test("a sealed native-backed cell captures its pointer handle rather than reread
   assert.equal(captured.prelude[0].initializer.callee.name, "handle");
   assert.equal(captured.prelude[0].refKind, undefined);
   assert.equal(captured.completion.expression.receiver.name, captured.prelude[0].name);
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
 });
 
 test("native indexed location snapshots only receiver and indices before later suspension", () => {
@@ -64,7 +67,7 @@ test("native indexed location snapshots only receiver and indices before later s
   assert.equal(captured.prelude.some(statement => statement.refKind !== undefined), false);
   assert.equal(captured.completion.expression.receiver.name, captured.prelude[0].name);
   assert.equal(captured.completion.expression.arguments[0].name, captured.prelude[1].name);
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
 });
 
 test("a native struct setter retains the exact receiver cell instead of making a receiver copy", () => {
@@ -78,7 +81,7 @@ test("a native struct setter retains the exact receiver cell instead of making a
   const captured = captureCsharpPlannedLocation(source, {}, input, diagnostics, csharpPlannedValue(integer, expression), fact, true);
   assert.deepEqual(captured.prelude, []);
   assert.deepEqual(captured.completion.expression, expression);
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
   const missing = captureCsharpPlannedLocation(source, {}, input, diagnostics, csharpPlannedValue(integer, expression), { ...fact, receiver: undefined }, true);
   assert.equal(missing, undefined);
   assert.match(diagnostics[0].message, /receiver address/u);
@@ -145,7 +148,7 @@ test("compound assignment captures its old value before RHS effects and stores t
     leftInputType: integer, rightInputType: integer, resultType: integer };
   const plan = subject => subject === left ? locationPlan : rightPlan;
   const planned = planSelectedCsharpBinaryOperation({}, selection, {}, input, diagnostics, plan, plan);
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
   assert.deepEqual(planned.prelude.slice(0, 2).map(statement => statement.initializer.callee.name), ["owner", "index"]);
   assert.equal(planned.prelude[2].initializer.kind, "ElementAccessExpression");
   assert.equal(planned.prelude[3].expression.callee.name, "suspend");
@@ -164,7 +167,7 @@ test("typed ref stores retain original managed storage before a later non-suspen
   const plan = subject => subject === source ? csharpPlannedValue(integer, call("reference"))
     : csharpPlannedValue(integer, identifier("completed"), [effect("valueRegion")]);
   const planned = tryPlanCsharpTypedLocationOperation({}, {}, input, diagnostics, plan, plan).expression;
-  assert.deepEqual(diagnostics, []);
+  assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned.completion.kind, "void");
   assert.equal(planned.prelude[0].refKind, "ref");
   assert.equal(planned.prelude[0].initializer.callee.name, "reference");

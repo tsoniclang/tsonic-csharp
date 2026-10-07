@@ -1,3 +1,4 @@
+import { assertNoTargetDiagnostics } from "../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
@@ -26,7 +27,7 @@ test("a later guarded extraction cannot promote its broad producer storage", () 
     providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
   });
   assert.equal(analysis.kind, "resolved");
-  assert.deepEqual(analysis.diagnostics, []);
+  assertNoTargetDiagnostics(analysis.diagnostics);
   const program = analysis.value;
   let references = 0;
   const visit = node => {

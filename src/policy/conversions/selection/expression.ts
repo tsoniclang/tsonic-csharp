@@ -20,6 +20,7 @@ import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpProviderArgumentAdapter } from "../../../providers/relations/index.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../types/index.js";
+import type { CsharpConversionShapeQueries } from "../shape-queries.js";
 import { selectCsharpUnionArmMapping } from "../../../target-model/types/union-relations.js";
 import { selectCsharpRuntimeUnionProjection } from "./carriers.js";
 import { selectCsharpGuardedIntegerConversion } from "../integer-refinement.js";
@@ -28,7 +29,7 @@ export function selectCsharpExpressionConversion(
   input: Pick<
     CsharpPolicyContext,
     "ast" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "navigation" | "sourceFacts"
-  > & Pick<Partial<CsharpPolicyContext>, "objectShapes">,
+  > & CsharpConversionShapeQueries,
   expression: Node,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
@@ -43,8 +44,8 @@ export function selectCsharpExpressionConversion(
   }
   const refined = selectCsharpGuardedIntegerConversion(input, expression, source, target);
   if (refined !== undefined) return refined;
-  const objectShape = input.objectShapes?.resolveNode(expression) ??
-    input.objectShapes?.resolveTarget(source);
+  const objectShape = input.objectShapes?.resolveTarget(source) ??
+    input.objectShapes?.resolveNode(expression);
   if (
     source !== undefined &&
     objectShape !== undefined &&
@@ -95,7 +96,7 @@ export function selectCsharpProviderArgumentConversion(
   input: Pick<
     CsharpPolicyContext,
     "ast" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "navigation" | "sourceFacts"
-  > & Pick<Partial<CsharpPolicyContext>, "objectShapes">,
+  > & CsharpConversionShapeQueries,
   expression: Node,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef,

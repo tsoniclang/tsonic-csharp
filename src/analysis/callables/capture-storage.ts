@@ -18,6 +18,7 @@ import { getCsharpMethodValue } from "../../target-model/types/method-values.js"
 import type { CsharpSourceNameResolver } from "../names/source-names.js";
 import { createCsharpTypeParameterEnvironment } from "../../policy/constraints/type-parameter-environment.js";
 import type { CsharpNamedSelfBinding } from "./named-self.js";
+import { csharpCapturedMemberAccess } from "./captured-member-access.js";
 
 export interface CsharpCaptureFrame {
   readonly scope: Node;
@@ -44,6 +45,7 @@ export interface CsharpCaptureStorage {
   closure(declaration: Node): { readonly frame: CsharpCaptureFrame; readonly method: CsharpFrameClosure } | undefined;
   namedSelf(declaration: Node): CsharpNamedSelfBinding | undefined;
   identityObserved(declaration: Node): boolean;
+  requiresHelperAccess(declaration: Node): boolean;
   forShape(type: TargetTypeRef): CsharpCaptureFrame | undefined;
   valueDeclarationsAt(statement: Node): readonly Node[];
   valueCreation(declaration: Node): SourceLexicalValueCreation | undefined;
@@ -251,11 +253,14 @@ export function analyzeCsharpCaptureStorage(
     if (ordered.kind === "resolved") scheduledValues.set(statement, ordered.declarations);
     else issues.push({ node: statement, code: "CSHARP_LEXICAL_VALUE_ACTIVATION_NOT_CLOSED", message: ordered.reason });
   }
-  return Object.freeze({ issues: Object.freeze(issues), frames: Object.freeze([...byScope.values(), ...valueFrames]),
+  const frames = Object.freeze([...byScope.values(), ...valueFrames]);
+  const helperMembers = csharpCapturedMemberAccess(source, frames);
+  return Object.freeze({ issues: Object.freeze(issues), frames,
     frame: (scope: Node) => byScope.get(scope), binding: (declaration: Node) => byBinding.get(declaration), physicalType,
     closure: (declaration: Node) => byClosure.get(declaration), forShape: (type: TargetTypeRef) => byShape.get(targetTypeRefKey(type)),
     namedSelf: (declaration: Node) => namedSelfBindings.get(declaration),
     identityObserved: (declaration: Node) => observedIdentities.has(declaration),
+    requiresHelperAccess: (declaration: Node) => helperMembers.has(declaration),
     valueDeclarationsAt: (statement: Node) => scheduledValues.get(statement) ?? empty,
     valueCreation: (declaration: Node) => valueCreations.get(declaration),
     valueName: (declaration: Node) => valueNames.get(declaration),

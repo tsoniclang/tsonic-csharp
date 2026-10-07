@@ -9,8 +9,9 @@ import {
 import { planCsharpAbsentValue } from "../expressions/optional-storage.js";
 import { planCsharpNeverValue } from "../expressions/never-values.js";
 import { qualifiedCsharpType } from "../types/index.js";
-import type { CsharpPlannedValue } from "../expressions/planned-values.js";
-import { csharpPlannedExpressionIsStable } from "../expressions/planned-values.js";
+import type { CsharpPlannedValue, CsharpPlannedEffectOperand } from "../expressions/planned-values.js";
+import { csharpPlannedEffect, csharpPlannedExpressionIsStable } from "../expressions/planned-values.js";
+import { csharpVoidTargetType } from "../../../target-model/types/scalar-types.js";
 
 export function consumeCsharpPlannedValue(
   planned: CsharpPlannedValue,
@@ -38,6 +39,13 @@ export function expressionStatement(expression: CsharpExpression): CsharpStateme
   };
 }
 
+export function planCsharpDiscardedOperand(planned: CsharpPlannedValue | undefined): CsharpPlannedEffectOperand | undefined {
+  if (planned === undefined) return undefined;
+  const effect = csharpPlannedEffect(planned.completion.kind === "never" ? planned.completion.carrier : csharpVoidTargetType(),
+    planCsharpPlannedDiscard(planned));
+  return effect === undefined ? undefined : Object.freeze({ kind: "effect", effect });
+}
+
 export function planCsharpDiscardedStatement(
   expression: CsharpExpression,
   targetType: TargetTypeRef | undefined,
@@ -54,6 +62,7 @@ export function planCsharpDiscardedStatement(
 export function planCsharpAbsenceReturn(
   carrier: TargetTypeRef | undefined, typeParameterNames?: ReadonlyMap<string, string>,
 ): CsharpStatement {
+  if (isCsharpVoidTargetType(carrier)) return { kind: "ReturnStatement" };
   const expression = carrier === undefined ? undefined : planCsharpAbsentValue(carrier, typeParameterNames);
   if (expression === undefined) throw new Error("An absence return requires its finalized native storage carrier.");
   return { kind: "ReturnStatement", expression };

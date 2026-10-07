@@ -8,6 +8,7 @@ import {
   sequenceCsharpPlannedValues,
 } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { csharpVoidTargetType, csharpNeverTargetType } from "../../../../dist/target-model/types/scalar-types.js";
+import { planCsharpDiscardedOperand } from "../../../../dist/backend/planner/statements/statement-output.js";
 
 const integer = { kind: "source-primitive", name: "int32" };
 const boolean = { kind: "source-primitive", name: "boolean" };
@@ -94,4 +95,53 @@ test("void, never and unavailable values retain their distinct native planning o
   assert.equal(mapCsharpPlannedValue(undefined, integer, () => assert.fail("missing is not a value")), undefined);
   assert.equal(planCsharpPlannedBranch(csharpPlannedValue(boolean, identifier("enabled")), omitted, omitted,
     csharpVoidTargetType(), undefined).completion.kind, "void");
+});
+
+test("an explicitly discarded native operand preserves earlier evaluation without a phantom value", () => {
+  const keyCall = { kind: "InvocationExpression", callee: identifier("key"), arguments: [] };
+  const result = sequenceCsharpPlannedValues([
+    csharpPlannedValue(integer, identifier("receiver")), planCsharpDiscardedOperand(csharpPlannedValue(integer, keyCall)),
+  ], capture, expressions => {
+    assert.equal(expressions.length, 1);
+    return csharpPlannedValue(integer, expressions[0]);
+  });
+  assert.equal(result.prelude.length, 2);
+  assert.deepEqual(result.prelude[0].initializer, identifier("receiver"));
+  assert.deepEqual(result.prelude[1].expression, keyCall);
+  assert.deepEqual(result.completion.expression, identifier("captured"));
+});
+
+test("discarded pure literals add neither a temporary nor a native statement", () => {
+  const result = sequenceCsharpPlannedValues([
+    csharpPlannedValue(integer, identifier("receiver")),
+    planCsharpDiscardedOperand(csharpPlannedValue(integer, { kind: "LiteralExpression", value: 7 })),
+  ], () => assert.fail("a discarded literal has no effects"), expressions => csharpPlannedValue(integer, expressions[0]));
+  assert.deepEqual(result.prelude, []);
+  assert.deepEqual(result.completion.expression, identifier("receiver"));
+});
+
+test("native location captures retain their acquisition statements before discarded key effects", () => {
+  const result = sequenceCsharpPlannedValues([
+    csharpPlannedValue(integer, identifier("receiver")),
+    planCsharpDiscardedOperand(csharpPlannedEffect(csharpVoidTargetType(), [effect("key")])),
+  ], () => ({ kind: "native-location", expression: identifier("address"), prelude: [effect("acquire")] }),
+  expressions => csharpPlannedValue(integer, expressions[0]));
+  assert.deepEqual(result.prelude, [effect("acquire"), effect("key")]);
+  assert.deepEqual(result.completion.expression, identifier("address"));
+});
+
+test("discarded void and terminating operands use the same bounded ordered sequencer", () => {
+  const omitted = planCsharpDiscardedOperand(csharpPlannedEffect(csharpVoidTargetType(), [effect("discarded")]));
+  const stopped = planCsharpDiscardedOperand(csharpPlannedEffect(csharpNeverTargetType(), [effect("stopped")]));
+  const result = sequenceCsharpPlannedValues([csharpPlannedValue(integer, identifier("receiver")), omitted, stopped,
+    csharpPlannedValue(integer, identifier("forbidden"), [effect("forbidden")])], capture,
+  () => assert.fail("a terminated sequence cannot produce a value"));
+  assert.equal(result.completion.kind, "never");
+  assert.equal(result.prelude.length, 3);
+  assert.deepEqual(result.prelude[1], effect("discarded"));
+  assert.deepEqual(result.prelude[2], effect("stopped"));
+  assert.equal(sequenceCsharpPlannedValues([{ kind: "effect", effect: csharpPlannedValue(integer, identifier("invalid")) }],
+    capture, () => assert.fail("a value cannot masquerade as an effect")), undefined);
+  assert.equal(sequenceCsharpPlannedValues([csharpPlannedEffect(csharpVoidTargetType(), [])], capture,
+    () => assert.fail("an ordinary void operand cannot masquerade as a value")), undefined);
 });

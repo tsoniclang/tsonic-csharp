@@ -54,7 +54,7 @@ import type {
 } from "../../policy/operations/index.js";
 
 export interface CsharpSourceCallArgumentClassification {
-  readonly sourceCall?: import("../../policy/types/callables/source-callees.js").CsharpSourceCalleeSelection;
+  readonly sourceCall?: import("../../target-model/operations/source-callees.js").CsharpSourceCalleeSelection;
   readonly sourceNativeParameters?: readonly import("../../target-model/types/model.js").CsharpTargetParameter[];
   readonly sourceMethodValue?: NonNullable<import("../../target-model/types/model.js").CsharpTargetNamedTypeRef["csharpMethodValue"]>;
   readonly sourceParameterTypes?: readonly (TargetTypeRef | undefined)[];
@@ -98,6 +98,7 @@ export interface CsharpConstructionClassification
 }
 
 export interface CsharpElementClassification {
+  readonly sourceOwned?: CsharpSourceOwnedMemberClassification;
   readonly receiverProjection?: CsharpMemberReceiverProjection;
   readonly jsValue: CsharpJsValueOperationSelection;
   readonly target?: CsharpTargetElementSelection;
@@ -106,7 +107,7 @@ export interface CsharpElementClassification {
   readonly flowReadConversion?: CsharpConversionSelection;
 }
 
-export interface CsharpSourceOwnedPropertyClassification {
+export interface CsharpSourceOwnedMemberClassification {
   readonly projectedWrite?: import("../../policy/operations/typed-locations/typed-location-storage.js").CsharpTypedLocationStorageSelection;
   readonly jsValueOperation: CsharpJsValueOperationSelection;
   readonly objectShape?: CsharpObjectShapeFact;
@@ -127,7 +128,7 @@ export interface CsharpSourceOwnedPropertyClassification {
 export interface CsharpPropertyClassification {
   readonly receiverProjection?: CsharpMemberReceiverProjection;
   readonly selection: CsharpTargetPropertySelection;
-  readonly sourceOwned?: CsharpSourceOwnedPropertyClassification;
+  readonly sourceOwned?: CsharpSourceOwnedMemberClassification;
 }
 
 export interface CsharpMemberReceiverProjection {
@@ -170,6 +171,7 @@ export interface CsharpTargetOperationClassifications {
   call(node: Node): CsharpCallClassification | undefined;
   construction(node: Node): CsharpConstructionClassification | undefined;
   property(node: Node): CsharpPropertyClassification | undefined;
+  sourceMember(node: Node): CsharpSourceOwnedMemberClassification | undefined;
   element(node: Node): CsharpElementClassification | undefined;
   binary(node: Node): CsharpBinaryClassification | undefined;
   switchStatement(node: Node): CsharpSwitchSelection | undefined;

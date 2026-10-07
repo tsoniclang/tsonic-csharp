@@ -1,6 +1,6 @@
-import type { Node, ResolvedSourceCallInfo, SourceFile } from "@tsonic/tsts";
+import type { ResolvedSourceCallInfo, SourceFile } from "@tsonic/tsts";
 import type { CsharpTypePolicyBaseHost, CsharpTypePolicy } from "../resolution/model.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpSourceCalleeSelection } from "../../../target-model/operations/source-callees.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
@@ -10,13 +10,6 @@ export interface CsharpSourceCalleeHost {
   readonly navigation: CsharpTypePolicyBaseHost["navigation"];
   readonly types: Pick<CsharpTypePolicy, "resolveSelectedValue">;
 }
-
-export type CsharpSourceCalleeSelection =
-  | { readonly kind: "function"; readonly expression: Node; readonly declaration: Node }
-  | { readonly kind: "method"; readonly expression: Node; readonly declaration: Node;
-      readonly receiver: { readonly expression: Node; readonly type: TargetTypeRef } }
-  | { readonly kind: "value"; readonly expression: Node; readonly type: TargetTypeRef }
-  | { readonly kind: "rejected"; readonly reason: string };
 
 export function classifyCsharpSourceCallee(
   policy: CsharpSourceCalleeHost,
@@ -36,7 +29,8 @@ export function classifyCsharpSourceCallee(
   } else if (policy.ast.is.IsFunctionDeclaration(declaration) && policy.ast.is.IsFunctionDeclaration(selected)) {
     return Object.freeze({ kind: "function", expression, declaration: selected });
   } else if ((getCsharpMethodValue(type) === undefined ||
-      policy.ast.is.IsClassDeclaration(policy.ast.parent(declaration))) && source.sourceCalleeAccess?.kind === "property" &&
+      policy.ast.is.IsClassDeclaration(policy.ast.parent(declaration))) &&
+      (source.sourceCalleeAccess?.kind === "property" || source.sourceCalleeAccess?.kind === "element") &&
       (policy.ast.is.IsMethodDeclaration(declaration) || policy.ast.kindName(declaration) === "KindMethodSignature") &&
       (policy.ast.is.IsMethodDeclaration(selected) || policy.ast.kindName(selected) === "KindMethodSignature")) {
     const access = source.sourceCalleeAccess;

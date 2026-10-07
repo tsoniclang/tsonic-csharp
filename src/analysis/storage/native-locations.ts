@@ -1,4 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
+import { fieldFactKey } from "@tsonic/tsts";
+import { sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
@@ -81,13 +83,24 @@ export function classifyCsharpNativeLocation(
       return resolved(expression, storageType, assignment, storage.writable,
         local ? "byref-readwrite" : undefined);
     }
-    if (policy.ast.is.IsPropertyAccessExpression(expression)) {
-      const selection = selectCsharpTargetProperty(policy, expression, sourceFile);
-      if (selection.kind !== "resolved" && selection.kind !== "source-owned") return rejected("The property has no exact selected native member.");
+    const property = policy.ast.is.IsPropertyAccessExpression(expression);
+    const element = policy.ast.is.IsElementAccessExpression(expression);
+    const memberSelection = property ? selectCsharpTargetProperty(policy, expression, sourceFile)
+      : element ? selectCsharpTargetElement(policy, expression, sourceFile) : undefined;
+    const memberDeclaration = memberSelection?.kind === "resolved" || memberSelection?.kind === "source-owned"
+      ? memberSelection.source.selectedDeclaration : undefined;
+    const namedElement = element && memberDeclaration !== undefined && (
+      policy.ast.is.IsPropertyDeclaration(memberDeclaration) || policy.ast.is.IsPropertySignatureDeclaration(memberDeclaration) ||
+      policy.ast.is.IsGetAccessorDeclaration(memberDeclaration) || policy.ast.is.IsSetAccessorDeclaration(memberDeclaration) ||
+      sourceParameterIsProperty(policy.ast, memberDeclaration) || policy.sourceFacts?.getFact(memberDeclaration, fieldFactKey) !== undefined);
+    if (property || namedElement) {
+      const selection = memberSelection;
+      if (selection?.kind !== "resolved" && selection?.kind !== "source-owned") return rejected("The property has no exact selected native member.");
       if (selection.source.optionalChain) return rejected("An optional property access is not a native storage address.");
       const declaration = selection.source.selectedDeclaration;
       const field = selection.kind === "resolved" ? selection.targetMember.kind === "field"
-        : declaration !== undefined && classProperty(declaration) === "field";
+        : declaration !== undefined && (classProperty(declaration) === "field" ||
+          policy.sourceFacts?.getFact(declaration, fieldFactKey) !== undefined);
       const receiverExpression = selection.source.receiver.expression;
       const receiverType = physical.type(receiverExpression) ??
         policy.types.resolveSelectedValue(receiverExpression, selection.source.receiver.type, sourceFile);
@@ -115,9 +128,9 @@ export function classifyCsharpNativeLocation(
       return resolved(expression, storageType, assignment, storage.writable,
         field ? storage.writable ? "byref-readwrite" : "byref-readonly" : undefined);
     }
-    if (policy.ast.is.IsElementAccessExpression(expression)) {
-      const selection = selectCsharpTargetElement(policy, expression, sourceFile);
-      if (selection.kind !== "resolved" && selection.kind !== "source-owned" && selection.kind !== "project-indexer") return rejected("The element has no exact selected native index relation.");
+    if (element) {
+      const selection = memberSelection;
+      if (selection?.kind !== "resolved" && selection?.kind !== "source-owned" && selection?.kind !== "project-indexer") return rejected("The element has no exact selected native index relation.");
       if (selection.source.optionalChain) return rejected("An optional element access is not a native storage address.");
       const receiverType = policy.types.resolveSelectedValue(selection.source.receiver.expression, selection.source.receiver.type, sourceFile);
       return resolved(expression, storageType, assignment, storage.writable,

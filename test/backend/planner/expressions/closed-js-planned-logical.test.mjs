@@ -1,3 +1,4 @@
+import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { planCsharpJsValueLogical } from "../../../../dist/backend/planner/expressions/js-value-logical.js";
@@ -21,7 +22,7 @@ test("closed logical RHS statement regions execute only in their selected native
     const planned = planCsharpJsValueLogical({}, {}, input, diagnostics, selected, {}, {},
       csharpPlannedValue(carrier, identifier("left"), [effect("leftPrelude")]),
       csharpPlannedValue(carrier, identifier("right"), [effect("rightPrelude")]));
-    assert.deepEqual(diagnostics, []);
+    assertNoTargetDiagnostics(diagnostics);
     assert.deepEqual(planned.prelude[0], effect("leftPrelude"));
     const branch = planned.prelude.find(statement => statement.kind === "IfStatement");
     assert.ok(branch);

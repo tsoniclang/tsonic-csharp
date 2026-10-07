@@ -25,6 +25,14 @@ export interface CsharpSourceCallableParameterContract extends CsharpSourceCallP
   readonly sourceParameter: Node;
 }
 
+export function csharpSourceCallArgumentParameter(
+  callable: CsharpSourceCallContract,
+  effectiveArgumentIndex: number,
+): CsharpSourceCallParameterContract | undefined {
+  const restIndex = callable.parameters.findIndex(parameter => parameter.targetParameter.paramsArray === true);
+  return callable.parameters[restIndex < 0 ? effectiveArgumentIndex : Math.min(effectiveArgumentIndex, restIndex)];
+}
+
 export interface CsharpSourceCallableContract extends CsharpSourceCallContract {
   readonly sourceDeclaration: Node;
   readonly parameters: readonly CsharpSourceCallableParameterContract[];

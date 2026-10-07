@@ -1,3 +1,4 @@
+import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
@@ -10,7 +11,7 @@ test("non-returning calls preserve native termination, catches and evaluation co
   for (const surface of [undefined, "js"]) {
     const compiled = compileCsharpSource({ surface, sourceText: nonReturningCallsSource });
     assert.equal(compiled.sourceDiagnosticsText, "");
-    assert.deepEqual(compiled.result.diagnostics, []);
+    assertNoTargetDiagnostics(compiled.result.diagnostics);
     executeCsharpConstruction(compiled, "non-returning-calls", true);
   }
 });

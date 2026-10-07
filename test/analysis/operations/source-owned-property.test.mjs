@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { classifySourceOwnedProperty } from "../../../dist/analysis/operations/member-access.js";
+import { classifySourceOwnedMember } from "../../../dist/analysis/operations/member-access.js";
 
 const receiver = {};
 const expression = {};
@@ -46,7 +46,7 @@ for (const kind of ["class", "interface"]) {
         selectedDeclaration: declaration, selectedSymbol: {}, sourceReadType: sourceType,
         optionalChain,
       } };
-      const result = classifySourceOwnedProperty(policy, selection, sourceFile);
+      const result = classifySourceOwnedMember(policy, selection, sourceFile);
       assert.equal(derivations, kind === "class" ? 0 : 1);
       assert.strictEqual(result.selectedReceiverType, carrier);
       assert.deepEqual(result.selectedSubjects, [declaration]);

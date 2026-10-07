@@ -214,5 +214,5 @@ function planJsValueObjectLiteral(
     operation,
     undefined,
     values,
-  ), operation.resultType);
+  ), objectShape.targetType);
 }

@@ -2,6 +2,9 @@ import type {
   ResolvedSourceElementAccessInfo,
   SourceFile,
 } from "@tsonic/tsts";
+import { fieldFactKey } from "@tsonic/tsts";
+import { sourceParameterIsProperty } from "@tsonic/target-api/source";
+import type { CsharpTargetElementSelection } from "../../policy/operations/members/index.js";
 import { validateCsharpJsValueOperationSelection } from "../../policy/js-value-operations/selection.js";
 import {
   resolveCsharpJsValueObjectShapeProperty,
@@ -89,7 +92,22 @@ export function elementSelectedTypes(
   });
 }
 
-export function classifySourceOwnedProperty(
+export function classifySourceOwnedElementMember(
+  policy: CsharpPolicyContext,
+  selection: CsharpTargetElementSelection | undefined,
+  sourceFile: SourceFile,
+): CsharpPropertyClassification["sourceOwned"] {
+  const declaration = selection?.kind === "source-owned" ? selection.source.selectedDeclaration : undefined;
+  const { ast } = policy;
+  return selection?.kind === "source-owned" && declaration !== undefined && (
+    ast.is.IsPropertyDeclaration(declaration) || ast.is.IsPropertySignatureDeclaration(declaration) ||
+    ast.is.IsMethodDeclaration(declaration) || ast.is.IsMethodSignatureDeclaration(declaration) ||
+    ast.is.IsGetAccessorDeclaration(declaration) || ast.is.IsSetAccessorDeclaration(declaration) ||
+    sourceParameterIsProperty(ast, declaration) || policy.sourceFacts?.getFact(declaration, fieldFactKey) !== undefined
+  ) ? classifySourceOwnedMember(policy, selection, sourceFile) : undefined;
+}
+
+export function classifySourceOwnedMember(
   policy: CsharpPolicyContext,
   selection: Extract<
     ReturnType<typeof selectCsharpTargetProperty>,

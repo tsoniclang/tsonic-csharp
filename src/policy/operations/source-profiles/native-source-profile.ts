@@ -7,6 +7,8 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   isCsharpArrayIndexTargetType,
+  getCsharpReadOnlyIndexableCollectionElementTargetType,
+  getCsharpIndexableLengthMemberName,
   targetTypeRefEquals,
 } from "../../types/index.js";
 import type {
@@ -119,10 +121,11 @@ export const csharpNativeSourceProfilePropertyPolicies:
           context.source.sourceReadType ?? context.source.sourceWriteType,
           context.sourceFile,
         );
+        const lengthName = declaringName === "String" ? "Length" : getCsharpIndexableLengthMemberName(declaringType);
         const receiverMatches = declaringType !== undefined &&
           (declaringName === "String"
             ? targetTypeRefEquals(declaringType, stringType)
-            : declaringType.kind === "array");
+            : lengthName !== undefined);
         if (
           declaringType === undefined ||
           !receiverMatches ||
@@ -138,7 +141,7 @@ export const csharpNativeSourceProfilePropertyPolicies:
           targetMember: Object.freeze({
             id: `tsonic.csharp.source-profile.${declaringName}.Length`,
             sourceName: "Length",
-            targetName: "Length",
+            targetName: lengthName!,
             kind: "property",
             declaringType,
             parameters: [],
@@ -160,6 +163,7 @@ export const csharpNativeSourceProfileElementPolicies:
         context: CsharpSourceProfileElementPolicyContext,
       ): CsharpSourceProfileElementPolicyResult {
         const declaringType = resolveCsharpSelectedSourceValue(context, context.source.receiver);
+        const elementType = getCsharpReadOnlyIndexableCollectionElementTargetType(declaringType);
         const selectedSourceResult =
           context.source.sourceReadType ?? context.source.sourceWriteType;
         const indexType = context.host.types.resolveNode(
@@ -170,7 +174,7 @@ export const csharpNativeSourceProfileElementPolicies:
           context.sourceFile,
         );
         if (
-          declaringType?.kind !== "array" ||
+          declaringType === undefined || elementType === undefined ||
           selectedSourceResult === undefined
         ) {
           return rejectedNativeProfileElement(
@@ -190,8 +194,8 @@ export const csharpNativeSourceProfileElementPolicies:
             kind: "indexer",
             declaringType,
             parameters: [nativeParameter("index", targetIndexType)],
-            returnType: declaringType.element,
-            ...(declaringName === "ReadonlyArray"
+            returnType: elementType,
+            ...(declaringName === "ReadonlyArray" || declaringType.kind !== "array"
               ? { readonly: true as const }
               : {}),
           }),

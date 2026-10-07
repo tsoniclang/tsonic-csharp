@@ -16,7 +16,7 @@ import { csharpSourceArgumentGroups } from "./source-argument-groups.js";
 import { planCsharpSelectedSourceCallResult } from "./results.js";
 import type { CsharpPlannedArgument, CsharpPlannedValue } from "../../planned-values.js";
 import { csharpPlannedValue } from "../../planned-values.js";
-import { planCsharpExpressionCompletion, planCsharpOptionalReceiverValue } from "../../planned-value-composition.js";
+import { composeCsharpPlannedValues, planCsharpExpressionCompletion, planCsharpOptionalReceiverValue } from "../../planned-value-composition.js";
 import { composeCsharpPlannedCall, csharpPlannedArgumentSyntax, type CsharpPlannedCallArguments } from "./planned-arguments.js";
 import { sourceCalleeRequiresExactTargetArity } from "./helpers.js";
 import { planCsharpNativeFunctionCallee, planCsharpNativeMethodCallee } from "./native-callees.js";
@@ -103,8 +103,9 @@ export function translateSourceOwnedCall(
   if (selected.kind === "method") {
     const callee = planCsharpNativeMethodCallee(selected, sourceFile, input, diagnostics, planExpression);
     if (callee?.kind === "type") {
-      return composeCsharpPlannedCall(node, sourceFile, input, diagnostics, undefined, arguments_, (_, args) =>
-        invoke({ kind: "SimpleMemberAccessExpression", receiver: callee.receiver, name: callee.name }, args));
+      return composeCsharpPlannedValues(node, sourceFile, input, diagnostics, callee.effect === undefined ? [] : [callee.effect],
+        () => composeCsharpPlannedCall(node, sourceFile, input, diagnostics, undefined, arguments_, (_, args) =>
+          invoke({ kind: "SimpleMemberAccessExpression", receiver: callee.receiver, name: callee.name }, args)));
     }
     return callee === undefined ? undefined : composeCsharpPlannedCall(node, sourceFile, input, diagnostics,
       callee.receiver, arguments_, (receiver, args) => invoke({ kind: "SimpleMemberAccessExpression", receiver: receiver!, name: callee.name }, args));

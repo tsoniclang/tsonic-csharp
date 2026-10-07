@@ -460,7 +460,7 @@ export function planLambdaParameters(
     .slice(sourceParameters.length)
     .map((type): CsharpLambdaParameter => ({
       kind: "Parameter",
-      name: "_",
+      name: allocateSyntheticParameter(state),
       type,
     }));
   return [...sourceParameters, ...omittedTargetParameters];
@@ -489,16 +489,10 @@ export function getLambdaTargetContext(
   if (!HasSourceKind(input.program.source.ast, node, KindArrowFunction) && !HasSourceKind(input.program.source.ast, node, KindFunctionExpression)) {
     return undefined;
   }
-  const selected = lambdaTargetContextFromTargetRef(input.scope.typeParameterNames,
-    input.program.expectedTypes.callableTarget(node));
-  if (selected !== undefined) {
-    return selected;
-  }
-  void sourceFile;
   void expectedType;
   return lambdaTargetContextFromTargetRef(
     input.scope.typeParameterNames,
-    expectedTargetType,
+    input.program.expectedTypes.callableTarget(node) ?? expectedTargetType ?? input.types.classifications.resolveNode(node, sourceFile),
   );
 }
 
@@ -528,7 +522,7 @@ export function lambdaTargetContextFromTargetRef(typeParameterNames: ReadonlyMap
     signature: {
       parameters: parameters as readonly CsharpTypeNode[],
       parameterTargetTypes: signature.parameters,
-      ...(isCsharpVoidTargetType(signature.returnType) ? {} : { returnType }),
+      returnType,
       returnTargetType: signature.returnType,
       ...(signature.restParameterIndex === undefined
         ? {}

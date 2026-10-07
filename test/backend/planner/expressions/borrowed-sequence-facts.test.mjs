@@ -1,3 +1,4 @@
+import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { planCsharpBorrowedSequenceConsumption } from "../../../../dist/backend/planner/expressions/array-literals/borrowed-sequences.js";
@@ -60,7 +61,7 @@ test("borrowed sequence fragments consume only sealed exact element pairs in the
   assert.deepEqual(statements[1].elseBody.statements, []);
   assert.deepEqual(state.pairs, [[string, string, "implicit"]]);
   assert.equal(state.consumed[0].elements[0].conversion.kind, "identity");
-  assert.deepEqual(state.diagnostics, []);
+  assertNoTargetDiagnostics(state.diagnostics);
 });
 
 test("borrowed consumption preserves canonical never completion and cannot consume a void completion", () => {
@@ -137,7 +138,7 @@ test("borrowed dense selection allocates its sole destination inside the selecte
   assert.equal(selected.elseBody.statements.length, 1);
   assert.equal(selected.elseBody.statements[0].expression.right.size.value, 0);
   assert.doesNotMatch(JSON.stringify(planned), /generated|Func|ForEach|IEnumerable|ObjectCreation|Lambda|ToArray/u);
-  assert.deepEqual(state.diagnostics, []);
+  assertNoTargetDiagnostics(state.diagnostics);
 });
 
 test("borrowed JS append uses the sealed operand query and skips empty-source construction", () => {
@@ -159,7 +160,7 @@ test("borrowed JS append uses the sealed operand query and skips empty-source co
   assert.deepEqual(branch.elseBody.statements, []);
   assert.equal(branch.thenBody.statements[0].expression.callee.name, "EnsureCapacity");
   assert.doesNotMatch(JSON.stringify(planned), /ArrayCreation|ObjectCreation|generated|Func|Lambda|ToArray/u);
-  assert.deepEqual(state.diagnostics, []);
+  assertNoTargetDiagnostics(state.diagnostics);
 });
 
 test("borrowed branch composition keeps an effectful fallback in the selected native else region", () => {
@@ -178,5 +179,5 @@ test("borrowed branch composition keeps an effectful fallback in the selected na
   assert.equal(branch.elseBody.statements[0].expression.name, "fallback_effect");
   assert.equal(branch.elseBody.statements[1].initializer.callee.name, "fallback");
   assert.doesNotMatch(JSON.stringify(branch.thenBody), /fallback/u);
-  assert.deepEqual(state.diagnostics, []);
+  assertNoTargetDiagnostics(state.diagnostics);
 });
