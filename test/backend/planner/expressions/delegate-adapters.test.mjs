@@ -17,7 +17,7 @@ function context() {
   const allocated = new Set();
   return { scope: {}, program: {
     conversions: { directCallableReference: () => undefined },
-    captureStorage: { closure: () => undefined },
+    captureStorage: { closure: () => undefined, namedSelf: () => undefined },
   }, names: { temporaryName(preferred) {
     let name = preferred;
     while (allocated.has(name)) name = `_${name}`;
@@ -52,6 +52,33 @@ test("an adapted authored lambda invokes a native local function, never an inner
   assert.equal(invocation.expression.callee.name, local.name);
   assert.equal(returned.expression.kind, "DefaultExpression");
   assert.doesNotMatch(JSON.stringify(planned), /CastExpression/u);
+});
+
+test("an adapted fixed self value reuses the exact initialized native slot without a second capture frame", () => {
+  const node = {};
+  const expression = { kind: "IdentifierName", name: "fixed" };
+  const input = context();
+  input.program.captureStorage.namedSelf = declaration => declaration === node ? { values: [{}] } : undefined;
+  const diagnostics = [];
+  const planned = planCsharpDelegateAdapter(node, {}, input, diagnostics, source, target, selection,
+    expression, applyCsharpConversionSelection);
+  assertNoTargetDiagnostics(diagnostics);
+  assert.equal(planned.kind, "LambdaExpression");
+  assert.equal(planned.body.statements[0].expression.callee === expression, true, "reuse exact fixed local slot");
+  for (const changed of [undefined, { values: [] }]) {
+    input.program.captureStorage.namedSelf = () => changed;
+    assert.equal(planCsharpDelegateAdapter(node, {}, input, diagnostics, source, target, selection,
+      expression, applyCsharpConversionSelection).kind, "SwitchExpression", "mutable or unproven aliases retain snapshot semantics");
+  }
+  input.program.captureStorage.namedSelf = () => ({ values: [{}] });
+  for (const changed of [
+    { kind: "InvocationExpression", callee: expression, arguments: [] },
+    { kind: "SimpleMemberAccessExpression", receiver: expression, name: "value" },
+  ]) {
+    assert.equal(planCsharpDelegateAdapter(node, {}, input, diagnostics, source, target, selection,
+      changed, applyCsharpConversionSelection).kind, "SwitchExpression", "effects and mutable member reads cannot use fixed self proof");
+  }
+  assertNoTargetDiagnostics(diagnostics);
 });
 
 test("an adapted captured method binds its sealed native frame, not a source delegate", () => {
