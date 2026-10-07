@@ -167,7 +167,7 @@ export function createCsharpTypeSystem(
           selectedType: Type | undefined,
           sourceFile: SourceFile,
           declaredMemberType: Type | undefined,
-        ) {
+        ): TargetTypeRef | undefined {
           if (objectShapes === undefined || receiverType === undefined) {
             return undefined;
           }

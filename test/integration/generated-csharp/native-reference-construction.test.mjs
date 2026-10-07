@@ -55,5 +55,8 @@ static TlsOptions Handwritten(string key, string cert) =>
   const source = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
   assert.equal([...source.matchAll(/new Tsonic\.CSharp\.Node\.TlsOptions\b/gu)].length, 1,
     "one native allocation at the original producer");
+  const make = source.slice(source.indexOf("TlsOptions make("), source.indexOf("bool run("));
+  assert.match(make, /CastDynamic<string>/u);
+  assert.doesNotMatch(make, /ApplyDynamicBinary|\.clone\(|new Tsonic\.CSharp\.Runtime\.TsObject/u);
   assert.doesNotMatch(source, /Activator|DynamicInvoke|System\.Reflection|new Tsonic\.Generated\.__TsonicShape/u);
 });
