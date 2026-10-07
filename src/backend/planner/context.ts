@@ -30,6 +30,7 @@ import type {
 } from "../../analysis/program/index.js";
 import type { SourceFile } from "@tsonic/tsts";
 import type { CsharpExpression, CsharpMethodDeclaration } from "../target-ast/roslyn/index.js";
+import type { CsharpDelegateAdapterIdentity } from "../../analysis/conversions/model.js";
 
 export interface CsharpPlanningTypeClassifications {
   resolveNode(
@@ -53,6 +54,7 @@ export interface CsharpPlanningTypeView {
 }
 
 export interface CsharpPlanningScope {
+  readonly delegateAdapters?: ReadonlyMap<CsharpDelegateAdapterIdentity, string>;
   readonly typeParameterNames?: ReadonlyMap<string, string>;
   readonly classValues?: ReadonlyMap<Node, CsharpExpression>;
   readonly capturedBindings?: ReadonlyMap<Node, CsharpExpression>;

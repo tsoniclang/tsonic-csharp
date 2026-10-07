@@ -21,8 +21,26 @@ export interface CsharpConversionIssue {
   readonly message: string;
 }
 
+export interface CsharpDelegateAdapterIdentity {
+  readonly declaration: Node;
+  readonly scope: Node;
+  readonly source: TargetTypeRef;
+  readonly target: TargetTypeRef;
+  readonly selection: Extract<CsharpConversionSelection, { readonly kind: "delegate-adapter" }>;
+}
+
+export interface CsharpExpressionConversionClassification {
+  readonly source: TargetTypeRef;
+  readonly target: TargetTypeRef;
+  readonly selection: CsharpConversionSelection;
+  readonly identityRequired?: boolean;
+  readonly delegateIdentity?: CsharpDelegateAdapterIdentity;
+}
+
 export interface CsharpConversionClassifications {
   readonly issues: readonly CsharpConversionIssue[];
+  delegateAdapters(scope: Node): readonly CsharpDelegateAdapterIdentity[];
+  delegateAdapter(expression: Node, source: TargetTypeRef, target: TargetTypeRef): CsharpDelegateAdapterIdentity | undefined;
   directCallableReference(expression: Node): SourceProjectReference | undefined;
   matchesUnionMapping(
     source: TargetTypeRef | undefined, target: TargetTypeRef | undefined,

@@ -42,6 +42,7 @@ import { planExpression } from "../expressions/index.js";
 import { planClassFactoryExpression } from "../declarations/classes/factories.js";
 import { planLocalFunctionDeclaration } from "../declarations/callables/functions.js";
 import { planCsharpLexicalFunctionValues } from "../declarations/callables/lexical-values.js";
+import { withCsharpDelegateAdapterDeclarations, planCsharpDelegateAdapterDeclarations } from "../declarations/callables/delegate-identities.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
@@ -88,6 +89,7 @@ export function planBlockStatements(
   if (blockNode === undefined) {
     return [];
   }
+  input = withCsharpDelegateAdapterDeclarations(blockNode, input);
   const block = AsBlock(input.program.source.ast, blockNode)!;
   const statements = (block.Statements?.Nodes ?? []).slice(skipLeadingStatements).filter(
     (statement): statement is Node => statement !== undefined,
@@ -117,7 +119,8 @@ export function planBlockStatements(
         diagnostics,
         state,
       )],
-    ), ...functions.flatMap(statement => planLocalFunctionDeclaration(statement, sourceFile, input, diagnostics, state))],
+    ), ...functions.flatMap(statement => planLocalFunctionDeclaration(statement, sourceFile, input, diagnostics, state)),
+      ...planCsharpDelegateAdapterDeclarations(blockNode, sourceFile, input, diagnostics, state)],
   )];
   if (!explicitUnsafe) {
     return plan();
