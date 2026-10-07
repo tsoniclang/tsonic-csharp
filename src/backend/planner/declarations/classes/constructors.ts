@@ -7,15 +7,9 @@ import type {
   CsharpStatement,
 } from "../../../target-ast/roslyn/index.js";
 import {
-  AsBlock,
   AsCallExpression,
   AsClassStaticBlockDeclaration,
   AsConstructorDeclaration,
-  AsExpressionStatement,
-  HasSourceKind,
-  KindCallExpression,
-  KindExpressionStatement,
-  KindSuperKeyword,
 } from "@tsonic/target-api/source";
 import {
   createDestructuringPlannerState,
@@ -44,6 +38,7 @@ import type { DestructuringPlannerState } from "../../bindings/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { planCsharpPreparedConstructor, type CsharpConstructorArgumentPlan } from "./constructor-entry.js";
 import { planCsharpParameterPropertyAssignments } from "./parameter-properties.js";
+import { csharpConstructorBaseCall, csharpConstructorRequiresPreparation } from "../../../../analysis/callables/constructor-entry.js";
 
 export function planClassStaticBlockDeclaration(
   node: Node,
@@ -76,8 +71,8 @@ export function planConstructorDeclarations(
 ): readonly CsharpConstructorDeclaration[] {
   const declaration = AsConstructorDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "constructor declaration", diagnostics, ["public", "private", "protected"]);
-  const bodyStatements = AsBlock(input.program.source.ast, declaration.Body)?.Statements?.Nodes ?? [];
-  const leadingSuperCall = getLeadingSuperCall(bodyStatements, input);
+  const baseCall = csharpConstructorBaseCall(input.program.source.ast, node);
+  const leadingSuperCall = baseCall === undefined ? undefined : AsCallExpression(input.program.source.ast, baseCall);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   const baseArgumentPlans = leadingSuperCall === undefined ? []
@@ -96,7 +91,8 @@ export function planConstructorDeclarations(
       body: { kind: "Block", statements: [] },
   };
   if (baseArgumentPlans === undefined) return [constructor];
-  if (leadingSuperCall !== undefined && parameters.prelude.length > 0) return planCsharpPreparedConstructor(node, declaration.Body, constructor,
+  if (csharpConstructorRequiresPreparation(input.program.source.ast, node, input.program.declarations, input.program.storage,
+    parameter => input.program.captureStorage.binding(parameter) !== undefined)) return planCsharpPreparedConstructor(node, declaration.Body, constructor,
     parameters, baseArgumentPlans, sourceFile, input, diagnostics, state, leadingSuperCall !== undefined, initializers);
   const baseArguments: CsharpArgument[] = [];
   for (const argument of baseArgumentPlans) {
@@ -140,17 +136,4 @@ function planBaseConstructorArguments(
     planned.push({ node: argument, value: plannedArgument, expectedCarrier: carrier });
   }
   return planned;
-}
-
-function getLeadingSuperCall(statements: readonly (Node | undefined)[], input: CsharpPlanningContext): NonNullable<ReturnType<typeof AsCallExpression>> | undefined {
-  const first = statements[0];
-  if (!HasSourceKind(input.program.source.ast, first, KindExpressionStatement)) {
-    return undefined;
-  }
-  const expression = AsExpressionStatement(input.program.source.ast, first)!.Expression;
-  if (!HasSourceKind(input.program.source.ast, expression, KindCallExpression)) {
-    return undefined;
-  }
-  const call = AsCallExpression(input.program.source.ast, expression)!;
-  return HasSourceKind(input.program.source.ast, call.Expression, KindSuperKeyword) ? call : undefined;
 }

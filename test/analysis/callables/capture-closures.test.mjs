@@ -21,6 +21,8 @@ function fixture(text) {
   const types = new Map();
   const storageTypes = new Map();
   const metadata = new Set();
+  const runtimeDefaults = new Set();
+  const nativeBackings = new Map();
   const loops = [];
   const visit = node => {
     if (source.ast.is.IsForStatement(node)) loops.push(node);
@@ -50,11 +52,102 @@ function fixture(text) {
   };
   const select = (groups = new Map(), physicalType = (_declaration, type) => type, valueOwned = new Set()) => {
     const issues = [];
-    const selected = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, valueOwned);
+    const selected = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, valueOwned,
+      { declarations: { runtimeDefault: node => runtimeDefaults.has(node) ? {} : undefined },
+        storage: { nativeBacking: node => nativeBackings.get(node), requiresTypedLocationIdentity: () => false } });
     return { ...selected, groups, issues };
   };
-  return { source, loops, declaration, owner, types, storageTypes, metadata, select };
+  return { source, loops, declaration, owner, types, storageTypes, metadata, runtimeDefaults, nativeBackings, select };
 }
+
+test("prepared constructor default and body closures share the exact parameter activation", () => {
+  const input = fixture(`class Base { constructor(callback: () => number) { callback(); } }
+    export class Derived extends Base {
+      read: () => number;
+      constructor(value: number, adjust: () => number = () => ++value) {
+        super(adjust);
+        this.read = () => value;
+      }
+    }`);
+  input.runtimeDefaults.add(input.declaration("adjust"));
+  const selected = input.select();
+  const constructor = input.source.ast.parent(input.declaration("value"));
+  const body = input.source.ast.body(constructor);
+  assert.equal(selected.issues.length, 0);
+  assert.equal(selected.groups.size, 1);
+  assert.equal(selected.groups.get(body)?.has(input.declaration("value")), true);
+  assert.equal(selected.closures.length, 2);
+  assert.equal(selected.closures.every(closure => closure.scope === body), true);
+  assert.equal(selected.closures.every(closure => closure.captures[0] === input.declaration("value")), true);
+});
+
+test("a default-only constructor capture retains its callable-body activation", () => {
+  const input = fixture(`class Base { constructor(callback: () => number) { callback(); } }
+    export class Derived extends Base {
+      constructor(value: number, adjust: () => number = () => ++value) { super(adjust); }
+    }`);
+  input.runtimeDefaults.add(input.declaration("adjust"));
+  const selected = input.select();
+  const constructor = input.source.ast.parent(input.declaration("value"));
+  assert.equal(selected.issues.length, 0);
+  assert.equal(selected.closures.length, 1);
+  assert.equal(selected.closures[0]?.scope === input.source.ast.body(constructor), true);
+});
+
+test("constructor capture rejects a missing exact physical carrier", () => {
+  const input = fixture(`class Base { constructor(callback: () => number) { callback(); } }
+    export class Derived extends Base {
+      constructor(value: number, adjust: () => number = () => ++value) { super(adjust); }
+    }`);
+  input.runtimeDefaults.add(input.declaration("adjust"));
+  input.types.delete(input.declaration("value"));
+  const selected = input.select();
+  assert.equal(selected.issues.some(issue => issue.code === "CSHARP_CONSTRUCTOR_CAPTURE_NOT_CLOSED"), true);
+  assert.equal(selected.groups.size, 0);
+});
+
+test("constructor preparation reuses an existing native backing without allocating another environment", () => {
+  const input = fixture(`class Base { constructor(callback: () => number) { callback(); } }
+    export class Derived extends Base {
+      constructor(value: number, adjust: () => number = () => ++value) { super(adjust); }
+    }`);
+  input.runtimeDefaults.add(input.declaration("adjust"));
+  input.nativeBackings.set(input.declaration("value"), {});
+  const selected = input.select();
+  assert.equal(selected.issues.length, 0);
+  assert.equal(selected.groups.size, 0);
+  assert.equal(selected.closures.length, 0);
+});
+
+test("destructured prepared constructor arguments retain captured binding-element identity", () => {
+  const input = fixture(`class Base { constructor(callback: () => number) { callback(); } }
+    export class Derived extends Base {
+      constructor({ value }: { value: number }) { super(() => ++value); }
+    }`);
+  const selected = input.select();
+  assert.equal(selected.issues.length, 0);
+  assert.equal(selected.closures.length, 1);
+  assert.equal(selected.closures[0]?.captures[0] === input.declaration("value"), true);
+  assert.equal(selected.groups.size, 1);
+});
+
+test("uncaptured prepared constructors and unsplit constructor captures require no explicit frame", () => {
+  for (const text of [
+    `class Base { constructor(value: number) {} }
+      export class Derived extends Base { constructor(value: number = 7) { super(value); } }`,
+    `export class Derived {
+      read: () => number;
+      constructor(value: number) { this.read = () => value; }
+    }`,
+  ]) {
+    const input = fixture(text);
+    input.runtimeDefaults.add(input.declaration("value"));
+    const selected = input.select();
+    assert.equal(selected.issues.length, 0);
+    assert.equal(selected.groups.size, 0);
+    assert.equal(selected.closures.length, 0);
+  }
+});
 
 for (const [name, text] of [
   ["body reads", `export function outer() {

@@ -19,6 +19,7 @@ import type { CsharpSourceNameResolver } from "../names/source-names.js";
 import { createCsharpTypeParameterEnvironment } from "../../policy/constraints/type-parameter-environment.js";
 import type { CsharpNamedSelfBinding } from "./named-self.js";
 import { csharpCapturedMemberAccess } from "./captured-member-access.js";
+import type { CsharpDeclarationClassifications } from "../declarations/model.js";
 
 export interface CsharpCaptureFrame {
   readonly scope: Node;
@@ -59,6 +60,7 @@ export function analyzeCsharpCaptureStorage(
   evidence: CsharpSourceEvidenceIndex,
   classCaptures: readonly import("../project-types/class-factories.js").CsharpClassCapture[],
   names: CsharpSourceNameResolver,
+  declarations: CsharpDeclarationClassifications,
 ): CsharpCaptureStorage {
   const environment = createCsharpTypeParameterEnvironment(source.ast, declaration => evidence.typeParameterConstraints(declaration));
   const groups = new Map<Node, Map<Node, TargetTypeRef>>();
@@ -110,7 +112,8 @@ export function analyzeCsharpCaptureStorage(
   }
   const genericClosures = selectCsharpGenericFrameClosures(source, evidence, groups, physicalType, issues);
   const genericDeclarations = new Set(genericClosures.map(closure => closure.declaration));
-  const frameClosures = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, genericDeclarations);
+  const frameClosures = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, genericDeclarations,
+    { declarations, storage });
   const namedSelfBindings = new Map(frameClosures.namedSelfBindings.map(binding => [binding.declaration, binding]));
   const observedIdentities = new Set<Node>();
   const closures = [...frameClosures.closures,
