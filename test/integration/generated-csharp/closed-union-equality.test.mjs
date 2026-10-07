@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { closedUnionEqualitySource } from "../../../../tsonic/test/fixtures/closed-union-equality.mjs";
+import { borrowedComparisonMutationSource, closedUnionEqualitySource } from "../../../../tsonic/test/fixtures/closed-union-equality.mjs";
 
 test("closed union equality borrows exact payloads and preserves identity", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: closedUnionEqualitySource });
@@ -19,3 +19,10 @@ test("closed union comparison preserves imported alias and callable identities",
     sourceText: 'import { run as imported } from "./values.js"; export function run(): boolean { return imported(); }',
   }), "cross-file-union-equality");
 });
+
+for (const surface of ["native", "js"]) {
+  test(`borrowed comparisons preserve the first value before RHS mutation (${surface})`, { timeout: 300_000 }, () => {
+    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: borrowedComparisonMutationSource }),
+      `borrowed-comparison-mutation-${surface}`);
+  });
+}
