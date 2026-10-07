@@ -363,6 +363,20 @@ function translateSelectedElement(
     ));
     return undefined;
   }
+  const carrier = selection.targetMember.declaringType;
+  const read = carrier === undefined ? undefined : csharpCollectionElementRead(carrier);
+  if (read?.kind === "invalid") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, read.reason));
+    return undefined;
+  }
+  if (read?.kind === "method") {
+    if (selection.source.accessMode !== "read") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "A readonly native collection read cannot be selected as writable storage."));
+      return undefined;
+    }
+    return planElementOperands(node, sourceFile, input, diagnostics, receiver, argument, selection.source.optionalChain,
+      (target, key) => planCsharpCollectionElementRead(carrier!, target, key, input.scope.typeParameterNames));
+  }
   return planElementOperands(node, sourceFile, input, diagnostics, receiver, argument, selection.source.optionalChain,
     (target, key) => ({ kind: "ElementAccessExpression", receiver: target, arguments: [key] }));
 }
