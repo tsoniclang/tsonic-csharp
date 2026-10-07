@@ -117,13 +117,11 @@ export function createCsharpObjectShapePolicy(
         remember(node, directStruct);
         return directStruct;
       }
-      const selectedTarget = host.typeResolver.resolveNode(
-        node,
-        queries.sourceFile,
-        nextState(state),
-      );
-      const selectedShape = resolveTarget(selectedTarget);
       const source = selectedObjectShapeSource(node, queries, host, state);
+      const selectedTarget = host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node)
+        ? host.typeResolver.resolveType(source.type, queries.sourceFile, nextState(state))
+        : host.typeResolver.resolveNode(node, queries.sourceFile, nextState(state));
+      const selectedShape = resolveTarget(selectedTarget);
       if (selectedShape !== undefined && source.type !== undefined &&
         (!host.ast.is.IsObjectLiteralExpression(node) || selectedShape.constructible === true)) {
         const actualType = host.ast.is.IsObjectLiteralExpression(node) ? queries.types.expressionType(node) : source.type;
