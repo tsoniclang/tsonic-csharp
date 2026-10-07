@@ -16,6 +16,7 @@ import {
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpDeclarationClassifications } from "../declarations/model.js";
+import type { CsharpCallableContractIndex } from "../callables/model.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import {
   selectCsharpSourceArgument,
@@ -60,6 +61,7 @@ export function analyzeCsharpStorage(
   expectedTypes: CsharpExpectedTypeClassifications,
   conversions: CsharpConversionClassifications,
   declarations: CsharpDeclarationClassifications,
+  callables: CsharpCallableContractIndex,
   previous?: CsharpStorageClassifications,
 ): CsharpStorageRepresentationClassifications {
   const contracts = new Map<Node, MutableStorageContract>();
@@ -167,8 +169,15 @@ export function analyzeCsharpStorage(
   function visit(node: Node): void {
     if (evidence.isCompileTimeMetadata(node) || IsTypeSyntaxNode(policy.ast, node)) return;
     nodes.push(node);
-    for (const expectedType of expectedTypes.storageTypesForExpression(node)) {
-      recordPromotedRepresentation(node, expectedType);
+    const declaration = policy.ast.is.IsVariableDeclaration(node) ? node
+      : policy.ast.is.IsIdentifier(node) ? policy.navigation.referenceFor(node)?.declaration : undefined;
+    const closedCallableType = declaration === undefined ? undefined : callables.closedInputType(declaration);
+    if (declaration !== undefined && closedCallableType !== undefined) {
+      requireTargetType(node, declaration, closedCallableType);
+    } else {
+      for (const expectedType of expectedTypes.storageTypesForExpression(node)) {
+        recordPromotedRepresentation(node, expectedType);
+      }
     }
     recordCallableParameterRequirements(node);
     recordObjectLiteralSetterRequirement(node);

@@ -302,7 +302,7 @@ export function analyzeCsharpTargetProgram(
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));
   const captureStorage = analyzeCsharpCaptureStorage(source, analysis.objectShapes, analysis.storage, analysis.sourceEvidence,
-    classFactories.factories.flatMap(factory => factory.captures), names, analysis.declarations);
+    classFactories.factories.flatMap(factory => factory.captures), names, analysis.declarations, analysis.operations);
   if (captureStorage.issues.length > 0) return rejectedTargetStage(captureStorage.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));
@@ -442,6 +442,7 @@ function analyzeIteration(
     expectedTypes,
     conversionAnalysis.classifications,
     declarations,
+    callables,
     previous?.storage,
   );
   const conversions = conversionAnalysis.seal({

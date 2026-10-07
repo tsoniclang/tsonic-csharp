@@ -11,6 +11,7 @@ import {
   csharpObjectTargetType,
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
+  getCsharpDelegateSignature,
 } from "../../../../target-model/types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
@@ -27,6 +28,8 @@ import type {
 } from "../source-profile-policy.js";
 import type {
   CsharpTargetElementInvocation,
+  CsharpSelectedTargetCall,
+  CsharpSelectedCallArgument,
 } from "../../members/selection/selection-types.js";
 import {
   csharpSourceProfileCall,
@@ -103,6 +106,9 @@ export function jsCallPolicy(
     readonly targetMethodTypeArguments?: (
       context: CsharpSourceProfileCallPolicyContext,
     ) => readonly TargetTypeRef[] | undefined;
+    readonly invocationOnlyCallableParameterIndexes?: (
+      context: CsharpSourceProfileCallPolicyContext,
+    ) => readonly number[];
   } = {},
 ): CsharpSourceProfileCallPolicy {
   return Object.freeze({
@@ -131,7 +137,10 @@ export function jsCallPolicy(
               targetParameterBySourceParameter,
             },
           );
-      const call = selected === undefined ? undefined : finalizeCsharpRestSequences(context, selected);
+      const finalized = selected === undefined ? undefined : finalizeCsharpRestSequences(context, selected);
+      const call = finalized === undefined ? undefined : sealInvocationOnlyCallableArguments(
+        context, finalized, options.invocationOnlyCallableParameterIndexes?.(context) ?? [],
+      );
       return call === undefined
         ? {
             kind: "rejected",
@@ -148,6 +157,39 @@ export function jsCallPolicy(
         : { kind: "resolved", call };
     },
   });
+}
+
+function sealInvocationOnlyCallableArguments(
+  context: CsharpSourceProfileCallPolicyContext,
+  call: CsharpSelectedTargetCall,
+  parameterIndexes: readonly number[],
+): CsharpSelectedTargetCall | undefined {
+  if (call.origin !== "source-profile" || !Array.isArray(parameterIndexes) ||
+    parameterIndexes.length > call.targetMember.parameters.length) return undefined;
+  const selectedIndexes = new Set<number>();
+  const argumentIndexes = new Set<number>();
+  for (let index = 0; index < parameterIndexes.length; index += 1) {
+    const parameterIndex = parameterIndexes[index];
+    if (parameterIndex === undefined || !Number.isInteger(parameterIndex) || parameterIndex < 0 ||
+      parameterIndex >= call.targetMember.parameters.length || selectedIndexes.has(parameterIndex)) return undefined;
+    const parameter = call.targetMember.parameters[parameterIndex];
+    if (parameter === undefined || parameter.passingMode !== "by-value" || parameter.paramsArray === true ||
+      getCsharpDelegateSignature(parameter.type) === undefined) return undefined;
+    selectedIndexes.add(parameterIndex);
+    const bindings: readonly CsharpSelectedCallArgument[] = call.arguments.filter(binding => binding.targetParameterIndex === parameterIndex);
+    if (bindings.length === 0) return undefined;
+    for (const binding of bindings) {
+      const sourceIndex = binding.sourceArgumentIndex;
+      if (!Number.isInteger(sourceIndex) || sourceIndex < 0 || sourceIndex >= context.source.sourceArguments.length ||
+        context.source.sourceArguments[sourceIndex] === undefined || binding.targetParameter !== parameter) return undefined;
+      if (binding.sourceForm === "value" && call.arguments.filter(argument => argument.sourceArgumentIndex === sourceIndex).length === 1) {
+        argumentIndexes.add(sourceIndex);
+      }
+    }
+  }
+  return Object.freeze({ ...call, ...(parameterIndexes.length === 0 ? {} : {
+    invocationOnlyCallableArgumentIndexes: Object.freeze([...argumentIndexes]),
+  }) });
 }
 
 export function jsUnsupportedCallPolicy(

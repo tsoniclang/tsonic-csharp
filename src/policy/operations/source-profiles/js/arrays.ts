@@ -259,7 +259,8 @@ export const csharpJsArrayCallPolicies:
       jsMemberIdentity("ArrayConstructor", "from"),
       (context) => arrayFromMember(context),
       noReceiver,
-      { targetMethodTypeArguments: arrayFromTypeArguments },
+      { targetMethodTypeArguments: arrayFromTypeArguments,
+        invocationOnlyCallableParameterIndexes: context => context.source.sourceSelectedSignatureParameters.length === 2 ? [1] : [] },
     ),
     jsCallPolicy(
       jsConstructIdentity("ArrayConstructor"),

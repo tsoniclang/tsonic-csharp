@@ -8,7 +8,9 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import {
   csharpNullableTargetType,
   getCsharpCallableValueSignature,
+  getCsharpDelegateSignature,
   isCsharpSourceCallableArtifactDeclaration,
+  isCsharpSourceDelegateTargetType,
   targetTypeRefEquals,
 } from "../../policy/types/index.js";
 import type {
@@ -26,7 +28,8 @@ import type { CsharpCallableContractIndex } from "./model.js";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import type { CsharpGenericProjectionIndex } from "../declarations/type-projections.js";
 import { closeCsharpProjectCallableContracts } from "../project-types/callable-contracts.js";
-import { selectCsharpClosedCallableInputs } from "./contextual-inputs.js";
+import { selectCsharpClosedCallableContext } from "./contextual-inputs.js";
+import type { CsharpClosedCallableContext } from "./contextual-inputs.js";
 import { csharpCallableValueType } from "./value-type.js";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
@@ -41,7 +44,8 @@ export function analyzeCsharpCallableContracts(
   operations: CsharpTargetOperationClassifications,
 ): CsharpCallableContractIndex {
   const byDeclaration = new WeakMap<Node, CsharpSourceCallableContract>();
-  const closedInputs = new WeakSet<Node>();
+  const closedContexts = new WeakMap<Node, CsharpClosedCallableContext>();
+  const closedAliases = new WeakMap<Node, Node>();
   const byProjectConstructor = new Map<string, CsharpSourceCallableContract>();
   const contracts: CsharpSourceCallableContract[] = [];
   const declarationContracts: CsharpSourceCallableContract[] = [];
@@ -71,8 +75,16 @@ export function analyzeCsharpCallableContracts(
     contracts: Object.freeze(contracts),
     declarationContracts: nativeDeclarations,
     closedInputType(declaration: Node) {
-      const contract = byDeclaration.get(declaration);
-      return contract === undefined || !closedInputs.has(declaration) ? undefined : csharpCallableValueType(contract);
+      const origin = closedAliases.get(declaration) ?? declaration;
+      const contract = byDeclaration.get(origin);
+      const context = closedContexts.get(origin);
+      if (contract === undefined || context === undefined) return undefined;
+      const nativeType = csharpCallableValueType(contract);
+      if (nativeType === undefined) return undefined;
+      if (context.invocationType !== undefined && closedInvocationMatches(nativeType, context.invocationType)) {
+        return context.invocationType;
+      }
+      return origin === declaration && context.inputTypes.some(type => type !== undefined) ? nativeType : undefined;
     },
     get(identity: CsharpSourceCallableArtifactIdentity) {
       return identity.kind === "declaration"
@@ -84,7 +96,7 @@ export function analyzeCsharpCallableContracts(
   function visit(node: Node, sourceFile: SourceFile): void {
     if (evidence.isCompileTimeMetadata(node)) return;
     if (isCsharpSourceCallableArtifactDeclaration(policy.ast, node)) {
-      const inputs = selectCsharpClosedCallableInputs(source, policy, operations, node);
+      const context = selectCsharpClosedCallableContext(source, policy, operations, node);
       const contract = sourceCallableContract(
         policy,
         evidence,
@@ -93,13 +105,20 @@ export function analyzeCsharpCallableContracts(
         node,
         sourceFile,
         projections,
-        inputs,
+        context?.inputTypes,
       );
       if (contract !== undefined) {
         byDeclaration.set(node, contract);
         contracts.push(contract);
         declarationContracts.push(contract);
-        if (inputs !== undefined) closedInputs.add(node);
+        if (context !== undefined) {
+          closedContexts.set(node, context);
+          if (context.invocationType !== undefined) {
+            for (const alias of source.navigation.expressionValueFlow(node).aliasDeclarations) {
+              closedAliases.set(alias, node);
+            }
+          }
+        }
       }
     }
     policy.ast.forEachChild(node, (child) => {
@@ -108,6 +127,19 @@ export function analyzeCsharpCallableContracts(
       }
     });
   }
+}
+
+function closedInvocationMatches(source: TargetTypeRef, destination: TargetTypeRef): boolean {
+  const sourceSignature = getCsharpDelegateSignature(source);
+  const destinationSignature = getCsharpDelegateSignature(destination);
+  if (sourceSignature === undefined || destinationSignature === undefined ||
+    !isCsharpSourceDelegateTargetType(source) || !isCsharpSourceDelegateTargetType(destination)) return false;
+  return sourceSignature.restParameterIndex === undefined && destinationSignature.restParameterIndex === undefined &&
+    (sourceSignature.optionalParameterIndexes?.length ?? 0) === 0 &&
+    (destinationSignature.optionalParameterIndexes?.length ?? 0) === 0 &&
+    sourceSignature.parameters.length <= destinationSignature.parameters.length &&
+    sourceSignature.parameters.every((type, index) => targetTypeRefEquals(type, destinationSignature.parameters[index]!)) &&
+    targetTypeRefEquals(sourceSignature.returnType, destinationSignature.returnType);
 }
 
 function sourceCallableContract(

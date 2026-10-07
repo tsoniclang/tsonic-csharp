@@ -86,6 +86,7 @@ export type CsharpSelectedTargetCall =
     }
   | CsharpSelectedTargetCallBase & {
       readonly origin: "source-profile";
+      readonly invocationOnlyCallableArgumentIndexes?: readonly number[];
     };
 
 export type CsharpSelectedTargetMethodTypeArgument =
