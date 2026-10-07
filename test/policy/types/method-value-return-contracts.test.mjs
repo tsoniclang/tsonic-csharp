@@ -38,6 +38,25 @@ test("inferred callable coverage rejects changed binders, quantified arity and n
   assert.equal(reconcileInferredReturnTargetContract(policy, inferred, [method], true).kind, "rejected", "incomplete return evidence still rejects");
 });
 
+test("quantified coverage requires exact ordered identities even for unused binders", () => {
+  const parameters = [parameter.identity, "original-unused-binder"];
+  const selectedMethod = csharpMethodValueType(owner, "identity", "source.identity", signature, parameters);
+  const selectedBaseline = csharpMethodValueType(protocol, "Invoke", "checked-callable", signature, parameters);
+  assert.equal(selectedMethod !== undefined && selectedBaseline !== undefined, true, "the ordered positive control has valid carriers");
+  assert.equal(csharpMethodValueCoversContract(selectedMethod, selectedBaseline), true, "an exact unused source binder is preserved");
+  const selected = reconcileInferredReturnTargetContract(policy, selectedBaseline, [selectedMethod], false);
+  assert.equal(selected.kind === "resolved" && selected.type === selectedMethod, true, "ordered source quantifiers retain the original carrier");
+  for (const [label, changedParameters] of [
+    ["swapped binder order", [...parameters].reverse()],
+    ["unrelated unused binder", [parameter.identity, "unrelated-unused-binder"]],
+  ]) {
+    const changed = csharpMethodValueType(protocol, "Invoke", "checked-callable", signature, changedParameters);
+    assert.equal(changed !== undefined, true, `${label}: the negative control itself is valid`);
+    assert.equal(csharpMethodValueCoversContract(selectedMethod, changed), false, `${label}: identical inner signatures cannot conceal different quantifiers`);
+    assert.equal(reconcileInferredReturnTargetContract(policy, changed, [selectedMethod], false).kind, "rejected", `${label}: inferred return selection rejects mismatched ordered identities`);
+  }
+});
+
 test("coverage does not authorize method identity replacement or captured environment erasure", () => {
   const otherMethod = csharpMethodValueType(owner, "other", "source.other", signature, [parameter.identity]);
   const otherEnvironment = csharpMethodValueType({ ...owner, id: "tsonic.shape:other-environment" }, "identity", "source.identity", signature, [parameter.identity]);
