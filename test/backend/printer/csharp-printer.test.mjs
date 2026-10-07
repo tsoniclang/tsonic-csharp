@@ -755,6 +755,7 @@ test("object shape methods require explicit delegate signature metadata", () => 
         ...rawDelegateShape.members[0].type,
         csharpDelegateSignature: {
           parameters: [{ kind: "source-primitive", name: "int32" }],
+          parameterPassingModes: ["by-value"],
         },
       },
     }],

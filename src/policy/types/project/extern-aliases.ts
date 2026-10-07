@@ -271,6 +271,7 @@ function csharpApplyExternAliasToDelegateSignature(
 ): CsharpDelegateSignatureShape {
   return {
     parameters: signature.parameters.map((parameter) => csharpApplyExternAliasToTargetType(parameter, specifier)),
+    parameterPassingModes: signature.parameterPassingModes,
     returnType: csharpApplyExternAliasToTargetType(signature.returnType, specifier),
     ...(signature.returnPassing === undefined
       ? {}

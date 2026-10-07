@@ -57,6 +57,7 @@ export function csharpJsArgumentVectorCallbackParameter(
     {
       delegateSignature: {
         parameters: [argumentVectorType],
+        parameterPassingModes: ["by-value"],
         returnType: resultType,
       },
     },

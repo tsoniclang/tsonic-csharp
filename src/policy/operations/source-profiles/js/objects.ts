@@ -57,6 +57,7 @@ const jsonReplacerType = csharpTargetNamedType(
   {
     delegateSignature: {
       parameters: [stringType, jsonValueType],
+      parameterPassingModes: ["by-value", "by-value"],
       returnType: jsonValueType,
     },
   },

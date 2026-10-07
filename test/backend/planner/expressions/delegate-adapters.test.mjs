@@ -11,7 +11,7 @@ import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/t
 const number = csharpSourcePrimitiveTargetType("float64");
 const source = csharpDelegateTargetType("System.Action", []);
 const target = csharpDelegateTargetType("System.Func", [number], csharpNullableTargetType(number));
-const selection = { kind: "delegate-adapter", parameterConversions: [], returnConversion: { kind: "void-return" } };
+const selection = { kind: "delegate-adapter", strategy: "adaptation", parameterConversions: [], returnConversion: { kind: "void-return" } };
 
 function context() {
   const allocated = new Set();

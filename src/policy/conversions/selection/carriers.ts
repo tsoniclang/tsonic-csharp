@@ -3,6 +3,8 @@ import {
 } from "../../types/storage/bindings.js";
 import {
   csharpVoidReturnCompletion,
+  csharpDelegateSignatureHasSupportedPassingModes,
+  csharpDelegateSignaturesMatchNativeBinding,
   csharpObjectTargetType,
   csharpTargetBindingFact,
   getCsharpDelegateSignature,
@@ -224,7 +226,10 @@ export function selectDelegateConversion(
     return undefined;
   }
   if (
+    !csharpDelegateSignatureHasSupportedPassingModes(sourceSignature) ||
+    !csharpDelegateSignatureHasSupportedPassingModes(targetSignature) ||
     sourceSignature.parameters.length > targetSignature.parameters.length ||
+    sourceSignature.parameterPassingModes.some((mode, index) => mode !== targetSignature.parameterPassingModes[index]) ||
     sourceSignature.returnPassing !== targetSignature.returnPassing ||
     sourceSignature.restParameterIndex !== targetSignature.restParameterIndex
   ) {
@@ -254,8 +259,14 @@ export function selectDelegateConversion(
   ) {
     return rejectedDelegateConversion(source, target);
   }
+  const nativeBinding = csharpDelegateSignaturesMatchNativeBinding(sourceSignature, targetSignature);
+  if (!nativeBinding && (sourceSignature.returnPassing !== undefined ||
+    targetSignature.parameterPassingModes.some(mode => mode !== "by-value"))) {
+    return rejectedDelegateConversion(source, target);
+  }
   return {
     kind: "delegate-adapter",
+    strategy: nativeBinding ? "native-binding" : "adaptation",
     parameterConversions: Object.freeze(parameterConversions),
     returnConversion,
   };

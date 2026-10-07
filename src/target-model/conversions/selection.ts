@@ -80,6 +80,7 @@ export type CsharpConversionSelection =
     }
   | {
       readonly kind: "delegate-adapter";
+      readonly strategy: "native-binding" | "adaptation";
       readonly parameterConversions: readonly CsharpConversionSelection[];
       readonly returnConversion: CsharpConversionSelection | { readonly kind: "void-return" };
     }

@@ -3,7 +3,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionSelection } from "../../../analysis/conversions/index.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { getCsharpDelegateSignature, isCsharpVoidTargetType } from "../../../target-model/types/index.js";
+import { csharpDelegateSignatureHasSupportedPassingModes, csharpDelegateSignaturesMatchNativeBinding, getCsharpDelegateSignature, isCsharpVoidTargetType } from "../../../target-model/types/index.js";
 import type { CsharpArgument, CsharpExpression, CsharpStatement } from "../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
@@ -31,11 +31,51 @@ export function planCsharpDelegateAdapter(
   const targetDelegateType = targetType === undefined ? undefined
     : csharpTypeFromTargetTypeRef(targetType, input.scope.typeParameterNames);
   if (sourceSignature === undefined || targetSignature === undefined ||
+    !csharpDelegateSignatureHasSupportedPassingModes(sourceSignature) ||
+    !csharpDelegateSignatureHasSupportedPassingModes(targetSignature) ||
     sourceDelegateType === undefined || targetDelegateType === undefined ||
     sourceSignature.parameters.length > targetSignature.parameters.length ||
     selection.parameterConversions.length !== sourceSignature.parameters.length) {
     diagnostics.push(unsupportedNodeDiagnostic(node,
       "C# delegate adaptation requires exact renderable source and target signatures."));
+    return undefined;
+  }
+  if (selection.strategy === "native-binding") {
+    if (!csharpDelegateSignaturesMatchNativeBinding(sourceSignature, targetSignature) ||
+      selection.parameterConversions.some(conversion => conversion.kind !== "identity") ||
+      selection.returnConversion.kind !== "identity" && !(selection.returnConversion.kind === "void-return" &&
+        isCsharpVoidTargetType(sourceSignature.returnType) && isCsharpVoidTargetType(targetSignature.returnType))) {
+      diagnostics.push(unsupportedNodeDiagnostic(node,
+        "A sealed native delegate binding requires identical parameter and return passing signatures."));
+      return undefined;
+    }
+    if (expression.kind === "LambdaExpression") {
+      if (sourceSignature.returnPassing !== undefined || sourceSignature.parameterPassingModes.some(mode => mode !== "by-value")) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "A by-reference native delegate binding requires an exact native method group or delegate value."));
+        return undefined;
+      }
+      return expression;
+    }
+    const reference = input.program.conversions.directCallableReference(node);
+    const direct = reference === undefined ? undefined
+      : planCsharpSourceModuleValueReference(reference, node, sourceFile, input, diagnostics);
+    const captured = input.program.captureStorage.closure(node);
+    const methodGroup = direct !== undefined && csharpSourceModuleValueReferencesEqual(expression, direct) ||
+      captured !== undefined && expression.kind === "SimpleMemberAccessExpression" &&
+      expression.name === captured.method.methodName && sourceType !== undefined &&
+      targetTypeRefEquals(captured.method.type, sourceType);
+    return { kind: "ObjectCreationExpression", type: targetDelegateType, arguments: [{ kind: "Argument",
+      expression: methodGroup ? expression : { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Invoke" },
+    }] };
+  }
+  if (selection.strategy !== "adaptation") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Delegate conversion requires a sealed native binding or adaptation strategy."));
+    return undefined;
+  }
+  if (sourceSignature.returnPassing !== undefined || targetSignature.returnPassing !== undefined ||
+    sourceSignature.parameterPassingModes.some(mode => mode !== "by-value") ||
+    targetSignature.parameterPassingModes.some(mode => mode !== "by-value")) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Delegate adaptation cannot change or wrap native by-reference passing."));
     return undefined;
   }
   const parameters = targetSignature.parameters.map((parameter, index) => {
