@@ -53,7 +53,7 @@ test("direct C# declaration translation preserves generic constraints, static st
     {
         string name { get; set; }
     }
-    public class Box<T>
+    public class Box<T> : Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     where T : Named
     {
         public T value;

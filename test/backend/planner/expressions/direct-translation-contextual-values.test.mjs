@@ -134,6 +134,10 @@ test("direct C# translation preserves authored primitive aliases through structu
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
+    public interface ObjectShape_1e4714b9b387<Property0>
+    {
+        Property0 value { get; set; }
+    }
     public class ObjectShape_273d884bcc44 : ObjectShape_1e4714b9b387<int>
     {
         public required int value
@@ -141,10 +145,6 @@ test("direct C# translation preserves authored primitive aliases through structu
             get;
             set;
         }
-    }
-    public interface ObjectShape_1e4714b9b387<Property0>
-    {
-        Property0 value { get; set; }
     }
 }
 `,
@@ -380,11 +380,12 @@ namespace Tsonic.Generated
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
         {
-            parseValue = (string text) =>
+            int? __tsonic_callable_94(string text)
             {
                 _ = text;
-                return null;
-            };
+                return default(int?);
+            }
+            parseValue = new Func<string, int?>(__tsonic_callable_94);
             return null;
         }
         public static void __tsonic_module_init()

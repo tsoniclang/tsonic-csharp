@@ -70,11 +70,6 @@ test("direct C# translation derives mapped utility shapes from exact project mem
         Property0 id { get; set; }
         Property1 label { get; set; }
     }
-    public interface ObjectShape_e8dcbad87c09<out Property0, out Property1>
-    {
-        Property0 id { get; }
-        Property1 label { get; }
-    }
     public class ObjectShape_bdd15b6025ff : ObjectShape_adbe2b47b126<double, string>
     {
         public required double id
@@ -87,6 +82,11 @@ test("direct C# translation derives mapped utility shapes from exact project mem
             get;
             set;
         }
+    }
+    public interface ObjectShape_e8dcbad87c09<out Property0, out Property1>
+    {
+        Property0 id { get; }
+        Property1 label { get; }
     }
 }
 `,

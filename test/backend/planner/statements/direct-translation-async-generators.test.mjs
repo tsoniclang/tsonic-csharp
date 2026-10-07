@@ -147,7 +147,10 @@ test("async generators reject return from a finally clause at the native boundar
 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.equal(compiled.targetDiagnostics.length, 1);
-  assert.equal(compiled.targetDiagnostics[0]?.code, "CSHARP_UNSUPPORTED_GENERATOR_RETURN_REGION");
+  assert.equal(compiled.targetDiagnostics[0]?.code, "CSHARP_NATIVE_FINALLY_CONTROL_TRANSFER");
+  assert.equal(compiled.targetDiagnostics[0]?.message,
+    "Native C# forbids return, break or continue leaving a finally body. Keep the control transfer outside cleanup.");
+  assert.equal(compiled.artifacts.size, 0);
 });
 
 for (const [name, body] of [
