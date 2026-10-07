@@ -675,7 +675,11 @@ export function createCsharpObjectShapePolicy(
           ? resolveStructShape(definition.declaration, host.semantics(definition.sourceFile), nextState(state)) : undefined;
         return shape !== undefined && targetTypeRefEquals(shape.targetType, contextualProjectType) ? shape : undefined;
       }
-      if (!typeHasProjectOwnedShapeDeclaration(type, node, queries, host)) {
+      const authoredTransformation = authoredTypeRoot === undefined ? undefined
+        : queries.types.standardTransformation(authoredTypeRoot, type);
+      const projectTransformation = authoredTypeRoot !== undefined &&
+        host.navigation.isProjectDeclaration(authoredTypeRoot) && authoredTransformation?.kind === "structural";
+      if (!projectTransformation && !typeHasProjectOwnedShapeDeclaration(type, node, queries, host)) {
         return undefined;
       }
       if (declaredKind === "enum") {

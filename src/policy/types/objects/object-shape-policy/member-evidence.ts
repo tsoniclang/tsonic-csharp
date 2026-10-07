@@ -69,8 +69,9 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     members: readonly CsharpObjectShapeMemberFact[],
     type: Type,
     queries: SourceFileSemantics,
-    destinationType: Type,
+    destinationType: Type | undefined,
   ): readonly CsharpObjectShapeMemberFact[] | undefined {
+    if (destinationType === undefined) return undefined;
     const correspondence = queries.types.structuralMembers(type, destinationType);
     if (correspondence.kind !== "available") return undefined;
     const instantiated = members.map(member => {

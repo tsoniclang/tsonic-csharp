@@ -75,6 +75,35 @@ const expectedFunctions = [
   "localIdentitySummary",
 ];
 
+test("closed mapped records retain exact native integer reads rather than dictionary reconstruction", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    type Row = Record<"left" | "right", int32>;
+    export function sum(row: Row): int32 { return row.left + row.right; }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  const generated = [...compiled.artifacts.values()].join("\n");
+  assert.match(generated, /public static int sum\(/u);
+  assert.match(generated, /return row\.left \+ row\.right;/u);
+  assert.doesNotMatch(generated, /Dictionary|double|Convert\.To/u);
+});
+
+test("transformed callable tuple-rest evidence selects effective native parameter slots", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    interface Row { count: int32; }
+    type Callable = OmitThisParameter<(this: Row, first: int32, second: string) => string>;
+    export function run(callable: Callable): string { return callable(3 as int32, "word"); }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  assert.match(compiled.artifacts.get("src/Index.cs"), /run\(Func<int, string, string> callable\)/u);
+  assert.match(compiled.artifacts.get("src/Index.cs"), /return callable\(3, "word"\);/u);
+});
+
 const edgeUtilitySource = `
 import type { int32 } from "@tsonic/core/types.js";
  import type { Overloaded } from "./overloads.js";

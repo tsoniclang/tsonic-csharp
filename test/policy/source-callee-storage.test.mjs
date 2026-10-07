@@ -17,6 +17,7 @@ function classify(declaration, selected, access, carrier = delegate, isStatic = 
       IsClassDeclaration: node => node?.kind === "class" }, parent: node => node.parent,
       kindName: node => node.kind, hasModifierKind: () => isStatic },
     navigation: { sourceReferenceFor: () => declaration === undefined ? undefined : { declaration } },
+    projectTypes: { catalog: { definitionForDeclaration: () => undefined } },
     types: { resolveSelectedValue: node => node === expression ? carrier : owner },
   }, { sourceCallee: { expression, selectedDeclaration: selected }, sourceCalleeAccess: access }, {});
 }
@@ -26,6 +27,16 @@ test("source direct functions do not become delegate operands", () => {
   assert.equal(selected.kind, "function");
   assert.equal(selected.expression, expression);
   assert.equal(Object.isFrozen(selected), true);
+});
+
+test("exact direct functions never request a first-class delegate projection", () => {
+  const selected = classifyCsharpSourceCallee({
+    ast: { is: { IsFunctionDeclaration: node => node === functionDeclaration } },
+    navigation: { sourceReferenceFor: () => ({ declaration: functionDeclaration }) },
+    projectTypes: { catalog: {} },
+    types: { resolveSelectedValue: () => { throw new Error("unnecessary callable projection"); } },
+  }, { sourceCallee: { expression, selectedDeclaration: functionDeclaration } }, {});
+  assert.equal(selected.kind, "function");
 });
 
 test("function-selected alias storage remains a real callable value", () => {

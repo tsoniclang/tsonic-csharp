@@ -204,7 +204,9 @@ export function selectCsharpSourceProfilePropertyPolicy(
     ? undefined
     : selected.kind === "ambiguous"
       ? { kind: "rejected", diagnostic: selected.diagnostic }
-      : selected.policy.select({ host, source, sourceFile, identity, receiverType, readonly: !source.writable });
+      : selected.policy.select({ host, source, sourceFile, identity,
+          receiverType: receiverType ?? host.types.resolveSelectedValue(source.receiver.expression, source.receiver.type, sourceFile),
+          readonly: !source.writable });
 }
 
 function sourceProfilePropertyIdentityMatches(

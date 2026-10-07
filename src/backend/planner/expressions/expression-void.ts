@@ -55,8 +55,9 @@ export function planVoidExpression(
     ));
     return undefined;
   }
-  const result = planCsharpSourceUndefinedValue(node, target, sourceFile, input, diagnostics);
-  if (result.kind !== "resolved") {
+  const result = isCsharpVoidTargetType(target) ? undefined
+    : planCsharpSourceUndefinedValue(node, target, sourceFile, input, diagnostics);
+  if (result !== undefined && result.kind !== "resolved") {
     diagnostics.push(unsupportedNodeDiagnostic(node, "The selected C# void result cannot represent undefined."));
     return undefined;
   }
@@ -66,6 +67,6 @@ export function planVoidExpression(
   const prelude = expression.completion.kind === "value" && !csharpPlannedExpressionIsStable(expression.completion.expression)
     ? [...expression.prelude, planCsharpDiscardedStatement(expression.completion.expression, expression.completion.carrier)]
     : expression.prelude;
-  return isCsharpVoidTargetType(target) ? csharpPlannedEffect(target, prelude)
+  return result === undefined ? csharpPlannedEffect(target, prelude)
     : csharpPlannedValue(target, result.expression, prelude);
 }

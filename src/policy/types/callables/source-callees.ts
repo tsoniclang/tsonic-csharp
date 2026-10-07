@@ -4,10 +4,13 @@ import type { CsharpSourceCalleeSelection } from "../../../target-model/operatio
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import type { CsharpProjectTypePolicy } from "../project/project-types.js";
+import { resolveCsharpStaticMemberReceiver } from "../project/static-members.js";
 
 export interface CsharpSourceCalleeHost {
   readonly ast: CsharpTypePolicyBaseHost["ast"];
   readonly navigation: CsharpTypePolicyBaseHost["navigation"];
+  readonly projectTypes: Pick<CsharpProjectTypePolicy, "catalog">;
   readonly types: Pick<CsharpTypePolicy, "resolveSelectedValue">;
 }
 
@@ -20,14 +23,24 @@ export function classifyCsharpSourceCallee(
   const selected = source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
   const reference = policy.navigation.sourceReferenceFor(expression);
   const declaration = reference?.declaration ?? source.sourceCalleeAccess?.declaration ?? source.sourceCallee.declaration;
+  if (declaration !== undefined && selected !== undefined &&
+    policy.ast.is.IsFunctionDeclaration(declaration) && policy.ast.is.IsFunctionDeclaration(selected)) {
+    return Object.freeze({ kind: "function", expression, declaration: selected });
+  }
+  const access = source.sourceCalleeAccess;
+  const staticReceiver = access === undefined ? undefined : resolveCsharpStaticMemberReceiver(
+    policy.ast, policy.navigation, policy.projectTypes.catalog, selected, access.receiver.expression);
+  if (staticReceiver !== undefined && declaration !== undefined && selected !== undefined &&
+    policy.ast.is.IsMethodDeclaration(declaration) && policy.ast.is.IsMethodDeclaration(selected) && access !== undefined) {
+    return Object.freeze({ kind: "method", expression: access.expression, declaration: selected,
+      receiver: Object.freeze({ expression: access.receiver.expression, type: staticReceiver }) });
+  }
   const type = policy.types.resolveSelectedValue(expression, source.sourceCallee.type, sourceFile);
   const reject = (reason: string): CsharpSourceCalleeSelection => Object.freeze({ kind: "rejected", reason });
   if (selected === undefined || declaration === undefined) {
     if (type === undefined || getCsharpCallableValueSignature(getCsharpNullableElementTargetType(type) ?? type) === undefined) {
       return reject("A source callee requires its exact selected declaration or native callable storage contract.");
     }
-  } else if (policy.ast.is.IsFunctionDeclaration(declaration) && policy.ast.is.IsFunctionDeclaration(selected)) {
-    return Object.freeze({ kind: "function", expression, declaration: selected });
   } else if ((getCsharpMethodValue(type) === undefined ||
       policy.ast.is.IsClassDeclaration(policy.ast.parent(declaration))) &&
       (source.sourceCalleeAccess?.kind === "property" || source.sourceCalleeAccess?.kind === "element") &&

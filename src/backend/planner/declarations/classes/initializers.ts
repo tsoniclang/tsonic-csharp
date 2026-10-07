@@ -45,6 +45,7 @@ export function planClassInitializationRegion(
     }
     const property = ast.as.AsPropertyDeclaration(node)!;
     if (property.Initializer === undefined) continue;
+    if (input.program.sourceEvidence.sourceField([node, property.name, property.Type, property.Initializer]) !== undefined) continue;
     const target = input.types.classifications.resolveNode(property.Type ?? property.name, sourceFile);
     const type = target === undefined ? undefined : csharpTypeFromTargetTypeRef(target, input.scope.typeParameterNames);
     const value = type === undefined ? undefined : planExpressionWithExpectedType(property.Initializer, sourceFile,

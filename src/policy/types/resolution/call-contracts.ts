@@ -24,6 +24,7 @@ export function resolveSourceCallContract(
     contract: host.representations.sourceCallable(source, sourceFile, selection) });
   if (host.ast.is.IsNewExpression(source.call) || host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword") return direct();
   const callee = classifyCsharpSourceCallee({ ast: host.ast, navigation: host.navigation,
+    projectTypes: host.projectTypes(),
     types: { resolveSelectedValue: (expression, type, file) =>
       resolveSelectedValueWithState(expression, type, file, nextState(state)) },
   }, source, sourceFile);
@@ -32,16 +33,22 @@ export function resolveSourceCallContract(
   if (callee.kind === "rejected") return reject();
   const type = getCsharpNullableElementTargetType(callee.type) ?? callee.type;
   const signature = getCsharpCallableValueSignature(type);
-  const declaration = host.semantics(sourceFile).declarations.signatureDeclaration(source.selectedSignature);
-  if (signature === undefined ||
-      signature.parameters.length !== source.sourceSelectedSignatureParameters.length) return reject();
+  const queries = host.semantics(sourceFile);
+  const declaration = queries.declarations.signatureDeclaration(source.selectedSignature);
+  const slots = queries.operations.callParameterSlots(source);
+  if (signature === undefined || slots === undefined ||
+      signature.parameters.length !== slots.length) return reject();
   const parameters: CsharpSourceCallParameterContract[] = [];
   const optionalParameters = new Set(signature.optionalParameterIndexes ?? []);
   for (const [index, type] of signature.parameters.entries()) {
-    const parameter = source.sourceSelectedSignatureParameters[index];
-    if (parameter === undefined) return reject();
+    const slot = slots[index];
+    const parameter = slot === undefined ? undefined : source.sourceSelectedSignatureParameters.find(parameter =>
+      parameter.parameterIndex === slot.sourceParameterIndex);
+    if (parameter === undefined || slot === undefined ||
+      optionalParameters.has(index) !== (slot.form === "optional") ||
+      (signature.restParameterIndex === index) !== (slot.form === "rest")) return reject();
     parameters.push(Object.freeze({ ...(parameter.parameterDeclaration === undefined ? {} : { sourceParameter: parameter.parameterDeclaration }),
-      targetParameter: Object.freeze({ name: parameter.parameterName, type, passingMode: "by-value" as const,
+      targetParameter: Object.freeze({ name: slot.sourceParameterName, type, passingMode: "by-value" as const,
         optional: optionalParameters.has(index),
         paramsArray: signature.restParameterIndex === index }),
     }));

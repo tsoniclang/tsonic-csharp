@@ -107,6 +107,7 @@ export function typeIsExcludedFromObjectShape(
   queries: SourceFileSemantics,
   host: CsharpObjectShapePolicyHost,
 ): boolean {
+  const profile = classifyCsharpSourceProfileType(type, queries, host.ast);
   return queries.types.isAny(type) ||
     queries.types.isUnknown(type) ||
     queries.types.isNever(type) ||
@@ -116,7 +117,7 @@ export function typeIsExcludedFromObjectShape(
     queries.types.isNumberLike(type) ||
     queries.types.isBooleanLike(type) ||
     queries.types.isBigIntLike(type) ||
-    classifyCsharpSourceProfileType(type, queries, host.ast) !== undefined ||
+    (profile !== undefined && (profile.kind !== "record" || queries.types.indexInfos(type).length > 0)) ||
     queries.types.isUnion(type) ||
     queries.types.isTuple(type) ||
     queries.types.callSignatures(type).length > 0 ||

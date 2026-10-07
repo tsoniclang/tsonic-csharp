@@ -37,7 +37,7 @@ function captureSlots(factory: CsharpClassFactory, input: CsharpPlanningContext,
       if (frames.has(shared.frame.scope)) continue;
       frames.add(shared.frame.scope);
       const type = csharpTypeFromObjectShapeFact(input, shared.frame.shape, diagnostics, factory.declaration);
-      if (type !== undefined) slots.push({ name: input.program.names.temporaryName(`frame${frames.size - 1}`), type, carrier: shared.frame.shape.targetType, frame: shared.frame });
+      if (type !== undefined) slots.push({ name: capture.fieldName, type, carrier: shared.frame.shape.targetType, frame: shared.frame });
     } else {
       const type = csharpTypeFromTargetTypeRef(input.program.captureStorage.physicalType(capture.declaration, capture.type), input.scope.typeParameterNames);
       if (type === undefined) diagnostics.push(unsupportedNodeDiagnostic(capture.declaration, "A class capture has no renderable native storage."));

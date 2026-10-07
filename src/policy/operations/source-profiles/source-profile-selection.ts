@@ -112,7 +112,7 @@ export function selectCsharpComposedSourceProfileProperty(
     host,
     source,
     sourceFile,
-    host.types.resolveSelectedValue(source.receiver.expression, source.receiver.type, sourceFile),
+    undefined,
   );
 }
 

@@ -60,8 +60,8 @@ export function resolveTypeReferenceNode(
     : queries.types.standardTransformation(node, semanticType);
   if (
     standardTransformation !== undefined &&
-    standardTransformation.kind !== "structural" &&
-    semanticType !== undefined
+    semanticType !== undefined &&
+    (standardTransformation.kind !== "structural" || queries.types.indexInfos(semanticType).length === 0)
   ) {
     return resolveStandardSourceTypeTransformation(
       standardTransformation,

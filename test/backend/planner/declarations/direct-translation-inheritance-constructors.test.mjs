@@ -62,7 +62,7 @@ test("inherited required constructors prevent invalid C# object initializers", (
     [{
       code: "CSHARP_UNSUPPORTED_AST",
       message:
-        "No exact C# implicit conversion relates 'target:tsonic.shape:44639bed4d12f1b4314c2348fe897fc4502999828df96ede6be5f488c2424c1f<>' to 'target:tsonic.source:/project/index.ts\u0000264\u0000108\u0000149<>'.",
+        "Class object literal emission requires an exact constructible source class with a parameterless constructor.",
     }],
   );
   assert.deepEqual([...compiled.artifacts], []);

@@ -301,6 +301,12 @@ export function createCsharpProjectTypePolicy(
       if (owner === undefined) {
         return { kind: "not-project-member" };
       }
+      if (declaration !== undefined && host.ast.hasModifierKind(declaration, "static") && owner.outerTypeParameters.length === 0) {
+        const parameters = csharpFreeTypeParameterIdentities([memberType]);
+        return owner.typeParameterBindings.some(parameter => parameters.has(parameter.identity))
+          ? { kind: "unresolved", reason: "A static member cannot depend on its class instance type parameters." }
+          : { kind: "resolved", type: memberType };
+      }
       return instantiateDeclarationType(
         owner.declaration,
         receiver,

@@ -20,6 +20,7 @@ import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.j
 import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { selectCsharpConditionalNumericCarrier } from "../conditional-numeric-carrier.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
+import { resolveCsharpStaticMemberReceiver } from "../project/static-members.js";
 import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
@@ -249,7 +250,8 @@ export function resolveMemberAccessTargetType(
   if (selection.kind !== "source-owned") {
     return undefined;
   }
-  const receiverType = resolveSelectedReceiverTargetType(
+  const receiverType = resolveCsharpStaticMemberReceiver(host.ast, host.navigation, host.projectTypeCatalog,
+    selection.source.selectedDeclaration, selection.source.receiver.expression) ?? resolveSelectedReceiverTargetType(
     selection.source.receiver,
     queries,
     state,
