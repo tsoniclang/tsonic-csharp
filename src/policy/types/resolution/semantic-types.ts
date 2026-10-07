@@ -21,6 +21,7 @@ import {
   csharpJsStringTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  csharpObjectTargetType,
   csharpNeverTargetType,
   csharpVoidTargetType,
 } from "../../../target-model/types/scalar-types.js";
@@ -65,6 +66,7 @@ export function resolveTypeWithState(
     return undefined;
   }
   const queries = host.semantics(sourceFile);
+  if (queries.types.isNonPrimitive(type)) return csharpObjectTargetType();
   const bound = csharpBoundSourceType(type, queries, state);
   if (bound !== undefined) return bound.targetType;
   const conditional = resolveCsharpSemanticConditionalType(scope, type, queries, state);

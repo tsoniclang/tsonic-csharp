@@ -1,4 +1,5 @@
 import type { TargetCompileInput } from "@tsonic/target-api";
+import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import type { SourceFile } from "@tsonic/tsts";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
@@ -9,6 +10,7 @@ export interface CsharpAnalysisPolicyContextInput {
   readonly callOnlyAlias: CsharpPolicyContext["callOnlyAlias"];
   readonly input: TargetCompileInput;
   readonly sourceFiles: readonly SourceFile[];
+  readonly sourceStorage: SourceStorageQueries;
   readonly providers: CsharpProviderRelationResolver;
   readonly sourceIdentities: CsharpSourceIdentityPolicy;
   readonly typeSystem: CsharpTypeSystem;
@@ -23,6 +25,7 @@ export function createCsharpAnalysisPolicyContext(
     callOnlyAlias: context.callOnlyAlias,
     ast: source.ast,
     sourceFiles,
+    sourceStorage: context.sourceStorage,
     sourceFacts: source.sourceFacts,
     navigation: source.navigation,
     target: input.target,
