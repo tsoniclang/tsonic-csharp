@@ -6,7 +6,7 @@ import type { CsharpSourceCallResult } from "../../../target-model/operations/so
 import { selectCsharpSourceCallResult } from "./call-results.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { combineCsharpTargetUnionMembers, csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType, csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { csharpTargetParameterValueType } from "../../../target-model/types/member-facts.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
@@ -17,6 +17,7 @@ import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import { Node_Expression } from "@tsonic/target-api/source";
 import { selectCsharpNativeFlowMembers } from "./native-flow-refinement.js";
+import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
 import { resolveCsharpInstanceType } from "./instance-tests.js";
 import type { CsharpSourceCallContractSelection } from "./call-contracts.js";
 import { csharpSourceCallArgumentParameter } from "../callables/source-callable-contract.js";
@@ -178,7 +179,13 @@ export function resolveSelectedValueWithState(
           type => resolveCsharpUnionMemberCarrier(scope, storage, type, queries, state),
           host.structuralTypes.resolveTarget, host.typeDefinitions,
         );
-        if (refinement.kind === "resolved") return refinement.type;
+        if (refinement.kind === "resolved") {
+          const present = getCsharpNullableElementTargetType(refinement.type) ?? refinement.type;
+          const checkedMembers = csharpUnionLeaves(present, host.typeDefinitions)?.map(member => member.carrier) ?? [present];
+          if (present !== refinement.type) checkedMembers.push(csharpAbsenceTargetType());
+          const selected = guarded.filter(member => checkedMembers.some(checked => targetTypeRefEquals(member, checked)));
+          return retainCsharpUnionObjectShapes(combineCsharpTargetUnionMembers(selected), host.structuralTypes.resolveTarget);
+        }
       }
       return retainCsharpUnionObjectShapes(combineCsharpTargetUnionMembers(guarded), host.structuralTypes.resolveTarget);
     }
