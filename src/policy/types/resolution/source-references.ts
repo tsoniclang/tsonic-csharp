@@ -127,6 +127,7 @@ export function resolveTypeReferenceNode(
     typeName,
     typeArguments as readonly TargetTypeRef[],
     semanticType,
+    queries,
     state,
     csharpSourceTypeArgumentNodes(host.ast, node).map(argument => {
       const selected = queries.types.authoredType(argument);
@@ -370,6 +371,7 @@ export function resolveCompositionalSourceTypeAlias(
   typeName: Node,
   typeArguments: readonly TargetTypeRef[],
   selectedType: Type | undefined,
+  queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   sourceArguments?: readonly (Type | undefined)[],
 ):
@@ -397,7 +399,6 @@ export function resolveCompositionalSourceTypeAlias(
     : sourceArguments.some(argument => argument === undefined) ? undefined
     : csharpSourceBindings(parameters as readonly Node[], sourceArguments as readonly Type[], typeArguments, state);
   if (boundState === undefined) return { kind: "rejected" };
-  const queries = host.semantics(reference.sourceFile);
   const application = sourceArguments === undefined ? undefined
     : queries.types.instantiateAlias(reference.declaration, sourceArguments as readonly Type[]);
   if (application?.kind === "conditional" && csharpConditionalDeclaration(scope, application) !== undefined) {
@@ -440,8 +441,8 @@ export function resolveCompositionalSourceTypeAlias(
         : resolveCheckerTransformedSourceType(
             target,
             selectedType,
-            host.semantics(reference.sourceFile),
-            nextState(state),
+            queries,
+            nextState(boundState),
           );
   if (resolved === undefined) {
     return { kind: "checker-transformed-alias" };
