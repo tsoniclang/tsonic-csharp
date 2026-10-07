@@ -9,23 +9,19 @@ import type {
   TargetTypeRef,
 } from "../../../types/index.js";
 import {
-  csharpNullableTargetType,
   csharpEmptyObjectTargetType,
   isCsharpEmptyObjectTargetType,
   csharpObjectTargetType,
   csharpJsArrayTargetType,
   csharpQualifiedTypeRenderShape,
-  csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTsValueTargetType,
   csharpTargetNamedType,
   csharpTaskTargetType,
-  csharpVoidTargetType,
   getCsharpTaskResultTargetType,
   getCsharpDelegateSignature,
   isCsharpRecordDictionaryTargetType,
-  isCsharpVoidTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../../types/index.js";
@@ -50,7 +46,6 @@ import {
 
 const stringType = csharpStringTargetType();
 const boolType = csharpSourcePrimitiveTargetType("bool");
-const voidType = csharpVoidTargetType();
 const objectType = csharpObjectTargetType();
 const objectRuntimeType = jsRuntimeTargetType("Object");
 const jsonRuntimeType = jsRuntimeTargetType("JSON");
@@ -66,7 +61,6 @@ const jsonReplacerType = csharpTargetNamedType(
     },
   },
 );
-const promiseRuntimeType = jsRuntimeTargetType("PromiseRuntime");
 const noReceiver = { kind: "none" } as const;
 const firstParameterReceiver = {
   kind: "target-parameter",
@@ -186,11 +180,6 @@ export const csharpJsObjectCallPolicies:
     jsCallPolicy(
       jsMemberIdentity("JSON", "stringify"),
       (context) => jsonStringifyMember(context),
-      noReceiver,
-    ),
-    jsCallPolicy(
-      jsConstructIdentity("PromiseConstructor"),
-      (context) => promiseConstructorMember(context),
       noReceiver,
     ),
     jsCallPolicy(
@@ -541,78 +530,6 @@ function objectShapeProjectionOptions(
       };
 }
 
-function promiseConstructorMember(
-  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
-): CsharpTargetMember | undefined {
-  const taskType = context.host.types.resolveType(
-    context.source.sourceResultType,
-    context.sourceFile,
-  );
-  const resultType = getCsharpTaskResultTargetType(taskType);
-  if (taskType === undefined || resultType === undefined) {
-    return undefined;
-  }
-  const voidPromise = isCsharpVoidTargetType(resultType);
-  const resolveValueType = voidPromise
-    ? undefined
-    : csharpRuntimeUnionTargetType([resultType, taskType]);
-  if (!voidPromise && resolveValueType === undefined) {
-    return undefined;
-  }
-  const resolveType = voidPromise
-    ? promiseDelegate(
-        "PromiseResolve",
-        [],
-        [csharpNullableTargetType(objectType)],
-        [0],
-      )
-    : promiseDelegate(
-        "PromiseResolve",
-        [resultType],
-        [resolveValueType!],
-      );
-  const rejectType = promiseDelegate(
-    "PromiseReject",
-    [],
-    [csharpNullableTargetType(objectType)],
-    [0],
-  );
-  const executorType = promiseDelegate(
-    "PromiseExecutor",
-    voidPromise ? [] : [resultType],
-    [resolveType, rejectType],
-  );
-  const factoryType = voidPromise
-    ? promiseRuntimeType
-    : csharpTargetNamedType(
-        "Tsonic.CSharp.Js.PromiseRuntime`1",
-        [resultType],
-        csharpQualifiedTypeRenderShape(
-          "Tsonic.CSharp.Js",
-          "PromiseRuntime",
-        ),
-      );
-  return Object.freeze({
-    id: voidPromise
-      ? "Tsonic.CSharp.Js.PromiseRuntime.Create:void"
-      : `Tsonic.CSharp.Js.PromiseRuntime.Create:${targetTypeIdentity(resultType)}`,
-    sourceName: "constructor",
-    targetName: "Create",
-    kind: "constructor",
-    declaringType: taskType,
-    parameters: [
-      targetParameter("executor", executorType, {
-        csharpAcceptsCheckedSourceArgument: true,
-      }),
-    ],
-    returnType: taskType,
-    csharpInvocation: {
-      kind: "static-factory-construction",
-      factoryType,
-    },
-  } satisfies CsharpTargetMember);
-}
-
 function promiseAllMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): CsharpTargetMember | undefined {
@@ -648,30 +565,6 @@ function promiseAllMember(
       ),
     ],
     taskType,
-  );
-}
-
-function promiseDelegate(
-  name: string,
-  typeArguments: readonly TargetTypeRef[],
-  parameters: readonly TargetTypeRef[],
-  optionalParameterIndexes: readonly number[] = [],
-): TargetTypeRef {
-  return csharpTargetNamedType(
-    typeArguments.length === 0
-      ? `Tsonic.CSharp.Js.${name}`
-      : `Tsonic.CSharp.Js.${name}\`${typeArguments.length}`,
-    typeArguments.length === 0 ? undefined : typeArguments,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name),
-    {
-      delegateSignature: {
-        parameters,
-        returnType: voidType,
-        ...(optionalParameterIndexes.length === 0
-          ? {}
-          : { optionalParameterIndexes }),
-      },
-    },
   );
 }
 

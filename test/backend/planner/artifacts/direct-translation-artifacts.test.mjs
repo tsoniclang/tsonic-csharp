@@ -149,7 +149,7 @@ test("direct C# translation awaits async module dependencies and project-owned c
     {
         public static System.Threading.Tasks.Task delay()
         {
-            return Tsonic.CSharp.Js.PromiseRuntime.Create((Tsonic.CSharp.Js.PromiseResolve resolve, Tsonic.CSharp.Js.PromiseReject _) =>
+            return Tsonic.CSharp.Runtime.TaskCompletion.Create((Tsonic.CSharp.Runtime.TaskResolve resolve, Tsonic.CSharp.Runtime.TaskReject _) =>
             {
                 resolve(null);
             });
