@@ -29,6 +29,7 @@ import {
   csharpErrorSourceProfileCallPolicies,
   csharpErrorSourceProfilePropertyPolicies,
 } from "./error-source-profile.js";
+import { csharpPromiseSourceProfileCallPolicies } from "./promise-source-profile.js";
 import type {
   CsharpSourceProfileCallPolicyResult,
   CsharpSourceProfileElementPolicyResult,
@@ -54,6 +55,7 @@ type ResolvedSourceElementAccessInfo = NonNullable<
 
 const callPolicies = Object.freeze([
   ...csharpErrorSourceProfileCallPolicies,
+  ...csharpPromiseSourceProfileCallPolicies,
   ...csharpNativeSourceProfileCallPolicies,
   ...csharpGeneratorSourceProfileCallPolicies,
   ...csharpJsSourceProfileCallPolicies,

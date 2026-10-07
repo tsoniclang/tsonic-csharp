@@ -149,11 +149,11 @@ test("direct C# translation awaits async module dependencies and project-owned c
     {
         public static System.Threading.Tasks.Task delay()
         {
-            void __tsonic_callable_68(Tsonic.CSharp.Js.PromiseResolve resolve, Tsonic.CSharp.Js.PromiseReject __tsonic_param0)
+            void __tsonic_callable_68(Tsonic.CSharp.Runtime.TaskResolve resolve, Tsonic.CSharp.Runtime.TaskReject __tsonic_param0)
             {
                 resolve(null);
             }
-            return Tsonic.CSharp.Js.PromiseRuntime.Create(new Tsonic.CSharp.Js.PromiseExecutor(__tsonic_callable_68));
+            return Tsonic.CSharp.Runtime.TaskCompletion.Create(new Tsonic.CSharp.Runtime.TaskExecutor(__tsonic_callable_68));
         }
         private static readonly System.Lazy<System.Threading.Tasks.Task> __tsonic_module_initialization = new System.Lazy<System.Threading.Tasks.Task>(() => __tsonic_module_init_core());
         private static async System.Threading.Tasks.Task __tsonic_module_init_core()
