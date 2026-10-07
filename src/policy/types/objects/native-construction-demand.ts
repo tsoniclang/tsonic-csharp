@@ -21,8 +21,8 @@ export interface CsharpNativeConstructionDemandQueries {
 }
 
 interface CsharpNativeConstructionDemandHost extends Pick<CsharpTypePolicyBaseHost,
-  "ast" | "providers" | "sourceFacts" | "semanticsFor"> {
-  resolveShape(type: Type, file: SourceFile): CsharpObjectShapeFact | undefined;
+  "ast" | "navigation" | "providers" | "sourceFacts" | "semanticsFor"> {
+  resolveShape(type: Type, file: SourceFile, authoredTypeRoot?: Node): CsharpObjectShapeFact | undefined;
   scopedTargetType(node: Node): TargetTypeRef | undefined;
 }
 
@@ -43,6 +43,7 @@ export function createCsharpNativeConstructionDemandQuery(
   const nullableShapes = new WeakMap<CsharpObjectShapeFact, CsharpObjectShapeFact>();
   const shapes = new WeakMap<Type, CsharpObjectShapeFact | null>();
   const compatibility = new WeakMap<Type, WeakMap<CsharpObjectShapeFact, boolean>>();
+  const emptyCompatibility = new Map<SourceStorageSubject, WeakMap<CsharpObjectShapeFact, boolean>>();
   const destinations = new Map<SourceStorageSubject, SourceStorageSubject[]>();
   const nodeShapes = new Map<Node, CsharpObjectShapeFact>();
   const pending: { readonly subject: SourceStorageSubject; readonly shape: CsharpObjectShapeFact }[] = [];
@@ -98,6 +99,33 @@ export function createCsharpNativeConstructionDemandQuery(
     nullableShapes.set(shape, nullable);
     return nullable;
   };
+  const emptyOriginsMatch = (subject: SourceStorageSubject, selected: CsharpNativeConstructionType,
+    destination: CsharpObjectShapeFact): boolean => {
+    const origins = storage.originsFor(subject);
+    if (origins.kind !== "resolved") {
+      issue(subject, origins.reason);
+      return false;
+    }
+    let present = false;
+    for (const origin of origins.origins) {
+      budget.reserve(1);
+      const queries = host.semanticsFor(origin.subject.node);
+      if (queries.types.isNullish(origin.type)) {
+        if (!selected.nullable) return false;
+        continue;
+      }
+      const expressionType = queries.types.expressionType(origin.subject.node);
+      if (origin.subject.kind !== "value" || origin.subject.projection.length !== 0 ||
+        !host.ast.is.IsObjectLiteralExpression(origin.subject.node) ||
+        !host.navigation.isProjectDeclaration(origin.subject.node) || host.ast.properties(origin.subject.node).length !== 0 ||
+        expressionType === undefined || !queries.types.isIdentical(expressionType, origin.type) ||
+        !selected.queries.types.isIdentical(selected.type, origin.type)) return false;
+      const shape = host.resolveShape(origin.type, queries.sourceFile, origin.subject.node);
+      if (!csharpNativeConstructionMembersMatch(origin.type, shape, destination, queries, host, budget.reserve)) return false;
+      present = true;
+    }
+    return present;
+  };
   let current: SourceStorageSubject | undefined;
   try {
     for (const subject of storage.subjects) {
@@ -150,14 +178,21 @@ export function createCsharpNativeConstructionDemandQuery(
       const selected = selectedType(subject, true);
       if (selected === undefined) continue;
       const key = targetTypeRefKey(shape.targetType);
-      const choices = compatibility.get(selected.type) ?? new WeakMap<CsharpObjectShapeFact, boolean>();
+      const properties = selected.queries.types.propertyInfos(selected.type);
+      budget.reserve(properties.length + 1);
+      const sourceShape = shapeForType(selected.type, selected.queries);
+      const empty = properties.length === 0 &&
+        (sourceShape === undefined || !targetTypeRefEquals(sourceShape.targetType, shape.targetType));
+      const choices = (empty ? emptyCompatibility.get(subject) : compatibility.get(selected.type)) ??
+        new WeakMap<CsharpObjectShapeFact, boolean>();
       let matches = choices.get(shape);
       if (matches === undefined) {
         budget.reserve(1);
-        const sourceShape = shapeForType(selected.type, selected.queries);
-        matches = csharpNativeConstructionMembersMatch(selected.type, sourceShape, shape, selected.queries, host, budget.reserve);
+        matches = empty ? emptyOriginsMatch(subject, selected, shape)
+          : csharpNativeConstructionMembersMatch(selected.type, sourceShape, shape, selected.queries, host, budget.reserve);
         choices.set(shape, matches);
-        compatibility.set(selected.type, choices);
+        if (empty) emptyCompatibility.set(subject, choices);
+        else compatibility.set(selected.type, choices);
       }
       if (!matches) {
         issue(subject, `A source producer cannot retain all exact fields, absence and native storage in '${key}' without a copied or adapted object.`);

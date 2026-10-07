@@ -215,8 +215,8 @@ export function createCsharpTypeSystem(
   nativeConstruction = createCsharpNativeConstructionDemandQuery(sourceStorage, {
     ...host,
     scopedTargetType: representations.scopedTargetType,
-    resolveShape(type: Type, file: SourceFile): CsharpObjectShapeFact | undefined {
-      return objectShapes?.resolveType(type, file);
+    resolveShape(type: Type, file: SourceFile, authoredTypeRoot?: Node): CsharpObjectShapeFact | undefined {
+      return objectShapes?.resolveType(type, file, authoredTypeRoot);
     },
   });
   return Object.freeze({

@@ -218,9 +218,16 @@ export function createCsharpObjectShapePolicy(
     if (type === undefined) {
       return undefined;
     }
+    const authoredLiteral = authoredTypeRoot !== undefined && host.ast.is.IsObjectLiteralExpression(authoredTypeRoot)
+      ? authoredTypeRoot : undefined;
+    if (authoredLiteral !== undefined) {
+      const queries = host.semanticsFor(authoredLiteral);
+      const expressionType = queries.types.expressionType(authoredLiteral);
+      if (expressionType === undefined || !queries.types.isIdentical(expressionType, type)) return undefined;
+    }
     const shape = resolveSemanticShape(
       type,
-      undefined,
+      authoredLiteral,
       host.semantics(sourceFile),
       state,
       undefined,
