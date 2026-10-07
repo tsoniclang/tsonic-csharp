@@ -1,5 +1,5 @@
 import type { Type } from "@tsonic/tsts";
-import { Node_Initializer, type SourceFileSemantics } from "@tsonic/target-api/source";
+import { sourceCallableParameterEvidence, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
@@ -45,12 +45,7 @@ export function resolveCsharpConstructorValueType(
       !scope.host.ast.is.IsConstructorTypeNode(declaration))) return undefined;
   const returnNode = scope.host.ast.typeNode(declaration);
   return scope.resolveCallableEvidence({
-    parameters: signature.parameters.map(parameter => ({
-      ...parameter,
-      omissionKind: parameter.parameterKind === "rest" ? "rest" : parameter.parameterKind === "optional"
-        ? "undefined" : parameter.declaration !== undefined && Node_Initializer(scope.host.ast, parameter.declaration) !== undefined
-          ? "initializer" : "required",
-    })),
+    parameters: signature.parameters.map(parameter => sourceCallableParameterEvidence(parameter, scope.host.ast)),
     result: { selectedType: result, ...(returnNode === undefined ? {} : { authoredTypeNode: returnNode }) },
   }, queries, state);
 }

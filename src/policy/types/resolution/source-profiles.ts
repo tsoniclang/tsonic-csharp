@@ -379,8 +379,7 @@ export function resolveCallableEvidence(
   }
   const optionalParameterIndexes = callable.parameters.flatMap(
     (parameter, index) =>
-      parameter.parameterKind === "optional" ||
-          parameter.omissionKind === "undefined"
+      parameter.acceptsOmission
         ? [index]
         : [],
   );

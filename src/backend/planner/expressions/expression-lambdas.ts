@@ -52,6 +52,7 @@ import {
   getCsharpTaskResultTargetType,
   csharpVoidReturnCompletion,
   isCsharpVoidTargetType,
+  csharpVoidTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
   getCsharpCallableValueSignature,
@@ -67,6 +68,7 @@ import { planLambdaParameterStorage } from "./lambda-parameter-storage.js";
 import { planCsharpFrameClosureReference, planCsharpNamedSelfCaptureContext } from "../bindings/capture-closures.js";
 import { consumeCsharpPlannedValue, planCsharpVoidReturn, planCsharpAbsenceReturn } from "../statements/statement-output.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
+import { csharpPlannedEffect } from "./planned-values.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { planCsharpLocalLambdaCreation } from "./lambda-creation.js";
 
@@ -93,9 +95,10 @@ export function planArrowFunctionExpression(
   expectedTargetType?: TargetTypeRef,
   planExpressionWithExpectedType?: ExpectedExpressionPlanner,
 ): CsharpPlannedValue | undefined {
+  const creationPolicy = input.program.captureStorage.lambdaCreation(node);
+  if (creationPolicy.kind === "discarded") return csharpPlannedEffect(csharpVoidTargetType(), []);
   const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
   const closure = input.scope.nativeCallableBody === node ? undefined : input.program.captureStorage.closure(node);
-  const creationPolicy = input.program.captureStorage.lambdaCreation(node);
   const complete = (expression: CsharpExpression | undefined): CsharpPlannedValue | undefined => {
     const carrier = closure?.method.type ?? targetContext?.carrier;
     if (expression?.kind !== "LambdaExpression" || input.scope.nativeCallableBody === node ||
@@ -217,6 +220,8 @@ export function planFunctionExpression(
   state?: DestructuringPlannerState,
   expectedTargetType?: TargetTypeRef,
 ): CsharpPlannedValue | undefined {
+  const creationPolicy = input.program.captureStorage.lambdaCreation(node);
+  if (creationPolicy.kind === "discarded") return csharpPlannedEffect(csharpVoidTargetType(), []);
   const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
   const closure = input.scope.nativeCallableBody === node ? undefined : input.program.captureStorage.closure(node);
   const complete = (expression: CsharpExpression | undefined, prelude: readonly CsharpStatement[] = []): CsharpPlannedValue | undefined =>
@@ -236,7 +241,6 @@ export function planFunctionExpression(
   }
   const creationState = state ?? createDestructuringPlannerState(node, input.program.source.ast);
   const self = input.program.captureStorage.closure(node) === undefined ? input.program.captureStorage.namedSelf(node) : undefined;
-  const creationPolicy = input.program.captureStorage.lambdaCreation(node);
   const captureContext = self === undefined ? undefined
     : planCsharpNamedSelfCaptureContext(self, input, diagnostics, creationState);
   if (self !== undefined && captureContext === undefined) return undefined;

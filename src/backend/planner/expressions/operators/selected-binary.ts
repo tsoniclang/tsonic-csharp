@@ -66,7 +66,8 @@ export function planSelectedCsharpBinaryOperation(
     const left = planExpression(selection.left, sourceFile, input, diagnostics, state);
     if (left === undefined || left.completion.kind === "never") return left;
     const type = csharpTypeFromTargetTypeRef(selection.resultType, input.scope.typeParameterNames);
-    const right = type === undefined ? planExpression(selection.right, sourceFile, input, diagnostics, state)
+    const right = type === undefined || operation.resultUse === "discarded"
+      ? planExpression(selection.right, sourceFile, input, diagnostics, state)
       : planExpressionWithExpectedType(selection.right, sourceFile, input, diagnostics,
         type, undefined, selection.resultType, state);
     return right === undefined ? undefined : {

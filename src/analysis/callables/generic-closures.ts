@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { sourceBindingScope, sourceBindingCapturedBeforeInitialization, sourceLexicalCaptures,
+import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceBindingCapturedBeforeInitialization, sourceLexicalCaptures,
   type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
 import type { CsharpStorageIssue } from "../storage/model.js";
@@ -21,6 +21,8 @@ export function selectCsharpGenericFrameClosures(
   let exhausted = false;
   const visit = (node: Node): void => {
     if (exhausted || evidence.isCompileTimeMetadata(node)) return;
+    if ((source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) &&
+      sourceCallableDefinitionIsDiscarded(node, source.ast)) return;
     if ((source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) && source.ast.typeParameters(node).length > 0) {
       const type = evidence.nodeTargetType(node);
       const method = getCsharpMethodValue(type);

@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { sourceBindingScope, sourceBindingIterationScope, sourceLexicalCaptures, sourceBindingCapturedBeforeInitialization, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceBindingIterationScope, sourceLexicalCaptures, sourceBindingCapturedBeforeInitialization, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
 import type { CsharpStorageIssue } from "../storage/model.js";
@@ -34,6 +34,8 @@ export function selectCsharpFrameClosures(
   const candidates: Node[] = [];
   const visit = (node: Node): void => {
     if (evidence.isCompileTimeMetadata(node)) return;
+    if ((source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) &&
+      sourceCallableDefinitionIsDiscarded(node, source.ast)) return;
     if (!valueOwned.has(node) && (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node) ||
       source.ast.is.IsFunctionDeclaration(node) && source.ast.parent(node) !== undefined &&
       !source.ast.is.IsSourceFile(source.ast.parent(node)!))) candidates.push(node);

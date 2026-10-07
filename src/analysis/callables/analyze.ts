@@ -162,6 +162,8 @@ function sourceCallableContract(
     return undefined;
   }
   const parameters: CsharpSourceCallableParameterContract[] = [];
+  const checked = policy.semantics(sourceFile).types.declarationSignatureInfo(declaration);
+  if (checked === undefined) return undefined;
   for (const [index, parameterNode] of
     policy.ast.parameters(declaration).entries()) {
     const parameter = sourceParameterContract(
@@ -172,6 +174,7 @@ function sourceCallableContract(
       parameterNode,
       index,
       contextualInputs?.[index],
+      checked.parameters.find(parameter => parameter.declaration === parameterNode)?.acceptsOmission,
     );
     if (parameter === undefined) {
       return undefined;
@@ -209,6 +212,7 @@ function sourceParameterContract(
   parameterNode: Node | undefined,
   parameterIndex: number,
   contextualInput: TargetTypeRef | undefined,
+  acceptsOmission: boolean | undefined,
 ): CsharpSourceCallableParameterContract | undefined {
   if (parameterNode === undefined) {
     return undefined;
@@ -217,6 +221,7 @@ function sourceParameterContract(
   if (parameter === undefined) {
     return undefined;
   }
+  if (parameter.DotDotDotToken === undefined && acceptsOmission === undefined) return undefined;
   const typeSubject = parameter.Type ?? parameter.name;
   const selectedType = contextualInput ?? (typeSubject === undefined
     ? undefined
@@ -241,7 +246,7 @@ function sourceParameterContract(
     name,
     type: targetType,
     passingMode: "by-value",
-    ...(questionToken !== undefined || parameter.Initializer !== undefined
+    ...(parameter.DotDotDotToken === undefined && acceptsOmission === true
       ? { optional: true }
       : {}),
     ...(parameter.DotDotDotToken === undefined

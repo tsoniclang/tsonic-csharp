@@ -75,4 +75,7 @@ test("inherited native selection requires the exact project callee, signature an
     assert.deepEqual(selectCsharpInheritedConstructorTarget(host,
       { ...source, sourceCallee: { selectedDeclaration } }, member), { kind: "resolved", member });
   }
+  const ordinaryMethod = { id: "project.ordinary.method", kind: "method" };
+  assert.deepEqual(selectCsharpInheritedConstructorTarget(host, { ...source, selectedSignature: {} }, ordinaryMethod),
+    { kind: "resolved", member: ordinaryMethod }, "an ordinary project method is not a constructor");
 });

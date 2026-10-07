@@ -11,6 +11,7 @@ import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/ty
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { sourceCallableTypeParametersMatch, resolveSourceCallReceiverTargetType } from "../../../dist/policy/types/resolution/calls.js";
 import { csharpSourceTypeParameter } from "../../../dist/target-model/names/type-parameters.js";
+import { selectSourceCallParameterSlots } from "../../../../tsonic/packages/target-api/dist/source-semantics/call-parameter-slots.js";
 
 const integer = { kind: "source-primitive", name: "int64" };
 const string = { kind: "source-primitive", name: "string" };
@@ -23,7 +24,9 @@ function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], in
   const signatureDeclaration = { kind: "arrow" };
   const sourceParameter = {};
   const source = { call: {}, sourceCallee: { expression, type: {}, selectedDeclaration: signatureDeclaration },
-    selectedSignature: {}, sourceSelectedSignatureParameters: [{ parameterDeclaration: sourceParameter, parameterName: "value" }] };
+    selectedSignature: {}, sourceSelectedSignatureKind: "resolved",
+    sourceSelectedSignatureParameters: [{ parameterDeclaration: sourceParameter, parameterName: "value", parameterIndex: 0,
+      selectedType: integer, acceptsOmission: false, rest: false }] };
   if (direct) source.sourceCallee.selectedDeclaration = declaration;
   const openContract = { sourceDeclaration: signatureDeclaration, methodTypeParameterIdentities: [],
     parameters: [{ sourceParameter, targetParameter: { name: "value", type: outer, passingMode: "by-value" } }], returnType: outer };
@@ -31,8 +34,12 @@ function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], in
     ast: { is: { IsNewExpression: () => false, IsFunctionDeclaration: node => node?.kind === "function",
       IsMethodDeclaration: () => false, IsClassDeclaration: () => false }, parent: () => undefined, kindName: node => node?.kind },
     navigation: { sourceReferenceFor: () => ({ declaration }) },
-    semantics: () => ({ declarations: { signatureDeclaration: () => signatureDeclaration }, operations: { callResult: () => undefined } }),
+    semantics: () => ({ declarations: { signatureDeclaration: () => signatureDeclaration }, operations: {
+      callResult: () => undefined, callParameterSlots: selected => selectSourceCallParameterSlots(selected, { isTuple: () => false }),
+    } }),
+    projectTypes: () => ({ catalog: { definitionForTarget: () => undefined } }),
     projectTypeCatalog: { definitionForTarget: () => undefined },
+    typeDefinitions: { sourceUnionArms: () => undefined },
     representations: { sourceCallable: () => { assert.equal(direct, true, "stored invocation must never select the creation ABI"); return openContract; } },
   }, resolveSelectedValueWithState: () => carrier,
     sourceCallableTypeParametersMatch: () => true,
@@ -185,8 +192,8 @@ test("stored invocation validates exact checked binder identities and native pro
 test("selected stored contracts do not require invented signature or parameter syntax", () => {
   const { scope, source } = fixture();
   source.sourceSelectedSignatureParameters[0].parameterDeclaration = undefined;
-  scope.host.semantics = () => ({ declarations: { signatureDeclaration: () => undefined },
-    operations: { callResult: () => undefined } });
+  const original = scope.host.semantics();
+  scope.host.semantics = () => ({ ...original, declarations: { signatureDeclaration: () => undefined } });
   const selected = scope.resolveSourceCallContract(source, {}, { depth: 0 }, "checked");
   assert.equal(selected.kind, "value", "exact native and selected semantic parameter correspondence");
   assert.equal(selected.contract.sourceDeclaration === undefined, true);
@@ -233,7 +240,8 @@ test("native overload binders remap only through exact checked implementation co
 test("bulk parameter resolution selects the complete stored contract once", () => {
   const { scope, source } = fixture(csharpDelegateTargetType("System.Func", Array(12).fill(integer), integer));
   source.sourceSelectedSignatureParameters = Array.from({ length: 12 }, (_value, index) =>
-    ({ parameterDeclaration: {}, parameterName: `value${index}` }));
+    ({ parameterDeclaration: {}, parameterName: `value${index}`, parameterIndex: index,
+      selectedType: integer, acceptsOmission: false, rest: false }));
   const select = scope.resolveSourceCallContract;
   let selections = 0;
   scope.resolveSourceCallContract = (...arguments_) => { selections += 1; return select(...arguments_); };
@@ -254,7 +262,8 @@ test("wide optional signatures collect optional indexes once rather than scannin
     ...carrier.csharpDelegateSignature, optionalParameterIndexes: indexes,
   } });
   source.sourceSelectedSignatureParameters = Array.from({ length: count }, (_value, index) =>
-    ({ parameterDeclaration: {}, parameterName: `value${index}`, acceptsOmission: true }));
+    ({ parameterDeclaration: {}, parameterName: `value${index}`, parameterIndex: index,
+      selectedType: integer, acceptsOmission: true, rest: false }));
   const parameters = resolveSourceCallParameters(scope, source, {});
   assert.equal(parameters.length, count);
   assert.equal(parameters.every(parameter => parameter.optional && targetTypeRefEquals(parameter.type, optional)), true);

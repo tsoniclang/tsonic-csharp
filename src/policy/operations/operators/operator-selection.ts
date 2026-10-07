@@ -63,7 +63,7 @@ export interface CsharpResolvedBinaryOperation {
 
 export type CsharpTargetBinaryOperation =
   | NonNullable<ReturnType<typeof selectCsharpGenericNumericOperation>>
-  | { readonly kind: "sequence" }
+  | { readonly kind: "sequence"; readonly resultUse: "consumed" | "discarded" }
   | { readonly kind: "conditional-value"; readonly operator: "&&" | "||"; readonly branch: CsharpShortCircuitBranch }
   | {
       readonly kind: "bigint-call";
@@ -187,7 +187,9 @@ export function selectCsharpBinaryOperands(
     left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType, resultType,
   };
   if (sourceOperator === ",") return {
-    kind: "resolved", sourceOperator, targetOperation: { kind: "sequence" },
+    kind: "resolved", sourceOperator, targetOperation: {
+      kind: "sequence", resultUse: input.navigation.expressionResultUse(right),
+    },
     left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType, resultType,
   };
   if (sourceOperator === "&&" || sourceOperator === "||") {

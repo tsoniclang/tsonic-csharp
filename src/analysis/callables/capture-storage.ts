@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { sourceBindingScope, sourceBindingHasSingleCaptureOwner, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization,
+import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceBindingHasSingleCaptureOwner, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization,
   sourceLexicalFunctionValueCreation, sourceLexicalFunctionValueOrder } from "@tsonic/target-api/source";
 import { sourceClosedCallableArguments, sourceExpressionCallArgument } from "@tsonic/target-api/source";
 import type { SourceLexicalValueCreation } from "@tsonic/target-api/source";
@@ -24,8 +24,9 @@ import type { CsharpDeclarationClassifications } from "../declarations/model.js"
 import type { CsharpTargetOperationClassifications } from "../operations/model.js";
 
 export type CsharpLambdaCreation =
+  | { readonly kind: "discarded"; readonly staticBody: true }
   | { readonly kind: "cached"; readonly staticBody: true }
-  | { readonly kind: "inline" | "fresh"; readonly staticBody: boolean };
+  | { readonly kind: "inline" | "direct" | "fresh"; readonly staticBody: boolean };
 
 const unknownLambdaCreation: CsharpLambdaCreation = Object.freeze({ kind: "fresh", staticBody: false });
 
@@ -221,6 +222,10 @@ export function analyzeCsharpCaptureStorage(
   const visitValues = (node: Node): void => {
     if (evidence.isCompileTimeMetadata(node)) return;
     if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
+      if (sourceCallableDefinitionIsDiscarded(node, source.ast)) {
+        lambdaCreations.set(node, Object.freeze({ kind: "discarded", staticBody: true }));
+        return;
+      }
       const flow = source.navigation.expressionValueFlow(node);
       const invocationOnly = flow.passedAsArgument && hasOnlyInvocationArguments(node, source, operations);
       const selfIdentityObserved = (namedSelfBindings.get(node)?.values.length ?? 0) > 0;
@@ -228,7 +233,10 @@ export function analyzeCsharpCaptureStorage(
         flow.storedOutsideBinding || flow.exported || flow.hasUnclassifiedUse || flow.memberWritten ||
         flow.receiverUsed || flow.passedAsArgument && !invocationOnly || selfIdentityObserved;
       const staticBody = captureFreeDeclarations.has(node) && !selfIdentityObserved;
+      const directlyInvoked = !fresh && flow.aliasDeclarations.length === 0 && flow.uses.length > 0 &&
+        flow.uses.every(use => use.kind === "direct-call" && use.role === "call-target");
       const creation: CsharpLambdaCreation = fresh ? { kind: "fresh", staticBody }
+        : directlyInvoked ? { kind: "direct", staticBody }
         : invocationOnly && staticBody ? { kind: "cached", staticBody: true } : { kind: "inline", staticBody };
       lambdaCreations.set(node, Object.freeze(creation));
     }

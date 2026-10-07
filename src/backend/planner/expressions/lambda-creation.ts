@@ -36,7 +36,9 @@ export function planCsharpLocalLambdaCreation(
         ...(creation.staticBody ? ["static" as const] : []), ...(asynchronous ? ["async" as const] : []),
       ], node, "declaration", input),
       parameters: nativeParameters as NonNullable<typeof nativeParameters[number]>[], body },
-    value: creation.kind === "cached"
+    value: creation.kind === "direct"
+      ? { kind: "IdentifierName", name }
+      : creation.kind === "cached"
       ? { kind: "CastExpression", type: target.type, expression: { kind: "IdentifierName", name } }
       : { kind: "ObjectCreationExpression", type: target.type,
         arguments: [{ kind: "Argument", expression: { kind: "IdentifierName", name } }] },

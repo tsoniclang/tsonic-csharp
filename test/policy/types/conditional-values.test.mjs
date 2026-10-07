@@ -30,6 +30,22 @@ const ast = {
 const input = { ast, target: {}, types: { resolveReadStorage: () => undefined },
   projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined } };
 
+test("sequence completion demand is sealed independently of its checked value carrier", () => {
+  const selections = ["consumed", "discarded"].map(resultUse => selectCsharpBinaryOperands({
+    ...input, navigation: { expressionResultUse: node => {
+      assert.equal(node === rightValue, true, "exact selected right operand");
+      return resultUse;
+    } },
+  }, value, rightValue, ",", integer, () => integer));
+  for (const [index, selected] of selections.entries()) {
+    assert.equal(selected.kind, "resolved");
+    assert.deepEqual(selected.targetOperation, { kind: "sequence", resultUse: index === 0 ? "consumed" : "discarded" });
+    assert.equal(targetTypeRefEquals(selected.resultType, integer), true, "source value checking is retained");
+    assert.equal(csharpBinarySelectionsEqual(selected, selected), true);
+  }
+  assert.equal(csharpBinarySelectionsEqual(selections[0], selections[1]), false, "changed demand cannot reuse sealed selection");
+});
+
 test("conditional values preserve finite native arms, exact width and one absence", () => {
   const expected = csharpNullableTargetType(csharpRuntimeUnionTargetType([boolean, integer]));
   const combined = combineCsharpTargetUnionMembers([boolean, csharpNullableTargetType(integer), csharpAbsenceTargetType()]);
