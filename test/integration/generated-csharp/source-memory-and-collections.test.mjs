@@ -127,7 +127,7 @@ for (const source of ["const values = [1, , 3];", "const values = [, undefined];
 export function copy(): number { ${source} return Array.from(values).length; }
 ` });
     assert.equal(result.result.artifacts.length, 0);
-    assert.ok(result.result.diagnostics.some(diagnostic => diagnostic.message.includes("Sparse array literals")));
+    assert.ok(result.result.diagnostics.some(diagnostic => diagnostic.message.includes("Sparse array literal elisions")));
   });
 }
 

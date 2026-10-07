@@ -92,7 +92,7 @@ test("optional receiver temporaries cannot collide with authored locals", { time
   const entry = 'export function run(): boolean { return normalize(" x ") === "x" && normalize(undefined) === undefined; }';
   const initial = compileCsharpSource({ surface: "js", sourceText: `${prefix} return result; } ${entry}` });
   assertCsharpCompilationSucceeded(initial);
-  const preferred = [...initial.artifacts.values()].join("\n").match(/\b(__tsonic_optionalReceiver_[0-9]+_[0-9]+)\b/)?.[1];
+  const preferred = [...initial.artifacts.values()].join("\n").match(/\bvalue is string (__tsonic_present_[0-9]+)\b/)?.[1];
   assert.ok(preferred);
   const compiled = compileCsharpSource({ surface: "js", sourceText:
     `${prefix} const ${preferred} = "authored"; if (${preferred} !== "authored") throw new Error("collision"); return result; } ${entry}`,
