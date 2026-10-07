@@ -40,8 +40,8 @@ import type { DestructuringPlannerState } from "../../bindings/binding-state.js"
 import { allocateExpressionTemp } from "../../bindings/binding-state.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "../union-access.js";
 import { planCsharpUnionEquality } from "../union-equality.js";
-import { csharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";
-import { buildCsharpPlannedValue, planCsharpValueBranch } from "../planned-value-composition.js";
+import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";
+import { buildCsharpPlannedValue, planCsharpCoalescingValue, planCsharpValueBranch } from "../planned-value-composition.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/scalar-types.js";
 import { captureCsharpPlannedLocation } from "../planned-locations.js";
 import { captureCsharpPlannedValue } from "../planned-value-composition.js";
@@ -322,8 +322,17 @@ export function planSelectedCsharpBinaryOperation(
     const captured = captureCsharpPlannedLocation(node, sourceFile, input, diagnostics, left, fact,
       input.program.sourceNavigation.expressionEffects(selection.right).suspends);
     if (captured === undefined || captured.completion.kind !== "value") return captured;
+    const location = captured.completion.expression;
+    if (assignmentToken.kind === "QuestionQuestionEqualsToken") {
+      const assigned = mapCsharpPlannedValue(right, selection.resultType, expression => ({
+        kind: "AssignmentExpression", left: location,
+        operatorToken: { kind: "EqualsToken" }, right: expression,
+      }));
+      return assigned === undefined ? undefined : planCsharpCoalescingValue(
+        node, sourceFile, input, diagnostics, captured, assigned, selection.resultType);
+    }
     const prelude = [...captured.prelude];
-    let target = captured.completion.expression;
+    let target = location;
     if (assignmentToken.kind !== "EqualsToken") {
       const old = captureCsharpPlannedValue(node, input, diagnostics, selection.leftInputType);
       if (old === undefined) return undefined;
@@ -342,7 +351,7 @@ export function planSelectedCsharpBinaryOperation(
     return csharpPlannedValue(selection.resultType, completed, [...prelude,
       { kind: "LocalDeclarationStatement", ...result, initializer: { kind: "AssignmentExpression",
         left: target, operatorToken: assignmentToken, right: right.completion.expression } },
-      { kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", left: captured.completion.expression,
+      { kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", left: location,
         operatorToken: { kind: "EqualsToken" }, right: completed } },
     ]);
   }
@@ -377,6 +386,8 @@ export function planSelectedCsharpBinaryOperation(
     selection.rightInputType,
   );
   if (left === undefined || right === undefined) return undefined;
+  if (binaryToken.kind === "QuestionQuestionToken") return planCsharpCoalescingValue(
+    node, sourceFile, input, diagnostics, left, right, selection.resultType);
   const zeroType = operation.kind === "generic-numeric" && operation.zeroOperand !== undefined
     ? csharpTypeFromTargetTypeRef(operation.carrier, input.scope.typeParameterNames) : undefined;
   if (operation.kind === "generic-numeric" && operation.zeroOperand !== undefined && zeroType === undefined) {

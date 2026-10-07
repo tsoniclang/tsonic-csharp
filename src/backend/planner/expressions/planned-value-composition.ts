@@ -12,6 +12,7 @@ import { planCsharpNeverValue } from "./never-values.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
+import { isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { planCsharpAbsentValue, planCsharpPresentValueGuard } from "./optional-storage.js";
 import { convertCsharpPlannedValue } from "./planned-value-conversions.js";
 import {
@@ -118,6 +119,37 @@ export function planCsharpValueBranch(
   const capture = !statements || isCsharpVoidTargetType(carrier) || isCsharpNeverTargetType(carrier)
     ? undefined : captureCsharpPlannedValue(node, input, diagnostics, carrier);
   return planCsharpPlannedBranch(condition, consequent, alternative, carrier, capture);
+}
+
+export function planCsharpCoalescingValue(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  left: CsharpPlannedValue,
+  right: CsharpPlannedValue,
+  carrier: TargetTypeRef,
+): CsharpPlannedValue | undefined {
+  if (left.completion.kind === "never") return left;
+  if (left.completion.kind !== "value") return undefined;
+  const storage = left.completion.carrier;
+  const optional = getCsharpGenericOptionalParts(storage);
+  if (optional === undefined && !isCsharpJsValueTargetType(storage) &&
+    right.prelude.length === 0 && right.completion.kind === "value") {
+    return csharpPlannedValue(carrier, { kind: "BinaryExpression", left: left.completion.expression,
+      operatorToken: { kind: "QuestionQuestionToken" }, right: right.completion.expression }, left.prelude);
+  }
+  const present = optional?.element ?? getCsharpNullableElementTargetType(storage) ?? storage;
+  const name = input.names.temporaryName(`__tsonic_present_${input.program.source.ast.pos(node)}`);
+  const guard = planCsharpPresentValueGuard(storage, present, left.completion.expression, name, input.scope.typeParameterNames);
+  if (guard === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Coalescing evaluation requires its exact native storage and present-value relation."));
+    return undefined;
+  }
+  return planCsharpValueBranch(node, sourceFile, input, diagnostics,
+    csharpPlannedValue(csharpSourcePrimitiveTargetType("bool"), guard.condition, left.prelude),
+    convertCsharpPlannedValue(node, sourceFile, input, diagnostics, csharpPlannedValue(present, guard.value), carrier, "implicit"),
+    right, carrier);
 }
 
 export function planCsharpOptionalReceiverValue(
