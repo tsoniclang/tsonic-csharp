@@ -58,6 +58,8 @@ function fixture(body) {
 for (const [name, body] of [
   ["inline argument", "return invoke((entry: number) => entry + 1);"],
   ["parenthesized argument", "return invoke(((entry: number) => entry + 1));"],
+  ["satisfies argument", "return invoke(((entry: number) => entry + 1) satisfies ((value: number) => number));"],
+  ["inline named recursion", "return invoke(function recurse(entry: number): number { return entry === 0 ? 1 : recurse(entry - 1); });"],
   ["immutable aliases", "const mapper = (entry: number) => entry + 1; const alias = mapper; invoke(alias); return invoke(mapper);"],
 ]) {
   test(`only sealed invocation arguments cache capture-free ${name}`, () => {
@@ -69,21 +71,23 @@ for (const [name, body] of [
   });
 }
 
-for (const [name, body] of [
+for (const [name, body, staticBody = true] of [
   ["unknown destination", "return unknown((entry: number) => entry + 1);"],
+  ["optional argument call", "return invoke?.((entry: number) => entry + 1);"],
+  ["spread argument", "return invoke(...[(entry: number) => entry + 1]);"],
   ["mixed destination aliases", "const mapper = (entry: number) => entry + 1; const alias = mapper; invoke(alias); return unknown(mapper);"],
   ["observed identity", "const mapper = (entry: number) => entry + 1; const alias = mapper; invoke(alias); return mapper === alias;"],
   ["returned value", "const mapper = (entry: number) => entry + 1; invoke(mapper); return mapper;"],
   ["stored value", "const mapper = (entry: number) => entry + 1; invoke(mapper); return { mapper };"],
   ["writable alias", "let mapper = (entry: number) => entry + 1; return invoke(mapper);"],
   ["unproved declaration annotation", "const mapper: (entry: number) => number = entry => entry + 1; return invoke(mapper);"],
-  ["named self value", "return invoke(function self(entry: number): number { const alias = self; return alias === self ? entry : -1; });"],
+  ["named self value", "return invoke(function self(entry: number): number { const alias = self; return alias === self ? entry : -1; });", false],
 ]) {
   test(`${name} preserves fresh native creation despite stateless bodies`, () => {
     const input = fixture(body);
     const selected = input.selected.lambdaCreation(input.lambda);
     assert.equal(selected.kind, "fresh");
-    assert.equal(selected.staticBody, true);
+    assert.equal(selected.staticBody, staticBody, "observed self values require their exact nonstatic identity binding");
   });
 }
 

@@ -198,3 +198,54 @@ static JSArray<T> Handwritten<T>(JSArray<T> values) => JSArrayStatics.fromDense<
 static T Identity<T>(T value, int index) => value;
 `);
 });
+
+test("inline named recursion caches only invocation-only creation without weakening self or unknown identity", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int } from "@tsonic/csharp/types.js";
+    export function recursive(values: int[]): int[] {
+      return Array.from(values, function recurse(value: int, index: int): int {
+        return value === 0 ? index : recurse(value - 1, index + 1);
+      });
+    }
+    export function observed(values: int[]): int[] {
+      return Array.from(values, function self(value: int, index: int): int {
+        const alias = self;
+        if (alias !== self) throw new Error("fixed mapper self identity");
+        return value + index;
+      });
+    }
+    function unknown(mapper: (value: int, index: int) => int): (value: int, index: int) => int { return mapper; }
+    export function intoUnknown(): (value: int, index: int) => int {
+      return unknown(function recurse(value: int, index: int): int {
+        return value === 0 ? index : recurse(value - 1, index + 1);
+      });
+    }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  executeCsharpConstruction(compiled, "inline-named-argument-creation", false, false, [], `
+using Tsonic.CSharp.Js;
+using Index = Tsonic.Generated.Index;
+var input = JSArray<int>.of([1, 2]);
+var result = Index.recursive(input);
+var observed = Index.observed(input);
+if (result[0] != 1 || result[1] != 3 || observed[0] != 1 || observed[1] != 3) throw new System.Exception("native recursive and fixed-self callback behavior");
+var first = Index.intoUnknown();
+var alias = first;
+var second = Index.intoUnknown();
+if (object.ReferenceEquals(first, second) || !object.ReferenceEquals(first, alias) || first(3, 1) != 4) throw new System.Exception("unknown argument preserves fresh named callback identity");
+for (var iteration = 0; iteration < 10000; iteration++) {
+    System.GC.KeepAlive(Index.recursive(input));
+    System.GC.KeepAlive(Handwritten(input));
+}
+var before = System.GC.GetAllocatedBytesForCurrentThread();
+for (var iteration = 0; iteration < 10000; iteration++) System.GC.KeepAlive(Index.recursive(input));
+var generatedCost = System.GC.GetAllocatedBytesForCurrentThread() - before;
+before = System.GC.GetAllocatedBytesForCurrentThread();
+for (var iteration = 0; iteration < 10000; iteration++) System.GC.KeepAlive(Handwritten(input));
+if (generatedCost != System.GC.GetAllocatedBytesForCurrentThread() - before) throw new System.Exception("inline named recursive callback allocation");
+static JSArray<int> Handwritten(JSArray<int> values) {
+    static int Recurse(int value, int index) => value == 0 ? index : Recurse(value - 1, index + 1);
+    return JSArrayStatics.fromDense<int, int>(values, Recurse);
+}
+`);
+});

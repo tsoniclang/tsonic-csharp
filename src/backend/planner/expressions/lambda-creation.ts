@@ -21,8 +21,7 @@ export function planCsharpLocalLambdaCreation(
     return type === undefined ? undefined : { name: parameter.name, type,
       ...(target?.signature.restParameterIndex === index ? { isParams: true } : {}) };
   });
-  if (target === undefined || returnType === undefined || nativeParameters.some(parameter => parameter === undefined) ||
-    creation.kind === "cached" && !creation.staticBody) {
+  if (target === undefined || returnType === undefined || nativeParameters.some(parameter => parameter === undefined)) {
     diagnostics.push(unsupportedNodeDiagnostic(node,
       "A native callable creation requires its exact delegate signature."));
     return undefined;
