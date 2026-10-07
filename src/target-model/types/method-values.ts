@@ -51,7 +51,8 @@ export function csharpMethodValueCoversContract(type: TargetTypeRef, contract: T
   const value = getCsharpMethodValue(type);
   const expected = getCsharpMethodValue(contract);
   return value !== undefined &&
-    (expected === undefined || value.typeParameters.length === expected.typeParameters.length) &&
+    (expected === undefined || value.typeParameters.length === expected.typeParameters.length &&
+      value.typeParameters.every((identity, index) => identity === expected.typeParameters[index])) &&
     targetTypeRefEquals(value.contract, expected?.contract ?? contract);
 }
 
