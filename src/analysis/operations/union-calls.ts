@@ -8,6 +8,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpSourceArgumentPassingMode } from "../../policy/operations/members/selection/argument-selection.js";
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
+import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpCallableValueSignature } from "../../target-model/types/delegates.js";
 
 export type CsharpUnionCallClassification =
   | { readonly kind: "not-union" }
@@ -72,7 +73,13 @@ export function classifyCsharpUnionCall(
     const declaration = candidates[0]!;
     const name = policy.ast.name(declaration);
     const parameters = policy.ast.parameters(declaration);
-    if (!policy.ast.is.IsIdentifier(name) || parameters.length !== parameterTypes.length) return undefined;
+    const file = policy.ast.getSourceFile(declaration);
+    const signature = file === undefined ? undefined
+      : getCsharpCallableValueSignature(policy.types.resolveNode(declaration, file));
+    if (!policy.ast.is.IsIdentifier(name) || parameters.length !== parameterTypes.length ||
+      signature === undefined || !csharpDelegateSignatureHasSupportedPassingModes(signature) ||
+      signature.parameters.length !== parameters.length || signature.returnPassing !== undefined ||
+      signature.parameterPassingModes.some(mode => mode !== "by-value")) return undefined;
     const typeParameters = policy.ast.typeParameters(declaration).map(parameter =>
       parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast));
     if (typeParameters.length !== typeArguments.length || typeParameters.some(parameter => parameter === undefined)) return undefined;
@@ -86,23 +93,18 @@ export function classifyCsharpUnionCall(
     };
     if (parameters.some((parameter, index) => {
       if (parameter === undefined) return true;
-      const file = policy.ast.getSourceFile(parameter);
       const contract = source.sourceSelectedSignatureParameters[index];
       const parameterSyntax = policy.ast.as.AsParameterDeclaration(parameter);
       if (contract === undefined || parameterSyntax === undefined ||
         contract.rest !== (parameterSyntax.DotDotDotToken !== undefined) ||
-        contract.acceptsOmission && parameterSyntax.Initializer === undefined &&
-          policy.ast.questionToken(parameter) === undefined && !contract.rest) return true;
+        contract.rest !== (signature.restParameterIndex === index) ||
+        contract.acceptsOmission && !contract.rest &&
+          !signature.optionalParameterIndexes?.includes(index)) return true;
       const expected = parameterTypes[index];
-      const actual = file === undefined ? undefined : instantiate(parameter, policy.types.resolveStorage(parameter, file));
+      const actual = instantiate(parameter, signature.parameters[index]);
       return expected === undefined || actual === undefined || !targetTypeRefEquals(expected, actual);
     })) return undefined;
-    const file = policy.ast.getSourceFile(declaration);
-    const resultNode = policy.ast.typeNode(declaration);
-    const declaredResult = file === undefined ? undefined : resultNode === undefined
-      ? policy.types.resolveSelectedResult(declaration, undefined, file)
-      : policy.types.resolveNode(resultNode, file);
-    const actualResult = instantiate(declaration, declaredResult);
+    const actualResult = instantiate(declaration, signature.returnType);
     const resultElement = getCsharpNullableElementTargetType(resultType);
     if (actualResult === undefined || (!targetTypeRefEquals(resultType, actualResult) &&
       (resultElement === undefined || !targetTypeRefEquals(resultElement, actualResult)))) return undefined;
