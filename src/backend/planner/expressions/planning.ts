@@ -510,7 +510,7 @@ export function planExpressionWithExpectedType(
   if (plan.representation === "expected") {
     return plan.expression;
   }
-  const sourceType = input.types.classifications.resolveNode(node, sourceFile);
+  const sourceType = plan.expression.completion.carrier;
   const selection = readCsharpExpressionConversionClassification(
     node,
     input,

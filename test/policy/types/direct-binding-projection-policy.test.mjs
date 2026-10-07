@@ -11,7 +11,7 @@ import {
 } from "../../../dist/policy/types/index.js";
 import { csharpEmptyObjectTargetType, csharpTsValueTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
 import { retainCsharpBroadValueCarrier } from "../../../dist/policy/types/resolution/selected-type-evidence.js";
-import { csharpNullableReferenceTargetType } from "../../../dist/target-model/types/nullable.js";
+import { csharpNullableReferenceTargetType, csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
 import { conversionIsImplicitlyApplicable } from "../../../dist/policy/conversions/selection/core.js";
 
 const int32 = csharpSourcePrimitiveTargetType("int32");
@@ -93,6 +93,15 @@ test("array binding policy preserves raw and JS array rest carriers", () => {
     restSlice: "instance-slice",
     restCarrier: jsArray,
   });
+  assert.equal(csharpArrayBindingProjectionTarget(js, 0, false), string);
+  assert.equal(csharpArrayBindingProjectionTarget(js, 1, true), jsArray);
+  for (const element of [int32, csharpSourcePrimitiveTargetType("uint64"), csharpNullableTargetType(int32)]) {
+    const dense = resolveCsharpArrayBindingCarrier(csharpJsArrayTargetType(element));
+    assert.equal(csharpArrayBindingProjectionTarget(dense, 0, false), element);
+  }
+  for (const index of [-1, 0.5, Infinity, NaN]) {
+    assert.equal(csharpArrayBindingProjectionTarget(js, index, false), undefined);
+  }
 });
 
 test("array binding policy projects fixed tuple rest as an exact tuple slice", () => {

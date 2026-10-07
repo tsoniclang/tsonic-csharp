@@ -1,10 +1,9 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import { getCsharpGenericOptionalParts, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
-import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "./binding-state.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { planCsharpOptionalStorageOperation } from "../expressions/optional-storage.js";
 import { planCsharpPresentValueGuard } from "../expressions/optional-storage.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../expressions/planned-values.js";
@@ -18,18 +17,6 @@ export function planCsharpArrayBindingPresence(source: CsharpExpression, index: 
   return { kind: "BinaryExpression",
     left: { kind: "SimpleMemberAccessExpression", receiver: source, name: lengthMember },
     operatorToken: { kind: "GreaterThanToken" }, right: { kind: "LiteralExpression", value: index } };
-}
-
-export function planCsharpCheckedBindingValue(
-  value: CsharpExpression, present: CsharpExpression, element: TargetTypeRef, storageType: CsharpTypeNode,
-): CsharpExpression {
-  const storage = csharpNullableTargetType(element);
-  const generic = getCsharpGenericOptionalParts(storage);
-  const wrap = generic !== undefined && getCsharpGenericOptionalParts(element) === undefined;
-  return { kind: "ConditionalExpression", condition: present,
-    whenTrue: wrap ? planCsharpOptionalStorageOperation(storage, "From2", value) : value,
-    whenFalse: generic === undefined ? { kind: "DefaultExpression", type: storageType }
-      : planCsharpOptionalStorageOperation(storage, "From1", { kind: "LiteralExpression", value: null }) };
 }
 
 export function planCsharpBindingDefaultValue(

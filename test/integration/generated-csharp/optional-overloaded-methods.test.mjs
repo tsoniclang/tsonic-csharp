@@ -10,7 +10,10 @@ for (const surface of [undefined, "js"]) {
     test(`optional overloaded ${name} methods retain selected native calls in ${lane}`, { timeout: 300_000 }, () => {
       const compiled = compileCsharpSource({ surface, sourceText });
       assertCsharpCompilationSucceeded(compiled);
-      assert.doesNotMatch([...compiled.artifacts.values()].join("\n"), /InvokeDynamic|ReadDynamicSlot/u);
+      const emitted = [...compiled.artifacts.values()].join("\n");
+      assert.doesNotMatch(emitted, /InvokeDynamic|ReadDynamicSlot/u);
+      assert.doesNotMatch(emitted, /\(Func<Derived>\)new Func<Source>/u,
+        "the physical delegate must never be relabeled as its narrower source inference");
       executeCsharpConstruction(compiled, `optional-overloaded-${name}-${lane}`);
     });
   }

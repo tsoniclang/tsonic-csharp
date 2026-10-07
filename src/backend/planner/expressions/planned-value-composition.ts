@@ -13,6 +13,7 @@ import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/sca
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 import { planCsharpAbsentValue, planCsharpPresentValueGuard } from "./optional-storage.js";
+import { convertCsharpPlannedValue } from "./planned-value-conversions.js";
 import {
   csharpPlannedValue, csharpPlannedEffect, sequenceCsharpPlannedValues,
   planCsharpPlannedBranch, type CsharpPlannedValue, type CsharpPlannedOperand, type CsharpPlannedCapture, type CsharpPlannedLocationCapture,
@@ -142,7 +143,9 @@ export function planCsharpOptionalReceiverValue(
   const absent = isCsharpVoidTargetType(carrier) ? csharpPlannedEffect(carrier, [])
     : planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
       planCsharpAbsentValue(carrier, input.scope.typeParameterNames), carrier);
+  const selected = present(guard.value);
   return planCsharpValueBranch(node, sourceFile, input, diagnostics,
     csharpPlannedValue(csharpSourcePrimitiveTargetType("bool"), guard.condition, receiver.prelude),
-    present(guard.value), absent, carrier);
+    selected === undefined ? undefined : convertCsharpPlannedValue(node, sourceFile, input, diagnostics, selected, carrier, "implicit"),
+    absent, carrier);
 }

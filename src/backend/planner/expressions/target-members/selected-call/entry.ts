@@ -9,7 +9,7 @@ import { planCsharpClosedTypeTest } from "../../type-tests.js";
 import { createDestructuringPlannerState } from "../../../bindings/binding-state.js";
 import { targetTypeRefEquals } from "../../../../../target-model/types/equality.js";
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
-import { planCsharpSelectedSourceCallResult } from "./results.js";
+import { convertCsharpPlannedValue } from "../../planned-value-conversions.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
@@ -118,7 +118,7 @@ function translateCsharpCallExpressionCore(
         planCallArgument,
       );
       return invocation === undefined || classification.sourceResult === undefined ? invocation
-        : planCsharpSelectedSourceCallResult(node, sourceFile, input, diagnostics, classification.sourceResult, invocation);
+        : convertCsharpPlannedValue(node, sourceFile, input, diagnostics, invocation, classification.sourceResult.selectedType, "explicit");
     }
     case "source-owned":
       return translateSourceOwnedCall(

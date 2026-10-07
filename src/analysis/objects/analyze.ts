@@ -208,6 +208,8 @@ export function analyzeCsharpObjectShapes(
     },
     registerStructuralInterface(expression, source, destination, sourceType) {
       if (sealed) throw new Error("C# structural-interface analysis is sealed.");
+      if (getCsharpNullableElementTargetType(source) !== undefined &&
+        getCsharpNullableElementTargetType(destination) === undefined) return false;
       source = getCsharpNullableElementTargetType(source) ?? source;
       destination = getCsharpNullableElementTargetType(destination) ?? destination;
       const sourceShape = byTarget.get(targetTypeRefKey(source)) ?? policy.objectShapes.resolveTarget(source);

@@ -34,8 +34,6 @@ import {
   resolveCsharpArrayBindingCarrier,
 } from "../../../target-model/types/index.js";
 import { planArrayDefaultProjection } from "./array-defaults.js";
-import { planCsharpArrayBindingPresence, planCsharpCheckedBindingValue } from "./optional-values.js";
-import { csharpCollectionUsesJsArraySemantics } from "../../../target-model/types/collections.js";
 import type {
   CsharpArrayBindingCarrier,
 } from "../../../target-model/types/index.js";
@@ -178,10 +176,7 @@ function planArrayBindingElement(
     return consumeCsharpPlannedValue(defaultedProjection.value, expression =>
       planBindingNameFromProjection(name, expression, defaultedProjection.type, elementNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier));
   }
-  const checked = sourceCarrier.kind === "array" && csharpCollectionUsesJsArraySemantics(sourceCarrier.carrier)
-    ? planCsharpCheckedBindingValue(projected, planCsharpArrayBindingPresence(sourceExpression, index, sourceCarrier.lengthMember),
-      sourceCarrier.element, projectedType) : projected;
-  return planBindingNameFromProjection(name, checked, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
+  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
 }
 
 function planArrayBindingProjection(

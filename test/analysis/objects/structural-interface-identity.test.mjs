@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeCsharpObjectShapes } from "../../../dist/analysis/objects/analyze.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
 
 const integer = { kind: "source-primitive", name: "int64" };
 const floating = { kind: "source-primitive", name: "float64" };
@@ -54,4 +55,15 @@ test("C# structural identity normalization retains independently proven interfac
   assert.equal(selected.structuralImplementations(source.targetType).length, 1);
   assert.equal(selected.resolveTarget(source.targetType)?.implements.length, 1);
   assert.equal(selected.resolveTarget(source.targetType)?.implements[0].id, destination.targetType.id);
+});
+
+test("structural registration preserves absence as an independent native qualifier", () => {
+  const source = shape(carrier("tsonic.shape:present"));
+  const destination = shape(carrier("tsonic.shape:optional-view"));
+  const selected = classifications(source, destination);
+  assert.equal(selected.registerStructuralInterface(expression, csharpNullableTargetType(source.targetType), destination.targetType), false);
+  assert.equal(selected.structuralImplementations(source.targetType).length, 0);
+  assert.equal(selected.registerStructuralInterface(expression, source.targetType, csharpNullableTargetType(destination.targetType)), true);
+  assert.equal(selected.registerStructuralInterface(expression, csharpNullableTargetType(source.targetType), csharpNullableTargetType(destination.targetType)), true);
+  assert.equal(selected.structuralImplementations(source.targetType).length, 1);
 });

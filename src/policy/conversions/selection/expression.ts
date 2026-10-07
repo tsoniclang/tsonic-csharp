@@ -44,14 +44,17 @@ export function selectCsharpExpressionConversion(
   }
   const refined = selectCsharpGuardedIntegerConversion(input, expression, source, target);
   if (refined !== undefined) return refined;
-  const objectShape = input.objectShapes?.resolveTarget(source) ??
+  const sourceElement = getCsharpNullableElementTargetType(source);
+  const targetElement = getCsharpNullableElementTargetType(target);
+  const objectShape = input.objectShapes?.resolveTarget(sourceElement ?? source) ??
     input.objectShapes?.resolveNode(expression);
   if (
     source !== undefined &&
     objectShape !== undefined &&
-    targetTypeRefEquals(objectShape.targetType, source) &&
+    (sourceElement === undefined || targetElement !== undefined) &&
+    targetTypeRefEquals(objectShape.targetType, sourceElement ?? source) &&
     objectShape.implements?.some((implemented) =>
-      targetTypeRefEquals(implemented, target)
+      targetTypeRefEquals(implemented, targetElement ?? target)
     ) === true
   ) {
     return { kind: "implicit", proof: "object-shape-interface" };

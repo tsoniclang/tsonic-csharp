@@ -173,13 +173,12 @@ export function planExpressionWithExpectedTypeCore(
   }
   const isArrowFunction = HasSourceKind(input.program.source.ast, node, KindArrowFunction);
   if (isArrowFunction || HasSourceKind(input.program.source.ast, node, KindFunctionExpression)) {
-    const selected = input.program.expectedTypes.callableTarget(node);
     const expression = isArrowFunction
       ? planArrowFunctionExpression(node, sourceFile, input, diagnostics, planners.planExpression, expectedType, state, effectiveExpectedTargetType, planners.planExpressionWithExpectedType)
       : planFunctionExpression(node, sourceFile, input, diagnostics, expectedType, state, effectiveExpectedTargetType);
     return getCsharpDelegateSignature(effectiveExpectedTargetType) === undefined ||
-      effectiveExpectedTargetType !== undefined && selected !== undefined &&
-        !targetTypeRefEquals(selected, effectiveExpectedTargetType)
+      expression !== undefined && effectiveExpectedTargetType !== undefined &&
+        !targetTypeRefEquals(expression.completion.carrier, effectiveExpectedTargetType)
       ? sourceRepresentation(expression) : expectedRepresentation(expression);
   }
   if (HasSourceKind(input.program.source.ast, node, KindObjectLiteralExpression)) {

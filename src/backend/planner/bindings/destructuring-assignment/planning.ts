@@ -51,8 +51,6 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import { planArrayDefaultProjection } from "../array-defaults.js";
-import { planCsharpArrayBindingPresence, planCsharpCheckedBindingValue } from "../optional-values.js";
-import { csharpCollectionUsesJsArraySemantics } from "../../../../target-model/types/collections.js";
 
 export function planAssignmentPatternFromExpression(
   pattern: DestructuringAssignmentPattern,
@@ -217,10 +215,7 @@ function planArrayAssignmentElement(
     return consumeCsharpPlannedValue(defaultedProjection.value, expression =>
       planAssignmentTargetFromProjection(element.target, expression, defaultedProjection.type, element.sourceNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier, planDefaultExpressionWithExpectedType));
   }
-  const checked = sourceCarrier.kind === "array" && csharpCollectionUsesJsArraySemantics(sourceCarrier.carrier)
-    ? planCsharpCheckedBindingValue(projected, planCsharpArrayBindingPresence(sourceExpression, index, sourceCarrier.lengthMember),
-      sourceCarrier.element, projectedType) : projected;
-  return planAssignmentTargetFromProjection(element.target, checked, projectedType, element.sourceNode, sourceFile, input, diagnostics, state, elementCarrier, planDefaultExpressionWithExpectedType);
+  return planAssignmentTargetFromProjection(element.target, projected, projectedType, element.sourceNode, sourceFile, input, diagnostics, state, elementCarrier, planDefaultExpressionWithExpectedType);
 }
 
 function planArrayAssignmentRestElement(

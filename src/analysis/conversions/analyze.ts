@@ -23,6 +23,7 @@ import {
   isSourceOwnedProjectReference,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
+import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import {
   directCsharpSourceYieldExpression,
 } from "../../target-model/syntax/yield-expression.js";
@@ -148,7 +149,7 @@ export function analyzeCsharpConversions(
   ): void {
     if (evidence.isCompileTimeMetadata(node)) return;
     if (operations.nativeUnreachable(node)) return;
-    const sourceTypes = exactSourceTypes(node, operations, storage);
+    const sourceTypes = exactSourceTypes(node, operations, storage, expectedTypes.callableTarget(node));
     const sourceType = sourceTypes[0];
     const borrowedSequence = operations.borrowedSequence(node);
     if (borrowedSequence !== undefined) {
@@ -157,6 +158,8 @@ export function analyzeCsharpConversions(
     }
     for (const candidate of sourceTypes) {
       classifyPair(candidate, candidate, "implicit", node);
+      const element = getCsharpGenericOptionalParts(candidate)?.element ?? getCsharpNullableElementTargetType(candidate);
+      if (element !== undefined) classifyPair(element, candidate, "implicit", node);
     }
     for (const targetType of expectedTypes.forExpression(node)) {
       for (const candidate of sourceTypes) {
@@ -254,8 +257,10 @@ export function analyzeCsharpConversions(
     node: Node,
     operations: CsharpTargetOperationClassifications,
     storage: CsharpStorageRepresentationClassifications,
+    callableTarget?: TargetTypeRef,
   ): readonly TargetTypeRef[] {
     const candidates = [
+      callableTarget,
       operations.resultType(node),
       evidence.valueRefinement(node)?.flowReadTargetType,
       storage.type(node),

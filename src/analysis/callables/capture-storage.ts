@@ -14,7 +14,7 @@ import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
 import { selectCsharpFrameClosures, type CsharpFrameClosure } from "./capture-closures.js";
 import { csharpTargetNamedType } from "../../target-model/types/factories.js";
 import { selectCsharpGenericFrameClosures } from "./generic-closures.js";
-import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
+import { getCsharpMethodValue, csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import type { CsharpSourceNameResolver } from "../names/source-names.js";
 import { createCsharpTypeParameterEnvironment } from "../../policy/constraints/type-parameter-environment.js";
 import type { CsharpNamedSelfBinding } from "./named-self.js";
@@ -270,6 +270,9 @@ export function analyzeCsharpCaptureStorage(
 function hasSingleCaptureOwner(source: TargetSourceProgram, declaration: Node, shape: CsharpObjectShapeFact): boolean {
   const implementation = shape.methodImplementation;
   if (implementation === undefined) return false;
+  const methods = shape.members.flatMap(member => member.memberKind !== "method" ||
+    member.methodValueContract === undefined || member.methodStorageType !== undefined ? [] :
+    csharpObjectShapeMethodDeclaration(shape, member) ?? []);
   return sourceBindingHasSingleCaptureOwner(declaration, implementation.declaration,
-    implementation.methods, source.ast, source.navigation, use => use.role !== "value");
+    methods, source.ast, source.navigation, use => use.role !== "value");
 }

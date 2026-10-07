@@ -13,7 +13,7 @@ import type { CsharpCallClassification } from "../../../../../analysis/operation
 import type { CsharpSourceCallArgumentClassification } from "../../../../../analysis/operations/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { csharpSourceArgumentGroups } from "./source-argument-groups.js";
-import { planCsharpSelectedSourceCallResult } from "./results.js";
+import { convertCsharpPlannedValue } from "../../planned-value-conversions.js";
 import type { CsharpPlannedArgument, CsharpPlannedValue } from "../../planned-values.js";
 import { csharpPlannedValue } from "../../planned-values.js";
 import { composeCsharpPlannedValues, planCsharpExpressionCompletion, planCsharpOptionalReceiverValue } from "../../planned-value-composition.js";
@@ -93,7 +93,7 @@ export function translateSourceOwnedCall(
     const generic = applyCalleeTypeArguments(input.scope.typeParameterNames, member, typeArguments, node, diagnostics);
     const invocation = generic === undefined ? undefined : planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
       { kind: "InvocationExpression", callee: generic, arguments: args }, result.nativeType);
-    return invocation === undefined ? undefined : planCsharpSelectedSourceCallResult(node, sourceFile, input, diagnostics, result, invocation);
+    return invocation === undefined ? undefined : convertCsharpPlannedValue(node, sourceFile, input, diagnostics, invocation, result.selectedType, "explicit");
   };
   if (selected.kind === "function") {
     const callee = planCsharpNativeFunctionCallee(selected, sourceFile, input, diagnostics);

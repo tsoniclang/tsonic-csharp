@@ -9,6 +9,8 @@ import { csharpPlannedValue, type CsharpPlannedValue } from "../planned-values.j
 import { planCsharpValueBranch } from "../planned-value-composition.js";
 import { planCsharpPlannedDiscard } from "../../statements/statement-output.js";
 import { applyCsharpConversionSelection, readCsharpExpressionConversionClassification } from "../conversions.js";
+import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/scalar-types.js";
 
 export function planCsharpConditionalValue(
   node: Node,
@@ -34,6 +36,14 @@ export function planCsharpConditionalValue(
   if (operation.branch === "right") return {
     prelude: [...planCsharpPlannedDiscard(left), ...right.prelude], completion: right.completion,
   };
+  const boolean = csharpSourcePrimitiveTargetType("bool");
+  if (left.completion.kind === "value" && right.completion.kind === "value" && right.prelude.length === 0 &&
+    targetTypeRefEquals(left.completion.carrier, boolean) && targetTypeRefEquals(right.completion.carrier, boolean) &&
+    targetTypeRefEquals(selection.resultType, boolean)) {
+    return csharpPlannedValue(boolean, { kind: "BinaryExpression", left: left.completion.expression,
+      operatorToken: { kind: operation.operator === "&&" ? "AmpersandAmpersandToken" : "BarBarToken" },
+      right: right.completion.expression }, left.prelude);
+  }
   const conversion = readCsharpExpressionConversionClassification(selection.left, input, diagnostics,
     selection.leftType, selection.resultType, "implicit");
   const expression = conversion === undefined ? undefined : applyCsharpConversionSelection(

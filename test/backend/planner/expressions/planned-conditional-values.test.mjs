@@ -20,8 +20,12 @@ function identical(enabled: boolean, counter: Counter): boolean | Counter { retu
 function present(enabled: boolean, value: uint64 | undefined): boolean | uint64 | undefined { return enabled && value; }
 function constant(counter: Counter): uint64 { return true && counter.wide(); }
 function sequenced(counter: Counter): uint64 { return (counter.empty(), true) && counter.wide(); }
+function both(left: boolean, right: boolean): boolean { return left && right; }
+function either(left: boolean, right: boolean): boolean { return left || right; }
+function lazy(enabled: boolean, counter: Counter): boolean { return enabled && (counter.empty(), true); }
 export function run(): boolean {
   const counter = new Counter();
+  if (both(true, false) || !either(false, true) || lazy(false, counter) || counter.observe() !== 0) return false;
   if (and(false, counter) !== false || or(true, counter) !== true || counter.observe() !== 0) return false;
   if (and(true, counter) !== 9007199254740993n || or(false, counter) !== 9007199254740993n) return false;
   if (empty(false, counter) !== false || empty(true, counter) !== null || counter.observe() !== 3) return false;
@@ -41,6 +45,8 @@ for (const surface of [undefined, "js"]) {
     assertCsharpCompilationSucceeded(compiled);
     const emitted = [...compiled.artifacts.values()].join("\n");
     assert.match(emitted, /Union<bool, ulong>/u);
+    assert.match(emitted, /return left && right;/u);
+    assert.match(emitted, /return left \|\| right;/u);
     assert.doesNotMatch(emitted, /u64_to_f64|Task\.Run|ContinueWith|DynamicInvoke|System\.Reflection/u);
   });
   test(`native boolean short-circuit values retain laziness, width, identity and absence on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
