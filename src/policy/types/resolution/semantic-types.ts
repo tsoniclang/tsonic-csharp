@@ -96,7 +96,7 @@ export function resolveTypeWithState(
     const typeName = host.ast.name(application.declaration);
     const arguments_ = application.bindings.map(binding => resolveTypeWithState(binding.argument, sourceFile, nextState(state)));
     if (typeName === undefined || arguments_.some(argument => argument === undefined)) return undefined;
-    const alias = resolveCompositionalSourceTypeAlias(typeName, arguments_ as readonly TargetTypeRef[], type, state,
+    const alias = resolveCompositionalSourceTypeAlias(typeName, arguments_ as readonly TargetTypeRef[], type, queries, state,
       application.bindings.map(binding => binding.argument));
     return alias.kind === "resolved" ? alias.type : undefined;
   }

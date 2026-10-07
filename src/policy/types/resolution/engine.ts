@@ -325,6 +325,7 @@ export interface CsharpTypeResolutionScope {
   typeName: Node,
   typeArguments: readonly TargetTypeRef[],
   selectedType: Type | undefined,
+  queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   sourceArguments?: readonly (Type | undefined)[],
 ):
