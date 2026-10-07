@@ -54,10 +54,10 @@ test("direct C# translation projects exact checker flow types for inferred local
             _ = __tsonic_module_initialization.Value;
         }
     }
-    public class Base
+    public class Base : Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
     }
-    public class Derived : Base
+    public class Derived : Base, Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
         public string value;
         public Derived(string value) : base()

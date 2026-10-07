@@ -29,21 +29,12 @@ test("direct C# translation preserves authored primitive aliases and array carri
         private static object? __tsonic_module_init_core()
         {
             tail = new int[] { 2, 3 };
-            values = __tsonic_array_spread_121_134(1, tail);
+            values = (int[])[1, .. tail];
             return null;
         }
         public static void __tsonic_module_init()
         {
             _ = __tsonic_module_initialization.Value;
-        }
-        private static int[] __tsonic_array_spread_121_134(int source0, int[] source1)
-        {
-            int[] result = new int[checked(0 + 1 + source1.Length)];
-            int position = 0;
-            result[position++] = source0;
-            System.Array.Copy(source1, 0, result, position, source1.Length);
-            position += source1.Length;
-            return result;
         }
     }
 }
@@ -148,7 +139,7 @@ test("direct C# translation closes source-owned generic properties from selected
             return box.value;
         }
     }
-    public class Box<T>
+    public class Box<T> : Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
         public T value;
         public Box(T value)
@@ -252,7 +243,7 @@ test("direct C# translation selects exact provider overloads and source-core att
     }
     [System.SerializableAttribute]
     [System.ObsoleteAttribute("class")]
-    public class User
+    public class User : Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
         [System.ObsoleteAttribute("constructor")]
         public User([System.Runtime.InteropServices.InAttribute] string id)
@@ -382,17 +373,17 @@ test("direct C# translation closes structural aliases, literals, and destructure
 {
     public static class Index
     {
-        public static ObjectShape_f4bbc5d8a5d0<int, string> make(int age)
+        public static ObjectShape_dbf1c742ee6a<int, string> make(int age)
         {
-            return new ObjectShape_9b7842f65cf3
+            return new ObjectShape_10944e561888
             {
                 name = "Ada",
                 age = age,
             };
         }
-        public static int total(ObjectShape_f4bbc5d8a5d0<int, string> user)
+        public static int total(ObjectShape_dbf1c742ee6a<int, string> user)
         {
-            ObjectShape_f4bbc5d8a5d0<int, string> __tsonic_destructure0 = user;
+            ObjectShape_dbf1c742ee6a<int, string> __tsonic_destructure0 = user;
             int age = __tsonic_destructure0.age;
             return age;
         }
@@ -403,7 +394,7 @@ test("direct C# translation closes structural aliases, literals, and destructure
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public class ObjectShape_9b7842f65cf3 : ObjectShape_f4bbc5d8a5d0<int, string>
+    public class ObjectShape_10944e561888 : ObjectShape_dbf1c742ee6a<int, string>
     {
         public required int age
         {
@@ -416,7 +407,7 @@ test("direct C# translation closes structural aliases, literals, and destructure
             set;
         }
     }
-    public interface ObjectShape_f4bbc5d8a5d0<Property0, Property1>
+    public interface ObjectShape_dbf1c742ee6a<Property0, Property1>
     {
         Property0 age { get; set; }
         Property1 name { get; set; }
@@ -447,7 +438,7 @@ test("direct C# translation preserves explicit source-owned construction argumen
             return new Counter<int>(value);
         }
     }
-    public class Counter<T>
+    public class Counter<T> : Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
         public T value;
         public Counter(T value)
@@ -479,9 +470,9 @@ test("direct C# translation lowers homogeneous variadic tuples as array carriers
             int first = __tsonic_param0[0];
             int second = __tsonic_param0.Length > 1 ? __tsonic_param0[1] : 2;
             int[] tail = Tsonic.CSharp.Runtime.ArrayHelpers.Slice(__tsonic_param0, 2);
-            int[] __tsonic_destructure0 = tail;
-            int head = __tsonic_destructure0[0];
-            int[] rest = Tsonic.CSharp.Runtime.ArrayHelpers.Slice(__tsonic_destructure0, 1);
+            int[] __tsonic_destructure1 = tail;
+            int head = __tsonic_destructure1[0];
+            int[] rest = Tsonic.CSharp.Runtime.ArrayHelpers.Slice(__tsonic_destructure1, 1);
             return first + second + head + rest.Length;
         }
     }
@@ -689,11 +680,13 @@ test("direct C# dynamic translation closes every supported any operation", () =>
             value.ReadDynamicElement(key);
             value.WriteDynamicElement(key, 2);
             value.InvokeDynamic(3);
-            value.InvokeDynamicSlot("create", false, false, () => new object?[] { 4 });
-            value.InvokeDynamicElement(() => key, false, false, () => new object?[] { 5 });
+            Tsonic.CSharp.Runtime.TsValue __tsonic_value_152 = value;
+            __tsonic_value_152.ReadDynamicSlot("create").InvokeDynamicWithThis(__tsonic_value_152, 4);
+            Tsonic.CSharp.Runtime.TsValue __tsonic_value_175 = value;
+            __tsonic_value_175.ReadDynamicElement(key).InvokeDynamicWithThis(__tsonic_value_175, 5);
             value.ConstructDynamic(6);
             Tsonic.CSharp.Runtime.TsValue.ApplyDynamicBinary(value, "+", 1);
-            Tsonic.CSharp.Runtime.TsValue.ApplyDynamicLogical(value, "&&", () => value);
+            _ = value is var __tsonic_logical_233 && Tsonic.CSharp.Runtime.TsValue.ToDynamicBoolean(__tsonic_logical_233) ? value : __tsonic_logical_233;
             Tsonic.CSharp.Runtime.TsValue.ApplyDynamicUnaryBoolean(value, "!");
             Tsonic.CSharp.Runtime.TsValue.ApplyDynamicTypeof(value);
             _ = value;
@@ -734,11 +727,12 @@ namespace Tsonic.Generated
         public static Tsonic.CSharp.Runtime.TsValue optional(Tsonic.CSharp.Runtime.TsValue value, Func<string> key, Func<Tsonic.CSharp.Runtime.TsValue> argument)
         {
             value.ReadDynamicSlotOptional("name");
-            value.ReadDynamicElementOptional(() => key());
-            value.InvokeDynamicOptional(() => new object?[] { argument() });
-            value.InvokeDynamicSlot("create", true, false, () => new object?[] { argument() });
-            value.InvokeDynamicSlot("create", false, true, () => new object?[] { argument() });
-            value.InvokeDynamicElement(() => key(), true, true, () => new object?[] { argument() });
+            _ = value is var __tsonic_present_132 && !__tsonic_present_132.isUndefined() ? __tsonic_present_132.ReadDynamicElement(key()) : default(Tsonic.CSharp.Runtime.TsValue);
+            _ = value is var __tsonic_present_154 && !__tsonic_present_154.isUndefined() ? __tsonic_present_154.InvokeDynamic(argument()) : default(Tsonic.CSharp.Runtime.TsValue);
+            _ = value is var __tsonic_present_181 && !__tsonic_present_181.isUndefined() ? __tsonic_present_181.ReadDynamicSlot("create").InvokeDynamicWithThis(__tsonic_present_181, argument()) : default(Tsonic.CSharp.Runtime.TsValue);
+            Tsonic.CSharp.Runtime.TsValue __tsonic_value_214 = value;
+            _ = __tsonic_value_214.ReadDynamicSlot("create") is var __tsonic_present_214 && !__tsonic_present_214.isUndefined() ? __tsonic_present_214.InvokeDynamicWithThis(__tsonic_value_214, argument()) : default(Tsonic.CSharp.Runtime.TsValue);
+            _ = value is var __tsonic_present_248 && !__tsonic_present_248.isUndefined() ? __tsonic_present_248.ReadDynamicElement(key()) is var ___tsonic_present_248 && !___tsonic_present_248.isUndefined() ? ___tsonic_present_248.InvokeDynamicWithThis(__tsonic_present_248, argument()) : default(Tsonic.CSharp.Runtime.TsValue) : default(Tsonic.CSharp.Runtime.TsValue);
             return value is var __tsonic_value0 && __tsonic_value0.isUndefined() ? argument() : __tsonic_value0;
         }
     }

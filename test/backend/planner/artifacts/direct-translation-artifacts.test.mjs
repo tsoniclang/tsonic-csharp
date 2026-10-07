@@ -27,7 +27,7 @@ test("direct C# translation omits initialization for type-only module dependenci
   ]);
   assert.equal(compiled.artifacts.get("src/models/Models_user.cs"), `namespace Tsonic.Generated
 {
-    public class User
+    public class User : Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
         public User(string publicName)
         {
@@ -149,10 +149,11 @@ test("direct C# translation awaits async module dependencies and project-owned c
     {
         public static System.Threading.Tasks.Task delay()
         {
-            return Tsonic.CSharp.Js.PromiseRuntime.Create((Tsonic.CSharp.Js.PromiseResolve resolve, Tsonic.CSharp.Js.PromiseReject _) =>
+            void __tsonic_callable_68(Tsonic.CSharp.Js.PromiseResolve resolve, Tsonic.CSharp.Js.PromiseReject __tsonic_param0)
             {
                 resolve(null);
-            });
+            }
+            return Tsonic.CSharp.Js.PromiseRuntime.Create(new Tsonic.CSharp.Js.PromiseExecutor(__tsonic_callable_68));
         }
         private static readonly System.Lazy<System.Threading.Tasks.Task> __tsonic_module_initialization = new System.Lazy<System.Threading.Tasks.Task>(() => __tsonic_module_init_core());
         private static async System.Threading.Tasks.Task __tsonic_module_init_core()

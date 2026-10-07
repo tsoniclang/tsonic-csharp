@@ -33,7 +33,7 @@ test("direct C# translation separates flow-selected values from nullable storage
         {
             if (id is null)
             {
-                return null;
+                return default(TodoCreateInput?);
             }
             return new TodoCreateInputShape_6454a09c3abc
             {
@@ -46,7 +46,7 @@ test("direct C# translation separates flow-selected values from nullable storage
             TodoCreateInput? todo = makeTodo(title, id);
             if (todo is not null)
             {
-                consume(todo.id);
+                consume(todo!.id);
             }
         }
         public static void consume(int value)
@@ -103,11 +103,11 @@ test("direct C# translation preserves authored primitive aliases through structu
 {
     public static class Index
     {
-        public static ObjectShape_eea9450c666d<int> nextId
+        public static ObjectShape_1e4714b9b387<int> nextId
         {
             get;
             private set;
-        } = default(ObjectShape_eea9450c666d<int>)!;
+        } = default(ObjectShape_1e4714b9b387<int>)!;
         public static int takeNext()
         {
             int id = nextId.value;
@@ -117,7 +117,7 @@ test("direct C# translation preserves authored primitive aliases through structu
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
         {
-            nextId = new ObjectShape_7ab1a9d04905
+            nextId = new ObjectShape_273d884bcc44
             {
                 value = 1,
             };
@@ -134,7 +134,7 @@ test("direct C# translation preserves authored primitive aliases through structu
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public class ObjectShape_7ab1a9d04905 : ObjectShape_eea9450c666d<int>
+    public class ObjectShape_273d884bcc44 : ObjectShape_1e4714b9b387<int>
     {
         public required int value
         {
@@ -142,7 +142,7 @@ test("direct C# translation preserves authored primitive aliases through structu
             set;
         }
     }
-    public interface ObjectShape_eea9450c666d<Property0>
+    public interface ObjectShape_1e4714b9b387<Property0>
     {
         Property0 value { get; set; }
     }
@@ -353,7 +353,7 @@ test("direct C# translation reconstructs imported callable-expression return con
         public static int? parseValue(string text)
         {
             _ = text;
-            return null;
+            return default(int?);
         }
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
@@ -447,7 +447,7 @@ test("direct C# translation instantiates inherited generic member types from exa
             return new IntBox(4).@double();
         }
     }
-    public class Box<T>
+    public class Box<T> : Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
         public T value;
         public Box(T value)
@@ -459,7 +459,7 @@ test("direct C# translation instantiates inherited generic member types from exa
             return this.value;
         }
     }
-    public class IntBox : Box<int>
+    public class IntBox : Box<int>, Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
         public IntBox(int value) : base(value)
         {
@@ -521,10 +521,25 @@ test("direct C# translation preserves inferred integral storage across mutable i
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.match(
-    compiled.artifacts.get("src/Index.cs"),
-    /for \(int index = 0; index < values\.Length; index\+\+\)/u,
-  );
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static double sum(double[] values)
+        {
+            double result = 0;
+            {
+                int index = 0;
+                for (; index < values.Length; index++)
+                {
+                    result += values[index];
+                }
+            }
+            return result;
+        }
+    }
+}
+`);
 });
 
 test("direct C# translation scopes exact delegate parameter representations through callback bodies", () => {
@@ -560,10 +575,11 @@ namespace Tsonic.Generated
         public static int run()
         {
             int result = 0;
-            visit((int value) =>
+            void __tsonic_callable_227(int value)
             {
                 result = value + 1;
-            });
+            }
+            visit(new Action<int>(__tsonic_callable_227));
             return result;
         }
     }

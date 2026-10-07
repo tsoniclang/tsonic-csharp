@@ -45,16 +45,16 @@ test("direct C# translation preserves exact generic and transitive project herit
     public interface Named<T>
     {
     }
-    public class Base<T>
+    public class Base<T> : Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
     }
-    public class Middle<T> : Base<T>, Named<T>
+    public class Middle<T> : Base<T>, Named<T>, Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
         public Middle() : base()
         {
         }
     }
-    public class StringBox : Middle<string>
+    public class StringBox : Middle<string>, Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
         public StringBox() : base()
         {

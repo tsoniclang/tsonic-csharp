@@ -25,7 +25,7 @@ test("implicit project constructors forward exact provider constructor relations
             consume(new CustomError("boom"));
         }
     }
-    public class CustomError : System.Exception
+    public class CustomError : System.Exception, Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
         public CustomError() : base()
         {

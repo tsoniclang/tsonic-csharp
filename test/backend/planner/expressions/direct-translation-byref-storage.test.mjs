@@ -57,7 +57,7 @@ test("selected nullable target outputs reconstruct exact source storage", () => 
             {
                 return value;
             }
-            return null;
+            return default(Todo?);
         }
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()

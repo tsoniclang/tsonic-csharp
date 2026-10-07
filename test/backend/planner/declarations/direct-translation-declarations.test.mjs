@@ -229,7 +229,11 @@ namespace Tsonic.Generated
         }
         public static string main()
         {
-            return transform<int, string>(7, (int value) => "N=" + value);
+            string __tsonic_callable_229(int value)
+            {
+                return "N=" + value;
+            }
+            return transform<int, string>(7, new Func<int, string>(__tsonic_callable_229));
         }
     }
 }
@@ -282,7 +286,11 @@ namespace Tsonic.Generated
         }
         public static string run()
         {
-            Func<string> next = () => "ready";
+            string __tsonic_callable_129()
+            {
+                return "ready";
+            }
+            Func<string> next = new Func<string>(__tsonic_callable_129);
             return invoke(next);
         }
     }
@@ -324,11 +332,11 @@ test("source overload declarations select exact evidence without becoming emitte
             return formatter.format("ready");
         }
     }
-    public class Formatter
+    public class Formatter : Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {
         public Formatter(string prefix, string? suffix = null)
         {
-            this.prefix = suffix is null ? prefix : prefix + suffix;
+            this.prefix = suffix is null ? prefix : prefix + suffix!;
         }
         public string prefix;
         public string format(string value, string? suffix = null)

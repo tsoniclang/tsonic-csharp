@@ -47,5 +47,5 @@ test("native throw planning requires its exact sealed operand, source carrier an
   const invalid = [];
   assert.deepEqual(planThrowStatement(statement, source.ast.getSourceFile(statement), { ...context, program: changed }, invalid), []);
   assert.equal(invalid.length, 1);
-  assert.equal(invalid[0].message, "C# planning requires a sealed expression-conversion classification that analysis did not produce.");
+  assert.equal(invalid[0].message, "C# planning requires a sealed implicit expression conversion from 'target:System.Exception<>' to 'target:System.String<>'.");
 });

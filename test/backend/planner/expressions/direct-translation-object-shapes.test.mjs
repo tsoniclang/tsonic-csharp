@@ -47,12 +47,15 @@ test("direct C# translation derives mapped utility shapes from exact project mem
 {
     public static class Index
     {
-        public static ObjectShape_5dbae42552b9<double, string> clone(ObjectShape_a21503fd21dc<double, string> input)
+        public static ObjectShape_adbe2b47b126<double, string> clone(ObjectShape_e8dcbad87c09<double, string> input)
         {
-            return new ObjectShape_d2e29a14b094
+            ObjectShape_e8dcbad87c09<double, string> __tsonic_value_174 = input;
+            double ___tsonic_value_174 = __tsonic_value_174.id;
+            string ____tsonic_value_174 = __tsonic_value_174.label;
+            return new ObjectShape_bdd15b6025ff
             {
-                id = input.id,
-                label = input.label,
+                id = ___tsonic_value_174,
+                label = ____tsonic_value_174,
             };
         }
     }
@@ -62,17 +65,17 @@ test("direct C# translation derives mapped utility shapes from exact project mem
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public interface ObjectShape_5dbae42552b9<Property0, Property1>
+    public interface ObjectShape_adbe2b47b126<Property0, Property1>
     {
         Property0 id { get; set; }
         Property1 label { get; set; }
     }
-    public interface ObjectShape_a21503fd21dc<out Property0, out Property1>
+    public interface ObjectShape_e8dcbad87c09<out Property0, out Property1>
     {
         Property0 id { get; }
         Property1 label { get; }
     }
-    public class ObjectShape_d2e29a14b094 : ObjectShape_5dbae42552b9<double, string>
+    public class ObjectShape_bdd15b6025ff : ObjectShape_adbe2b47b126<double, string>
     {
         public required double id
         {
@@ -114,14 +117,14 @@ test("direct C# translation coalesces duplicate structural union carriers withou
 {
     public static class Index
     {
-        public static double score(ObjectShape_04de34f1c855<string, double> result)
+        public static double score(ObjectShape_6c256891dec8<string, double> result)
         {
             if (result.kind == "found")
             {
-                ObjectShape_04de34f1c855<string, double> found = result;
+                ObjectShape_6c256891dec8<string, double> found = result;
                 return found.value + 1;
             }
-            ObjectShape_04de34f1c855<string, double> missing = result;
+            ObjectShape_6c256891dec8<string, double> missing = result;
             return missing.value - 1;
         }
     }
@@ -131,7 +134,7 @@ test("direct C# translation coalesces duplicate structural union carriers withou
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public interface ObjectShape_04de34f1c855<Property0, Property1>
+    public interface ObjectShape_6c256891dec8<Property0, Property1>
     {
         Property0 kind { get; set; }
         Property1 value { get; set; }
@@ -158,11 +161,11 @@ test("structural object-shape identity is independent of source member order", (
 {
     public static class Index
     {
-        public static ObjectShape_bb74cb00240e<double, string> left(ObjectShape_bb74cb00240e<double, string> value)
+        public static ObjectShape_bf14b3f9932a<double, string> left(ObjectShape_bf14b3f9932a<double, string> value)
         {
             return value;
         }
-        public static ObjectShape_bb74cb00240e<double, string> right(ObjectShape_bb74cb00240e<double, string> value)
+        public static ObjectShape_bf14b3f9932a<double, string> right(ObjectShape_bf14b3f9932a<double, string> value)
         {
             return value;
         }
@@ -173,7 +176,7 @@ test("structural object-shape identity is independent of source member order", (
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public interface ObjectShape_bb74cb00240e<Property0, Property1>
+    public interface ObjectShape_bf14b3f9932a<Property0, Property1>
     {
         Property0 alpha { get; set; }
         Property1 zeta { get; set; }
