@@ -7,6 +7,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import { targetPolicyDiagnostic } from "../diagnostics.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
+import { mapCsharpPlannedValue } from "./planned-values.js";
 
 export type CsharpJsStringConversionPlan =
   | { readonly handled: false }
@@ -36,11 +37,15 @@ export function tryPlanCsharpJsStringConversion(
   }
   return {
     handled: true,
-    expression: planExpression(
-      selection.sourceValue,
-      sourceFile,
-      input,
-      diagnostics,
+    expression: mapCsharpPlannedValue(
+      planExpression(
+        selection.sourceValue,
+        sourceFile,
+        input,
+        diagnostics,
+      ),
+      selection.resultType,
+      (expression) => expression,
     ),
   };
 }

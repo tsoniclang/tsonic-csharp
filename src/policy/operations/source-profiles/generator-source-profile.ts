@@ -10,8 +10,8 @@ import {
   csharpTaskTargetType,
   getCsharpGeneratorProtocol,
   getCsharpIteratorResultProtocol,
-  isCsharpThrowableType,
-} from "../../types/index.js";
+} from "../../../target-model/types/index.js";
+import { isCsharpThrowableType } from "../../types/resolution/target-hierarchy.js";
 import type {
   CsharpSourceProfileCallPolicy,
   CsharpSourceProfileCallPolicyContext,

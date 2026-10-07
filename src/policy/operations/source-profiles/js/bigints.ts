@@ -5,7 +5,7 @@ import {
   targetTypeRefEquals,
   type CsharpRuntimeUnionTargetTypeRef,
   type TargetTypeRef,
-} from "../../../types/index.js";
+} from "../../../../target-model/types/index.js";
 import { resolveCsharpSelectedSourceValue, type CsharpSourceProfileCallPolicy } from "../source-profile-policy.js";
 import { jsCallIdentity, jsCallPolicy, jsMemberIdentity, jsRuntimeTargetType, receiverHelperMethod, staticMethod, targetParameter } from "./common.js";
 

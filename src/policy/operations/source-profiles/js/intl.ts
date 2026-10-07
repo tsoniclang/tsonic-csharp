@@ -3,9 +3,12 @@ import type {
   TargetTypeRef,
 } from "../../../types/index.js";
 import {
-  csharpBigIntegerTargetType,
   csharpJsDateTargetType,
   csharpJsIntlTargetType,
+  type CsharpJsIntlCarrierName,
+} from "../../../types/resolution/surface-types.js";
+import {
+  csharpBigIntegerTargetType,
   csharpNullableTargetType,
   csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
@@ -14,8 +17,7 @@ import {
   csharpTsValueTargetType,
   csharpRuntimeUnionTargetType,
   targetTypeRefEquals,
-  type CsharpJsIntlCarrierName,
-} from "../../../types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
   CsharpSourceProfileCallPolicyContext,

@@ -6,12 +6,12 @@ import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import {
   resolveCsharpProviderDeclarationEvidence,
 } from "../members/providers/evidence.js";
+import { csharpFixedArrayRepresentationRejection } from "../../types/resolution/source-markers.js";
 import {
-  csharpFixedArrayRepresentationRejection,
   csharpSourcePrimitiveTargetType,
   isCsharpArrayIndexTargetType,
   targetTypeRefKey,
-} from "../../types/index.js";
+} from "../../../target-model/types/index.js";
 import type {
   CsharpProviderCallSelectionHost,
 } from "../members/selection/call-selection.js";

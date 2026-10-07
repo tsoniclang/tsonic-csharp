@@ -1,6 +1,6 @@
 import type { SourcePrimitiveKind } from "@tsonic/tsts";
 import { selectCsharpConversion } from "../../../conversions/index.js";
-import { csharpSourcePrimitiveTargetType, getCsharpJsArrayElementTargetType, type TargetTypeRef } from "../../../types/index.js";
+import { csharpSourcePrimitiveTargetType, getCsharpJsArrayElementTargetType, type TargetTypeRef } from "../../../../target-model/types/index.js";
 import { resolveCsharpSelectedSourceValue, type CsharpSourceProfileCallPolicyContext } from "../source-profile-policy.js";
 
 export function csharpJsNumericRestCarrier(context: CsharpSourceProfileCallPolicyContext): TargetTypeRef | undefined {

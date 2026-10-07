@@ -7,14 +7,16 @@ import {
   csharpJsArrayTargetType,
   csharpJsRegExpMatchArrayTargetType,
   csharpJsRegExpStringIteratorTargetType,
+} from "../../../types/resolution/surface-types.js";
+import {
   csharpNullableTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpWellKnownSymbolSourceMemberKey,
   getCsharpDelegateSignature,
-  substituteTargetTypeParameters,
   targetTypeRefEquals,
-} from "../../../types/index.js";
+} from "../../../../target-model/types/index.js";
+import { substituteTargetTypeParameters } from "../../../../target-model/types/substitution.js";
 import type {
   CsharpSourceProfileCallPolicy,
 } from "../source-profile-policy.js";

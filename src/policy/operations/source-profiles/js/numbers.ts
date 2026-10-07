@@ -10,7 +10,7 @@ import {
   csharpStringTargetType,
   getCsharpRuntimeUnionArms,
   targetTypeRefEquals,
-} from "../../../types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
   CsharpSourceProfilePropertyPolicy,

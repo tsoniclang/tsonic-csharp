@@ -1,5 +1,5 @@
 import type { CsharpTargetParameter } from "../../../types/index.js";
-import { csharpBigIntegerTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../../types/index.js";
+import { csharpBigIntegerTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../../../target-model/types/index.js";
 import type { CsharpSourceProfileCallPolicyContext } from "../source-profile-policy.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { targetParameter } from "./common.js";

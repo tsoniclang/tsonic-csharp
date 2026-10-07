@@ -55,7 +55,9 @@ test("complete RegExp operations consume selected JS-source-profile evidence", (
   assert.match(source, /ReplacementCallbackArguments/u);
   assert.match(source, /matchAll/u);
   assert.match(source, /replaceAll/u);
-  assert.match(source, /indices\?\[0\]\?\.Item1/u);
+  const indexed = source.split("\n").find(line => line.trimStart().startsWith("double indexed ="));
+  assert.ok(indexed);
+  assert.match(indexed, /^\s*double indexed = \(executed\?\.indices is Tsonic\.CSharp\.Js\.RegExpIndicesArray (__tsonic_present_\d+) \? \1\[0\] : default\(\(int, int\)\?\)\)\?\.Item1 \?\? -1;$/u);
 });
 
 test("explicit JsString preserves exact UTF-16 semantics without changing native string defaults", () => {
