@@ -6,6 +6,8 @@ import type { CsharpTargetOperationClassifications } from "../operations/index.j
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpDelegateSignature, getCsharpNullableElementTargetType, isCsharpSourceDelegateTargetType, targetTypeRefEquals } from "../../policy/types/index.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
+import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
+import { createCsharpMetadataBudget } from "../../target-model/metadata/immutable.js";
 
 export interface CsharpClosedCallableContext {
   readonly inputTypes: readonly (TargetTypeRef | undefined)[];
@@ -49,7 +51,7 @@ export function selectCsharpClosedCallableContext(
       getCsharpNullableElementTargetType(type) !== undefined || !isCsharpSourceDelegateTargetType(type) ||
       callable.restParameterIndex !== undefined ||
       (callable.optionalParameterIndexes?.length ?? 0) !== 0 ||
-      csharpFreeTypeParameterIdentities(callable.parameters.slice(parameters.length)).size !== 0 ||
+      !trailingTypeParametersAvailable(callable.parameters.slice(parameters.length), expression, policy) ||
       invocationType !== undefined && !targetTypeRefEquals(type, invocationType)) {
       invocationOnly = false;
     }
@@ -60,4 +62,24 @@ export function selectCsharpClosedCallableContext(
     inputTypes: Object.freeze(inputs.map((type, index) => broad[index] ? type : undefined)),
     ...(invocationOnly && invocationType !== undefined ? { invocationType } : {}),
   });
+}
+
+function trailingTypeParametersAvailable(types: readonly TargetTypeRef[], expression: Node, policy: CsharpPolicyContext): boolean {
+  const missing = new Set(csharpFreeTypeParameterIdentities(types));
+  if (missing.size === 0) return true;
+  const budget = createCsharpMetadataBudget();
+  const visited = new Set<Node>();
+  for (let owner = policy.ast.parent(expression); owner !== undefined; owner = policy.ast.parent(owner)) {
+    budget.reserve(1);
+    if (visited.has(owner)) return false;
+    visited.add(owner);
+    const parameters = csharpSourceTypeParameters(owner, policy.ast);
+    budget.reserve(parameters.length);
+    for (const declaration of parameters) {
+      const parameter = declaration === undefined ? undefined : csharpSourceTypeParameter(declaration, policy.ast);
+      if (parameter !== undefined) missing.delete(parameter.identity);
+    }
+    if (missing.size === 0) return true;
+  }
+  return false;
 }

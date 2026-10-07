@@ -7,6 +7,8 @@ import { createCsharpProviderRelationResolver } from "../../../dist/providers/re
 import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
 import { getCsharpDelegateSignature } from "../../../dist/target-model/types/delegates.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { getCsharpNullableElementTargetType } from "../../../dist/target-model/types/nullable.js";
+import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/runtime-carriers.js";
 
 function fixture(body) {
   const checked = checkCsharpSource({ surface: "js", sourceText: `
@@ -35,6 +37,24 @@ function fixture(body) {
   for (const file of source.navigation.sourceFiles) visit(file);
   assert.equal(lambda !== undefined, true, "one exact mapper declaration");
   return { program: analysis.value, variables, lambda };
+}
+
+for (const [name, annotation] of [
+  ["nullable", "((value: int) => int) | null"],
+  ["union", "((value: int) => int) | string"],
+]) {
+  test(`${name} callable storage retains its existing carrier owner and exact aliased identity`, () => {
+    const selected = fixture(`const mapper: ${annotation} = (value: int): int => value; const alias = mapper; Array.from(values, alias); return mapper === alias;`);
+    const original = selected.program.storage.type(selected.variables.get("mapper"));
+    const nullable = getCsharpNullableElementTargetType(original);
+    const arms = getCsharpRuntimeUnionArms(nullable ?? original, selected.program.typeDefinitions);
+    const signatures = arms === undefined ? [getCsharpDelegateSignature(nullable ?? original)] : arms.map(getCsharpDelegateSignature);
+    assert.equal(signatures.filter(signature => signature !== undefined).length, 1, "one exact callable carrier in the canonical absence/union owner");
+    assert.equal(signatures.find(signature => signature !== undefined).parameters.length, 1, "authored ABI is not contextual callback ABI");
+    assert.equal(getCsharpDelegateSignature(selected.program.storage.type(selected.variables.get("alias")))?.parameters.length, 1,
+      "narrowed alias retains the original callable identity");
+    assert.equal(selected.program.captureStorage.lambdaCreation(selected.lambda).kind, "fresh", "no cache for observed identity");
+  });
 }
 
 for (const [name, expression, creation] of [
@@ -66,6 +86,8 @@ for (const [name, body] of [
     const selected = fixture(body);
     assert.equal(getCsharpDelegateSignature(selected.program.storage.type(selected.variables.get("mapper")))?.parameters.length, 1,
       "no unproved source storage promotion");
+    assert.equal(getCsharpDelegateSignature(selected.program.storage.type(selected.variables.get("alias")))?.parameters.length, 1,
+      "aliases preserve the identical authored value carrier until the invocation boundary");
     assert.equal(selected.program.captureStorage.lambdaCreation(selected.lambda).kind, "fresh", "observable or unknown identity preserved");
   });
 }

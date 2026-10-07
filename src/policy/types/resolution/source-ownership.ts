@@ -132,10 +132,19 @@ function isSourceCallableDeclaration(
     return false;
   }
   if (input.ast.is.IsVariableDeclaration(declaration)) {
-    return isDirectSourceCallableSyntax(
-      input.ast.as.AsVariableDeclaration(declaration)?.Initializer,
-      input,
-    );
+    const initializer = input.ast.as.AsVariableDeclaration(declaration)?.Initializer;
+    if (initializer === undefined) return false;
+    const semantics = input.semanticsFor(initializer);
+    const type = semantics.types.expressionType(initializer);
+    const signatures = type === undefined ? [] : semantics.types.callSignatures(type);
+    return signatures.length > 0 && signatures.every(signature => {
+      const selected = semantics.declarations.signatureDeclaration(signature);
+      const file = selected === undefined ? undefined : input.ast.getSourceFile(selected);
+      return selected !== undefined && file !== undefined &&
+        input.navigation.isProjectDeclaration(selected) && input.sourceFiles.includes(file) &&
+        !input.ast.isDeclarationFile(file) &&
+        (isDirectSourceCallableSyntax(selected, input) || input.ast.is.IsFunctionTypeNode(selected));
+    });
   }
   if (input.ast.is.IsBindingElement(declaration)) {
     return isDirectSourceCallableSyntax(

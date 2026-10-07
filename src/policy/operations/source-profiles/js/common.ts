@@ -2,6 +2,7 @@ import type {
   CsharpTargetReceiverRelation,
 } from "../../../../providers/relations/index.js";
 import { finalizeCsharpRestSequences } from "../rest-sequences.js";
+import { jsSourceInvocationOnlyCallableParameters } from "@tsonic/js-source-profile";
 import type {
   CsharpTargetMember,
   CsharpTargetParameter,
@@ -106,9 +107,6 @@ export function jsCallPolicy(
     readonly targetMethodTypeArguments?: (
       context: CsharpSourceProfileCallPolicyContext,
     ) => readonly TargetTypeRef[] | undefined;
-    readonly invocationOnlyCallableParameterIndexes?: (
-      context: CsharpSourceProfileCallPolicyContext,
-    ) => readonly number[];
   } = {},
 ): CsharpSourceProfileCallPolicy {
   return Object.freeze({
@@ -139,7 +137,7 @@ export function jsCallPolicy(
           );
       const finalized = selected === undefined ? undefined : finalizeCsharpRestSequences(context, selected);
       const call = finalized === undefined ? undefined : sealInvocationOnlyCallableArguments(
-        context, finalized, options.invocationOnlyCallableParameterIndexes?.(context) ?? [],
+        context, finalized,
       );
       return call === undefined
         ? {
@@ -162,27 +160,32 @@ export function jsCallPolicy(
 function sealInvocationOnlyCallableArguments(
   context: CsharpSourceProfileCallPolicyContext,
   call: CsharpSelectedTargetCall,
-  parameterIndexes: readonly number[],
 ): CsharpSelectedTargetCall | undefined {
-  if (call.origin !== "source-profile" || !Array.isArray(parameterIndexes) ||
-    parameterIndexes.length > call.targetMember.parameters.length) return undefined;
-  const selectedIndexes = new Set<number>();
+  if (call.origin !== "source-profile") return undefined;
+  const identity = context.identity;
+  const parameterIndexes = jsSourceInvocationOnlyCallableParameters(
+    identity.owner !== "js" || identity.kind !== "member" ||
+      identity.declaringName === undefined || identity.name === undefined ? undefined
+      : { ownerName: identity.declaringName, memberName: identity.name },
+  );
   const argumentIndexes = new Set<number>();
-  for (let index = 0; index < parameterIndexes.length; index += 1) {
-    const parameterIndex = parameterIndexes[index];
-    if (parameterIndex === undefined || !Number.isInteger(parameterIndex) || parameterIndex < 0 ||
-      parameterIndex >= call.targetMember.parameters.length || selectedIndexes.has(parameterIndex)) return undefined;
-    const parameter = call.targetMember.parameters[parameterIndex];
-    if (parameter === undefined || parameter.passingMode !== "by-value" || parameter.paramsArray === true ||
-      getCsharpDelegateSignature(parameter.type) === undefined) return undefined;
-    selectedIndexes.add(parameterIndex);
-    const bindings: readonly CsharpSelectedCallArgument[] = call.arguments.filter(binding => binding.targetParameterIndex === parameterIndex);
-    if (bindings.length === 0) return undefined;
-    for (const binding of bindings) {
-      const sourceIndex = binding.sourceArgumentIndex;
+  for (const parameterIndex of parameterIndexes) {
+    const bindings = context.source.sourceArgumentBindings.filter(binding => binding.sourceParameterIndex === parameterIndex);
+    if (bindings.length === 0 && context.source.sourceSelectedSignatureParameters[parameterIndex] !== undefined &&
+      context.source.sourceSelectedSignatureParameters[parameterIndex]?.acceptsOmission !== true) return undefined;
+    for (const sourceBinding of bindings) {
+      const sourceIndex = sourceBinding.sourceArgumentIndex;
       if (!Number.isInteger(sourceIndex) || sourceIndex < 0 || sourceIndex >= context.source.sourceArguments.length ||
-        context.source.sourceArguments[sourceIndex] === undefined || binding.targetParameter !== parameter) return undefined;
+        context.source.sourceArguments[sourceIndex] === undefined) return undefined;
+      const selected: readonly CsharpSelectedCallArgument[] = call.arguments.filter(binding =>
+        binding.sourceArgumentIndex === sourceIndex && binding.effectiveArgumentIndex === sourceBinding.effectiveArgumentIndex &&
+        binding.sourceForm === sourceBinding.sourceForm && binding.spreadElementIndex === sourceBinding.spreadElementIndex);
+      const binding = selected.length === 1 ? selected[0] : undefined;
+      const parameter = binding?.targetParameter;
+      if (binding === undefined || parameter === undefined || parameter !== call.targetMember.parameters[binding.targetParameterIndex] ||
+        parameter.passingMode !== "by-value" || parameter.paramsArray === true || getCsharpDelegateSignature(parameter.type) === undefined) return undefined;
       if (binding.sourceForm === "value" && call.arguments.filter(argument => argument.sourceArgumentIndex === sourceIndex).length === 1) {
+        if (argumentIndexes.has(sourceIndex)) return undefined;
         argumentIndexes.add(sourceIndex);
       }
     }

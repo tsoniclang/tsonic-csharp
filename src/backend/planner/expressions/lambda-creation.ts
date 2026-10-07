@@ -16,10 +16,14 @@ export function planCsharpLocalLambdaCreation(
 ): { readonly method: CsharpStatement; readonly value: CsharpExpression } | undefined {
   const returnType = target?.signature.returnTargetType === undefined ? undefined
     : csharpTypeFromTargetTypeRef(target.signature.returnTargetType, input.scope.typeParameterNames);
+  const self = input.program.captureStorage.namedSelf(node);
+  const authoredParameterCount = input.program.source.ast.parameters(node).length;
   const nativeParameters = parameters.map((parameter, index) => {
     const type = parameter.type ?? target?.signature.parameters[index];
     return type === undefined ? undefined : { name: parameter.name, type,
-      ...(target?.signature.restParameterIndex === index ? { isParams: true } : {}) };
+      ...(target?.signature.restParameterIndex === index ? { isParams: true }
+        : self !== undefined && self.values.length === 0 && index >= authoredParameterCount
+          ? { defaultValue: { kind: "DefaultExpression" as const, type, nullForgiving: true } } : {}) };
   });
   if (target === undefined || returnType === undefined || nativeParameters.some(parameter => parameter === undefined)) {
     diagnostics.push(unsupportedNodeDiagnostic(node,

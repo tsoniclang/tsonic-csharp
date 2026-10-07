@@ -494,9 +494,11 @@ export function getLambdaTargetContext(
     return undefined;
   }
   void expectedType;
+  const observedSelf = (input.program.captureStorage.namedSelf(node)?.values.length ?? 0) > 0;
   return lambdaTargetContextFromTargetRef(
     input.scope.typeParameterNames,
-    input.program.expectedTypes.callableTarget(node) ?? expectedTargetType ?? input.types.classifications.resolveNode(node, sourceFile),
+    observedSelf ? input.types.classifications.resolveNode(node, sourceFile)
+      : input.program.expectedTypes.callableTarget(node) ?? expectedTargetType ?? input.types.classifications.resolveNode(node, sourceFile),
   );
 }
 

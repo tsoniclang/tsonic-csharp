@@ -11,6 +11,7 @@ import {
   csharpNullableReferenceTargetType,
   csharpNullableTargetType,
   csharpTargetStorageIdentityEquals,
+  csharpDelegateSignaturesMatchNativeBinding,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
@@ -307,6 +308,10 @@ export function analyzeCsharpStorage(
       return;
     }
     const sourceType = evidence.nodeTargetType(expression);
+    const sourceCallable = getCsharpCallableValueSignature(getCsharpNullableElementTargetType(sourceType) ?? sourceType);
+    const expectedCallable = getCsharpCallableValueSignature(getCsharpNullableElementTargetType(expectedType) ?? expectedType);
+    if (sourceCallable !== undefined && expectedCallable !== undefined &&
+      !csharpDelegateSignaturesMatchNativeBinding(sourceCallable, expectedCallable)) return;
     const requiredStorageType = sourceType !== undefined &&
         getCsharpNullableElementTargetType(sourceType) === undefined
       ? getCsharpNullableElementTargetType(expectedType) ?? expectedType

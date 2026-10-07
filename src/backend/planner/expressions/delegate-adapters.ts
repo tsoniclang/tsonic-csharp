@@ -124,7 +124,8 @@ function planCsharpDelegateAdaptation(
   const reference = input.program.conversions.directCallableReference(node);
   const direct = reference === undefined ? undefined
     : planCsharpSourceModuleValueReference(reference, node, sourceFile, input, diagnostics);
-  const directReference = direct !== undefined && csharpSourceModuleValueReferencesEqual(expression, direct);
+  const directReference = direct !== undefined && csharpSourceModuleValueReferencesEqual(expression, direct) ||
+    expression.kind === "IdentifierName" && (input.program.captureStorage.namedSelf(node)?.values.length ?? 0) > 0;
   const captured = input.program.captureStorage.closure(node);
   const capturedReceiver = captured !== undefined && expression.kind === "SimpleMemberAccessExpression" &&
     expression.name === captured.method.methodName &&

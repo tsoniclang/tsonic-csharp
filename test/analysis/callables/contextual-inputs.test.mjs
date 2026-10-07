@@ -6,6 +6,8 @@ import { analyzeCsharpCallableContracts } from "../../../dist/analysis/callables
 import { selectCsharpClosedCallableContext } from "../../../dist/analysis/callables/contextual-inputs.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/delegates.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
+import { csharpSourceTypeParameter } from "../../../dist/target-model/names/type-parameters.js";
+import { csharpJsArrayTargetType } from "../../../dist/policy/types/resolution/surface-types.js";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
 const boolean = Object.freeze({ kind: "source-primitive", name: "boolean" });
@@ -41,9 +43,19 @@ function fixture(body, overrides = {}) {
   visit(file);
   assert.equal(lambdas.length, 1, "one exact callable declaration");
   const lambda = lambdas[0];
+  let scopedBinder;
+  let scopedType;
+  if (overrides.scopedTrailing === true) {
+    const owner = source.ast.statements(file).find(node => source.ast.is.IsFunctionDeclaration(node) &&
+      source.ast.body(node) !== undefined && source.ast.typeParameters(node).length > 0);
+    scopedBinder = csharpSourceTypeParameter(source.ast.typeParameters(owner)[0], source.ast);
+    assert.equal(scopedBinder !== undefined, true, "exact source-owned enclosing binder");
+    const trailing = overrides.foreignTrailing ? { ...scopedBinder, identity: "foreign:same-name" } : scopedBinder;
+    scopedType = csharpDelegateTargetType("System.Func", [scopedBinder, scalar, csharpJsArrayTargetType(trailing)], scopedBinder);
+  }
   const operations = { call(node) {
     const target = source.ast.text(source.ast.as.AsCallExpression(node).Expression);
-    const type = target === "other" ? overrides.otherType ?? selectedType : overrides.type ?? selectedType;
+    const type = target === "other" ? overrides.otherType ?? scopedType ?? selectedType : overrides.type ?? scopedType ?? selectedType;
     return { target: { kind: "resolved", call: {
       origin: overrides.origin ?? "source-profile",
       ...(overrides.effect === false ? {} : { invocationOnlyCallableArgumentIndexes: Object.freeze([0]) }),
@@ -57,14 +69,14 @@ function fixture(body, overrides = {}) {
     projectTypes: { catalog: { definitions: [] } },
   };
   const evidence = { isCompileTimeMetadata: () => false, generatorTargetType: () => undefined,
-    contextualTargetType: () => undefined, nodeTargetType: () => overrides.sourceParameter ?? scalar };
+    contextualTargetType: () => undefined, nodeTargetType: () => overrides.sourceParameter ?? scopedBinder ?? scalar };
   const declarations = { runtimeDefault: () => undefined,
-    returnContract: node => ({ kind: "resolved", type: node === lambda ? overrides.sourceReturn ?? scalar : scalar }),
+    returnContract: node => ({ kind: "resolved", type: node === lambda ? overrides.sourceReturn ?? scopedBinder ?? scalar : scalar }),
   };
   const names = { resolve: node => ({ kind: "resolved", name: source.ast.text(node) }) };
   const context = selectCsharpClosedCallableContext(source, policy, operations, lambda);
   const analyzed = analyzeCsharpCallableContracts(policy, evidence, declarations, names, { get: () => [] }, source, operations);
-  return { context, type: analyzed.closedInputType(lambda), contract: analyzed.get({ kind: "declaration", declaration: lambda }),
+  return { context, scopedType, type: analyzed.closedInputType(lambda), contract: analyzed.get({ kind: "declaration", declaration: lambda }),
     aliasTypes: source.navigation.expressionValueFlow(lambda).aliasDeclarations.map(alias => analyzed.closedInputType(alias)),
   };
 }
@@ -175,4 +187,31 @@ test("broad inference still cannot invent an enclosing generic binder", () => {
   assert.equal(selected.context === undefined, true, "existing broad-input rejection");
   assert.equal(selected.type === undefined, true);
   assert.equal(selected.aliasTypes.every(type => type === undefined), true);
+});
+
+test("unused native receiver parameters retain exact available enclosing generic binders through aliases", () => {
+  const selected = fixture("const mapper = (value: T): T => value; const alias = mapper; return invoke(alias);", {
+    generic: true, scopedTrailing: true,
+  });
+  assert.equal(selected.context?.invocationType === selected.scopedType, true, "same exact T in the omitted array argument");
+  assert.equal(selected.type === selected.scopedType, true, "no physical ABI adapter at origin");
+  assert.equal(selected.aliasTypes.every(type => type === selected.scopedType), true, "one complete ABI at every const alias");
+  assert.equal(selected.contract.parameters.length, 1, "authored parameters are not manufactured");
+});
+
+test("an unused same-named foreign generic receiver parameter does not become available in the native scope", () => {
+  const selected = fixture("const mapper = (value: T): T => value; const alias = mapper; return invoke(alias);", {
+    generic: true, scopedTrailing: true, foreignTrailing: true,
+  });
+  assert.equal(selected.context === undefined, true, "foreign declaration identity cannot be named in the enclosing native scope");
+  assert.equal(selected.type === undefined, true);
+  assert.equal(selected.aliasTypes.every(type => type === undefined), true);
+});
+
+test("available enclosing trailing binders do not weaken unknown-input inference", () => {
+  const selected = fixture("const mapper = (value: unknown): T => { throw value; }; return invoke<T>(mapper);", {
+    generic: true, scopedTrailing: true,
+  });
+  assert.equal(selected.context === undefined, true, "broad native input remains independent of omitted receiver ABI");
+  assert.equal(selected.type === undefined, true);
 });
