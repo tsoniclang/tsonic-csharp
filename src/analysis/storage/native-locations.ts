@@ -1,5 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { fieldFactKey } from "@tsonic/tsts";
+import { readCsharpSourceField } from "../../policy/types/resolution/source-markers.js";
 import { sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
@@ -92,7 +92,7 @@ export function classifyCsharpNativeLocation(
     const namedElement = element && memberDeclaration !== undefined && (
       policy.ast.is.IsPropertyDeclaration(memberDeclaration) || policy.ast.is.IsPropertySignatureDeclaration(memberDeclaration) ||
       policy.ast.is.IsGetAccessorDeclaration(memberDeclaration) || policy.ast.is.IsSetAccessorDeclaration(memberDeclaration) ||
-      sourceParameterIsProperty(policy.ast, memberDeclaration) || policy.sourceFacts?.getFact(memberDeclaration, fieldFactKey) !== undefined);
+      sourceParameterIsProperty(policy.ast, memberDeclaration) || readCsharpSourceField(policy.sourceFacts, [memberDeclaration]) !== undefined);
     if (property || namedElement) {
       const selection = memberSelection;
       if (selection?.kind !== "resolved" && selection?.kind !== "source-owned") return rejected("The property has no exact selected native member.");
@@ -100,7 +100,7 @@ export function classifyCsharpNativeLocation(
       const declaration = selection.source.selectedDeclaration;
       const field = selection.kind === "resolved" ? selection.targetMember.kind === "field"
         : declaration !== undefined && (classProperty(declaration) === "field" ||
-          policy.sourceFacts?.getFact(declaration, fieldFactKey) !== undefined);
+          readCsharpSourceField(policy.sourceFacts, [declaration]) !== undefined);
       const receiverExpression = selection.source.receiver.expression;
       const receiverType = physical.type(receiverExpression) ??
         policy.types.resolveSelectedValue(receiverExpression, selection.source.receiver.type, sourceFile);

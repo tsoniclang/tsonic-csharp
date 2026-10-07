@@ -50,7 +50,6 @@ import { csharpNullableTargetType } from "../../../target-model/types/nullable.j
 import { csharpExceptionTargetType, csharpRuntimeErrorTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/scalar-types.js";
 import { csharpTargetTypeFromBinding } from "../storage/bindings.js";
 import { definedValues } from "./source-evidence.js";
-import { csharpSourceErrorNames } from "../../../target-model/identities/source-errors.js";
 import { nextState } from "./state.js";
 import { csharpRuntimeParameterDefault } from "../../../target-model/types/parameter-defaults.js";
 import { resolveCsharpCallableTypeParameters } from "../../constraints/callable-type-parameters.js";
@@ -79,7 +78,7 @@ export function resolveSourceProfileType(
         ? csharpStringTargetType()
         : undefined;
     case "error": {
-      if (identity.sourceName === "Error" && typeArguments.length === 0) {
+      if (identity.baseException && typeArguments.length === 0) {
         if (subject === undefined) return csharpExceptionTargetType();
         const sourceFile = host.ast.getSourceFile(subject);
         if (sourceFile !== undefined && !host.hasSemantics(sourceFile)) return csharpExceptionTargetType();
@@ -95,10 +94,7 @@ export function resolveSourceProfileType(
           origins.origins.every(origin => host.errorStorageDemands.isNativeConstructor(origin.node))
           ? csharpRuntimeErrorTargetType() : csharpExceptionTargetType();
       }
-      return typeArguments.length === 0
-        ? csharpSourceErrorNames.includes(identity.sourceName as typeof csharpSourceErrorNames[number])
-          ? csharpRuntimeErrorTargetType(identity.sourceName as typeof csharpSourceErrorNames[number]) : undefined
-        : undefined;
+      return typeArguments.length === 0 ? csharpRuntimeErrorTargetType(identity.errorName) : undefined;
     }
     case "array":
     case "readonly-array": {

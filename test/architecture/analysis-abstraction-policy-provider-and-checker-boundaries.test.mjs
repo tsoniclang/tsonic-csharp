@@ -44,6 +44,7 @@ const ownerSet = new Set(analysisAbstractionDebtOwners);
 
 
 function ruleMatches(rule, text) {
+  if (rule.matches !== undefined) return rule.matches(text).length > 0;
   rule.pattern.lastIndex = 0;
   return rule.pattern.test(text);
 }

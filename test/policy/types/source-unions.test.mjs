@@ -14,6 +14,7 @@ test("source union evidence preserves generic bindings and rejects ambiguous nat
     types: { isUnion: () => false, isNullish: () => false, isTypeReference: () => false,
       aliasApplication: () => undefined, couldContainTypeVariables: type => type.declaration !== undefined,
       stringLiteralValue: () => undefined,
+      booleanLiteralValue: () => undefined, numericLiteralValue: () => undefined,
       isIdentical: (left, right) => left === right },
   };
   const integer = csharpSourcePrimitiveTargetType("uint64");

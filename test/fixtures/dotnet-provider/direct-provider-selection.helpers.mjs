@@ -536,6 +536,15 @@ export function directProviderHost(options = {}) {
         resolveSelectedValue(node, type) {
           return nodeTypes.get(node) ?? semanticTypes.get(type);
         },
+        resolveStorage(node) {
+          return nodeTypes.get(node);
+        },
+        resolveReadStorage(node) {
+          return nodeTypes.get(node);
+        },
+        nativeFlowTypes(node, type) {
+          return options.nativeFlowTypes?.get(node) ?? [type];
+        },
         resolveSelectedType(authoredTypeNode, selectedType) {
           return nodeTypes.get(authoredTypeNode) ??
             semanticTypes.get(selectedType);
@@ -569,6 +578,9 @@ export function directProviderHost(options = {}) {
             symbolDeclarations(symbol) {
               return options.symbolDeclarations?.get(symbol) ?? [];
             },
+            rootSymbols(symbol) {
+              return options.rootSymbols?.get(symbol) ?? [];
+            },
           }),
           types: Object.freeze({
             isUnion() {
@@ -576,6 +588,12 @@ export function directProviderHost(options = {}) {
             },
             effectiveTypeArguments(type) {
               return options.effectiveTypeArguments?.get(type) ?? [];
+            },
+            propertyInfos(type) {
+              return options.propertyInfos?.get(type) ?? [];
+            },
+            selectIndexedAccess(type, argument) {
+              return options.indexedAccess?.get(type)?.get(argument);
             },
           }),
         });
@@ -699,6 +717,12 @@ function fixtureAst() {
     }),
     operatorKindName(node) {
       return node?.operatorKind;
+    },
+    kindName(node) {
+      return node?.syntaxKind?.replace(/^Is/u, "Kind");
+    },
+    authoredRange() {
+      return { kind: "synthetic" };
     },
     getSourceFile() {
       return undefined;

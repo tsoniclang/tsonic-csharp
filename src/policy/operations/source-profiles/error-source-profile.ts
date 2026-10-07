@@ -27,6 +27,7 @@ import { csharpQualifiedTypeRenderShape } from "../../../target-model/types/rend
 import type { CsharpTargetMember, TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTargetId } from "../../../target-model/identities/source.js";
 import { csharpSourceErrorNames, type CsharpSourceErrorName } from "../../../target-model/identities/source-errors.js";
+import { snapshotCsharpMetadata } from "../../../target-model/metadata/immutable.js";
 
 const errorType = csharpRuntimeErrorTargetType();
 const exceptionType = csharpExceptionTargetType();
@@ -61,24 +62,46 @@ const errorProperties: readonly {
   readonly targetId: string;
   readonly targetName: "name" | "message" | "stack";
   readonly targetType: TargetTypeRef;
-}[] = Object.freeze([
+  readonly native: Extract<CsharpSourceProfilePropertyPolicyResult, { readonly kind: "resolved" }>;
+}[] = snapshotCsharpMetadata([
   {
     sourceName: "name",
     targetId: "Tsonic.CSharp.Runtime.Error.name",
     targetName: "name",
     targetType: stringType,
+    native: {
+      kind: "resolved",
+      targetMember: { id: "Tsonic.CSharp.Runtime.ErrorObject.name", sourceName: "name", targetName: "name",
+        kind: "method", static: true, declaringType: observationType,
+        parameters: [{ name: "error", type: exceptionType, passingMode: "by-value" }], returnType: stringType },
+      receiver: { kind: "target-parameter", targetParameterIndex: 0 }, invocation: { kind: "receiver-call" },
+    },
   },
   {
     sourceName: "message",
     targetId: "Tsonic.CSharp.Runtime.Error.message",
     targetName: "message",
     targetType: stringType,
+    native: {
+      kind: "resolved",
+      targetMember: { id: "System.Exception.Message", sourceName: "message", targetName: "Message", kind: "property",
+        readonly: true, declaringType: exceptionType, parameters: [], returnType: stringType },
+      receiver: instanceReceiver, invocation: { kind: "member" },
+    },
   },
   {
     sourceName: "stack",
     targetId: "Tsonic.CSharp.Runtime.Error.stack",
     targetName: "stack",
     targetType: csharpNullableTargetType(stringType),
+    native: {
+      kind: "resolved",
+      targetMember: { id: "Tsonic.CSharp.Runtime.ErrorObject.stack", sourceName: "stack", targetName: "stack",
+        kind: "method", static: true, declaringType: observationType,
+        parameters: [{ name: "error", type: exceptionType, passingMode: "by-value" }],
+        returnType: csharpNullableTargetType(stringType) },
+      receiver: { kind: "target-parameter", targetParameterIndex: 0 }, invocation: { kind: "receiver-call" },
+    },
   },
 ]);
 
@@ -122,6 +145,7 @@ export const csharpErrorSourceProfilePropertyPolicies:
         targetId,
         targetName,
         targetType,
+        native,
       }) => Object.freeze({
         source: errorIdentity(owner, "member", sourceName),
         select: (context: CsharpSourceProfilePropertyPolicyContext): CsharpSourceProfilePropertyPolicyResult => {
@@ -132,20 +156,7 @@ export const csharpErrorSourceProfilePropertyPolicies:
               diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_READONLY_STORAGE", 9100953,
                 "The selected native Exception storage does not admit source Error field mutation.", []),
             };
-            return sourceName === "message" ? {
-              kind: "resolved",
-              targetMember: { id: "System.Exception.Message", sourceName, targetName: "Message", kind: "property",
-                readonly: true, declaringType: exceptionType, parameters: [], returnType: targetType },
-              receiver: instanceReceiver,
-              invocation: { kind: "member" },
-            } : {
-              kind: "resolved",
-              targetMember: { id: `Tsonic.CSharp.Runtime.ErrorObject.${sourceName}`, sourceName, targetName: sourceName,
-                kind: "method", static: true, declaringType: observationType,
-                parameters: [{ name: "error", type: exceptionType, passingMode: "by-value" }], returnType: targetType },
-              receiver: { kind: "target-parameter", targetParameterIndex: 0 },
-              invocation: { kind: "receiver-call" },
-            };
+            return native;
           }
           return {
             kind: "resolved" as const,

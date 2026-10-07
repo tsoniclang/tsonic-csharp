@@ -55,10 +55,11 @@ export function sealCsharpProjectTypeClassifications(
   }
 
   const issues = Object.freeze([...policy.issues]);
+  const declarationScopeNames = Object.freeze([...new Set(policy.catalog.definitions.flatMap(definition =>
+    definition.scopeName === undefined ? [] : [definition.scopeName]))].sort());
   const classifications: CsharpProjectTypeClassifications = {
     issues,
-    declarationScopeNames: Object.freeze([...new Set(policy.catalog.definitions.flatMap(definition =>
-      definition.scopeName === undefined ? [] : [definition.scopeName]))].sort()),
+    declarationScopeNames,
     definitionContainingDeclaration: (declaration) => declaration === undefined
       ? undefined
       : containingDefinitions.get(declaration),

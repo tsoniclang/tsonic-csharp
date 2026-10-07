@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { maskNonCode } from "./source-code-mask.mjs";
+import { executablePolicyHookMatches, executablePolicyHookPattern } from "./executable-policy-hooks.mjs";
 
 export const analysisAbstractionRules = Object.freeze([
   {
@@ -278,7 +279,8 @@ export const analysisAbstractionRules = Object.freeze([
   },
   {
     id: "source-id-executable-policy-hook",
-    pattern: /(?:^|[{,]\s*)\b(?:uses|validate|resolve|result|requiresClosedReceiver|mapCall)\s*:\s*(?:(?:\([^\n)]*\)|[A-Za-z_$][\w$]*)\s*=>|function\b|[A-Za-z_$][\w$]*(?=\s*[,}]))/gm,
+    pattern: executablePolicyHookPattern,
+    matches: executablePolicyHookMatches,
     allowedFilePattern: /(?:^|\/)src\/policy\/operations\/source-profiles\/js\/[^/]+\.ts$/,
     replacement:
       "Source-identity policy tables must be declarative metadata or explicit exception records, not executable semantic hooks.",
@@ -529,6 +531,9 @@ export const analysisAbstractionFileRules = Object.freeze([
     id: "provider-metadata-executable-selector-file",
     pattern: /(?:^|\/)provider-metadata\/[^/]+\.ts$/,
     contentPattern: /\b(?:uses|validate|resolve|result|requiresClosedReceiver|mapCall)\s*:\s*(?:(?:\([^)\n]*\)|[A-Za-z_$][\w$]*)\s*=>|function\b|[A-Za-z_$][\w$]*(?=\s*[,}]))|\.(?:find|some)\s*\([\s\S]{0,240}\bsourceMember\b/g,
+    matches: text => [...executablePolicyHookMatches(text),
+      ...text.matchAll(/\.(?:find|some)\s*\([\s\S]{0,240}\bsourceMember\b/g)]
+      .sort((left, right) => left.index - right.index),
     replacement:
       "Provider metadata files must contain declarative rows only; executable source-member selectors belong in generic selector modules.",
   },
@@ -587,7 +592,7 @@ function collectRuleFindings(file, text, code, rule) {
   }
   const searchText = rule.text === "code" ? code : text;
   rule.pattern.lastIndex = 0;
-  return [...searchText.matchAll(rule.pattern)].map((match) => ({
+  return (rule.matches?.(searchText) ?? [...searchText.matchAll(rule.pattern)]).map((match) => ({
     file,
     ruleId: rule.id,
     line: lineNumberAt(text, match.index ?? 0),
@@ -611,7 +616,7 @@ function collectFileRuleFindings(file, text, rule) {
       }];
   }
   rule.contentPattern.lastIndex = 0;
-  return [...text.matchAll(rule.contentPattern)].map((match) => ({
+  return (rule.matches?.(text) ?? [...text.matchAll(rule.contentPattern)]).map((match) => ({
     file,
     ruleId: rule.id,
     line: lineNumberAt(text, match.index ?? 0),

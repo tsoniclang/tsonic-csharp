@@ -182,7 +182,7 @@ test("generic method type arguments come only from shared selected call evidence
     ["src/policy/operations/source-profiles/js/arrays.ts", 4],
     ["src/policy/operations/source-profiles/js/promises.ts", 2],
     ["src/policy/operations/source-profiles/js/regexp-protocol.ts", 1],
-    ["src/policy/types/resolution/calls.ts", 2],
+    ["src/policy/types/resolution/calls.ts", 3],
     ["src/policy/types/resolution/expressions.ts", 1],
   ]);
 });

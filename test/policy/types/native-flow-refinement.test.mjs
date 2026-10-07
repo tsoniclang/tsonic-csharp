@@ -11,6 +11,7 @@ import { resolveCsharpInstanceType } from "../../../dist/policy/types/resolution
 import { resolveSelectedValueWithState } from "../../../dist/policy/types/resolution/public-api.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/nullable.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { createCsharpSourceUnionIndex } from "../../../dist/policy/types/resolution/source-unions.js";
 
 test("native nominal guard selection completes partial typeof evidence through the exact constructor owner", () => {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
@@ -128,7 +129,21 @@ test("selected native values materialize all surviving exact union arms and reta
   const shape = { targetType: packet, members: [] };
   const storage = csharpNullableTargetType(csharpRuntimeUnionTargetType([string, integer, bytes, packet]));
   const declaration = source.navigation.referenceFor(reads[0]).declaration;
+  const queries = source.semantics.forFile(file);
+  const sourceUnions = createCsharpSourceUnionIndex();
+  const declared = queries.declarations.declaredValueType(declaration);
+  const nominal = new Map([["Bytes", bytes], ["Packet", packet]]);
+  const members = queries.types.unionOrIntersectionTypes(declared).filter(type => !queries.types.isNullish(type))
+    .map(type => {
+      const symbol = queries.declarations.typeSymbol(type);
+      const carrier = queries.types.isStringLike(type) ? string : queries.types.isNumberLike(type) ? integer
+        : symbol === undefined ? undefined : nominal.get(queries.declarations.symbolName(symbol));
+      assert.equal(carrier !== undefined, true, "each checked union member has its exact fixture carrier");
+      return { source: type, carrier };
+    });
+  sourceUnions.retain(storage, members, queries, { depth: 0 });
   const scope = {
+    sourceUnions,
     host: {
       ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts,
       semantics: selectedFile => source.semantics.forFile(selectedFile),

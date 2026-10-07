@@ -74,10 +74,11 @@ test("recognized Error profiles reject unavailable checked storage instead of ma
     is: { IsExpressionWithTypeArguments: () => false } }, hasSemantics: () => true,
     errorStorageDemands: { storageFor(selected) { queries += 1; assert.equal(selected === subject, true);
       return { kind: "unresolved", reason: "exact storage unavailable" }; } } } };
-  assert.equal(resolveSourceProfileType(scope, { kind: "error", sourceName: "Error" }, [], subject) === undefined, true);
+  const identity = { kind: "error", sourceName: "Error", errorName: "Error", baseException: true };
+  assert.equal(resolveSourceProfileType(scope, identity, [], subject) === undefined, true);
   assert.equal(queries, 1);
   scope.host.hasSemantics = () => false;
-  assert.equal(resolveSourceProfileType(scope, { kind: "error", sourceName: "Error" }, [], subject)?.id, "System.Exception");
+  assert.equal(resolveSourceProfileType(scope, identity, [], subject)?.id, "System.Exception");
   assert.equal(queries, 1, "provider signature evidence is not a checked runtime storage subject");
 });
 
@@ -90,7 +91,7 @@ test("callable results establish their own storage owner rather than retaining t
   const carrier = { kind: "target-named", id: "System.String" };
   const callable = { parameters: [], result: { declaration: owner, selectedType: {} } };
   const resolved = resolveCallableEvidence({
-    host: {},
+    host: { ast: { typeParameters: node => { assert.equal(node === owner, true); return []; } } },
     resolveSignatureParameterEvidence() { assert.fail("the callable has no parameters"); },
     resolveSourceTypeComponentEvidence(component, queries, selected) {
       assert.equal(component === callable.result && queries.sourceFile === file, true);

@@ -20,6 +20,7 @@ for (const kind of ["class", "interface"]) {
       let derivations = 0;
       const shape = { targetType: carrier, members: [member] };
       const policy = {
+        ast: { is: { IsElementAccessExpression: () => false } },
         semantics: () => ({
           facts: { selectedSubjects: () => [declaration] },
           types: { relationship: () => "identical" },

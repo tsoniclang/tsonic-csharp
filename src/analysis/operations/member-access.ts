@@ -2,7 +2,7 @@ import type {
   ResolvedSourceElementAccessInfo,
   SourceFile,
 } from "@tsonic/tsts";
-import { fieldFactKey } from "@tsonic/tsts";
+import { readCsharpSourceField } from "../../policy/types/resolution/source-markers.js";
 import { sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpTargetElementSelection } from "../../policy/operations/members/index.js";
 import { validateCsharpJsValueOperationSelection } from "../../policy/js-value-operations/selection.js";
@@ -103,7 +103,7 @@ export function classifySourceOwnedElementMember(
     ast.is.IsPropertyDeclaration(declaration) || ast.is.IsPropertySignatureDeclaration(declaration) ||
     ast.is.IsMethodDeclaration(declaration) || ast.is.IsMethodSignatureDeclaration(declaration) ||
     ast.is.IsGetAccessorDeclaration(declaration) || ast.is.IsSetAccessorDeclaration(declaration) ||
-    sourceParameterIsProperty(ast, declaration) || policy.sourceFacts?.getFact(declaration, fieldFactKey) !== undefined
+    sourceParameterIsProperty(ast, declaration) || readCsharpSourceField(policy.sourceFacts, [declaration]) !== undefined
   ) ? classifySourceOwnedMember(policy, selection, sourceFile) : undefined;
 }
 

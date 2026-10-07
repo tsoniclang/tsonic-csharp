@@ -44,6 +44,7 @@ const ownerSet = new Set(analysisAbstractionDebtOwners);
 
 
 function ruleMatches(rule, text) {
+  if (rule.matches !== undefined) return rule.matches(text).length > 0;
   rule.pattern.lastIndex = 0;
   return rule.pattern.test(text);
 }
@@ -337,9 +338,14 @@ test("architecture validator rejects executable hooks in policy-like records", (
     "const row = { result: \"defer\" };",
     "interface Row { readonly result: CsharpJsPropertyPrecheckResult; }",
     "const row = { sourceIdentity: \"Array.map\", targetIdentity: \"Tsonic.CSharp.Js.Array.map\" };",
+    "function call(diagnostics: TargetDiagnostic[], result: CsharpSourceCallResult, invocation: Value): void {}",
+    "function select(ast: AstReader, resolve: (node: Node) => TargetTypeRef | undefined): void {}",
+    "function select(parameters: readonly TypeParameter[], resolve: CsharpTypeParameterConstraintResolver): void {}",
+    "const select = (resolve: (node: Node) => TargetTypeRef) => resolve(node);",
+    "const row = { select: (resolve: (node: Node) => TargetTypeRef) => resolve(node) };",
   ];
   assert.deepEqual(forbidden.map((text) => ruleMatches(hookRule, text)), [true, true, true, true, true]);
-  assert.deepEqual(allowed.map((text) => ruleMatches(hookRule, text)), [false, false, false]);
+  assert.deepEqual(allowed.map((text) => ruleMatches(hookRule, text)), Array(allowed.length).fill(false));
 });
 test("architecture validator rejects fabricated TSTS compiler objects", () => {
   assertFindings(

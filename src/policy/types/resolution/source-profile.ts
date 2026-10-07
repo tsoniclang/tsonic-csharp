@@ -9,7 +9,7 @@ import {
   csharpTargetId,
 } from "../../../target-model/identities/source.js";
 import { jsRegExpSourceProfileIdentity } from "@tsonic/js-source-profile";
-import { csharpSourceErrorNames } from "../../../target-model/identities/source-errors.js";
+import { csharpSourceBaseErrorIdentity, csharpSourceErrorIdentities, type CsharpSourceErrorName } from "../../../target-model/identities/source-errors.js";
 
 export type CsharpSourceProfileTypeKind =
   | "boolean"
@@ -58,11 +58,11 @@ export type CsharpSourceProfileTypeKind =
   | "intl-collator-options"
   | "iterable";
 
-export interface CsharpSourceProfileTypeIdentity {
+export type CsharpSourceProfileTypeIdentity = {
   readonly ownerId: typeof csharpTargetId | "js";
   readonly sourceName: string;
-  readonly kind: CsharpSourceProfileTypeKind;
-}
+} & ({ readonly kind: Exclude<CsharpSourceProfileTypeKind, "error"> }
+  | { readonly kind: "error"; readonly errorName: CsharpSourceErrorName; readonly baseException: boolean });
 
 export function selectedCsharpSourceProfileOwner(
   target: TargetSelection,
@@ -76,7 +76,7 @@ const sourceProfileTypePolicies = Object.freeze([
   sourceProfileTypePolicy(csharpTargetId, "Boolean", "boolean"),
   sourceProfileTypePolicy(csharpTargetId, "Number", "number"),
   sourceProfileTypePolicy(csharpTargetId, "String", "string"),
-  sourceProfileTypePolicy(csharpTargetId, "Error", "error"),
+  sourceProfileErrorTypePolicy(csharpTargetId, csharpSourceBaseErrorIdentity),
   sourceProfileTypePolicy(csharpTargetId, "Array", "array"),
   sourceProfileTypePolicy(csharpTargetId, "ReadonlyArray", "readonly-array"),
   sourceProfileTypePolicy(csharpTargetId, "Promise", "promise"),
@@ -94,7 +94,7 @@ const sourceProfileTypePolicies = Object.freeze([
   sourceProfileTypePolicy("js", "Boolean", "boolean"),
   sourceProfileTypePolicy("js", "Number", "number"),
   sourceProfileTypePolicy("js", "String", "string"),
-  ...csharpSourceErrorNames.map(name => sourceProfileTypePolicy("js", name, "error")),
+  ...csharpSourceErrorIdentities.map(identity => sourceProfileErrorTypePolicy("js", identity)),
   sourceProfileTypePolicy("js", "Array", "array"),
   sourceProfileTypePolicy("js", "ReadonlyArray", "readonly-array"),
   sourceProfileTypePolicy("js", "Promise", "promise"),
@@ -278,7 +278,15 @@ function sourceProfileOwner(
 function sourceProfileTypePolicy(
   ownerId: CsharpSourceProfileTypeIdentity["ownerId"],
   sourceName: string,
-  kind: CsharpSourceProfileTypeKind,
+  kind: Exclude<CsharpSourceProfileTypeKind, "error">,
 ): CsharpSourceProfileTypeIdentity {
   return Object.freeze({ ownerId, sourceName, kind });
+}
+
+function sourceProfileErrorTypePolicy(
+  ownerId: CsharpSourceProfileTypeIdentity["ownerId"],
+  identity: typeof csharpSourceErrorIdentities[number],
+): CsharpSourceProfileTypeIdentity {
+  return Object.freeze({ ownerId, sourceName: identity.name, kind: "error",
+    errorName: identity.name, baseException: identity.baseException });
 }
