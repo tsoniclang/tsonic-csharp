@@ -44,7 +44,9 @@ import type {
   CsharpConversionAnalysis,
   CsharpConversionClassifications,
   CsharpConversionIssue,
+  CsharpExpressionConversionClassification,
 } from "./model.js";
+import { sealCsharpDelegateAdapterIdentities } from "./delegate-identities.js";
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import { selectCsharpIntegerTruncationConversion } from "../../policy/conversions/selection/integer-truncation.js";
@@ -63,10 +65,11 @@ export function analyzeCsharpConversions(
   objectShapes: CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration,
 ): CsharpConversionAnalysis {
   const pairSelections = new Map<string, CsharpConversionSelection>();
-  const expressionSelections = new WeakMap<
+  const expressionSelections = new Map<
     Node,
-    Map<string, CsharpConversionSelection>
+    Map<string, CsharpExpressionConversionClassification>
   >();
+  let delegateAdapters: ReturnType<typeof sealCsharpDelegateAdapterIdentities> = new Map();
   const issues: CsharpConversionIssue[] = [];
   const directCallables = new WeakMap<Node, NonNullable<ReturnType<CsharpPolicyContext["navigation"]["referenceFor"]>>>();
   let classificationCount = 0;
@@ -75,6 +78,8 @@ export function analyzeCsharpConversions(
 
   const openClassifications: CsharpConversionClassifications = {
     issues,
+    delegateAdapters: scope => delegateAdapters.get(scope) ?? [],
+    delegateAdapter: (expression, source, target) => expressionSelections.get(expression)?.get(pairKey(source, target, "implicit"))?.delegateIdentity,
     directCallableReference: expression => directCallables.get(expression),
     matchesUnionMapping: (source, target, selection) => csharpRuntimeUnionMappingMatches(policy, source, target, selection),
     matchesUnionProjection: (source, target, selection) => csharpRuntimeUnionProjectionMatches(policy, source, target, selection),
@@ -95,7 +100,7 @@ export function analyzeCsharpConversions(
         return unavailableConversion;
       }
       const key = pairKey(source, target, mode);
-      const selected = expressionSelections.get(expression)?.get(key);
+      const selected = expressionSelections.get(expression)?.get(key)?.selection;
       return selected ?? (
           closed
             ? undefined
@@ -114,10 +119,13 @@ export function analyzeCsharpConversions(
       for (const sourceFile of policy.sourceFiles) {
         visit(sourceFile, sourceFile, operations, expectedTypes, storage);
       }
+      delegateAdapters = sealCsharpDelegateAdapterIdentities(policy, expressionSelections, issues);
       closed = true;
       const sealedIssues = Object.freeze([...issues]);
       const sealed: CsharpConversionClassifications = {
         issues: sealedIssues,
+        delegateAdapters: openClassifications.delegateAdapters,
+        delegateAdapter: openClassifications.delegateAdapter,
         directCallableReference: openClassifications.directCallableReference,
         matchesUnionMapping: openClassifications.matchesUnionMapping,
         matchesUnionProjection: openClassifications.matchesUnionProjection,
@@ -132,7 +140,7 @@ export function analyzeCsharpConversions(
             return unavailableConversion;
           }
           const key = pairKey(source, target, mode);
-          return expressionSelections.get(expression)?.get(key) ??
+          return expressionSelections.get(expression)?.get(key)?.selection ??
             pairSelections.get(key);
         },
       };
@@ -485,7 +493,27 @@ export function analyzeCsharpConversions(
         const argument = argumentsByIndex.get(mapping.effectiveArgumentIndex);
         const expression = argument === undefined ? undefined
           : classification.target.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
-        if (expression !== undefined) classifyExpression(expression, mapping.sourceType, mapping.targetType, "implicit");
+        if (expression !== undefined) {
+          classifyExpression(expression, mapping.sourceType, mapping.targetType, "implicit");
+          let source = mapping.sourceType;
+          let target = mapping.targetType;
+          let conversion = mapping.conversion;
+          while (conversion.kind === "nullable-map") {
+            source = conversion.sourceElement;
+            target = conversion.targetElement;
+            conversion = conversion.conversion;
+          }
+          if (conversion.kind === "delegate-adapter") {
+            classifyExpression(expression, source, target, "implicit");
+            const key = pairKey(source, target, "implicit");
+            const selections = expressionSelections.get(expression);
+            const previous = selections?.get(key);
+            if (previous !== undefined) selections!.set(key, Object.freeze({ ...previous, selection: conversion,
+              ...(classification.target.call.targetMember.csharpInvocation?.kind === "native-event-remove" &&
+                conversion.strategy === "adaptation" ? { identityRequired: true } : {}),
+            }));
+          }
+        }
       }
     }
     const member = classification.target.call.targetMember;
@@ -614,7 +642,7 @@ export function analyzeCsharpConversions(
     }
     const key = pairKey(source, target, mode);
     let selections = expressionSelections.get(expression);
-    const previous = selections?.get(key);
+    const previous = selections?.get(key)?.selection;
     if (previous !== undefined && (!exactInteger || previous.kind !== "rejected")) {
       return previous;
     }
@@ -662,7 +690,7 @@ export function analyzeCsharpConversions(
       selections = new Map();
       expressionSelections.set(expression, selections);
     }
-    selections.set(key, selected);
+    selections.set(key, Object.freeze({ source, target, selection: selected }));
     return selected;
   }
 
