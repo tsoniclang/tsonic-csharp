@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { sourceBindingScope, sourceBindingHasSingleCaptureOwner, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization,
   sourceLexicalFunctionValueCreation, sourceLexicalFunctionValueOrder } from "@tsonic/target-api/source";
-import { sourceClosedCallableArguments } from "@tsonic/target-api/source";
+import { sourceClosedCallableArguments, sourceExpressionCallArgument } from "@tsonic/target-api/source";
 import type { SourceLexicalValueCreation } from "@tsonic/target-api/source";
 import { createHash } from "node:crypto";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
@@ -23,10 +23,9 @@ import { csharpCapturedMemberAccess } from "./captured-member-access.js";
 import type { CsharpDeclarationClassifications } from "../declarations/model.js";
 import type { CsharpTargetOperationClassifications } from "../operations/model.js";
 
-export interface CsharpLambdaCreation {
-  readonly kind: "inline" | "fresh" | "cached";
-  readonly staticBody: boolean;
-}
+export type CsharpLambdaCreation =
+  | { readonly kind: "cached"; readonly staticBody: true }
+  | { readonly kind: "inline" | "fresh"; readonly staticBody: boolean };
 
 const unknownLambdaCreation: CsharpLambdaCreation = Object.freeze({ kind: "fresh", staticBody: false });
 
@@ -224,11 +223,14 @@ export function analyzeCsharpCaptureStorage(
     if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
       const flow = source.navigation.expressionValueFlow(node);
       const invocationOnly = flow.passedAsArgument && hasOnlyInvocationArguments(node, source, operations);
+      const selfIdentityObserved = (namedSelfBindings.get(node)?.values.length ?? 0) > 0;
       const fresh = flow.identityCompared || flow.captured || flow.returned || flow.yielded ||
         flow.storedOutsideBinding || flow.exported || flow.hasUnclassifiedUse || flow.memberWritten ||
-        flow.receiverUsed || flow.passedAsArgument && !invocationOnly || (namedSelfBindings.get(node)?.values.length ?? 0) > 0;
-      const staticBody = captureFreeDeclarations.has(node);
-      lambdaCreations.set(node, Object.freeze({ kind: fresh ? "fresh" : invocationOnly && staticBody ? "cached" : "inline", staticBody }));
+        flow.receiverUsed || flow.passedAsArgument && !invocationOnly || selfIdentityObserved;
+      const staticBody = captureFreeDeclarations.has(node) && !selfIdentityObserved;
+      const creation: CsharpLambdaCreation = fresh ? { kind: "fresh", staticBody }
+        : invocationOnly && staticBody ? { kind: "cached", staticBody: true } : { kind: "inline", staticBody };
+      lambdaCreations.set(node, Object.freeze(creation));
     }
     if (source.ast.is.IsFunctionDeclaration(node) && source.ast.body(node) !== undefined &&
       !evidence.isCompileTimeMetadata(node)) {
@@ -296,18 +298,9 @@ function hasOnlyInvocationArguments(
   if (arguments_ === undefined && flow.aliasDeclarations.length === 0 && flow.uses.length === 1) {
     const use = flow.uses[0]!;
     if (use.role !== "argument" || use.throughMember) return false;
-    let argument = use.reference;
-    let call = source.ast.parent(argument);
-    for (let depth = 0; call !== undefined && source.ast.is.IsParenthesizedExpression(call) && depth < 256; depth += 1) {
-      if (source.ast.as.AsParenthesizedExpression(call)?.Expression !== argument) return false;
-      argument = call;
-      call = source.ast.parent(argument);
-    }
-    if (call === undefined || !source.ast.is.IsCallExpression(call) ||
-      source.ast.as.AsCallExpression(call)?.QuestionDotToken !== undefined) return false;
-    const argumentIndex = source.ast.arguments(call).indexOf(argument);
-    if (argumentIndex < 0 || operations.call(call)?.source?.sourceArguments[argumentIndex]?.expression !== argument) return false;
-    arguments_ = [{ call, argument, argumentIndex }];
+    const argument = sourceExpressionCallArgument(use.reference, source);
+    if (argument === undefined) return false;
+    arguments_ = [argument];
   }
   return arguments_ !== undefined && arguments_.every(argument => {
     const selected = operations.call(argument.call)?.target;

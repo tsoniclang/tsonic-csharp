@@ -263,8 +263,7 @@ export function planFunctionExpression(
     }
     const creation = planCsharpLocalLambdaCreation(node, input, diagnostics, targetContext,
       methodName ?? input.names.temporaryName(`__tsonic_callable_${input.program.source.ast.pos(node)}`),
-      parameters, body, async,
-      { ...creationPolicy, staticBody: creationPolicy.staticBody && valueName === undefined });
+      parameters, body, async, creationPolicy);
     if (creation === undefined || targetContext === undefined) return undefined;
     const { method, value } = creation;
     return valueName === undefined ? complete(value, [...captureContext?.prelude ?? [], method]) : complete({ kind: "IdentifierName", name: valueName }, [
