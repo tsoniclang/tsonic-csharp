@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { sourceErrorConstructorCostProof, sourceErrorConstructorProof, sourceJsErrorConstructorProof, sourceOwnedErrorConstructorProof } from "../../../../tsonic/test/fixtures/source-error-constructors.mjs";
+import { sourceErrorConstructorCostProof, sourceErrorConstructorProof, sourceExplicitErrorInitializationProof,
+  sourceJsErrorConstructorProof, sourceOwnedErrorConstructorProof } from "../../../../tsonic/test/fixtures/source-error-constructors.mjs";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { selectCsharpInheritedConstructorTarget } from "../../../dist/policy/operations/members/selection/inherited-construction.js";
 
 for (const surface of [undefined, "js"]) {
   const profile = surface ?? "native";
+  test(`explicit native error fields preserve owned inputs, reused inputs and absence effects (${profile})`, { timeout: 300_000 }, () => {
+    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: sourceExplicitErrorInitializationProof }),
+      `explicit-error-initialization-${profile}`);
+  });
   test(`inherited native error constructors retain exact arguments and project types (${profile})`, { timeout: 300_000 }, () => {
     executeCsharpConstruction(compileCsharpSource({ surface, sourceText: sourceErrorConstructorProof }), `source-error-constructors-${profile}`);
   });
