@@ -223,6 +223,7 @@ test("delegate adapters retain exact contravariant parameter conversions", () =>
 
   assert.deepEqual(selectCsharpConversion(host, source, target, "implicit"), {
     kind: "delegate-adapter",
+    strategy: "adaptation",
     parameterConversions: [
       { kind: "js-value-box" },
       { kind: "identity" },
@@ -248,6 +249,7 @@ test("delegate adapters discard target callback parameters omitted by source cal
 
   assert.deepEqual(selectCsharpConversion(host, source, target, "implicit"), {
     kind: "delegate-adapter",
+    strategy: "adaptation",
     parameterConversions: [],
     returnConversion: { kind: "void-return" },
   });
@@ -265,6 +267,7 @@ test("nullable target annotations retain required delegate adaptation", () => {
 
   assert.deepEqual(selectCsharpConversion(host, source, target, "implicit"), {
     kind: "delegate-adapter",
+    strategy: "adaptation",
     parameterConversions: [{ kind: "implicit", proof: "numeric" }],
     returnConversion: { kind: "void-return" },
   });

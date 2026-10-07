@@ -147,6 +147,7 @@ function completionDelegate(
     {
       delegateSignature: {
         parameters,
+        parameterPassingModes: Object.freeze(parameters.map(() => "by-value" as const)),
         returnType: voidType,
         ...(optionalParameterIndexes.length === 0
           ? {}

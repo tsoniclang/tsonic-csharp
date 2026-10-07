@@ -14,6 +14,7 @@ import {
   csharpStringTargetType,
   csharpWellKnownSymbolSourceMemberKey,
   getCsharpDelegateSignature,
+  csharpDelegateSignaturesMatchNativeBinding,
   targetTypeRefEquals,
 } from "../../../../target-model/types/index.js";
 import { substituteTargetTypeParameters } from "../../../../target-model/types/substitution.js";
@@ -193,11 +194,7 @@ function csharpDelegateSignaturesEqual(
 ): boolean {
   const leftOptional = left.optionalParameterIndexes ?? [];
   const rightOptional = right.optionalParameterIndexes ?? [];
-  return left.parameters.length === right.parameters.length &&
-    left.parameters.every((parameter, index) =>
-      targetTypeRefEquals(parameter, right.parameters[index]!)
-    ) &&
-    targetTypeRefEquals(left.returnType, right.returnType) &&
+  return csharpDelegateSignaturesMatchNativeBinding(left, right) &&
     left.restParameterIndex === right.restParameterIndex &&
     leftOptional.length === rightOptional.length &&
     leftOptional.every((index, position) => index === rightOptional[position]);

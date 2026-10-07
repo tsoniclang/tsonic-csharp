@@ -823,7 +823,7 @@ export function analyzeCsharpExpectedTypes(
       record(
         expression,
         mapping?.kind === "by-value" &&
-            mapping.conversion.kind === "delegate-adapter"
+            mapping.conversion.kind === "delegate-adapter" && mapping.conversion.strategy === "adaptation"
           ? mapping.sourceType
           : sourceArgumentExpectedType(
               expression,

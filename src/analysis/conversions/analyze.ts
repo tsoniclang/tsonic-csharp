@@ -477,6 +477,17 @@ export function analyzeCsharpConversions(
     if (classification.target?.kind !== "resolved") {
       return;
     }
+    if (classification.target.call.origin === "provider") {
+      const argumentsByIndex = new Map(classification.target.call.arguments.map(argument =>
+        [argument.effectiveArgumentIndex, argument]));
+      for (const mapping of classification.target.call.argumentMappings) {
+        if (mapping.kind !== "by-value") continue;
+        const argument = argumentsByIndex.get(mapping.effectiveArgumentIndex);
+        const expression = argument === undefined ? undefined
+          : classification.target.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
+        if (expression !== undefined) classifyExpression(expression, mapping.sourceType, mapping.targetType, "implicit");
+      }
+    }
     const member = classification.target.call.targetMember;
     if (member.returnType === undefined) {
       return;
@@ -632,7 +643,7 @@ export function analyzeCsharpConversions(
       objectShapes.registerStructuralInterface(expression, source, target)) {
       candidate = { kind: "implicit", proof: "object-shape-interface" };
     }
-    const selected = candidate.kind === "delegate-adapter" &&
+    const selected = candidate.kind === "delegate-adapter" && candidate.strategy === "adaptation" &&
         (
           sourceFile === undefined ||
           !isSourceOwnedCallableRuntimeCarrierSubject(

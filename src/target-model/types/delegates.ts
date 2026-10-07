@@ -53,6 +53,7 @@ export function csharpDelegateTargetType(
     ...(targetType.csharpRender !== undefined ? { csharpRender: targetType.csharpRender } : {}),
     csharpDelegateSignature: {
       parameters,
+      parameterPassingModes: Object.freeze(parameters.map(() => "by-value" as const)),
       returnType: returnType ?? csharpVoidTargetType(),
       ...(options.optionalParameterIndexes === undefined ||
           options.optionalParameterIndexes.length === 0
@@ -119,10 +120,37 @@ export function getCsharpCallableValueSignature(type: TargetTypeRef | undefined)
   return getCsharpDelegateSignature(contract ?? type);
 }
 
+export function csharpDelegateSignatureHasSupportedPassingModes(signature: CsharpDelegateSignatureShape): boolean {
+  return Array.isArray(signature.parameterPassingModes) &&
+    signature.parameterPassingModes.length === signature.parameters.length &&
+    (signature.returnPassing === undefined || signature.returnPassing === "byref-readwrite" ||
+      signature.returnPassing === "byref-readonly") &&
+    signature.parameters.every((_parameter, index) => {
+      const mode = signature.parameterPassingModes[index];
+      return mode === "by-value" || mode === "byref-readonly" ||
+        mode === "byref-readwrite" || mode === "byref-writeonly-must-init";
+    });
+}
+
+export function csharpDelegateSignaturesMatchNativeBinding(
+  source: CsharpDelegateSignatureShape,
+  target: CsharpDelegateSignatureShape,
+): boolean {
+  return csharpDelegateSignatureHasSupportedPassingModes(source) &&
+    csharpDelegateSignatureHasSupportedPassingModes(target) &&
+    source.parameters.length === target.parameters.length &&
+    source.returnPassing === target.returnPassing &&
+    source.parameters.every((parameter, index) => targetTypeRefEquals(parameter, target.parameters[index]!) &&
+      source.parameterPassingModes[index] === target.parameterPassingModes[index]) &&
+    targetTypeRefEquals(source.returnType, target.returnType);
+}
+
 export function isCsharpSourceDelegateTargetType(type: TargetTypeRef | undefined): boolean {
   const value = getCsharpNullableElementTargetType(type) ?? type;
   const signature = getCsharpDelegateSignature(value);
-  if (value === undefined || signature === undefined || signature.returnPassing !== undefined) return false;
+  if (value === undefined || signature === undefined || signature.returnPassing !== undefined ||
+    !csharpDelegateSignatureHasSupportedPassingModes(signature) ||
+    signature.parameterPassingModes.some(mode => mode !== "by-value")) return false;
   return targetTypeRefEquals(value, csharpDelegateTargetType(
     isCsharpVoidTargetType(signature.returnType) ? "System.Action" : "System.Func",
     signature.parameters,

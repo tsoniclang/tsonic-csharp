@@ -548,6 +548,7 @@ export function csharpTargetMemberFacts(members: readonly TargetMember[] | undef
 
 export interface CsharpDelegateSignatureShape {
   readonly parameters: readonly TargetTypeRef[];
+  readonly parameterPassingModes: readonly ArgumentPassingMode[];
   readonly returnType: TargetTypeRef;
   readonly returnPassing?: "byref-readwrite" | "byref-readonly";
   readonly optionalParameterIndexes?: readonly number[];
