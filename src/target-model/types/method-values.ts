@@ -49,7 +49,10 @@ export function csharpMethodValueType(
 
 export function csharpMethodValueCoversContract(type: TargetTypeRef, contract: TargetTypeRef): boolean {
   const value = getCsharpMethodValue(type);
-  return value !== undefined && targetTypeRefEquals(value.contract, contract);
+  const expected = getCsharpMethodValue(contract);
+  return value !== undefined &&
+    (expected === undefined || value.typeParameters.length === expected.typeParameters.length) &&
+    targetTypeRefEquals(value.contract, expected?.contract ?? contract);
 }
 
 export function csharpMethodValueContractsEqual(left: TargetTypeRef, right: TargetTypeRef): boolean {
