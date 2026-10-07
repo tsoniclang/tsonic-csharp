@@ -18,8 +18,8 @@ import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
 import { planCsharpSourceUndefinedValue } from "./undefined-values.js";
-import { csharpPlannedEffect, csharpPlannedExpressionIsStable, csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
-import { planCsharpDiscardedStatement } from "../statements/statement-output.js";
+import { csharpPlannedEffect, csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
+import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
 
 export function planVoidExpression(
   node: Node,
@@ -64,9 +64,7 @@ export function planVoidExpression(
   const expression = planExpression(operand, sourceFile, input, diagnostics);
   if (expression === undefined) return undefined;
   if (expression.completion.kind === "never") return expression;
-  const prelude = expression.completion.kind === "value" && !csharpPlannedExpressionIsStable(expression.completion.expression)
-    ? [...expression.prelude, planCsharpDiscardedStatement(expression.completion.expression, expression.completion.carrier)]
-    : expression.prelude;
+  const prelude = planCsharpPlannedDiscard(expression);
   return result === undefined ? csharpPlannedEffect(target, prelude)
     : csharpPlannedValue(target, result.expression, prelude);
 }

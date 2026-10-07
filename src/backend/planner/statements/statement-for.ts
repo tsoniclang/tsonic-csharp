@@ -130,8 +130,11 @@ function planForStatementCore(
     ...(condition?.completion.kind === "value" && !expandedCondition
       ? { condition: condition.completion.expression }
       : {}),
-    incrementors: [...(rotation === undefined ? [] : [rotation]), ...incrementors.flatMap(expression =>
-      expression!.completion.kind === "value" ? [planDiscardedExpression(expression!.completion.expression, expression!.completion.carrier)] : [])],
+    incrementors: [...(rotation === undefined ? [] : [rotation]), ...incrementors.flatMap(expression => {
+      if (expression!.completion.kind !== "value") return [];
+      const discarded = planDiscardedExpression(expression!.completion.expression, expression!.completion.carrier);
+      return discarded === undefined ? [] : [discarded];
+    })],
     body: {
       kind: "Block",
       statements: [
