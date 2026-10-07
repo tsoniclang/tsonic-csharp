@@ -15,6 +15,7 @@ import {
 import {
   collectTargetSourcePackageGraph,
 } from "../../../tsonic/packages/host/dist/source-package-inputs.js";
+import { collectTstsDiagnostics } from "../../../tsonic/packages/host/dist/diagnostics.js";
 import {
   createTargetSourceProgram,
 } from "../../../tsonic/packages/target-api/dist/public/source.js";
@@ -146,21 +147,26 @@ export function checkCsharpSource(options) {
 export function compileCsharpSource(options) {
   const projectRoot = options.projectRoot ?? "/project";
   const checked = createCheckedCsharpSource(options);
-  const runtime = checked.targetSession.runtimeContributions();
+  const sourceDiagnostics = collectTstsDiagnostics(checked.source, projectRoot);
   let compiled;
   try {
-    compiled = checked.targetSession.compile({
-      source: createTargetSourceProgram(checked.source),
-      sourcePackages: checked.sourcePackages,
-      project: checked.project,
-      target: checked.target,
-      runtimeActivatedCapabilityIds: [],
-      runtimeReferences: [
-        ...(runtime.references ?? []),
-        ...(options.runtimeReferences ?? []),
-      ],
-      paths: checked.paths,
-    });
+    if (sourceDiagnostics.some(diagnostic => diagnostic.category === "error")) {
+      compiled = { kind: "rejected", diagnostics: sourceDiagnostics };
+    } else {
+      const runtime = checked.targetSession.runtimeContributions();
+      compiled = checked.targetSession.compile({
+        source: createTargetSourceProgram(checked.source),
+        sourcePackages: checked.sourcePackages,
+        project: checked.project,
+        target: checked.target,
+        runtimeActivatedCapabilityIds: [],
+        runtimeReferences: [
+          ...(runtime.references ?? []),
+          ...(options.runtimeReferences ?? []),
+        ],
+        paths: checked.paths,
+      });
+    }
   } finally {
     checked.targetSession.close();
   }
