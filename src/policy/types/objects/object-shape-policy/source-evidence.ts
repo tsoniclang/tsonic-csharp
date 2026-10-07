@@ -157,6 +157,26 @@ export function typeHasProjectOwnedShapeDeclaration(
   )) {
     return false;
   }
+  const properties = queries.types.propertyInfos(type);
+  const memberDeclarations = properties.map(property => [...new Set([
+    ...queries.declarations.symbolDeclarations(property.symbol),
+    ...property.rootSymbols.flatMap(symbol => queries.declarations.symbolDeclarations(symbol)),
+  ])]);
+  if (!memberDeclarations.every(declarations => declarations.every(declaration => {
+    if (declaration === undefined) return false;
+    if (host.navigation.isProjectDeclaration(declaration)) return true;
+    const identity = host.sourceFacts?.getFact(declaration, providerVirtualDeclarationFactKey);
+    if (identity === undefined) return false;
+    const selection = host.providers.resolveMember(identity);
+    return selection.kind === "resolved" && selection.relations.length === 1 &&
+      selection.relations[0]!.kind === "member";
+  }))) {
+    return false;
+  }
+  if (node !== undefined && host.navigation.isProjectDeclaration(node) &&
+    queries.types.standardTransformation(node, type)?.kind === "structural") {
+    return true;
+  }
   if (node !== undefined &&
     (host.ast.is.IsObjectLiteralExpression(node) || host.ast.is.IsTypeLiteralNode(node)) &&
     host.navigation.isProjectDeclaration(node)) {
@@ -177,14 +197,7 @@ export function typeHasProjectOwnedShapeDeclaration(
   )) {
     return true;
   }
-  const properties = queries.types.propertyInfos(type);
-  return properties.length > 0 && properties.every((property) => {
-    const declarations = queries.declarations.symbolDeclarations(property.symbol);
-    return declarations.length > 0 && declarations.every((declaration) =>
-      declaration !== undefined &&
-      host.navigation.isProjectDeclaration(declaration)
-    );
-  });
+  return properties.length > 0 && memberDeclarations.every(declarations => declarations.length > 0);
 }
 
 export function typeIncludesNullish(
