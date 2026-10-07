@@ -167,12 +167,12 @@ test("native demand selects the literal producer and every sibling alias through
   const selected = value.freeze();
   assert.equal(selected.issues.length, 0);
   for (const node of [producer.node, variable.node, sibling.node, destination.node, read]) {
-    assert.equal(selected.shapeFor(node)?.targetType === native, true, "one original native allocation/carrier");
-    assert.equal(selected.shapeFor(node)?.sourceType === expectedType, true, "exact provider destination identity");
+    assert.equal(selected.constructionFor(node)?.targetType === native, true, "one original native allocation/carrier");
+    assert.equal(selected.constructionFor(node)?.shape.sourceType === expectedType, true, "exact provider destination identity");
   }
   const queries = value.queryCount();
-  selected.shapeFor(read);
-  selected.shapeFor(producer.node);
+  selected.constructionFor(read);
+  selected.constructionFor(producer.node);
   assert.equal(value.queryCount(), queries, "frozen lookup does not rerun checking");
   assert.equal(Object.isFrozen(selected), true);
   assert.equal(Object.isFrozen(selected.issues), true);
@@ -191,10 +191,14 @@ test("native demand keeps optional fields absent and collapses null/undefined in
   value.connect(alias, destination);
   const selected = value.freeze();
   assert.equal(selected.issues.length, 0);
-  assert.equal(selected.shapeFor(producer.node)?.targetType === native, true);
-  assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(selected.shapeFor(alias.node)?.targetType), native), true);
-  assert.equal(selected.shapeFor(alias.node) === selected.shapeFor(destination.node), true, "one nullable native carrier");
-  assert.equal(selected.shapeFor(alias.node)?.members[1].optional, true);
+  assert.equal(selected.constructionFor(producer.node)?.targetType === native, true);
+  assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(selected.constructionFor(alias.node)?.targetType), native), true);
+  assert.equal(selected.constructionFor(alias.node) === selected.constructionFor(destination.node), true, "one nullable native carrier");
+  assert.equal(selected.constructionFor(alias.node)?.shape.members[1].optional, true);
+  assert.equal(selected.constructionFor(alias.node)?.shape.targetType === native, true, "absence belongs to value storage, not the object contract");
+  assert.equal(selected.constructionFor(alias.node)?.shape === selected.constructionFor(producer.node)?.shape, true,
+    "present and absent storage share one exact object contract");
+  assert.equal(Object.isFrozen(selected.constructionFor(alias.node)), true);
 });
 
 test("native numeric demand selects full int64 storage but cannot override an explicit marker", () => {
@@ -208,8 +212,8 @@ test("native numeric demand selects full int64 storage but cannot override an ex
     if (explicit) value.explicit.add(value.primitive);
     const selected = value.freeze();
     assert.equal(selected.issues.length !== 0, explicit, "explicit authored storage remains authoritative");
-    assert.equal(selected.shapeFor(producer.node) === undefined, explicit);
-    if (!explicit) assert.equal(selected.shapeFor(producer.node)?.members[0].type === integer, true);
+    assert.equal(selected.constructionFor(producer.node) === undefined, explicit);
+    if (!explicit) assert.equal(selected.constructionFor(producer.node)?.shape.members[0].type === integer, true);
   }
 });
 
@@ -222,7 +226,7 @@ test("native demand rejects conflicting native targets rather than choosing the 
   value.connect(producer, value.subject(second));
   const selected = value.freeze();
   assert.equal(selected.issues.some(issue => /incompatible native construction carriers/.test(issue.message)), true);
-  assert.equal(selected.shapeFor(producer.node) === undefined, true, "no partial or arbitrary carrier");
+  assert.equal(selected.constructionFor(producer.node) === undefined, true, "no partial or arbitrary carrier");
   assert.equal(Object.isFrozen(selected.issues[0]), true);
 });
 
@@ -250,7 +254,7 @@ test("native demand rejects lost members, accessors, methods, incompatible stora
     value.connect(producer, value.subject(expectedType));
     const selected = value.freeze();
     assert.equal(selected.issues.length > 0, true, `control ${index}`);
-    assert.equal(selected.shapeFor(producer.node) === undefined, true, `control ${index} rejects before emission`);
+    assert.equal(selected.constructionFor(producer.node) === undefined, true, `control ${index} rejects before emission`);
   }
 });
 
@@ -263,7 +267,7 @@ test("native demand uses exact selected subjects, not matching names or storage 
   value.connect(producer, value.subject(expectedType));
   const selected = value.freeze();
   assert.equal(selected.issues.length > 0, true);
-  assert.equal(selected.shapeFor(producer.node) === undefined, true);
+  assert.equal(selected.constructionFor(producer.node) === undefined, true);
 });
 
 test("native demand rejects incompatible preselected storage and accepts exactly the same carrier", () => {
@@ -275,7 +279,7 @@ test("native demand rejects incompatible preselected storage and accepts exactly
     value.existing.set(producer.node, conflict ? { kind: "target-named", id: "selected.Other" } : native);
     const selected = value.freeze();
     assert.equal(selected.issues.length !== 0, conflict);
-    assert.equal(selected.shapeFor(producer.node) === undefined, conflict);
+    assert.equal(selected.constructionFor(producer.node) === undefined, conflict);
   }
 });
 
@@ -305,8 +309,8 @@ test("native demand checks cycles and diamonds once per canonical storage subjec
     [right, destination], [left, producer]]) value.connect(from, to);
   const selected = value.freeze();
   assert.equal(selected.issues.length, 0);
-  assert.equal(value.queryCount(), 2, "one exact semantic type/shape compatibility proof");
-  assert.equal(selected.shapeFor(producer.node)?.targetType === native, true);
+  assert.equal(value.queryCount(), 1, "one structural compatibility proof; the identical native shape is already sealed");
+  assert.equal(selected.constructionFor(producer.node)?.targetType === native, true);
 });
 
 test("constructor-valued native types do not demand object-literal instance members", () => {
@@ -316,7 +320,7 @@ test("constructor-valued native types do not demand object-literal instance memb
   value.host.resolveShape = () => { throw new Error("constructor type must not instantiate instance fields"); };
   const selected = value.freeze();
   assert.equal(selected.issues.length, 0);
-  assert.equal(selected.shapeFor(producer.node) === undefined, true);
+  assert.equal(selected.constructionFor(producer.node) === undefined, true);
 });
 
 test("native demand rejects multi-carrier unions rather than silently choosing one", () => {
@@ -328,7 +332,7 @@ test("native demand rejects multi-carrier unions rather than silently choosing o
   value.connect(producer, value.subject(expectedType));
   const selected = value.freeze();
   assert.equal(selected.issues.some(issue => /one exact non-absent/.test(issue.message)), true);
-  assert.equal(selected.shapeFor(producer.node) === undefined, true);
+  assert.equal(selected.constructionFor(producer.node) === undefined, true);
 });
 
 test("a native component demand cannot replace its enclosing container's carrier", () => {
@@ -339,8 +343,8 @@ test("a native component demand cannot replace its enclosing container's carrier
   value.connect(element, container);
   const selected = value.freeze();
   assert.equal(selected.issues.length, 0);
-  assert.equal(selected.shapeFor(element.node)?.targetType === native, true);
-  assert.equal(selected.shapeFor(container.node) === undefined, true, "projection is not whole-object storage");
+  assert.equal(selected.constructionFor(element.node)?.targetType === native, true);
+  assert.equal(selected.constructionFor(container.node) === undefined, true, "projection is not whole-object storage");
 });
 
 test("native demand preserves transport and immutable metadata budget failures", () => {
@@ -349,12 +353,12 @@ test("native demand preserves transport and immutable metadata budget failures",
   value.fail("shared source storage exceeds its finite query budget");
   let selected = value.freeze();
   assert.equal(selected.issues.some(issue => /shared source storage/.test(issue.message)), true);
-  assert.equal(selected.shapeFor(producer.node) === undefined, true);
+  assert.equal(selected.constructionFor(producer.node) === undefined, true);
   value.fail(undefined);
   value.semantics.facts.typeSubjects = type => Array(maximumCsharpMetadataEntries).fill(type);
   selected = value.freeze();
   assert.equal(selected.issues.some(issue => /finite target metadata budget/.test(issue.message)), true);
-  assert.equal(selected.shapeFor(producer.node) === undefined, true);
+  assert.equal(selected.constructionFor(producer.node) === undefined, true);
 });
 
 test("empty native construction retains exact authored origins through aliases, returns and cycles", () => {
@@ -375,10 +379,10 @@ test("empty native construction retains exact authored origins through aliases, 
   const selected = value.freeze();
   assert.equal(selected.issues.length, 0);
   for (const subject of [producer, binding, returned, sibling, destination]) {
-    assert.equal(selected.shapeFor(subject.node)?.targetType === native, true, "one native allocation and carrier");
+    assert.equal(selected.constructionFor(subject.node)?.targetType === native, true, "one native allocation and carrier");
   }
   const queries = value.queryCount();
-  selected.shapeFor(sibling.node);
+  selected.constructionFor(sibling.node);
   assert.equal(value.queryCount(), queries, "finalized provenance has no runtime or late checker work");
 });
 
@@ -394,7 +398,44 @@ test("a shared empty semantic type cannot transfer fresh-allocation authority to
   const selected = value.freeze();
   assert.equal(selected.issues.some(issue => issue.node === open.node), true, "open parameter is rejected independently");
   assert.equal(selected.issues.some(issue => issue.node === producer.node), false, "fresh owner remains exactly proven");
-  assert.equal(selected.shapeFor(producer.node) === undefined, true, "failed analysis publishes no partial selection");
+  assert.equal(selected.constructionFor(producer.node) === undefined, true, "failed analysis publishes no partial selection");
+});
+
+test("native indexed construction preserves empty allocation provenance and exact native aliases", () => {
+  const value = fixture();
+  const expectedType = value.row([], native, { provider: true, indexes: [{}] });
+  const actualType = value.row([]);
+  const producer = value.literal(actualType);
+  const alias = value.subject(actualType);
+  const destination = value.subject(expectedType);
+  const nativeAlias = value.subject(expectedType);
+  value.connect(producer, alias);
+  value.connect(alias, destination);
+  value.connect(destination, nativeAlias);
+  const selected = value.freeze();
+  assert.equal(selected.issues.length, 0);
+  for (const subject of [producer, alias, destination, nativeAlias]) {
+    assert.equal(selected.constructionFor(subject.node)?.targetType === native, true, "one native indexed allocation");
+  }
+});
+
+test("native indexed construction rejects open, populated and incompatible indexed sources", () => {
+  for (const control of ["open", "populated", "indexed", "required", "conflicting"]) {
+    const value = fixture();
+    const expectedType = value.row(control === "required" ? [{ identity: "required" }] : [], native,
+      { provider: true, indexes: [{}] });
+    const actualType = value.row(control === "populated" ? [{ identity: "extra" }] : [], structural,
+      control === "indexed" ? { indexes: [{}] } : {});
+    const producer = control === "open" ? value.subject(actualType) : value.literal(actualType);
+    value.connect(producer, value.subject(expectedType));
+    if (control === "conflicting") {
+      value.connect(producer, value.subject(value.row([], { kind: "target-named", id: "native.Other" },
+        { provider: true, indexes: [{}] })));
+    }
+    const selected = value.freeze();
+    assert.equal(selected.issues.length > 0, true, control);
+    assert.equal(selected.constructionFor(producer.node) === undefined, true, control);
+  }
 });
 
 test("empty alias transport uses exact checker identity while literal ownership keeps expression identity", () => {
@@ -411,7 +452,7 @@ test("empty alias transport uses exact checker identity while literal ownership 
       identical && source === bindingType && destination === literalType;
     const selected = value.freeze();
     assert.equal(selected.issues.length === 0, identical, "only exact checked regular/fresh equivalence admits transport");
-    assert.equal(selected.shapeFor(binding.node)?.targetType === native, identical);
+    assert.equal(selected.constructionFor(binding.node)?.targetType === native, identical);
   }
 });
 
@@ -426,7 +467,7 @@ test("fresh expression queries may return noninterned but exactly checker-identi
   assert.equal(value.semantics.types.expressionType(producer.node) === value.semantics.types.expressionType(producer.node), false);
   const selected = value.freeze();
   assert.equal(selected.issues.length, 0);
-  assert.equal(selected.shapeFor(producer.node)?.targetType === native, true);
+  assert.equal(selected.constructionFor(producer.node)?.targetType === native, true);
 });
 
 test("empty native construction rejects nonfresh, foreign, projected, mixed and unresolved origins", () => {
@@ -461,7 +502,7 @@ test("empty native construction rejects nonfresh, foreign, projected, mixed and 
     value.connect(producer, value.subject(expectedType));
     const selected = value.freeze();
     assert.equal(selected.issues.length > 0, true, `origin control ${index}`);
-    assert.equal(selected.shapeFor(producer.node) === undefined, true, `origin control ${index} fails closed`);
+    assert.equal(selected.constructionFor(producer.node) === undefined, true, `origin control ${index} fails closed`);
   }
 });
 
@@ -483,7 +524,7 @@ test("fresh empty origins retain required-field, callable, indexed and preselect
     if (control.selected !== undefined) value.existing.set(producer.node, control.selected);
     const selected = value.freeze();
     assert.equal(selected.issues.length > 0, true, `storage control ${index}`);
-    assert.equal(selected.shapeFor(producer.node) === undefined, true, `storage control ${index} fails before emission`);
+    assert.equal(selected.constructionFor(producer.node) === undefined, true, `storage control ${index} fails before emission`);
   }
 });
 
@@ -500,8 +541,8 @@ test("fresh empty construction keeps nullable aliases and full-width provider fi
   value.connect(alias, value.subject({ union: [expectedType, absent] }));
   const selected = value.freeze();
   assert.equal(selected.issues.length, 0);
-  assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(selected.shapeFor(alias.node)?.targetType), native), true);
-  assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(selected.shapeFor(producer.node)?.members[0].type), integer), true);
+  assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(selected.constructionFor(alias.node)?.targetType), native), true);
+  assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(selected.constructionFor(producer.node)?.shape.members[0].type), integer), true);
 });
 
 test("an existing exact empty native carrier needs no fabricated literal allocation", () => {
@@ -511,7 +552,7 @@ test("an existing exact empty native carrier needs no fabricated literal allocat
   value.storage.originsFor = () => { throw new Error("an exact native carrier needs no new construction origin"); };
   const selected = value.freeze();
   assert.equal(selected.issues.length, 0);
-  assert.equal(selected.shapeFor(parameter.node)?.targetType === native, true);
+  assert.equal(selected.constructionFor(parameter.node)?.targetType === native, true);
 });
 
 test("native opaque reference fields retain string payloads without admitting numeric heap boxing", () => {
@@ -524,7 +565,7 @@ test("native opaque reference fields retain string payloads without admitting nu
     value.connect(producer, value.subject(expectedType));
     const selected = value.freeze();
     assert.equal(selected.issues.length === 0, accepted, "only the native reference payload can retain its allocation");
-    assert.equal(selected.shapeFor(producer.node) !== undefined, accepted, "no partial publication or boxed numeric storage");
+    assert.equal(selected.constructionFor(producer.node) !== undefined, accepted, "no partial publication or boxed numeric storage");
   }
 });
 
@@ -537,5 +578,5 @@ test("native storage publication requires exact source-member correspondence", (
   const selected = value.freeze();
   assert.equal(selected.issues.some(issue => /source-member correspondence/u.test(issue.message)), true,
     "construction compatibility does not substitute for exact read/write correspondence");
-  assert.equal(selected.shapeFor(producer.node) === undefined, true, "incomplete publication fails closed");
+  assert.equal(selected.constructionFor(producer.node) === undefined, true, "incomplete publication fails closed");
 });

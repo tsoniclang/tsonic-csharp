@@ -32,6 +32,7 @@ export function applyCalleeTypeArguments(
   node: Node,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
+  while (callee.kind === "ParenthesizedExpression") callee = callee.expression;
   const rendered = renderCsharpTargetTypeArguments(
     typeParameterNames,
     typeArguments,

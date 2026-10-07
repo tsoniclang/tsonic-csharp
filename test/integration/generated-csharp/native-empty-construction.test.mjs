@@ -31,6 +31,62 @@ test("fresh empty native construction retains allocation and alias identity thro
   assert.doesNotMatch(output, /Tsonic__ObjectShape|Activator|System\.Reflection|DynamicInvoke/u);
 });
 
+test("fresh native indexed construction retains one environment and its exact allocation cost", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: `
+    import type { ProcessEnv } from "node:process";
+    export function make(value: string): ProcessEnv {
+      const original = {};
+      const alias = original;
+      const environment: ProcessEnv = alias;
+      environment["TSONIC_ENVIRONMENT_PROOF"] = value;
+      return environment;
+    }
+    export function run(): boolean {
+      const environment = make("original");
+      const alias = environment;
+      const optional: ProcessEnv | undefined = environment;
+      const container: { environment?: ProcessEnv } = { environment: optional };
+      if (container.environment !== environment || optional !== environment) return false;
+      alias["TSONIC_ENVIRONMENT_PROOF"] = "changed";
+      alias["TSONIC_ENVIRONMENT_PROOF"] = undefined;
+      container.environment = undefined;
+      return environment === alias && environment["TSONIC_ENVIRONMENT_PROOF"] === undefined &&
+        container.environment === undefined;
+    }
+  ` });
+  executeCsharpConstruction(compiled, "native-empty-indexed-construction", false, false,
+    [join(testRepositoryRoots.csharpNodejs, "csharp/src/Tsonic.CSharp.Node/Tsonic.CSharp.Node.csproj")], `
+using System;
+using Tsonic.CSharp.Node;
+using Index = Tsonic.Generated.Index;
+if (!Index.run()) throw new Exception("source environment identity, mutation and absence");
+string value = new string('x', 20);
+for (int index = 0; index < 1000; index++) {
+    GC.KeepAlive(Index.make(value));
+    GC.KeepAlive(Handwritten(value));
+}
+long before = GC.GetAllocatedBytesForCurrentThread();
+for (int index = 0; index < 10000; index++) {
+    var environment = Index.make(value);
+    if (!ReferenceEquals(environment["TSONIC_ENVIRONMENT_PROOF"], value)) throw new Exception("native string copied");
+    GC.KeepAlive(environment);
+}
+long generated = GC.GetAllocatedBytesForCurrentThread() - before;
+before = GC.GetAllocatedBytesForCurrentThread();
+for (int index = 0; index < 10000; index++) GC.KeepAlive(Handwritten(value));
+long handwritten = GC.GetAllocatedBytesForCurrentThread() - before;
+if (generated != handwritten) throw new Exception($"environment allocation {generated} != {handwritten}");
+static ProcessEnv Handwritten(string value) {
+    var environment = new ProcessEnv();
+    environment["TSONIC_ENVIRONMENT_PROOF"] = value;
+    return environment;
+}
+`);
+  const output = [...compiled.artifacts.values()].join("\n");
+  assert.equal([...output.matchAll(/new Tsonic\.CSharp\.Node\.ProcessEnv\b/gu)].length, 1);
+  assert.doesNotMatch(output, /__TsonicShape|Activator|System\.Reflection|DynamicInvoke|\.ToDictionary\(/u);
+});
+
 const nonfreshControls = [
   ["open parameter", `export function options(value: {}): MakeDirectoryOptions { return value; }`],
   ["hidden fields", `export function options(): MakeDirectoryOptions {

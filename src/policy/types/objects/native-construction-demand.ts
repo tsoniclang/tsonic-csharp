@@ -17,7 +17,12 @@ export interface CsharpNativeConstructionIssue {
 
 export interface CsharpNativeConstructionDemandQueries {
   readonly issues: readonly CsharpNativeConstructionIssue[];
-  shapeFor(node: Node): CsharpObjectShapeFact | undefined;
+  constructionFor(node: Node): CsharpNativeConstructionSelection | undefined;
+}
+
+export interface CsharpNativeConstructionSelection {
+  readonly targetType: TargetTypeRef;
+  readonly shape: CsharpObjectShapeFact;
 }
 
 interface CsharpNativeConstructionDemandHost extends Pick<CsharpTypePolicyBaseHost,
@@ -41,12 +46,12 @@ export function createCsharpNativeConstructionDemandQuery(
   const types = new Map<SourceStorageSubject, CsharpNativeConstructionType | undefined>();
   const unresolvedTypes = new Map<SourceStorageSubject, string>();
   const demands = new Map<SourceStorageSubject, CsharpObjectShapeFact>();
-  const nullableShapes = new WeakMap<CsharpObjectShapeFact, CsharpObjectShapeFact>();
   const shapes = new WeakMap<Type, CsharpObjectShapeFact | null>();
   const compatibility = new WeakMap<Type, WeakMap<CsharpObjectShapeFact, boolean>>();
   const emptyCompatibility = new Map<SourceStorageSubject, WeakMap<CsharpObjectShapeFact, boolean>>();
   const destinations = new Map<SourceStorageSubject, SourceStorageSubject[]>();
-  const nodeShapes = new Map<Node, CsharpObjectShapeFact>();
+  const constructions = new WeakMap<CsharpObjectShapeFact, Map<boolean, CsharpNativeConstructionSelection>>();
+  const nodeConstructions = new Map<Node, CsharpNativeConstructionSelection>();
   const pending: { readonly subject: SourceStorageSubject; readonly shape: CsharpObjectShapeFact }[] = [];
   const issues: CsharpNativeConstructionIssue[] = [];
   const rejected = new Set<SourceStorageSubject>();
@@ -89,16 +94,6 @@ export function createCsharpNativeConstructionDemandQuery(
     const shape = host.resolveShape(type, queries.sourceFile);
     shapes.set(type, shape ?? null);
     return shape;
-  };
-  const subjectShape = (subject: SourceStorageSubject): CsharpObjectShapeFact | undefined => {
-    const shape = demands.get(subject);
-    if (shape === undefined || types.get(subject)?.nullable !== true) return shape;
-    const existing = nullableShapes.get(shape);
-    if (existing !== undefined) return existing;
-    budget.reserve(1);
-    const nullable = Object.freeze({ ...shape, targetType: csharpNullableTargetType(shape.targetType) });
-    nullableShapes.set(shape, nullable);
-    return nullable;
   };
   const nativeShape = (type: Type, queries: SourceFileSemantics): CsharpObjectShapeFact | undefined => {
     const present = queries.types.isUnion(type)
@@ -222,11 +217,13 @@ export function createCsharpNativeConstructionDemandQuery(
       const selected = storage.subjectFor(node);
       if (selected.kind !== "resolved" || selected.subject.projection.length !== 0) continue;
       current = selected.subject;
-      const shape = subjectShape(selected.subject);
+      const shape = demands.get(selected.subject);
       if (shape === undefined) continue;
+      const source = types.get(selected.subject);
+      const nullable = source?.nullable === true;
+      const targetType = nullable ? csharpNullableTargetType(shape.targetType) : shape.targetType;
       const existing = host.scopedTargetType(node);
-      if (existing !== undefined && !targetTypeRefEquals(existing, shape.targetType)) {
-        const source = types.get(selected.subject);
+      if (existing !== undefined && !targetTypeRefEquals(existing, targetType)) {
         const original = source === undefined ? undefined : shapeForType(source.type, source.queries);
         const originalTarget = original === undefined ? undefined
           : source?.nullable ? csharpNullableTargetType(original.targetType) : original.targetType;
@@ -236,13 +233,20 @@ export function createCsharpNativeConstructionDemandQuery(
         }
       }
       budget.reserve(1);
-      const source = types.get(selected.subject);
       const retained = source === undefined ? undefined : host.retainSourceShape(node, source.type, shape, source.queries.sourceFile);
       if (retained === undefined) {
         issue(selected.subject, "Native construction has no exact source-member correspondence for its selected storage.");
         continue;
       }
-      nodeShapes.set(node, retained);
+      const choices = constructions.get(retained) ?? new Map<boolean, CsharpNativeConstructionSelection>();
+      let construction = choices.get(nullable);
+      if (construction === undefined) {
+        budget.reserve(1);
+        construction = Object.freeze({ targetType, shape: retained });
+        choices.set(nullable, construction);
+        constructions.set(retained, choices);
+      }
+      nodeConstructions.set(node, construction);
     }
     const failure = storage.failureReason();
     if (failure !== undefined && current !== undefined) issue(current, failure);
@@ -254,8 +258,8 @@ export function createCsharpNativeConstructionDemandQuery(
   }
   return Object.freeze({
     issues: Object.freeze(issues),
-    shapeFor(node: Node): CsharpObjectShapeFact | undefined {
-      return issues.length === 0 ? nodeShapes.get(node) : undefined;
+    constructionFor(node: Node): CsharpNativeConstructionSelection | undefined {
+      return issues.length === 0 ? nodeConstructions.get(node) : undefined;
     },
   });
 }

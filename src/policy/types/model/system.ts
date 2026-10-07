@@ -76,7 +76,7 @@ export function createCsharpTypeSystem(
   const selectedRepresentations: CsharpPlanningRepresentationQueries = Object.freeze({
     ...representations,
     scopedTargetType(node: Node): TargetTypeRef | undefined {
-      return nativeConstruction?.shapeFor(node)?.targetType ?? representations.scopedTargetType(node);
+      return nativeConstruction?.constructionFor(node)?.targetType ?? representations.scopedTargetType(node);
     },
   });
   const requireProjectTypes = (): CsharpProjectTypePolicy => {
