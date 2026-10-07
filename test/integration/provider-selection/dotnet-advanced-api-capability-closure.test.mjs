@@ -136,8 +136,11 @@ test("advanced .NET API contracts close through provider selection and C# syntax
   assert.match(output, /return value\[2, 3\]/);
   assert.match(output, /ref int slot = ref value\.ValueRef\(\)/);
   assert.match(output, /slot = 9/);
-  assert.match(output, /value\.Changed \+= \(int __tsonic_arg0\) => callback\(__tsonic_arg0\)/);
-  assert.match(output, /value\.Changed -= \(int __tsonic_arg0\) => callback\(__tsonic_arg0\)/);
+  const eventAdapters = [...output.matchAll(/value\.Changed [+-]= new System\.Action<int>\((__tsonic_adapter\w*)\)/gu)]
+    .map(match => match[1]);
+  assert.equal(eventAdapters.length, 2);
+  assert.equal(eventAdapters[0], eventAdapters[1], "native add/remove share the exact retained adapter");
+  assert.match(output, new RegExp(`void ${eventAdapters[0]}\\(int __tsonic_arg0\\)\\s*\\{\\s*callback\\(__tsonic_arg0\\)`));
   assert.match(output, /events\([^)]*Action<double> callback\)/);
   assert.match(output, /return left \+ right/);
   assert.match(output, /StaticInterfaceImplementation\.Create\(\)/);
