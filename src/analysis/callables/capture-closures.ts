@@ -5,6 +5,9 @@ import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
 import type { CsharpStorageIssue } from "../storage/model.js";
 import { selectCsharpNamedSelfBinding, type CsharpNamedSelfBinding } from "./named-self.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import type { CsharpDeclarationClassifications } from "../declarations/model.js";
+import type { CsharpStorageClassifications } from "../storage/model.js";
+import { csharpConstructorRequiresPreparation } from "./constructor-entry.js";
 
 export interface CsharpFrameClosure {
   readonly declaration: Node;
@@ -22,6 +25,10 @@ export function selectCsharpFrameClosures(
   physicalType: (declaration: Node, type: TargetTypeRef) => TargetTypeRef,
   issues: CsharpStorageIssue[],
   valueOwned: ReadonlySet<Node>,
+  constructorEntry: {
+    readonly declarations: Pick<CsharpDeclarationClassifications, "runtimeDefault">;
+    readonly storage: Pick<CsharpStorageClassifications, "nativeBacking" | "requiresTypedLocationIdentity">;
+  },
 ): { readonly closures: readonly CsharpFrameClosure[]; readonly namedSelfBindings: readonly CsharpNamedSelfBinding[] } {
   const candidates: Node[] = [];
   const visit = (node: Node): void => {
@@ -55,13 +62,28 @@ export function selectCsharpFrameClosures(
   for (const candidate of captures) for (const capture of candidate.selected.captures) {
     const scope = sourceBindingScope(capture.declaration, source.ast);
     const iteration = scope !== undefined && sourceBindingIterationScope(capture.declaration, source.ast) === scope;
-    if (!iteration && !sourceBindingCapturedBeforeInitialization(capture.declaration, source.ast, source.navigation)) continue;
+    const constructor = scope === undefined ? undefined : source.ast.parent(scope);
+    let binding = capture.declaration;
+    while (source.ast.is.IsBindingElement(binding)) {
+      const pattern = source.ast.parent(binding);
+      const owner = pattern === undefined ? undefined : source.ast.parent(pattern);
+      if (owner === undefined) break;
+      binding = owner;
+    }
+    const prepared = constructor !== undefined && source.ast.is.IsConstructorDeclaration(constructor) &&
+      source.ast.is.IsParameterDeclaration(binding) && source.ast.parent(binding) === constructor &&
+      constructorEntry.storage.nativeBacking(capture.declaration) === undefined &&
+      csharpConstructorRequiresPreparation(source.ast, constructor, constructorEntry.declarations, constructorEntry.storage,
+        parameter => groups.get(scope!)?.has(parameter) === true);
+    if (!iteration && !prepared && !sourceBindingCapturedBeforeInitialization(capture.declaration, source.ast, source.navigation)) continue;
     const type = evidence.storageTargetType(capture.declaration) ?? evidence.nodeTargetType(capture.declaration);
     if (scope === undefined || type === undefined) {
       issues.push({ node: capture.declaration,
-        code: iteration ? "CSHARP_ITERATION_CAPTURE_NOT_CLOSED" : "CSHARP_DEFERRED_CAPTURE_NOT_CLOSED",
+        code: iteration ? "CSHARP_ITERATION_CAPTURE_NOT_CLOSED"
+          : prepared ? "CSHARP_CONSTRUCTOR_CAPTURE_NOT_CLOSED" : "CSHARP_DEFERRED_CAPTURE_NOT_CLOSED",
         message: iteration
           ? "Iteration capture requires its exact native binding type and activation."
+          : prepared ? "Constructor capture requires its exact native binding type and preparation activation."
           : "Deferred captured initialization requires its exact native binding type and activation." });
       continue;
     }
@@ -97,7 +119,11 @@ export function selectCsharpFrameClosures(
       }
       const scopes = new Set(bindings.map(binding => binding!.scope));
       let scope = source.ast.parent(candidate.declaration);
-      while (scope !== undefined && !scopes.has(scope)) scope = source.ast.parent(scope);
+      while (scope !== undefined && !scopes.has(scope)) {
+        const body = source.ast.body(scope);
+        if (body !== undefined && scopes.has(body)) { scope = body; break; }
+        scope = source.ast.parent(scope);
+      }
       if (scope === undefined) {
         issues.push({ node: candidate.declaration, code: "CSHARP_CAPTURE_CALLABLE_SCOPE_NOT_CLOSED",
           message: "A captured callable requires an enclosing native frame activation." });
