@@ -3,17 +3,19 @@ import type {
   TargetTypeRef,
 } from "../../../types/index.js";
 import {
-  csharpEnumerableTargetType,
   csharpJsWeakMapTargetType,
   csharpJsWeakSetTargetType,
+  getCsharpJsWeakMapTargetTypes,
+  getCsharpJsWeakSetElementTargetType,
+} from "../../../types/resolution/surface-types.js";
+import {
+  csharpEnumerableTargetType,
   csharpNullableTargetType,
   isCsharpAbsenceTargetType,
   csharpSourcePrimitiveTargetType,
-  getCsharpJsWeakMapTargetTypes,
-  getCsharpJsWeakSetElementTargetType,
   getCsharpNullableElementTargetType,
   isCsharpValueTypeTargetType,
-} from "../../../types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
   CsharpSourceProfileCallPolicyContext,

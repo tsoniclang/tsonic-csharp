@@ -1,10 +1,10 @@
+import { csharpJsSymbolTargetType } from "../../../types/resolution/surface-types.js";
 import {
-  csharpJsSymbolTargetType,
   csharpNullableTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   targetTypeRefEquals,
-} from "../../../types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
 } from "../source-profile-policy.js";

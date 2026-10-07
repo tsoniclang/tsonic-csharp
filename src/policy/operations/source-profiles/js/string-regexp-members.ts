@@ -6,12 +6,14 @@ import {
   csharpExactJsRegExpMatchArrayTargetType,
   csharpExactJsRegExpStringIteratorTargetType,
   csharpJsRegExpTargetType,
+} from "../../../types/resolution/surface-types.js";
+import {
   csharpJsStringTargetType,
   csharpNullableTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   targetTypeRefEquals,
-} from "../../../types/index.js";
+} from "../../../../target-model/types/index.js";
 import type { CsharpSourceProfileCallPolicy } from "../source-profile-policy.js";
 import { jsRuntimeTargetType, receiverHelperMethod, targetParameter } from "./common.js";
 import { csharpJsReplacementCallbackParameter } from "./replacement-callback.js";

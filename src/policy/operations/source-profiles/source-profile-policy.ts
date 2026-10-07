@@ -261,10 +261,13 @@ export function selectCsharpSourceProfileElementPolicy(
   let readonly = false;
   for (const type of types) {
     const selected = semantics.types.selectIndexedAccess(type, source.argument.type);
-    if (selected?.kind !== "resolved" || selected.members.length !== 1 || selected.members[0]?.kind !== "index") return undefined;
-    const index = selected.members[0].index;
-    readonly ||= index.readonly;
-    const components = index.declaration === undefined ? index.components : [index.declaration];
+    if (selected?.kind !== "resolved" || selected.members.length !== 1) return undefined;
+    const member = selected.members[0]!;
+    readonly ||= member.kind === "property" ? member.property.readonly : member.index.readonly;
+    const components = member.kind === "property"
+      ? selectedSourcePropertyDeclarations(semantics, undefined, member.property.symbol, [type])
+      : member.index.declaration === undefined ? member.index.components : [member.index.declaration];
+    if (components === undefined) return undefined;
     if (components.length === 0) return undefined;
     for (const declaration of components) {
       if (declaration === undefined) return undefined;

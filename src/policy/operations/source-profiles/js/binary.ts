@@ -8,16 +8,18 @@ import {
   csharpEnumerableTargetType,
   csharpReadOnlyListTargetType,
   getCsharpJsArrayElementTargetType,
-  csharpJsArrayBufferTargetType,
-  csharpJsDataViewTargetType,
-  csharpJsTypedArrayElementTargetType,
-  csharpJsTypedArrayTargetType,
   csharpNullableValueTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpVoidTargetType,
+} from "../../../../target-model/types/index.js";
+import {
+  csharpJsArrayBufferTargetType,
+  csharpJsDataViewTargetType,
+  csharpJsTypedArrayElementTargetType,
+  csharpJsTypedArrayTargetType,
   type CsharpJsTypedArrayName,
-} from "../../../types/index.js";
+} from "../../../types/resolution/surface-types.js";
 import type {
   CsharpSourceProfileCallPolicy,
   CsharpSourceProfileCallPolicyContext,

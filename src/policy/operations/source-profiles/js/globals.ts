@@ -8,7 +8,7 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpVoidTargetType,
-} from "../../../types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
   CsharpSourceProfilePropertyPolicy,

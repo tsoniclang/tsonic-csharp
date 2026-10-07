@@ -11,12 +11,14 @@ import {
   csharpStringTargetType,
   targetTypeRefEquals,
 } from "../../types/index.js";
+import type { TargetTypeRef } from "../../types/index.js";
 
 export type CsharpJsStringConversionSelection =
   | { readonly kind: "not-js-string-conversion" }
   | {
       readonly kind: "resolved";
       readonly sourceValue: Node;
+      readonly resultType: TargetTypeRef;
     }
   | {
       readonly kind: "rejected";
@@ -74,5 +76,5 @@ export function selectCsharpJsStringConversion(
         "The exact JavaScript string conversion result is not the explicit JavaScript string carrier selected by C#.",
     };
   }
-  return Object.freeze({ kind: "resolved", sourceValue });
+  return Object.freeze({ kind: "resolved", sourceValue, resultType });
 }

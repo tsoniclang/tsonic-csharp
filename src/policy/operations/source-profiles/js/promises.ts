@@ -13,7 +13,7 @@ import {
   getCsharpDelegateSignature,
   isCsharpVoidTargetType,
   targetTypeRefEquals,
-} from "../../../types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
   CsharpSourceProfileCallPolicyContext,
@@ -28,8 +28,8 @@ import {
 } from "./common.js";
 import {
   csharpQualifiedTypeRenderShape,
-} from "../../../types/index.js";
-import { csharpTargetNamedType } from "../../../types/index.js";
+} from "../../../../target-model/types/index.js";
+import { csharpTargetNamedType } from "../../../../target-model/types/index.js";
 
 const objectType = csharpObjectTargetType();
 const rejectionType = csharpNullableTargetType(objectType);

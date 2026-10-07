@@ -21,13 +21,15 @@ import {
   csharpExactJsRegExpNamedGroupsTargetType,
   csharpExactJsRegExpNamedIndicesTargetType,
   csharpExactJsRegExpStringIteratorTargetType,
+} from "../../../types/resolution/surface-types.js";
+import {
   csharpJsStringTargetType,
   csharpNullableTargetType,
   csharpAbsenceTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   targetTypeRefEquals,
-} from "../../../types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
   CsharpSourceProfileCallPolicyContext,

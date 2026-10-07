@@ -2,12 +2,12 @@ import type {
   CsharpTargetMember,
   TargetTypeRef,
 } from "../../../types/index.js";
+import { csharpJsDateTargetType } from "../../../types/resolution/surface-types.js";
 import {
-  csharpJsDateTargetType,
   csharpNullableTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
-} from "../../../types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
   CsharpSourceProfileCallPolicyContext,

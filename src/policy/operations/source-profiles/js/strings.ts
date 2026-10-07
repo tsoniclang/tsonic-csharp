@@ -13,7 +13,7 @@ import {
   csharpStringTargetType,
   targetTypeRefEquals,
   isCsharpAbsenceTargetType,
-} from "../../../types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
   CsharpSourceProfileElementPolicy,

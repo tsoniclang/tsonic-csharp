@@ -3,20 +3,22 @@ import type {
   TargetTypeRef,
 } from "../../../types/index.js";
 import {
-  csharpDelegateTargetType,
-  csharpEnumerableTargetType,
   csharpJsMapTargetType,
   csharpJsSetTargetType,
+  getCsharpJsMapTargetTypes,
+  getCsharpJsSetElementTargetType,
+} from "../../../types/resolution/surface-types.js";
+import {
+  csharpDelegateTargetType,
+  csharpEnumerableTargetType,
   csharpNullableTargetType,
   csharpSourcePrimitiveTargetType,
   csharpVoidTargetType,
-  getCsharpJsMapTargetTypes,
-  getCsharpJsSetElementTargetType,
   getCsharpNullableElementTargetType,
   isCsharpValueTypeTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
-} from "../../../types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
   CsharpSourceProfileCallPolicyContext,

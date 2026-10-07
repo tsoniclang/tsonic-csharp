@@ -12,7 +12,6 @@ import {
   csharpEmptyObjectTargetType,
   isCsharpEmptyObjectTargetType,
   csharpObjectTargetType,
-  csharpJsArrayTargetType,
   csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
@@ -24,7 +23,8 @@ import {
   isCsharpRecordDictionaryTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
-} from "../../../types/index.js";
+} from "../../../../target-model/types/index.js";
+import { csharpJsArrayTargetType } from "../../../types/resolution/surface-types.js";
 import type {
   CsharpSourceProfileCallPolicy,
 } from "../source-profile-policy.js";
