@@ -109,7 +109,7 @@ import {
 } from "../module-initialization/index.js";
 import { createCsharpSourceProfileCallableAliasQuery } from "../../policy/operations/source-profiles/callable-aliases.js";
 import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-demands.js";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
+import { createSourceStorageQuery, type SourceStorageQueries } from "@tsonic/target-api/analysis";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -175,6 +175,7 @@ export function analyzeCsharpTargetProgram(
         sourceIdentities,
         names,
         typeHost,
+        sourceStorage,
         previous,
       );
       return {
@@ -213,6 +214,7 @@ export function analyzeCsharpTargetProgram(
     sourceIdentities,
     names,
     typeHost,
+    sourceStorage,
     stable,
   );
   if (!representationContractsEqual(stable, analysis)) {
@@ -235,6 +237,7 @@ export function analyzeCsharpTargetProgram(
     ...analysis.sourceEvidence.typeOnlyIssues,
     ...analysis.sourceEvidence.fixedArrayIssues,
     ...analysis.typeSystem.projectTypes.issues,
+    ...analysis.typeSystem.nativeConstruction.issues,
     ...analysis.expectedTypes.issues,
     ...analysis.conversions.issues,
     ...analysis.storage.issues,
@@ -352,6 +355,7 @@ function analyzeIteration(
   sourceIdentities: ReturnType<typeof createCsharpSourceIdentityPolicy>,
   names: ReturnType<typeof createCsharpSourceNameResolver>,
   typeHost: Parameters<typeof createCsharpTypeSystem>[0],
+  sourceStorage: SourceStorageQueries,
   previous: CsharpRepresentationContract | undefined,
 ) {
   let typeSystem: CsharpTypeSystem | undefined;
@@ -385,6 +389,7 @@ function analyzeIteration(
     { ...typeHost, typeDefinitions },
     createCsharpProjectTypeCatalog(typeHost, previous?.typeProjections),
     representations,
+    sourceStorage,
   );
   const policy = createCsharpAnalysisPolicyContext({
     callOnlyAlias: typeHost.callOnlyAlias,

@@ -1,18 +1,19 @@
 import type {
   CsharpTargetMember,
   TargetTypeRef,
-} from "../../types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   csharpNullableTargetType,
   csharpQualifiedTypeRenderShape,
   csharpRuntimeUnionTargetType,
   csharpTargetNamedType,
   csharpTsValueTargetType,
+  csharpTaskTargetType,
   csharpVoidTargetType,
   getCsharpTaskResultTargetType,
   isCsharpVoidTargetType,
   targetTypeRefKey,
-} from "../../types/index.js";
+} from "../../../target-model/types/index.js";
 import { csharpTargetId } from "../../../target-model/identities/source.js";
 import { snapshotCsharpTargetTypes } from "../../../target-model/types/snapshot.js";
 import type {
@@ -25,6 +26,7 @@ import {
   csharpSourceProfileDiagnostic,
 } from "./source-profile-policy.js";
 import type { CsharpSourceProfileOwner } from "./source-profile-identity.js";
+import { resolveCsharpSourceProfileGenericResult } from "./source-profile-result.js";
 
 const owners: readonly CsharpSourceProfileOwner[] = Object.freeze([
   csharpTargetId,
@@ -72,10 +74,7 @@ function promiseConstructorMember(
   if (context.source.sourceSelectedSignatureKind !== "resolved" ||
       context.source.sourceSelectedSignatureParameters.length !== 1 ||
       context.source.sourceArgumentBindings.length !== 1) return undefined;
-  const taskType = context.host.types.resolveType(
-    context.source.sourceResultType,
-    context.sourceFile,
-  );
+  const taskType = resolveCsharpSourceProfileGenericResult(context, 1, arguments_ => csharpTaskTargetType(arguments_[0]!));
   const resultType = getCsharpTaskResultTargetType(taskType);
   if (taskType === undefined || resultType === undefined) return undefined;
   const voidPromise = isCsharpVoidTargetType(resultType);

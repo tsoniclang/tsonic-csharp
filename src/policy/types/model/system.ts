@@ -64,8 +64,7 @@ export interface CsharpTypeSystem {
 export function createCsharpTypeSystem(
   host: CsharpTypePolicyBaseHost,
   projectTypeCatalog: CsharpProjectTypeCatalog,
-  representations: CsharpPlanningRepresentationQueries =
-    emptyPlanningRepresentations,
+  representations: CsharpPlanningRepresentationQueries,
   sourceStorage: SourceStorageQueries,
 ): CsharpTypeSystem {
   let objectShapes: CsharpRecursiveObjectShapePolicy | undefined;
@@ -228,16 +227,3 @@ export function createCsharpTypeSystem(
     nativeConstruction,
   });
 }
-
-const emptyPlanningRepresentations: CsharpPlanningRepresentationQueries =
-  Object.freeze({
-    requiresClosedStructuralContract() {
-      return false;
-    },
-    scopedTargetType() {
-      return undefined;
-    },
-    sourceCallable() {
-      return undefined;
-    },
-  });

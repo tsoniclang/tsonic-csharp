@@ -5,7 +5,7 @@ import { selectCsharpBinaryOperands } from "../../../dist/policy/operations/oper
 import { csharpBinarySelectionsEqual } from "../../../dist/analysis/expected-types/binary-equality.js";
 import { selectCsharpConversion, selectCsharpExpressionConversion } from "../../../dist/policy/conversions/index.js";
 import { csharpAbsenceTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
-  csharpSourcePrimitiveTargetType, csharpTargetNamedType, csharpVoidTargetType,
+  csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTargetNamedType, csharpVoidTargetType,
   csharpTsValueTargetType,
   combineCsharpTargetUnionMembers, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms,
   targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
@@ -96,4 +96,16 @@ test("a completed void expression may supply absence but void is not a native va
   assert.equal(selectCsharpExpressionConversion(input, value, unit, integer, "implicit").kind, "rejected");
   assert.equal(selectCsharpConversion(input, unit, csharpTsValueTargetType(), "implicit").kind, "rejected");
   assert.equal(selectCsharpExpressionConversion(input, value, unit, csharpTsValueTargetType(), "implicit").kind, "absence");
+});
+
+test("nested coalescing preserves the selected native nullable width and generic storage", () => {
+  const optional = csharpNullableTargetType(integer);
+  for (const right of [optional, csharpAbsenceTargetType()]) {
+    assert.equal(targetTypeRefEquals(resolveBinaryTargetRepresentation(ast, "??", value, optional, rightValue, right), optional), true);
+  }
+  assert.equal(targetTypeRefEquals(resolveBinaryTargetRepresentation(ast, "??", value, optional, rightValue, integer), integer), true);
+  const generic = { kind: "type-parameter", identity: "fixture::T", name: "T" };
+  const genericOptional = csharpNullableTargetType(generic);
+  assert.equal(targetTypeRefEquals(resolveBinaryTargetRepresentation(ast, "??", value, genericOptional, rightValue, generic), generic), true);
+  assert.equal(resolveBinaryTargetRepresentation(ast, "??", value, optional, rightValue, csharpStringTargetType()), undefined);
 });

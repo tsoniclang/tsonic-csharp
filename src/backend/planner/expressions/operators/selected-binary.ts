@@ -47,6 +47,7 @@ import { captureCsharpPlannedLocation } from "../planned-locations.js";
 import { captureCsharpPlannedValue } from "../planned-value-composition.js";
 import { planCsharpPlannedDiscard } from "../../statements/statement-output.js";
 import { planCsharpConditionalValue } from "./conditional-values.js";
+import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
 export function planSelectedCsharpBinaryOperation(
   node: Node,
@@ -310,7 +311,9 @@ export function planSelectedCsharpBinaryOperation(
     if (left === undefined || right === undefined) return undefined;
     if (left.completion.kind === "never") return left;
     if (left.completion.kind !== "value") return undefined;
-    const direct = right.prelude.length === 0 && right.completion.kind === "value";
+    const narrowedCoalescing = assignmentToken.kind === "QuestionQuestionEqualsToken" &&
+      !targetTypeRefEquals(selection.resultType, left.completion.carrier);
+    const direct = !narrowedCoalescing && right.prelude.length === 0 && right.completion.kind === "value";
     if (direct) return csharpPlannedValue(selection.resultType, { kind: "AssignmentExpression",
       left: left.completion.expression, operatorToken: assignmentToken, right: right.completion.expression }, left.prelude);
     const fact = input.program.storage.nativeLocation(storageExpression);
@@ -324,11 +327,25 @@ export function planSelectedCsharpBinaryOperation(
     if (captured === undefined || captured.completion.kind !== "value") return captured;
     const location = captured.completion.expression;
     if (assignmentToken.kind === "QuestionQuestionEqualsToken") {
-      const assigned = mapCsharpPlannedValue(right, selection.resultType, expression => ({
-        kind: "AssignmentExpression", left: location,
-        operatorToken: { kind: "EqualsToken" }, right: expression,
-      }));
-      return assigned === undefined ? undefined : planCsharpCoalescingValue(
+      let assigned = right;
+      if (right.completion.kind === "value" && narrowedCoalescing) {
+        const result = captureCsharpPlannedValue(node, input, diagnostics, selection.resultType);
+        if (result === undefined) return undefined;
+        const reference: CsharpExpression = { kind: "IdentifierName", name: result.name };
+        assigned = csharpPlannedValue(selection.resultType, reference, [...right.prelude,
+          { kind: "LocalDeclarationStatement", ...result, initializer: right.completion.expression },
+          { kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", left: location,
+            operatorToken: { kind: "EqualsToken" }, right: reference } },
+        ]);
+      } else if (right.completion.kind === "value") {
+        const result = mapCsharpPlannedValue(right, selection.resultType, expression => ({
+          kind: "AssignmentExpression", left: location,
+          operatorToken: { kind: "EqualsToken" }, right: expression,
+        }));
+        if (result === undefined) return undefined;
+        assigned = result;
+      }
+      return planCsharpCoalescingValue(
         node, sourceFile, input, diagnostics, captured, assigned, selection.resultType);
     }
     const prelude = [...captured.prelude];

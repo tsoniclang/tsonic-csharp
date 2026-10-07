@@ -139,7 +139,7 @@ export function analyzeCsharpObjectShapes(
 
   const literalResults = new WeakMap<
     Node,
-    ReadonlyMap<string, CsharpObjectLiteralTargetShapeResolution>
+    Map<string, CsharpObjectLiteralTargetShapeResolution>
   >();
   const literalUnionCarriers = new WeakMap<Node, ReadonlyMap<string, TargetTypeRef>>();
   const unionTypes = evidence.targetTypes.filter(type =>
@@ -160,6 +160,7 @@ export function analyzeCsharpObjectShapes(
     }
     literalUnionCarriers.set(literal, unionCarriers);
     const results = new Map<string, CsharpObjectLiteralTargetShapeResolution>();
+    literalResults.set(literal, results);
     const contextualShape = policy.objectShapes.resolveType(
       evidence.contextualType(literal),
       sourceFile,
@@ -168,33 +169,28 @@ export function analyzeCsharpObjectShapes(
       undefined,
       byNode.get(literal),
       contextualShape,
-      ...[...byTarget.values()].filter(shape => shape.sourceType !== undefined),
     ]);
     for (const shape of expectedShapes) {
-      classifyLiteral(shape);
+      classifyLiteral(shape, literal);
     }
-    literalResults.set(literal, results);
+  }
 
-    function classifyLiteral(expected: CsharpObjectShapeFact | undefined): void {
-      const key = expected === undefined
-        ? noExpectedShape
-        : csharpObjectShapeContractKey(expected);
-      if (results.has(key)) {
-        return;
-      }
-      reserveClassification();
-      const result = policy.objectShapes.resolveObjectLiteralTargetShape(
-        expected,
-        literal,
-        sourceFile,
-      );
-      results.set(key, result);
-      if (result.kind === "resolved") {
-        rememberShape(result.shape);
-        const implementation = result.shape.methodImplementation;
-        if (implementation !== undefined && implementation.declaration !== literal) copiedMethodImplementations.add(implementation.identity);
-      }
+  function classifyLiteral(expected: CsharpObjectShapeFact | undefined, literal: Node): CsharpObjectLiteralTargetShapeResolution | undefined {
+    const results = literalResults.get(literal);
+    const sourceFile = objectLiterals.get(literal);
+    if (results === undefined || sourceFile === undefined) return undefined;
+    const key = expected === undefined ? noExpectedShape : csharpObjectShapeContractKey(expected);
+    const previous = results.get(key);
+    if (previous !== undefined) return previous;
+    reserveClassification();
+    const result = policy.objectShapes.resolveObjectLiteralTargetShape(expected, literal, sourceFile);
+    results.set(key, result);
+    if (result.kind === "resolved") {
+      rememberShape(result.shape);
+      const implementation = result.shape.methodImplementation;
+      if (implementation !== undefined && implementation.declaration !== literal) copiedMethodImplementations.add(implementation.identity);
     }
+    return result;
   }
 
   const classifications: CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration & { seal(): CsharpObjectShapeClassifications } = {
@@ -284,9 +280,13 @@ export function analyzeCsharpObjectShapes(
       return withInterfaces(node === undefined ? undefined : byNode.get(node));
     },
     resolveTarget(type) {
-      return type === undefined
-        ? undefined
-        : withInterfaces(byTarget.get(targetTypeRefKey(type)));
+      if (type === undefined) return undefined;
+      let shape = byTarget.get(targetTypeRefKey(type));
+      if (shape === undefined && !sealed) {
+        shape = policy.objectShapes.resolveTarget(type);
+        rememberTargetShape(type, shape);
+      }
+      return withInterfaces(shape);
     },
     resolveObjectLiteralTargetShape(expectedShape, objectLiteral) {
       const original = expectedShape === undefined ? undefined
@@ -294,7 +294,8 @@ export function analyzeCsharpObjectShapes(
       const key = original === undefined
         ? noExpectedShape
         : csharpObjectShapeContractKey(original);
-      const result = literalResults.get(objectLiteral)?.get(key);
+      const result = literalResults.get(objectLiteral)?.get(key) ??
+        (sealed ? undefined : classifyLiteral(original, objectLiteral));
       return result?.kind === "resolved"
         ? { ...result, shape: withInterfaces(result.shape)! } : result;
     },

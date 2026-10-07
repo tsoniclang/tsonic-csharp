@@ -3,6 +3,7 @@ import test from "node:test";
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
 import { resolveProviderObjectLiteralShape } from "../../../dist/policy/types/objects/object-shape-policy/provider-construction.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int64" });
 const floating = Object.freeze({ kind: "source-primitive", name: "float64" });
@@ -90,7 +91,8 @@ test("optional provider fields preserve exact native integer storage and one abs
   const value = fixture({ optional: true, sourceType: integer, memberType: optionalInteger });
   const shape = resolveProviderObjectLiteralShape(value.input);
   assert.equal(shape?.members[0].optional, true);
-  assert.equal(shape?.members[0].type === optionalInteger, true);
+  assert.equal(targetTypeRefEquals(shape?.members[0].type, optionalInteger), true,
+    "the exact immutable native carrier survives type-parameter substitution");
   assert.equal(resolveProviderObjectLiteralShape(fixture({ optional: true, memberType: integer }).input) === undefined,
     true, "optional source cannot occupy nonnullable native storage");
 });

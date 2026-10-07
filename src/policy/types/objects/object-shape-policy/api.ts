@@ -124,11 +124,14 @@ export function createCsharpObjectShapePolicy(
       );
       const selectedShape = resolveTarget(selectedTarget);
       const source = selectedObjectShapeSource(node, queries, host, state);
-      if (selectedShape !== undefined && source.type !== undefined && !host.ast.is.IsObjectLiteralExpression(node)) {
-        const members = instantiateMemberEvidence(selectedShape.members, source.type, queries, selectedShape.sourceType);
+      if (selectedShape !== undefined && source.type !== undefined &&
+        (!host.ast.is.IsObjectLiteralExpression(node) || selectedShape.constructible === true)) {
+        const actualType = host.ast.is.IsObjectLiteralExpression(node) ? queries.types.expressionType(node) : source.type;
+        const members = actualType === undefined ? undefined
+          : instantiateMemberEvidence(selectedShape.members, actualType, queries, selectedShape.sourceType);
         if (members !== undefined) return state.sourceBindings === undefined
-          ? remember(node, { ...selectedShape, sourceType: source.type, members })
-          : rememberTargetShape({ ...selectedShape, sourceType: source.type, members });
+          ? remember(node, { ...selectedShape, sourceType: actualType, members })
+          : rememberTargetShape({ ...selectedShape, sourceType: actualType, members });
       }
       const declaration = host.navigation.declarationFor(node);
       const authoredTypeRoot = declaration === undefined
@@ -808,6 +811,7 @@ export function createCsharpObjectShapePolicy(
     if (implemented === undefined) return undefined;
     return {
       targetType,
+      sourceType: declaredType,
       members: Object.freeze(declaredMembers.map((member) => ({
         ...member,
         type: substituteTargetTypeParameters(member.type, substitutions),

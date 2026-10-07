@@ -3,6 +3,7 @@ import { csharpSourcePrimitiveTargetType, getCsharpJsArrayElementTargetType } fr
 import { csharpJsArrayTargetType } from "../../../types/resolution/surface-types.js";
 import type { CsharpSourceProfileCallPolicy } from "../source-profile-policy.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { resolveCsharpSourceProfileGenericResult } from "../source-profile-result.js";
 import { jsRuntimeTargetType, staticMethod, targetParameter } from "./common.js";
 
 const doubleType = csharpSourcePrimitiveTargetType("float64");
@@ -90,22 +91,7 @@ export function arrayConstructorElementTypeArguments(
 function arrayConstructorResultType(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): TargetTypeRef | undefined {
-  const selected = context.source.sourceSelectedMethodTypeArguments ?? [];
-  if (selected.length !== 0) {
-    if (selected.length !== 1) {
-      return undefined;
-    }
-    const element = context.host.types.resolveSelectedType(
-      selected[0]!.explicitTypeNode,
-      selected[0]!.selectedType,
-      context.sourceFile,
-    );
-    return element === undefined ? undefined : csharpJsArrayTargetType(element);
-  }
-  return context.host.types.resolveType(
-    context.source.sourceResultType,
-    context.sourceFile,
-  );
+  return resolveCsharpSourceProfileGenericResult(context, 1, (arguments_) => csharpJsArrayTargetType(arguments_[0]!));
 }
 
 export function arrayConstructionTypeArguments(

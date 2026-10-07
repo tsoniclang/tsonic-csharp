@@ -2,6 +2,7 @@ import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { getCsharpGenericOptionalParts, isCsharpAbsenceTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { getCsharpAwaitResultTargetType } from "../../../target-model/types/delegates.js";
 import { isCsharpDestructuringAssignmentPattern, isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 import { selectCsharpNumericBinaryPromotion } from "../../operations/numeric/promotion.js";
@@ -55,6 +56,7 @@ export function resolveBinaryTargetRepresentation(
     case ">>>":
       return left;
     case "??": {
+      if (targetTypeRefEquals(left, right) || isCsharpAbsenceTargetType(right)) return left;
       const nonNullableLeft = getNonNullableTargetRepresentation(left);
       const numeric = leftNode === undefined || rightNode === undefined
         ? undefined
@@ -107,7 +109,7 @@ export function commonTargetRepresentation(
 export function getNonNullableTargetRepresentation(
   type: TargetTypeRef,
 ): TargetTypeRef {
-  return getCsharpNullableElementTargetType(type) ?? type;
+  return getCsharpNullableElementTargetType(type) ?? getCsharpGenericOptionalParts(type)?.element ?? type;
 }
 
 

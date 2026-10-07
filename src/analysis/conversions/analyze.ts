@@ -1,4 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
+import { Node_Initializer } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import {
   selectCsharpConversion,
@@ -10,6 +11,7 @@ import type {
 } from "../../policy/conversions/index.js";
 import {
   csharpAbsenceTargetType,
+  csharpNullableTargetType,
   getCsharpNullableElementTargetType,
   isCsharpJsValueTargetType,
   isCsharpJsValueObjectShapeTargetType,
@@ -160,11 +162,18 @@ export function analyzeCsharpConversions(
       classifyPair(candidate, candidate, "implicit", node);
       const element = getCsharpGenericOptionalParts(candidate)?.element ?? getCsharpNullableElementTargetType(candidate);
       if (element !== undefined) classifyPair(element, candidate, "implicit", node);
+      const parent = policy.ast.parent(node);
+      if (candidate.kind === "type-parameter" && getCsharpGenericOptionalParts(candidate) === undefined &&
+        parent !== undefined && policy.ast.is.IsBindingElement(parent) && Node_Initializer(policy.ast, parent) === node) {
+        classifyPair(candidate, csharpNullableTargetType(candidate), "implicit", node);
+      }
     }
     for (const targetType of expectedTypes.forExpression(node)) {
-      for (const candidate of sourceTypes) {
-        classifyExpression(node, candidate, targetType, "implicit",
-          expectedTypes.requiresExactIntegerConversion(node, targetType));
+      if (!policy.ast.is.IsObjectLiteralExpression(node)) {
+        for (const candidate of sourceTypes) {
+          classifyExpression(node, candidate, targetType, "implicit",
+            expectedTypes.requiresExactIntegerConversion(node, targetType));
+        }
       }
       classifyArrayCarrier(node, targetType, expectedTypes, operations, storage);
       if (policy.ast.is.IsObjectLiteralExpression(node)) {

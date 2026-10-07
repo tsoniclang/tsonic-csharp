@@ -82,7 +82,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       });
       if (matching.length !== 1) return undefined;
       const pair = matching[0]!;
-      if (pair.kind !== "present") return undefined;
+      if (pair.kind !== "present") return member.optional === true && pair.destination.property.optional ? member : undefined;
       const property = pair.source.property;
       const declarations = pair.source.declarations;
       return { ...member,

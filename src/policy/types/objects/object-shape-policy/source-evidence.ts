@@ -18,6 +18,9 @@ export function selectedObjectShapeSource(
   host: CsharpObjectShapePolicyHost,
   state: CsharpTypeResolutionState,
 ): SelectedObjectShapeSource {
+  if (host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node)) {
+    return { type: queries.declarations.declaredType(node) };
+  }
   const semanticType = queries.types.expressionType(node);
   if (!host.ast.is.IsObjectLiteralExpression(node)) {
     return { type: semanticType };
