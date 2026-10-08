@@ -91,7 +91,6 @@ export interface CsharpArtifactGraph {
       readonly node: Node;
       readonly type: TargetTypeRef;
     },
-    selectedProperties?: readonly string[],
   ): CsharpObjectShapeProjectionRequestResult;
   objectShapeArtifacts(): readonly CsharpObjectShapeArtifact[];
   requireGeneratedHelper(

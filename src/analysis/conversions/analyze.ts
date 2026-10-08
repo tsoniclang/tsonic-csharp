@@ -31,7 +31,7 @@ import { getCsharpGenericOptionalParts } from "../../target-model/types/projecti
 import {
   directCsharpSourceYieldExpression,
 } from "../../target-model/syntax/yield-expression.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
 import {
   resolveCsharpObjectShapeMemberBySourceContract,
 } from "../../target-model/types/index.js";
@@ -75,7 +75,7 @@ export function analyzeCsharpConversions(
   >();
   let delegateAdapters: ReturnType<typeof sealCsharpDelegateAdapterIdentities> = new Map();
   const issues: CsharpConversionIssue[] = [];
-  const propertyProjections = new WeakMap<Node, ReadonlyMap<string, readonly string[]>>();
+  const propertyProjections = new WeakMap<Node, ReadonlyMap<string, readonly CsharpObjectShapeMemberFact[]>>();
   const directCallables = new WeakMap<Node, NonNullable<ReturnType<CsharpPolicyContext["navigation"]["referenceFor"]>>>();
   let classificationCount = 0;
   let closed = false;
@@ -546,10 +546,10 @@ export function analyzeCsharpConversions(
           message: "Native property projection requires exact checked selected-parameter member correspondence." });
         continue;
       }
-      const orders = new Map<string, readonly string[]>();
+      const orders = new Map<string, readonly CsharpObjectShapeMemberFact[]>();
       for (const projection of projected) {
         if (!reserveClassification(subject)) return;
-        orders.set(targetTypeRefKey(projection.source), Object.freeze(projection.members.map(member => member.sourceName)));
+        orders.set(targetTypeRefKey(projection.source), projection.members);
         for (const member of projection.members) {
           if (!reserveClassification(subject)) return;
           classifyPair(member.type, csharpTsValueTargetType(), "implicit", subject);
@@ -633,10 +633,9 @@ export function analyzeCsharpConversions(
   }
 
   function objectProjectionValueType(
-    projection: "keys" | "values" | "entries" | "has-own" | "properties",
+    projection: "keys" | "values" | "entries" | "has-own",
     resultType: TargetTypeRef,
   ): TargetTypeRef | undefined {
-    if (projection === "properties") return isCsharpJsValueTargetType(resultType) ? resultType : undefined;
     if (projection === "values") {
       return getCsharpJsArrayElementTargetType(resultType);
     }

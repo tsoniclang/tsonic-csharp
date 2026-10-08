@@ -344,7 +344,6 @@ export type CsharpObjectShapeCapability =
   | "js-freeze";
 
 export type CsharpObjectShapeProjectionKind =
-  | "properties"
   | "keys"
   | "values"
   | "entries"

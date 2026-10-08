@@ -133,27 +133,6 @@ function renderProjectionExpression(
     );
   }
   switch (projection.kind) {
-    case "properties": {
-      if (!targetTypeRefEquals(projection.resultType, csharpTsValueTargetType())) {
-        return rejected("Checked property projection requires its exact TsValue result carrier.");
-      }
-      const values: CsharpExpression[] = [];
-      for (const member of members) {
-        const converted = convertClosedShapeValue(input, member.type, projection.resultType, memberExpression(fact, member));
-        if (converted.kind === "rejected") return rejected(
-          `Checked property '${member.sourceName}' has no exact native value conversion: ${converted.reason}`,
-        );
-        values.push({ kind: "LiteralExpression", value: member.sourceName }, converted.expression);
-      }
-      const declaringType = csharpTypeFromTargetTypeRef(projection.resultType, input.scope.typeParameterNames);
-      return declaringType === undefined ? rejected("The checked property result is not renderable.") : {
-        kind: "resolved", expression: {
-          kind: "InvocationExpression",
-          callee: { kind: "SimpleMemberAccessExpression", receiver: declaringType, name: "CreateDynamicObject" },
-          arguments: values.map(expression => ({ kind: "Argument", expression })),
-        },
-      };
-    }
     case "keys": {
       const elementType = getCsharpJsArrayElementTargetType(projection.resultType);
       if (elementType === undefined || !targetTypeRefEquals(elementType, stringTargetType)) {
@@ -351,7 +330,7 @@ function memberExpression(
   };
 }
 
-function convertClosedShapeValue(
+export function convertClosedShapeValue(
   input: CsharpPlanningContext,
   sourceType: TargetTypeRef,
   targetType: TargetTypeRef,

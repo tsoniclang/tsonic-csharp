@@ -2,7 +2,6 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import {
-  csharpObjectShapeProjectionMethodName,
   csharpTsValueTargetType,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
@@ -15,6 +14,7 @@ import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planCsharpJsValueBox } from "./js-value-operations.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
+import { convertClosedShapeValue } from "../objects/closed-object-shapes.js";
 
 export function planCsharpPropertyValueProjection(
   node: Node,
@@ -70,20 +70,28 @@ export function planCsharpPropertyValueProjection(
   }
   const shape = input.types.objectShapes.resolveTarget(sourceType);
   if (shape === undefined) return planCsharpJsValueBox(node, input, diagnostics, sourceType, expression);
-  const selectedProperties = input.program.conversions.propertyProjection(node, sourceType);
-  if (selectedProperties === undefined) {
+  const members = input.program.conversions.propertyProjection(node, sourceType);
+  if (members === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Native property projection requires its sealed selected-parameter member demand."));
     return undefined;
   }
-  const selected = input.artifacts.requireObjectShapeProjection(undefined, sourceType, sourceFile,
-    "properties", resultType, "object-shape", undefined, selectedProperties);
-  if (selected.kind === "rejected" || selected.projection?.kind !== "properties") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, selected.kind === "rejected" ? selected.reason
-      : "Checked property projection requires its exact generated shape method."));
-    return undefined;
+  const name = input.names.temporaryName(`__tsonic_properties_${input.program.source.ast.pos(node)}`);
+  const values: CsharpExpression[] = [];
+  for (const member of members) {
+    const converted = convertClosedShapeValue(input, member.type, resultType,
+      { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: member.targetName });
+    if (converted.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, converted.reason));
+      return undefined;
+    }
+    values.push({ kind: "LiteralExpression", value: member.sourceName }, converted.expression);
   }
-  return { kind: "InvocationExpression",
-    callee: { kind: "SimpleMemberAccessExpression", receiver: expression,
-      name: csharpObjectShapeProjectionMethodName(selected.projection) }, arguments: [],
+  return { kind: "SwitchExpression", expression, arms: [{
+    pattern: members.length === 0 ? { kind: "DiscardPattern" } : { kind: "VarPattern", designation: name },
+    expression: { kind: "InvocationExpression",
+      callee: { kind: "SimpleMemberAccessExpression", receiver: resultSyntax, name: "CreateDynamicObject" },
+      arguments: values.map(value => ({ kind: "Argument", expression: value })),
+    },
+  }],
   };
 }

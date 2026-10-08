@@ -4,7 +4,7 @@ import type {
   CsharpConversionMode,
   CsharpConversionSelection,
 } from "../../policy/conversions/index.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
 import type {
   CsharpExpectedTypeClassifications,
 } from "../expected-types/index.js";
@@ -40,7 +40,7 @@ export interface CsharpExpressionConversionClassification {
 
 export interface CsharpConversionClassifications {
   readonly issues: readonly CsharpConversionIssue[];
-  propertyProjection(expression: Node, source: TargetTypeRef): readonly string[] | undefined;
+  propertyProjection(expression: Node, source: TargetTypeRef): readonly CsharpObjectShapeMemberFact[] | undefined;
   delegateAdapters(scope: Node): readonly CsharpDelegateAdapterIdentity[];
   delegateAdapter(expression: Node, source: TargetTypeRef, target: TargetTypeRef): CsharpDelegateAdapterIdentity | undefined;
   directCallableReference(expression: Node): SourceProjectReference | undefined;

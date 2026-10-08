@@ -53,20 +53,8 @@ export function resolveCsharpObjectShapePropertyOrder(
   sourceValue: Node | undefined,
   projection: CsharpObjectShapeProjectionKind,
   ast: AstReader,
-  selectedProperties?: readonly string[],
 ): CsharpObjectShapePropertyOrderSelection {
-  const stringMembers = fact.members.filter((member) =>
-    member.sourceKey.kind === "property" && (projection !== "properties" || member.memberKind === "property")
-  );
-  if (projection === "properties") {
-    return selectedProperties !== undefined &&
-      new Set(selectedProperties).size === selectedProperties.length &&
-      selectedProperties.every(name => stringMembers.some(member => member.sourceName === name)) &&
-      new Set(stringMembers.map(member => member.sourceName)).size === stringMembers.length &&
-      !fact.members.some(member => isCsharpObjectShapeGeneratedMemberName(member.targetName))
-      ? { kind: "resolved", propertyOrder: Object.freeze([...selectedProperties]) }
-      : rejected("Checked property projection requires exact unique readable members without reserved generated names.");
-  }
+  const stringMembers = fact.members.filter(member => member.sourceKey.kind === "property");
   if (isSourceDeclaredNominalShape(fact)) {
     return rejected(
       `Selected '${projection}' operation requires one exact generated structural object carrier; an open nominal source type cannot prove its runtime own-property set.`,
@@ -231,10 +219,10 @@ export function csharpObjectShapeProjectionMembers(
     return undefined;
   }
   const stringMembers = fact.members.filter((member) =>
-    member.sourceKey.kind === "property" && (projection.kind !== "properties" || member.memberKind === "property")
+    member.sourceKey.kind === "property"
   );
   if (
-    projection.kind !== "properties" && projection.propertyOrder.length !== stringMembers.length ||
+    projection.propertyOrder.length !== stringMembers.length ||
     new Set(projection.propertyOrder).size !== projection.propertyOrder.length ||
     new Set(stringMembers.map(member => member.sourceName)).size !== stringMembers.length
   ) {
@@ -246,9 +234,7 @@ export function csharpObjectShapeProjectionMembers(
       sourceName,
       "finalized-object-spread-member",
     );
-    return selected.kind === "resolved" &&
-        (projection.kind !== "properties" || selected.member.memberKind === "property")
-      ? selected.member : undefined;
+    return selected.kind === "resolved" ? selected.member : undefined;
   });
   return members.some((member) => member === undefined)
     ? undefined

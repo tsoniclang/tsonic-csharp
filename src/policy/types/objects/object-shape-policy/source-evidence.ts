@@ -4,6 +4,7 @@ import type { CsharpTypeResolutionState } from "../../resolution/model.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { ExtensionFactSubject, Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { sourceTypeIsAuthoredEmptyObject } from "@tsonic/target-api/source";
 import { nextState } from "../../resolution/state.js";
 import { classifyCsharpSourceProfileType } from "../../resolution/source-profile.js";
 
@@ -90,7 +91,8 @@ export function requiresUnresolvedStructuralProjection(
   queries: SourceFileSemantics,
   host: CsharpObjectShapePolicyHost,
 ): boolean {
-  if (!queries.types.couldContainTypeVariables(type)) {
+  if (!queries.types.couldContainTypeVariables(type) ||
+    sourceTypeIsAuthoredEmptyObject(type, host.ast, queries, host.navigation)) {
     return false;
   }
   if (
