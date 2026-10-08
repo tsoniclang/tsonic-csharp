@@ -70,8 +70,13 @@ export function planCsharpPropertyValueProjection(
   }
   const shape = input.types.objectShapes.resolveTarget(sourceType);
   if (shape === undefined) return planCsharpJsValueBox(node, input, diagnostics, sourceType, expression);
+  const selectedProperties = input.program.conversions.propertyProjection(node, sourceType);
+  if (selectedProperties === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Native property projection requires its sealed selected-parameter member demand."));
+    return undefined;
+  }
   const selected = input.artifacts.requireObjectShapeProjection(undefined, sourceType, sourceFile,
-    "properties", resultType, "object-shape");
+    "properties", resultType, "object-shape", undefined, selectedProperties);
   if (selected.kind === "rejected" || selected.projection?.kind !== "properties") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selected.kind === "rejected" ? selected.reason
       : "Checked property projection requires its exact generated shape method."));

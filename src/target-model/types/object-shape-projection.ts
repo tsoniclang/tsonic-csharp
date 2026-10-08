@@ -53,14 +53,18 @@ export function resolveCsharpObjectShapePropertyOrder(
   sourceValue: Node | undefined,
   projection: CsharpObjectShapeProjectionKind,
   ast: AstReader,
+  selectedProperties?: readonly string[],
 ): CsharpObjectShapePropertyOrderSelection {
   const stringMembers = fact.members.filter((member) =>
     member.sourceKey.kind === "property" && (projection !== "properties" || member.memberKind === "property")
   );
   if (projection === "properties") {
-    return new Set(stringMembers.map(member => member.sourceName)).size === stringMembers.length &&
+    return selectedProperties !== undefined &&
+      new Set(selectedProperties).size === selectedProperties.length &&
+      selectedProperties.every(name => stringMembers.some(member => member.sourceName === name)) &&
+      new Set(stringMembers.map(member => member.sourceName)).size === stringMembers.length &&
       !fact.members.some(member => isCsharpObjectShapeGeneratedMemberName(member.targetName))
-      ? { kind: "resolved", propertyOrder: Object.freeze(stringMembers.map(member => member.sourceName)) }
+      ? { kind: "resolved", propertyOrder: Object.freeze([...selectedProperties]) }
       : rejected("Checked property projection requires exact unique readable members without reserved generated names.");
   }
   if (isSourceDeclaredNominalShape(fact)) {
@@ -230,9 +234,9 @@ export function csharpObjectShapeProjectionMembers(
     member.sourceKey.kind === "property" && (projection.kind !== "properties" || member.memberKind === "property")
   );
   if (
-    projection.propertyOrder.length !== stringMembers.length ||
+    projection.kind !== "properties" && projection.propertyOrder.length !== stringMembers.length ||
     new Set(projection.propertyOrder).size !== projection.propertyOrder.length ||
-    projection.kind === "properties" && projection.propertyOrder.some((name, index) => name !== stringMembers[index]?.sourceName)
+    new Set(stringMembers.map(member => member.sourceName)).size !== stringMembers.length
   ) {
     return undefined;
   }

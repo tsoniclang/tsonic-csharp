@@ -40,6 +40,7 @@ export interface CsharpExpressionConversionClassification {
 
 export interface CsharpConversionClassifications {
   readonly issues: readonly CsharpConversionIssue[];
+  propertyProjection(expression: Node, source: TargetTypeRef): readonly string[] | undefined;
   delegateAdapters(scope: Node): readonly CsharpDelegateAdapterIdentity[];
   delegateAdapter(expression: Node, source: TargetTypeRef, target: TargetTypeRef): CsharpDelegateAdapterIdentity | undefined;
   directCallableReference(expression: Node): SourceProjectReference | undefined;

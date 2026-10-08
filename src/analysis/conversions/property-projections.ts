@@ -1,36 +1,70 @@
+import type { Node, Type } from "@tsonic/tsts";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpObjectShapeClassifications } from "../objects/index.js";
-import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { getCsharpNullableElementTargetType, targetTypeRefKey } from "../../target-model/types/index.js";
+import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
+import {
+  getCsharpNullableElementTargetType,
+  isCsharpAbsenceTargetType,
+  isCsharpJsValueTargetType,
+  resolveCsharpObjectShapeMemberBySelectedSubject,
+  targetTypeRefKey,
+} from "../../target-model/types/index.js";
 import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
 
-export function csharpPropertyProjectionValueTypes(
-  type: TargetTypeRef | undefined,
+export interface CsharpPropertyProjection {
+  readonly source: TargetTypeRef;
+  readonly members: readonly CsharpObjectShapeMemberFact[];
+}
+
+export function selectCsharpPropertyProjections(
+  expression: Node,
+  source: TargetTypeRef | undefined,
+  destination: Type,
+  policy: CsharpPolicyContext,
   shapes: Pick<CsharpObjectShapeClassifications, "resolveTarget">,
-  definitions?: CsharpTypeDefinitions,
-): readonly TargetTypeRef[] {
-  if (type === undefined) return [];
-  const pending = [type];
+): readonly CsharpPropertyProjection[] | undefined {
+  if (source === undefined) return undefined;
+  const semantics = policy.semanticsFor(expression);
+  const destinationType = semantics.types.nonNullableType(destination);
+  if (destinationType === undefined) return undefined;
+  const pending = [source];
   const visited = new Set<string>();
-  const values: TargetTypeRef[] = [];
+  const projections: CsharpPropertyProjection[] = [];
   while (pending.length > 0) {
     const selected = pending.pop()!;
     const key = targetTypeRefKey(selected);
     if (visited.has(key)) continue;
     visited.add(key);
+    if (isCsharpAbsenceTargetType(selected) || isCsharpJsValueTargetType(selected)) continue;
     const present = getCsharpNullableElementTargetType(selected);
     if (present !== undefined) {
       pending.push(present);
       continue;
     }
-    const leaves = csharpUnionLeaves(selected, definitions);
+    const leaves = csharpUnionLeaves(selected, policy.typeDefinitions);
     if (leaves !== undefined && leaves.some(leaf => leaf.path.length > 0)) {
       pending.push(...leaves.map(leaf => leaf.carrier));
       continue;
     }
-    for (const member of shapes.resolveTarget(selected)?.members ?? []) {
-      if (member.sourceKey.kind === "property" && member.memberKind === "property") values.push(member.type);
+    const shape = shapes.resolveTarget(selected);
+    if (shape?.sourceType === undefined) return undefined;
+    const correspondence = semantics.types.structuralMembers(shape.sourceType, destinationType);
+    if (correspondence.kind !== "available" || correspondence.destination.calls.length !== 0 ||
+      correspondence.destination.constructs.length !== 0 || correspondence.destination.indexes.length !== 0) return undefined;
+    const members: CsharpObjectShapeMemberFact[] = [];
+    for (const pair of correspondence.members) {
+      if (pair.kind === "absent") {
+        if (!pair.destination.property.optional) return undefined;
+        continue;
+      }
+      if (pair.destination.read !== "property" || pair.source.read === "method" || pair.source.read === "unavailable") return undefined;
+      const member = resolveCsharpObjectShapeMemberBySelectedSubject(shape,
+        [pair.source.property.symbol, ...pair.source.property.rootSymbols, ...pair.source.declarations]);
+      if (member.kind !== "resolved" || member.member.memberKind !== "property") return undefined;
+      members.push(member.member);
     }
+    if (new Set(members.map(member => member.sourceName)).size !== members.length) return undefined;
+    projections.push(Object.freeze({ source: selected, members: Object.freeze(members) }));
   }
-  return values;
+  return Object.freeze(projections);
 }

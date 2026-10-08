@@ -12,10 +12,12 @@ test("Intl exact integer, optional precision and grouping contracts execute in C
   const compiled = compileCsharpSource({ surface: "js", sourceText: `
     import type { int32, uint32, float32, int64, uint64, int128, uint128 } from "@tsonic/core/types.js";
     let optionReads: int32 = 0;
+    let unrelatedOptionReads: int32 = 0;
     let optionSuppliers: int32 = 0;
     interface GroupingOptions { readonly useGrouping: boolean; }
     class UngroupedOptions implements GroupingOptions {
       get useGrouping(): boolean { optionReads += 1; return false; }
+      get unrelated(): boolean { unrelatedOptionReads += 1; return true; }
       toJSON(): { useGrouping: boolean } { return { useGrouping: true }; }
     }
     class GroupedOptions { readonly useGrouping: boolean = true; }
@@ -44,13 +46,14 @@ test("Intl exact integer, optional precision and grouping contracts execute in C
       if (JSON.stringify(namedOptions) !== '{"useGrouping":true}') return false;
       const nativeOptions = supplyOptions();
       const aliasOptions: GroupingOptions = nativeOptions;
+      if (new Intl.NumberFormat("en", nativeOptions).format(signed) !== "9007199254740993") return false;
       if (interfaceOptions(signed, aliasOptions) !== "9007199254740993") return false;
       if (optionalOptions(signed, aliasOptions) !== "9007199254740993") return false;
       if (optionalOptions(signed, undefined) !== "9,007,199,254,740,993") return false;
       if (unionOptions(signed, nativeOptions) !== "9007199254740993") return false;
       if (unionOptions(signed, new GroupedOptions()) !== "9,007,199,254,740,993") return false;
       if (signed.toLocaleString("en", supplyOptions()) !== "9007199254740993") return false;
-      if (optionSuppliers !== 2 || optionReads !== 4) return false;
+      if (optionSuppliers !== 2 || optionReads !== 5 || unrelatedOptionReads !== 0) return false;
       const absentDigits = plain.resolvedOptions().maximumSignificantDigits;
       const absentCurrency = plain.resolvedOptions().currency;
       if (absentDigits !== undefined || absentCurrency !== undefined) return false;

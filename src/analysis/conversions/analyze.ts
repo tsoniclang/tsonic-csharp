@@ -39,6 +39,7 @@ import type { CsharpExpectedTypeClassifications } from "../expected-types/index.
 import type { CsharpObjectShapeClassifications } from "../objects/index.js";
 import type { CsharpStructuralInterfaceRegistration } from "../objects/structural-interfaces.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
+import type { CsharpTargetCallSelection } from "../../policy/operations/members/index.js";
 import type { CsharpBorrowedSequenceInput } from "../operations/borrowed-sequences.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpStorageRepresentationClassifications } from "../storage/index.js";
@@ -54,7 +55,7 @@ import { csharpSourceTypeParameter } from "../../target-model/names/type-paramet
 import { selectCsharpIntegerTruncationConversion } from "../../policy/conversions/selection/integer-truncation.js";
 import { selectCsharpExactIntegerConversion } from "../../policy/conversions/selection/exact-integer.js";
 import { csharpRuntimeUnionMappingMatches, csharpRuntimeUnionProjectionMatches } from "./validation.js";
-import { csharpPropertyProjectionValueTypes } from "./property-projections.js";
+import { selectCsharpPropertyProjections } from "./property-projections.js";
 
 const unavailableConversion: CsharpConversionSelection = Object.freeze({
   kind: "rejected",
@@ -74,6 +75,7 @@ export function analyzeCsharpConversions(
   >();
   let delegateAdapters: ReturnType<typeof sealCsharpDelegateAdapterIdentities> = new Map();
   const issues: CsharpConversionIssue[] = [];
+  const propertyProjections = new WeakMap<Node, ReadonlyMap<string, readonly string[]>>();
   const directCallables = new WeakMap<Node, NonNullable<ReturnType<CsharpPolicyContext["navigation"]["referenceFor"]>>>();
   let classificationCount = 0;
   let closed = false;
@@ -81,6 +83,7 @@ export function analyzeCsharpConversions(
 
   const openClassifications: CsharpConversionClassifications = {
     issues,
+    propertyProjection: (expression, source) => propertyProjections.get(expression)?.get(targetTypeRefKey(source)),
     delegateAdapters: scope => delegateAdapters.get(scope) ?? [],
     delegateAdapter: (expression, source, target) => expressionSelections.get(expression)?.get(pairKey(source, target, "implicit"))?.delegateIdentity,
     directCallableReference: expression => directCallables.get(expression),
@@ -127,6 +130,7 @@ export function analyzeCsharpConversions(
       const sealedIssues = Object.freeze([...issues]);
       const sealed: CsharpConversionClassifications = {
         issues: sealedIssues,
+        propertyProjection: openClassifications.propertyProjection,
         delegateAdapters: openClassifications.delegateAdapters,
         delegateAdapter: openClassifications.delegateAdapter,
         directCallableReference: openClassifications.directCallableReference,
@@ -222,7 +226,8 @@ export function analyzeCsharpConversions(
     classifyAssertion(node, operations, storage);
     classifyUndefinedInitializer(node);
     classifyYieldResume(node);
-    classifyCallUses(node, operations, storage);
+    classifyCallUses(node, operations);
+    classifySelectedTargetCallUses(operations.call(node)?.target ?? operations.construction(node)?.target, storage);
     policy.ast.forEachChild(
       node,
       (child) => {
@@ -421,7 +426,6 @@ export function analyzeCsharpConversions(
   function classifyCallUses(
     node: Node,
     operations: CsharpTargetOperationClassifications,
-    storage: CsharpStorageRepresentationClassifications,
   ): void {
     const classification = operations.call(node);
     if (classification === undefined) {
@@ -487,17 +491,23 @@ export function analyzeCsharpConversions(
         );
       }
     }
-    if (classification.target?.kind !== "resolved") {
+  }
+
+  function classifySelectedTargetCallUses(
+    selection: CsharpTargetCallSelection | undefined,
+    storage: CsharpStorageRepresentationClassifications,
+  ): void {
+    if (selection?.kind !== "resolved") {
       return;
     }
-    if (classification.target.call.origin === "provider") {
-      const argumentsByIndex = new Map(classification.target.call.arguments.map(argument =>
+    if (selection.call.origin === "provider") {
+      const argumentsByIndex = new Map(selection.call.arguments.map(argument =>
         [argument.effectiveArgumentIndex, argument]));
-      for (const mapping of classification.target.call.argumentMappings) {
+      for (const mapping of selection.call.argumentMappings) {
         if (mapping.kind !== "by-value") continue;
         const argument = argumentsByIndex.get(mapping.effectiveArgumentIndex);
         const expression = argument === undefined ? undefined
-          : classification.target.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
+          : selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
         if (expression !== undefined) {
           classifyExpression(expression, mapping.sourceType, mapping.targetType, "implicit", false, true);
           let source = mapping.sourceType;
@@ -514,22 +524,38 @@ export function analyzeCsharpConversions(
             const selections = expressionSelections.get(expression);
             const previous = selections?.get(key);
             if (previous !== undefined) selections!.set(key, Object.freeze({ ...previous, selection: conversion,
-              ...(classification.target.call.targetMember.csharpInvocation?.kind === "native-event-remove" &&
+              ...(selection.call.targetMember.csharpInvocation?.kind === "native-event-remove" &&
                 conversion.strategy === "adaptation" ? { identityRequired: true } : {}),
             }));
           }
         }
       }
     }
-    const member = classification.target.call.targetMember;
-    for (const argument of classification.target.call.arguments) {
+    const member = selection.call.targetMember;
+    for (const argument of selection.call.arguments) {
       if (argument.targetParameter.csharpValueProjection !== "properties") continue;
-      const subject = classification.target.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
+      const subject = selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
       if (subject === undefined) continue;
       const type = storage.type(subject) ?? evidence.nodeTargetType(subject);
-      for (const memberType of csharpPropertyProjectionValueTypes(type, objectShapes, policy.typeDefinitions)) {
-        classifyPair(memberType, csharpTsValueTargetType(), "implicit", subject);
+      const binding = selection.source.sourceArgumentBindings.find(binding =>
+        binding.effectiveArgumentIndex === argument.effectiveArgumentIndex);
+      const projected = binding === undefined ? undefined
+        : selectCsharpPropertyProjections(subject, type, binding.selectedParameterType, policy, objectShapes);
+      if (projected === undefined) {
+        issues.push({ node: subject, code: "CSHARP_PROPERTY_PROJECTION_NOT_CLOSED",
+          message: "Native property projection requires exact checked selected-parameter member correspondence." });
+        continue;
       }
+      const orders = new Map<string, readonly string[]>();
+      for (const projection of projected) {
+        if (!reserveClassification(subject)) return;
+        orders.set(targetTypeRefKey(projection.source), Object.freeze(projection.members.map(member => member.sourceName)));
+        for (const member of projection.members) {
+          if (!reserveClassification(subject)) return;
+          classifyPair(member.type, csharpTsValueTargetType(), "implicit", subject);
+        }
+      }
+      propertyProjections.set(subject, orders);
     }
     if (member.returnType === undefined) {
       return;
@@ -539,8 +565,8 @@ export function analyzeCsharpConversions(
         continue;
       }
       const subject = requirement.source.kind === "receiver"
-        ? classification.target.source.sourceReceiver?.expression
-        : classification.target.source.sourceArguments[
+        ? selection.source.sourceReceiver?.expression
+        : selection.source.sourceArguments[
             requirement.source.index
           ]?.expression;
       if (subject === undefined) {
@@ -553,7 +579,7 @@ export function analyzeCsharpConversions(
         ? objectShapes.resolveTarget(subjectType) ?? objectShapes.resolveNode(subject)
         : objectShapes.resolveNode(subject) ?? objectShapes.resolveTarget(subjectType);
       if (requirement.projection === "assign") {
-        const assignmentSubject = classification.target.source.sourceArguments[
+        const assignmentSubject = selection.source.sourceArguments[
           requirement.assignmentSource.index
         ]?.expression;
         const assignmentType = assignmentSubject === undefined

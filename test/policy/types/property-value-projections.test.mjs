@@ -13,7 +13,7 @@ test("checked property projection retains exact native fields and does not selec
     memberKind: "method", type: csharpStringTargetType() };
   const shape = { targetType: { kind: "target-named", id: "Options", csharpSourceDeclarationKind: "class" },
     members: [count, method, grouping] };
-  const selected = resolveCsharpObjectShapePropertyOrder(shape, undefined, "properties", {});
+  const selected = resolveCsharpObjectShapePropertyOrder(shape, undefined, "properties", {}, ["count", "useGrouping"]);
   assert.equal(selected.kind, "resolved");
   assert.deepEqual(selected.propertyOrder, ["count", "useGrouping"]);
   const projection = { kind: "properties", resultType: csharpTsValueTargetType(), propertyOrder: selected.propertyOrder };
@@ -21,12 +21,21 @@ test("checked property projection retains exact native fields and does not selec
   assert.equal(members[0] === count && members[1] === grouping, true, "exact native member identity");
   assert.equal(resolveCsharpObjectShapePropertyOrder(shape, undefined, "keys", {}).kind, "rejected",
     "property consumption does not weaken enumerable own-set proof");
-  for (const order of [["useGrouping", "count"], ["count"], ["count", "count"], ["count", "toJSON"], ["count", "missing"]]) {
+  for (const order of [["count", "count"], ["count", "toJSON"], ["count", "missing"]]) {
     assert.equal(csharpObjectShapeProjectionMembers(shape, { ...projection, propertyOrder: order }) === undefined,
       true, order.join(","));
   }
   const duplicated = { ...shape, members: [...shape.members, count] };
-  assert.equal(resolveCsharpObjectShapePropertyOrder(duplicated, undefined, "properties", {}).kind, "rejected");
+  assert.equal(resolveCsharpObjectShapePropertyOrder(duplicated, undefined, "properties", {}, ["count"]).kind, "rejected");
+  assert.equal(resolveCsharpObjectShapePropertyOrder(shape, undefined, "properties", {}).kind, "rejected",
+    "the removed all-properties projection cannot invent selected-parameter demand");
+  const subset = resolveCsharpObjectShapePropertyOrder(shape, undefined, "properties", {}, ["useGrouping"]);
+  assert.equal(subset.kind, "resolved");
+  assert.equal(csharpObjectShapeProjectionMembers(shape, { ...projection, propertyOrder: subset.propertyOrder })[0] === grouping,
+    true, "only the exactly selected property is consumed");
+  for (const order of [["count", "count"], ["toJSON"], ["missing"]]) {
+    assert.equal(resolveCsharpObjectShapePropertyOrder(shape, undefined, "properties", {}, order).kind, "rejected");
+  }
   assert.equal(requireObjectShapeProjection({}, undefined, shape.targetType, {}, "properties", csharpStringTargetType(),
     "object-shape").kind, "rejected", "wrong result rejects before artifact publication");
 });

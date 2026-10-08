@@ -201,6 +201,7 @@ export function requireObjectShapeProjection(
     readonly node: Node;
     readonly type: TargetTypeRef;
   },
+  selectedProperties?: readonly string[],
 ): CsharpObjectShapeProjectionRequestResult {
   if (projectionKind === "properties" && !isCsharpJsValueTargetType(resultType)) {
     return rejected("Checked property projection requires its exact TsValue result carrier.");
@@ -250,6 +251,7 @@ export function requireObjectShapeProjection(
         node,
         projectionKind,
         host.ast,
+        selectedProperties,
       );
   if (propertyOrder.kind === "rejected") {
     return propertyOrder;
