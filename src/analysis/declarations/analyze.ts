@@ -14,6 +14,8 @@ import {
 } from "../../policy/conversions/index.js";
 import {
   csharpAbsenceTargetType,
+  combineCsharpTargetUnionMembers,
+  isCsharpAbsenceTargetType,
   csharpCarrierAdmitsSourceAbsence,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
@@ -229,7 +231,11 @@ export function reconcileInferredReturnTargetContract(
   const selected = selectCsharpCommonImplicitTarget(
     policy,
     requiredSources,
-    [...observed, baseline],
+    [...observed, baseline, ...(requiredSources.some(isCsharpAbsenceTargetType)
+      ? observed.flatMap(source => {
+          const optional = combineCsharpTargetUnionMembers([source, csharpAbsenceTargetType()]);
+          return optional === undefined ? [] : [optional];
+        }) : [])],
   );
   return selected.kind === "resolved"
     ? { kind: "resolved", type: selected.target }

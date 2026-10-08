@@ -17,6 +17,7 @@ import {
   csharpNeverTargetType,
   csharpVoidTargetType,
   csharpBigIntegerTargetType,
+  csharpAbsenceTargetType,
 } from "../../../dist/policy/types/index.js";
 import {
   reconcileInferredReturnTargetContract,
@@ -89,7 +90,7 @@ test("inferred return contracts retain unobserved nullish alternatives", () => {
       [int32],
       false,
     ),
-    { kind: "resolved", type: nullableFloat64 },
+    { kind: "resolved", type: csharpNullableTargetType(int32) },
   );
 });
 
@@ -99,6 +100,10 @@ test("inferred nullable numeric returns preserve exact observed storage and abse
     [csharpBigIntegerTargetType(), csharpSourcePrimitiveTargetType("int64")],
   ]) {
     const nullable = csharpNullableTargetType(observed);
+    assert.deepEqual(reconcileInferredReturnTargetContract(host, csharpNullableTargetType(baseline),
+      [observed, csharpAbsenceTargetType()], false), { kind: "resolved", type: nullable });
+    assert.equal(reconcileInferredReturnTargetContract(host, csharpNullableTargetType(baseline),
+      [observed, csharpAbsenceTargetType()], true).kind, "rejected");
     assert.deepEqual(reconcileInferredReturnTargetContract(host, csharpNullableTargetType(baseline), [nullable], false),
       { kind: "resolved", type: nullable });
     assert.equal(reconcileInferredReturnTargetContract(host, csharpNullableTargetType(baseline), [nullable], true).kind, "rejected");
@@ -142,8 +147,12 @@ test("inferred compound results retain native numeric elements without collectio
     { kind: "array", element: string },
     csharpTargetNamedType("Other.Values", [float64]),
   ]) assert.equal(reconcileInferredReturnTargetContract(host, baseline, [nativeArray], false).kind, "rejected");
-  assert.equal(reconcileInferredReturnTargetContract(host,
+  assert.deepEqual(reconcileInferredReturnTargetContract(host,
     { ...csharpTargetNamedType("Fixture.Values", [float64]), csharpNullableReference: true },
+    [csharpTargetNamedType("Fixture.Values", [int32])], false),
+    { kind: "resolved", type: csharpNullableTargetType(csharpTargetNamedType("Fixture.Values", [int32])) });
+  assert.equal(reconcileInferredReturnTargetContract(host,
+    csharpNullableTargetType(csharpTargetNamedType("Other.Values", [float64])),
     [csharpTargetNamedType("Fixture.Values", [int32])], false).kind, "rejected");
 });
 
