@@ -555,9 +555,12 @@ export function resolveSourceCallResultWithState(
   const queries = host.semantics(sourceFile);
   const result = queries.operations.callResult(source);
   const retain = (nativeType: TargetTypeRef | undefined): CsharpSourceCallResult | undefined => {
-    const selected = selectCsharpSourceCallResult(host, nativeType, () =>
-      result === undefined ? undefined : resolveSourceCallSelectedType(source, declaration,
-        result.authoredTypeNode, result.selectedReturnType, sourceFile, nextState(state)));
+    const selected = selectCsharpSourceCallResult(host, nativeType, () => {
+      const checked = result === undefined ? undefined : resolveSourceCallSelectedType(source, declaration,
+        result.authoredTypeNode, result.selectedReturnType, sourceFile, nextState(state));
+      return result?.authoredTypeNode === undefined && getCsharpNullableElementTargetType(nativeType) !== undefined && checked !== undefined
+        ? combineCsharpTargetUnionMembers([checked, csharpAbsenceTargetType()]) : checked;
+    });
     return selected;
   };
   if (nativeType !== undefined) return retain(nativeType);

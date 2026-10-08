@@ -19,6 +19,7 @@ for (const surface of [undefined, "js"]) {
       assert.match(counts, new RegExp(`double\\? ${name}\\(`, "u"));
     }
     assert.match(index, /int\? local\(/u);
+    assert.match(index, /string\? forwardText\(/u);
     assert.doesNotMatch(index, /Convert\.ToDouble|BigInteger/u);
     executeCsharpConstruction(compiled, `inferred-optional-numeric-${lane}`, false, false, [], `
 var values = new byte[] { 1, 2, 3 };

@@ -183,7 +183,22 @@ test("public storage changes reconstruct transitive module callers to a fixed po
     "generated/TsonicModuleInitializer.cs": libraryModuleInitializer,
   });
   executeCsharpConstruction(compiled, "transitive-module-byref-storage", false, false, [],
-    "if (Tsonic.Generated.Index.forward() is not null) throw new System.Exception(\"native absence was lost\");");
+    `if (Tsonic.Generated.Index.forward() is not null) throw new System.Exception("native absence was lost");
+var item = new NativeTodo { id = 7 };
+Tsonic.Generated.State.values.Add(1, item);
+if (!Tsonic.Generated.State.values.TryGetValue(1, out Tsonic.Generated.State.current)) throw new System.Exception("native presence was lost");
+for (int iteration = 0; iteration < 1000; iteration++) {
+    if (!System.Object.ReferenceEquals(Tsonic.Generated.Index.forward(), item)) throw new System.Exception("native identity was lost");
+}
+long before = System.GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 10000; iteration++) {
+    if (!System.Object.ReferenceEquals(Tsonic.Generated.Index.forward(), item)) throw new System.Exception("native identity was lost");
+}
+if (System.GC.GetAllocatedBytesForCurrentThread() != before) throw new System.Exception("native reference forwarding must not allocate");
+if (Tsonic.Generated.State.values.TryGetValue(2, out Tsonic.Generated.State.current)) throw new System.Exception("native missing key was lost");
+if (Tsonic.Generated.Index.forward() is not null) throw new System.Exception("native absence after replacement was lost");
+sealed class NativeTodo : Tsonic.Generated.Todo { public int id { get; set; } }
+`);
 });
 
 test("native module byref storage preserves destructured leaves and namespace identity", { timeout: 300_000 }, () => {
