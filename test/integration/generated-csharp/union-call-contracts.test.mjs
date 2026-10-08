@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 const sourceText = `
@@ -52,6 +52,7 @@ const sourceText = `
 for (const surface of [undefined, "js"]) {
   test(`native class-union defaults retain exact int64 carriers and no dispatch allocations (${surface ?? "native"})`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText });
+    assertCsharpCompilationSucceeded(compiled);
     const generated = [...compiled.artifacts.values()].join("\n");
     assert.equal(/value\(long\? \w+ = null\)/u.test(generated), true, "native default incoming long?");
     assert.equal(/private static long __tsonic_union_call_/u.test(generated), true, "closed static dispatcher");

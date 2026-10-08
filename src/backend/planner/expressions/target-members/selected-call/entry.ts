@@ -7,6 +7,7 @@ import { translateSourceOwnedCall } from "./source.js";
 import { planCsharpOptionalReceiverChain } from "./optional-chain.js";
 import { planCsharpClosedTypeTest } from "../../type-tests.js";
 import { createDestructuringPlannerState } from "../../../bindings/binding-state.js";
+import type { DestructuringPlannerState } from "../../../bindings/binding-state.js";
 import { targetTypeRefEquals } from "../../../../../target-model/types/equality.js";
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { convertCsharpPlannedValue } from "../../planned-value-conversions.js";
@@ -22,15 +23,16 @@ export function translateCsharpCallExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
+  state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
   const optional = planCsharpOptionalReceiverChain(
     node, sourceFile, input, diagnostics, planExpression, planCallArgument,
     (call, context, expressions, arguments_) => translateCsharpCallExpressionCore(
-      call, sourceFile, context, diagnostics, expressions, arguments_,
+      call, sourceFile, context, diagnostics, expressions, arguments_, state,
     ),
   );
   return optional.handled ? optional.expression : translateCsharpCallExpressionCore(
-    node, sourceFile, input, diagnostics, planExpression, planCallArgument,
+    node, sourceFile, input, diagnostics, planExpression, planCallArgument, state,
   );
 }
 
@@ -41,6 +43,7 @@ function translateCsharpCallExpressionCore(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
+  state: DestructuringPlannerState | undefined,
 ): CsharpPlannedValue | undefined {
   const classification = input.program.operations.call(node);
   if (classification === undefined) {
@@ -130,6 +133,7 @@ function translateCsharpCallExpressionCore(
         diagnostics,
         planExpression,
         planCallArgument,
+        state,
       );
     case "rejected":
       diagnostics.push(selectedPolicyDiagnostic(

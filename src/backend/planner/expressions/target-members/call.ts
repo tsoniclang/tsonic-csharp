@@ -12,6 +12,7 @@ import {
   translateCsharpCallExpression,
 } from "./selected-call.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
+import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 
 export function planCallExpression(
   node: Node,
@@ -20,6 +21,7 @@ export function planCallExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
+  state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
   return translateCsharpCallExpression(
     node,
@@ -28,5 +30,6 @@ export function planCallExpression(
     diagnostics,
     planExpression,
     planCallArgument,
+    state,
   );
 }

@@ -2,9 +2,28 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { sourceNativeCalleeFiles } from "../../../../../tsonic/test/fixtures/source-native-callees.mjs";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
-import { planCsharpNativeMethodCallee } from "../../../../dist/backend/planner/expressions/target-members/selected-call/native-callees.js";
+import { planCsharpNativeFunctionCallee, planCsharpNativeMethodCallee } from "../../../../dist/backend/planner/expressions/target-members/selected-call/native-callees.js";
+import { createDestructuringPlannerState } from "../../../../dist/backend/planner/bindings/binding-state.js";
 import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
+
+test("native function references retain exact lexical overrides without acquiring delegate carriers", () => {
+  const expression = {};
+  const parent = createDestructuringPlannerState();
+  const state = createDestructuringPlannerState();
+  state.parent = parent;
+  const outer = { kind: "IdentifierName", name: "outerSelf" };
+  const inner = { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "retainedFrame" }, name: "invoke" };
+  parent.expressionOverrides.set(expression, outer);
+  const input = { program: { source: { ast: { is: { IsIdentifier: node => node === expression } } } } };
+  const selected = { kind: "function", expression };
+  const diagnostics = [];
+  assert.equal(planCsharpNativeFunctionCallee(selected, {}, input, diagnostics, state) === outer, true);
+  state.expressionOverrides.set(expression, inner);
+  assert.equal(planCsharpNativeFunctionCallee(selected, {}, input, diagnostics, state) === inner, true);
+  assert.equal(parent.expressionOverrides.get(expression) === outer, true, "another activation is not mutated");
+  assert.equal(diagnostics.length, 0);
+});
 
 test("native method planning requires one exact closed member contract", () => {
   const expression = {};

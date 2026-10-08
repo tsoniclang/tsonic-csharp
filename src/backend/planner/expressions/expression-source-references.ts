@@ -26,6 +26,7 @@ import { requireCsharpIdentifier } from "../../../target-model/names/identifiers
 import {
   getCsharpLocalBindingName,
 } from "../bindings/index.js";
+import { getCsharpExpressionOverride } from "../bindings/binding-state.js";
 import {
   planFlowReadUseSiteProjection,
 } from "./flow-read-projections.js";
@@ -50,6 +51,8 @@ export function planIdentifierExpression(
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
+  const override = getCsharpExpressionOverride(identifier, state);
+  if (override !== undefined) return override;
   const sourceName = Node_Text(input.program.source.ast, AsIdentifier(input.program.source.ast, identifier));
   const sourceReference = input.program.sourceNavigation.referenceFor(identifier);
   const declarationReference = input.program.sourceNavigation.sourceReferenceFor(identifier);

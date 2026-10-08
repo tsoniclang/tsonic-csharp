@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { planCsharpPropertyValueProjection } from "../../../dist/backend/planner/expressions/property-value-projection.js";
 import { resolveCsharpObjectShapePropertyOrder } from "../../../dist/target-model/types/object-shape-projection.js";
-import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType } from "../../../dist/target-model/types/index.js";
 import { requireObjectShapeProjection } from "../../../dist/backend/planner/artifacts/graph/object-shapes/requests.js";
+import { selectCsharpPropertyProjections } from "../../../dist/analysis/conversions/property-projections.js";
 
 function fixture() {
   const source = { kind: "target-named", id: "Options", csharpSourceDeclarationKind: "class" };
@@ -53,4 +54,23 @@ test("native property projection rejects missing sealed demand and the removed g
   assert.equal(diagnostics.length, 1);
   assert.equal(requireObjectShapeProjection({}, undefined, current.source, {}, "properties", csharpStringTargetType(),
     "object-shape").kind, "rejected", "the superseded generic class helper is not retained");
+});
+
+test("native dictionary slots need no nominal field projection and unrelated carriers still reject", () => {
+  const destination = {};
+  const policy = { semanticsFor: () => ({ types: { nonNullableType: type => type } }) };
+  const dictionary = { kind: "target-named", id: "NativeDictionary", csharpCollectionSurface: "record",
+    typeArguments: [csharpStringTargetType(), csharpTsValueTargetType()] };
+  const exact = selectCsharpPropertyProjections({}, dictionary, destination, policy, {
+    resolveTarget() { assert.fail("dictionary properties already belong to the native dictionary"); },
+  });
+  assert.deepEqual(exact, []);
+  assert.equal(Object.isFrozen(exact), true);
+  for (const source of [undefined, { kind: "target-named", id: "NativeDictionary" },
+    { ...dictionary, csharpCollectionSurface: "array" }, { ...dictionary, typeArguments: undefined },
+    { ...dictionary, typeArguments: [csharpSourcePrimitiveTargetType("uint64"), csharpTsValueTargetType()] },
+    { ...dictionary, typeArguments: [csharpStringTargetType(), csharpSourcePrimitiveTargetType("int64")] }]) {
+    const rejected = selectCsharpPropertyProjections({}, source, destination, policy, { resolveTarget: () => undefined });
+    assert.equal(rejected === undefined, true, "the exact string-key/closed-value dictionary admission is mandatory");
+  }
 });

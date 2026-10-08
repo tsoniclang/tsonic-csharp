@@ -20,6 +20,7 @@ import { composeCsharpPlannedValues, planCsharpExpressionCompletion, planCsharpO
 import { composeCsharpPlannedCall, csharpPlannedArgumentSyntax, type CsharpPlannedCallArguments } from "./planned-arguments.js";
 import { sourceCalleeRequiresExactTargetArity } from "./helpers.js";
 import { planCsharpNativeFunctionCallee, planCsharpNativeMethodCallee } from "./native-callees.js";
+import type { DestructuringPlannerState } from "../../../bindings/binding-state.js";
 
 export function translateSourceOwnedCall(
   node: Node,
@@ -30,6 +31,7 @@ export function translateSourceOwnedCall(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
+  state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
   if (classification.unionCall.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, classification.unionCall.reason));
@@ -88,7 +90,7 @@ export function translateSourceOwnedCall(
     return invocation === undefined ? undefined : convertCsharpPlannedValue(node, sourceFile, input, diagnostics, invocation, result.selectedType, "explicit");
   };
   if (selected.kind === "function") {
-    const callee = planCsharpNativeFunctionCallee(selected, sourceFile, input, diagnostics, planExpression);
+    const callee = planCsharpNativeFunctionCallee(selected, sourceFile, input, diagnostics, state);
     if (callee === undefined) return undefined;
     return composeCsharpPlannedCall(node, sourceFile, input, diagnostics, undefined, arguments_, (_, args) => invoke(callee, args));
   }

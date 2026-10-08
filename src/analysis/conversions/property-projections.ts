@@ -6,6 +6,8 @@ import {
   getCsharpNullableElementTargetType,
   isCsharpAbsenceTargetType,
   isCsharpJsValueTargetType,
+  isCsharpRecordDictionaryTargetType,
+  isCsharpStringTargetType,
   resolveCsharpObjectShapeMemberBySelectedSubject,
   targetTypeRefKey,
 } from "../../target-model/types/index.js";
@@ -36,6 +38,11 @@ export function selectCsharpPropertyProjections(
     if (visited.has(key)) continue;
     visited.add(key);
     if (isCsharpAbsenceTargetType(selected) || isCsharpJsValueTargetType(selected)) continue;
+    if (isCsharpRecordDictionaryTargetType(selected)) {
+      if (selected.typeArguments?.length !== 2 || !isCsharpStringTargetType(selected.typeArguments[0]) ||
+        !isCsharpJsValueTargetType(selected.typeArguments[1])) return undefined;
+      continue;
+    }
     const present = getCsharpNullableElementTargetType(selected);
     if (present !== undefined) {
       pending.push(present);
