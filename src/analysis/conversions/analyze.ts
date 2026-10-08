@@ -12,6 +12,7 @@ import type {
 import {
   csharpAbsenceTargetType,
   csharpNullableTargetType,
+  csharpTsValueTargetType,
   getCsharpNullableElementTargetType,
   isCsharpJsValueTargetType,
   isCsharpJsValueObjectShapeTargetType,
@@ -53,6 +54,7 @@ import { csharpSourceTypeParameter } from "../../target-model/names/type-paramet
 import { selectCsharpIntegerTruncationConversion } from "../../policy/conversions/selection/integer-truncation.js";
 import { selectCsharpExactIntegerConversion } from "../../policy/conversions/selection/exact-integer.js";
 import { csharpRuntimeUnionMappingMatches, csharpRuntimeUnionProjectionMatches } from "./validation.js";
+import { csharpPropertyProjectionValueTypes } from "./property-projections.js";
 
 const unavailableConversion: CsharpConversionSelection = Object.freeze({
   kind: "rejected",
@@ -520,6 +522,15 @@ export function analyzeCsharpConversions(
       }
     }
     const member = classification.target.call.targetMember;
+    for (const argument of classification.target.call.arguments) {
+      if (argument.targetParameter.csharpValueProjection !== "properties") continue;
+      const subject = classification.target.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
+      if (subject === undefined) continue;
+      const type = storage.type(subject) ?? evidence.nodeTargetType(subject);
+      for (const memberType of csharpPropertyProjectionValueTypes(type, objectShapes, policy.typeDefinitions)) {
+        classifyPair(memberType, csharpTsValueTargetType(), "implicit", subject);
+      }
+    }
     if (member.returnType === undefined) {
       return;
     }
@@ -596,9 +607,10 @@ export function analyzeCsharpConversions(
   }
 
   function objectProjectionValueType(
-    projection: "keys" | "values" | "entries" | "has-own",
+    projection: "keys" | "values" | "entries" | "has-own" | "properties",
     resultType: TargetTypeRef,
   ): TargetTypeRef | undefined {
+    if (projection === "properties") return isCsharpJsValueTargetType(resultType) ? resultType : undefined;
     if (projection === "values") {
       return getCsharpJsArrayElementTargetType(resultType);
     }

@@ -11,6 +11,24 @@ import { createTestWorkspace } from "../../../../tsonic/test/scripts/test-worksp
 test("Intl exact integer, optional precision and grouping contracts execute in C#", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: `
     import type { int32, uint32, float32, int64, uint64, int128, uint128 } from "@tsonic/core/types.js";
+    let optionReads: int32 = 0;
+    let optionSuppliers: int32 = 0;
+    interface GroupingOptions { readonly useGrouping: boolean; }
+    class UngroupedOptions implements GroupingOptions {
+      get useGrouping(): boolean { optionReads += 1; return false; }
+      toJSON(): { useGrouping: boolean } { return { useGrouping: true }; }
+    }
+    class GroupedOptions { readonly useGrouping: boolean = true; }
+    function supplyOptions(): UngroupedOptions { optionSuppliers += 1; return new UngroupedOptions(); }
+    function interfaceOptions(value: int64, options: GroupingOptions): string {
+      return value.toLocaleString("en", options);
+    }
+    function optionalOptions(value: int64, options: GroupingOptions | undefined): string {
+      return value.toLocaleString("en", options);
+    }
+    function unionOptions(value: int64, options: UngroupedOptions | GroupedOptions): string {
+      return value.toLocaleString("en", options);
+    }
     export function run(signed: int64, unsigned: uint64): boolean {
       const formatter = new Intl.NumberFormat("en", { maximumSignificantDigits: 3 });
       const options = formatter.resolvedOptions();
@@ -20,6 +38,19 @@ test("Intl exact integer, optional precision and grouping contracts execute in C
       const digits = options.maximumSignificantDigits;
       if (digits === undefined || digits !== 3) return false;
       const plain = new Intl.NumberFormat("en", { useGrouping: false });
+      const namedOptions = { useGrouping: false, toJSON() { return { useGrouping: true }; } };
+      if (signed.toLocaleString("en", namedOptions) !== "9007199254740993") return false;
+      if (new Intl.NumberFormat("en", namedOptions).format(signed) !== "9007199254740993") return false;
+      if (JSON.stringify(namedOptions) !== '{"useGrouping":true}') return false;
+      const nativeOptions = supplyOptions();
+      const aliasOptions: GroupingOptions = nativeOptions;
+      if (interfaceOptions(signed, aliasOptions) !== "9007199254740993") return false;
+      if (optionalOptions(signed, aliasOptions) !== "9007199254740993") return false;
+      if (optionalOptions(signed, undefined) !== "9,007,199,254,740,993") return false;
+      if (unionOptions(signed, nativeOptions) !== "9007199254740993") return false;
+      if (unionOptions(signed, new GroupedOptions()) !== "9,007,199,254,740,993") return false;
+      if (signed.toLocaleString("en", supplyOptions()) !== "9007199254740993") return false;
+      if (optionSuppliers !== 2 || optionReads !== 4) return false;
       const absentDigits = plain.resolvedOptions().maximumSignificantDigits;
       const absentCurrency = plain.resolvedOptions().currency;
       if (absentDigits !== undefined || absentCurrency !== undefined) return false;

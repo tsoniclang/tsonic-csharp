@@ -298,7 +298,8 @@ function renderObjectShapeDeclaration(
       objectShapeIdentity: csharpStructuralObjectShapeIdentity(fact.targetType), modifiers: ["public"], typeParameters,
       interfaces: [...interfaces, ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
         ...(referenceIdentity ? [csharpClosedValueCarrierInterfaceType()] : [])],
-      members: [...contractMembers, ...(capabilities.includes("enumerable-keys") && !inheritedEnumerableKeys ? [csharpEnumerableKeysContract()] : [])] };
+      members: [...contractMembers, ...(capabilities.includes("enumerable-keys") && !inheritedEnumerableKeys ? [csharpEnumerableKeysContract()] : []),
+        ...renderObjectShapeProjectionMethods(input, fact, projections, diagnostics)] };
   }
   const members = renderObjectShapeMembers(
     input.scope.typeParameterNames,

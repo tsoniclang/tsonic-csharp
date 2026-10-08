@@ -72,7 +72,7 @@ export const csharpJsIntlCallPolicies:
           "toLocaleString", "formatInteger", intlRuntimeType,
           [targetParameter("value", receiver),
             targetParameter("locales", valueType, { optional: true, csharpAcceptsClosedSourceArgument: true }),
-            targetParameter("options", valueType, { optional: true, csharpAcceptsClosedSourceArgument: true })],
+            targetParameter("options", valueType, { optional: true, csharpAcceptsClosedSourceArgument: true, csharpValueProjection: "properties" })],
           stringType,
         );
       },
@@ -221,6 +221,7 @@ function intlConstructor(name: CsharpJsIntlCarrierName): CsharpTargetMember {
       targetParameter("options", valueType, {
         optional: true,
         csharpAcceptsClosedSourceArgument: true,
+        csharpValueProjection: "properties",
       }),
     ]),
     returnType: target,

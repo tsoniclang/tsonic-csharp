@@ -22,6 +22,7 @@ import { guardCsharpFrozenDataProperties } from "../../objects/frozen-data-prope
 import { createCsharpMemberPlanningContext } from "../../context.js";
 import { classFactoryContext, completeLocalClassConstructor } from "./factories.js";
 import { planClassInitializationRegion } from "./initializers.js";
+import { renderObjectShapeProjectionMethods } from "../../objects/closed-object-shapes.js";
 
 export function planClassDeclaration(
   node: Node,
@@ -112,6 +113,8 @@ export function planClassDeclaration(
       ...(jsonSerializable && objectShape !== undefined
         ? renderJsonSerializableObjectShapeMethod(objectShape)
         : []),
+      ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input, objectShape,
+        input.artifacts.objectShapeProjections(objectShape), diagnostics)),
       ...input.scope.generatedMethods!.values(),
     ],
   };

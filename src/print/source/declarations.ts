@@ -113,6 +113,8 @@ function printInterfaceMemberLines(
 ): string[] {
   switch (member.kind) {
     case "MethodDeclaration": {
+      if (member.body !== undefined) return printMethodLines({ ...member, body: member.body,
+        modifiers: member.modifiers ?? [] }, context);
       const modifiers = member.modifiers === undefined || member.modifiers.length === 0
         ? ""
         : `${member.modifiers.join(" ")} `;

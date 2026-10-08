@@ -23,6 +23,7 @@ export interface CsharpInterfaceMethodDeclaration {
   readonly typeParameters?: readonly CsharpTypeParameter[];
   readonly returnType: CsharpTypeNode;
   readonly parameters: readonly CsharpParameter[];
+  readonly body?: CsharpBlock;
 }
 
 export interface CsharpInterfacePropertyDeclaration {

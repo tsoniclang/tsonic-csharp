@@ -362,6 +362,7 @@ function targetParameterEquals(
       right.csharpAcceptsCheckedSourceArgument &&
     left.csharpAcceptsClosedSourceArgument ===
       right.csharpAcceptsClosedSourceArgument &&
+    left.csharpValueProjection === right.csharpValueProjection &&
     left.csharpOmittableOptionalArgument ===
       right.csharpOmittableOptionalArgument &&
     sourceArgumentAdaptersEqual(

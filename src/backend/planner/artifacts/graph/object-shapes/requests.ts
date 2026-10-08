@@ -16,6 +16,7 @@ import {
   resolveCsharpObjectShapePropertyOrder,
   targetTypeRefEquals,
   isCsharpEmptyObjectTargetType,
+  isCsharpJsValueTargetType,
 } from "../../../../../target-model/types/index.js";
 import { objectShapeArtifactKey, objectShapeMaterialization, isSourceDeclaredNominalShape } from "./identity.js";
 import { objectShapeProjectionKey } from "../../contracts.js";
@@ -201,6 +202,9 @@ export function requireObjectShapeProjection(
     readonly type: TargetTypeRef;
   },
 ): CsharpObjectShapeProjectionRequestResult {
+  if (projectionKind === "properties" && !isCsharpJsValueTargetType(resultType)) {
+    return rejected("Checked property projection requires its exact TsValue result carrier.");
+  }
   const preferredShape = projectionKind === "assign"
     ? host.objectShapes.resolveTarget(type) ??
       (node === undefined ? undefined : host.objectShapes.resolveNode(node, sourceFile))
@@ -215,7 +219,7 @@ export function requireObjectShapeProjection(
         )
       : accepted;
   }
-  if (isSourceDeclaredNominalShape(preferredShape)) {
+  if (projectionKind !== "properties" && isSourceDeclaredNominalShape(preferredShape)) {
     return rejected(
       `Selected '${projectionKind}' operation requires one exact generated structural object carrier; an open nominal source type cannot prove its runtime own-property set.`,
     );

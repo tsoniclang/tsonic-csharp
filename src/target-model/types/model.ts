@@ -326,6 +326,7 @@ export interface CsharpTargetParameter extends TargetParameter {
   readonly csharpOutputMayBeNull?: true;
   readonly csharpAcceptsCheckedSourceArgument?: true;
   readonly csharpAcceptsClosedSourceArgument?: true;
+  readonly csharpValueProjection?: "properties";
   readonly csharpOmittableOptionalArgument?: true;
   readonly csharpSourceArgumentAdapter?: CsharpSourceArgumentAdapter;
 }
@@ -343,6 +344,7 @@ export type CsharpObjectShapeCapability =
   | "js-freeze";
 
 export type CsharpObjectShapeProjectionKind =
+  | "properties"
   | "keys"
   | "values"
   | "entries"

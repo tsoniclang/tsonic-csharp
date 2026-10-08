@@ -55,8 +55,14 @@ export function resolveCsharpObjectShapePropertyOrder(
   ast: AstReader,
 ): CsharpObjectShapePropertyOrderSelection {
   const stringMembers = fact.members.filter((member) =>
-    member.sourceKey.kind === "property"
+    member.sourceKey.kind === "property" && (projection !== "properties" || member.memberKind === "property")
   );
+  if (projection === "properties") {
+    return new Set(stringMembers.map(member => member.sourceName)).size === stringMembers.length &&
+      !fact.members.some(member => isCsharpObjectShapeGeneratedMemberName(member.targetName))
+      ? { kind: "resolved", propertyOrder: Object.freeze(stringMembers.map(member => member.sourceName)) }
+      : rejected("Checked property projection requires exact unique readable members without reserved generated names.");
+  }
   if (isSourceDeclaredNominalShape(fact)) {
     return rejected(
       `Selected '${projection}' operation requires one exact generated structural object carrier; an open nominal source type cannot prove its runtime own-property set.`,
@@ -221,11 +227,12 @@ export function csharpObjectShapeProjectionMembers(
     return undefined;
   }
   const stringMembers = fact.members.filter((member) =>
-    member.sourceKey.kind === "property"
+    member.sourceKey.kind === "property" && (projection.kind !== "properties" || member.memberKind === "property")
   );
   if (
     projection.propertyOrder.length !== stringMembers.length ||
-    new Set(projection.propertyOrder).size !== projection.propertyOrder.length
+    new Set(projection.propertyOrder).size !== projection.propertyOrder.length ||
+    projection.kind === "properties" && projection.propertyOrder.some((name, index) => name !== stringMembers[index]?.sourceName)
   ) {
     return undefined;
   }
@@ -235,7 +242,9 @@ export function csharpObjectShapeProjectionMembers(
       sourceName,
       "finalized-object-spread-member",
     );
-    return selected.kind === "resolved" ? selected.member : undefined;
+    return selected.kind === "resolved" &&
+        (projection.kind !== "properties" || selected.member.memberKind === "property")
+      ? selected.member : undefined;
   });
   return members.some((member) => member === undefined)
     ? undefined

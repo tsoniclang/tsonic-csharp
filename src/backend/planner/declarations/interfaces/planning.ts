@@ -45,6 +45,7 @@ import {
 import { csharpInheritedStructuralInterfaces, renderCsharpStructuralInterfaceMembers, shadowCsharpInheritedInterfaceMembers } from "../../objects/declarations/structural-interfaces.js";
 import { objectShapeStorageMemberName } from "../../objects/object-shape-storage.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../../target-model/types/object-shape-members.js";
+import { renderObjectShapeProjectionMethods } from "../../objects/closed-object-shapes.js";
 import {
   csharpSafetyAccessorModifiersForDeclaration,
   csharpSafetyModifiersForDeclaration,
@@ -115,7 +116,9 @@ export function planInterfaceDeclaration(
             ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
           ],
         }),
-    members: shadowCsharpInheritedInterfaceMembers(members, inheritedMembers),
+    members: [...shadowCsharpInheritedInterfaceMembers(members, inheritedMembers),
+      ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input, objectShape,
+        input.artifacts.objectShapeProjections(objectShape), diagnostics))],
   };
 }
 

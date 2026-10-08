@@ -21,6 +21,9 @@ import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
 import type { CsharpPlannedArgument, CsharpPlannedValue } from "./planned-values.js";
+import { mapCsharpPlannedValue } from "./planned-values.js";
+import { isCsharpJsValueTargetType } from "../../../target-model/types/index.js";
+import { planCsharpPropertyValueProjection } from "./property-value-projection.js";
 
 export function planCallArgumentCore(
   node: Node,
@@ -57,6 +60,13 @@ export function planCallArgumentCore(
     diagnostics.push(unsupportedNodeDiagnostic(node, `Finalized argument-passing fact '${argument.passingMode}' does not match the selected call parameter mode '${expectedArgumentPassingMode}'.`));
     return undefined;
   }
+  if (selectedTargetParameter?.csharpValueProjection !== undefined &&
+    (selectedTargetParameter.csharpValueProjection !== "properties" || argument.passingMode !== "by-value" ||
+      !isCsharpJsValueTargetType(selectedTargetParameter.type) ||
+      !isCsharpJsValueTargetType(conversionExpectedTargetType))) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Checked property projection requires one exact by-value TsValue parameter."));
+    return undefined;
+  }
   if (
     selectedTargetParameter?.csharpOutputMayBeNull === true &&
     (
@@ -78,7 +88,14 @@ export function planCallArgumentCore(
   if (argument.passingMode !== "by-value" && passing === undefined) {
     return undefined;
   }
-  const expression = argument.passingMode === "by-value"
+  const propertyProjection = selectedTargetParameter?.csharpValueProjection === "properties" &&
+    !input.program.source.ast.is.IsObjectLiteralExpression(argument.storageExpression);
+  const original = propertyProjection ? planExpression(argument.storageExpression, sourceFile, input, diagnostics, state) : undefined;
+  const expression = propertyProjection && selectedTargetParameter !== undefined
+    ? mapCsharpPlannedValue(original, selectedTargetParameter.type, value =>
+        planCsharpPropertyValueProjection(argument.storageExpression, sourceFile, input, diagnostics,
+          original?.completion.carrier, value))
+    : argument.passingMode === "by-value"
     ? planCallArgumentExpression(
         argument.storageExpression,
         sourceFile,
