@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { broadArrayViewSource, broadArrayCategoryWriteSource } from "../../../../tsonic/test/fixtures/broad-array-views.mjs";
+import { broadArrayViewSource, broadArrayCategoryWriteSource, broadArrayFailureSource } from "../../../../tsonic/test/fixtures/broad-array-views.mjs";
 
 test("checked broad array views retain their native backing and element identity", { timeout: 300_000 }, () => {
   executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: broadArrayViewSource }), "broad-array-views");
@@ -10,6 +10,10 @@ test("checked broad array views retain their native backing and element identity
 
 test("category-only indexed writes preserve the checked broad native backing", { timeout: 300_000 }, () => {
   executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: broadArrayCategoryWriteSource }), "broad-array-category-write");
+});
+
+test("typed broad-array recovery retains the native cast failure through catch", { timeout: 300_000 }, () => {
+  executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: broadArrayFailureSource }), "broad-array-failure");
 });
 
 for (const expression of ["value.push(8)", "value.at(1)", "value.map(item => item)"]) {
