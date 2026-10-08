@@ -88,7 +88,7 @@ export function translateSourceOwnedCall(
     return invocation === undefined ? undefined : convertCsharpPlannedValue(node, sourceFile, input, diagnostics, invocation, result.selectedType, "explicit");
   };
   if (selected.kind === "function") {
-    const callee = planCsharpNativeFunctionCallee(selected, sourceFile, input, diagnostics);
+    const callee = planCsharpNativeFunctionCallee(selected, sourceFile, input, diagnostics, planExpression);
     if (callee === undefined) return undefined;
     return composeCsharpPlannedCall(node, sourceFile, input, diagnostics, undefined, arguments_, (_, args) => invoke(callee, args));
   }

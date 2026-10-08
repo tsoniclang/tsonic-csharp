@@ -1,5 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { sourceCallableInterface, sourceClassFieldIsTypeOnly, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { sourceCallableInterface, sourceClassFieldIsTypeOnly, sourceInterfaceRepresentationBase, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpStorageIssue } from "../storage/model.js";
 
 export function analyzeCsharpTypeOnlyDeclarations(source: TargetSourceProgram, sourceFiles: readonly SourceFile[]): {
@@ -43,6 +43,11 @@ export function analyzeCsharpTypeOnlyDeclarations(source: TargetSourceProgram, s
     if (!ast.is.IsInterfaceDeclaration(statement)) continue;
     const semantics = source.semantics.forNode(statement);
     if (sourceCallableInterface(semantics.declarations.declaredType(statement), semantics, ast) !== undefined) {
+      declarations.add(statement);
+      continue;
+    }
+    const base = sourceInterfaceRepresentationBase(statement, ast, navigation, semantics);
+    if (base !== undefined && semantics.types.isArrayLike(base.selectedType)) {
       declarations.add(statement);
       continue;
     }

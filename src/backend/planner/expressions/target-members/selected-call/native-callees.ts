@@ -5,7 +5,7 @@ import type { CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { ExpressionPlanner } from "../../expression-planner-types.js";
 import { csharpPlannedValue, type CsharpPlannedValue, type CsharpPlannedEffectOperand } from "../../planned-values.js";
-import { planIdentifierExpression, tryPlanProjectSourceModuleStaticMemberReference } from "../../expression-source-references.js";
+import { tryPlanProjectSourceModuleStaticMemberReference } from "../../expression-source-references.js";
 import { csharpProjectTypeReceiver, translateCsharpSelectedReceiver } from "../../receivers.js";
 import { planCsharpSourceMemberName } from "../source-member-names.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
@@ -18,9 +18,13 @@ export function planCsharpNativeFunctionCallee(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
+  const identifier = input.program.source.ast.is.IsIdentifier(selected.expression)
+    ? planExpression(selected.expression, sourceFile, input, diagnostics) : undefined;
   const callee = input.program.source.ast.is.IsIdentifier(selected.expression)
-    ? planIdentifierExpression(selected.expression, sourceFile, input, diagnostics)
+    ? identifier?.prelude.length === 0 && identifier.completion.kind === "value"
+      ? identifier.completion.expression : undefined
     : tryPlanProjectSourceModuleStaticMemberReference(selected.expression, sourceFile, input, diagnostics);
   if (callee === undefined) diagnostics.push(unsupportedNodeDiagnostic(selected.expression,
     "A selected native function group has no exact declaration reference syntax."));

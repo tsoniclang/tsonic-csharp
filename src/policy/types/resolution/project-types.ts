@@ -13,7 +13,7 @@ import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
-import { sourceCallableInterface } from "@tsonic/target-api/source";
+import { sourceCallableInterface, sourceInterfaceRepresentationBase } from "@tsonic/target-api/source";
 import { bindCsharpSourceDeclarationArguments } from "./generic-arguments.js";
 
 export function resolveSelectedSymbolType(
@@ -144,6 +144,12 @@ export function projectSourceDeclarationTargetType(
     const bound = bindCsharpSourceDeclarationArguments(scope, declaration, typeArguments, sourceArguments, state);
     return bound === undefined || declaredType === undefined ? undefined
       : resolveProjectCallableInterface(scope, declaration, declaredType, bound);
+  }
+  const base = sourceInterfaceRepresentationBase(declaration, host.ast, host.navigation, queries);
+  if (base !== undefined && queries.types.isArrayLike(base.selectedType)) {
+    const bound = bindCsharpSourceDeclarationArguments(scope, declaration, typeArguments, sourceArguments, state);
+    return bound === undefined ? undefined : scope.resolveTypeWithState(base.selectedType,
+      host.semanticsFor(base.heritage).sourceFile, nextState(bound));
   }
   const definition = host.projectTypeCatalog.definitionForDeclaration(declaration);
   if (definition === undefined) return undefined;
