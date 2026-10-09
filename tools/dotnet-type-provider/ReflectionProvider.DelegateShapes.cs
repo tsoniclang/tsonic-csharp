@@ -4,7 +4,12 @@ sealed partial class ReflectionProvider
 {
     const int MaximumDelegateShapeDepth = 128;
     readonly HashSet<Type> delegateSourceShapeInProgress = [];
-    readonly Dictionary<Type, string> delegateSourceShapeUnsupportedReasons = [];
+    readonly Dictionary<(Type Type, int Depth), string> delegateSourceShapeUnsupportedReasons = [];
+
+    (Type Type, int Depth) DelegateSourceShapeContext(Type type)
+    {
+        return (type, delegateSourceShapeInProgress.Count - (delegateSourceShapeInProgress.Contains(type) ? 1 : 0));
+    }
 
     object? ExportSourceShape(Type type)
     {
@@ -13,33 +18,21 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedDelegateSourceShapeReason(Type type)
     {
-        if (delegateSourceShapeUnsupportedReasons.TryGetValue(type, out var cachedReason))
+        var context = DelegateSourceShapeContext(type);
+        if (delegateSourceShapeUnsupportedReasons.TryGetValue(context, out var cachedReason))
         {
             return cachedReason;
         }
-        var reason = ComputeUnsupportedDelegateSourceShapeReason(type);
-        if (reason is not null)
-        {
-            delegateSourceShapeUnsupportedReasons[type] = reason;
-        }
-        return reason;
+        if (DelegateSourceShape(type) is not null) return null;
+        return delegateSourceShapeUnsupportedReasons.TryGetValue(context, out var reason)
+            ? reason
+            : $"Delegate type '{TypeMetadataName(type)}' cannot be represented as a closed source function shape.";
     }
 
-    string? ComputeUnsupportedDelegateSourceShapeReason(Type type)
+    object? RejectDelegateSourceShape(Type type, string reason)
     {
-        var invoke = type.GetMethod("Invoke");
-        if (invoke is null)
-        {
-            return "Delegate has no provider-visible Invoke method, so no source function declaration can be generated.";
-        }
-        if (Parameters(invoke.GetParameters()) is null)
-        {
-            return $"{UnsupportedParametersReason(invoke.GetParameters(), "Delegate invoke signature")}; the type is retained as target-only .NET data.";
-        }
-        var returnReason = UnsupportedReturnTypeReason(invoke, "Delegate invoke return type");
-        return returnReason is null
-            ? null
-            : $"{returnReason}; the type is retained as target-only .NET data.";
+        delegateSourceShapeUnsupportedReasons[DelegateSourceShapeContext(type)] = reason;
+        return null;
     }
 
     object? DelegateSourceShape(
@@ -57,16 +50,15 @@ sealed partial class ReflectionProvider
         }
         if (delegateSourceShapeInProgress.Count >= MaximumDelegateShapeDepth)
         {
-            delegateSourceShapeUnsupportedReasons[type] = "Delegate source shape exceeds its finite expansion-depth budget.";
+            return RejectDelegateSourceShape(type, "Delegate source shape exceeds its finite expansion-depth budget.");
+        }
+        if (delegateSourceShapeUnsupportedReasons.ContainsKey(DelegateSourceShapeContext(type)))
+        {
             return null;
         }
         delegateSourceShapeInProgress.Add(type);
         try
         {
-            if (UnsupportedDelegateSourceShapeReason(type) is not null)
-            {
-                return null;
-            }
             var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
             if (type.IsConstructedGenericType)
             {
@@ -80,12 +72,18 @@ sealed partial class ReflectionProvider
             var invoke = definition.GetMethod("Invoke");
             if (invoke is null)
             {
-                return null;
+                return RejectDelegateSourceShape(type, "Delegate has no provider-visible Invoke method, so no source function declaration can be generated.");
             }
             var parameters = Parameters(
                 invoke.GetParameters(),
                 genericParameters: genericParameters,
                 genericNullability: genericNullability);
+            if (parameters is null)
+            {
+                var reason = UnsupportedParametersReason(type.GetMethod("Invoke")!.GetParameters(), "Delegate invoke signature")
+                    ?? "Delegate invoke signature cannot be represented as closed .NET target type facts.";
+                return RejectDelegateSourceShape(type, $"{reason}; the type is retained as target-only .NET data.");
+            }
             var returnNullability = genericNullability.Resolve(invoke.ReturnType, nullability.Create(invoke.ReturnParameter));
             var returnNullabilityMetadata = genericNullability.ResolveMetadata(
                 invoke.ReturnType,
@@ -105,9 +103,11 @@ sealed partial class ReflectionProvider
                     genericParameters,
                     returnNullability,
                     returnNullabilityMetadata);
-            if (parameters is null || returnType is null || targetReturnType is null)
+            if (returnType is null || targetReturnType is null)
             {
-                return null;
+                var reason = UnsupportedReturnTypeReason(type.GetMethod("Invoke")!, "Delegate invoke return type")
+                    ?? "Delegate invoke return type cannot be represented as closed .NET target type facts.";
+                return RejectDelegateSourceShape(type, $"{reason}; the type is retained as target-only .NET data.");
             }
             return new
             {

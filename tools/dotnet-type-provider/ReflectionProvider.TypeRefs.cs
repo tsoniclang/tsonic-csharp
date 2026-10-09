@@ -202,7 +202,7 @@ sealed partial class ReflectionProvider
         {
             return delegateSourceShapeInProgress.Contains(type)
                 ? $"Recursive delegate type '{TypeMetadataName(type)}' cannot be represented as a closed source function shape."
-                : delegateSourceShapeUnsupportedReasons.TryGetValue(type, out var reason)
+                : delegateSourceShapeUnsupportedReasons.TryGetValue(DelegateSourceShapeContext(type), out var reason)
                     ? reason
                     : $"Delegate type '{TypeMetadataName(type)}' cannot be represented as a closed source function shape.";
         }

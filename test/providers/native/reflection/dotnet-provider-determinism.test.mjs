@@ -385,6 +385,27 @@ test(".NET provider rejects indefinitely growing generic delegate expansion with
   assert.equal(module.exports.some(declaration => declaration.sourceName === "Growing"), false);
 });
 
+test("finite delegate depth rejection does not poison the same native leaf in an independent shallow signature", () => {
+  const provider = createDotnetReflectionTypeDataProvider({
+    references: [recursiveDelegateFixture()], disablePersistentCache: true,
+  });
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/RecursiveDelegateFixtures.js", {
+    requestedExports: ["FiniteDepthConsumer"],
+  });
+  assert.equal("exports" in module, true, "bounded module model");
+  const consumer = module.exports.find(declaration => declaration.sourceName === "FiniteDepthConsumer");
+  assert.equal(consumer !== undefined, true, "native consumer is retained");
+  assert.match(consumer.unsupportedMembers?.find(member => member.targetName === "Deep")?.reason ?? "",
+    /finite expansion-depth budget/u, "deep signature remains rejected at the original bound");
+  const plain = consumer.members?.find(member => member.targetName === "Plain");
+  assert.equal(plain !== undefined, true, "shallow leaf remains an independently valid native delegate");
+  assert.equal(plain.signatures.length, 1, "one exact native method signature");
+  const callback = plain.signatures[0].parameters[0].type;
+  assert.equal(callback.callableRepresentation, "delegate");
+  assert.equal(callback.sourceShape.kind, "function");
+  assert.equal(callback.sourceShape.parameters[0].type.name, "int64");
+});
+
 function recursiveDelegateFixture() {
   return buildDotnetFixture({
     project: join(repoRoot, "test/fixtures/dotnet-provider/recursive-delegates/RecursiveDelegateProviderFixture.csproj"),
