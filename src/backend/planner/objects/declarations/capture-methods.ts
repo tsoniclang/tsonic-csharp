@@ -45,7 +45,8 @@ export function renderCsharpCaptureFrameMethods(
       return undefined;
     }
     const context = createCsharpMemberPlanningContext({ ...input, scope: { ...input.scope,
-      captureFrames, capturedBindings, capturedReceivers, nativeCallableBody: method.declaration,
+      captureFrames, capturedBindings, capturedReceivers,
+      nativeCallableBody: { declaration: method.declaration, carrier: method.type },
     } });
     if (input.program.source.ast.is.IsFunctionDeclaration(method.declaration)) {
       const planned = planSourceFunctionDeclaration(method.declaration, file, context, diagnostics);

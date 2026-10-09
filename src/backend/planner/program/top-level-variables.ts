@@ -24,7 +24,7 @@ import { planValueTypeDeclaration } from "../declarations/value-types.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planResourceRegistrationStatement } from "../statements/resource-management.js";
-import { lambdaTargetContextFromTargetRef } from "../expressions/expression-lambdas.js";
+import { getLambdaTargetContext, lambdaTargetContextFromTargetRef } from "../expressions/expression-lambdas.js";
 import { getCsharpTaskResultTargetType, isCsharpVoidTargetType } from "../../../target-model/types/index.js";
 
 export function planTopLevelVariableStatement(
@@ -82,8 +82,20 @@ export function planTopLevelVariableStatement(
       continue;
     }
     const callableVisibility = input.program.moduleInitialization.directCallableVisibility(declaration);
-    const initializerInput = callableVisibility === undefined || variable.Initializer === undefined ? input
-      : { ...input, scope: { ...input.scope, nativeCallableBody: variable.Initializer } };
+    let initializerInput = input;
+    if (callableVisibility !== undefined) {
+      const initializer = variable.Initializer;
+      const carrier = initializer === undefined ? undefined
+        : getLambdaTargetContext(initializer, sourceFile, input)?.carrier;
+      if (initializer === undefined || carrier === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(declaration,
+          "Direct callable planning requires its sealed implementation signature."));
+        continue;
+      }
+      initializerInput = { ...input, scope: { ...input.scope,
+        nativeCallableBody: { declaration: initializer, carrier },
+      } };
+    }
     const planned = planLocalDeclaration(declaration, sourceFile, initializerInput, diagnostics, state);
     const { initializer: initial, ...binding } = planned;
     const field = { ...binding, ...(initial?.completion.kind === "value" ? { initializer: initial.completion.expression } : {}) };

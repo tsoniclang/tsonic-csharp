@@ -10,7 +10,7 @@ const contextual = csharpDelegateTargetType("System.Action", [number, number, nu
 
 function context(node, nativeBody, self = false) {
   return {
-    scope: { ...(nativeBody ? { nativeCallableBody: node } : {}) },
+    scope: { ...(nativeBody ? { nativeCallableBody: { declaration: node, carrier: physical } } : {}) },
     program: {
       source: { ast: { kindName: () => "KindArrowFunction" } },
       captureStorage: { namedSelf: () => self ? { values: [{}] } : undefined },
@@ -22,14 +22,16 @@ function context(node, nativeBody, self = false) {
 
 test("a native callable body consumes its sealed physical signature, not its contextual destination", () => {
   const node = {};
-  const selected = getLambdaTargetContext(node, {}, context(node, true), undefined, physical);
+  const selected = getLambdaTargetContext(node, {}, context(node, true), undefined, contextual);
   assert.equal(selected?.carrier === physical, true);
   assert.equal(selected?.signature.parameters.length, 0);
 });
 
 test("a native callable body without its sealed signature rejects rather than guessing another contract", () => {
   const node = {};
-  assert.equal(getLambdaTargetContext(node, {}, context(node, true)) === undefined, true);
+  const input = context(node, true);
+  input.scope.nativeCallableBody = { declaration: node };
+  assert.equal(getLambdaTargetContext(node, {}, input, undefined, contextual) === undefined, true);
 });
 
 test("ordinary contextual lambdas and observed self preserve their existing exact signature owners", () => {

@@ -98,10 +98,10 @@ export function planArrowFunctionExpression(
   const creationPolicy = input.program.captureStorage.lambdaCreation(node);
   if (creationPolicy.kind === "discarded") return csharpPlannedEffect(csharpVoidTargetType(), []);
   const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
-  const closure = input.scope.nativeCallableBody === node ? undefined : input.program.captureStorage.closure(node);
+  const closure = input.scope.nativeCallableBody?.declaration === node ? undefined : input.program.captureStorage.closure(node);
   const complete = (expression: CsharpExpression | undefined): CsharpPlannedValue | undefined => {
     const carrier = closure?.method.type ?? targetContext?.carrier;
-    if (expression?.kind !== "LambdaExpression" || input.scope.nativeCallableBody === node ||
+    if (expression?.kind !== "LambdaExpression" || input.scope.nativeCallableBody?.declaration === node ||
       creationPolicy.kind === "inline") {
       return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression, carrier);
     }
@@ -223,7 +223,7 @@ export function planFunctionExpression(
   const creationPolicy = input.program.captureStorage.lambdaCreation(node);
   if (creationPolicy.kind === "discarded") return csharpPlannedEffect(csharpVoidTargetType(), []);
   const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
-  const closure = input.scope.nativeCallableBody === node ? undefined : input.program.captureStorage.closure(node);
+  const closure = input.scope.nativeCallableBody?.declaration === node ? undefined : input.program.captureStorage.closure(node);
   const complete = (expression: CsharpExpression | undefined, prelude: readonly CsharpStatement[] = []): CsharpPlannedValue | undefined =>
     planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression,
       closure?.method.type ?? targetContext?.carrier, prelude);
@@ -262,7 +262,7 @@ export function planFunctionExpression(
     for (const reference of self.values) plannerState.expressionOverrides.set(reference, { kind: "IdentifierName", name: valueName! });
   }
   const completeBody = (body: CsharpBlock, async = false): CsharpPlannedValue | undefined => {
-    if (self === undefined && (input.scope.nativeCallableBody === node || creationPolicy.kind === "inline")) {
+    if (self === undefined && (input.scope.nativeCallableBody?.declaration === node || creationPolicy.kind === "inline")) {
       return complete({ kind: "LambdaExpression", ...(async ? { async: true } : {}), parameters, body });
     }
     const creation = planCsharpLocalLambdaCreation(node, input, diagnostics, targetContext,
@@ -499,10 +499,10 @@ export function getLambdaTargetContext(
   }
   void expectedType;
   const observedSelf = (input.program.captureStorage.namedSelf(node)?.values.length ?? 0) > 0;
-  const nativeBody = input.scope.nativeCallableBody === node;
+  const nativeBody = input.scope.nativeCallableBody;
   return lambdaTargetContextFromTargetRef(
     input.scope.typeParameterNames,
-    nativeBody ? expectedTargetType
+    nativeBody?.declaration === node ? nativeBody.carrier
       : observedSelf ? input.types.classifications.resolveNode(node, sourceFile)
       : input.program.expectedTypes.callableTarget(node) ?? expectedTargetType ?? input.types.classifications.resolveNode(node, sourceFile),
   );
