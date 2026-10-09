@@ -1,10 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { conflictingNativeCallableSource, nativeModuleCallableFiles } from "../../../../tsonic/test/fixtures/native-module-callables.mjs";
+import { conflictingNativeCallableSource, nativeModuleCallableFiles, relocatedModuleCallableFiles } from "../../../../tsonic/test/fixtures/native-module-callables.mjs";
 
 for (const surface of [undefined, "js"]) {
+  test(`relocated callable bodies retain exact module owners on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: relocatedModuleCallableFiles["index.ts"],
+      files: Object.fromEntries(Object.entries(relocatedModuleCallableFiles).filter(([path]) => path !== "index.ts")) });
+    assertCsharpCompilationSucceeded(compiled);
+    const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs");
+    assert.equal(typeof shapes, "string");
+    assert.match(shapes, /Helpers\.multiply\(Helpers\.step\(/u);
+    assert.match([...compiled.artifacts.values()].join("\n"), /Other\.step\(/u);
+    executeCsharpConstruction(compiled, "relocated-module-callables");
+  });
   test(`typed native module callables retain checked body ABIs on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: nativeModuleCallableFiles["index.ts"],
       files: Object.fromEntries(Object.entries(nativeModuleCallableFiles).filter(([path]) => path !== "index.ts")) });

@@ -34,8 +34,7 @@ import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
 import { isProviderVirtualSourceFile } from "../program/provider-virtual-source-files.js";
-import { sourceFileClassName } from "../artifacts/source-paths.js";
-import { planCsharpSourceModuleMemberName, planCsharpSourceModuleValueReference } from "../bindings/module-values.js";
+import { planCsharpSourceModuleValueReference } from "../bindings/module-values.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -228,13 +227,7 @@ export function planProjectSourceModuleMemberReference(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Project source reference requires a top-level function or variable declaration resolved by TSTS."));
     return undefined;
   }
-  if (
-    sourceReference.sourceFile === sourceFile &&
-    input.types.projectTypes.definitionContainingDeclaration(node) === undefined
-  ) {
-    return undefined;
-  }
-  return planCsharpSourceModuleValueReference(sourceReference, node, sourceFile, input, diagnostics);
+  return planCsharpSourceModuleValueReference(sourceReference, input, diagnostics);
 }
 
 export function tryPlanProjectSourceModuleStaticMemberReference(
@@ -249,23 +242,7 @@ export function tryPlanProjectSourceModuleStaticMemberReference(
     !isModuleStaticValueDeclaration(sourceReference.declaration, input)) {
     return undefined;
   }
-  if (
-    sourceReference.sourceFile === sourceFile &&
-    input.types.projectTypes.definitionContainingDeclaration(node) === undefined
-  ) {
-    return undefined;
-  }
-  return {
-    kind: "SimpleMemberAccessExpression",
-    receiver: {
-      kind: "IdentifierName",
-      name: sourceFileClassName(
-        input,
-        input.program.source.ast.getFileName(sourceReference.sourceFile),
-      ),
-    },
-    name: planCsharpSourceModuleMemberName(sourceReference.declaration, input, diagnostics),
-  };
+  return planCsharpSourceModuleValueReference(sourceReference, input, diagnostics);
 }
 
 function getProjectSourceReferenceForModuleMemberNode(

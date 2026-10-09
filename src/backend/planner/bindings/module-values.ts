@@ -1,4 +1,4 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import { HasSourceKind, KindExportAssignment, Node_Name, type SourceProjectReference } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
@@ -21,20 +21,16 @@ export function planCsharpSourceModuleMemberName(
 
 export function planCsharpSourceModuleValueReference(
   reference: SourceProjectReference,
-  node: Node,
-  sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
   const name = planCsharpSourceModuleMemberName(reference.declaration, input, diagnostics);
-  return reference.sourceFile === sourceFile &&
-    input.types.projectTypes.definitionContainingDeclaration(node) === undefined
-    ? { kind: "IdentifierName", name } : {
-      kind: "SimpleMemberAccessExpression",
-      receiver: { kind: "IdentifierName", name: sourceFileClassName(input,
-        input.program.source.ast.getFileName(reference.sourceFile)) },
-      name,
-    };
+  return {
+    kind: "SimpleMemberAccessExpression",
+    receiver: { kind: "IdentifierName", name: sourceFileClassName(input,
+      input.program.source.ast.getFileName(reference.sourceFile)) },
+    name,
+  };
 }
 
 export function csharpSourceModuleValueReferencesEqual(left: CsharpExpression, right: CsharpExpression): boolean {

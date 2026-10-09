@@ -52,7 +52,7 @@ export function planCsharpDelegateAdapter(
     }
     const reference = input.program.conversions.directCallableReference(node);
     const direct = reference === undefined ? undefined
-      : planCsharpSourceModuleValueReference(reference, node, sourceFile, input, diagnostics);
+      : planCsharpSourceModuleValueReference(reference, input, diagnostics);
     const captured = input.program.captureStorage.closure(node);
     const methodGroup = direct !== undefined && csharpSourceModuleValueReferencesEqual(expression, direct) ||
       captured !== undefined && expression.kind === "SimpleMemberAccessExpression" &&
@@ -123,7 +123,7 @@ function planCsharpDelegateAdaptation(
   const name = input.names.temporaryName("__tsonic_callable");
   const reference = input.program.conversions.directCallableReference(node);
   const direct = reference === undefined ? undefined
-    : planCsharpSourceModuleValueReference(reference, node, sourceFile, input, diagnostics);
+    : planCsharpSourceModuleValueReference(reference, input, diagnostics);
   const directReference = direct !== undefined && csharpSourceModuleValueReferencesEqual(expression, direct) ||
     expression.kind === "IdentifierName" && (input.program.captureStorage.namedSelf(node)?.values.length ?? 0) > 0;
   const captured = input.program.captureStorage.closure(node);
