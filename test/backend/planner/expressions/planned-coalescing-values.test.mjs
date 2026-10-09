@@ -19,6 +19,25 @@ function context(select = () => assert.fail("identity needs no conversion")) {
   } };
 }
 
+test("coalescing with exact native absence preserves one unchanged nullable input", () => {
+  const carrier = csharpNullableTargetType(integer);
+  const left = csharpPlannedValue(carrier, call("left"), [effect("before")]);
+  const input = context();
+  input.names.temporaryName = () => assert.fail("native nullable identity requires no temporary");
+  for (const expression of [{ kind: "LiteralExpression", value: null }, {
+    kind: "DefaultExpression", type: { kind: "NullableType", inner: { kind: "PredefinedType", name: "ulong" } },
+  }]) {
+    const right = csharpPlannedValue(carrier, expression);
+    assert.equal(planCsharpCoalescingValue(node, node, input, [], left, right, carrier) === left, true,
+      "retain the exact original input, prelude, native width and evaluation without branching or copying");
+  }
+  const different = csharpNullableTargetType(csharpSourcePrimitiveTargetType("uint32"));
+  const changed = csharpPlannedValue(different, { kind: "LiteralExpression", value: null });
+  const selected = planCsharpCoalescingValue(node, node, input, [], left, changed, carrier);
+  assert.equal(selected === left, false, "a different selected carrier is not silently discarded");
+  assert.equal(selected.completion.expression.kind, "BinaryExpression");
+});
+
 test("expression-only coalescing remains one lazy native operator without temporary storage", () => {
   const input = context();
   input.names.temporaryName = () => assert.fail("a native coalescing expression needs no capture");

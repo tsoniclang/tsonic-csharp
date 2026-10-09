@@ -22,7 +22,7 @@ test("native defaults select one explicit incoming absence ABI without wrapping 
     assert.ok(Object.isFrozen(selected));
     assert.equal(csharpRuntimeParameterDefault(value, value), undefined);
   }
-  for (const type of [csharpVoidTargetType(), csharpNullableTargetType(reference),
+  for (const type of [csharpVoidTargetType(),
     { kind: "type-parameter", name: "T", identity: "default-test-T" },
     csharpTargetNamedType("opaque.absence", undefined, { kind: "predefined", name: "object" }, { absorbsNullish: true })]) {
     assert.equal(csharpRuntimeParameterDefault(type), undefined);
@@ -35,7 +35,10 @@ test("contextual default parameters retain one exact nullable input and present 
   const tupleDefault = csharpRuntimeParameterDefault(tuple);
   assert.deepEqual(tupleDefault, { kind: "nullable", valueType: tuple, parameterType: csharpNullableTargetType(tuple) });
   assert.equal(tupleDefault.valueType === tuple, true);
-  assert.equal(csharpRuntimeParameterDefault(csharpNullableTargetType(tuple)), undefined);
+  const optionalTuple = csharpNullableTargetType(tuple);
+  assert.deepEqual(csharpRuntimeParameterDefault(optionalTuple), {
+    kind: "nullable", valueType: optionalTuple, parameterType: optionalTuple,
+  });
   assert.equal(csharpRuntimeParameterDefault(tuple,
     csharpNullableTargetType({ kind: "tuple", elements: [csharpSourcePrimitiveTargetType("int64")] })), undefined);
   for (const value of [csharpSourcePrimitiveTargetType("int32"), csharpSourcePrimitiveTargetType("int64"), csharpStringTargetType(), tuple]) {
@@ -45,8 +48,14 @@ test("contextual default parameters retain one exact nullable input and present 
     assert.equal(selected.parameterType, incoming);
     assert.ok(Object.isFrozen(selected));
     assert.equal(csharpRuntimeParameterDefault(value, value), undefined);
-    assert.equal(csharpRuntimeParameterDefault(incoming, incoming), undefined);
+    const retained = csharpRuntimeParameterDefault(incoming, incoming);
+    assert.deepEqual(retained, { kind: "nullable", valueType: incoming, parameterType: incoming });
+    assert.equal(retained.valueType === incoming, true);
+    assert.equal(retained.parameterType === incoming, true);
+    assert.equal(Object.isFrozen(retained), true);
   }
   assert.equal(csharpRuntimeParameterDefault(csharpSourcePrimitiveTargetType("int32"),
+    csharpNullableTargetType(csharpSourcePrimitiveTargetType("int64"))), undefined);
+  assert.equal(csharpRuntimeParameterDefault(csharpNullableTargetType(csharpSourcePrimitiveTargetType("int32")),
     csharpNullableTargetType(csharpSourcePrimitiveTargetType("int64"))), undefined);
 });

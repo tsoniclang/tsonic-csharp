@@ -68,6 +68,7 @@ function planParameterValue(
     const name = allocateSyntheticParameter(state);
     const selected = planCsharpRuntimeParameterDefault(node, name, sourceFile, input, diagnostics, state);
     if (selected === undefined) return undefined;
+    if (selected.passthrough) return { parameter, prelude: [] };
     return { parameter: { ...parameter, name }, prelude: consumeCsharpPlannedValue(selected.value, initializer => [
       { kind: "LocalDeclarationStatement", name: parameter.name, type: selected.valueType, initializer }]) };
   }

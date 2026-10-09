@@ -11,6 +11,10 @@ export type CsharpRuntimeParameterDefault = {
 };
 
 export function csharpRuntimeParameterDefault(type: TargetTypeRef, incomingType?: TargetTypeRef): CsharpRuntimeParameterDefault | undefined {
+  if (getCsharpNullableElementTargetType(type) !== undefined) {
+    return incomingType === undefined || targetTypeRefEquals(type, incomingType)
+      ? Object.freeze({ kind: "nullable", valueType: type, parameterType: type }) : undefined;
+  }
   if (incomingType !== undefined) {
     return getCsharpNullableElementTargetType(type) === undefined &&
       targetTypeRefEquals(csharpNullableTargetType(type), incomingType)

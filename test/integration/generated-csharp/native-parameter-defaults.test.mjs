@@ -2,9 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { checkCsharpSource, compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { nativeParameterDefaultsSource, orderedParameterDefaultsSource } from "../../../../tsonic/test/fixtures/native-parameter-defaults.mjs";
+import { nativeAbsentParameterDefaultsSource, nativeParameterDefaultsSource, orderedParameterDefaultsSource } from "../../../../tsonic/test/fixtures/native-parameter-defaults.mjs";
 
 for (const surface of ["native", "js"]) {
+  test(`native constant absent defaults retain nullable scalars, classes and structs (${surface})`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: nativeAbsentParameterDefaultsSource });
+    assertCsharpCompilationSucceeded(compiled);
+    const source = [...compiled.artifacts.values()].join("\n");
+    assert.match(source, /string\? value = null/u);
+    assert.match(source, /long\? value = null/u);
+    assert.match(source, /string\? undefinedText\(string\? value = null\)\s*\{\s*return value;\s*\}/u);
+    assert.doesNotMatch(source, /Nullable<[^>]*Nullable|ApplyDynamicLogical/u);
+    executeCsharpConstruction(compiled, `native-absent-parameter-defaults-${surface}`);
+  });
+
   test(`native broad parameter defaults retain absence, present values and callee effects (${surface})`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: nativeParameterDefaultsSource });
     assertCsharpCompilationSucceeded(compiled);

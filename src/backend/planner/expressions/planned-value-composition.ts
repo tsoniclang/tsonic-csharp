@@ -12,6 +12,7 @@ import { planCsharpNeverValue } from "./never-values.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { planCsharpAbsentValue, planCsharpPresentValueGuard } from "./optional-storage.js";
 import { convertCsharpPlannedValue } from "./planned-value-conversions.js";
@@ -134,6 +135,10 @@ export function planCsharpCoalescingValue(
   if (left.completion.kind !== "value") return undefined;
   const storage = left.completion.carrier;
   const optional = getCsharpGenericOptionalParts(storage);
+  if (optional === undefined && getCsharpNullableElementTargetType(storage) !== undefined && targetTypeRefEquals(storage, carrier) &&
+    right.prelude.length === 0 && right.completion.kind === "value" && targetTypeRefEquals(right.completion.carrier, storage) &&
+    (right.completion.expression.kind === "LiteralExpression" && right.completion.expression.value === null ||
+      right.completion.expression.kind === "DefaultExpression" && right.completion.expression.type.kind === "NullableType")) return left;
   if (optional === undefined && !isCsharpJsValueTargetType(storage) &&
     right.prelude.length === 0 && right.completion.kind === "value") {
     return csharpPlannedValue(carrier, { kind: "BinaryExpression", left: left.completion.expression,

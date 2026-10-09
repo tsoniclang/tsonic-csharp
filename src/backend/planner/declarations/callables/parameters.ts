@@ -81,10 +81,10 @@ export function planParametersWithPrelude(
         const incomingName = allocateSyntheticParameter(state);
         const selected = planCsharpRuntimeParameterDefault(parameterNode!, incomingName, sourceFile, input, diagnostics, state);
         if (selected === undefined) continue;
-        parameters.push({ name: incomingName, type: selected.parameterType,
+        parameters.push({ name: selected.passthrough ? sourceName : incomingName, type: selected.parameterType,
           attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
           ...(selected.defaultValue === undefined ? {} : { defaultValue: selected.defaultValue }) });
-        prelude.push(...consumeCsharpPlannedValue(selected.value, initializer => [
+        if (!selected.passthrough) prelude.push(...consumeCsharpPlannedValue(selected.value, initializer => [
           { kind: "LocalDeclarationStatement", name: sourceName, type: selected.valueType, initializer }]));
         completeIdentifierEntry(parameterNode!, sourceName, selected.valueType);
         hasDefaultParameter ||= selected.defaultValue !== undefined;
@@ -119,9 +119,9 @@ export function planParametersWithPrelude(
         parameters.push({ name: incomingName, type: selected.parameterType,
           attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
           ...(selected.defaultValue === undefined ? {} : { defaultValue: selected.defaultValue }) });
-        prelude.push(...consumeCsharpPlannedValue(selected.value, initializer => [
+        if (!selected.passthrough) prelude.push(...consumeCsharpPlannedValue(selected.value, initializer => [
           { kind: "LocalDeclarationStatement", name: valueName, type: selected.valueType, initializer }]));
-        prelude.push(...planParameterBindingPrelude(bindingName, valueName, sourceFile, input, diagnostics, state, retainBinding));
+        prelude.push(...planParameterBindingPrelude(bindingName, selected.passthrough ? incomingName : valueName, sourceFile, input, diagnostics, state, retainBinding));
         hasDefaultParameter ||= selected.defaultValue !== undefined;
         continue;
       }

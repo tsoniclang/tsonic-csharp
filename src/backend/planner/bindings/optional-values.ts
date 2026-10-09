@@ -39,7 +39,7 @@ export function planCsharpBindingDefaultValue(
   const element = getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier);
   const optional = element !== undefined || isCsharpJsValueTargetType(carrier);
   if (presence === undefined && getCsharpGenericOptionalParts(carrier) === undefined &&
-    element !== undefined && targetTypeRefEquals(element, resultCarrier)) {
+    element !== undefined && (targetTypeRefEquals(element, resultCarrier) || targetTypeRefEquals(carrier, resultCarrier))) {
     return planCsharpCoalescingValue(node, sourceFile, input, diagnostics,
       csharpPlannedValue(carrier, value), defaultValue, resultCarrier);
   }
