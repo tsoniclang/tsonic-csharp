@@ -55,8 +55,8 @@ for (const jsEnabled of [false, true]) {
     assert.equal(aliased !== undefined && external !== undefined && unowned !== undefined, true);
     assert.equal(demand.closedStorageOriginsFor(aliased).kind === "complete", true, "immutable owned global constructor alias");
     assert.equal(demand.closedStorageOriginsFor(external).kind === "open", true, "signature identity does not own an external constructor value");
-    assert.equal(demand.invalidationFor(source.ast.parameters(declaration("construct"))[1], external, new Set()).kind === "unresolved", true,
-      "a native prototype signature cannot certify purity of an external constructor value");
+    assert.equal(demand.invalidationFor(source.ast.parameters(declaration("construct"))[1], external, new Set()).kind === "unproven", true,
+      "a valid external constructor is not evidence that a guarded Error read is preserved");
     assert.equal(demand.closedStorageOriginsFor(unowned).kind === "open", true, "ambient external values are not owned global constructors");
   });
   }
