@@ -16,9 +16,10 @@ export function csharpCapturedMemberAccess(
       const operations = source.semantics.forNode(node).operations;
       const declaration = (source.ast.is.IsPropertyAccessExpression(node)
         ? operations.propertyAccess(node) : operations.elementAccess(node))?.selectedDeclaration;
+      const name = declaration === undefined ? undefined : source.ast.name(declaration);
       if (declaration !== undefined && (source.ast.hasModifierKind(declaration, "private") ||
           source.ast.hasModifierKind(declaration, "protected") ||
-          source.ast.is.IsPrivateIdentifier(source.ast.name(declaration)))) members.add(declaration);
+          name !== undefined && source.ast.is.IsPrivateIdentifier(name))) members.add(declaration);
     }
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };

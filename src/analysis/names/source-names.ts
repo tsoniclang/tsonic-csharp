@@ -166,7 +166,7 @@ function exactPrivateDeclaration(
       return false;
     }
     const declarationName = host.ast.name(candidate);
-    return host.ast.is.IsPrivateIdentifier(declarationName);
+    return declarationName !== undefined && host.ast.is.IsPrivateIdentifier(declarationName);
   });
   if (selected !== undefined) {
     return selected;
@@ -175,6 +175,7 @@ function exactPrivateDeclaration(
   const parentName = host.ast.name(parent);
   return parent !== undefined &&
       host.navigation.isProjectDeclaration(parent) &&
+      parentName !== undefined &&
       host.ast.is.IsPrivateIdentifier(parentName) &&
       sourceNodesEqual(host.ast, parentName, nameNode)
     ? parent
