@@ -9,7 +9,7 @@ import type { CsharpClosedTypePredicate } from "../../../target-model/operations
 import { selectCsharpClosedTypeTestPlan } from "../../operations/operators/type-tests.js";
 import type { CsharpTypePolicyHost } from "./model.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
-import { csharpAbsenceTargetType, isCsharpAbsenceTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { csharpAbsenceTargetType, csharpCarrierAdmitsSourceAbsence, isCsharpAbsenceTargetType } from "../../../target-model/types/runtime-carriers.js";
 
 export function selectCsharpNativeFlowMembers(
   host: CsharpTypePolicyHost,
@@ -84,6 +84,7 @@ function selectNativeGuard(
 function testNativeCarrier(host: CsharpTypePolicyHost, member: TargetTypeRef, predicate: Predicate): boolean | undefined {
   if (predicate.kind === "absence") {
     if (isCsharpAbsenceTargetType(member)) return !predicate.negated;
+    if (csharpCarrierAdmitsSourceAbsence(member)) return undefined;
     return getCsharpTypeofRuntimeKind(member, host.typeDefinitions) === undefined ? undefined : predicate.negated;
   }
   const category = getCsharpTypeofRuntimeKind(member, host.typeDefinitions);
