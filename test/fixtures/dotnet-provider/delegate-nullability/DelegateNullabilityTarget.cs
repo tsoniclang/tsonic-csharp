@@ -30,6 +30,22 @@ public sealed class CallbackHost
 
 public static class GenericCallbackHost
 {
+    public static void Nested<T>(Action<Action<T>> callback)
+    {
+    }
+
+    public static void NestedResult(Func<Func<long, long>, long> callback)
+    {
+    }
+
+    public static void PlainAfterNested(Action<long> callback)
+    {
+    }
+
+    public static void NullableNested(Action<Action<string?>?>? callback)
+    {
+    }
+
     public static void Plain<T>(Func<T, string> callback)
     {
     }

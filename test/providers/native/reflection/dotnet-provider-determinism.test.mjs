@@ -372,6 +372,19 @@ test(".NET reflection provider reports recursive delegates unsupported instead o
   assert.match(unsupportedUse?.reason ?? "", /Recursive delegate type/u);
 });
 
+test(".NET provider rejects indefinitely growing generic delegate expansion without publishing guessed callability", () => {
+  const reference = recursiveDelegateFixture();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference], disablePersistentCache: true });
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/RecursiveDelegateFixtures.js", {
+    requestedExports: ["Growing"],
+  });
+  assert.equal("exports" in module, true, "bounded unsupported module model remains available");
+  const unsupported = module.unsupportedExports?.find(declaration => declaration.sourceName === "Growing");
+  assert.equal(unsupported !== undefined, true, "no inferred executable delegate for unbounded expansion");
+  assert.match(unsupported.reason, /finite expansion-depth budget/u);
+  assert.equal(module.exports.some(declaration => declaration.sourceName === "Growing"), false);
+});
+
 function recursiveDelegateFixture() {
   return buildDotnetFixture({
     project: join(repoRoot, "test/fixtures/dotnet-provider/recursive-delegates/RecursiveDelegateProviderFixture.csproj"),

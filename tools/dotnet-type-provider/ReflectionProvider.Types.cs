@@ -57,38 +57,6 @@ sealed partial class ReflectionProvider
         return IsDelegate(type) ? UnsupportedDelegateSourceShapeReason(type) : null;
     }
 
-    string? UnsupportedDelegateSourceShapeReason(Type type)
-    {
-        var targetId = TargetId(type);
-        if (delegateSourceShapeUnsupportedReasons.TryGetValue(targetId, out var cachedReason))
-        {
-            return cachedReason;
-        }
-        var reason = ComputeUnsupportedDelegateSourceShapeReason(type);
-        if (reason is not null)
-        {
-            delegateSourceShapeUnsupportedReasons[targetId] = reason;
-        }
-        return reason;
-    }
-
-    string? ComputeUnsupportedDelegateSourceShapeReason(Type type)
-    {
-        var invoke = type.GetMethod("Invoke");
-        if (invoke is null)
-        {
-            return "Delegate has no provider-visible Invoke method, so no source function declaration can be generated.";
-        }
-        if (Parameters(invoke.GetParameters()) is null)
-        {
-            return $"{UnsupportedParametersReason(invoke.GetParameters(), "Delegate invoke signature")}; the type is retained as target-only .NET data.";
-        }
-        var returnReason = UnsupportedReturnTypeReason(invoke, "Delegate invoke return type");
-        return returnReason is null
-            ? null
-            : $"{returnReason}; the type is retained as target-only .NET data.";
-    }
-
     object? BaseType(Type type)
     {
         if (!type.IsClass || IsDelegate(type) || type.BaseType is null || IsRuntimeType(type.BaseType, typeof(object)))

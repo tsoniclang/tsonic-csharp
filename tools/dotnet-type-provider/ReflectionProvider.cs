@@ -8,8 +8,6 @@ sealed partial class ReflectionProvider : IDisposable
     readonly IReadOnlyDictionary<string, string> sourcePackageByAssemblyName;
     RequestMetadataLoadContext? requestLoadContext;
     Dictionary<string, SourceReference> providerSourceReferencesByTargetId = new(StringComparer.Ordinal);
-    readonly HashSet<string> delegateSourceShapeInProgress = new(StringComparer.Ordinal);
-    readonly Dictionary<string, string> delegateSourceShapeUnsupportedReasons = new(StringComparer.Ordinal);
     readonly NullabilityInfoContext nullability = new();
     Type[] activeModuleTypes = [];
     string moduleSpecifierPrefix = "";

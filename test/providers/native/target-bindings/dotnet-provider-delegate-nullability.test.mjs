@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   dotnetModuleToProviderDeclarationModel,
   dotnetTypeRefToTargetTypeRef,
+  validateDotnetModuleModelContract,
 } from "../../../../dist/public/provider-dotnet.js";
 import {
   createDotnetReflectionTypeDataProvider,
@@ -19,6 +20,34 @@ const reference = buildDotnetFixture({
   intermediateDirectory: join(repoRoot, ".temp/dotnet-provider-fixtures/delegate-nullability/obj/"),
   outputAssemblyName: "DelegateNullabilityProviderFixture.dll",
   projectDirectory: fixtureDirectory,
+});
+
+test(".NET provider retains exact nested generic delegate instantiations without poisoning siblings", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference], disablePersistentCache: true });
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderDelegateNullabilityFixtures.js", {
+    requestedExports: ["GenericCallbackHost"],
+  });
+  assert.equal("exports" in module, true, "native generic callback model is available");
+  assert.equal(validateDotnetModuleModelContract(module) === undefined, true, "original strict physical contract");
+  const host = module.exports.find(declaration => declaration.sourceName === "GenericCallbackHost");
+  assert.equal(host !== undefined, true);
+  const nested = requireRawMethod(host, "Nested").signatures[0];
+  const outer = nested.parameters[0].type;
+  const inner = outer.sourceShape.parameters[0].type;
+  assert.equal(outer.callableRepresentation, "delegate");
+  assert.equal(inner.callableRepresentation, "delegate");
+  assert.equal(outer.targetId, inner.targetId, "one generic definition, different exact constructed signatures");
+  assert.equal(inner.sourceShape.parameters[0].type.identity, nested.typeParameters[0].identity);
+  const result = requireRawMethod(host, "NestedResult").signatures[0].parameters[0].type.sourceShape;
+  assert.equal(result.returnType.name, "int64");
+  assert.equal(result.parameters[0].type.sourceShape.parameters[0].type.name, "int64");
+  assert.equal(result.parameters[0].type.sourceShape.returnType.name, "int64");
+  const plain = requireRawMethod(host, "PlainAfterNested").signatures[0].parameters[0].type;
+  assert.equal(plain.sourceShape.parameters[0].type.name, "int64", "nested use cannot poison the valid sibling");
+  const nullable = requireRawMethod(host, "NullableNested").signatures[0].parameters[0].type;
+  assert.equal(nullable.kind, "nullable-reference");
+  assert.equal(nullable.elementType.sourceShape.parameters[0].type.kind, "nullable-reference");
+  assert.equal(dotnetModuleToProviderDeclarationModel(module).exports.some(declaration => declaration.name === "GenericCallbackHost"), true);
 });
 
 test(".NET provider projects closed delegate nullability from the member use site", () => {

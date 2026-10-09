@@ -21,7 +21,7 @@ sealed partial class ReflectionProvider
         type = UnwrapByRef(type);
         typeNullability = genericNullability.Resolve(type, typeNullability);
         typeNullabilityMetadata = genericNullability.ResolveMetadata(type, typeNullabilityMetadata);
-        if (IsDelegate(type) && delegateSourceShapeInProgress.Contains(TargetId(type)))
+        if (IsDelegate(type) && delegateSourceShapeInProgress.Contains(type))
         {
             return null;
         }
@@ -190,7 +190,7 @@ sealed partial class ReflectionProvider
             typeArguments = typeArguments.Length == 0 ? null : typeArguments,
             sourceShape,
             implicitArrayInput = sourceProjection?.AcceptsImplicitArrayInput == true ? true : (bool?)null,
-            callableRepresentation = IsDelegate(type) && sourceShape is not null ? "delegate" : sourceProjection?.CallableRepresentation,
+            callableRepresentation = sourceProjection?.CallableRepresentation,
         };
         return ReferenceNullabilityTypeRef(type, typeNullability, typeNullabilityMetadata, namedType, includeTopLevelReferenceNullability);
     }
@@ -200,10 +200,9 @@ sealed partial class ReflectionProvider
         type = UnwrapByRef(type);
         if (IsDelegate(type))
         {
-            var targetId = TargetId(type);
-            return delegateSourceShapeInProgress.Contains(targetId)
+            return delegateSourceShapeInProgress.Contains(type)
                 ? $"Recursive delegate type '{TypeMetadataName(type)}' cannot be represented as a closed source function shape."
-                : delegateSourceShapeUnsupportedReasons.TryGetValue(targetId, out var reason)
+                : delegateSourceShapeUnsupportedReasons.TryGetValue(type, out var reason)
                     ? reason
                     : $"Delegate type '{TypeMetadataName(type)}' cannot be represented as a closed source function shape.";
         }
@@ -273,10 +272,7 @@ sealed partial class ReflectionProvider
         if (IsDelegate(type))
         {
             var delegateShape = DelegateSourceShape(type, genericParameters, typeNullability, typeNullabilityMetadata, genericNullability);
-            if (delegateShape is not null)
-            {
-                return new SourceTypeProjection(delegateShape);
-            }
+            return delegateShape is null ? null : new SourceTypeProjection(delegateShape, CallableRepresentation: "delegate");
         }
         var providerProjection = ProviderSourceProjectionShape(
             type,
@@ -797,90 +793,6 @@ sealed partial class ReflectionProvider
             throw new InvalidOperationException($"Module specifier '{activeModuleSpecifier}' does not end with namespace suffix '{suffix}'.");
         }
         return activeModuleSpecifier[..^suffix.Length];
-    }
-
-    object? ExportSourceShape(Type type)
-    {
-        return IsDelegate(type) ? DelegateSourceShape(type) : null;
-    }
-
-    object? DelegateSourceShape(
-        Type type,
-        GenericParameterContext? genericParameters = null,
-        NullabilityInfo? typeNullability = null,
-        NullableMetadata? typeNullabilityMetadata = null,
-        GenericNullabilityContext? genericNullability = null)
-    {
-        genericParameters ??= GenericParameterContext.Empty;
-        genericNullability ??= GenericNullabilityContext.Empty;
-        var targetId = TargetId(type);
-        if (delegateSourceShapeInProgress.Contains(targetId))
-        {
-            return null;
-        }
-        delegateSourceShapeInProgress.Add(targetId);
-        try
-        {
-            if (UnsupportedDelegateSourceShapeReason(type) is not null)
-            {
-                return null;
-            }
-            var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
-            if (type.IsConstructedGenericType)
-            {
-                genericParameters = genericParameters.WithConstructedTypeArguments(definition, type);
-                genericNullability = genericNullability.WithConstructedTypeArguments(
-                    definition,
-                    type,
-                    typeNullability,
-                    typeNullabilityMetadata);
-            }
-            var invoke = definition.GetMethod("Invoke");
-            if (invoke is null)
-            {
-                return null;
-            }
-            var parameters = Parameters(
-                invoke.GetParameters(),
-                genericParameters: genericParameters,
-                genericNullability: genericNullability);
-            var returnNullability = genericNullability.Resolve(invoke.ReturnType, nullability.Create(invoke.ReturnParameter));
-            var returnNullabilityMetadata = genericNullability.ResolveMetadata(
-                invoke.ReturnType,
-                NullableMetadata.ForParameter(invoke.ReturnParameter));
-            var targetReturnType = TypeRef(
-                UnwrapByRef(invoke.ReturnType),
-                genericParameters: genericParameters,
-                typeNullability: returnNullability,
-                typeNullabilityMetadata: returnNullabilityMetadata,
-                genericNullability: genericNullability,
-                signatureEvidence: SignatureEvidence(invoke.ReturnParameter));
-            var returnPassing = ReturnPassingMode(invoke.ReturnParameter);
-            var returnType = returnPassing is null
-                ? targetReturnType
-                : ByRefReturnSourceType(
-                    invoke.ReturnType,
-                    genericParameters,
-                    returnNullability,
-                    returnNullabilityMetadata);
-            if (parameters is null || returnType is null || targetReturnType is null)
-            {
-                return null;
-            }
-            return new
-            {
-                kind = "function",
-                id = TypeTargetId(type),
-                parameters,
-                returnType,
-                targetReturnType = returnPassing is null ? null : targetReturnType,
-                returnPassing,
-            };
-        }
-        finally
-        {
-            delegateSourceShapeInProgress.Remove(targetId);
-        }
     }
 
     static NullabilityInfo? GenericArgumentNullability(NullabilityInfo? typeNullability, int index)
