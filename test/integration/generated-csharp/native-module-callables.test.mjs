@@ -11,8 +11,12 @@ for (const surface of [undefined, "js"]) {
     assertCsharpCompilationSucceeded(compiled);
     const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs");
     assert.equal(typeof shapes, "string");
-    assert.match(shapes, /Helpers\.multiply\(Helpers\.step\(/u);
-    assert.match([...compiled.artifacts.values()].join("\n"), /Other\.step\(/u);
+    assert.match(shapes, /global::Tsonic\.Generated\.Helpers\.multiply\(global::Tsonic\.Generated\.Helpers\.step\(/u);
+    const output = [...compiled.artifacts.values()].join("\n");
+    assert.match(output, /global::Tsonic\.Generated\.Other\.step\(/u);
+    assert.match(output, /shadowed\(int Helpers\)/u);
+    assert.match(output, /int Tsonic = Helpers \+ 1;/u);
+    assert.match(output, /Func<int, int> selected = global::Tsonic\.Generated\.Helpers\.multiply;/u);
     executeCsharpConstruction(compiled, "relocated-module-callables");
   });
   test(`typed native module callables retain checked body ABIs on ${surface ?? "native"}`, { timeout: 300_000 }, () => {

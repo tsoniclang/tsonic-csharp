@@ -134,10 +134,11 @@ test("failed later acquisition disposes every successfully acquired resource", (
     }
   `);
 
-  assert.equal(
-    source.indexOf("Add<Resource>(first") < source.indexOf("Resource second = fail()"),
-    true,
-  );
+  const firstRegistration = source.indexOf("Add<Resource>(first");
+  const secondAcquisition = source.indexOf("Resource second = global::Tsonic.Generated.Index.fail()");
+  assert.notEqual(firstRegistration, -1);
+  assert.notEqual(secondAcquisition, -1);
+  assert.equal(firstRegistration < secondAcquisition, true);
   assert.match(source, /Add<Resource>\(second/);
   assert.match(source, /try/);
 });

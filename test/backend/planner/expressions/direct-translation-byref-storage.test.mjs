@@ -54,7 +54,7 @@ test("selected nullable target outputs reconstruct exact source storage", () => 
         public static Todo? getById(int id)
         {
             Todo? value = default(Todo)!;
-            if (todos.TryGetValue(id, out value))
+            if (global::Tsonic.Generated.Index.todos.TryGetValue(id, out value))
             {
                 return value;
             }
@@ -124,7 +124,7 @@ test("public storage changes reconstruct transitive module callers to a fixed po
         {
             values = new System.Collections.Generic.Dictionary<int, Todo>();
             current = default(Todo)!;
-            values.TryGetValue(1, out current);
+            global::Tsonic.Generated.State.values.TryGetValue(1, out global::Tsonic.Generated.State.current);
             return null;
         }
         public static void __tsonic_module_init()
@@ -144,7 +144,7 @@ test("public storage changes reconstruct transitive module callers to a fixed po
     {
         public static Todo? read()
         {
-            return State.current;
+            return global::Tsonic.Generated.State.current;
         }
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
@@ -165,7 +165,7 @@ test("public storage changes reconstruct transitive module callers to a fixed po
     {
         public static Todo? forward()
         {
-            return Reader.read();
+            return global::Tsonic.Generated.Reader.read();
         }
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
@@ -225,9 +225,9 @@ test("native module byref storage preserves destructured leaves and namespace id
   executeCsharpConstruction(compiled, "destructured-namespace-module-byref");
   assert.match(compiled.artifacts.get("src/State.cs"), /public static int parsed =/u);
   assert.match(compiled.artifacts.get("src/State.cs"), /public static int spare\s*\{\s*get;/u);
-  assert.match(compiled.artifacts.get("src/Index.cs"), /TryParse\("42", out State\.parsed\)/u);
-  assert.match(compiled.artifacts.get("src/Index.cs"), /TryParse\("invalid", out State\.parsed\)/u);
-  assert.match(compiled.artifacts.get("src/Reader.cs"), /return State\.parsed;/u);
+  assert.match(compiled.artifacts.get("src/Index.cs"), /TryParse\("42", out global::Tsonic\.Generated\.State\.parsed\)/u);
+  assert.match(compiled.artifacts.get("src/Index.cs"), /TryParse\("invalid", out global::Tsonic\.Generated\.State\.parsed\)/u);
+  assert.match(compiled.artifacts.get("src/Reader.cs"), /return global::Tsonic\.Generated\.State\.parsed;/u);
   assert.doesNotMatch([...compiled.artifacts.values()].join("\n"), /State\.parsed(?:!|\.Value)|copy.?back/iu);
 });
 

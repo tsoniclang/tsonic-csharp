@@ -10,7 +10,7 @@ for (const surface of [undefined, "js"]) {
     const emitted = [...compiled.artifacts.values()].join("\n");
     assert.match(emitted, /ulong selected\(/u);
     assert.match(emitted, /\.As[12]\(\)/u);
-    assert.match(emitted, /\(\(Derived\)receiver\(reader\)\.fluent\(\)\)\.result\(\)/u);
+    assert.match(emitted, /\(\(Derived\)global::Tsonic\.Generated\.Index\.receiver\(reader\)\.fluent\(\)\)\.result\(\)/u);
     assert.doesNotMatch(emitted, /ReadDynamicSlot|dynamic\b|Unsafe\.|ContinueWith|Task\.Run|u64_to_f64/u);
   });
 }

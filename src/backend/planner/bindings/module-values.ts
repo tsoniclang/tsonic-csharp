@@ -6,6 +6,8 @@ import type { CsharpPlanningContext } from "../context.js";
 import { sourceFileClassName } from "../artifacts/source-paths.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
+import { qualifiedCsharpType } from "../types/csharp-type-primitives.js";
+import { sameCsharpType } from "../types/csharp-type-equality.js";
 
 export function planCsharpSourceModuleMemberName(
   declaration: Node,
@@ -27,14 +29,17 @@ export function planCsharpSourceModuleValueReference(
   const name = planCsharpSourceModuleMemberName(reference.declaration, input, diagnostics);
   return {
     kind: "SimpleMemberAccessExpression",
-    receiver: { kind: "IdentifierName", name: sourceFileClassName(input,
-      input.program.source.ast.getFileName(reference.sourceFile)) },
+    receiver: { kind: "AliasQualifiedName", alias: "global", name: qualifiedCsharpType(
+      input.program.project.namespace,
+      sourceFileClassName(input, input.program.source.ast.getFileName(reference.sourceFile)),
+    ) },
     name,
   };
 }
 
 export function csharpSourceModuleValueReferencesEqual(left: CsharpExpression, right: CsharpExpression): boolean {
   return left.kind === "IdentifierName" && right.kind === "IdentifierName" && left.name === right.name ||
+    left.kind === "AliasQualifiedName" && right.kind === "AliasQualifiedName" && sameCsharpType(left, right) ||
     left.kind === "SimpleMemberAccessExpression" && right.kind === "SimpleMemberAccessExpression" &&
     left.typeArguments === undefined && right.typeArguments === undefined && left.name === right.name &&
     csharpSourceModuleValueReferencesEqual(left.receiver, right.receiver);

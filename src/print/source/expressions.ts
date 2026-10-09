@@ -24,6 +24,7 @@ import {
 } from "./format.js";
 import { isCsharpTypeSyntax } from "./types.js";
 import { csharpExpressionPrecedence } from "./precedence.js";
+import { transformCsharpTargetAst } from "../../backend/target-ast/normalization/transformation.js";
 
 export function printCsharpExpression(
   expression: CsharpExpression,
@@ -440,5 +441,11 @@ function printInterpolationExpression(
   context: CsharpPrintContext,
 ): string {
   const printed = context.printExpression(expression);
-  return expression.kind === "ConditionalExpression" ? `(${printed})` : printed;
+  if (expression.kind === "ParenthesizedExpression") return printed;
+  let requiresParentheses = expression.kind === "ConditionalExpression";
+  transformCsharpTargetAst(expression, record => {
+    requiresParentheses ||= record.kind === "AliasQualifiedName";
+    return record;
+  });
+  return requiresParentheses ? `(${printed})` : printed;
 }

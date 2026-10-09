@@ -44,7 +44,7 @@ for (const surface of [undefined, "js"]) {
     executeCsharpConstruction(compiled, `native-rest-boundary-${surface ?? "native"}`);
     const source = compiled.artifacts.get("src/Index.cs");
     assert.match(source, /sum\(1(?:\.0)?, 2(?:\.0)?, 3(?:\.0)?\)/u);
-    assert.match(source, /return sum\(values\);/u);
+    assert.match(source, /return global::Tsonic\.Generated\.Index\.sum\(values\);/u);
     assert.doesNotMatch(source, /sum\(\[\.\. values\]\)/u);
   });
 }

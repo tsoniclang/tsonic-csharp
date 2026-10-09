@@ -22,7 +22,7 @@ test("implicit project constructors forward exact provider constructor relations
         }
         public static void run()
         {
-            consume(new CustomError("boom"));
+            global::Tsonic.Generated.Index.consume(new CustomError("boom"));
         }
     }
     public class CustomError : System.Exception, Tsonic.CSharp.Runtime.ITsClosedValueCarrier

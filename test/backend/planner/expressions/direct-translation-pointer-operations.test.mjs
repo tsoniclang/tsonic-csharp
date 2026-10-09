@@ -17,7 +17,7 @@ test("raw pointer identity preserves optional address carriers through parameter
   `);
   const output = compiled.artifacts.get("src/Index.cs");
   assert.match(output, /Tsonic\.CSharp\.Runtime\.RawPointer\? pass/u);
-  assert.match(output, /RawPointer\.Same\(pass\(left\), pass\(right\)\)/u);
+  assert.match(output, /RawPointer\.Same\(global::Tsonic\.Generated\.Index\.pass\(left\), global::Tsonic\.Generated\.Index\.pass\(right\)\)/u);
   assert.match(output, /RawPointer\.Hash\(left\)/u);
   assert.doesNotMatch(output, /\bunsafe\b/u);
 });
@@ -62,9 +62,9 @@ test("typed locations preserve aliases, parameters, returns, and fresh allocatio
             object __tsonic_locationIdentity0 = new object();
             int local = 1;
             Tsonic.CSharp.Runtime.Location<int> alias = Tsonic.CSharp.Runtime.Location<int>.CreateLocal(__tsonic_locationIdentity0, () => local, __tsonic_param0 => local = __tsonic_param0);
-            increment(alias);
-            Tsonic.CSharp.Runtime.Location<int> allocated = create();
-            increment(allocated);
+            global::Tsonic.Generated.Index.increment(alias);
+            Tsonic.CSharp.Runtime.Location<int> allocated = global::Tsonic.Generated.Index.create();
+            global::Tsonic.Generated.Index.increment(allocated);
             return local + allocated.Load();
         }
     }
@@ -449,9 +449,10 @@ test("address acquisition evaluates reference receivers and indexes exactly once
   `);
   const source = compiled.artifacts.get("src/Index.cs");
 
-  assert.equal(occurrences(source, "Location<int>.CreateMember(select(box),"), 1);
-  assert.equal(occurrences(source, "Location<int>.CreateArrayElement(values, index())"), 1);
-  assert.equal(occurrences(source, "select(box)"), 1);
+  assert.equal(occurrences(source, "Location<int>.CreateMember(global::Tsonic.Generated.Index.select(box),"), 1);
+  assert.equal(occurrences(source, "Location<int>.CreateArrayElement(values, global::Tsonic.Generated.Index.index())"), 1);
+  assert.equal(occurrences(source, "global::Tsonic.Generated.Index.select(box)"), 1);
+  assert.equal(occurrences(source, "global::Tsonic.Generated.Index.index()"), 1);
   assert.equal(occurrences(source, "index()"), 2);
   assert.match(
     source,
@@ -566,7 +567,7 @@ for (const localName of ["keepAlive", "keepalive"]) {
   `);
     const output = compiled.artifacts.get("src/Index.cs");
     assert.equal(occurrences(output, "global::System.GC.KeepAlive(value)"), 2);
-    assert.match(output, new RegExp(`return ${localName}\\(value\\);`, "u"));
+    assert.match(output, new RegExp(`return global::Tsonic\\.Generated\\.Index\\.${localName}\\(value\\);`, "u"));
   });
 }
 
@@ -655,7 +656,7 @@ for (const [equalityName, loadName] of [["equalPointer", "loadPointer"], ["equal
         }
         public static bool run(int value)
         {
-            return ${equalityName}(${loadName}(value), value);
+            return global::Tsonic.Generated.Index.${equalityName}(global::Tsonic.Generated.Index.${loadName}(value), value);
         }
     }
 }

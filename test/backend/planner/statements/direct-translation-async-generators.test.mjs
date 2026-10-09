@@ -26,7 +26,7 @@ test("async generators lower through native C# async iterators", () => {
   assert.match(source, /Tsonic\.CSharp\.Runtime\.AsyncGenerator<int, string,/);
   assert.match(source, /System\.Collections\.Generic\.IAsyncEnumerable</);
   assert.match(source, /async/);
-  assert.match(source, /yield return await nextValue\(\)/);
+  assert.match(source, /yield return await global::Tsonic\.Generated\.Index\.nextValue\(\)/);
   assert.match(source, /__tsonic_generatorReturn0 = "complete";\s+goto __tsonic_generatorExit0;/);
   assert.equal((source.match(/\.Complete\(/g) ?? []).length, 1);
 });

@@ -105,8 +105,8 @@ test("direct C# module bindings remain internally mutable and externally read-on
         } = default(int)!;
         public static int increment()
         {
-            count++;
-            return count;
+            global::Tsonic.Generated.Index.count++;
+            return global::Tsonic.Generated.Index.count;
         }
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
@@ -158,7 +158,7 @@ test("direct C# translation awaits async module dependencies and project-owned c
         private static readonly System.Lazy<System.Threading.Tasks.Task> __tsonic_module_initialization = new System.Lazy<System.Threading.Tasks.Task>(() => __tsonic_module_init_core());
         private static async System.Threading.Tasks.Task __tsonic_module_init_core()
         {
-            await delay();
+            await global::Tsonic.Generated.Worker.delay();
         }
         public static System.Threading.Tasks.Task __tsonic_module_init()
         {

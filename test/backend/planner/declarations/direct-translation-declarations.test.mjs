@@ -197,7 +197,7 @@ test("source-owned generic calls consume the reconstructed callable contract", (
         }
         public static int run(int seed)
         {
-            return identity<int>(seed);
+            return global::Tsonic.Generated.Index.identity<int>(seed);
         }
     }
 }
@@ -233,7 +233,7 @@ namespace Tsonic.Generated
             {
                 return "N=" + value;
             }
-            return transform<int, string>(7, new Func<int, string>(__tsonic_callable_229));
+            return global::Tsonic.Generated.Index.transform<int, string>(7, new Func<int, string>(__tsonic_callable_229));
         }
     }
 }
@@ -291,7 +291,7 @@ namespace Tsonic.Generated
                 return "ready";
             }
             Func<string> next = new Func<string>(__tsonic_callable_129);
-            return invoke(next);
+            return global::Tsonic.Generated.Index.invoke(next);
         }
     }
 }

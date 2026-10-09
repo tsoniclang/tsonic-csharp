@@ -38,7 +38,7 @@ namespace Tsonic.Generated
         }
         public static string run()
         {
-            return parse(join("a", null));
+            return global::Tsonic.Generated.Index.parse(global::Tsonic.Generated.Index.join("a", null));
         }
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
@@ -75,7 +75,7 @@ test("direct C# translation evaluates an omitted reference delegate default in t
   assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs");
   assert.match(source, /internal static string defaulted\(string\? __tsonic_param0\)/u);
-  assert.match(source, /return defaulted\(null\);/u);
+  assert.match(source, /return global::Tsonic\.Generated\.Index\.defaulted\(null\);/u);
   assert.match(source, /string value = __tsonic_param0 \?\? "x";/u);
   assert.doesNotMatch(source, /\bis string __tsonic_value\d+/u);
   assert.match(source, /return value;/u);
@@ -104,7 +104,7 @@ test("direct C# translation preserves omission on a source method with an emitte
         }
         public static string run()
         {
-            return optional();
+            return global::Tsonic.Generated.Index.optional();
         }
     }
 }

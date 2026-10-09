@@ -49,7 +49,7 @@ test("direct C# translation preserves exact project heritage across source modul
         }
         public static void run()
         {
-            consume(new Derived());
+            global::Tsonic.Generated.Index.consume(new Derived());
         }
     }
 }
@@ -90,7 +90,7 @@ test("source callable contracts close imported generic calls independent of call
     {
         public static int run(int value)
         {
-            return ZLibrary.identity<int>(value);
+            return global::Tsonic.Generated.ZLibrary.identity<int>(value);
         }
     }
 }

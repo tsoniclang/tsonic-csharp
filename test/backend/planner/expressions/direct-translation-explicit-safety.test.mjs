@@ -199,7 +199,7 @@ test("C# aliases preserve exact unsafe evidence and local shadows remain ordinar
 
   const source = compiled.artifacts.get("src/Index.cs");
   assert.equal(occurrences(source, "return unsafe(*pointer);"), 2);
-  assert.match(source, /return @unsafe\(value\);/u);
+  assert.match(source, /return global::Tsonic\.Generated\.Index\.@unsafe\(value\);/u);
 });
 
 test("declaration safety contracts attach only to exact selected declarations", () => {
@@ -281,7 +281,7 @@ test("C# safety aliases preserve cross-file selected declaration identity", () =
   const generated = [...compiled.artifacts.values()].join("\n");
   assert.match(generated, /public static unsafe int imported\(int value\)/u);
   assert.match(generated, /public static int sibling\(int value\)/u);
-  assert.match(generated, /return safety\(value\);/u);
+  assert.match(generated, /return global::Tsonic\.Generated\.Index\.safety\(value\);/u);
 });
 
 for (const moduleSpecifier of ["@tsonic/core/lang.js", "@tsonic/csharp/lang.js"]) {

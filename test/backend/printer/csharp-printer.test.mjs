@@ -565,6 +565,33 @@ test("printer parenthesizes conditional expressions inside interpolation holes",
   );
 });
 
+test("printer protects alias-qualified AST expressions without treating literal text as syntax", () => {
+  const name = value => ({ kind: "IdentifierName", name: value });
+  const rooted = { kind: "AliasQualifiedName", alias: "global", name: {
+    kind: "QualifiedName", left: name("Example"), name: "Owner",
+  } };
+  const member = { kind: "SimpleMemberAccessExpression", receiver: rooted, name: "value" };
+  const call = { kind: "InvocationExpression", callee: member, arguments: [] };
+  const cases = [
+    [member, "(global::Example.Owner.value)"],
+    [call, "(global::Example.Owner.value())"],
+    [{ kind: "ElementAccessExpression", receiver: member, arguments: [name("index")] }, "(global::Example.Owner.value[index])"],
+    [{ kind: "BinaryExpression", left: member, operatorToken: { kind: "PlusToken" }, right: name("offset") }, "(global::Example.Owner.value + offset)"],
+    [{ kind: "CastExpression", type: rooted, expression: name("value") }, "((global::Example.Owner)value)"],
+    [{ kind: "ObjectCreationExpression", type: rooted, arguments: [] }, "(new global::Example.Owner())"],
+    [{ kind: "InvocationExpression", callee: name("read"), arguments: [{ kind: "Argument", expression: member }] }, "(read(global::Example.Owner.value))"],
+    [{ kind: "ParenthesizedExpression", expression: call }, "(global::Example.Owner.value())"],
+    [name("value"), "value"],
+    [{ ...member, receiver: name("owner") }, "owner.value"],
+    [{ kind: "LiteralExpression", value: "literal::text" }, '"literal::text"'],
+  ];
+  for (const [expression, expected] of cases) {
+    assert.equal(printCsharpExpression({ kind: "InterpolatedStringExpression", parts: [
+      { kind: "Interpolation", expression },
+    ] }), `$"{${expected}}"`);
+  }
+});
+
 test("printer emits ordinary and interpolated strings as textual C# source", () => {
   const controls = "\0\b\f\n\r\t\v\u0001\u007f\u0085\u009f\u2028\u2029\ud800😀";
   const ordinary = printCsharpExpression({

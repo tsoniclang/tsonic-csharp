@@ -29,7 +29,7 @@ test("direct C# translation preserves authored primitive aliases and array carri
         private static object? __tsonic_module_init_core()
         {
             tail = new int[] { 2, 3 };
-            values = (int[])[1, .. tail];
+            values = (int[])[1, .. global::Tsonic.Generated.Index.tail];
             return null;
         }
         public static void __tsonic_module_init()

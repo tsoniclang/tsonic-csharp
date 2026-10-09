@@ -38,8 +38,8 @@ test("direct C# translation preserves exact generic and transitive project herit
         public static void run()
         {
             StringBox value = new StringBox();
-            consumeBase(value);
-            consumeNamed(value);
+            global::Tsonic.Generated.Index.consumeBase(value);
+            global::Tsonic.Generated.Index.consumeNamed(value);
         }
     }
     public interface Named<T>

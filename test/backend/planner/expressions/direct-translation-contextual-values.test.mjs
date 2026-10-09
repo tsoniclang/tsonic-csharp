@@ -43,10 +43,10 @@ test("direct C# translation separates flow-selected values from nullable storage
         }
         public static void report(string title, int? id)
         {
-            TodoCreateInput? todo = makeTodo(title, id);
+            TodoCreateInput? todo = global::Tsonic.Generated.Index.makeTodo(title, id);
             if (todo is not null)
             {
-                consume(todo!.id);
+                global::Tsonic.Generated.Index.consume(todo!.id);
             }
         }
         public static void consume(int value)
@@ -110,8 +110,8 @@ test("direct C# translation preserves authored primitive aliases through structu
         } = default(ObjectShape_1e4714b9b387<int>)!;
         public static int takeNext()
         {
-            int id = nextId.value;
-            nextId.value = id + 1;
+            int id = global::Tsonic.Generated.Index.nextId.value;
+            global::Tsonic.Generated.Index.nextId.value = id + 1;
             return id;
         }
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
@@ -401,7 +401,7 @@ namespace Tsonic.Generated
     {
         public static int? parseRequired(string text)
         {
-            return Helper.parseValue(text);
+            return global::Tsonic.Generated.Helper.parseValue(text);
         }
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
@@ -580,7 +580,7 @@ namespace Tsonic.Generated
             {
                 result = value + 1;
             }
-            visit(new Action<int>(__tsonic_callable_227));
+            global::Tsonic.Generated.Index.visit(new Action<int>(__tsonic_callable_227));
             return result;
         }
     }
@@ -721,8 +721,8 @@ test("direct C# translation preserves explicit void discard intent", () => {
         }
         public static void run()
         {
-            _ = work();
-            finish();
+            _ = global::Tsonic.Generated.Index.work();
+            global::Tsonic.Generated.Index.finish();
         }
     }
 }

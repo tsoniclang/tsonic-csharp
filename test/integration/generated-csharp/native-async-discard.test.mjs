@@ -9,7 +9,7 @@ for (const surface of [undefined, "js"]) {
     const compiled = compileCsharpSource({ surface, sourceText: nativeAsyncDiscardSource(6) });
     executeCsharpConstruction(compiled, "native-async-discard", true);
     const output = [...compiled.artifacts.values()].join("\n");
-    assert.match(output, /_ = produce\(argument\(\)\)/u);
+    assert.match(output, /_ = global::Tsonic\.Generated\.Index\.produce\(global::Tsonic\.Generated\.Index\.argument\(\)\)/u);
     assert.match(output, /await retained/u);
     assert.doesNotMatch(output, /Task\.Run|Wait\(|\.Result\b/u);
   });

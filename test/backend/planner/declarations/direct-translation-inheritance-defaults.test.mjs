@@ -27,7 +27,7 @@ test("selected source defaults close every emitted C# generic type use", () => {
         }
         public static void run()
         {
-            consume(new DefaultStringBox());
+            global::Tsonic.Generated.Index.consume(new DefaultStringBox());
         }
     }
     public class DefaultBase<T> : Tsonic.CSharp.Runtime.ITsClosedValueCarrier

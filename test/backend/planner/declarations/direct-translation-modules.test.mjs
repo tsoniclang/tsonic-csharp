@@ -19,11 +19,11 @@ test("direct C# translation emits namespace-imported project functions through e
 
   assert.deepEqual(compiled.targetDiagnostics, []);
   const generated = compiled.artifacts.get("src/Index.cs");
-  assert.match(generated, /return Store\.get\(\);/);
+  assert.match(generated, /return global::Tsonic\.Generated\.Store\.get\(\);/);
   assert.doesNotMatch(generated, /\bStore\.Store\b|__unsupported/);
 });
 
-test("direct C# translation qualifies same-module values only across generated type owners", () => {
+test("direct C# translation qualifies same-module values through exact generated type owners", () => {
   const compiled = compileCsharpSource({
     sourceText: `
       let offset: number = 8;
@@ -56,7 +56,7 @@ test("direct C# translation qualifies same-module values only across generated t
         } = default(double)!;
         public static double top(double value)
         {
-            return value + offset;
+            return value + global::Tsonic.Generated.Index.offset;
         }
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
@@ -79,11 +79,11 @@ test("direct C# translation qualifies same-module values only across generated t
         public double shifted()
         {
             double local = this.value;
-            return local + Index.offset;
+            return local + global::Tsonic.Generated.Index.offset;
         }
         public void setOffset(double value)
         {
-            Index.offset = value;
+            global::Tsonic.Generated.Index.offset = value;
         }
     }
 }
