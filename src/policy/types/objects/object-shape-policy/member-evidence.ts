@@ -104,9 +104,6 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     literalOwner?: Node,
   ): CsharpObjectShapeMemberFact | undefined {
     const sourcePropertyName = property.name;
-    if (sourcePropertyName.length === 0) {
-      return undefined;
-    }
     const declarations = [...new Set([
       ...queries.declarations.symbolDeclarations(property.symbol),
       ...property.rootSymbols.flatMap((symbol) =>
