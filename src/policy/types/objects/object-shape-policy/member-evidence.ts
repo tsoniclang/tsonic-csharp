@@ -54,15 +54,15 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     const literals = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)
       .filter(declaration => host.ast.is.IsObjectLiteralExpression(declaration));
     if (literals.length > 1) return undefined;
-    const members = queries.types.propertyInfos(ownerType).filter(property => {
+    const members: CsharpObjectShapeMemberFact[] = [];
+    for (const property of queries.types.propertyInfos(ownerType)) {
       const declarations = queries.declarations.symbolDeclarations(property.symbol);
-      return declarations.length === 0 || !declarations.every(declaration => sourceClassFieldIsTypeOnly(host.ast, declaration));
-    }).map((property) =>
-      deriveMember(property, queries, state, authoredTypeRoot, literals[0])
-    );
-    return members.some((member) => member === undefined)
-      ? undefined
-      : members as readonly CsharpObjectShapeMemberFact[];
+      if (declarations.length !== 0 && declarations.every(declaration => sourceClassFieldIsTypeOnly(host.ast, declaration))) continue;
+      const member = deriveMember(property, queries, state, authoredTypeRoot, literals[0]);
+      if (member === undefined) return undefined;
+      members.push(member);
+    }
+    return members;
   }
 
   function instantiateMemberEvidence(
