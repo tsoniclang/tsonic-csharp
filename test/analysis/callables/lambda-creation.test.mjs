@@ -8,7 +8,7 @@ import { csharpDelegateTargetType } from "../../../dist/target-model/types/deleg
 const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
 const callable = csharpDelegateTargetType("System.Func", [scalar], scalar);
 
-function fixture(body) {
+function fixture(body, quotation = false) {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/project",
     files: { "/project/index.ts": `
       declare function invoke(mapper: (value: number) => number): number;
@@ -48,8 +48,9 @@ function fixture(body) {
   const storage = { nativeBacking: () => undefined, nativeArray: () => undefined, type: () => undefined,
     requiresTypedLocationIdentity: () => false };
   const names = { resolve: () => ({ kind: "resolved", name: "selected" }), temporaryName: name => name };
+  const target = quotation ? { kind: "target-named", id: "Fixture::Quotation", csharpExpressionTreeDelegateType: callable } : undefined;
   const selected = analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, storage, evidence,
-    [], names, { runtimeDefault: () => undefined }, { call: node => operations.get(node) });
+    [], names, { runtimeDefault: () => undefined }, { call: node => operations.get(node) }, { callableTarget: () => target });
   assert.equal(selected.issues.length, 0, "closed capture storage");
   assert.equal(lambdas.length, 1, "one exact authored callable");
   return { selected, lambda: lambdas[0], operations, source };
@@ -104,3 +105,14 @@ test("missing callable creation evidence remains conservative", () => {
   assert.equal(unknown.staticBody, false);
   assert.equal(Object.isFrozen(unknown), true);
 });
+
+for (const body of ["return invoke((entry: number) => entry + 1);", "return invoke((entry: number) => entry + value);"]) {
+  test(`exact quotation evidence preserves syntax independently of delegate flow (${body})`, () => {
+    const input = fixture(body, true);
+    const selected = input.selected.lambdaCreation(input.lambda);
+    assert.equal(selected.kind, "quotation");
+    assert.equal(selected.staticBody, false);
+    assert.equal(input.selected.closure(input.lambda), undefined);
+    assert.equal(Object.isFrozen(selected), true);
+  });
+}

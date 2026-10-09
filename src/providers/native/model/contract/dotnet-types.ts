@@ -4,6 +4,7 @@ import { validateDotnetRawProviderRef } from "./provider-declarations.js";
 import { validateDotnetTargetIdentity, validateOptionalDotnetRenderShape } from "./dotnet-identities.js";
 import type { ContractCollector } from "./support.js";
 import type { DotnetTypeRef } from "../index.js";
+import { dotnetCallableRepresentationIssue } from "../callable-representations.js";
 
 export function validateOptionalDotnetTypeRef(
   type: DotnetTypeRef | undefined,
@@ -50,6 +51,8 @@ export function validateDotnetTypeRef(
       validateOptionalDotnetRenderShape(type.renderShape, `${path}.renderShape`, collector);
       validateDotnetTypeRefs(type.typeArguments ?? [], `${path}.typeArguments`, collector, options);
       validateOptionalDotnetTypeRef(type.sourceShape, `${path}.sourceShape`, collector, { allowLiteral: true, allowProviderRef: true });
+      const callableIssue = dotnetCallableRepresentationIssue(type);
+      if (callableIssue !== undefined) collector.add(`${path}.callableRepresentation`, callableIssue);
       if (
         type.implicitArrayInput !== undefined &&
         type.implicitArrayInput !== true

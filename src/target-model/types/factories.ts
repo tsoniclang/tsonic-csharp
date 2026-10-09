@@ -24,6 +24,7 @@ export function csharpTargetNamedType(
     readonly indexableReadMember?: CsharpTargetNamedTypeRef["csharpIndexableReadMember"];
     readonly collectionSemantics?: CsharpTargetNamedTypeRef["csharpCollectionSemantics"];
     readonly delegateSignature?: CsharpTargetNamedTypeRef["csharpDelegateSignature"];
+    readonly expressionTreeDelegateType?: TargetTypeRef;
     readonly generatorProtocol?: CsharpTargetNamedTypeRef["csharpGeneratorProtocol"];
     readonly iteratorResultProtocol?: CsharpTargetNamedTypeRef["csharpIteratorResultProtocol"];
     readonly flowRefinementRepresentation?: CsharpTargetNamedTypeRef["csharpFlowRefinementRepresentation"];
@@ -63,6 +64,7 @@ export function csharpTargetNamedType(
       ? { csharpCollectionSemantics: metadata.collectionSemantics }
       : {}),
     ...(metadata.delegateSignature !== undefined ? { csharpDelegateSignature: metadata.delegateSignature } : {}),
+    ...(metadata.expressionTreeDelegateType !== undefined ? { csharpExpressionTreeDelegateType: metadata.expressionTreeDelegateType } : {}),
     ...(metadata.generatorProtocol !== undefined ? { csharpGeneratorProtocol: metadata.generatorProtocol } : {}),
     ...(metadata.iteratorResultProtocol !== undefined ? { csharpIteratorResultProtocol: metadata.iteratorResultProtocol } : {}),
     ...(metadata.flowRefinementRepresentation !== undefined

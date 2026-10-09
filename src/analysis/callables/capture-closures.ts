@@ -8,6 +8,8 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { CsharpDeclarationClassifications } from "../declarations/model.js";
 import type { CsharpStorageClassifications } from "../storage/model.js";
 import { csharpConstructorRequiresPreparation } from "./constructor-entry.js";
+import { getCsharpExpressionTreeDelegateType } from "../../target-model/types/delegates.js";
+import type { CsharpExpectedTypeClassifications } from "../expected-types/model.js";
 
 export interface CsharpFrameClosure {
   readonly declaration: Node;
@@ -28,6 +30,7 @@ export function selectCsharpFrameClosures(
   constructorEntry: {
     readonly declarations: Pick<CsharpDeclarationClassifications, "runtimeDefault">;
     readonly storage: Pick<CsharpStorageClassifications, "nativeBacking" | "requiresTypedLocationIdentity">;
+    readonly expectedTypes: Pick<CsharpExpectedTypeClassifications, "callableTarget">;
   },
 ): { readonly closures: readonly CsharpFrameClosure[]; readonly namedSelfBindings: readonly CsharpNamedSelfBinding[];
   readonly captureFreeDeclarations: readonly Node[] } {
@@ -111,7 +114,9 @@ export function selectCsharpFrameClosures(
           declaration: capture.declaration, scope, type: physicalType(capture.declaration, logicalType),
         };
       });
-      const type = evidence.nodeTargetType(candidate.declaration);
+      const expected = constructorEntry.expectedTypes.callableTarget(candidate.declaration);
+      const type = getCsharpExpressionTreeDelegateType(expected) === undefined
+        ? evidence.nodeTargetType(candidate.declaration) : expected;
       const receivers = candidate.selected.receivers.map(receiver => {
         const reference = receiver.references[0];
         const type = reference === undefined ? undefined : evidence.nodeTargetType(reference);

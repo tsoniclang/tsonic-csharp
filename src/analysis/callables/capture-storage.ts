@@ -22,10 +22,14 @@ import type { CsharpNamedSelfBinding } from "./named-self.js";
 import { csharpCapturedMemberAccess } from "./captured-member-access.js";
 import type { CsharpDeclarationClassifications } from "../declarations/model.js";
 import type { CsharpTargetOperationClassifications } from "../operations/model.js";
+import type { CsharpExpectedTypeClassifications } from "../expected-types/model.js";
+import { getCsharpExpressionTreeDelegateType } from "../../target-model/types/delegates.js";
+import { HasSyntacticModifier, ModifierFlagsAsync } from "@tsonic/target-api/source";
 
 export type CsharpLambdaCreation =
   | { readonly kind: "discarded"; readonly staticBody: true }
   | { readonly kind: "cached"; readonly staticBody: true }
+  | { readonly kind: "quotation"; readonly staticBody: false }
   | { readonly kind: "inline" | "direct" | "fresh"; readonly staticBody: boolean };
 
 const unknownLambdaCreation: CsharpLambdaCreation = Object.freeze({ kind: "fresh", staticBody: false });
@@ -71,6 +75,7 @@ export function analyzeCsharpCaptureStorage(
   names: CsharpSourceNameResolver,
   declarations: CsharpDeclarationClassifications,
   operations: CsharpTargetOperationClassifications,
+  expectedTypes: Pick<CsharpExpectedTypeClassifications, "callableTarget">,
 ): CsharpCaptureStorage {
   const environment = createCsharpTypeParameterEnvironment(source.ast, declaration => evidence.typeParameterConstraints(declaration));
   const groups = new Map<Node, Map<Node, TargetTypeRef>>();
@@ -123,7 +128,7 @@ export function analyzeCsharpCaptureStorage(
   const genericClosures = selectCsharpGenericFrameClosures(source, evidence, groups, physicalType, issues);
   const genericDeclarations = new Set(genericClosures.map(closure => closure.declaration));
   const frameClosures = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, genericDeclarations,
-    { declarations, storage });
+    { declarations, storage, expectedTypes });
   const namedSelfBindings = new Map(frameClosures.namedSelfBindings.map(binding => [binding.declaration, binding]));
   const captureFreeDeclarations = new Set(frameClosures.captureFreeDeclarations);
   const lambdaCreations = new Map<Node, CsharpLambdaCreation>();
@@ -226,19 +231,27 @@ export function analyzeCsharpCaptureStorage(
         lambdaCreations.set(node, Object.freeze({ kind: "discarded", staticBody: true }));
         return;
       }
-      const flow = source.navigation.expressionValueFlow(node);
-      const invocationOnly = flow.passedAsArgument && hasOnlyInvocationArguments(node, source, operations);
-      const selfIdentityObserved = (namedSelfBindings.get(node)?.values.length ?? 0) > 0;
-      const fresh = flow.identityCompared || flow.captured || flow.returned || flow.yielded ||
-        flow.storedOutsideBinding || flow.exported || flow.hasUnclassifiedUse || flow.memberWritten ||
-        flow.receiverUsed || flow.passedAsArgument && !invocationOnly || selfIdentityObserved;
-      const staticBody = captureFreeDeclarations.has(node) && !selfIdentityObserved;
-      const directlyInvoked = !fresh && flow.aliasDeclarations.length === 0 && flow.uses.length > 0 &&
-        flow.uses.every(use => use.kind === "direct-call" && use.role === "call-target");
-      const creation: CsharpLambdaCreation = fresh ? { kind: "fresh", staticBody }
-        : directlyInvoked ? { kind: "direct", staticBody }
-        : invocationOnly && staticBody ? { kind: "cached", staticBody: true } : { kind: "inline", staticBody };
-      lambdaCreations.set(node, Object.freeze(creation));
+      if (getCsharpExpressionTreeDelegateType(expectedTypes.callableTarget(node)) !== undefined) {
+        if (HasSyntacticModifier(source.ast, node, ModifierFlagsAsync)) {
+          issues.push({ node, code: "CSHARP_EXPRESSION_TREE_ASYNC_UNSUPPORTED",
+            message: "A native expression-tree quotation cannot contain an asynchronous lambda." });
+        }
+        lambdaCreations.set(node, Object.freeze({ kind: "quotation", staticBody: false }));
+      } else {
+        const flow = source.navigation.expressionValueFlow(node);
+        const invocationOnly = flow.passedAsArgument && hasOnlyInvocationArguments(node, source, operations);
+        const selfIdentityObserved = (namedSelfBindings.get(node)?.values.length ?? 0) > 0;
+        const fresh = flow.identityCompared || flow.captured || flow.returned || flow.yielded ||
+          flow.storedOutsideBinding || flow.exported || flow.hasUnclassifiedUse || flow.memberWritten ||
+          flow.receiverUsed || flow.passedAsArgument && !invocationOnly || selfIdentityObserved;
+        const staticBody = captureFreeDeclarations.has(node) && !selfIdentityObserved;
+        const directlyInvoked = !fresh && flow.aliasDeclarations.length === 0 && flow.uses.length > 0 &&
+          flow.uses.every(use => use.kind === "direct-call" && use.role === "call-target");
+        const creation: CsharpLambdaCreation = fresh ? { kind: "fresh", staticBody }
+          : directlyInvoked ? { kind: "direct", staticBody }
+          : invocationOnly && staticBody ? { kind: "cached", staticBody: true } : { kind: "inline", staticBody };
+        lambdaCreations.set(node, Object.freeze(creation));
+      }
     }
     if (source.ast.is.IsFunctionDeclaration(node) && source.ast.body(node) !== undefined &&
       !evidence.isCompileTimeMetadata(node)) {

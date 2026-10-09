@@ -17,8 +17,8 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import {
   csharpSourceArgumentExpectedType,
   csharpTargetParameterValueType,
+  getCsharpLambdaSignature,
   getCsharpDelegateSignature,
-  getCsharpCallableValueSignature,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   getCsharpArrayLiteralElementTargetType,
@@ -221,7 +221,7 @@ export function analyzeCsharpExpectedTypes(
     callable: CsharpCallableContractIndex["contracts"][number],
     callableTarget?: TargetTypeRef,
   ): TargetTypeRef | undefined {
-    const selectedReturnType = getCsharpCallableValueSignature(callableTarget)
+    const selectedReturnType = getCsharpLambdaSignature(callableTarget)
       ?.returnType;
     if (selectedReturnType !== undefined) {
       return HasSyntacticModifier(
@@ -312,10 +312,11 @@ export function analyzeCsharpExpectedTypes(
       return parameters.some(parameter => parameter === undefined) ? undefined
         : rebindCsharpMethodValueTypeParameters(value, parameters as NonNullable<typeof parameters[number]>[]);
     }
-    const signature = getCsharpDelegateSignature(value);
+    const signature = getCsharpLambdaSignature(value);
     if (signature !== undefined) {
       const callable = callables.get({ kind: "declaration", declaration });
-      if (callable !== undefined && HasSyntacticModifier(policy.ast, declaration, ModifierFlagsAsync) &&
+      if (getCsharpDelegateSignature(value) !== undefined && callable !== undefined &&
+        HasSyntacticModifier(policy.ast, declaration, ModifierFlagsAsync) &&
         getCsharpTaskResultTargetType(callable.returnType) !== undefined &&
         getCsharpTaskResultTargetType(signature.returnType) === undefined) {
         return csharpCallableValueType(callable);

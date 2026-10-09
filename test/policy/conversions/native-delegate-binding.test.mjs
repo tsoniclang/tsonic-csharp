@@ -13,6 +13,7 @@ const passingModes = ["by-value", "byref-readonly", "byref-readwrite", "byref-wr
 function nativeDelegate(name, passingMode = "by-value", parameterType = integer, returnPassing) {
   return dotnetTypeRefToTargetTypeRef({
     kind: "named", targetId: `Fixture::${name}`, metadataName: `Fixture.${name}`,
+    callableRepresentation: "delegate",
     renderShape: { kind: "named", namespace: ["Fixture"], name },
     sourceShape: { kind: "function", id: `Fixture::${name}.Invoke`,
       parameters: [{ name: "value", type: parameterType, passingMode }],

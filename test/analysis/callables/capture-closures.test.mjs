@@ -54,7 +54,8 @@ function fixture(text) {
     const issues = [];
     const selected = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, valueOwned,
       { declarations: { runtimeDefault: node => runtimeDefaults.has(node) ? {} : undefined },
-        storage: { nativeBacking: node => nativeBackings.get(node), requiresTypedLocationIdentity: () => false } });
+        storage: { nativeBacking: node => nativeBackings.get(node), requiresTypedLocationIdentity: () => false },
+        expectedTypes: { callableTarget: () => undefined } });
     return { ...selected, groups, issues };
   };
   return { source, loops, declaration, owner, types, storageTypes, metadata, runtimeDefaults, nativeBackings, select };

@@ -7,7 +7,7 @@ sealed partial class ReflectionProvider
         new("System.Linq.Expressions", "System.Linq.Expressions.Expression`1", 1, 0),
     ];
 
-    object? ProviderSourceProjectionShape(
+    SourceTypeProjection? ProviderSourceProjectionShape(
         Type type,
         GenericParameterContext genericParameters,
         NullabilityInfo? typeNullability,
@@ -29,12 +29,13 @@ sealed partial class ReflectionProvider
         {
             throw new InvalidOperationException($"Provider source projection '{projection.AssemblyName}::{projection.MetadataName}' expected {projection.TypeArgumentCount} type arguments, but reflected {arguments.Length}.");
         }
-        return SourceShape(
+        var sourceShape = SourceShape(
             arguments[projection.SourceTypeArgumentIndex],
             genericParameters,
             GenericArgumentNullability(typeNullability, projection.SourceTypeArgumentIndex),
             GenericArgumentNullabilityMetadata(typeNullabilityMetadata, projection.SourceTypeArgumentIndex),
             genericNullability);
+        return sourceShape is null ? null : new SourceTypeProjection(sourceShape, CallableRepresentation: "expression-tree");
     }
 
     sealed record SourceTypeArgumentProjection(

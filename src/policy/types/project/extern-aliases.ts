@@ -123,6 +123,9 @@ function csharpApplyExternAliasToNamedTargetType(
     ...(csharpType.csharpReadOnlyIndexableElementType !== undefined ? { csharpReadOnlyIndexableElementType: csharpApplyExternAliasToTargetType(csharpType.csharpReadOnlyIndexableElementType, specifier) } : {}),
     ...(csharpType.csharpDenseMutableElementType !== undefined ? { csharpDenseMutableElementType: csharpApplyExternAliasToTargetType(csharpType.csharpDenseMutableElementType, specifier) } : {}),
     ...(mappedDelegateSignature !== undefined ? { csharpDelegateSignature: mappedDelegateSignature } : {}),
+    ...(csharpType.csharpExpressionTreeDelegateType === undefined ? {} : {
+      csharpExpressionTreeDelegateType: csharpApplyExternAliasToTargetType(csharpType.csharpExpressionTreeDelegateType, specifier),
+    }),
     ...(csharpType.csharpTaskResultType !== undefined ? { csharpTaskResultType: csharpApplyExternAliasToTargetType(csharpType.csharpTaskResultType, specifier) } : {}),
     ...(csharpType.csharpRuntimeUnionArms !== undefined ? { csharpRuntimeUnionArms: csharpType.csharpRuntimeUnionArms.map((arm) => csharpApplyExternAliasToTargetType(arm, specifier)) } : {}),
     ...(csharpType.csharpRuntimeUnionObjectShapes !== undefined

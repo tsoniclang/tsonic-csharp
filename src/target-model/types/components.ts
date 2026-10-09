@@ -86,6 +86,7 @@ export function csharpTargetTypeComponents(
     add(target.csharpIteratorResultProtocol?.yieldType);
     add(target.csharpIteratorResultProtocol?.returnType);
     addAll(target.csharpDelegateSignature?.parameters);
+    add(target.csharpExpressionTreeDelegateType);
     add(target.csharpDelegateSignature?.returnType);
     const union = target as Partial<CsharpRuntimeUnionTargetTypeRef>;
     addAll(union.csharpRuntimeUnionArms);

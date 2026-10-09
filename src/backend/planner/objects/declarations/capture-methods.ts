@@ -9,7 +9,7 @@ import { planArrowFunctionExpression, planFunctionExpression } from "../../expre
 import { planExpression, planExpressionWithExpectedType } from "../../expressions/index.js";
 import { planTypeParameters } from "../../types/type-parameters.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { getCsharpCallableValueSignature, isCsharpVoidTargetType } from "../../../../target-model/types/index.js";
+import { getCsharpLambdaSignature, getCsharpExpressionTreeDelegateType, isCsharpVoidTargetType } from "../../../../target-model/types/index.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { planSourceFunctionDeclaration } from "../../declarations/callables/functions.js";
 import { withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
@@ -37,8 +37,10 @@ export function renderCsharpCaptureFrameMethods(
   retain(frame, { kind: "IdentifierName", name: "this" });
   const members: CsharpTypeMember[] = [];
   for (const method of frame.methods) {
-    const signature = getCsharpCallableValueSignature(method.type);
-    const returnType = signature === undefined ? undefined : csharpTypeFromTargetTypeRef(signature.returnType, input.scope.typeParameterNames);
+    const quotation = getCsharpExpressionTreeDelegateType(method.type) !== undefined;
+    const signature = getCsharpLambdaSignature(method.type);
+    const returnType = signature === undefined ? undefined : csharpTypeFromTargetTypeRef(
+      quotation ? method.type : signature.returnType, input.scope.typeParameterNames);
     const file = input.program.source.ast.getSourceFile(method.declaration);
     if (signature === undefined || returnType === undefined || file === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(method.declaration, "A native captured method requires its sealed callable signature."));
@@ -63,6 +65,12 @@ export function renderCsharpCaptureFrameMethods(
       : planFunctionExpression(method.declaration, file, context, diagnostics, undefined, undefined, method.type);
     const lambda = planned?.completion.kind === "value" ? planned.completion.expression : undefined;
     if (planned === undefined || planned.prelude.length !== 0 || lambda?.kind !== "LambdaExpression") return undefined;
+    if (quotation) {
+      members.push({ kind: "MethodDeclaration", name: method.methodName, modifiers: ["public"], returnType,
+        parameters: [], body: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: lambda }] },
+      }, ...context.scope.generatedMethods?.values() ?? []);
+      continue;
+    }
     const parameters = lambda.parameters.map((parameter, index) => {
       const type = parameter.type ?? (signature.parameters[index] === undefined ? undefined : csharpTypeFromTargetTypeRef(signature.parameters[index]!, input.scope.typeParameterNames));
       return type === undefined ? undefined : { name: parameter.name, type,

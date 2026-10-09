@@ -1,6 +1,7 @@
 import {
   csharpExceptionTargetType,
   getCsharpNullableElementTargetType,
+  getCsharpExpressionTreeDelegateType,
   getCsharpRuntimeUnionArms,
   isCsharpNullableReferenceTargetType,
   isCsharpIntegralTargetType,
@@ -22,7 +23,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../types/index.js";
 import type { CsharpConversionShapeQueries } from "../shape-queries.js";
 import { selectCsharpUnionArmMapping } from "../../../target-model/types/union-relations.js";
-import { selectCsharpRuntimeUnionProjection } from "./carriers.js";
+import { selectCsharpRuntimeUnionProjection, selectDelegateConversion } from "./carriers.js";
 import { selectCsharpGuardedIntegerConversion } from "../integer-refinement.js";
 
 export function selectCsharpExpressionConversion(
@@ -41,6 +42,14 @@ export function selectCsharpExpressionConversion(
   const selected = selectCsharpConversion(input, source, target, mode);
   if (selected.kind !== "rejected" || target === undefined) {
     return selected;
+  }
+  const quotationDelegate = getCsharpExpressionTreeDelegateType(getCsharpNullableElementTargetType(target) ?? target);
+  if (source !== undefined && quotationDelegate !== undefined &&
+    (input.ast.is.IsArrowFunction(expression) || input.ast.is.IsFunctionExpression(expression))) {
+    const signatureConversion = selectDelegateConversion(input, source, quotationDelegate);
+    if (signatureConversion !== undefined && csharpConversionIsApplicable(signatureConversion, mode)) {
+      return { kind: "implicit", proof: "lambda-quotation" };
+    }
   }
   const refined = selectCsharpGuardedIntegerConversion(input, expression, source, target);
   if (refined !== undefined) return refined;

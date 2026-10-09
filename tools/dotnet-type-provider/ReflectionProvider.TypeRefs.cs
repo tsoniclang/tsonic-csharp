@@ -190,6 +190,7 @@ sealed partial class ReflectionProvider
             typeArguments = typeArguments.Length == 0 ? null : typeArguments,
             sourceShape,
             implicitArrayInput = sourceProjection?.AcceptsImplicitArrayInput == true ? true : (bool?)null,
+            callableRepresentation = IsDelegate(type) && sourceShape is not null ? "delegate" : sourceProjection?.CallableRepresentation,
         };
         return ReferenceNullabilityTypeRef(type, typeNullability, typeNullabilityMetadata, namedType, includeTopLevelReferenceNullability);
     }
@@ -240,7 +241,7 @@ sealed partial class ReflectionProvider
         return $"Type '{TypeMetadataName(type)}' is outside the supported provider type-ref model.";
     }
 
-    sealed record SourceTypeProjection(object TypeRef, bool AcceptsImplicitArrayInput = false);
+    sealed record SourceTypeProjection(object TypeRef, bool AcceptsImplicitArrayInput = false, string? CallableRepresentation = null);
 
     object? SourceShape(
         Type type,
@@ -285,7 +286,7 @@ sealed partial class ReflectionProvider
             genericNullability);
         if (providerProjection is not null)
         {
-            return new SourceTypeProjection(providerProjection);
+            return providerProjection;
         }
         if (IsRuntimeType(type, typeof(string)))
         {

@@ -120,6 +120,14 @@ export function getCsharpCallableValueSignature(type: TargetTypeRef | undefined)
   return getCsharpDelegateSignature(contract ?? type);
 }
 
+export function getCsharpExpressionTreeDelegateType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
+  return type?.kind === "target-named" ? (type as CsharpTargetNamedTypeRef).csharpExpressionTreeDelegateType : undefined;
+}
+
+export function getCsharpLambdaSignature(type: TargetTypeRef | undefined): CsharpDelegateSignatureShape | undefined {
+  return getCsharpCallableValueSignature(getCsharpExpressionTreeDelegateType(type) ?? type);
+}
+
 export function csharpDelegateSignatureHasSupportedPassingModes(signature: CsharpDelegateSignatureShape): boolean {
   if (!Array.isArray(signature.parameters) || !Array.isArray(signature.parameterPassingModes) ||
     signature.parameterPassingModes.length !== signature.parameters.length ||

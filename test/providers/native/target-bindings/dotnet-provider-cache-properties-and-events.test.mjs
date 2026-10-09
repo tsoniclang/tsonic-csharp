@@ -240,6 +240,7 @@ test(".NET provider model maps property setters and field mutability to source a
 
 test(".NET provider model keeps event facts target-only until source event semantics exist", () => {
   const eventHandler = namedDotnetTypeRef("System.EventHandler", {
+    callableRepresentation: "delegate",
     sourceShape: {
       kind: "function",
       id: "System.EventHandler.Invoke",

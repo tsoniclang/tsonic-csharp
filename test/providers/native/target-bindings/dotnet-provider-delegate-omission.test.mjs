@@ -13,6 +13,7 @@ test(".NET delegate target facts preserve exact optional parameter positions", (
     kind: "named",
     targetId: "Example.Callback",
     metadataName: "Example.Callback",
+    callableRepresentation: "delegate",
     renderShape: {
       kind: "named",
       namespace: ["Example"],

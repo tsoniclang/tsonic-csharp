@@ -109,7 +109,7 @@ export const dotnetTypeRefFieldsByKind = new Map<string, ReadonlySet<string>>([
   ["source-primitive", new Set(["kind", "name"])],
   ["type-parameter", new Set(["kind", "identity", "name"])],
   ["provider-ref", new Set(["kind", "moduleSpecifier", "exportName", "typeArguments"])],
-  ["named", new Set(["kind", "targetId", "metadataName", "displayName", "renderShape", "typeArguments", "sourceShape", "implicitArrayInput"])],
+  ["named", new Set(["kind", "targetId", "metadataName", "displayName", "renderShape", "typeArguments", "sourceShape", "implicitArrayInput", "callableRepresentation"])],
   ["nullable", new Set(["kind", "elementType"])],
   ["nullable-reference", new Set(["kind", "elementType"])],
   ["array", new Set(["kind", "elementType", "rank"])],

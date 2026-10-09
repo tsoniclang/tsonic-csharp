@@ -11,6 +11,7 @@ import { allocateExpressionTemp, getCsharpLocalBindingName } from "./binding-sta
 import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import { planThisExpression } from "../expressions/expression-this.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
+import { getCsharpExpressionTreeDelegateType } from "../../../target-model/types/delegates.js";
 
 export function planCsharpNamedSelfCaptureContext(
   self: CsharpNamedSelfBinding, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState,
@@ -88,6 +89,8 @@ export function planCsharpFrameClosureReference(
     diagnostics.push(unsupportedNodeDiagnostic(node, "A native captured callable has no exact activation frame."));
     return undefined;
   }
-  return getCsharpMethodValue(selected.method.type) !== undefined ? receiver
-    : { kind: "SimpleMemberAccessExpression", receiver, name: selected.method.methodName };
+  if (getCsharpMethodValue(selected.method.type) !== undefined) return receiver;
+  const method: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver, name: selected.method.methodName };
+  return getCsharpExpressionTreeDelegateType(selected.method.type) === undefined ? method
+    : { kind: "InvocationExpression", callee: method, arguments: [] };
 }

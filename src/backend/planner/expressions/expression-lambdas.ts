@@ -55,7 +55,7 @@ import {
   csharpVoidTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
-  getCsharpCallableValueSignature,
+  getCsharpLambdaSignature,
 } from "../../../target-model/types/index.js";
 import {
   csharpSourceTypeArgumentNodes,
@@ -101,6 +101,14 @@ export function planArrowFunctionExpression(
   const closure = input.scope.nativeCallableBody?.declaration === node ? undefined : input.program.captureStorage.closure(node);
   const complete = (expression: CsharpExpression | undefined): CsharpPlannedValue | undefined => {
     const carrier = closure?.method.type ?? targetContext?.carrier;
+    if (creationPolicy.kind === "quotation") {
+      if (expression?.kind !== "LambdaExpression" || expression.async === true || expression.body.kind === "Block") {
+        diagnostics.push(unsupportedNodeDiagnostic(node,
+          "A native expression-tree quotation requires a synchronous expression-bodied lambda without statement preparation."));
+        return undefined;
+      }
+      return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression, targetContext?.carrier);
+    }
     if (expression?.kind !== "LambdaExpression" || input.scope.nativeCallableBody?.declaration === node ||
       creationPolicy.kind === "inline") {
       return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression, carrier);
@@ -118,7 +126,8 @@ export function planArrowFunctionExpression(
       node, sourceFile, input, diagnostics, creation.value, carrier, [creation.method]);
   };
   if (closure !== undefined) {
-    return complete(planCsharpFrameClosureReference(node, input, diagnostics, state));
+    return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
+      planCsharpFrameClosureReference(node, input, diagnostics, state), closure.method.type);
   }
   const expression = AsArrowFunction(input.program.source.ast, node)!;
   diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, targetContext);
@@ -187,11 +196,14 @@ export function planArrowFunctionExpression(
   if (body === undefined) {
     return undefined;
   }
+  const quotedEffect = creationPolicy.kind === "quotation" && completion === "void" &&
+    entryPrelude.length === 0 && body.completion.kind === "void" && body.prelude.length === 1 &&
+    body.prelude[0]?.kind === "ExpressionStatement" ? body.prelude[0].expression : undefined;
   return complete({
     kind: "LambdaExpression",
     ...(isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}),
     parameters,
-    body: completion !== undefined
+    body: quotedEffect ?? (completion !== undefined
       ? { kind: "Block", statements: [...entryPrelude, ...planCsharpVoidReturn(body, completion,
         returnContext?.returnExpressionTargetType, input.scope.typeParameterNames)] }
       : entryPrelude.length === 0 && body.prelude.length === 0 && body.completion.kind === "value"
@@ -207,7 +219,7 @@ export function planArrowFunctionExpression(
                 : { kind: "ReturnStatement", expression: value },
             ], () => [{ kind: "ReturnStatement" }]),
           ],
-        },
+        }),
   });
 }
 
@@ -222,6 +234,11 @@ export function planFunctionExpression(
 ): CsharpPlannedValue | undefined {
   const creationPolicy = input.program.captureStorage.lambdaCreation(node);
   if (creationPolicy.kind === "discarded") return csharpPlannedEffect(csharpVoidTargetType(), []);
+  if (creationPolicy.kind === "quotation") {
+    diagnostics.push(unsupportedNodeDiagnostic(node,
+      "A native expression-tree quotation requires expression-bodied arrow syntax, not a function-expression statement body."));
+    return undefined;
+  }
   const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
   const closure = input.scope.nativeCallableBody?.declaration === node ? undefined : input.program.captureStorage.closure(node);
   const complete = (expression: CsharpExpression | undefined, prelude: readonly CsharpStatement[] = []): CsharpPlannedValue | undefined =>
@@ -511,7 +528,7 @@ export function getLambdaTargetContext(
 export function csharpDelegateSignatureFromTargetTypeRef(
   type: TargetTypeRef | undefined,
 ): CsharpDelegateSignatureShape | undefined {
-  const signature = getCsharpCallableValueSignature(type);
+  const signature = getCsharpLambdaSignature(type);
   return signature?.returnType === undefined ? undefined : signature;
 }
 

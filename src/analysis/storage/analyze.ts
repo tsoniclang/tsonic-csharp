@@ -7,6 +7,7 @@ import {
 import { csharpConversionIsApplicable } from "../../policy/conversions/index.js";
 import {
   getCsharpCallableValueSignature,
+  getCsharpLambdaSignature,
   getCsharpNullableElementTargetType,
   csharpNullableReferenceTargetType,
   csharpNullableTargetType,
@@ -202,7 +203,7 @@ export function analyzeCsharpStorage(
     const callableTarget = contextual ? expectedTypes.callableTarget(node) : undefined;
     const selectedSignature = callableTarget === undefined
       ? undefined
-      : getCsharpCallableValueSignature(callableTarget);
+      : getCsharpLambdaSignature(callableTarget);
     const signatures = selectedSignature === undefined ? [] : [selectedSignature];
     for (const signature of signatures) {
       if (parameters.length > signature.parameters.length) {

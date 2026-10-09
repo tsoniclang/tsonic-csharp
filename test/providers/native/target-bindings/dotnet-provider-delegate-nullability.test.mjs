@@ -144,6 +144,14 @@ test(".NET provider projects Queryable expression-tree parameters from exact del
   );
   assert.ok(rawOrderByDescending);
   assertGenericSelectorShape(rawOrderByDescending.parameters[1].type.sourceShape, rawOrderByDescending.typeParameters);
+  const quotation = rawOrderByDescending.parameters[1].type;
+  assert.equal(quotation.callableRepresentation, "expression-tree");
+  assert.equal(quotation.typeArguments.length, 1);
+  assert.equal(quotation.typeArguments[0].callableRepresentation, "delegate");
+  const targetQuotation = dotnetTypeRefToTargetTypeRef(quotation);
+  assert.equal(targetQuotation.csharpDelegateSignature, undefined, "a tree is not an invocable native delegate");
+  assert.equal(targetQuotation.csharpExpressionTreeDelegateType.id, targetQuotation.typeArguments[0].id);
+  assert.equal(targetQuotation.csharpExpressionTreeDelegateType.csharpDelegateSignature.parameters.length, 1);
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
   const queryable = declarationModel.exports.find((declaration) => declaration.name === "Queryable");

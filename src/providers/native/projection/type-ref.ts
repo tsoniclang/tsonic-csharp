@@ -18,6 +18,7 @@ import {
   csharpTargetNamedType,
   csharpVoidTargetType,
 } from "../../../policy/types/index.js";
+import { dotnetCallableRepresentationIssue } from "../model/callable-representations.js";
 
 export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef {
   switch (type.kind) {
@@ -108,7 +109,8 @@ export function requireDotnetTargetId(targetId: string | undefined, metadataName
 export function csharpTargetMetadataFromDotnetTypeDeclaration(
   declaration: DotnetTypeDeclaration,
 ): Parameters<typeof csharpTargetNamedType>[3] {
-  const delegateSignature = dotnetDelegateSignatureFromSourceShape(declaration.sourceShape);
+  const delegateSignature = declaration.typeKind === "delegate"
+    ? dotnetDelegateSignatureFromSourceShape(declaration.sourceShape) : undefined;
   return {
     ...(declaration.typeKind === "struct" || declaration.typeKind === "enum" ? { valueType: true as const } : {}),
     ...(declaration.typeKind === "class" || declaration.typeKind === "interface" || declaration.typeKind === "enum"
@@ -136,7 +138,12 @@ function csharpTargetMetadataFromDotnetTypeRef(
   type: Extract<DotnetTypeRef, { readonly kind: "named" }>,
 ): Parameters<typeof csharpTargetNamedType>[3] {
   const sourceShape = type.sourceShape;
-  const delegateSignature = dotnetDelegateSignatureFromSourceShape(sourceShape);
+  const signature = dotnetDelegateSignatureFromSourceShape(sourceShape);
+  const issue = dotnetCallableRepresentationIssue(type);
+  if (issue !== undefined) throw new Error(issue);
+  const delegateSignature = type.callableRepresentation === "delegate" ? signature : undefined;
+  const expressionTreeDelegateType = type.callableRepresentation === "expression-tree" &&
+    type.typeArguments?.length === 1 ? dotnetTypeRefToTargetTypeRef(type.typeArguments[0]!) : undefined;
   const elementType = sourceShape?.kind === "array"
     ? type.typeArguments?.length === 1
       ? type.typeArguments[0]
@@ -149,6 +156,7 @@ function csharpTargetMetadataFromDotnetTypeRef(
       ? { implicitArrayInputElementType: arrayLiteralElementType }
       : {}),
     ...(delegateSignature !== undefined ? { delegateSignature } : {}),
+    ...(expressionTreeDelegateType !== undefined ? { expressionTreeDelegateType } : {}),
   };
 }
 

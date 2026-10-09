@@ -67,12 +67,16 @@ export function substituteTargetTypeParameters(
       const runtimeUnionArms = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionArms;
       const runtimeUnionObjectShapes = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionObjectShapes;
       const delegateSignature = (type as CsharpTargetNamedTypeRef).csharpDelegateSignature;
+      const expressionTreeDelegateType = (type as CsharpTargetNamedTypeRef).csharpExpressionTreeDelegateType;
       const methodValue = (type as CsharpTargetNamedTypeRef).csharpMethodValue;
       const factory = (type as CsharpTargetNamedTypeRef).csharpClassFactory;
       const methodSubstitutions = methodValue === undefined ? substitutions
         : new Map([...substitutions].filter(([name]) => !methodValue.typeParameters.includes(name)));
       return {
         ...type,
+        ...(expressionTreeDelegateType === undefined ? {} : {
+          csharpExpressionTreeDelegateType: substituteTargetTypeParameters(expressionTreeDelegateType, substitutions),
+        }),
         ...(factory === undefined ? {} : { csharpClassFactory: { ...factory,
           instance: substituteTargetTypeParameters(factory.instance, substitutions) as CsharpTargetNamedTypeRef,
         } }),
