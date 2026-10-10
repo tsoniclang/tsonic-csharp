@@ -1,12 +1,6 @@
 import { createHash } from "node:crypto";
 import type {
-  AstReader,
-  Node,
-} from "@tsonic/tsts";
-import { orderEnumerableOwnStringProperties } from "@tsonic/target-api/source";
-import type {
   CsharpObjectShapeFact,
-  CsharpObjectShapeProjectionKind,
   CsharpObjectShapeProjection,
 } from "./model.js";
 import { targetTypeRefKey } from "./equality.js";
@@ -42,173 +36,6 @@ export function csharpObjectShapeProjectionMethodName(
     .digest("hex")
     .slice(0, 12);
   return `${projectionPrefix}${operation}_${identity}`;
-}
-
-export type CsharpObjectShapePropertyOrderSelection =
-  | { readonly kind: "resolved"; readonly propertyOrder: readonly string[] }
-  | { readonly kind: "rejected"; readonly reason: string };
-
-export function resolveCsharpObjectShapePropertyOrder(
-  fact: CsharpObjectShapeFact,
-  sourceValue: Node | undefined,
-  projection: CsharpObjectShapeProjectionKind,
-  ast: AstReader,
-): CsharpObjectShapePropertyOrderSelection {
-  const stringMembers = fact.members.filter(member => member.sourceKey.kind === "property");
-  if (isSourceDeclaredNominalShape(fact)) {
-    return rejected(
-      `Selected '${projection}' operation requires one exact generated structural object carrier; an open nominal source type cannot prove its runtime own-property set.`,
-    );
-  }
-  if (fact.members.some((member) =>
-    isCsharpObjectShapeGeneratedMemberName(member.targetName)
-  )) {
-    return rejected(
-      `Selected '${projection}' operation conflicts with a reserved generated object-shape member name.`,
-    );
-  }
-  if (projection === "has-own" || projection === "assign") {
-    if (stringMembers.some((member) =>
-      member.optional === true ||
-      projection === "assign" && (
-        member.memberKind !== "property" ||
-        member.readonly === true ||
-        member.accessor !== undefined
-      )
-    )) {
-      return rejected(
-        projection === "assign"
-          ? "Selected 'assign' operation requires exact writable, required data-property storage."
-          : "Selected 'has-own' operation requires exact present-versus-absent storage for every optional property.",
-      );
-    }
-    return {
-      kind: "resolved",
-      propertyOrder: Object.freeze(
-        stringMembers.map((member) => member.sourceName).sort(),
-      ),
-    };
-  }
-  if (fact.members.length === 0) {
-    return sourceValue !== undefined && ast.is.IsObjectLiteralExpression(sourceValue) &&
-        ast.properties(sourceValue).length === 0
-      ? { kind: "resolved", propertyOrder: Object.freeze([]) }
-      : rejected(
-          `Selected '${projection}' operation has no exact authored empty-object occurrence.`,
-        );
-  }
-  const selected = fact.members.map((member) => {
-    const declarations = member.sourceDeclarations?.filter((declaration) => {
-      const owner = ast.parent(declaration);
-      return owner !== undefined && ast.is.IsObjectLiteralExpression(owner) && (
-        ast.is.IsPropertyAssignment(declaration) ||
-        ast.is.IsShorthandPropertyAssignment(declaration) ||
-        ast.is.IsMethodDeclaration(declaration) ||
-        ast.is.IsGetAccessorDeclaration(declaration) ||
-        ast.is.IsSetAccessorDeclaration(declaration)
-      );
-    }) ?? [];
-    const getters = declarations.filter((declaration) =>
-      ast.is.IsGetAccessorDeclaration(declaration)
-    );
-    const setters = declarations.filter((declaration) =>
-      ast.is.IsSetAccessorDeclaration(declaration)
-    );
-    const expectedDeclarationCount = member.accessor === undefined
-      ? 1
-      : member.accessor.setter
-        ? 2
-        : 1;
-    if (declarations.length !== expectedDeclarationCount ||
-      (member.accessor === undefined && (getters.length !== 0 || setters.length !== 0)) ||
-      (member.accessor !== undefined && (
-        getters.length !== 1 || setters.length !== (member.accessor.setter ? 1 : 0)
-      ))) {
-      return undefined;
-    }
-    const owner = ast.parent(declarations[0]!);
-    const ranges = declarations.map((declaration) => ast.authoredRange(declaration));
-    return owner !== undefined && ast.is.IsObjectLiteralExpression(owner) &&
-        declarations.every((declaration) => ast.parent(declaration) === owner) &&
-        ranges.every((range) => range.kind === "authored")
-      ? {
-          member,
-          declarations,
-          owner,
-          start: Math.min(...ranges.map((range) =>
-            range.kind === "authored" ? range.start : Number.MAX_SAFE_INTEGER)),
-        }
-      : undefined;
-  });
-  if (selected.some((entry) => entry === undefined)) {
-    return rejected(
-      `Selected '${projection}' operation has a member without one exact authored own-property declaration.`,
-    );
-  }
-  const entries = selected as readonly NonNullable<typeof selected[number]>[];
-  const owner = entries[0]!.owner;
-  const ownerProperties = ast.properties(owner);
-  const declarations = new Set(entries.flatMap((entry) => entry.declarations));
-  if (
-    entries.some((entry) => entry.owner !== owner) ||
-    new Set(entries.map((entry) => entry.start)).size !== entries.length ||
-    ownerProperties.length !== declarations.size ||
-    ownerProperties.some((property) =>
-      property === undefined || !declarations.has(property)
-    )
-  ) {
-    return rejected(
-      `Selected '${projection}' operation does not have one unambiguous authored object-literal property order.`,
-    );
-  }
-  const authored = [...entries]
-    .filter((entry) => entry.member.sourceKey.kind === "property")
-    .sort((left, right) => left.start - right.start)
-    .map((entry) => entry.member);
-  return {
-    kind: "resolved",
-    propertyOrder: Object.freeze(
-      orderEnumerableOwnStringProperties(
-        authored,
-        (member) => member.sourceName,
-      ).map((member) => member.sourceName),
-    ),
-  };
-}
-
-export function resolveCsharpObjectShapeAssignmentSourceOrder(
-  fact: CsharpObjectShapeFact,
-): CsharpObjectShapePropertyOrderSelection {
-  const stringMembers = fact.members.filter((member) =>
-    member.sourceKey.kind === "property"
-  );
-  if (isSourceDeclaredNominalShape(fact)) {
-    return rejected(
-      "Selected 'assign' operation requires one exact generated structural source carrier; an open nominal source type cannot prove its runtime own-property set.",
-    );
-  }
-  if (fact.members.some((member) =>
-    isCsharpObjectShapeGeneratedMemberName(member.targetName)
-  )) {
-    return rejected(
-      "Selected 'assign' source conflicts with a reserved generated object-shape member name.",
-    );
-  }
-  if (stringMembers.some((member) =>
-    member.optional === true ||
-    member.memberKind !== "property" ||
-    member.accessor !== undefined
-  )) {
-    return rejected(
-      "Selected 'assign' source requires exact readable, required data-property storage.",
-    );
-  }
-  return {
-    kind: "resolved",
-    propertyOrder: Object.freeze(
-      stringMembers.map((member) => member.sourceName).sort(),
-    ),
-  };
 }
 
 export function csharpObjectShapeProjectionMembers(
@@ -280,15 +107,11 @@ export function csharpObjectShapeAssignmentMembers(
       }[];
 }
 
-function isSourceDeclaredNominalShape(fact: CsharpObjectShapeFact): boolean {
+export function isSourceDeclaredNominalShape(fact: CsharpObjectShapeFact): boolean {
   return fact.targetType.kind === "target-named" &&
     (fact.targetType as {
       readonly csharpSourceDeclarationKind?: unknown;
     }).csharpSourceDeclarationKind !== undefined;
-}
-
-function rejected(reason: string): CsharpObjectShapePropertyOrderSelection {
-  return { kind: "rejected", reason };
 }
 
 export function isCsharpObjectShapeGeneratedMemberName(name: string): boolean {

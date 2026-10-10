@@ -4,6 +4,34 @@ import { nativePropertyProjectionSource, nativePropertyProjectionCostSource } fr
 import { assertCsharpCheckingSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
+test("completed own-property proofs execute exact numeric keys, reordered occurrences and accessors", { timeout: 300_000 }, () => {
+  executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: `
+export function run(): boolean {
+  const first = { tail: "tail", 10: "ten", 2: "two", "01": "leading" };
+  const second = { "01": "leading", tail: "tail", 2: "two", 10: "ten" };
+  let backing = "value";
+  let reads = 0;
+  const accessed = {
+    tail: "tail",
+    get current(): string { reads += 1; return backing; },
+    set current(next: string) { backing = next; },
+  };
+  const keys = Object.keys(first);
+  const reordered = Object.keys(second);
+  const values = Object.values(first);
+  const entries = Object.entries(first);
+  const accessorKeys = Object.keys(accessed);
+  const accessorValues = Object.values(accessed);
+  const accessorEntries = Object.entries(accessed);
+  return keys.join(",") === "2,10,tail,01" && reordered.join(",") === "2,10,01,tail" &&
+    values.join(",") === "two,ten,tail,leading" && entries[0][0] === "2" && entries[0][1] === "two" &&
+    entries[3][0] === "01" && entries[3][1] === "leading" && accessorKeys.join(",") === "tail,current" &&
+    accessorValues.join(",") === "tail,value" && accessorEntries[1][0] === "current" &&
+    accessorEntries[1][1] === "value" && reads === 2 && Object.hasOwn(first, "tail") &&
+    first.hasOwnProperty("01") && !Object.hasOwn(first, "missing");
+}` }), "completed-own-property-orders");
+});
+
 test("native property projections preserve selected generic inherited getters and exact failure identity", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: nativePropertyProjectionSource });
   executeCsharpConstruction(compiled, "property-projections");

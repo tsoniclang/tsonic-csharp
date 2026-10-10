@@ -1,6 +1,5 @@
 import type { CsharpPlanningContext } from "../../context.js";
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
-import { resolveCsharpObjectShapePropertyOrder } from "../../../../target-model/types/object-shape-projection.js";
 import type { CsharpInterfaceMember, CsharpTypeMember, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
 
 export const csharpEnumerableKeysMethodName = "__tsonicObjectEnumerableKeys";
@@ -20,7 +19,7 @@ export function renderCsharpEnumerableKeys(
   shape: CsharpObjectShapeFact,
   input: CsharpPlanningContext,
 ): readonly CsharpTypeMember[] | undefined {
-  const order = resolveCsharpObjectShapePropertyOrder(shape, undefined, "keys", input.program.source.ast);
+  const order = input.program.objectShapes.propertyOrder(shape, undefined, "keys");
   if (order.kind === "rejected") return undefined;
   return [
     { kind: "FieldDeclaration", name: storageName, modifiers: ["private", "static", "readonly"],

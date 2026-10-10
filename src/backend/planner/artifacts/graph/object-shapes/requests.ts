@@ -11,13 +11,12 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import { accepted, rejected } from "../result.js";
 import {
   csharpObjectShapeMemberContractKey,
-  resolveCsharpObjectShapeAssignmentSourceOrder,
   resolveCsharpObjectShapeMemberBySourceContract,
-  resolveCsharpObjectShapePropertyOrder,
   targetTypeRefEquals,
   isCsharpEmptyObjectTargetType,
+  isSourceDeclaredNominalShape,
 } from "../../../../../target-model/types/index.js";
-import { objectShapeArtifactKey, objectShapeMaterialization, isSourceDeclaredNominalShape } from "./identity.js";
+import { objectShapeArtifactKey, objectShapeMaterialization } from "./identity.js";
 import { objectShapeProjectionKey } from "../../contracts.js";
 
 export function registerObjectShape(
@@ -243,12 +242,11 @@ export function requireObjectShapeProjection(
     );
   }
   const propertyOrder = projectionKind === "assign"
-    ? resolveCsharpObjectShapeAssignmentSourceOrder(assignmentShape!)
-    : resolveCsharpObjectShapePropertyOrder(
+    ? host.objectShapes.assignmentSourceOrder(assignmentShape!)
+    : host.objectShapes.propertyOrder(
         preferredShape,
         node,
         projectionKind,
-        host.ast,
       );
   if (propertyOrder.kind === "rejected") {
     return propertyOrder;

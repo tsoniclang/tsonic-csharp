@@ -23,6 +23,7 @@ import { getCsharpNullableElementTargetType } from "../../target-model/types/nul
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
+import { createCsharpObjectShapePropertyOrderIndex } from "./property-order.js";
 
 const noExpectedShape = "<none>";
 const maximumObjectShapeClassifications = 131_072;
@@ -38,6 +39,8 @@ export function analyzeCsharpObjectShapes(
   const objectLiterals = new Map<Node, SourceFile>();
   const copiedMethodImplementations = new Set<string>();
   const operationTypes: TargetTypeRef[] = [];
+  const admittedShapes = new Set<CsharpObjectShapeFact>();
+  const propertyOrders = createCsharpObjectShapePropertyOrderIndex(policy.ast, reserveClassification);
   let classificationCount = 0;
   let sealed = false;
   const structuralInterfaces = new Map<string, Map<string, CsharpStructuralInterfaceImplementation>>();
@@ -87,7 +90,8 @@ export function analyzeCsharpObjectShapes(
       reserveClassification();
       byTarget.set(key, shape);
     } else {
-      byTarget.set(key, mergeCsharpObjectShapeSubjects(previous, shape));
+      const merged = mergeCsharpObjectShapeSubjects(previous, shape);
+      byTarget.set(key, merged);
     }
   };
 
@@ -115,7 +119,8 @@ export function analyzeCsharpObjectShapes(
       reserveClassification();
       byTarget.set(key, shape);
     } else {
-      byTarget.set(key, mergeCsharpObjectShapeSubjects(previous, shape));
+      const merged = mergeCsharpObjectShapeSubjects(previous, shape);
+      byTarget.set(key, merged);
     }
   };
 
@@ -186,6 +191,7 @@ export function analyzeCsharpObjectShapes(
     const result = policy.objectShapes.resolveObjectLiteralTargetShape(expected, literal, sourceFile);
     results.set(key, result);
     if (result.kind === "resolved") {
+      admittedShapes.add(result.shape);
       rememberShape(result.shape);
       const implementation = result.shape.methodImplementation;
       if (implementation !== undefined && implementation.declaration !== literal) copiedMethodImplementations.add(implementation.identity);
@@ -194,8 +200,11 @@ export function analyzeCsharpObjectShapes(
   }
 
   const classifications: CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration & { seal(): CsharpObjectShapeClassifications } = {
+    propertyOrder: propertyOrders.propertyOrder,
+    assignmentSourceOrder: propertyOrders.assignmentSourceOrder,
     structuralImplementations,
     knownShapes() {
+      if (!sealed) for (const shape of byTarget.values()) admittedShapes.add(shape);
       return Object.freeze([...byTarget.values()].map(shape => withInterfaces(shape)!));
     },
     methodImplementationHasCopies(shape) {
@@ -254,7 +263,10 @@ export function analyzeCsharpObjectShapes(
         rememberShape(shape);
         if (shape !== undefined) {
           const copy = policy.objectShapes.resolveCopyShape(shape);
-          if (copy !== undefined) copies.set(key, copy);
+          if (copy !== undefined) {
+            copies.set(key, copy);
+            admittedShapes.add(copy);
+          }
           if (copy !== undefined && copy !== shape) {
             rememberShape(copy);
             pending.push(copy.targetType);
@@ -266,6 +278,14 @@ export function analyzeCsharpObjectShapes(
           pending.push(...policy.projectTypes.directSupertypes(type) ?? []);
         }
       }
+      for (const shape of byTarget.values()) admittedShapes.add(shape);
+      for (const shape of admittedShapes) {
+        propertyOrders.record(shape);
+        if (shape.declarationTemplate !== undefined) admittedShapes.add(shape.declarationTemplate);
+      }
+      for (const literal of objectLiterals.keys()) propertyOrders.recordEmptyLiteral(literal);
+      propertyOrders.seal();
+      admittedShapes.clear();
       sealed = true;
       const { registerStructuralInterface: _register, seal: _seal, ...snapshot } = classifications;
       return Object.freeze(snapshot);
@@ -274,7 +294,9 @@ export function analyzeCsharpObjectShapes(
       return literalUnionCarriers.get(node)?.get(targetTypeRefKey(type));
     },
     resolveCopyShape(shape) {
-      return copies.get(targetTypeRefKey(shape.targetType));
+      const copy = copies.get(targetTypeRefKey(shape.targetType));
+      if (!sealed && copy !== undefined) admittedShapes.add(copy);
+      return copy;
     },
     resolveNode(node: Node | undefined) {
       return withInterfaces(node === undefined ? undefined : byNode.get(node));
@@ -286,6 +308,7 @@ export function analyzeCsharpObjectShapes(
         shape = policy.objectShapes.resolveTarget(type);
         rememberTargetShape(type, shape);
       }
+      if (!sealed && shape !== undefined) admittedShapes.add(shape);
       return withInterfaces(shape);
     },
     resolveObjectLiteralTargetShape(expectedShape, objectLiteral) {
@@ -312,6 +335,7 @@ export function analyzeCsharpObjectShapes(
     if (shape !== undefined) {
       reserveClassification();
       byNode.set(node, shape);
+      admittedShapes.add(shape);
       rememberShape(shape);
     }
     if (policy.ast.is.IsObjectLiteralExpression(node)) {

@@ -1,7 +1,7 @@
 import type { CsharpArtifactGraphScope } from "../engine.js";
 import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../../target-model/types/index.js";
-import { isCsharpValueTypeTargetType, resolveCsharpObjectShapePropertyOrder, targetTypeRefEquals, targetTypeRefKey } from "../../../../../target-model/types/index.js";
-import { objectShapeArtifactKey, isSourceDeclaredNominalShape } from "./identity.js";
+import { isCsharpValueTypeTargetType, targetTypeRefEquals, targetTypeRefKey, isSourceDeclaredNominalShape } from "../../../../../target-model/types/index.js";
+import { objectShapeArtifactKey } from "./identity.js";
 import { maximumArtifactCount } from "../model.js";
 import { resolveCsharpSourceClassStorage } from "./native-storage.js";
 
@@ -51,7 +51,7 @@ export function collectCsharpReferenceClosure(
       return { kind: "rejected", reason: "Copying method values requires exact own callable storage, not a nominal prototype method." };
     }
     if (capability === "enumerable-keys" && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true) {
-      const order = resolveCsharpObjectShapePropertyOrder(shape, undefined, "keys", scope.host.ast);
+      const order = scope.host.objectShapes.propertyOrder(shape, undefined, "keys");
       if (order.kind === "rejected") return order;
     }
     if (isCsharpValueTypeTargetType(shape.targetType) || capability === "js-freeze" && shape.members.some(member => member.bound === true)) {
