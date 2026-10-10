@@ -3,6 +3,7 @@ import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
+import { requiredStorageSubject } from "../../../../tsonic/test/fixtures/source-navigation.mjs";
 import { collectTargetSourceProfileContributions } from "../../../../tsonic/packages/host/dist/target/source-profile.js";
 import { createCsharpErrorStorageDemandQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
 import { csharpSourceProfileContributions, csharpJsSurfaceSourceProfileContributions } from "../../../dist/source/profiles/source-profile-declarations.js";
@@ -43,7 +44,8 @@ for (const jsEnabled of [false, true]) {
       formatDiagnostics(checked.diagnostics.filter(diagnostic => diagnostic !== undefined), "/src"));
     const source = createTargetSourceProgram(checked);
     const projectFiles = source.sourceFiles.filter(file => files[source.ast.getFileName(file)] !== undefined);
-    const demand = createCsharpErrorStorageDemandQuery(source, createSourceStorageQuery(source, projectFiles));
+    const storage = createSourceStorageQuery(source, projectFiles);
+    const demand = createCsharpErrorStorageDemandQuery(source, storage);
     const declarations = new Map();
     const visit = node => {
       if (source.ast.is.IsVariableDeclaration(node)) declarations.set(source.ast.text(source.ast.name(node)), node);
@@ -55,13 +57,14 @@ for (const jsEnabled of [false, true]) {
     for (const [name, expected] of [["original", "writable"], ["untouched", "immutable"], ["native", "immutable"]]) {
       const declaration = declarations.get(name);
       assert.equal(declaration !== undefined, true, name);
-      assert.equal(demand.storageFor(declaration).kind, expected, name);
-      const origins = demand.storageOriginsFor(declaration);
+      const subject = requiredStorageSubject(storage, declaration);
+      assert.equal(demand.storageFor(subject).kind, expected, name);
+      const origins = demand.storageOriginsFor(subject);
       assert.equal(origins.kind, "resolved", name);
       assert.equal(origins.origins.length, 1, name);
       assert.equal(demand.isNativeConstructor(origins.origins[0].node), name !== "native", name);
     }
-    for (const constructor of demand.nativeConstructors) assert.equal(demand.isNativeConstructor(constructor), true);
+    for (const constructor of demand.nativeConstructors) assert.equal(demand.isNativeConstructor(constructor.node), true);
     assert.equal(demand.isNativeConstructor(declarations.get("record")), false);
     assert.equal(demand.isNativeConstructor({}), false);
     assert.equal(Object.isFrozen(demand), true);

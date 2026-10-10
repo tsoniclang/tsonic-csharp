@@ -7,7 +7,7 @@ import type {
   SourceFileSemantics,
   SourceTypeComponentEvidence,
 } from "@tsonic/target-api/source";
-import type { Node, Type } from "@tsonic/tsts";
+import type { Type } from "@tsonic/tsts";
 import {
   csharpAsyncGeneratorTargetType,
   csharpGeneratorTargetType,
@@ -53,13 +53,14 @@ import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
 import { csharpRuntimeParameterDefault } from "../../../target-model/types/parameter-defaults.js";
 import { resolveCsharpCallableTypeParameters } from "../../constraints/callable-type-parameters.js";
+import type { SourceStorageSubject } from "@tsonic/target-api/analysis";
+import { csharpSourceStorageContext } from "./source-storage-projection.js";
 
 export function resolveSourceProfileType(
   { generatorProtocol, generatorResultProtocol, host }: CsharpTypeResolutionScope,
   identity: ReturnType<typeof classifyCsharpSourceProfileType>,
   typeArguments: readonly TargetTypeRef[],
-  subject: Node | undefined,
-  projection?: readonly import("@tsonic/target-api/analysis").SourceStorageProjection[],
+  subject: SourceStorageSubject | undefined,
 ): TargetTypeRef | undefined {
   if (identity === undefined) {
     return undefined;
@@ -80,16 +81,16 @@ export function resolveSourceProfileType(
     case "error": {
       if (identity.baseException && typeArguments.length === 0) {
         if (subject === undefined) return csharpExceptionTargetType();
-        const sourceFile = host.ast.getSourceFile(subject);
+        const sourceFile = host.ast.getSourceFile(subject.node);
         if (sourceFile !== undefined && !host.hasSemantics(sourceFile)) return csharpExceptionTargetType();
-        const parent = host.ast.parent(subject);
-        if (host.ast.is.IsExpressionWithTypeArguments(subject) && host.ast.is.IsHeritageClause(parent)) {
+        const parent = host.ast.parent(subject.node);
+        if (host.ast.is.IsExpressionWithTypeArguments(subject.node) && host.ast.is.IsHeritageClause(parent)) {
           return csharpRuntimeErrorTargetType();
         }
-        const demand = host.errorStorageDemands.storageFor(subject, projection);
+        const demand = host.errorStorageDemands.storageFor(subject);
         if (demand.kind === "unresolved") return undefined;
         if (demand.kind === "writable") return csharpRuntimeErrorTargetType();
-        const origins = host.errorStorageDemands.closedStorageOriginsFor(subject, projection);
+        const origins = host.errorStorageDemands.closedStorageOriginsFor(subject);
         return origins.kind === "complete" && origins.origins.length > 0 &&
           origins.origins.every(origin => host.errorStorageDemands.isNativeConstructor(origin.subject.node))
           ? csharpRuntimeErrorTargetType() : csharpExceptionTargetType();
@@ -369,10 +370,12 @@ export function resolveCallableEvidence(
   if (parameterTypes.some((parameter) => parameter === undefined)) {
     return undefined;
   }
+  const returned = callable.result.declaration === undefined ? undefined
+    : host.sourceStorage.subject(callable.result.declaration, "return");
   const returnType = resolveSourceTypeComponentEvidence(
     callable.result,
     queries,
-    { ...state, sourceValueSubject: callable.result.declaration, sourceValueProjection: undefined },
+    { ...state, sourceStorageSubject: returned?.kind === "resolved" ? returned.subject : undefined },
   );
   if (returnType === undefined) {
     return undefined;
@@ -429,6 +432,7 @@ export function resolveSignatureParameterEvidence(
   state: CsharpTypeResolutionState,
   use: "callable" | "parameter-list",
 ): TargetTypeRef | undefined {
+  const entry = parameter.declaration === undefined ? undefined : host.sourceStorage.subject(parameter.declaration, "input");
   const resolved = resolveSourceTypeComponentEvidence(
     {
       selectedType: parameter.type,
@@ -447,7 +451,7 @@ export function resolveSignatureParameterEvidence(
     },
     queries,
     use === "callable"
-      ? { ...state, sourceValueSubject: parameter.declaration, sourceValueProjection: undefined }
+      ? { ...state, sourceStorageSubject: entry?.kind === "resolved" ? entry.subject : undefined }
       : state,
   );
   const runtimeDefault = parameter.omissionKind === "initializer" && resolved !== undefined
@@ -468,9 +472,7 @@ export function resolveSourceTypeComponentEvidence(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  if (state.sourceValueSubject === undefined && component.declaration !== undefined) {
-    state = { ...state, sourceValueSubject: component.declaration, sourceValueProjection: undefined };
-  }
+  state = csharpSourceStorageContext(host, state, component.declaration);
   const pointer = component.declaration === undefined
     ? undefined
     : resolvePointerReturn(component.declaration, state);

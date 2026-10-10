@@ -41,6 +41,7 @@ export interface CsharpPlanningRepresentationQueries {
 }
 
 export interface CsharpTypePolicyBaseHost {
+  readonly sourceStorage: import("@tsonic/target-api/analysis").SourceStorageQueries;
   readonly errorStorageDemands: import("@tsonic/target-api/analysis").SourceErrorStorageDemandQueries;
   callOnlyAlias(declaration: Node): import("@tsonic/target-api/source").SourceCallOnlyAlias | undefined;
   readonly typeDefinitions?: import("../../../target-model/types/source-union-definitions.js").CsharpTypeDefinitionWriter;
@@ -166,8 +167,7 @@ export interface CsharpTypePolicy {
 
 export interface CsharpTypeResolutionState {
   readonly depth: number;
-  readonly sourceValueSubject?: Node;
-  readonly sourceValueProjection?: readonly import("@tsonic/target-api/analysis").SourceStorageProjection[];
+  readonly sourceStorageSubject?: import("@tsonic/target-api/analysis").SourceStorageSubject;
   readonly sourceBindings?: ReadonlyMap<Node, {
     readonly sourceType: Type;
     readonly targetType: TargetTypeRef;

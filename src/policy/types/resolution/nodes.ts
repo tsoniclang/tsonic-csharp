@@ -17,7 +17,7 @@ import { sourceFactSubjectsForNode } from "./source-evidence.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
 import { resolveCsharpProviderIndexedAccess } from "./indexed-access.js";
-import { csharpSourceErrorComponentState } from "./error-storage-projection.js";
+import { csharpSourceStorageContext, csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 
 export function resolveNodeWithState(
   scope: CsharpTypeResolutionScope,
@@ -29,7 +29,7 @@ export function resolveNodeWithState(
   if (node === undefined || state.depth > maximumTypeResolutionDepth) {
     return undefined;
   }
-  if (state.sourceValueSubject === undefined) state = { ...state, sourceValueSubject: node };
+  state = csharpSourceStorageContext(host, state, node);
   if (
     host.ast.is.IsSourceFile(node) ||
     host.ast.is.IsImportDeclaration(node) ||
@@ -100,7 +100,7 @@ export function resolveNodeWithState(
     const element = resolveNodeWithState(
       host.ast.as.AsArrayTypeNode(node)!.ElementType,
       queries.sourceFile,
-      nextState(csharpSourceErrorComponentState(state, { kind: "array-element" })),
+      nextState(csharpSourceStorageComponentContext(host, state, { kind: "array-element" })),
     );
     if (element !== undefined) {
       return selectedCsharpSourceProfileOwner(host.target) === "js"
@@ -241,7 +241,7 @@ export function resolveTupleTypeNode(
     resolveNodeWithState(
       element,
       queries.sourceFile,
-      nextState(csharpSourceErrorComponentState(state, { kind: "tuple-element", index })),
+      nextState(csharpSourceStorageComponentContext(host, state, { kind: "tuple-element", index })),
     )
   );
   if (elements.some((element) => element === undefined)) {

@@ -151,6 +151,7 @@ export function analyzeCsharpTargetProgram(
     sourceIdentities,
   });
   const typeHost = {
+    sourceStorage,
     errorStorageDemands: createCsharpErrorStorageDemandQuery(source, sourceStorage),
     callOnlyAlias: createCsharpSourceProfileCallableAliasQuery(source),
     ast: source.ast,

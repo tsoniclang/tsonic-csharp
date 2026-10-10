@@ -53,7 +53,7 @@ import { readCsharpRawLocation } from "../../operations/pointers/native-memory.j
 import { resolveTypeParameter, definedValues } from "./source-evidence.js";
 import { tsonicMemoryFieldBindingFactKey, tsonicMemoryRecordBindingFactKey, selectTsonicMemoryFieldBinding, selectTsonicMemoryRecordBinding } from "@tsonic/source-core/facts";
 
-import { csharpSourceErrorComponentState } from "./error-storage-projection.js";
+import { csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 
 export function resolveTypeWithState(
   scope: CsharpTypeResolutionScope,
@@ -139,7 +139,7 @@ export function resolveTypeWithState(
     }
     const elements = sourceElements.map((element, index) =>
       resolveTypeWithState(element, sourceFile,
-        nextState(csharpSourceErrorComponentState(state, { kind: "tuple-element", index })))
+        nextState(csharpSourceStorageComponentContext(host, state, { kind: "tuple-element", index })))
     );
     return elements.some((element) => element === undefined)
       ? undefined
@@ -153,8 +153,7 @@ export function resolveTypeWithState(
     return resolveSourceProfileType(
       profileType,
       targetTypeArguments,
-      state.sourceValueSubject,
-      state.sourceValueProjection,
+      state.sourceStorageSubject,
     );
   }
   const constructor = resolveCsharpConstructorValueType(scope, type, queries, state);
@@ -458,7 +457,7 @@ export function resolveProviderType(
 
 
 export function resolveSemanticTypeArguments(
-  { resolveTypeWithState }: CsharpTypeResolutionScope,
+  { host, resolveTypeWithState }: CsharpTypeResolutionScope,
   type: Type,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -471,7 +470,7 @@ export function resolveSemanticTypeArguments(
     return undefined;
   }
   const argumentState = queries.types.isArrayLike(type) && !queries.types.isTuple(type)
-    ? csharpSourceErrorComponentState(state, { kind: "array-element" }) : state;
+    ? csharpSourceStorageComponentContext(host, state, { kind: "array-element" }) : state;
   const resolved = sourceArguments.map((argument) =>
     resolveTypeWithState(argument, queries.sourceFile, nextState(argumentState))
   );

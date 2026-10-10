@@ -20,6 +20,7 @@ import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";
 import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
 import { bindCsharpSourceTypeArguments } from "./generic-arguments.js";
+import { csharpSourceStorageContext } from "./source-storage-projection.js";
 
 export function resolveAuthoredAndSelectedSourceType(
   scope: CsharpTypeResolutionScope,
@@ -30,9 +31,7 @@ export function resolveAuthoredAndSelectedSourceType(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   const { host, resolveNodeWithState, resolveTypeWithState } = scope;
-  if (state.sourceValueSubject === undefined && authoredTypeNode !== undefined) {
-    state = { ...state, sourceValueSubject: authoredTypeNode };
-  }
+  state = csharpSourceStorageContext(host, state, authoredTypeNode);
   const authoredQueries = host.hasSemantics(authoredSourceFile)
     ? host.semantics(authoredSourceFile)
     : undefined;

@@ -49,7 +49,7 @@ test("object rest projection consumes exact checked binding identity and retains
   assert.equal(type !== undefined, true, "exact checked rest type");
   const targetType = { kind: "target-named", id: "Rest" };
   const subject = {};
-  const state = { depth: 2, sourceValueSubject: subject };
+  const state = { depth: 2, sourceStorageSubject: subject };
   let calls = 0;
   let policy;
   const host = { ast: source.ast, navigation: {}, typeResolver: { resolveNode: () => undefined },
@@ -60,7 +60,7 @@ test("object rest projection consumes exact checked binding identity and retains
       assert.equal(selectedFile === file, true, "owning checker/file");
       assert.equal(syntax === undefined, true, "no invented authored type syntax");
       assert.equal(selectedState.depth, 3, "existing recursive budget advances");
-      assert.equal(selectedState.sourceValueSubject === subject, true, "retained selection context");
+      assert.equal(selectedState.sourceStorageSubject === subject, true, "retained selection context");
       assert.equal(policy.resolveProjection(rest, file, state) === undefined, true, "reentrant binding fails closed");
       return { targetType };
     } },
