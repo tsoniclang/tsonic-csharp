@@ -104,6 +104,19 @@ import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedArgument, 
 import { planCsharpAbsentValue } from "./optional-storage.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 
+function requireExpressionPlan<T>(
+  node: Node,
+  diagnostics: TargetDiagnostic[],
+  plan: () => T | undefined,
+): T | undefined {
+  const initialDiagnosticCount = diagnostics.length;
+  const selected = plan();
+  if (selected === undefined && !diagnostics.slice(initialDiagnosticCount).some(diagnostic => diagnostic.category === "error")) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Required C# expression planning produced neither a native completion nor an error."));
+  }
+  return selected;
+}
+
 export function planExpression(
   node: Node,
   sourceFile: SourceFile,
@@ -111,7 +124,7 @@ export function planExpression(
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
-  return planExpressionCore(node, sourceFile, input, diagnostics, state);
+  return requireExpressionPlan(node, diagnostics, () => planExpressionCore(node, sourceFile, input, diagnostics, state));
 }
 
 function planExpressionCore(
@@ -465,7 +478,7 @@ export function planCallArgument(
   expectedArgumentPassingMode?: CsharpTargetParameter["passingMode"],
   selectedTargetParameter?: CsharpTargetParameter,
 ): CsharpPlannedArgument | undefined {
-  return planCallArgumentCore(
+  return requireExpressionPlan(node, diagnostics, () => planCallArgumentCore(
     node,
     sourceFile,
     input,
@@ -480,10 +493,25 @@ export function planCallArgument(
     expectedArgumentPassingMode,
     state,
     selectedTargetParameter,
-  );
+  ));
 }
 
 export function planExpressionWithExpectedType(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  expectedType: CsharpTypeNode,
+  expectedTypeSubject?: Node,
+  state?: DestructuringPlannerState,
+  expectedTargetType?: TargetTypeRef,
+): CsharpPlannedValue | undefined {
+  return requireExpressionPlan(node, diagnostics, () => planExpectedExpression(
+    node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, state, expectedTargetType,
+  ));
+}
+
+function planExpectedExpression(
   node: Node,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
