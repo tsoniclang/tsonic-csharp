@@ -7,6 +7,7 @@ import { unionCallContractsFiles, incompatibleUnionCalls } from "../../../../tso
 import { classStructuralConversionFiles, invalidClassStructuralConversions } from "../../../../tsonic/test/fixtures/class-structural-conversions.mjs";
 import { genericObjectMethodFiles, genericObjectCaptureSource, genericObjectMethodValueSource, invalidGenericObjectMethods } from "../../../../tsonic/test/fixtures/generic-object-methods.mjs";
 import { nestedArrayRestSource } from "../../../../tsonic/test/fixtures/nested-array-rest.mjs";
+import { optionalArrayComparisonSource } from "../../../../tsonic/test/fixtures/optional-array-comparisons.mjs";
 import { nestedStructuralStorageFiles, invalidNestedStructuralStorageFiles } from "../../../../tsonic/test/fixtures/nested-structural-storage.mjs";
 import { bigintSwitchSource } from "../../../../tsonic/test/fixtures/bigint-switch.mjs";
 import { classFactoryEffectsFiles } from "../../../../tsonic/test/fixtures/class-factory-effects.mjs";
@@ -199,6 +200,11 @@ test("native params preserve array-valued arguments and nested storage identity"
   const compiled = compileCsharpSource({ surface: "js", sourceText: nestedArrayRestSource });
   executeCsharpConstruction(compiled, "nested-array-rest");
   assert.match(compiled.artifacts.get("src/Index.cs"), /values\.push\(first\);/u);
+});
+
+test("native optional array equality preserves identity, repeated reads and mutation snapshots", { timeout: 300_000 }, () => {
+  executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: optionalArrayComparisonSource }),
+    "optional-array-comparisons");
 });
 
 test("generic object methods retain native binders, independent bodies and shared captures", { timeout: 300_000 }, () => {
