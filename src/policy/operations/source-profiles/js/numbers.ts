@@ -2,7 +2,7 @@ import type {
   CsharpTargetMember,
   TargetTypeRef,
 } from "../../../types/index.js";
-import { csharpJsNumericArgument } from "./numeric-argument.js";
+import { csharpJsNumericArgument, csharpJsParsingParameters } from "./numeric-argument.js";
 import {
   csharpBigIntegerTargetType,
   csharpObjectTargetType,
@@ -88,10 +88,8 @@ const numberStaticRows = [
   },
   {
     sourceName: "parseInt",
-    parameters: [
-      targetParameter("value", stringType),
-      targetParameter("radix", intType, { optional: true }),
-    ],
+    nativeParsingArguments: true,
+    parameters: [],
     returnType: numberType,
   },
   ...["isFinite", "isInteger", "isNaN", "isSafeInteger"].map(
@@ -133,6 +131,11 @@ export const csharpJsNumberCallPolicies:
             const parameter = csharpJsNumericArgument(context);
             if (parameter === undefined) return undefined;
             parameters = [parameter];
+          }
+          if ("nativeParsingArguments" in row && row.nativeParsingArguments) {
+            const selected = csharpJsParsingParameters(context);
+            if (selected === undefined) return undefined;
+            parameters = selected;
           }
           return staticMethod(
             `Tsonic.CSharp.Js.Number.${row.sourceName}`,

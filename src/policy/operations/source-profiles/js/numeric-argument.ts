@@ -1,5 +1,6 @@
 import type { CsharpTargetParameter } from "../../../types/index.js";
-import { csharpBigIntegerTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../../../target-model/types/index.js";
+import { csharpBigIntegerTargetType, csharpNullableValueTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, getCsharpNullableElementTargetType,
+  isCsharpAbsenceTargetType, targetTypeRefEquals } from "../../../../target-model/types/index.js";
 import type { CsharpSourceProfileCallPolicyContext } from "../source-profile-policy.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { targetParameter } from "./common.js";
@@ -17,4 +18,13 @@ export function csharpJsNumericArgument(context: CsharpSourceProfileCallPolicyCo
   if (!(numeric.kind === "source-primitive" && numeric.name !== "bool" && numeric.name !== "char") &&
       !targetTypeRefEquals(numeric, csharpBigIntegerTargetType())) return undefined;
   return targetParameter("value", argument);
+}
+
+export function csharpJsParsingParameters(context: CsharpSourceProfileCallPolicyContext): readonly CsharpTargetParameter[] | undefined {
+  const radix = context.source.sourceArguments[1];
+  const absent = radix === undefined || isCsharpAbsenceTargetType(resolveCsharpSelectedSourceValue(context, radix));
+  const parameter = absent ? targetParameter("radix", csharpNullableValueTargetType(csharpSourcePrimitiveTargetType("float64")), { optional: true })
+    : csharpJsNumericArgument(context, 1);
+  return parameter === undefined ? undefined : [targetParameter("value", csharpStringTargetType()),
+    targetParameter("radix", parameter.type, { optional: true })];
 }

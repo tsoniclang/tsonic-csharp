@@ -3,7 +3,7 @@ import type {
   CsharpTargetParameter,
   TargetTypeRef,
 } from "../../../types/index.js";
-import { csharpJsNumericArgument } from "./numeric-argument.js";
+import { csharpJsNumericArgument, csharpJsParsingParameters } from "./numeric-argument.js";
 import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
@@ -255,18 +255,17 @@ export const csharpJsGlobalCallPolicies:
     ...consoleCallPolicies,
     jsCallPolicy(
       jsGlobalCallIdentity("parseInt"),
-      () =>
-        staticMethod(
+      context => {
+        const parameters = csharpJsParsingParameters(context);
+        return parameters === undefined ? undefined : staticMethod(
           "Tsonic.CSharp.Js.Globals.parseInt",
           "parseInt",
           "parseInt",
           globalsType,
-          [
-            targetParameter("value", stringType),
-            targetParameter("radix", intType, { optional: true }),
-          ],
+          parameters,
           doubleType,
-        ),
+        );
+      },
       noReceiver,
     ),
     jsCallPolicy(
