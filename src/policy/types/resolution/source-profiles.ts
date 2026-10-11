@@ -7,7 +7,7 @@ import type {
   SourceFileSemantics,
   SourceTypeComponentEvidence,
 } from "@tsonic/target-api/source";
-import type { Type } from "@tsonic/tsts";
+import type { AstReader, Type } from "@tsonic/tsts";
 import {
   csharpAsyncGeneratorTargetType,
   csharpGeneratorTargetType,
@@ -56,6 +56,15 @@ import { resolveCsharpCallableTypeParameters } from "../../constraints/callable-
 import type { SourceStorageSubject } from "@tsonic/target-api/analysis";
 import { csharpSourceStorageContext } from "./source-storage-projection.js";
 
+export function resolveCsharpSourceProfileBaseType(
+  type: Type,
+  queries: SourceFileSemantics,
+  ast: AstReader,
+): TargetTypeRef | undefined {
+  const identity = classifyCsharpSourceProfileType(type, queries, ast);
+  return identity?.kind === "error" ? csharpRuntimeErrorTargetType(identity.errorName) : undefined;
+}
+
 export function resolveSourceProfileType(
   { generatorProtocol, generatorResultProtocol, host }: CsharpTypeResolutionScope,
   identity: ReturnType<typeof classifyCsharpSourceProfileType>,
@@ -83,10 +92,6 @@ export function resolveSourceProfileType(
         if (subject === undefined) return csharpExceptionTargetType();
         const sourceFile = host.ast.getSourceFile(subject.node);
         if (sourceFile !== undefined && !host.hasSemantics(sourceFile)) return csharpExceptionTargetType();
-        const parent = host.ast.parent(subject.node);
-        if (host.ast.is.IsExpressionWithTypeArguments(subject.node) && host.ast.is.IsHeritageClause(parent)) {
-          return csharpRuntimeErrorTargetType();
-        }
         const demand = host.errorStorageDemands.storageFor(subject);
         if (demand.kind === "unresolved") return undefined;
         if (demand.kind === "writable") return csharpRuntimeErrorTargetType();

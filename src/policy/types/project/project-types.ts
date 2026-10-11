@@ -25,6 +25,7 @@ import {
   substituteTargetTypeParameters,
 } from "../../../target-model/types/substitution.js";
 import { readCsharpSourceStruct } from "../resolution/source-markers.js";
+import { resolveCsharpSourceProfileBaseType } from "../resolution/source-profiles.js";
 import {
   targetTypeRefKey,
 } from "../../../target-model/types/equality.js";
@@ -469,7 +470,10 @@ function resolveDefinitionHeritage(
         },
       };
     }
-    const target = host.types.resolveSelectedType(
+    const profileBase = definition.kind === "class" && edge.kind === "extends"
+      ? resolveCsharpSourceProfileBaseType(edge.selectedType, host.semanticsFor(edge.heritage), host.ast)
+      : undefined;
+    const target = profileBase ?? host.types.resolveSelectedType(
       edge.heritage,
       edge.selectedType,
       definition.sourceFile,
