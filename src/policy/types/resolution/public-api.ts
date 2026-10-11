@@ -11,7 +11,6 @@ import { csharpTargetParameterValueType } from "../../../target-model/types/memb
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 import { nextState } from "./state.js";
-import { csharpSourceStorageContext } from "./source-storage-projection.js";
 import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
 import { retainCsharpUnionObjectShapes, selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
@@ -150,7 +149,8 @@ export function resolveSelectedValueWithState(
   const { host, resolveNodeWithState, resolveMemberAccessTargetType, resolveSourceValueDeclaration, resolveTypeWithState, sourceValueDeclaration } = scope;
   const reference = host.navigation.referenceFor(node);
   const declaration = sourceValueDeclaration(node, reference?.declaration);
-  state = csharpSourceStorageContext(host, state, declaration ?? node);
+  const storage = host.sourceStorage.subjectFor(node);
+  state = { ...state, sourceStorageSubject: storage.kind === "resolved" ? storage.subject : undefined };
   const scopedTarget = host.representations.scopedTargetType(
     declaration ?? node,
   ) ?? host.representations.scopedTargetType(node) ??

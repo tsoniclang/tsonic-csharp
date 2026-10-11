@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sourceValueDeclaration } from "../../../dist/policy/types/resolution/calls.js";
-import { resolveStorage } from "../../../dist/policy/types/resolution/public-api.js";
+import { resolveSelectedValueWithState, resolveStorage } from "../../../dist/policy/types/resolution/public-api.js";
 
 function fixture(kind, project) {
   const expression = { kind };
@@ -57,5 +57,56 @@ test("project storage queries use the selected declaration's file, not another r
       return carrier;
     };
     assert.equal(resolveStorage(scope, expression, {}) === carrier, true, `${kind}: native carrier`);
+  }
+});
+
+test("selected values replace an enclosing operation owner for both syntax and checked type resolution", () => {
+  for (const kind of ["identifier", "property", "element", "function"]) {
+    for (const available of [true, false]) {
+      const node = { kind };
+      const type = {};
+      const file = {};
+      const enclosing = { kind: "value", node: {}, projection: [] };
+      const operand = { kind: "value", node, projection: kind === "element" ? [{ kind: "tuple-element", index: 0 }] : [] };
+      const bindings = new Map();
+      const state = { depth: 3, sourceStorageSubject: enclosing, sourceBindings: bindings };
+      const expected = available ? operand : undefined;
+      const carrier = { kind: "source-primitive", name: "int64" };
+      const queries = { types: { expressionType: () => undefined } };
+      const observed = [];
+      const accept = selected => {
+        assert.equal(selected.sourceStorageSubject === expected, true, `${kind}: exact operand owner or no evidence`);
+        assert.equal(selected.sourceBindings === bindings && selected.depth === 4, true, kind);
+      };
+      const scope = {
+        host: {
+          ast: { is: { IsPropertyAccessExpression: () => kind === "property", IsElementAccessExpression: () => kind === "element",
+            IsTypeAliasDeclaration: () => false, IsInterfaceDeclaration: () => false, IsTypeParameterDeclaration: () => false } },
+          navigation: { referenceFor: () => undefined },
+          sourceStorage: { subjectFor(selected) {
+            assert.equal(selected === node, true, kind);
+            return available ? { kind: "resolved", subject: operand } : { kind: "unresolved", reason: "no exact owner" };
+          } },
+          representations: { scopedTargetType: () => undefined },
+          semantics: () => queries,
+        },
+        sourceValueDeclaration: () => undefined,
+        resolveNodeWithState(selected, selectedFile, nested) {
+          assert.equal(selected === node && selectedFile === file, true, kind);
+          accept(nested); observed.push("syntax"); return undefined;
+        },
+        resolveTypeWithState(selected, selectedFile, nested) {
+          assert.equal(selected === type && selectedFile === file, true, kind);
+          accept(nested); observed.push("type"); return carrier;
+        },
+        resolveMemberAccessTargetType(selected, selectedQueries, nested) {
+          assert.equal(selected === node && selectedQueries === queries, true, kind);
+          accept(nested); observed.push("member"); return carrier;
+        },
+      };
+      assert.equal(resolveSelectedValueWithState(scope, node, type, file, state) === carrier, true, kind);
+      assert.deepEqual(observed, kind === "property" || kind === "element" ? ["member"] : ["syntax", "type"]);
+      assert.equal(state.sourceStorageSubject === enclosing, true, "the enclosing operation is immutable");
+    }
   }
 });

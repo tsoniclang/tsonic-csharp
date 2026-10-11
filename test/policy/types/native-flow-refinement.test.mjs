@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { selectCsharpNativeFlowMembers } from "../../../dist/policy/types/resolution/native-flow-refinement.js";
 import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsRegExpTargetType } from "../../../dist/policy/types/resolution/surface-types.js";
 import { csharpStringTargetType, csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/scalar-types.js";
@@ -150,6 +151,7 @@ test("selected native values materialize all surviving exact union arms and reta
       semanticsFor: node => source.semantics.forNode(node),
       representations: { scopedTargetType: node => node === declaration ? storage : undefined },
       structuralTypes: { resolveTarget: carrier => targetTypeRefEquals(carrier, packet) ? shape : undefined },
+      sourceStorage: createSourceStorageQuery(source, [file]),
       closedTypeGuard: () => undefined,
     },
     sourceValueDeclaration: (_node, referenced) => referenced,
@@ -209,6 +211,7 @@ function guardedArraySelection(body) {
       semanticsFor: node => source.semantics.forNode(node),
       representations: { scopedTargetType: node => node === declaration ? storage : undefined },
       structuralTypes: { resolveTarget: () => undefined },
+      sourceStorage: createSourceStorageQuery(source, [file]),
       closedTypeGuard(node) {
         const semantics = source.semantics.forNode(node);
         const call = semantics.operations.call(node);
@@ -283,6 +286,7 @@ test("exact nominal subclass evidence remains authoritative inside a native guar
       representations: { scopedTargetType: node => node === declaration ? storage : undefined },
       projectTypeCatalog: { definitionForTarget: carrier => targetTypeRefEquals(carrier, child) ? { kind: "class" } : undefined },
       structuralTypes: { resolveTarget: () => undefined },
+      sourceStorage: createSourceStorageQuery(source, [file]),
       closedTypeGuard: () => undefined,
     },
     sourceValueDeclaration: (_node, referenced) => referenced,

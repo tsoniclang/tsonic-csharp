@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { createCsharpProjectTypeCatalog } from "../../../dist/analysis/project-types/catalog.js";
 import { createCsharpObjectShapePolicy } from "../../../dist/policy/types/objects/object-shape-policy/api.js";
 
@@ -29,6 +30,7 @@ function fixture() {
     ast: source.ast,
     navigation: source.navigation,
     sourceFiles: source.navigation.sourceFiles,
+    sourceStorage: createSourceStorageQuery(source, source.navigation.sourceFiles),
     semantics: file => source.semantics.forFile(file),
     semanticsFor,
     projectTypeCatalog: catalog,
