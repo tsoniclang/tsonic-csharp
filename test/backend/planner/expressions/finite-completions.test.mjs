@@ -10,6 +10,17 @@ function generated(sourceText) {
   return [...compiled.artifacts.values()].join("\n");
 }
 
+test("literal absence in native void positions needs no fabricated value or effect", () => {
+  const source = generated(`
+    export function direct(): void { return undefined; }
+    export function parenthesized(): void { return (undefined); }
+    export function conditional(enabled: boolean): void { return enabled ? undefined : undefined; }
+    export async function asynchronous(): Promise<void> { return undefined; }
+  `);
+  assert.match(source, /return;/u);
+  assert.doesNotMatch(source, /return null|default\(void\)|Task\.FromResult|_ = null|\bnull;/u);
+});
+
 test("finite await handles synchronous and valued Task alternatives without creating another Task", () => {
   const source = generated(`
     import type { int32 } from "@tsonic/core/types.js";

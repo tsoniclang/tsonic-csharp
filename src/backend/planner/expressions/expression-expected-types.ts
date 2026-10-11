@@ -55,6 +55,7 @@ import {
 import {
   csharpAbsenceTargetType,
   getCsharpDelegateSignature,
+  isCsharpVoidTargetType,
   targetTypeRefEquals,
 } from "../../../target-model/types/index.js";
 import {
@@ -73,7 +74,7 @@ import {
 } from "./literal-conversions.js";
 import { planVoidExpression } from "./expression-void.js";
 import { planCsharpSourceUndefinedValue } from "./undefined-values.js";
-import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
+import { csharpPlannedEffect, mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpExpressionCompletion, planCsharpValueBranch } from "./planned-value-composition.js";
 
 export interface ExpectedTypeExpressionPlanners {
@@ -101,9 +102,9 @@ export function planExpressionWithExpectedTypeCore(
     (expectedTypeSubject === undefined ? undefined : getTargetTypeRefForNode(input, expectedTypeSubject, sourceFile));
   const complete = (expression: CsharpExpression | undefined): CsharpPlannedValue | undefined =>
     planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression, effectiveExpectedTargetType);
-  const expectedRuntimeNullishLiteral = planExpectedRuntimeNullishLiteral(node, sourceFile, input, effectiveExpectedTargetType, expectedTypeSubject);
+  const expectedRuntimeNullishLiteral = planExpectedRuntimeNullishLiteral(node, sourceFile, input, diagnostics, effectiveExpectedTargetType, expectedTypeSubject);
   if (expectedRuntimeNullishLiteral !== undefined) {
-    return expectedRepresentation(complete(expectedRuntimeNullishLiteral));
+    return expectedRepresentation(expectedRuntimeNullishLiteral);
   }
   if (effectiveExpectedTargetType !== undefined && isGlobalUndefinedLiteral(node, sourceFile, input)) {
     const selected = planCsharpSourceUndefinedValue(node, effectiveExpectedTargetType, sourceFile, input, diagnostics);
@@ -354,16 +355,19 @@ function planExpectedRuntimeNullishLiteral(
   node: Node,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
   expectedTargetType: TargetTypeRef | undefined,
   expectedTypeSubject: Node | undefined,
-): CsharpExpression | undefined {
+): CsharpPlannedValue | undefined {
   const effectiveExpectedTargetType = expectedTargetType ??
     (expectedTypeSubject === undefined ? undefined : getTargetTypeRefForNode(input, expectedTypeSubject, sourceFile));
   if (effectiveExpectedTargetType === undefined) {
     return undefined;
   }
   if (HasSourceKind(input.program.source.ast, node, KindNullKeyword) || isGlobalUndefinedLiteral(node, sourceFile, input)) {
-    return planCsharpAbsentValue(effectiveExpectedTargetType, input.scope.typeParameterNames);
+    return isCsharpVoidTargetType(effectiveExpectedTargetType) ? csharpPlannedEffect(effectiveExpectedTargetType, [])
+      : planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
+        planCsharpAbsentValue(effectiveExpectedTargetType, input.scope.typeParameterNames), effectiveExpectedTargetType);
   }
   return undefined;
 }
