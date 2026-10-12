@@ -334,7 +334,8 @@ export function analyzeCsharpSourceEvidence(
       targetTypeRefEquals(declaredTargetType, selectedTargetType);
     const absenceUsesStorage = isCsharpAbsenceTargetType(selectedTargetType) &&
       getCsharpNullableElementTargetType(readStorageTargetType) !== undefined;
-    const flowReadTargetType = (unrelatedSourceTypesShareTargetRepresentation || absenceUsesStorage) &&
+    const exactSourceRead = refinement.kind === "resolved" && refinement.refinement.kind === "exact";
+    const flowReadTargetType = (exactSourceRead || unrelatedSourceTypesShareTargetRepresentation || absenceUsesStorage) &&
         readStorageTargetType !== undefined
       ? readStorageTargetType
       : selectedTargetType !== undefined &&
