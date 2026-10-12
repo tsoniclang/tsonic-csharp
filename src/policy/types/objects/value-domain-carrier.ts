@@ -5,9 +5,12 @@ import type { CsharpTypePolicy } from "../resolution/model.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/collections.js";
+import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
+import type { CsharpObjectShapePolicy } from "./object-shape-policy/model.js";
 
 export interface CsharpValueDomainCarrierHost {
   readonly sourceStorage?: SourceStorageQueries;
+  readonly objectShapes?: Pick<CsharpObjectShapePolicy, "resolveTarget">;
   readonly types: Pick<CsharpTypePolicy, "resolveNode">;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
 }
@@ -41,10 +44,24 @@ export function csharpValueDomainHasTargetType(
     let carrier = host.types.resolveNode(origin.subject.node, origin.sourceFile);
     for (const component of origin.subject.projection) {
       carrier = component.kind === "array-element" ? getCsharpCollectionElementTargetType(carrier)
-        : carrier?.kind === "tuple" ? carrier.elements[component.index] : undefined;
+        : component.kind === "tuple-element"
+          ? carrier?.kind === "tuple" ? carrier.elements[component.index] : undefined
+          : carrier === undefined ? undefined : projectedMemberCarrier(host, component.declaration, carrier);
     }
     if (carrier === undefined || !targetTypeRefEquals(carrier, expected)) return false;
     present = true;
   }
   return present && storage.failureReason() === undefined;
+}
+
+function projectedMemberCarrier(
+  host: CsharpValueDomainCarrierHost,
+  declaration: Node,
+  owner: TargetTypeRef,
+): TargetTypeRef | undefined {
+  const shape = host.objectShapes?.resolveTarget(owner);
+  if (shape === undefined) return undefined;
+  const selected = resolveCsharpObjectShapeMemberBySelectedSubject(shape, [declaration]);
+  return selected.kind === "resolved" && selected.member.memberKind !== "method" &&
+    selected.member.accessor === undefined ? selected.member.type : undefined;
 }
