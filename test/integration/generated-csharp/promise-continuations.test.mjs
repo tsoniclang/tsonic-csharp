@@ -1,6 +1,22 @@
 import test from "node:test";
+import assert from "node:assert/strict";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+
+test("the real executable driver owns discarded Promise continuations but not an unsettled Promise", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `
+export {};
+const pending = new Promise<void>(() => {});
+void pending.then(() => { throw new Error("Unsettled Promise callback executed"); });
+void Promise.resolve(7).then(value => {
+  if (value !== 7) throw new Error("Native Promise payload was changed");
+  console.log("retained-continuation");
+});
+` });
+  assertCsharpCompilationSucceeded(compiled);
+  assert.equal(compiled.artifacts.has("generated/TsonicEntrypoint.cs"), true, "production executable startup is exercised");
+  assert.match(executeCsharpConstruction(compiled, "promise-executable-owner"), /retained-continuation/u);
+});
 
 test("Promise executors and continuations preserve native completion, values and rejection", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: `

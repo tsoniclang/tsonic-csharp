@@ -30,6 +30,7 @@ import {
   csharpQualifiedTypeRenderShape,
 } from "../../../../target-model/types/index.js";
 import { csharpTargetNamedType } from "../../../../target-model/types/index.js";
+import { csharpJsEventLoopBinaryExecutionDriver } from "../../../../target-model/project/binary-execution-drivers.js";
 
 const objectType = csharpObjectTargetType();
 const rejectionType = csharpNullableTargetType(objectType);
@@ -111,8 +112,11 @@ function promiseContinuationMember(
       : [targetParameter("fulfilled", delegate(isCsharpVoidTargetType(input) ? [] : [input])),
           targetParameter("rejected", delegate([rejectionType]), { optional: true })],
     csharpTaskTargetType(result),
-    name === "then" && !isCsharpVoidTargetType(result)
-      ? { typeParameters: [{ name: "TResult" }] } : {},
+    {
+      csharpBinaryExecutionDriver: csharpJsEventLoopBinaryExecutionDriver,
+      ...(name === "then" && !isCsharpVoidTargetType(result)
+        ? { typeParameters: [{ name: "TResult" }] } : {}),
+    },
   );
 }
 
@@ -234,6 +238,7 @@ function promiseFinallyMember(
         receiver,
         [targetParameter("onFinally", actionType, { optional: true })],
         receiver,
+        { csharpBinaryExecutionDriver: csharpJsEventLoopBinaryExecutionDriver },
       );
 }
 

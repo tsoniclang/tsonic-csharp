@@ -326,7 +326,7 @@ function planCsharpModuleInitializationStatement(
   driver: PlannedCsharpBinaryExecutionDriver | undefined,
 ): CsharpStatement {
   const initialization = moduleInitializerCall(source);
-  if (source.asyncModuleInitializer && driver !== undefined) {
+  if (driver !== undefined) {
     return binaryExecutionDriverStatement(driver, initialization);
   }
   return {
@@ -347,8 +347,7 @@ function planStandaloneBinaryExecutionDriver(
   if (
     driver === undefined ||
     (
-      source?.hasModuleInitializer === true &&
-      source.asyncModuleInitializer
+      source?.hasModuleInitializer === true
     )
   ) {
     return [];
@@ -373,7 +372,7 @@ function binaryExecutionDriverStatement(
       },
       arguments: entryTask === undefined
         ? []
-        : [{ kind: "Argument", expression: entryTask }],
+        : [{ kind: "Argument", expression: { kind: "LambdaExpression", parameters: [], body: entryTask } }],
     },
   };
 }

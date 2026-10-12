@@ -224,7 +224,7 @@ test("direct C# executable translation drives timer-backed top-level await throu
     {
         public static void Main()
         {
-            Tsonic.CSharp.Js.JsEventLoop.Run(Index.__tsonic_module_init());
+            Tsonic.CSharp.Js.JsEventLoop.Run(() => Index.__tsonic_module_init());
         }
     }
 }
