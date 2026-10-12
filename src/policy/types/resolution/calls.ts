@@ -11,7 +11,8 @@ import { nextState } from "./state.js";
 import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { selectCsharpAuthoredUnionRefinement, sourceRefinementOnlyRemovesNullish } from "./source-union-refinement.js";
-import { Node_Expression, ObjectLiteralProperty_Value } from "@tsonic/target-api/source";
+import { Node_Expression, Node_Type, ObjectLiteralProperty_Value } from "@tsonic/target-api/source";
+import { getCsharpCallableValueSignature } from "../../../target-model/types/delegates.js";
 import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDeclarations } from "../objects/object-shape-policy/union-construction.js";
 import { csharpNumericLiteralValue, csharpBigIntLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
 import { getCsharpArrayLiteralElementTargetType } from "../../../target-model/types/collections.js";
@@ -373,7 +374,13 @@ export function inferSourceCallTargetTypeArguments(
   state: CsharpTypeResolutionState,
 ): ReadonlyMap<string, TargetTypeRef> | undefined {
   const inferred = new Map<string, TargetTypeRef>();
-  for (const binding of source.sourceArgumentBindings) {
+  const contextual = (index: number): boolean => {
+    const argument = source.sourceArguments[index]?.expression;
+    return argument !== undefined && (scope.host.ast.is.IsArrowFunction(argument) || scope.host.ast.is.IsFunctionExpression(argument));
+  };
+  const bindings = [...source.sourceArgumentBindings].sort((left, right) =>
+    Number(contextual(left.sourceArgumentIndex)) - Number(contextual(right.sourceArgumentIndex)));
+  for (const binding of bindings) {
     const parameter = csharpSourceCallArgumentParameter(callable, binding.effectiveArgumentIndex)?.targetParameter;
     const argument = source.sourceArguments[binding.sourceArgumentIndex];
     if (parameter === undefined || argument === undefined) {
@@ -410,6 +417,18 @@ function sourceArgumentInferencePairs(
   if (host.ast.is.IsParenthesizedExpression(literal) || host.ast.is.IsSatisfiesExpression(literal)) {
     const inner = Node_Expression(host.ast, literal);
     return inner === undefined ? undefined : sourceArgumentInferencePairs(scope, inner, pattern, sourceFile, nextState(state));
+  }
+  if (host.ast.is.IsArrowFunction(literal) || host.ast.is.IsFunctionExpression(literal)) {
+    const type = host.semantics(sourceFile).types.expressionType(literal);
+    const actual = type === undefined ? undefined : resolveSelectedValueWithState(literal, type, sourceFile, nextState(state));
+    const expected = getCsharpCallableValueSignature(pattern);
+    const selected = getCsharpCallableValueSignature(actual);
+    const parameters = host.ast.parameters(literal);
+    if (expected === undefined || selected === undefined || expected.parameters.length !== selected.parameters.length ||
+      parameters.some(parameter => parameter === undefined)) return undefined;
+    return [{ pattern: expected.returnType, actual: selected.returnType }, ...parameters.flatMap((parameter, index) =>
+      Node_Type(host.ast, parameter) === undefined || expected.parameters[index] === undefined ? []
+        : [{ pattern: expected.parameters[index]!, actual: selected.parameters[index]! }])];
   }
   if (host.ast.is.IsArrayLiteralExpression(literal)) {
     const element = getCsharpArrayLiteralElementTargetType(pattern);
