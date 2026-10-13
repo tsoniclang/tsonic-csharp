@@ -14,10 +14,12 @@ for (const surface of [undefined, "js"]) {
   for (const [name, source] of [
     ["explicit", 'export function main(): void { console.log("entry ran"); } main();'],
     ["top_level", 'console.log("entry ran");'],
+    ["async", 'export async function main(): Promise<void> { console.log("entry ran"); } await main();'],
   ]) {
     test(`binary ${name} runs exactly once on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
       const sourceText = surface === undefined
-        ? name === "explicit" ? "export function main(): void {} main();" : "export const result = 42;"
+        ? name === "explicit" ? "export function main(): void {} main();"
+          : name === "async" ? "export async function main(): Promise<void> {} await main();" : "export const result = 42;"
         : source;
       const compiled = compileCsharpSource({ surface, targetOptions: { outputType: "Exe" }, sourceText });
       assertCsharpCompilationSucceeded(compiled);
