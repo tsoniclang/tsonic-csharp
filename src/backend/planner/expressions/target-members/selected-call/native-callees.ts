@@ -39,10 +39,10 @@ export function planCsharpNativeMethodCallee(
   | { readonly kind: "type"; readonly receiver: CsharpExpression; readonly name: string; readonly effect?: CsharpPlannedEffectOperand }
   | { readonly kind: "value"; readonly receiver: CsharpPlannedValue; readonly name: string }
   | undefined {
-  const element = input.program.operations.element(selected.expression);
-  const property = input.program.operations.property(selected.expression);
+  const element = input.program.records.selectedElement.get(selected.expression);
+  const property = input.program.records.selectedProperty.get(selected.expression);
   const selection = element?.target ?? property?.selection;
-  const sourceOwned = input.program.operations.sourceMember(selected.expression);
+  const sourceOwned = input.program.records.sourceMember.get(selected.expression);
   if (selection?.kind !== "source-owned" || sourceOwned === undefined || !selection.source.callCallee ||
     sourceOwned.jsValueOperation.kind !== "not-js-value" || sourceOwned.runtimeUnionProperty.kind !== "not-runtime-union" ||
     sourceOwned.objectShape !== undefined && sourceOwned.shapeMember?.kind !== "resolved" ||

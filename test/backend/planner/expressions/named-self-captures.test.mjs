@@ -17,7 +17,7 @@ function fixture() {
   const state = createDestructuringPlannerState();
   const original = csharpCaptureFrameName(scope, state);
   const registered = [];
-  const input = { scope: {}, program: { captureStorage: { binding: node => bindings.get(node) } },
+  const input = { scope: {}, program: { records: { capturedBinding: { get: node => bindings.get(node) } } },
     artifacts: { registerObjectShape: shape => { registered.push(shape); return { kind: "accepted" }; } } };
   const self = { declaration, captures: [first, second, ordinary], capturesReceiver: false, calls: [], values: [{}] };
   const select = (selectedInput = input, selectedSelf = self) => {

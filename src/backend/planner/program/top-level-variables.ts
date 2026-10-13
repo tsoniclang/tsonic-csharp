@@ -56,8 +56,8 @@ export function planTopLevelVariableStatement(
   }
   const reassignable = declarationKind === "let" || declarationKind === "var";
   for (const declaration of declarations) {
-    if (input.program.sourceEvidence.isCompileTimeMetadata(declaration)) continue;
-    const valueType = input.program.sourceEvidence.sourceStruct(declaration);
+    if (input.program.records.compileTimeMetadata.get(declaration)) continue;
+    const valueType = input.program.records.sourceStruct.get(declaration);
     if (valueType !== undefined) {
       appendTypeDeclaration(declaration, planValueTypeDeclaration(declaration, valueType, sourceFile, input, diagnostics));
       continue;
@@ -81,7 +81,7 @@ export function planTopLevelVariableStatement(
       topLevelStatements.push(...planned.statements);
       continue;
     }
-    const callableVisibility = input.program.moduleInitialization.directCallableVisibility(declaration);
+    const callableVisibility = input.program.records.callableVisibility.get(declaration);
     let initializerInput = input;
     if (callableVisibility !== undefined) {
       const initializer = variable.Initializer;
@@ -131,7 +131,7 @@ export function planTopLevelVariableStatement(
       field.type,
       "public",
       reassignable,
-      input.program.storage.nativeModuleField(declaration),
+      input.program.records.nativeModuleField.get(declaration),
     ));
     if (initial !== undefined) topLevelStatements.push(...initial.prelude);
     if (field.initializer !== undefined) {
@@ -179,7 +179,7 @@ function topLevelBindingFields(
       statement.type,
       declaration === undefined ? "private" : "public",
       reassignable,
-      declaration !== undefined && input.program.storage.nativeModuleField(declaration),
+      declaration !== undefined && input.program.records.nativeModuleField.get(declaration),
     ));
     if (statement.initializer !== undefined) {
       initializers.push(topLevelFieldAssignment(statement.name, statement.initializer));

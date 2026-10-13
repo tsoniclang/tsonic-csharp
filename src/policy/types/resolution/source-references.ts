@@ -167,7 +167,6 @@ export function resolveTypeReferenceNode(
     : semanticTarget;
 }
 
-
 export function resolveCheckerTransformedSourceType(
   { host, resolveCallableType, resolveEvidenceNodesToCommonTarget, resolveStandardSourceTypeTransformation, resolveTypeWithState }: CsharpTypeResolutionScope,
   authoredRoot: Node,
@@ -245,7 +244,6 @@ export function resolveCheckerTransformedSourceType(
   );
 }
 
-
 export function resolveStandardSourceTypeTransformation(
   { host, resolveCallableEvidence, resolveSignatureParameterEvidence, resolveSignatureParameterListTarget, resolveSourceTypeComponentEvidence }: CsharpTypeResolutionScope,
   transformation: NonNullable<
@@ -297,7 +295,6 @@ export function resolveStandardSourceTypeTransformation(
   );
 }
 
-
 export function resolveSignatureParameterListTarget(
   { host }: CsharpTypeResolutionScope,
   parameters: SourceCallableTypeEvidence["parameters"],
@@ -333,7 +330,6 @@ export function resolveSignatureParameterListTarget(
     : { kind: "array", element: restElement };
 }
 
-
 export function resolveEvidenceNodesToCommonTarget(
   { host, resolveAuthoredAndSelectedSourceType }: CsharpTypeResolutionScope,
   nodes: readonly Node[],
@@ -363,7 +359,6 @@ export function resolveEvidenceNodesToCommonTarget(
     ? first
     : undefined;
 }
-
 
 export function resolveCompositionalSourceTypeAlias(
   scope: CsharpTypeResolutionScope,
@@ -452,7 +447,6 @@ export function resolveCompositionalSourceTypeAlias(
   };
 }
 
-
 export function targetPreservesAuthoredSourcePrimitiveFacts(
   { collectTargetSourcePrimitiveNames, host }: CsharpTypeResolutionScope,
   node: Node,
@@ -473,7 +467,6 @@ export function targetPreservesAuthoredSourcePrimitiveFacts(
   return [...required].every((kind) => preserved.has(kind));
 }
 
-
 export function collectTargetSourcePrimitiveNames(
   { collectTargetSourcePrimitiveNames, host }: CsharpTypeResolutionScope,
   target: TargetTypeRef,
@@ -492,7 +485,6 @@ export function collectTargetSourcePrimitiveNames(
     collectTargetSourcePrimitiveNames(component, names, visited);
   }
 }
-
 
 export function resolveSourceValueDeclaration(
   scope: CsharpTypeResolutionScope,

@@ -17,32 +17,20 @@ import {
   targetTypeRefKey,
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpDeclarationClassifications } from "../declarations/model.js";
+import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpCallableContractIndex } from "../callables/model.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import {
   selectCsharpSourceArgument,
 } from "../../policy/operations/members/selection/argument-selection.js";
-import type {
-  CsharpConversionClassifications,
-} from "../conversions/index.js";
-import type {
-  CsharpExpectedTypeClassifications,
-} from "../expected-types/index.js";
-import type {
-  CsharpTargetOperationClassifications,
-} from "../operations/index.js";
-import type {
-  CsharpSourceEvidenceIndex,
-} from "../source-evidence/index.js";
+import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
+import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type {
   CsharpObjectShapeClassifications,
 } from "../objects/index.js";
-import type {
-  CsharpStorageClassifications,
-  CsharpStorageRepresentationClassifications,
-  CsharpStorageIssue,
-} from "./model.js";
+import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications, CsharpStorageIssue } from "../../target-model/records/storage.js";
 import { canConstructCsharpStorageLiteral } from "./literal-construction.js";
 
 interface MutableStorageContract {
@@ -76,7 +64,7 @@ export function analyzeCsharpStorage(
 
   const resolvedTypes = new Map<Node, TargetTypeRef>();
   for (const contract of contracts.values()) {
-    const sourceType = evidence.storageTargetType(contract.declaration);
+    const sourceType = evidence.storageTargetType.get(contract.declaration);
     const selected = contract.targetType ?? sourceType;
     if (selected === undefined) {
       issues.push(issue(
@@ -116,7 +104,7 @@ export function analyzeCsharpStorage(
       effectiveTypes.set(node, directRequirement);
       continue;
     }
-    const sourceType = evidence.storageTargetType(node);
+    const sourceType = evidence.storageTargetType.get(node);
     if (sourceType === undefined) {
       continue;
     }
@@ -153,23 +141,23 @@ export function analyzeCsharpStorage(
             typedLocationIdentity: contract.typedLocationIdentity,
           })];
     })),
-    type(node) {
+    storageType: Object.freeze({ get(node) {
       return effectiveTypes.get(node);
-    },
-    requiredType(node) {
+    } }),
+    requiredStorageType: Object.freeze({ get(node) {
       return requiredTypes.get(node);
-    },
-    lambdaParameterType(node) {
+    } }),
+    lambdaParameterType: Object.freeze({ get(node) {
       return contracts.get(node)?.lambdaParameterType;
-    },
-    requiresTypedLocationIdentity(declaration) {
+    } }),
+    typedLocationIdentity: Object.freeze({ get(declaration) {
       return contracts.get(declaration)?.typedLocationIdentity === true;
-    },
+    } }),
   };
   return Object.freeze(classifications);
 
   function visit(node: Node): void {
-    if (evidence.isCompileTimeMetadata(node) || IsTypeSyntaxNode(policy.ast, node)) return;
+    if (evidence.compileTimeMetadata.get(node) || IsTypeSyntaxNode(policy.ast, node)) return;
     nodes.push(node);
     const declaration = policy.ast.is.IsVariableDeclaration(node) ? node
       : policy.ast.is.IsIdentifier(node) ? policy.navigation.referenceFor(node)?.declaration : undefined;
@@ -177,7 +165,7 @@ export function analyzeCsharpStorage(
     if (declaration !== undefined && closedCallableType !== undefined) {
       requireTargetType(node, declaration, closedCallableType);
     } else {
-      for (const expectedType of expectedTypes.storageTypesForExpression(node)) {
+      for (const expectedType of expectedTypes.storageExpectedType.get(node)) {
         recordPromotedRepresentation(node, expectedType);
       }
     }
@@ -200,7 +188,7 @@ export function analyzeCsharpStorage(
     const parameters = policy.ast.parameters(node).filter(
       (parameter): parameter is Node => parameter !== undefined,
     );
-    const callableTarget = contextual ? expectedTypes.callableTarget(node) : undefined;
+    const callableTarget = contextual ? expectedTypes.callableTarget.get(node) : undefined;
     const selectedSignature = callableTarget === undefined
       ? undefined
       : getCsharpLambdaSignature(callableTarget);
@@ -220,7 +208,7 @@ export function analyzeCsharpStorage(
         const declaration = policy.ast.as.AsParameterDeclaration(parameter);
         const authored = declaration?.Type === undefined
           ? undefined
-          : evidence.nodeTargetType(declaration.Type);
+          : evidence.nodeTargetType.get(declaration.Type);
         const types = policy.semanticsFor(parameter).types;
         const authoredType = declaration?.Type === undefined ? undefined : types.authoredType(declaration.Type);
         const broad = authoredType !== undefined && (types.isUnknown(authoredType) || types.isAny(authoredType));
@@ -228,13 +216,13 @@ export function analyzeCsharpStorage(
             policy.ast.questionToken(parameter) === undefined
           ? authored
           : csharpNullableTargetType(authored);
-        const runtimeDefault = declarations.runtimeDefault(parameter);
+        const runtimeDefault = declarations.runtimeDefault.get(parameter);
         if (
           effectiveAuthored !== undefined &&
           !targetTypeRefEquals(effectiveAuthored, targetType) &&
           !(runtimeDefault !== undefined && targetTypeRefEquals(runtimeDefault.parameterType, targetType))
         ) {
-          const adaptation = conversions.select(
+          const adaptation = conversions.conversion.get(
             targetType,
             effectiveAuthored,
             "implicit",
@@ -274,7 +262,7 @@ export function analyzeCsharpStorage(
     }
     const shapes = [
       objectShapes.resolveNode(owner),
-      ...expectedTypes.forExpression(owner).flatMap((targetType) => {
+      ...expectedTypes.expectedType.get(owner).flatMap((targetType) => {
         const expectedShape = objectShapes.resolveTarget(targetType);
         const resolution = objectShapes.resolveObjectLiteralTargetShape(
           expectedShape,
@@ -308,7 +296,7 @@ export function analyzeCsharpStorage(
     if (!policy.ast.is.IsIdentifier(expression)) {
       return;
     }
-    const sourceType = evidence.nodeTargetType(expression);
+    const sourceType = evidence.nodeTargetType.get(expression);
     const sourceCallable = getCsharpCallableValueSignature(getCsharpNullableElementTargetType(sourceType) ?? sourceType);
     const expectedCallable = getCsharpCallableValueSignature(getCsharpNullableElementTargetType(expectedType) ?? expectedType);
     if (sourceCallable !== undefined && expectedCallable !== undefined &&
@@ -317,14 +305,14 @@ export function analyzeCsharpStorage(
         getCsharpNullableElementTargetType(sourceType) === undefined
       ? getCsharpNullableElementTargetType(expectedType) ?? expectedType
       : expectedType;
-    const conversion = conversions.selectExpression(
+    const conversion = conversions.expressionConversion.get(
       expression,
       sourceType,
       expectedType,
       "implicit",
     );
     if (conversion?.kind !== "rejected") {
-      const priorRequirement = previous?.requiredType(expression);
+      const priorRequirement = previous?.requiredStorageType.get(expression);
       if (
         priorRequirement !== undefined &&
         targetTypeRefEquals(priorRequirement, requiredStorageType)
@@ -363,8 +351,8 @@ export function analyzeCsharpStorage(
           policy, evidence, objectShapes, conversions)) return;
         break;
       }
-      const initializerConversion = conversions.selectExpression(initializer,
-        evidence.nodeTargetType(initializer), requiredStorageType, "implicit");
+      const initializerConversion = conversions.expressionConversion.get(initializer,
+        evidence.nodeTargetType.get(initializer), requiredStorageType, "implicit");
       if (initializerConversion !== undefined && conversionIsImplicitlyApplicable(initializerConversion)) break;
       if (!policy.ast.is.IsIdentifier(initializer)) return;
       current = initializer;
@@ -373,16 +361,16 @@ export function analyzeCsharpStorage(
   }
 
   function recordOperationRequirements(node: Node): void {
-    const projectedWrite = operations.property(node)?.sourceOwned?.projectedWrite;
+    const projectedWrite = operations.selectedProperty.get(node)?.sourceOwned?.projectedWrite;
     if (projectedWrite?.kind === "resolved") {
       recordTypedLocationStorageIdentities(projectedWrite.storage);
     }
-    const typedLocation = operations.typedLocation(node);
+    const typedLocation = operations.typedLocation.get(node);
     if (typedLocation?.kind === "location-address") {
       recordTypedLocationStorageIdentities(typedLocation.storage);
     }
 
-    const iteration = operations.iteration(node);
+    const iteration = operations.iteration.get(node);
     if (iteration?.kind === "resolved") {
       const initializer = policy.ast.as.AsForInOrOfStatement(node)?.Initializer;
       const declaration = singleVariableDeclaration(initializer);
@@ -391,7 +379,7 @@ export function analyzeCsharpStorage(
       }
     }
 
-    const call = operations.call(node)?.target;
+    const call = operations.selectedCall.get(node)?.target;
     if (call?.kind !== "resolved") {
       return;
     }
@@ -437,7 +425,7 @@ export function analyzeCsharpStorage(
   }
 
   function recordTypedLocationStorageIdentities(
-    storage: import("../../policy/operations/index.js")
+    storage: import("../../target-model/records/typed-location-storage.js")
       .CsharpTypedLocationStorage,
   ): void {
     if (

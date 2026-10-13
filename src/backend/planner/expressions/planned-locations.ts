@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpNativeLocationSelection } from "../../../analysis/storage/native-locations.js";
+import type { CsharpNativeLocationSelection } from "../../../target-model/records/native-locations.js";
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpPlannedValue, CsharpPlannedCapture, CsharpPlannedLocationCapture } from "./planned-values.js";
@@ -19,7 +19,7 @@ export function captureCsharpPlannedMemberReceiver(
 ): CsharpPlannedCapture | CsharpPlannedLocationCapture | undefined {
   if (operand.completion.kind !== "value") return undefined;
   if (!isCsharpValueTypeTargetType(carrier)) return captureCsharpPlannedValue(node, input, diagnostics, carrier);
-  const location = input.program.storage.nativeLocation(receiver);
+  const location = input.program.records.nativeLocation.get(receiver);
   if (location?.kind !== "resolved" || location.address === undefined) {
     if (!writable) return captureCsharpPlannedValue(node, input, diagnostics, carrier);
     diagnostics.push(unsupportedNodeDiagnostic(node, "A computed value-member write requires its exact native receiver address."));
@@ -54,8 +54,8 @@ export function captureCsharpPlannedLocation(
         }
         return { ...syntax, receiver: temporary(syntax.receiver) };
       }
-      const property = input.program.operations.property(selected.expression)?.selection ??
-        input.program.operations.element(selected.expression)?.target;
+      const property = input.program.records.selectedProperty.get(selected.expression)?.selection ??
+        input.program.records.selectedElement.get(selected.expression)?.target;
       if (property?.kind === "resolved" && property.receiver.kind === "none" || property?.kind === "source-owned" &&
         property.source.selectedDeclaration !== undefined && input.program.source.ast.hasModifierKind(property.source.selectedDeclaration, "static")) return syntax;
       if (selected.assignment === "unsupported" && selected.receiver === undefined && selected.address === undefined && selected.nativeCell === undefined) {
@@ -65,7 +65,7 @@ export function captureCsharpPlannedLocation(
       let receiver: CsharpExpression;
       if (selected.receiver === undefined) receiver = temporary(syntax.receiver);
       else {
-        const receiverLocation = input.program.storage.nativeLocation(selected.receiver.expression);
+        const receiverLocation = input.program.records.nativeLocation.get(selected.receiver.expression);
         if (receiverLocation?.kind !== "resolved" || receiverLocation.address === undefined) {
           diagnostics.push(unsupportedNodeDiagnostic(node, "A native value receiver requires its finalized physical address."));
           return undefined;

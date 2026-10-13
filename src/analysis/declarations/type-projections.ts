@@ -1,22 +1,13 @@
+import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import type { Node } from "@tsonic/tsts";
 import { IsTypeSyntaxNode, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import { csharpTypeProjection, getCsharpGenericOptionalParts, type CsharpProjectedType } from "../../target-model/types/projections.js";
-import type { CsharpTargetOperationClassifications } from "../operations/model.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
-import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
-
-export interface CsharpGenericProjectionIndex {
-  readonly entries: readonly {
-    readonly declaration: Node;
-    readonly parameters: readonly CsharpProjectedType[];
-    readonly outerParameters: readonly CsharpProjectedType[];
-  }[];
-  get(declaration: Node): readonly CsharpProjectedType[];
-  outer(declaration: Node): readonly CsharpProjectedType[];
-}
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 
 export function analyzeCsharpTypeProjections(
   source: TargetSourceProgram, evidence: CsharpSourceEvidenceIndex, operations: CsharpTargetOperationClassifications,
@@ -30,13 +21,13 @@ export function analyzeCsharpTypeProjections(
     parameters.set(projection.identity, projection);
   };
   const visit = (node: Node): void => {
-    if (ast.is.IsTypeAliasDeclaration(node) || ast.is.IsImportDeclaration(node) || evidence.isCompileTimeMetadata(node)) return;
+    if (ast.is.IsTypeAliasDeclaration(node) || ast.is.IsImportDeclaration(node) || evidence.compileTimeMetadata.get(node)) return;
     const parent = ast.parent(node);
     const isName = parent !== undefined && ast.name(parent) === node;
     const declarationOnly = ast.is.IsClassDeclaration(node) || ast.is.IsClassExpression(node) || ast.is.IsInterfaceDeclaration(node);
-    const pending = isName || declarationOnly ? [] : [evidence.nodeTargetType(node), evidence.storageTargetType(node),
-      evidence.bindingProjection(node)?.storageCarrier,
-      ...operations.call(node)?.sourceTypeArguments ?? []];
+    const pending = isName || declarationOnly ? [] : [evidence.nodeTargetType.get(node), evidence.storageTargetType.get(node),
+      evidence.bindingProjection.get(node)?.storageCarrier,
+      ...operations.selectedCall.get(node)?.sourceTypeArguments ?? []];
     const visited = new Set<string>();
     for (let index = 0; index < pending.length; index += 1) {
       const type = pending[index];
@@ -83,15 +74,15 @@ export function analyzeCsharpTypeProjections(
   }));
   const index = new Map(entries.map(entry => [entry.declaration, entry]));
   return Object.freeze({ entries: Object.freeze(entries),
-    get: (declaration: Node) => index.get(declaration)?.parameters ?? [],
-    outer: (declaration: Node) => index.get(declaration)?.outerParameters ?? [],
+    genericProjection: Object.freeze({ get: (declaration: Node) => index.get(declaration)?.parameters ?? [] }),
+    outerGenericProjection: Object.freeze({ get: (declaration: Node) => index.get(declaration)?.outerParameters ?? [] }),
   });
 }
 
 export function csharpTypeProjectionIndexesEqual(left: CsharpGenericProjectionIndex, right: CsharpGenericProjectionIndex): boolean {
   return left.entries.length === right.entries.length && left.entries.every(entry => {
-    const parameters = right.get(entry.declaration);
-    const outer = right.outer(entry.declaration);
+    const parameters = right.genericProjection.get(entry.declaration);
+    const outer = right.outerGenericProjection.get(entry.declaration);
     return parameters.length === entry.parameters.length && parameters.every((parameter, index) => parameter.identity === entry.parameters[index]!.identity) &&
       outer.length === entry.outerParameters.length && outer.every((parameter, index) => parameter.identity === entry.outerParameters[index]!.identity);
   });

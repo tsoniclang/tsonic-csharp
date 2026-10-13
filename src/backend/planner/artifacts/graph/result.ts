@@ -12,9 +12,7 @@ export function resolvedArtifact(
   };
 }
 
-
 export const accepted = Object.freeze({ kind: "accepted" as const });
-
 
 export function rejected(reason: string): {
   readonly kind: "rejected";

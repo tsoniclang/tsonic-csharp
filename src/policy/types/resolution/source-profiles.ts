@@ -295,7 +295,6 @@ export function resolveSourceProfileType(
   }
 }
 
-
 export function generatorProtocol(
   {  }: CsharpTypeResolutionScope,
   typeArguments: readonly TargetTypeRef[],
@@ -309,7 +308,6 @@ export function generatorProtocol(
     : undefined;
 }
 
-
 export function generatorResultProtocol(
   {  }: CsharpTypeResolutionScope,
   typeArguments: readonly TargetTypeRef[],
@@ -321,8 +319,6 @@ export function generatorResultProtocol(
       }
     : undefined;
 }
-
-
 
 export function resolveUnionType(
   { host, resolveTypeWithState, sourceUnions, sourceUnionDefinitions }: CsharpTypeResolutionScope,
@@ -348,7 +344,6 @@ export function resolveUnionType(
   return sourceUnions.retain(carrier, resolved.map((arm, index) => ({ source: sourceMembers[index]!, carrier: arm! })), queries, state);
 }
 
-
 export function resolveCallableType(
   { resolveCallableEvidence }: CsharpTypeResolutionScope,
   type: Type,
@@ -361,7 +356,6 @@ export function resolveCallableType(
     ? undefined
     : resolveCallableEvidence(callable, queries, state);
 }
-
 
 export function resolveCallableEvidence(
   { host, resolveNodeWithState, resolveSignatureParameterEvidence, resolveSourceTypeComponentEvidence }: CsharpTypeResolutionScope,
@@ -469,7 +463,6 @@ export function resolveSignatureParameterEvidence(
     ? resolved
     : csharpNullableTargetType(resolved);
 }
-
 
 export function resolveSourceTypeComponentEvidence(
   { host, resolveAuthoredAndSelectedSourceType, resolveTypeWithState, resolvePointerReturn }: CsharpTypeResolutionScope,

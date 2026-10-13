@@ -1,14 +1,10 @@
+import type { CsharpElementDeletionSelection } from "../../../target-model/records/element-deletion.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../model/context.js";
-import type { TargetTypeRef } from "../../../target-model/types/index.js";
+
 import { csharpSourcePrimitiveTargetType, isCsharpRecordDictionaryTargetType } from "../../../target-model/types/index.js";
 import { csharpSourceProfileDeclarationIdentity } from "../members/index.js";
 import { getCsharpJsArrayMutationPolicy } from "../../types/index.js";
-
-export type CsharpElementDeletionSelection =
-  | { readonly kind: "resolved"; readonly receiver: Node; readonly index: Node;
-      readonly keyType: TargetTypeRef; readonly targetMemberName: string }
-  | { readonly kind: "rejected"; readonly reason: string };
 
 export function selectCsharpElementDeletion(
   input: CsharpPolicyContext,

@@ -1,3 +1,4 @@
+import type { CsharpProjectConstructibleTypeProjection } from "../../../../target-model/records/object-shapes.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type {
   CsharpObjectShapeFact,
@@ -83,8 +84,3 @@ export type CsharpObjectLiteralTargetShapeResolution =
       readonly subject: Node;
       readonly reason: string;
     };
-
-export type CsharpProjectConstructibleTypeProjection =
-  | { readonly kind: "unchanged" }
-  | { readonly kind: "resolved"; readonly shape: CsharpObjectShapeFact }
-  | { readonly kind: "rejected"; readonly reason: string };

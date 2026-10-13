@@ -3,9 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpResolvedBinaryOperation,
-} from "../../../../analysis/operations/index.js";
+import type { CsharpResolvedBinaryOperation } from "../../../../target-model/records/operator-selection.js";
 import type {
   CsharpPlanningContext,
 } from "../../context.js";
@@ -158,7 +156,7 @@ export function planSelectedCsharpBinaryOperation(
     let tested = selectedOperand;
     const intrinsicUndefined = input.program.source.ast.is.IsIdentifier(otherNode) &&
       input.program.sourceNavigation.referenceFor(otherNode) === undefined &&
-      isCsharpAbsenceTargetType(input.program.sourceEvidence.nodeTargetType(otherNode));
+      isCsharpAbsenceTargetType(input.program.records.nodeTargetType.get(otherNode));
     if (selectedOther.kind !== "LiteralExpression" && !intrinsicUndefined) {
       const testedType = csharpTypeFromTargetTypeRef(operation.operand === "left"
         ? selection.leftType : selection.rightType, input.scope.typeParameterNames);
@@ -317,7 +315,7 @@ export function planSelectedCsharpBinaryOperation(
     const direct = !narrowedCoalescing && right.prelude.length === 0 && right.completion.kind === "value";
     if (direct) return csharpPlannedValue(selection.resultType, { kind: "AssignmentExpression",
       left: left.completion.expression, operatorToken: assignmentToken, right: right.completion.expression }, left.prelude);
-    const fact = input.program.storage.nativeLocation(storageExpression);
+    const fact = input.program.records.nativeLocation.get(storageExpression);
     if (fact?.kind !== "resolved" || !fact.writable) {
       diagnostics.push(unsupportedNodeDiagnostic(node, fact?.kind === "rejected" ? fact.reason
         : "A sequenced native assignment requires its sealed writable physical location."));
@@ -413,7 +411,7 @@ export function planSelectedCsharpBinaryOperation(
     return undefined;
   }
   return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [left, right], values => {
-  if (input.program.numericRepresentations.usesInt32Remainder(node)) {
+  if (input.program.records.int32Remainder.get(node)) {
     const integer = csharpTypeFromTargetTypeRef({ kind: "source-primitive", name: "int32" }, input.scope.typeParameterNames)!;
     const number = csharpTypeFromTargetTypeRef({ kind: "source-primitive", name: "float64" }, input.scope.typeParameterNames)!;
     return {

@@ -46,7 +46,7 @@ export function planFlowReadUseSiteProjection(
     deferredConstructorFieldRead(node, input)) {
     return { kind: "PostfixUnaryExpression", operand: baseExpression, operatorToken: { kind: "ExclamationToken" } };
   }
-  const refinementClassification = input.program.sourceEvidence.valueRefinement(node);
+  const refinementClassification = input.program.records.valueRefinement.get(node);
   if (refinementClassification === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,

@@ -1,4 +1,5 @@
-import type { ResolvedSourceCallInfo, CsharpSourceCallArgumentClassification } from "../../../../../analysis/operations/index.js";
+import type { ResolvedSourceCallInfo } from "../../../../../target-model/records/members.js";
+import type { CsharpSourceCallArgumentClassification } from "../../../../../target-model/records/operations.js";
 import type { TargetTypeRef } from "../../../../../target-model/types/model.js";
 
 export interface CsharpSourceArgumentGroup {

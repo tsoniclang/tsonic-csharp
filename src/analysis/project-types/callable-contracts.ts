@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpSourceCallableContract } from "../../policy/types/callables/source-callable-contract.js";
+import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
 import { selectCsharpCallableValueAdapter } from "../callables/adapters.js";
 import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } from "../callables/instantiation.js";
 

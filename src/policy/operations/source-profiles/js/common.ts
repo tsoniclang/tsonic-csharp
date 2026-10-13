@@ -1,6 +1,4 @@
-import type {
-  CsharpTargetReceiverRelation,
-} from "../../../../providers/native/relations/index.js";
+import type { CsharpTargetReceiverRelation } from "../../../../target-model/identities/provider-relations.js";
 import { finalizeCsharpRestSequences } from "../rest-sequences.js";
 import { jsSourceInvocationOnlyCallableParameters } from "@tsonic/js-source-profile";
 import type {
@@ -14,24 +12,9 @@ import {
   csharpTargetNamedType,
   getCsharpDelegateSignature,
 } from "../../../../target-model/types/index.js";
-import type {
-  CsharpSourceProfileCallPolicy,
-  CsharpSourceProfileCallPolicyContext,
-  CsharpSourceProfileCallPolicyResult,
-  CsharpSourceProfileElementPolicy,
-  CsharpSourceProfileElementPolicyContext,
-  CsharpSourceProfileElementPolicyResult,
-  CsharpSourceProfileIdentitySelector,
-  CsharpSourceProfilePropertyPolicy,
-  CsharpSourceProfilePropertyPolicyContext,
-  CsharpSourceProfilePropertyPolicyResult,
-  CsharpTargetPropertyInvocation,
-} from "../source-profile-policy.js";
-import type {
-  CsharpTargetElementInvocation,
-  CsharpSelectedTargetCall,
-  CsharpSelectedCallArgument,
-} from "../../members/selection/selection-types.js";
+import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicy, CsharpSourceProfileElementPolicyContext, CsharpSourceProfileElementPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../source-profile-policy.js";
+import type { CsharpSourceProfilePropertyPolicyResult, CsharpTargetPropertyInvocation } from "../../../../target-model/records/source-profile-invocations.js";
+import type { CsharpTargetElementInvocation, CsharpSelectedTargetCall, CsharpSelectedCallArgument } from "../../../../target-model/records/members.js";
 import {
   csharpSourceProfileCall,
   csharpSourceProfileDiagnostic,

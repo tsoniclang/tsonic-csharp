@@ -23,11 +23,13 @@ function context() {
     is: Object.fromEntries(syntaxKinds.map(kind => [`Is${kind}`, node => node.kind === kind])),
     forEachChild: (node, visit) => (node.children ?? []).forEach(visit) };
   const input = { scope: {}, names: { temporaryName: () => `capture${counter++}` },
-    program: { source: { ast }, storage: { nativeLocation: node => selections.get(node) },
+    program: { source: { ast },
       sourceNavigation: { expressionEffects: node => ({ suspends: node.suspends === true }) },
-      sourceEvidence: { storageTargetType: () => integer }, operations: {
-        property: node => properties.get(node), element: () => undefined,
-        sourceMember: node => properties.get(node)?.sourceOwned } } };
+      records: { nativeLocation: { get: node => selections.get(node) },
+        storageTargetType: { get: () => integer },
+        selectedProperty: { get: node => properties.get(node) },
+        selectedElement: { get: () => undefined },
+        sourceMember: { get: node => properties.get(node)?.sourceOwned } } } };
   return { input, selections, properties, diagnostics: [] };
 }
 
@@ -155,7 +157,7 @@ test("compound assignment captures its old value before RHS effects and stores t
   const left = {};
   const right = { suspends: true };
   selections.set(left, location(left, "reference-receiver"));
-  input.program.storage.type = () => integer;
+  input.program.records.storageType = { get: () => integer };
   const locationPlan = csharpPlannedValue(integer, { kind: "ElementAccessExpression", receiver: call("owner"), arguments: [call("index")] });
   const rightPlan = csharpPlannedValue(integer, identifier("completed"), [effect("suspend")]);
   const selection = { targetOperation: { kind: "operator", operator: "+=" }, left, right,
@@ -176,8 +178,8 @@ test("typed ref stores retain original managed storage before a later non-suspen
   const value = {};
   selections.set(source, location(source));
   input.types = { classifications: { resolveNode: () => csharpVoidTargetType() } };
-  input.program.operations.typedLocation = () => ({ kind: "location-store", pointeeType: integer,
-    locationType: csharpRuntimeLocationTargetType(integer), location: { kind: "native-ref-return", expression: source }, valueExpression: value });
+  input.program.records.typedLocation = { get: () => ({ kind: "location-store", pointeeType: integer,
+    locationType: csharpRuntimeLocationTargetType(integer), location: { kind: "native-ref-return", expression: source }, valueExpression: value }) };
   const plan = subject => subject === source ? csharpPlannedValue(integer, call("reference"))
     : csharpPlannedValue(integer, identifier("completed"), [effect("valueRegion")]);
   const planned = tryPlanCsharpTypedLocationOperation({}, {}, input, diagnostics, plan, plan).expression;

@@ -8,8 +8,8 @@ test("explicit safety reaches the planner through target-owned policy only", () 
     "src/backend/planner/expressions/expression-native-pointers.ts",
   );
 
-  assert.match(explicitSafety, /input\.program\.safetyApplications/u);
-  assert.match(nativePointers, /input\.program\.operations\.nativePointer/u);
+  assert.match(explicitSafety, /input\.program\.records\.safetyApplication\.get/u);
+  assert.match(nativePointers, /input\.program\.records\.nativePointer\.get/u);
   assert.doesNotMatch(nativePointers, /selectCsharpNativePointerOperation/u);
   assert.doesNotMatch(
     `${explicitSafety}\n${nativePointers}`,

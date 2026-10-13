@@ -3,7 +3,7 @@ import test from "node:test";
 import { guardCsharpFrozenDataProperties } from "../../../../dist/backend/planner/objects/frozen-data-properties.js";
 
 const integer = { kind: "PredefinedType", keyword: "int" };
-const input = { program: { storage: { nativeField: () => undefined } } };
+const input = { program: { records: { nativeField: { get: () => undefined } } } };
 
 function shape(members) {
   return { targetType: { kind: "target-named", id: "Owner" }, members };
@@ -43,7 +43,7 @@ test("freeze guards only concrete native data storage, not abstract contracts or
 test("freeze guards preserve the independent native-addressed and attributed field rejection", () => {
   const field = { kind: "FieldDeclaration", name: "value", modifiers: ["public"], type: integer };
   for (const [member, context] of [
-    [field, { program: { storage: { nativeField: () => ({}) } } }],
+    [field, { program: { records: { nativeField: { get: () => ({}) } } } }],
     [{ ...field, attributes: [{}] }, input],
   ]) {
     const diagnostics = [];

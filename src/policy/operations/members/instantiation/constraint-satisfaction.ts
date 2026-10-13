@@ -32,9 +32,7 @@ import type {
 import {
   resolveCsharpTypeParameterConstraints,
 } from "../../../constraints/index.js";
-import type {
-  CsharpSelectedTargetMethodTypeArgument,
-} from "../selection/selection-types.js";
+import type { CsharpSelectedTargetMethodTypeArgument } from "../../../../target-model/records/members.js";
 import {
   namedTargetTypeImplicitlyAccepts,
 } from "../../../conversions/carriers.js";

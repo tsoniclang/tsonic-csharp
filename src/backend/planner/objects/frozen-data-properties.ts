@@ -16,7 +16,7 @@ export function guardCsharpFrozenDataProperties(
   shape: CsharpObjectShapeFact, members: readonly CsharpTypeMember[],
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeMember[] {
-  const unsafeStorage = shape.members.some(member => input.program.storage.nativeField(shape.targetType, member.targetName) !== undefined);
+  const unsafeStorage = shape.members.some(member => input.program.records.nativeField.get(shape.targetType, member.targetName) !== undefined);
   const attributedFields = members.some(member => member.kind === "FieldDeclaration" && (member.attributes?.length ?? 0) > 0);
   if (unsafeStorage || attributedFields) {
     diagnostics.push({ code: "CSHARP_FREEZE_STORAGE_NOT_CLOSED", category: "error", source: "tsonic-csharp",

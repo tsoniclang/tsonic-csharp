@@ -5,9 +5,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
-import type {
-  CsharpProjectForwardingConstructor,
-} from "../../../analysis/project-types/index.js";
+import type { CsharpProjectForwardingConstructor } from "../../../target-model/records/project-types.js";
 import type {
   CsharpTargetParameter,
 } from "../../../target-model/types/index.js";

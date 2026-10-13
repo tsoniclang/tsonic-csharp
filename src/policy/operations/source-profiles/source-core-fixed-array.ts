@@ -15,10 +15,8 @@ import {
 import type {
   CsharpProviderCallSelectionHost,
 } from "../members/selection/call-selection.js";
-import type {
-  CsharpSourceProfileElementPolicyResult,
-  CsharpSourceProfilePropertyPolicyResult,
-} from "./source-profile-policy.js";
+import type { CsharpSourceProfileElementPolicyResult } from "./source-profile-policy.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
 import {
   csharpSourceProfileDiagnostic,
 } from "./source-profile-policy.js";

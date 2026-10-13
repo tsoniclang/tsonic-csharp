@@ -1,8 +1,10 @@
+import type { CsharpJsArrayMutationSelection } from "../../../target-model/records/js-array-mutations.js";
 import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import { selectCsharpTypedArrayMutation, type CsharpTypedArrayMutation, type CsharpTypedArrayUpdate } from "./typed-array-mutations.js";
+import { selectCsharpTypedArrayMutation } from "./typed-array-mutations.js";
+
 import type {
   CsharpPolicyContext,
 } from "../../model/context.js";
@@ -15,23 +17,6 @@ import {
 import {
   sourceOperatorFromKindName,
 } from "../../../target-model/syntax/operators.js";
-
-export type CsharpJsArrayMutationSelection =
-  | CsharpTypedArrayMutation
-  | CsharpTypedArrayUpdate
-  | {
-      readonly kind: "set-length";
-      readonly receiver: Node;
-      readonly value: Node;
-      readonly targetMemberName: string;
-    }
-  | {
-      readonly kind: "not-js-array-mutation";
-    }
-  | {
-      readonly kind: "rejected";
-      readonly reason: string;
-    };
 
 export function selectCsharpJsArrayMutation(
   input: CsharpPolicyContext,

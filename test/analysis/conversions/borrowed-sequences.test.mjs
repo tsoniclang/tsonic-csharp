@@ -27,16 +27,17 @@ function sealedConversions(inputs, elementTarget = int64) {
     providers: { findTargetBindingByTargetId: () => undefined },
     target: {},
   };
-  const evidence = { isCompileTimeMetadata: () => false, valueRefinement: () => undefined,
-    nodeTargetType: () => undefined };
+  const evidence = { compileTimeMetadata: { get: () => false },
+    valueRefinement: { get: () => undefined },
+    nodeTargetType: { get: () => undefined } };
   const shapes = { resolveNode: () => undefined };
   const analysis = analyzeCsharpConversions(policy, evidence, shapes);
   return analysis.seal({
-    operations: { nativeUnreachable: () => false, resultType: () => undefined, call: () => undefined,
-      construction: () => undefined,
-      borrowedSequence: node => node === expression ? sequence : undefined },
-    expectedTypes: { forExpression: () => [], requiredTypesForExpression: () => [], callableTarget: () => undefined },
-    storage: { type: () => undefined },
+    operations: { nativeUnreachable: Object.freeze({ get: () => false }), operationResultType: Object.freeze({ get: () => undefined }), selectedCall: Object.freeze({ get: () => undefined }),
+      selectedConstruction: Object.freeze({ get: () => undefined }),
+      borrowedSequence: Object.freeze({ get: node => node === expression ? sequence : undefined }) },
+    expectedTypes: { expectedType: Object.freeze({ get: () => [] }), requiredExpectedType: Object.freeze({ get: () => [] }), callableTarget: Object.freeze({ get: () => undefined }) },
+    storage: { storageType: Object.freeze({ get: () => undefined }) },
   });
 }
 
@@ -46,30 +47,30 @@ const nativeInput = elements => ({ kind: "sequence", expression: {},
 
 test("borrowed sequence sealing closes every exact native leaf-to-destination pair", () => {
   const conversions = sealedConversions([nativeInput([int32, int64])]);
-  assert.deepEqual(conversions.select(int32, int64, "implicit"), { kind: "implicit", proof: "numeric" });
-  assert.deepEqual(conversions.select(int64, int64, "implicit"), { kind: "identity" });
-  assert.equal(conversions.select(int32, int64, "explicit"), undefined);
-  assert.equal(conversions.select(boolean, int64, "implicit"), undefined);
+  assert.deepEqual(conversions.conversion.get(int32, int64, "implicit"), { kind: "implicit", proof: "numeric" });
+  assert.deepEqual(conversions.conversion.get(int64, int64, "implicit"), { kind: "identity" });
+  assert.equal(conversions.conversion.get(int32, int64, "explicit"), undefined);
+  assert.equal(conversions.conversion.get(boolean, int64, "implicit"), undefined);
   assert.deepEqual(conversions.issues, []);
   assert.equal(Object.isFrozen(conversions), true);
 });
 
 test("borrowed sequence sealing retains rejected conversions instead of manufacturing identity", () => {
   const conversions = sealedConversions([nativeInput([boolean])]);
-  assert.equal(conversions.select(boolean, int64, "implicit").kind, "rejected");
-  assert.equal(conversions.select(int64, int64, "implicit"), undefined);
+  assert.equal(conversions.conversion.get(boolean, int64, "implicit").kind, "rejected");
+  assert.equal(conversions.conversion.get(int64, int64, "implicit"), undefined);
 });
 
 test("empty borrowed alternatives cannot publish fabricated native element pairs", () => {
   const conversions = sealedConversions([{ kind: "empty", expression: {}, elements: [int32] }]);
-  assert.equal(conversions.select(int32, int64, "implicit"), undefined);
+  assert.equal(conversions.conversion.get(int32, int64, "implicit"), undefined);
   assert.deepEqual(conversions.issues, []);
 });
 
 test("repeated alternatives reuse the single sealed pair classification", () => {
   const conversions = sealedConversions([nativeInput([int32]), nativeInput([int32])]);
-  const selected = conversions.select(int32, int64, "implicit");
+  const selected = conversions.conversion.get(int32, int64, "implicit");
   assert.deepEqual(selected, { kind: "implicit", proof: "numeric" });
-  assert.strictEqual(conversions.select(int32, int64, "implicit"), selected);
-  assert.equal(conversions.select(int32, boolean, "implicit"), undefined);
+  assert.strictEqual(conversions.conversion.get(int32, int64, "implicit"), selected);
+  assert.equal(conversions.conversion.get(int32, boolean, "implicit"), undefined);
 });

@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTargetPropertySelection } from "../../../../analysis/operations/index.js";
+import type { CsharpTargetPropertySelection } from "../../../../target-model/records/member-selections.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { ExpressionPlanner } from "../expression-planner-types.js";
 import type { CsharpExpression } from "../../../target-ast/syntax/index.js";
@@ -33,7 +33,7 @@ export function planCsharpReceiverCallProperty(
     return undefined;
   }
   const receiver = translateCsharpSelectedReceiver(selection.source.receiver, sourceFile, input, diagnostics,
-    planExpression, input.program.operations.property(node)?.receiverProjection);
+    planExpression, input.program.records.selectedProperty.get(node)?.receiverProjection);
   const invoke = (value: CsharpExpression): CsharpExpression => ({
     kind: "InvocationExpression",
     callee: { kind: "SimpleMemberAccessExpression", receiver: type, name: member.targetName },

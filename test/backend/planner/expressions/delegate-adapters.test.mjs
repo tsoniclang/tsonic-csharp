@@ -15,10 +15,9 @@ const selection = { kind: "delegate-adapter", strategy: "adaptation", parameterC
 
 function context() {
   const allocated = new Set();
-  return { scope: {}, program: {
-    conversions: { directCallableReference: () => undefined },
-    captureStorage: { closure: () => undefined, namedSelf: () => undefined },
-  }, names: { temporaryName(preferred) {
+  return { scope: {}, program: { records: { directCallableReference: { get: () => undefined },
+    captureClosure: { get: () => undefined },
+    namedSelf: { get: () => undefined } } }, names: { temporaryName(preferred) {
     let name = preferred;
     while (allocated.has(name)) name = `_${name}`;
     allocated.add(name);
@@ -58,7 +57,7 @@ test("an adapted fixed self value reuses the exact initialized native slot witho
   const node = {};
   const expression = { kind: "IdentifierName", name: "fixed" };
   const input = context();
-  input.program.captureStorage.namedSelf = declaration => declaration === node ? { values: [{}] } : undefined;
+  input.program.records.namedSelf.get = declaration => declaration === node ? { values: [{}] } : undefined;
   const diagnostics = [];
   const planned = planCsharpDelegateAdapter(node, {}, input, diagnostics, source, target, selection,
     expression, applyCsharpConversionSelection);
@@ -66,11 +65,11 @@ test("an adapted fixed self value reuses the exact initialized native slot witho
   assert.equal(planned.kind, "LambdaExpression");
   assert.equal(planned.body.statements[0].expression.callee === expression, true, "reuse exact fixed local slot");
   for (const changed of [undefined, { values: [] }]) {
-    input.program.captureStorage.namedSelf = () => changed;
+    input.program.records.namedSelf.get = () => changed;
     assert.equal(planCsharpDelegateAdapter(node, {}, input, diagnostics, source, target, selection,
       expression, applyCsharpConversionSelection).kind, "SwitchExpression", "mutable or unproven aliases retain snapshot semantics");
   }
-  input.program.captureStorage.namedSelf = () => ({ values: [{}] });
+  input.program.records.namedSelf.get = () => ({ values: [{}] });
   for (const changed of [
     { kind: "InvocationExpression", callee: expression, arguments: [] },
     { kind: "SimpleMemberAccessExpression", receiver: expression, name: "value" },
@@ -85,7 +84,7 @@ test("an adapted captured method binds its sealed native frame, not a source del
   const frame = { kind: "IdentifierName", name: "capturedFrame" };
   const method = { kind: "SimpleMemberAccessExpression", receiver: frame, name: "invoke" };
   const input = context();
-  input.program.captureStorage.closure = () => ({ method: { methodName: "invoke", type: source } });
+  input.program.records.captureClosure.get = () => ({ method: { methodName: "invoke", type: source } });
   const diagnostics = [];
   const planned = planCsharpDelegateAdapter({}, {}, input, diagnostics, source, target, selection, method, applyCsharpConversionSelection);
   assertNoTargetDiagnostics(diagnostics);
@@ -98,7 +97,7 @@ test("an adapted captured method binds its sealed native frame, not a source del
     { method: { methodName: "other", type: source } },
     { method: { methodName: "invoke", type: target } },
   ]) {
-    input.program.captureStorage.closure = () => captured;
+    input.program.records.captureClosure.get = () => captured;
     const unchanged = planCsharpDelegateAdapter({}, {}, input, diagnostics, source, target, selection, method, applyCsharpConversionSelection);
     assert.equal(unchanged.expression.kind, "CastExpression");
     assert.equal(unchanged.expression.expression, method);

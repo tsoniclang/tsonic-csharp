@@ -5,10 +5,8 @@ import {
   resolveCsharpObjectShapeMemberBySelectedSubject,
   type TargetTypeRef,
 } from "../../policy/types/index.js";
-import {
-  selectCsharpTypedLocationStorage,
-  type CsharpTypedLocationStorageSelection,
-} from "../../policy/operations/typed-locations/typed-location-storage.js";
+import { selectCsharpTypedLocationStorage } from "../../policy/operations/typed-locations/typed-location-storage.js";
+import { type CsharpTypedLocationStorageSelection } from "../../target-model/records/typed-location-storage.js";
 
 export function classifyCsharpBoundFieldWrite(
   policy: CsharpPolicyContext,

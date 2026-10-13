@@ -70,7 +70,7 @@ export function planCsharpPropertyValueProjection(
   }
   const shape = input.types.objectShapes.resolveTarget(sourceType);
   if (shape === undefined) return planCsharpJsValueBox(node, input, diagnostics, sourceType, expression);
-  const members = input.program.conversions.propertyProjection(node, sourceType);
+  const members = input.program.records.propertyProjection.get(node, sourceType);
   if (members === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Native property projection requires its sealed selected-parameter member demand."));
     return undefined;

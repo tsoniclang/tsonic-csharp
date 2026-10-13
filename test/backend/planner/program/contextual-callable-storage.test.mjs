@@ -40,8 +40,8 @@ for (const surface of [undefined, "js"]) {
     const declaration = input.variables.get("storedCompletion");
     assert.equal(declaration !== undefined, true, "authored Handler storage declaration");
     const initializer = input.source.ast.as.AsVariableDeclaration(declaration).Initializer;
-    const body = input.program.declarations.returnContract(initializer);
-    const storage = input.program.storage.type(declaration);
+    const body = input.program.records.returnContract.get(initializer);
+    const storage = input.program.records.storageType.get(declaration);
     const signature = getCsharpDelegateSignature(storage);
     assert.equal(body?.kind, "resolved", "closed async body contract");
     assert.equal(getCsharpTaskResultTargetType(body.type) !== undefined, true, "body produces an exact Task");
@@ -54,7 +54,7 @@ for (const surface of [undefined, "js"]) {
         input.source.ast.text(callee) === "storedCompletion";
     });
     assert.equal(awaiting !== undefined, true, "direct stored callable await");
-    const completion = input.program.operations.awaitCompletion(awaiting);
+    const completion = input.program.records.awaitCompletion.get(awaiting);
     assert.equal(completion !== undefined, true, "sealed await correspondence");
     assert.equal(completion.alternatives.length, 2, "Task and synchronous Reply alternatives");
     assert.equal(completion.optional, true, "one native absence state");
@@ -72,7 +72,7 @@ for (const surface of [undefined, "js"]) {
     for (const name of ["empty", "absent", "optional", "named", "captured", "inferred"]) {
       const declaration = input.variables.get(name);
       assert.equal(declaration !== undefined, true, name);
-      const carrier = input.program.storage.type(declaration);
+      const carrier = input.program.records.storageType.get(declaration);
       const nativeType = csharpTypeFromTargetTypeRef(carrier);
       assert.equal(nativeType !== undefined, true, `${name}: renderable physical storage`);
       const planned = planLocalDeclaration(declaration, input.file, context, diagnostics, state);
@@ -94,14 +94,14 @@ for (const surface of [undefined, "js"]) {
     for (const name of ["storedCompletion", "inferredStoredCompletion"]) {
       const declaration = input.variables.get(name);
       assert.equal(declaration !== undefined, true, name);
-      assert.equal(input.program.moduleInitialization.directCallableVisibility(declaration) !== undefined, true,
+      assert.equal(input.program.records.callableVisibility.get(declaration) !== undefined, true,
         `${name}: exact call-only native method selection`);
       const statement = input.source.ast.parent(input.source.ast.parent(declaration));
       planTopLevelVariableStatement(statement, input.file, context, diagnostics, () => assert.fail("Unexpected type declaration"), members, statements, state, false);
       assert.equal(diagnostics.length, 0, name);
       const method = members.find(member => member.kind === "MethodDeclaration" && member.name === name);
       assert.equal(method !== undefined, true, `${name}: promoted native method`);
-      const carrier = input.program.storage.type(declaration);
+      const carrier = input.program.records.storageType.get(declaration);
       const signature = getCsharpDelegateSignature(carrier);
       assert.equal(signature !== undefined, true, `${name}: closed storage signature`);
       const nativeReturn = csharpTypeFromTargetTypeRef(signature.returnType);
@@ -141,12 +141,12 @@ for (const surface of [undefined, "js"]) {
     const name = context.names.resolve(input.source.ast.name(declaration));
     assert.equal(name.kind, "resolved", "exact source identifier including native keyword escaping");
     const method = members.find(member => member.kind === "MethodDeclaration" && member.name === name.name);
-    const signature = getCsharpDelegateSignature(input.program.storage.type(declaration));
+    const signature = getCsharpDelegateSignature(input.program.records.storageType.get(declaration));
     assert.equal(signature !== undefined, true, "sealed native callable");
     assert.equal(targetTypeRefEquals(getCsharpTaskResultTargetType(signature.returnType),
       csharpSourcePrimitiveTargetType("int64")), true, "the result never passes through a floating carrier");
     assert.equal(method !== undefined, true, "exact native static producer");
-    const visibility = input.program.moduleInitialization.directCallableVisibility(declaration);
+    const visibility = input.program.records.callableVisibility.get(declaration);
     assert.equal(visibility !== undefined, true, "exact call-only native method classification");
     assert.equal(method.modifiers.includes(visibility), true, "sealed native visibility survives promotion");
     assert.equal(sameCsharpType(method.returnType, csharpTypeFromTargetTypeRef(signature.returnType)), true,

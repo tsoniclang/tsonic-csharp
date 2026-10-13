@@ -59,7 +59,7 @@ export function planArrayLiteralExpression(
     elementType,
     elements: values,
   };
-  const native = input.program.storage.nativeArray(node);
+  const native = input.program.records.nativeArray.get(node);
   return native === undefined ? array : planCsharpNativeArray(input.scope.typeParameterNames, array, native.layout, native.stride);
   });
 }

@@ -115,6 +115,6 @@ function getInferredDeclarationReturnTargetType(
   input: CsharpPlanningContext,
 ): TargetTypeRef | undefined {
   void sourceFile;
-  const contract = input.program.declarations.returnContract(declarationNode);
+  const contract = input.program.records.returnContract.get(declarationNode);
   return contract?.kind === "resolved" ? contract.type : undefined;
 }

@@ -23,7 +23,7 @@ export type CsharpPlannedOperand = CsharpPlannedValue | CsharpPlannedEffectOpera
 export interface CsharpPlannedArgument extends CsharpPlannedValue {
   readonly passing?: CsharpArgument["passing"];
   readonly suspends?: true;
-  readonly nativeLocation?: Extract<import("../../../analysis/storage/native-locations.js").CsharpNativeLocationSelection, { readonly kind: "resolved" }>;
+  readonly nativeLocation?: Extract<import("../../../target-model/records/native-locations.js").CsharpNativeLocationSelection, { readonly kind: "resolved" }>;
 }
 
 export interface CsharpPlannedCapture {

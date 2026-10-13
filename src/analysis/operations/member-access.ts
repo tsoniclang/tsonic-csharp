@@ -4,7 +4,7 @@ import type {
 } from "@tsonic/tsts";
 import { readCsharpSourceField } from "../../policy/types/resolution/source-markers.js";
 import { sourceParameterIsProperty } from "@tsonic/target-api/source";
-import type { CsharpTargetElementSelection } from "../../policy/operations/members/index.js";
+import type { CsharpTargetElementSelection } from "../../target-model/records/member-selections.js";
 import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";
 import {
   resolveCsharpJsValueObjectShapeProperty,
@@ -24,11 +24,7 @@ import {
   selectCsharpFlowReadConversion,
 } from "../../policy/conversions/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type {
-  CsharpElementClassification,
-  CsharpPropertyClassification,
-  CsharpMemberReceiverProjection,
-} from "./model.js";
+import type { CsharpElementClassification, CsharpPropertyClassification, CsharpMemberReceiverProjection } from "../../target-model/records/operations.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { classifyCsharpBoundFieldWrite } from "./bound-field-writes.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";

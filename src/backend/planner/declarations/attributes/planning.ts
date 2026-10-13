@@ -10,7 +10,7 @@ export function planAttributesForSubject(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpAttribute[] | undefined {
-  const attributes = subject === undefined ? [] : input.program.attributeApplications.forDeclaration(subject);
+  const attributes = subject === undefined ? [] : input.program.records.attributeApplication.get(subject);
   if (attributes.length === 0) return undefined;
   return attributes.flatMap(attribute => {
     const planned = planExpression(attribute.invocation, sourceFile, input, diagnostics);
@@ -30,5 +30,5 @@ export function planAttributesForSubject(
 
 export function isErasedAttributeExpressionStatement(statement: Node, input: CsharpPlanningContext): boolean {
   const expression = input.program.source.ast.as.AsExpressionStatement(statement)?.Expression;
-  return expression !== undefined && input.program.attributeApplications.isErasedSubject(expression);
+  return expression !== undefined && input.program.records.erasedAttribute.get(expression);
 }

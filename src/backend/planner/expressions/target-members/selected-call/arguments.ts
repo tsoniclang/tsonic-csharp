@@ -9,12 +9,7 @@ import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { targetArgumentOrderIsRepresentable } from "./helpers.js";
 import { planCsharpRestSequence } from "./rest-sequences.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
-import type {
-  CsharpSelectedCallArgument,
-  CsharpSelectedTargetCall,
-  CsharpProviderArgumentMapping,
-  ResolvedSourceCallInfo,
-} from "../../../../../analysis/operations/index.js";
+import type { CsharpSelectedCallArgument, CsharpSelectedTargetCall, CsharpProviderArgumentMapping, ResolvedSourceCallInfo } from "../../../../../target-model/records/members.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
@@ -336,7 +331,7 @@ function translateEcmascriptArgumentVectorCallback(
     return undefined;
   }
   const effectiveSourceCallableType =
-    input.program.expectedTypes.callableTarget(expression) ??
+    input.program.records.callableTarget.get(expression) ??
       adapter.sourceCallableType;
   const sourceSignature = getCsharpDelegateSignature(
     effectiveSourceCallableType,

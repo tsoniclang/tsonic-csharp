@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpPropertyClassification } from "../../../../analysis/operations/index.js";
+import type { CsharpPropertyClassification } from "../../../../target-model/records/operations.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { objectShapeStorageMemberName } from "../../objects/object-shape-storage.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";

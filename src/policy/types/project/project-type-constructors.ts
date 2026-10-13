@@ -1,3 +1,4 @@
+import type { CsharpProjectForwardingConstructor } from "../../../target-model/records/project-types.js";
 import type {
   AstReader,
   Node,
@@ -16,17 +17,11 @@ import {
 import type {
   CsharpProviderRelationResolver,
 } from "../../../providers/model/relation-resolver.js";
-import type {
-  CsharpProviderTargetRelation,
-} from "../../../providers/native/relations/index.js";
+import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import {
   resolveCsharpProviderDeclarationEvidence,
 } from "../../operations/members/providers/evidence.js";
-import type {
-  CsharpProjectTypeDefinition,
-  CsharpProjectTypeHeritage,
-  CsharpProjectTypeIssue,
-} from "./project-types.js";
+import type { CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue } from "../../../target-model/records/project-types.js";
 import type {
   CsharpTargetMember,
   CsharpTargetNamedTypeRef,
@@ -50,13 +45,6 @@ type CsharpProviderSignatureRelation = Extract<
   CsharpProviderTargetRelation,
   { readonly kind: "signature" }
 >;
-
-export interface CsharpProjectForwardingConstructor {
-  readonly definition: CsharpProjectTypeDefinition;
-  readonly source: SourceClassConstructorSignature;
-  readonly targetMember: CsharpTargetMember;
-  readonly baseMemberId?: string;
-}
 
 export interface CsharpProjectConstructorPolicy {
   readonly issues: readonly CsharpProjectTypeIssue[];

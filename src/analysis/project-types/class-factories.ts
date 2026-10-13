@@ -1,41 +1,13 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { CsharpClassCapture, CsharpClassFactory, CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
+import type { Node } from "@tsonic/tsts";
 import { sourceLexicalCaptures, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpProjectTypeCatalog } from "../../policy/types/project/project-types.js";
-import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
-import type { CsharpStorageClassifications, CsharpStorageIssue } from "../storage/model.js";
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
-import { getCsharpClassFactory, type CsharpClassFactoryType } from "../../target-model/types/carriers/class-factories.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpStorageClassifications, CsharpStorageIssue } from "../../target-model/records/storage.js";
+
+import { getCsharpClassFactory } from "../../target-model/types/carriers/class-factories.js";
 import type { CsharpSourceNameResolver } from "../names/source-names.js";
 import { csharpTargetNamedType } from "../../target-model/types/factories.js";
-
-export interface CsharpClassCapture {
-  readonly declaration: Node;
-  readonly reference: Node;
-  readonly fieldName: string;
-  readonly type: TargetTypeRef;
-  readonly mutable: boolean;
-}
-
-export interface CsharpClassFactory {
-  readonly declaration: Node;
-  readonly sourceFile: SourceFile;
-  readonly instanceName: string;
-  readonly instanceScope: string;
-  readonly factoryName: string;
-  readonly factoryType: CsharpTargetNamedTypeRef;
-  readonly contract: CsharpClassFactoryType;
-  readonly captures: readonly CsharpClassCapture[];
-  readonly retainsEnvironment: boolean;
-  readonly requiresInstanceTest: boolean;
-  readonly environmentName: string;
-  readonly identity?: { readonly name: string; readonly type: CsharpTargetNamedTypeRef };
-}
-
-export interface CsharpClassFactoryIndex {
-  readonly factories: readonly CsharpClassFactory[];
-  readonly issues: readonly CsharpStorageIssue[];
-  get(declaration: Node): CsharpClassFactory | undefined;
-}
 
 export function analyzeCsharpClassFactories(
   source: TargetSourceProgram,
@@ -50,7 +22,7 @@ export function analyzeCsharpClassFactories(
   const collectIdentityDemands = (node: Node): void => {
     if (source.ast.is.IsBinaryExpression(node) && source.ast.operatorKindName(node) === "KindInstanceOfKeyword") {
       const right = source.ast.as.AsBinaryExpression(node)?.Right;
-      const factory = right === undefined ? undefined : getCsharpClassFactory(evidence.nodeTargetType(right));
+      const factory = right === undefined ? undefined : getCsharpClassFactory(evidence.nodeTargetType.get(right));
       if (factory !== undefined) identityDemands.add(factory.declaration);
     }
     source.ast.forEachChild(node, child => { if (child !== undefined) collectIdentityDemands(child); });
@@ -59,13 +31,13 @@ export function analyzeCsharpClassFactories(
   for (const definition of catalog.definitions) {
     if (!definition.local) continue;
     const declaration = definition.declaration;
-    const type = evidence.classConstructorType(declaration);
+    const type = evidence.classConstructorType.get(declaration);
     const contract = getCsharpClassFactory(type);
     const selected = sourceLexicalCaptures(declaration, [declaration], source.ast, source.navigation);
     const captures = selected.captures.map((capture, index): CsharpClassCapture | undefined => {
       const reference = capture.references[0];
-      const type = storage.type(capture.declaration) ?? evidence.storageTargetType(capture.declaration) ??
-        (reference === undefined ? undefined : evidence.nodeTargetType(reference));
+      const type = storage.storageType.get(capture.declaration) ?? evidence.storageTargetType.get(capture.declaration) ??
+        (reference === undefined ? undefined : evidence.nodeTargetType.get(reference));
       return reference === undefined || type === undefined ? undefined : Object.freeze({
         declaration: capture.declaration, reference, type, fieldName: names.temporaryName(`capture${index}`),
         mutable: source.navigation.declarationUseSummary(capture.declaration).bindingWritten,
@@ -108,5 +80,5 @@ export function analyzeCsharpClassFactories(
   }
   const byDeclaration = new Map(factories.map(factory => [factory.declaration, factory]));
   return Object.freeze({ factories: Object.freeze(factories), issues: Object.freeze(issues),
-    get: (declaration: Node) => byDeclaration.get(declaration) });
+    classFactory: Object.freeze({ get: (declaration: Node) => byDeclaration.get(declaration) }) });
 }

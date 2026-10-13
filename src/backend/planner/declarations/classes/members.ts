@@ -49,7 +49,7 @@ export function planClassMembers(
       continue;
     }
     const owner = input.program.source.ast.parent(member);
-    const factory = owner === undefined ? undefined : input.program.classFactories.get(owner);
+    const factory = owner === undefined ? undefined : input.program.records.classFactory.get(owner);
     const memberInput = factory === undefined || input.program.source.ast.hasModifierKind(member, "static") ? input
       : classFactoryContext(factory, input.program.source.ast.is.IsConstructorDeclaration(member) || input.program.source.ast.is.IsPropertyDeclaration(member)
         ? { kind: "IdentifierName", name: factory.environmentName }
@@ -67,7 +67,7 @@ export function planClassMembers(
         if (AsMethodDeclaration(input.program.source.ast, member)?.Body !== undefined ||
           input.program.source.ast.hasModifierKind(member, "abstract")) {
           const method = planMethodDeclaration(member, sourceFile, memberInput, diagnostics);
-          const write = input.program.declarations.methodWrite(member);
+          const write = input.program.records.methodWrite.get(member);
           planned.push(...(write === undefined ? [method] : planCsharpMutableMethod(member, method, write, input, diagnostics)));
           planned.push(...planCsharpProjectCallableAdapters(member, method, sourceFile, memberInput, diagnostics));
         }

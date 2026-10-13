@@ -1,5 +1,4 @@
 import type { SourceFile } from "@tsonic/tsts";
-import type { CsharpNumericRepresentations } from "../numeric/representations.js";
 import type { TargetCompileInput } from "@tsonic/target-api";
 import type {
   TargetPlanningSourceNavigation,
@@ -14,48 +13,22 @@ import type {
 import type {
   CsharpProviderBinaryExecutionDriver,
 } from "../../providers/model/provider-policy-contribution.js";
-import type {
-  CsharpAttributeApplicationIndex,
-} from "../attributes/model.js";
-import type {
-  CsharpSafetyApplicationFactIndex,
-} from "../safety/application-index.js";
-import type {
-  CsharpProjectTypeClassifications,
-} from "../project-types/index.js";
-import type {
-  CsharpTargetOperationClassifications,
-} from "../operations/index.js";
-import type {
-  CsharpSourceEvidenceIndex,
-} from "../source-evidence/index.js";
-import type {
-  CsharpDeclarationClassifications,
-} from "../declarations/index.js";
+import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
+import type { CsharpProgramRecords } from "../../target-model/records/program.js";
+import type { CsharpClassFactory } from "../../target-model/records/class-factories.js";
+import type { CsharpCaptureFrame } from "../../target-model/records/capture-storage.js";
 import type {
   CsharpSourceNameResolver,
 } from "../names/index.js";
 import type {
   CsharpObjectShapeClassifications,
 } from "../objects/index.js";
-import type {
-  CsharpConversionClassifications,
-} from "../conversions/index.js";
-import type {
-  CsharpStorageClassifications,
-} from "../storage/index.js";
+import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
 import type {
   CsharpProjectClassifications,
 } from "../project/index.js";
-import type {
-  CsharpExpectedTypeClassifications,
-} from "../expected-types/index.js";
-import type {
-  CsharpSourceModuleConstructionIndex,
-} from "../source-modules/index.js";
-import type {
-  CsharpModuleInitializationIndex,
-} from "../module-initialization/index.js";
+import type { CsharpSourceModuleConstructionIndex } from "../../target-model/records/source-modules.js";
+import type { CsharpModuleInitializationIndex } from "../../target-model/records/module-initialization.js";
 
 export interface CsharpTargetAnalysisRequest {
   readonly input: TargetCompileInput;
@@ -71,30 +44,20 @@ export interface CsharpPlanningHost {
 
 export interface CsharpTargetProgram {
   readonly typeDefinitions: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
-  readonly callableAdapters: import("../project-types/callable-adapters.js").CsharpProjectCallableAdapters;
-  readonly typeProjections: import("../declarations/type-projections.js").CsharpGenericProjectionIndex;
-  readonly classFactories: import("../project-types/class-factories.js").CsharpClassFactoryIndex;
-  readonly classInitialization: import("../project-types/class-initialization.js").CsharpClassInitializationIndex;
-  readonly captureStorage: import("../callables/capture-storage.js").CsharpCaptureStorage;
-  readonly numericRepresentations: CsharpNumericRepresentations;
+  readonly records: CsharpProgramRecords;
+  readonly classFactories: readonly CsharpClassFactory[];
+  readonly captureFrames: readonly CsharpCaptureFrame[];
   readonly host: CsharpPlanningHost;
   readonly configuration: CsharpTargetConfiguration;
   readonly project: CsharpProjectClassifications;
   readonly source: TargetSourceSyntaxProgram;
   readonly sourceNavigation: TargetPlanningSourceNavigation;
   readonly sourceFiles: readonly SourceFile[];
-  readonly attributeApplications: CsharpAttributeApplicationIndex;
-  readonly safetyApplications: CsharpSafetyApplicationFactIndex;
   readonly projectTypes: CsharpProjectTypeClassifications;
   readonly objectShapes: CsharpObjectShapeClassifications;
-  readonly operations: CsharpTargetOperationClassifications;
-  readonly sourceEvidence: CsharpSourceEvidenceIndex;
-  readonly declarations: CsharpDeclarationClassifications;
   readonly names: CsharpSourceNameResolver;
-  readonly conversions: CsharpConversionClassifications;
-  readonly expectedTypes: CsharpExpectedTypeClassifications;
-  readonly storage: CsharpStorageClassifications;
-  readonly sourceModuleConstructions: CsharpSourceModuleConstructionIndex;
-  readonly moduleInitialization: CsharpModuleInitializationIndex;
+  readonly conversions: Pick<CsharpConversionClassifications, "matchesUnionMapping" | "matchesUnionProjection">;
+  readonly sourceModuleConstructions: Omit<CsharpSourceModuleConstructionIndex, "sourceModuleConstruction">;
+  readonly moduleInitialization: Pick<CsharpModuleInitializationIndex, "entrypointInitializer">;
   readonly binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver;
 }

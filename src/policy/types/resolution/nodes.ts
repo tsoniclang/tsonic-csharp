@@ -229,7 +229,6 @@ export function resolveNodeWithState(
   );
 }
 
-
 export function resolveTupleTypeNode(
   { host, resolveNodeWithState, tupleElementIsRest }: CsharpTypeResolutionScope,
   node: Node,
@@ -279,7 +278,6 @@ export function resolveTupleTypeNode(
     ? csharpJsArrayTargetType(restElement)
     : { kind: "array", element: restElement };
 }
-
 
 export function tupleElementIsRest(
   { host }: CsharpTypeResolutionScope,

@@ -65,7 +65,7 @@ export function planParametersWithPrelude(
     if (identity !== undefined) { prelude.push(identity); retainBinding(identity); }
     const capture = planCsharpParameterCapture(node, input, state);
     if (capture !== undefined) prelude.push(capture);
-    if (capture === undefined && input.program.storage.nativeBacking(node) === undefined) retainBinding({ name, type });
+    if (capture === undefined && input.program.records.nativeBacking.get(node) === undefined) retainBinding({ name, type });
   };
   let hasDefaultParameter = false;
   for (const parameterNode of parameterNodes) {
@@ -76,7 +76,7 @@ export function planParametersWithPrelude(
     if (HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier)) {
       const typeSubject = getParameterTypeSubject(parameter);
       const type = getParameterType(parameterNode, sourceFile, input, diagnostics);
-      if (input.program.declarations.runtimeDefault(parameterNode!) !== undefined) {
+      if (input.program.records.runtimeDefault.get(parameterNode!) !== undefined) {
         const sourceName = declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Parameter name", "arg");
         const incomingName = allocateSyntheticParameter(state);
         const selected = planCsharpRuntimeParameterDefault(parameterNode!, incomingName, sourceFile, input, diagnostics, state);
@@ -111,7 +111,7 @@ export function planParametersWithPrelude(
     if (bindingName !== undefined && (HasSourceKind(input.program.source.ast, bindingName, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, bindingName, KindArrayBindingPattern))) {
       const typeSubject = getParameterTypeSubject(parameter) ?? bindingName;
       const type = getParameterType(parameterNode, sourceFile, input, diagnostics, invalidCsharpType("destructured parameter type"));
-      if (input.program.declarations.runtimeDefault(parameterNode!) !== undefined) {
+      if (input.program.records.runtimeDefault.get(parameterNode!) !== undefined) {
         const incomingName = allocateSyntheticParameter(state);
         const valueName = allocateSyntheticParameter(state);
         const selected = planCsharpRuntimeParameterDefault(parameterNode!, incomingName, sourceFile, input, diagnostics, state);
@@ -179,7 +179,7 @@ function getParameterType(
 ): CsharpTypeNode {
   const requiredType = parameterNode === undefined
     ? undefined
-    : input.program.storage.requiredType(parameterNode);
+    : input.program.records.requiredStorageType.get(parameterNode);
   return requiredType === undefined
     ? getCsharpTypeForNode(parameterNode, sourceFile, input, errorType, diagnostics)
     : csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, requiredType, diagnostics, parameterNode)

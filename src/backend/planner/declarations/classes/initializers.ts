@@ -34,8 +34,8 @@ export function planClassInitializationRegion(
   const fields = new Map<Node, CsharpPlannedValue>();
   const defaults = new Map<Node, CsharpExpression>();
   const blocks = new Map<Node, readonly CsharpStatement[]>();
-  let relocates = factory || !isStatic && input.program.classInitialization.requiresConstructor(declaration);
-  const region = input.program.classInitialization.orderedRegion(declaration, isStatic);
+  let relocates = factory || !isStatic && input.program.records.requiresClassConstructor.get(declaration);
+  const region = input.program.records.classInitializationRegion.get(declaration, isStatic);
   for (const node of region) {
     if (sourceClassFieldIsTypeOnly(ast, node)) continue;
     if (ast.is.IsClassStaticBlockDeclaration(node)) {
@@ -45,7 +45,7 @@ export function planClassInitializationRegion(
     }
     const property = ast.as.AsPropertyDeclaration(node)!;
     if (property.Initializer === undefined) continue;
-    if (input.program.sourceEvidence.sourceField([node, property.name, property.Type, property.Initializer]) !== undefined) continue;
+    if (input.program.records.sourceField.get([node, property.name, property.Type, property.Initializer]) !== undefined) continue;
     const target = input.types.classifications.resolveNode(property.Type ?? property.name, sourceFile);
     const type = target === undefined ? undefined : csharpTypeFromTargetTypeRef(target, input.scope.typeParameterNames);
     const value = type === undefined ? undefined : planExpressionWithExpectedType(property.Initializer, sourceFile,

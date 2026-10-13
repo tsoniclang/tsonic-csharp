@@ -34,10 +34,8 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
   if (diagnostics.length > 0) {
     return rejectedTargetStage(diagnostics);
   }
-  const moduleInitialization = input.program.moduleInitialization;
   const reconstructed = reconstructCsharpSourceFiles(
     input,
-    moduleInitialization,
     diagnostics,
   );
   if (reconstructed === undefined || diagnostics.length > 0) {
@@ -50,7 +48,6 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
   const startup = planCsharpStartupSourceFile(
     input,
     plannedSources,
-    moduleInitialization,
     diagnostics,
   );
   if (diagnostics.length > 0) {

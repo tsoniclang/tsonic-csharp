@@ -137,7 +137,7 @@ function planExpressionCore(
   const complete = (expression: CsharpExpression | undefined): CsharpPlannedValue | undefined =>
     planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression);
   if (input.program.source.ast.is.IsClassExpression(node)) {
-    const factory = input.program.classFactories.get(node);
+    const factory = input.program.records.classFactory.get(node);
     if (factory !== undefined) return planClassFactoryExpression(factory, sourceFile, input, diagnostics, state);
     diagnostics.push(unsupportedNodeDiagnostic(node, "A class expression requires its sealed native factory."));
     return undefined;
@@ -146,7 +146,7 @@ function planExpressionCore(
   if (expressionOverride !== undefined) {
     return complete(expressionOverride);
   }
-  const defaultValue = input.program.sourceEvidence.defaultValue(node);
+  const defaultValue = input.program.records.sourceDefaultValue.get(node);
   if (defaultValue !== undefined) {
     return complete({
       kind: "DefaultExpression",
@@ -160,7 +160,7 @@ function planExpressionCore(
       ),
     });
   }
-  const argumentPassing = input.program.sourceEvidence.argument(node);
+  const argumentPassing = input.program.records.sourceArgument.get(node);
   if (argumentPassing === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -423,7 +423,7 @@ function planExpressionCore(
         planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state, expectedArgumentPassingMode, selectedTargetParameter));
     case KindPrefixUnaryExpression:
     case KindPostfixUnaryExpression: {
-      const mutation = input.program.operations.jsArrayMutation(node);
+      const mutation = input.program.records.jsArrayMutation.get(node);
       if (mutation?.kind !== "not-js-array-mutation") {
         return tryPlanJsArrayMutationExpression(node, sourceFile, input, diagnostics, scopedPlanExpression,
           (argument, file, context, errors, type, subject, target, passing, parameter) =>

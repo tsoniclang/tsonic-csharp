@@ -32,7 +32,7 @@ export function planCsharpPreparedConstructor(
   initializers: readonly CsharpStatement[],
 ): readonly CsharpConstructorDeclaration[] {
   if (bodyNode === undefined) return [];
-  const frame = input.program.captureStorage.frame(bodyNode);
+  const frame = input.program.records.captureFrame.get(bodyNode);
   const bindings: CsharpEntryBinding[] = [...parameters.entryBindings];
   const receivers = new Map<Node, CsharpExpression>();
   if (frame !== undefined) {
@@ -78,7 +78,7 @@ export function planCsharpPreparedConstructor(
   if (!terminated) statements.push({ kind: "ReturnStatement", expression: values.length <= 1
     ? { kind: "ObjectCreationExpression", type: packetType, arguments: values.map(expression => ({ kind: "Argument", expression })) }
     : { kind: "TupleExpression", elements: values } });
-  const factory = input.program.classFactories.get(input.program.source.ast.parent(node)!);
+  const factory = input.program.records.classFactory.get(input.program.source.ast.parent(node)!);
   const environmentType = factory === undefined ? undefined : csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames);
   if (factory !== undefined && environmentType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Constructor preparation requires its exact native class environment."));

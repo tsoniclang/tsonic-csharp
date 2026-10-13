@@ -1,3 +1,4 @@
+import type { CsharpUnionCallClassification } from "../../target-model/records/union-calls.js";
 import type { Node, ResolvedSourceCallInfo, SourceFile } from "@tsonic/tsts";
 import { asSourceNode } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
@@ -9,18 +10,6 @@ import { csharpSourceArgumentPassingMode } from "../../policy/operations/members
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpCallableValueSignature } from "../../target-model/types/carriers/delegates.js";
-
-export type CsharpUnionCallClassification =
-  | { readonly kind: "not-union" }
-  | { readonly kind: "rejected"; readonly reason: string }
-  | {
-      readonly kind: "resolved";
-      readonly receiver: Node;
-      readonly receiverType: TargetTypeRef;
-      readonly resultType: TargetTypeRef;
-      readonly parameterTypes: readonly TargetTypeRef[];
-      readonly methods: readonly { readonly arm: TargetTypeRef; readonly declaration: Node; readonly targetName: string }[];
-    };
 
 export function classifyCsharpUnionCall(
   policy: CsharpPolicyContext,

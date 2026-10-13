@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpCaptureFrame } from "../../../../analysis/callables/capture-storage.js";
+import type { CsharpCaptureFrame } from "../../../../target-model/records/capture-storage.js";
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
 import type { CsharpExpression, CsharpTypeMember } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
@@ -17,7 +17,7 @@ import { withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
 export function renderCsharpCaptureFrameMethods(
   shape: CsharpObjectShapeFact, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeMember[] | undefined {
-  const frame = input.program.captureStorage.forShape(shape.targetType);
+  const frame = input.program.records.captureFrameShape.get(shape.targetType);
   if (frame === undefined) return [];
   const captureFrames = new Map<Node, CsharpExpression>();
   const capturedBindings = new Map<Node, CsharpExpression>();

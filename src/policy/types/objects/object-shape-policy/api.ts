@@ -52,12 +52,8 @@ import { retainCsharpGenericCallableValue } from "../../callables/generic-values
 import { createCsharpTypeParameterEnvironment } from "../../../constraints/type-parameter-environment.js";
 import { resolveCsharpTypeParameterConstraints } from "../../../constraints/type-parameter-constraints.js";
 
-import type {
-  CsharpObjectLiteralTargetShapeResolution,
-  CsharpObjectShapePolicyHost,
-  CsharpProjectConstructibleTypeProjection,
-  CsharpRecursiveObjectShapePolicy,
-} from "./model.js";
+import type { CsharpObjectLiteralTargetShapeResolution, CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
+import type { CsharpProjectConstructibleTypeProjection } from "../../../../target-model/records/object-shapes.js";
 
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,

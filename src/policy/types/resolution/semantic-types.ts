@@ -201,7 +201,6 @@ export function resolveTypeWithState(
   );
 }
 
-
 export function resolveDirectSourceFacts(
   { host, resolveNodeWithState, resolveTypeWithState, resolveSelectedValueWithState, resolveTypedLocationOperationPointeeWithState }: CsharpTypeResolutionScope,
   subjects: readonly ExtensionFactSubject[],
@@ -411,7 +410,6 @@ export function resolveDirectSourceFacts(
   return undefined;
 }
 
-
 export function resolveProviderType(
   { host }: CsharpTypeResolutionScope,
   subjects: readonly ExtensionFactSubject[],
@@ -454,7 +452,6 @@ export function resolveProviderType(
   }
   return undefined;
 }
-
 
 export function resolveSemanticTypeArguments(
   { host, resolveTypeWithState }: CsharpTypeResolutionScope,

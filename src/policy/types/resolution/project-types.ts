@@ -56,7 +56,6 @@ export function resolveSelectedSymbolType(
     : undefined;
 }
 
-
 export function resolveProjectSourceSemanticType(
   { host, projectSourceDeclarationTargetType, resolveTypeWithState }: CsharpTypeResolutionScope,
   type: Type,
@@ -97,7 +96,6 @@ export function resolveProjectSourceSemanticType(
   return undefined;
 }
 
-
 export function resolveProjectSourceType(
   { host, projectSourceDeclarationTargetType, resolveNodeWithState }: CsharpTypeResolutionScope,
   node: Node,
@@ -125,7 +123,6 @@ export function resolveProjectSourceType(
     host.semantics(sourceFile).types.authoredType(node),
   );
 }
-
 
 export function projectSourceDeclarationTargetType(
   scope: CsharpTypeResolutionScope,

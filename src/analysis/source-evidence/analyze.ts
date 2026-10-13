@@ -34,11 +34,7 @@ import { csharpSourceTypeParameter } from "../../target-model/names/type-paramet
 import type {
   TargetTypeRef,
 } from "../../target-model/types/model.js";
-import type {
-  CsharpSemanticTypeClassification,
-  CsharpContextualTupleClassification,
-  CsharpSourceEvidenceIndex,
-} from "./model.js";
+import type { CsharpSemanticTypeClassification, CsharpContextualTupleClassification, CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import {
   resolveCsharpTypeParameterConstraints,
 } from "../../policy/constraints/index.js";
@@ -61,7 +57,7 @@ import {
 
 const missing = Symbol("csharp.source-evidence.missing");
 import { createTsonicMemoryMetadataIndex, createTsonicPointerBackingDemands, createTsonicClosedArrayStorageQueries } from "@tsonic/source-core/facts";
-import type { CsharpPointerReturnContract } from "../../policy/types/callables/pointer-return.js";
+import type { CsharpPointerReturnContract } from "../../target-model/records/pointer-return.js";
 import { analyzeCsharpTypeOnlyDeclarations } from "../declarations/type-only.js";
 type Cached<Value> = Value | typeof missing;
 
@@ -81,14 +77,14 @@ export function analyzeCsharpSourceEvidence(
   const rejectedFixedArrayTypes = new Set<Type>();
   const expressionTypes = new WeakMap<Node, Cached<Type>>();
   const nodeTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
-  const bindingProjections = new WeakMap<Node, import("../../policy/types/objects/binding-projection-policy.js").CsharpBindingProjection>();
+  const bindingProjections = new WeakMap<Node, import("../../target-model/records/binding-projection-policy.js").CsharpBindingProjection>();
   const classConstructorTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const storageTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const readStorageTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const contextualTypes = new WeakMap<Node, Cached<Type>>();
   const contextualTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const constants = new WeakMap<Node, { readonly value: unknown }>();
-  const refinements = new WeakMap<Node, import("./model.js").CsharpValueRefinementClassification>();
+  const refinements = new WeakMap<Node, import("../../target-model/records/source-evidence.js").CsharpValueRefinementClassification>();
   const generators = new WeakMap<Node, Cached<ResolvedSourceGeneratorInfo>>();
   const generatorTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const yields = new WeakMap<Node, Cached<ResolvedSourceYieldInfo>>();
@@ -101,19 +97,19 @@ export function analyzeCsharpSourceEvidence(
   const pointerReturns = new WeakMap<Node, CsharpPointerReturnContract>();
   const arguments_ = new WeakMap<
     Node,
-    import("./model.js").CsharpSourceArgumentClassification
+    import("../../target-model/records/source-evidence.js").CsharpSourceArgumentClassification
   >();
   const defaultValues = new WeakMap<
     Node,
-    import("../../policy/types/index.js").CsharpSourceDefaultValue
+    import("../../target-model/records/source-markers.js").CsharpSourceDefaultValue
   >();
   const sourceFields = new WeakMap<
     Node,
-    import("../../policy/types/index.js").CsharpSourceField
+    import("../../target-model/records/source-markers.js").CsharpSourceField
   >();
   const sourceStructs = new WeakMap<
     Node,
-    import("../../policy/types/index.js").CsharpSourceStruct
+    import("../../target-model/records/source-markers.js").CsharpSourceStruct
   >();
   const providerVirtualDeclarations = new WeakSet<Node>();
   const semanticTypes = new WeakMap<Type, Map<SourceFile, CsharpSemanticTypeClassification>>();
@@ -482,100 +478,100 @@ export function analyzeCsharpSourceEvidence(
   }
 
   const index: CsharpSourceEvidenceIndex = {
-    bindingProjection: node => bindingProjections.get(node),
-    closedArrayStorage: arrayStorage.resolve,
+    bindingProjection: Object.freeze({ get: node => bindingProjections.get(node) }),
+    closedArrayStorage: Object.freeze({ get: arrayStorage.resolve }),
     pointerBackingDemands: pointerBacking.entries(),
     memoryMetadataIssues: Object.freeze([...memoryMetadataIssues, ...pointerBacking.issues().map(issue => ({
       node: issue.node, code: "CSHARP_POINTER_BACKING_NOT_PROVEN", message: issue.reason,
     }))]),
     fixedArrayIssues: Object.freeze(fixedArrayIssues),
-    isCompileTimeMetadata: node => compileTimeMetadata.has(node),
+    compileTimeMetadata: Object.freeze({ get: node => compileTimeMetadata.has(node) }),
     typeOnlyIssues: typeOnlyDeclarations.issues,
-    classConstructorType: node => cachedValue(classConstructorTypes.get(node)),
+    classConstructorType: Object.freeze({ get: node => cachedValue(classConstructorTypes.get(node)) }),
     targetTypes: Object.freeze([...targetTypes.values()]),
-    nodeTargetType(node) {
+    nodeTargetType: Object.freeze({ get(node) {
       return cachedValue(nodeTargetTypes.get(node));
-    },
-    storageTargetType(node) {
+    } }),
+    storageTargetType: Object.freeze({ get(node) {
       return cachedValue(storageTargetTypes.get(node));
-    },
-    readStorageTargetType(node) {
+    } }),
+    readStorageTargetType: Object.freeze({ get(node) {
       return cachedValue(readStorageTargetTypes.get(node));
-    },
-    expressionType(node) {
+    } }),
+    expressionType: Object.freeze({ get(node) {
       return cachedValue(expressionTypes.get(node));
-    },
-    contextualType(node) {
+    } }),
+    contextualType: Object.freeze({ get(node) {
       return cachedValue(contextualTypes.get(node));
-    },
-    contextualTargetType(node) {
+    } }),
+    contextualTargetType: Object.freeze({ get(node) {
       return cachedValue(contextualTargetTypes.get(node));
-    },
-    targetType(type, sourceFile) {
+    } }),
+    semanticTargetType: Object.freeze({ get(type, sourceFile) {
       return semanticTypes.get(type)?.get(sourceFile)?.targetType;
-    },
-    semanticType(type, sourceFile) {
+    } }),
+    semanticType: Object.freeze({ get(type, sourceFile) {
       return semanticTypes.get(type)?.get(sourceFile);
-    },
-    signatureDeclaration(signature) {
+    } }),
+    signatureDeclaration: Object.freeze({ get(signature) {
       return cachedValue(signatureDeclarations.get(signature));
-    },
-    contextualTuple(node) {
+    } }),
+    contextualTuple: Object.freeze({ get(node) {
       return contextualTuples.get(node);
-    },
-    constantValue(node) {
+    } }),
+    constantValue: Object.freeze({ get(node) {
       return constants.get(node);
-    },
-    valueRefinement(node) {
+    } }),
+    valueRefinement: Object.freeze({ get(node) {
       return refinements.get(node);
-    },
-    generator(node) {
+    } }),
+    generator: Object.freeze({ get(node) {
       return cachedValue(generators.get(node));
-    },
-    generatorTargetType(node) {
+    } }),
+    generatorTargetType: Object.freeze({ get(node) {
       return cachedValue(generatorTargetTypes.get(node));
-    },
-    yield(node) {
+    } }),
+    yield: Object.freeze({ get(node) {
       return cachedValue(yields.get(node));
-    },
-    yieldTargetType(node) {
+    } }),
+    yieldTargetType: Object.freeze({ get(node) {
       return cachedValue(yieldTargetTypes.get(node));
-    },
-    wellKnownSymbol(node) {
+    } }),
+    wellKnownSymbol: Object.freeze({ get(node) {
       return cachedValue(wellKnownSymbols.get(node));
-    },
-    inferredCallableReturnType(node) {
+    } }),
+    inferredCallableReturnType: Object.freeze({ get(node) {
       return cachedValue(inferredReturns.get(node));
-    },
-    pointerReturn(node) {
+    } }),
+    pointerReturn: Object.freeze({ get(node) {
       return pointerReturns.get(node);
-    },
-    argument(node) {
+    } }),
+    sourceArgument: Object.freeze({ get(node) {
       return arguments_.get(node);
-    },
-    defaultValue(node) {
+    } }),
+    sourceDefaultValue: Object.freeze({ get(node) {
       return defaultValues.get(node);
-    },
-    sourceField(subjects) {
+    } }),
+    sourceField: Object.freeze({ get(subjects) {
       for (const subject of subjects) {
         if (subject === undefined) continue;
         const field = sourceFields.get(subject);
         if (field !== undefined) return field;
       }
       return undefined;
-    },
-    sourceStruct(node) {
+    } }),
+    sourceStruct: Object.freeze({ get(node) {
       return sourceStructs.get(node);
-    },
-    providerVirtualDeclaration(node) {
+    } }),
+    providerVirtualDeclaration: Object.freeze({ get(node) {
       return providerVirtualDeclarations.has(node);
-    },
-    typeParameterConstraints(node) {
+    } }),
+    typeParameterConstraints: Object.freeze({ get(node) {
       return typeParameterConstraints.get(node);
-    },
-    sourceOwnedProjectShape(node) {
+    } }),
+    sourceOwnedProjectShape: Object.freeze({ get(node) {
       return sourceOwnedProjectShapes.get(node);
-    },
+    } }),
   };
   return Object.freeze(index);
 }
@@ -613,8 +609,8 @@ function cachedValue<Value>(value: Cached<Value> | undefined): Value | undefined
 }
 
 function freezeSourceArgumentClassification(
-  value: import("./model.js").CsharpSourceArgumentClassification,
-): import("./model.js").CsharpSourceArgumentClassification {
+  value: import("../../target-model/records/source-evidence.js").CsharpSourceArgumentClassification,
+): import("../../target-model/records/source-evidence.js").CsharpSourceArgumentClassification {
   return value.kind === "resolved"
     ? Object.freeze({
         kind: "resolved",

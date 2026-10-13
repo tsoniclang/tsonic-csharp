@@ -2,7 +2,7 @@ import { sourceClosedCallableArguments } from "@tsonic/target-api/source";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpTargetOperationClassifications } from "../operations/index.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpDelegateSignature, getCsharpNullableElementTargetType, isCsharpSourceDelegateTargetType, targetTypeRefEquals } from "../../policy/types/index.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
@@ -34,7 +34,7 @@ export function selectCsharpClosedCallableContext(
   let invocationType: TargetTypeRef | undefined;
   let invocationOnly = true;
   for (const argument of arguments_) {
-    const selected = operations.call(argument.call)?.target;
+    const selected = operations.selectedCall.get(argument.call)?.target;
     if (selected?.kind !== "resolved") return undefined;
     const bindings = selected.call.arguments.filter(binding => binding.sourceArgumentIndex === argument.argumentIndex);
     const binding = bindings[0];

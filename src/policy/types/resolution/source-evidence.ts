@@ -45,7 +45,6 @@ export function sourceFactSubjectsForNode(
   return Object.freeze([...new Set(subjects)]);
 }
 
-
 export function sourceDeclarationReferenceFactSubjects(
   reference: SourceDeclarationReference,
 ): readonly ExtensionFactSubject[] {
@@ -54,7 +53,6 @@ export function sourceDeclarationReferenceFactSubjects(
     reference.declaration,
   ]);
 }
-
 
 export function resolveTypeParameter(
   type: Type,
@@ -76,7 +74,6 @@ export function resolveTypeParameter(
   }
   return undefined;
 }
-
 
 export function definedValues<T>(
   values: readonly (T | undefined)[],

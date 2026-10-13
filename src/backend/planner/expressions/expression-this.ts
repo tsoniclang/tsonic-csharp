@@ -91,7 +91,7 @@ function classifyThisBinding(node: Node, input: CsharpPlanningContext): ThisBind
     if (HasSourceKind(input.program.source.ast, current, KindPropertyDeclaration)) {
       if (isClassInstanceMember(current, input) &&
         !HasSyntacticModifier(input.program.source.ast, current, ModifierFlagsStatic) &&
-        input.program.classInitialization.relocatesField(current)) return { kind: "instance" };
+        input.program.records.relocatedClassField.get(current)) return { kind: "instance" };
       return unsupportedThis("class field initializer receiver");
     }
     if (HasSourceKind(input.program.source.ast, current, KindClassStaticBlockDeclaration)) {

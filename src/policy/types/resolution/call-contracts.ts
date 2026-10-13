@@ -1,5 +1,5 @@
 import type { SourceFile } from "@tsonic/tsts";
-import type { CsharpSourceCallContract, CsharpSourceCallParameterContract } from "../callables/source-callable-contract.js";
+import type { CsharpSourceCallContract, CsharpSourceCallParameterContract } from "../../../target-model/records/source-callable-contract.js";
 import { classifyCsharpSourceCallee } from "../callables/source-callees.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpCallableValueSignature } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";

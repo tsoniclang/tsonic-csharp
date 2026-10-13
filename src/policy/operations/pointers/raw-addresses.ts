@@ -1,14 +1,12 @@
+import type { CsharpRawAddressSelection, CsharpSourceRawAddressOperation } from "../../../target-model/records/raw-addresses.js";
 import type { ExtensionFactSubject, Node, ReadonlySourceFactResolver, SourceFile } from "@tsonic/tsts";
 import { readTsonicDataLayout, readTsonicRawMemoryOperation } from "@tsonic/source-core/facts";
-import type { TsonicRawMemoryOperationFact } from "@tsonic/source-core/facts";
+
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpRuntimeRawPointerTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableReferenceTargetType } from "../../../target-model/types/carriers/nullable.js";
-
-export type CsharpSourceRawAddressOperation = Extract<TsonicRawMemoryOperationFact,
-  { readonly operation: "byte-offset" | "raw-to-address-integer" | "address-integer-to-raw" }>;
 
 export function readCsharpSourceRawAddress(
   facts: ReadonlySourceFactResolver | undefined,
@@ -24,13 +22,6 @@ export function csharpRawAddressResultType(fact: CsharpSourceRawAddressOperation
     ? csharpSourcePrimitiveTargetType(fact.addressWidth === 32 ? "uint32" : "uint64")
     : csharpNullableReferenceTargetType(csharpRuntimeRawPointerTargetType());
 }
-
-export type CsharpRawAddressSelection =
-  | { readonly kind: "rejected"; readonly operation: CsharpSourceRawAddressOperation["operation"]; readonly reason: string }
-  | { readonly kind: "raw-address"; readonly method: "Address" | "FromAddress" | "Offset" | "OffsetUnsigned";
-      readonly width: 32 | 64; readonly resultType: TargetTypeRef;
-      readonly arguments: readonly { readonly expression: Node; readonly sourceType: TargetTypeRef;
-        readonly parameterType: TargetTypeRef }[] };
 
 export function selectCsharpRawAddress(
   input: CsharpPolicyContext,

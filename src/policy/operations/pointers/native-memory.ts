@@ -1,3 +1,4 @@
+import type { CsharpRawLocationSelection } from "../../../target-model/records/native-memory.js";
 import type { AstReader, ExtensionFactSubject, Node, ReadonlySourceFactResolver, SourceFile } from "@tsonic/tsts";
 import { countTsonicMemoryLayoutValues, selectTsonicRawLocationOperation } from "@tsonic/source-core/facts";
 import type { TsonicMemoryLayoutFact, TsonicRawLocationSelection } from "@tsonic/source-core/facts";
@@ -134,11 +135,6 @@ export function csharpNativeArrayMemoryLayoutRejection(root: TsonicMemoryLayoutF
   }
   return undefined;
 }
-
-export type CsharpRawLocationSelection =
-  | { readonly kind: "rejected"; readonly operation: "raw-location"; readonly reason: string }
-  | { readonly kind: "raw-location"; readonly method: "ToRaw" | "Reinterpret";
-      readonly expression: Node; readonly inputType: TargetTypeRef; readonly layout: CsharpNativeMemoryLayout };
 
 export function selectCsharpRawLocation(input: CsharpPolicyContext, node: Node, file: SourceFile): CsharpRawLocationSelection | undefined {
   const selected = readCsharpRawLocation(input.ast, input.sourceFacts, node);

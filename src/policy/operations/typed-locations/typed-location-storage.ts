@@ -1,3 +1,4 @@
+import type { CsharpTypedLocationStorageSelection } from "../../../target-model/records/typed-location-storage.js";
 import type {
   Node,
   SourceFile,
@@ -15,58 +16,6 @@ import {
   targetTypeRefEquals,
   type TargetTypeRef,
 } from "../../types/index.js";
-
-export type CsharpTypedLocationStorage =
-  | {
-      readonly kind: "direct-storage";
-      readonly expression: Node;
-      readonly valueType: TargetTypeRef;
-      readonly identity: CsharpTypedLocationDirectIdentity;
-    }
-  | {
-      readonly kind: "reference-property-storage";
-      readonly expression: Node;
-      readonly valueType: TargetTypeRef;
-      readonly memberIdentity: string;
-    }
-  | {
-      readonly kind: "value-property-storage";
-      readonly expression: Node;
-      readonly valueType: TargetTypeRef;
-      readonly memberIdentity: string;
-      readonly receiverStorage: CsharpTypedLocationStorage;
-    }
-  | {
-      readonly kind: "reference-element-storage";
-      readonly expression: Node;
-      readonly valueType: TargetTypeRef;
-    }
-  | {
-      readonly kind: "reference-indexed-storage";
-      readonly expression: Node;
-      readonly valueType: TargetTypeRef;
-      readonly receiverType: TargetTypeRef;
-      readonly indexType: TargetTypeRef;
-      readonly method: string;
-    };
-
-export type CsharpTypedLocationDirectIdentity =
-  | {
-      readonly kind: "local-storage";
-      readonly declaration: Node;
-    }
-  | {
-      readonly kind: "static-storage";
-      readonly identity: string;
-    }
-  | {
-      readonly kind: "instance-member-storage";
-      readonly memberIdentity: string;
-    };
-
-export type CsharpTypedLocationStorageSelection =
-  | { readonly kind: "resolved"; readonly storage: CsharpTypedLocationStorage }
-  | { readonly kind: "rejected"; readonly reason: string };
 
 export function selectCsharpTypedLocationStorage(
   input: CsharpPolicyContext,

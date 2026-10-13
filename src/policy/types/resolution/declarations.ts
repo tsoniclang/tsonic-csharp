@@ -78,7 +78,6 @@ export function resolveSelectedDeclarationResult(
     : result;
 }
 
-
 export function resolveProjectEnumMemberTarget(
   { host, projectSourceDeclarationTargetType }: CsharpTypeResolutionScope,
   declaration: Node | undefined,
@@ -91,7 +90,6 @@ export function resolveProjectEnumMemberTarget(
     ? projectSourceDeclarationTargetType(parent, [])
     : undefined;
 }
-
 
 export function declarationResultTypeNode(
   { host }: CsharpTypeResolutionScope,

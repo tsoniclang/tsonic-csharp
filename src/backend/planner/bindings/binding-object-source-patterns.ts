@@ -66,7 +66,7 @@ export function isSourceOwnedBindingSource(
   input: CsharpPlanningContext,
 ): boolean {
   return sourceNode !== undefined &&
-    input.program.sourceEvidence.sourceOwnedProjectShape(sourceNode) === true;
+    input.program.records.sourceOwnedProjectShape.get(sourceNode) === true;
 }
 
 function getDirectSourcePropertyName(

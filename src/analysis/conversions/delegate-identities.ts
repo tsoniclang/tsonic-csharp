@@ -4,7 +4,7 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { isSourceOwnedProjectReference } from "../../policy/types/resolution/source-ownership.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
-import type { CsharpConversionIssue, CsharpDelegateAdapterIdentity, CsharpExpressionConversionClassification } from "./model.js";
+import type { CsharpConversionIssue, CsharpDelegateAdapterIdentity, CsharpExpressionConversionClassification } from "../../target-model/records/conversions.js";
 
 export function sealCsharpDelegateAdapterIdentities(
   policy: CsharpPolicyContext,

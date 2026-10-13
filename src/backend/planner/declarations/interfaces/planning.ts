@@ -93,12 +93,12 @@ export function planInterfaceDeclaration(
   if (objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "method-values")) {
     const storageNames = new Set(objectShape.members.filter(member => member.memberKind === "method")
       .map(member => objectShapeStorageMemberName(objectShape, member)));
-    const rendered = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, objectShape, input.program.storage, true, inherited);
+    const rendered = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, objectShape, input.program.records, true, inherited);
     if (rendered === undefined) diagnostics.push(unsupportedNodeDiagnostic(node, "An interface method value requires its exact native callable storage contract."));
     else members.push(...rendered.filter(member => member.kind === "PropertyDeclaration" && storageNames.has(member.name)));
   }
   const inheritedMembers = inherited.flatMap(parent => {
-    const rendered = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, parent.shape, input.program.storage, parent.methodValues, []);
+    const rendered = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, parent.shape, input.program.records, parent.methodValues, []);
     if (rendered === undefined) diagnostics.push(unsupportedNodeDiagnostic(node, "An inherited interface requires exact native member signatures."));
     return rendered ?? [];
   });

@@ -1,4 +1,5 @@
-import type { CsharpTargetBinaryOperation, selectCsharpBinaryOperation } from "../../policy/operations/index.js";
+import type { CsharpTargetBinaryOperation } from "../../target-model/records/operator-selection.js";
+import type { selectCsharpBinaryOperation } from "../../policy/operations/index.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpUnionEqualityArmsEqual } from "../../target-model/operations/binary.js";
 

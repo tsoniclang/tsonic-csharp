@@ -34,11 +34,12 @@ function fixture(destination = string, completion) {
   ] };
   const pairs = [];
   const input = { program: { source: { ast },
-    expectedTypes: { forExpression: () => [], arrayLiteralCarrier: () => undefined },
-    conversions: { select(from, to, mode) {
+    records: { expectedType: { get: () => [] },
+      arrayLiteralCarrier: { get: () => undefined },
+      conversion: { get(from, to, mode) {
     pairs.push([from, to, mode]);
     return targetTypeRefEquals(from, to) ? { kind: "identity" } : { kind: "rejected", reason: "No selected native conversion." };
-  } } }, types: { classifications: { resolveNode(node) { return node === array ? { kind: "array", element: destination } : optional; } } },
+  } } } }, types: { classifications: { resolveNode(node) { return node === array ? { kind: "array", element: destination } : optional; } } },
     scope: {}, names: { temporaryName: name => name } };
   const diagnostics = [];
   const consumed = [];
@@ -96,7 +97,7 @@ for (const state of [destination, element, fabricated]) assert.equal(state.diagn
 test("borrowed construction admits only the sealed contextual destination without confusing source storage", () => {
   const state = fixture();
   const contextual = { kind: "array", element: int32 };
-  state.input.program.conversions.select = (from, to, mode) => {
+  state.input.program.records.conversion.get = (from, to, mode) => {
     state.pairs.push([from, to, mode]);
     return { kind: "rejected", reason: "No selected native conversion." };
   };
@@ -105,10 +106,7 @@ test("borrowed construction admits only the sealed contextual destination withou
     () => [], () => []);
   assert.equal(consume(), undefined);
   assert.equal(state.pairs.length, 0);
-  state.input.program.expectedTypes = {
-    forExpression: node => node === state.array ? [contextual] : [],
-    arrayLiteralCarrier: (node, target) => node === state.array && target === contextual ? contextual : undefined,
-  };
+  state.input.program.records.expectedType = { get: node => node === state.array ? [contextual] : [] }; state.input.program.records.arrayLiteralCarrier = { get: (node, target) => node === state.array && target === contextual ? contextual : undefined };
   assert.equal(consume(), undefined);
   assert.deepEqual(state.pairs, [[string, int32, "implicit"]]);
   assert.equal(state.diagnostics.length, 2);
@@ -144,7 +142,7 @@ test("borrowed dense selection allocates its sole destination inside the selecte
 test("borrowed JS append uses the sealed operand query and skips empty-source construction", () => {
   const state = fixture();
   const queried = [];
-  state.input.program.operations = { borrowedSequence(node) { queried.push(node); return state.fact; } };
+  state.input.program.records.borrowedSequence = { get(node) { queried.push(node); return state.fact; } };
   const planExpression = () => csharpPlannedValue(state.optional, { kind: "IdentifierName", name: "source" },
     [{ kind: "ExpressionStatement", expression: { kind: "IdentifierName", name: "evaluate_source" } }]);
   const planned = planCsharpJsArraySpreadAppend(state.spread, state.fact.expression,

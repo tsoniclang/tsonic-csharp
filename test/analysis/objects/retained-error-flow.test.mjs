@@ -53,14 +53,14 @@ test("retained-provider catch reads select exact readonly C# Error flow and obse
   const visit = node => {
     if (ast.is.IsCatchClause(node)) catchDeclaration = ast.as.AsCatchClause(node).VariableDeclaration;
     if (ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "original") originalDeclaration = node;
-    const projection = program.sourceEvidence.valueRefinement(node);
+    const projection = program.records.valueRefinement.get(node);
     if (ast.is.IsIdentifier(node) && ast.text(node) === "failure" &&
       projection?.flowReadTargetType !== undefined && targetTypeRefEquals(projection.flowReadTargetType, exception)) {
       projections.push(projection);
     }
-    const property = program.operations.property(node)?.selection;
+    const property = program.records.selectedProperty.get(node)?.selection;
     if (property?.kind === "resolved" && ast.text(property.source.receiver.expression) === "failure") properties.push(property);
-    const equality = program.operations.binary(node)?.target;
+    const equality = program.records.binaryOperation.get(node)?.target;
     if (equality?.kind === "resolved" && equality.targetOperation.kind === "reference-identity") equalities.push(equality);
     for (const child of ast.children(node)) visit(child);
   };
@@ -85,7 +85,7 @@ test("retained-provider catch reads select exact readonly C# Error flow and obse
   for (const property of properties) {
     assert.equal(property.origin, "source-profile", "Error observation uses the selected source profile");
     assert.equal(property.source.accessMode, "read", "Error observation is readonly");
-    const receiver = program.sourceEvidence.nodeTargetType(property.source.receiver.expression);
+    const receiver = program.records.nodeTargetType.get(property.source.receiver.expression);
     assert.equal(receiver !== undefined, true, "Error observation retains its selected receiver carrier");
     assert.equal(targetTypeRefEquals(receiver, exception), true,
       "Error observation reads the narrowed native Exception");

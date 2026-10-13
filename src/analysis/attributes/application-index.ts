@@ -3,7 +3,7 @@ import { isAstNode, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { createTsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";
 import { diagnoseCsharpAttributeTypeValues } from "./type-validation.js";
-import type { CsharpAttributeApplication, CsharpAttributeApplicationIndex } from "./model.js";
+import type { CsharpAttributeApplication, CsharpAttributeApplicationIndex } from "../../target-model/records/attributes.js";
 
 const emptyApplications: readonly CsharpAttributeApplication[] = Object.freeze([]);
 
@@ -71,8 +71,8 @@ export function analyzeCsharpAttributeApplications(
   return Object.freeze({
     diagnostics: Object.freeze(diagnostics),
     index: Object.freeze({
-      forDeclaration: (declaration: Node) => byDeclaration.get(declaration) ?? emptyApplications,
-      isErasedSubject: (subject: Node) => applications.forSubject(subject) !== undefined,
+      attributeApplication: Object.freeze({ get: (declaration: Node) => byDeclaration.get(declaration) ?? emptyApplications }),
+      erasedAttribute: Object.freeze({ get: (subject: Node) => applications.forSubject(subject) !== undefined }),
     }),
   });
 }

@@ -72,7 +72,7 @@ function isNullishEqualityOperand(
   if (kind !== KindIdentifier || Node_Text(input.program.source.ast, AsIdentifier(input.program.source.ast, operand)) !== "undefined") {
     return false;
   }
-  const type = input.program.sourceEvidence.expressionType(operand);
+  const type = input.program.records.expressionType.get(operand);
   return type !== undefined &&
-    input.program.sourceEvidence.semanticType(type, sourceFile)?.nullish === true;
+    input.program.records.semanticType.get(type, sourceFile)?.nullish === true;
 }

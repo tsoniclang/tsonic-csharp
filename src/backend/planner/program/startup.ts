@@ -1,7 +1,4 @@
 import type { CsharpPlanningContext } from "../context.js";
-import type {
-  CsharpModuleInitializationIndex,
-} from "../../../analysis/module-initialization/index.js";
 import type { CsharpOutputSourceFile } from "../../artifact-model/output.js";
 import type { PlannedCsharpSourceFile } from "./source-file.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -21,11 +18,10 @@ import type {
 export function planCsharpStartupSourceFile(
   input: CsharpPlanningContext,
   plannedSources: readonly PlannedCsharpSourceFile[],
-  moduleInitialization: CsharpModuleInitializationIndex,
   diagnostics: TargetDiagnostic[],
 ): CsharpOutputSourceFile | undefined {
   const plannedSourcesByFileName = new Map(plannedSources.map((source) => [source.fileName, source]));
-  const entrypointSourceFile = moduleInitialization.entrypointInitializer();
+  const entrypointSourceFile = input.program.moduleInitialization.entrypointInitializer();
   const entrypointPlannedSource = entrypointSourceFile === undefined
     ? undefined
     : plannedSourcesByFileName.get(input.program.source.ast.getFileName(entrypointSourceFile));
@@ -61,7 +57,7 @@ export function planCsharpStartupSourceFile(
     readonly sourceFile: import("@tsonic/tsts").SourceFile;
     readonly identity: string;
     readonly planned: PlannedCsharpSourceFile;
-    readonly bootstrap: import("../../../analysis/source-modules/model.js").CsharpSourceModuleBootstrap;
+    readonly bootstrap: import("../../../target-model/records/source-modules.js").CsharpSourceModuleBootstrap;
   }>();
   for (const construction of input.program.sourceModuleConstructions.entries()) {
     const sourceFile = construction.targetSourceFile;
@@ -164,7 +160,7 @@ function planCsharpWorkerDispatch(
     readonly sourceFile: import("@tsonic/tsts").SourceFile;
     readonly identity: string;
     readonly planned: PlannedCsharpSourceFile;
-    readonly bootstrap: import("../../../analysis/source-modules/model.js").CsharpSourceModuleBootstrap;
+    readonly bootstrap: import("../../../target-model/records/source-modules.js").CsharpSourceModuleBootstrap;
   }[],
   binaryExecutionDriver: PlannedCsharpBinaryExecutionDriver | undefined,
   diagnostics: TargetDiagnostic[],

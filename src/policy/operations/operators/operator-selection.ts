@@ -1,12 +1,12 @@
+import type { CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpResolvedDestructuringAssignmentOperation, CsharpResolvedUnaryOperation, CsharpTargetBinaryOperation } from "../../../target-model/records/operator-selection.js";
 import { validateBinaryTargetSemantics, validateUnaryTargetSemantics, isCsharpReferenceCarrier, isEquality, isRelational, isShift, isBitwise, isArithmetic } from "./operator-validation.js";
 import { selectCsharpAssignmentLocation } from "./assignment-location.js";
-import { type CsharpAssignmentLocation } from "../../../target-model/operations/assignment-locations.js";
+
 import { selectCsharpGuardedIntegerPromotion } from "../numeric/guarded.js";
 import { selectCsharpGenericNumericOperation } from "../numeric/generic.js";
 import { resolveCsharpContextualLiteralCarrier } from "../../types/resolution/contextual-literals.js";
-import { sourceBooleanShortCircuitBranch as csharpBooleanShortCircuitBranch,
-  type SourceBooleanShortCircuitBranch as CsharpShortCircuitBranch } from "@tsonic/target-api/source";
-import type { CsharpReferenceEquality, CsharpUnionEqualityArm } from "../../../target-model/operations/binary.js";
+import { sourceBooleanShortCircuitBranch as csharpBooleanShortCircuitBranch } from "@tsonic/target-api/source";
+
 import { selectCsharpReferenceEquality } from "./reference-equality.js";
 import { selectCsharpUnionEquality } from "./union-equality.js";
 import { csharpConversionIsApplicable, selectCsharpExpressionConversion } from "../../conversions/selection.js";
@@ -47,79 +47,6 @@ import {
   isCsharpAssignmentOperator,
   sourceOperatorFromKindName,
 } from "../../../target-model/syntax/operators.js";
-
-export interface CsharpResolvedBinaryOperation {
-  readonly kind: "resolved";
-  readonly sourceOperator: CsharpSourceOperator;
-  readonly targetOperation: CsharpTargetBinaryOperation;
-  readonly left: Node;
-  readonly right: Node;
-  readonly leftType: TargetTypeRef;
-  readonly rightType: TargetTypeRef;
-  readonly leftInputType: TargetTypeRef;
-  readonly rightInputType: TargetTypeRef;
-  readonly resultType: TargetTypeRef;
-}
-
-export type CsharpTargetBinaryOperation =
-  | NonNullable<ReturnType<typeof selectCsharpGenericNumericOperation>>
-  | { readonly kind: "sequence"; readonly resultUse: "consumed" | "discarded" }
-  | { readonly kind: "conditional-value"; readonly operator: "&&" | "||"; readonly branch: CsharpShortCircuitBranch }
-  | {
-      readonly kind: "bigint-call";
-      readonly method: "LeftShift" | "RightShift" | "Divide" | "Remainder";
-      readonly assignment: boolean;
-      readonly location: CsharpAssignmentLocation;
-    }
-  | { readonly kind: "closed-value-coalesce"; readonly assignment: boolean; readonly location: CsharpAssignmentLocation }
-  | { readonly kind: "array-index-presence" }
-  | { readonly kind: "nullish-equality"; readonly value: boolean }
-  | { readonly kind: "union-coalesce"; readonly valueArmIndex: number; readonly retainCarrier: boolean }
-  | { readonly kind: "union-equality"; readonly negated: boolean; readonly arms: readonly CsharpUnionEqualityArm[] }
-  | {
-      readonly kind: "operator";
-      readonly operator: string;
-    }
-  | {
-      readonly kind: "string-ordinal-relational";
-      readonly operator: Extract<CsharpSourceOperator, "<" | "<=" | ">" | ">=">;
-    }
-  | {
-      readonly kind: "nullish-test";
-      readonly operand: "left" | "right";
-      readonly negated: boolean;
-      readonly unionArmIndexes?: readonly number[];
-    }
-  | CsharpReferenceEquality;
-
-export interface CsharpResolvedUnaryOperation {
-  readonly kind: "resolved";
-  readonly sourceOperator: Extract<
-    CsharpSourceOperator,
-    "!" | "~" | "+" | "-" | "++" | "--"
-  >;
-  readonly targetOperator: string;
-  readonly operand: Node;
-  readonly operandType: TargetTypeRef;
-  readonly resultType: TargetTypeRef;
-}
-
-export interface CsharpResolvedDestructuringAssignmentOperation {
-  readonly kind: "resolved";
-  readonly sourceOperator: "=";
-  readonly targetOperation: {
-    readonly kind: "operator";
-    readonly operator: "=";
-  };
-  readonly pattern: Node;
-  readonly source: Node;
-  readonly sourceType: TargetTypeRef;
-  readonly resultType: TargetTypeRef;
-}
-
-export type CsharpOperationSelection<T> =
-  | T
-  | { readonly kind: "rejected"; readonly reason: string };
 
 export type CsharpOperationTargetTypeQuery = (
   node: Node,

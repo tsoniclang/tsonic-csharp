@@ -3,9 +3,9 @@ import { IsTypeSyntaxNode } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpSourceArgument } from "../../policy/operations/members/selection/argument-selection.js";
 import type { CsharpObjectShapeClassifications } from "../objects/index.js";
-import type { CsharpTargetOperationClassifications } from "../operations/index.js";
-import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
-import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications } from "./model.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications } from "../../target-model/records/storage.js";
 import { analyzeCsharpNativeBacking } from "./native-backing.js";
 import { classifyCsharpNativeLocation } from "./native-locations.js";
 import { classifyCsharpModuleFieldDemand } from "./module-fields.js";
@@ -23,38 +23,38 @@ export function sealCsharpStorage(
   const sourceFiles = policy.sourceFiles;
   const classifications: CsharpStorageClassifications = {
     ...representations,
-    nativeModuleField: classifyCsharpModuleFieldDemand(policy, evidence),
+    nativeModuleField: Object.freeze({ get: classifyCsharpModuleFieldDemand(policy, evidence) }),
     closedNativeContracts: backing.closedContracts,
     nativeArrays: backing.arrays,
-    nativeArray: backing.array,
+    nativeArray: Object.freeze({ get: backing.array }),
     nativeFields: backing.fields,
-    nativeField: backing.field,
+    nativeField: Object.freeze({ get: backing.field }),
     nativeBackings: backing.entries,
-    nativeBacking: backing.get,
-    nativeLocation: expression => nativeLocations.get(expression),
+    nativeBacking: Object.freeze({ get: backing.get }),
+    nativeLocation: Object.freeze({ get: expression => nativeLocations.get(expression) }),
     issues,
-    requiresTypedLocationIdentity(declaration) {
+    typedLocationIdentity: Object.freeze({ get(declaration) {
       return backing.get(declaration) === undefined && backing.array(declaration) === undefined &&
-        representations.requiresTypedLocationIdentity(declaration);
-    },
+        representations.typedLocationIdentity.get(declaration);
+    } }),
   };
   for (const sourceFile of sourceFiles) visit(sourceFile);
   Object.freeze(issues);
   return Object.freeze(classifications);
 
   function visit(node: Node): void {
-    if (evidence.isCompileTimeMetadata(node) || IsTypeSyntaxNode(policy.ast, node)) return;
+    if (evidence.compileTimeMetadata.get(node) || IsTypeSyntaxNode(policy.ast, node)) return;
     if (!policy.types.nativeUnreachable(node) && (policy.ast.is.IsIdentifier(node) ||
       policy.ast.is.IsPropertyAccessExpression(node) || policy.ast.is.IsElementAccessExpression(node) ||
       policy.ast.is.IsCallExpression(node) || policy.ast.is.IsParenthesizedExpression(node))) {
       nativeLocations.set(node, classifyCsharpNativeLocation(policy, node, policy.ast.getSourceFile(node)!,
-        operations.classPropertyStorage, classifications));
+        operations.classPropertyStorage.get, classifications));
     }
     const passing = selectCsharpSourceArgument(policy.sourceFacts, node);
     if (passing.kind === "resolved" && passing.argument.passingMode !== "by-value") {
       const expression = passing.argument.storageExpression;
       const declaration = policy.navigation.referenceFor(expression)?.declaration;
-      const property = operations.property(expression)?.sourceOwned;
+      const property = operations.selectedProperty.get(expression)?.sourceOwned;
       const shape = property?.objectShape;
       const member = property?.shapeMember?.kind === "resolved" ? property.shapeMember.member : undefined;
       const field = shape === undefined || member === undefined ? undefined : backing.field(shape.targetType, member.targetName);

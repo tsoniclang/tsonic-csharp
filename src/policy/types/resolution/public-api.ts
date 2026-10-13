@@ -30,7 +30,6 @@ export function resolveNode(
   return resolveNodeWithState(node, sourceFile, { depth: 0 });
 }
 
-
 export function resolveType(
   { resolveTypeWithState }: CsharpTypeResolutionScope,
   type: Type | undefined,
@@ -38,7 +37,6 @@ export function resolveType(
 ): TargetTypeRef | undefined {
   return resolveTypeWithState(type, sourceFile, { depth: 0 });
 }
-
 
 export function resolveStorage(
   { catchVariableStorageCarrier, host, resolveNode, sourceValueDeclaration }: CsharpTypeResolutionScope,
@@ -62,7 +60,6 @@ export function resolveStorage(
     host.ast.getSourceFile(declaration) ?? sourceFile,
   );
 }
-
 
 export function resolveReadStorage(
   { activeNodes, host, resolveMemberAccessTargetType, resolveStorage }: CsharpTypeResolutionScope,
@@ -94,7 +91,6 @@ export function resolveReadStorage(
   }
 }
 
-
 export function catchVariableStorageCarrier(
   { host }: CsharpTypeResolutionScope,
   declaration: Node,
@@ -113,7 +109,6 @@ export function catchVariableStorageCarrier(
   return csharpTsValueTargetType();
 }
 
-
 export function resolveValue(
   { resolveNode, resolveType }: CsharpTypeResolutionScope,
   node: Node | undefined,
@@ -122,7 +117,6 @@ export function resolveValue(
 ): TargetTypeRef | undefined {
   return resolveNode(node, sourceFile) ?? resolveType(type, sourceFile);
 }
-
 
 export function resolveSelectedValue(
   { resolveSelectedValueWithState }: CsharpTypeResolutionScope,
@@ -137,7 +131,6 @@ export function resolveSelectedValue(
     { depth: 0 },
   );
 }
-
 
 export function resolveSelectedValueWithState(
   scope: CsharpTypeResolutionScope,
@@ -262,7 +255,6 @@ export function resolveSelectedValueWithState(
   );
 }
 
-
 export function resolveSelectedType(
   { host, resolveAuthoredAndSelectedSourceType }: CsharpTypeResolutionScope,
   authoredTypeNode: Node | undefined,
@@ -280,7 +272,6 @@ export function resolveSelectedType(
   );
 }
 
-
 export function resolveSelectedResult(
   { host, resolveSelectedDeclarationResult }: CsharpTypeResolutionScope,
   selectedDeclaration: Node | undefined,
@@ -295,7 +286,6 @@ export function resolveSelectedResult(
   );
 }
 
-
 export function resolveTypedLocationOperationPointee(
   { resolveTypedLocationOperationPointeeWithState }: CsharpTypeResolutionScope,
   operation: CsharpSourceTypedLocationOperation,
@@ -307,7 +297,6 @@ export function resolveTypedLocationOperationPointee(
     { depth: 0 },
   );
 }
-
 
 export function resolveTypedLocationOperationPointeeWithState(
   { resolveAuthoredAndSelectedSourceType, resolveReadStorage, resolveSelectedValueWithState }: CsharpTypeResolutionScope,
@@ -376,7 +365,6 @@ export function resolveTypedLocationOperationPointeeWithState(
   }
 }
 
-
 export function resolveSourceCallTypeArguments(
   { resolveSourceCallContract, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
@@ -393,7 +381,6 @@ export function resolveSourceCallTypeArguments(
     callable,
   )?.arguments;
 }
-
 
 export function resolveSourceCallParameter(
   scope: CsharpTypeResolutionScope,
@@ -445,7 +432,6 @@ function resolveSelectedSourceCallParameter(
         { depth: 0 },
       );
 }
-
 
 export function resolveSourceCallParameters(
   scope: CsharpTypeResolutionScope,
@@ -529,7 +515,6 @@ export function resolveSourceCallArgumentParameter(
   }, binding.sourceForm);
 }
 
-
 export function resolveSourceCallResult(
   { resolveSourceCallResultWithState }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
@@ -543,7 +528,6 @@ export function resolveSourceCallResult(
     nativeType,
   );
 }
-
 
 export function resolveSourceCallResultWithState(
   { host, resolveSourceCallContract, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch, sourceCallSelectedDeclaration }: CsharpTypeResolutionScope,
@@ -599,7 +583,6 @@ export function resolveSourceCallResultWithState(
     state,
   ));
 }
-
 
 export function withSourceTargetBindings(
   { createCsharpTypePolicy, host, policy }: CsharpTypeResolutionScope,

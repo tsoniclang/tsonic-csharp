@@ -1,4 +1,4 @@
-import type { CsharpSourceCallContract } from "../callables/source-callable-contract.js";
+import type { CsharpSourceCallContract } from "../../../target-model/records/source-callable-contract.js";
 import { csharpSourceCallArgumentParameter } from "../callables/source-callable-contract.js";
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
@@ -124,7 +124,6 @@ export function resolveAuthoredAndSelectedSourceType(
     selectedQueries.types.relationship(authoredSemanticType, selectedType),
   );
 }
-
 
 export function resolveSourceCallInstantiation(
   scope: CsharpTypeResolutionScope,
@@ -316,7 +315,6 @@ export function resolveSourceCallSelectedType(
   );
 }
 
-
 export function resolveSourceCallableContractType(
   { host, resolveSourceCallInstantiation, resolveSourceCallReceiverTargetType }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
@@ -363,7 +361,6 @@ export function resolveSourceCallableContractType(
   const bindings = inferCsharpTargetTypeParameterBindings(template, receiverType, names);
   return bindings === undefined ? undefined : substituteTargetTypeParameters(substituted, bindings);
 }
-
 
 export function inferSourceCallTargetTypeArguments(
   scope: CsharpTypeResolutionScope,
@@ -474,7 +471,6 @@ function sourceArgumentInferencePairs(
   return pairs;
 }
 
-
 export function sourceCallSelectedDeclaration(
   {  }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
@@ -482,7 +478,6 @@ export function sourceCallSelectedDeclaration(
   return source.sourceCalleeAccess?.selectedDeclaration ??
     source.sourceCallee.selectedDeclaration;
 }
-
 
 export function resolveSourceCallReceiverTargetType(
   { host, resolveSelectedReceiverTargetType, resolveSourceOwnedConstructionResult, resolveTypeWithState, resolveNodeWithState }: CsharpTypeResolutionScope,
@@ -511,7 +506,6 @@ export function resolveSourceCallReceiverTargetType(
         state,
       );
 }
-
 
 export function sourceCallableTypeParametersMatch(
   scope: CsharpTypeResolutionScope,
@@ -564,7 +558,6 @@ function sourceCallTypeParameterIdentities(
   return identities.some(identity => identity === undefined) ? undefined : identities as readonly string[];
 }
 
-
 export function sourceValueDeclaration(
   { host }: CsharpTypeResolutionScope,
   node: Node,
@@ -593,7 +586,6 @@ export function sourceValueDeclaration(
     ? referenced
     : undefined;
 }
-
 
 export function sourceValueDeclarationSyntax(
   { host }: CsharpTypeResolutionScope,

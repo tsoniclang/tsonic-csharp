@@ -1,5 +1,5 @@
+import type { TargetTypeRef } from "../types/model.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 export interface CsharpSourceModuleBootstrap {
   readonly id: string;
@@ -18,7 +18,7 @@ export interface CsharpSourceModuleConstruction {
 }
 
 export interface CsharpSourceModuleConstructionIndex {
-  construction(node: Node): CsharpSourceModuleConstruction | undefined;
+  readonly sourceModuleConstruction: { get(node: Node): CsharpSourceModuleConstruction | undefined };
   entries(): readonly CsharpSourceModuleConstruction[];
   from(sourceFile: SourceFile): readonly CsharpSourceModuleConstruction[];
   targets(): readonly SourceFile[];

@@ -1,8 +1,5 @@
-import type {
-  CsharpObjectShapeFact,
-  CsharpObjectShapeMemberFact,
-  TargetTypeRef,
-} from "../../../target-model/types/model.js";
+import type { CsharpRuntimeUnionObjectShapeMember, CsharpRuntimeUnionObjectShapePropertyResolution } from "../../../target-model/records/runtime-union-object-shapes.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type {
   CsharpObjectShapePolicy,
 } from "./object-shape-policy.js";
@@ -15,22 +12,6 @@ import {
 import {
   targetTypeRefEquals,
 } from "../../../target-model/types/equality.js";
-
-export interface CsharpRuntimeUnionObjectShapeMember {
-  readonly armIndex: number;
-  readonly armType: TargetTypeRef;
-  readonly shape: CsharpObjectShapeFact;
-  readonly member: CsharpObjectShapeMemberFact;
-}
-
-export type CsharpRuntimeUnionObjectShapePropertyResolution =
-  | { readonly kind: "not-runtime-union" }
-  | {
-      readonly kind: "resolved";
-      readonly members: readonly CsharpRuntimeUnionObjectShapeMember[];
-      readonly resultType: TargetTypeRef;
-    }
-  | { readonly kind: "rejected"; readonly reason: string };
 
 export function resolveCsharpRuntimeUnionObjectShapeProperty(
   objectShapes: CsharpObjectShapePolicy,

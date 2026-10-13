@@ -1,12 +1,10 @@
+import type { CsharpRegularExpressionLiteralSelection } from "../../../target-model/records/regexp-literal.js";
 import type {
   AstRegularExpressionLiteralSyntax,
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type {
-  CsharpTypePolicy,
-  TargetTypeRef,
-} from "../../types/index.js";
+import type { CsharpTypePolicy } from "../../types/index.js";
 import {
   isCsharpJsRegExpTargetType,
 } from "../../types/index.js";
@@ -19,21 +17,6 @@ export interface CsharpRegularExpressionLiteralPolicyHost {
   };
   readonly types: CsharpTypePolicy;
 }
-
-export type CsharpRegularExpressionLiteralSelection =
-  | {
-      readonly kind: "resolved";
-      readonly pattern: string;
-      readonly flags: string;
-      readonly targetType: TargetTypeRef;
-    }
-  | {
-      readonly kind: "rejected";
-      readonly code:
-        | "CSHARP_JS_REGEXP_SYNTAX_INVALID"
-        | "CSHARP_JS_REGEXP_TARGET_NOT_PROVEN";
-      readonly message: string;
-    };
 
 export function selectCsharpRegularExpressionLiteral(
   host: CsharpRegularExpressionLiteralPolicyHost,

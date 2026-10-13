@@ -29,13 +29,9 @@ import {
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpRuntimeParameterDefault } from "../../target-model/types/parameter-defaults.js";
-import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
-import type { CsharpTargetOperationClassifications } from "../operations/index.js";
-import type {
-  CsharpDeclarationClassifications,
-  CsharpDefaultParameterContract,
-  CsharpReturnTargetContract,
-} from "./model.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpDeclarationClassifications, CsharpDefaultParameterContract, CsharpReturnTargetContract } from "../../target-model/records/declarations.js";
 
 export function analyzeCsharpDeclarations(
   policy: CsharpPolicyContext,
@@ -49,16 +45,16 @@ export function analyzeCsharpDeclarations(
     visit(sourceFile);
   }
   return Object.freeze({
-    runtimeDefault(node: Node) { return runtimeDefaults.get(node); },
-    methodWrite(node: Node) { return methodWrites.get(node); },
-    returnContract(node: Node) {
+    runtimeDefault: Object.freeze({ get(node: Node) { return runtimeDefaults.get(node); } }),
+    methodWrite: Object.freeze({ get(node: Node) { return methodWrites.get(node); } }),
+    returnContract: Object.freeze({ get(node: Node) {
       return returnContracts.get(node);
-    },
+    } }),
   });
 
   function visit(node: Node): void {
-    if (evidence.isCompileTimeMetadata(node)) return;
-    const property = operations.property(node);
+    if (evidence.compileTimeMetadata.get(node)) return;
+    const property = operations.selectedProperty.get(node);
     if (property?.selection.kind === "source-owned" && property.selection.source.accessMode !== "read") {
       const declaration = property.selection.source.selectedDeclaration;
       const selectedType = property.sourceOwned?.rawReadType;
@@ -84,15 +80,15 @@ export function analyzeCsharpDeclarations(
     if (policy.ast.is.IsParameterDeclaration(node)) {
       const parameter = policy.ast.as.AsParameterDeclaration(node);
       const selected = parameter === undefined ? undefined
-        : evidence.nodeTargetType(parameter.Type ?? parameter.name!);
+        : evidence.nodeTargetType.get(parameter.Type ?? parameter.name!);
       if (parameter?.Initializer !== undefined && selected !== undefined) {
         const owner = policy.ast.parent(node);
-        const contextual = owner === undefined ? undefined : evidence.contextualTargetType(owner);
+        const contextual = owner === undefined ? undefined : evidence.contextualTargetType.get(owner);
         const signature = contextual === undefined ? undefined : getCsharpDelegateSignature(contextual);
         const index = owner === undefined ? -1 : policy.ast.parameters(owner).indexOf(node);
         const incoming = index < 0 ? undefined : signature?.parameters[index];
         const value = incoming === undefined ? undefined : getCsharpNullableElementTargetType(incoming);
-        const source = evidence.expressionType(parameter.Initializer);
+        const source = evidence.expressionType.get(parameter.Initializer);
         const queries = policy.semanticsFor(node);
         const members = source === undefined ? [] : queries.types.isUnion(source)
           ? queries.types.unionOrIntersectionTypes(source) : [source];
@@ -131,7 +127,7 @@ function withAbsenceCompletion(
 ): CsharpReturnTargetContract {
   if (contract.kind !== "resolved") return contract;
   const asynchronous = HasSyntacticModifier(policy.ast, declaration, ModifierFlagsAsync);
-  const contextual = getCsharpDelegateSignature(evidence.contextualTargetType(declaration))?.returnType;
+  const contextual = getCsharpDelegateSignature(evidence.contextualTargetType.get(declaration))?.returnType;
   const inferred = Node_Type(policy.ast, declaration) === undefined;
   const type = asynchronous && inferred
     ? selectCsharpContextualAsyncReturn(policy, contract.type, contextual) ?? contract.type
@@ -153,12 +149,12 @@ function classifyReturnContract(
   operations: CsharpTargetOperationClassifications,
   declaration: Node,
 ): CsharpReturnTargetContract {
-  const baseline = evidence.inferredCallableReturnType(declaration);
+  const baseline = evidence.inferredCallableReturnType.get(declaration);
   const authoredReturnNode = Node_Type(policy.ast, declaration);
   const authoredReturnType = authoredReturnNode === undefined
     ? undefined
-    : evidence.nodeTargetType(authoredReturnNode);
-  const pointer = evidence.pointerReturn(declaration);
+    : evidence.nodeTargetType.get(authoredReturnNode);
+  const pointer = evidence.pointerReturn.get(declaration);
   if (authoredReturnNode !== undefined) {
     return authoredReturnType === undefined
       ? {
@@ -184,9 +180,9 @@ function classifyReturnContract(
   const observed: TargetTypeRef[] = [];
   let incomplete = false;
   collectDirectReturnExpressions(policy, declaration, (expression) => {
-    const type = operations.resultType(expression) ??
-      evidence.readStorageTargetType(expression) ??
-      evidence.nodeTargetType(expression);
+    const type = operations.operationResultType.get(expression) ??
+      evidence.readStorageTargetType.get(expression) ??
+      evidence.nodeTargetType.get(expression);
     if (type === undefined) {
       incomplete = true;
     } else {
@@ -199,7 +195,7 @@ function classifyReturnContract(
     observed,
     incomplete,
   );
-  const contextualReturn = getCsharpDelegateSignature(evidence.contextualTargetType(declaration))?.returnType;
+  const contextualReturn = getCsharpDelegateSignature(evidence.contextualTargetType.get(declaration))?.returnType;
   if (contract.kind === "resolved" && isCsharpJsValueTargetType(contract.type) && contextualReturn !== undefined &&
     csharpConversionIsApplicable(selectCsharpConversion(policy, contract.type, contextualReturn, "implicit"), "implicit")) {
     return { kind: "resolved", type: contextualReturn };

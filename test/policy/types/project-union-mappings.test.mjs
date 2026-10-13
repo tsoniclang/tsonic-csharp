@@ -44,7 +44,9 @@ function fixture({ siblings = false, nested = false, authored = false } = {}) {
 function planningContext(policy) {
   const analysis = analyzeCsharpConversions(policy, {}, {});
   const conversions = analysis.seal({ operations: {}, expectedTypes: {}, storage: {} });
-  return { program: { source: { ast: { pos: () => 0, end: () => 5 } }, conversions,
+  return { program: { source: { ast: { pos: () => 0, end: () => 5 } },
+    records: { conversion: conversions.conversion },
+    conversions: { matchesUnionMapping: conversions.matchesUnionMapping },
     typeDefinitions: policy.typeDefinitions }, scope: {}, names: { temporaryName: name => name } };
 }
 
@@ -118,7 +120,7 @@ test("C# sealed nominal mapping validation rejects stale relationships and malfo
   const { source, target, policy } = fixture({ nested: true });
   const selection = selectCsharpConversion(policy, source, target, "implicit");
   const context = planningContext(policy);
-  assert.equal(context.program.conversions.select(source, target, "implicit"), undefined);
+  assert.equal(context.program.records.conversion.get(source, target, "implicit"), undefined);
   assert.equal(context.program.conversions.matchesUnionMapping(source, target, selection), true);
   let getterCalls = 0;
   const getter = { ...selection.arms[1].carrier };

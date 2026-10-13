@@ -15,9 +15,7 @@ test("nullable union projections require exact payload and absence facts", () =>
   const selection = { kind: "runtime-union-projection", path: [{ union, index: 1 }], armType: string, retainsAbsence: true };
   const diagnostics = [];
   const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined } };
-  const context = { scope: { typeParameterNames: new Map() }, program: { conversions: {
-    matchesUnionProjection: (source, target, selection) => csharpRuntimeUnionProjectionMatches(policy, source, target, selection),
-  } } };
+  const context = { scope: { typeParameterNames: new Map() }, program: { conversions: { matchesUnionProjection: (source, target, selection) => csharpRuntimeUnionProjectionMatches(policy, source, target, selection) } } };
   const projected = planCsharpRuntimeUnionProjection({}, source, target, selection, input, diagnostics, context);
   assertNoTargetDiagnostics(diagnostics);
   assert.deepEqual(projected, { kind: "InvocationExpression", callee: { kind: "ConditionalAccessExpression", receiver: input, name: "As2" }, arguments: [] });

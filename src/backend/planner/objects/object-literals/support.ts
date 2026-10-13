@@ -64,7 +64,7 @@ export function findObjectShapeMemberForProperty(
     name !== undefined &&
     input.program.source.ast.is.IsComputedPropertyName(name)
   ) {
-    const selected = input.program.sourceEvidence.wellKnownSymbol(name);
+    const selected = input.program.records.wellKnownSymbol.get(name);
     if (selected === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         property,

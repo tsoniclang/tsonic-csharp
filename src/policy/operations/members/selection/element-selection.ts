@@ -4,9 +4,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type {
-  CsharpProviderTargetRelation,
-} from "../../../../providers/native/relations/index.js";
+import type { CsharpProviderTargetRelation } from "../../../../target-model/identities/provider-relations.js";
 import type {
   CsharpTargetMember,
 } from "../../../types/index.js";

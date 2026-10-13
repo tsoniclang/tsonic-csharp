@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import { IsTypeSyntaxNode, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import { selectCsharpSourceArgument } from "../../policy/operations/members/selection/argument-selection.js";
 
 export function classifyCsharpModuleFieldDemand(
@@ -10,7 +10,7 @@ export function classifyCsharpModuleFieldDemand(
 ): (declaration: Node) => boolean {
   const fields = new Set<Node>();
   const visit = (node: Node): void => {
-    if (evidence.isCompileTimeMetadata(node) || IsTypeSyntaxNode(policy.ast, node) ||
+    if (evidence.compileTimeMetadata.get(node) || IsTypeSyntaxNode(policy.ast, node) ||
       policy.types.nativeUnreachable(node)) return;
     const selected = selectCsharpSourceArgument(policy.sourceFacts, node);
     if (selected.kind === "resolved" && selected.argument.passingMode !== "by-value") {

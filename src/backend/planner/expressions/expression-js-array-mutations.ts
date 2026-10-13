@@ -30,7 +30,7 @@ export function tryPlanJsArrayMutationExpression(
   planExpected: ExpectedExpressionPlanner,
   state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
-  const selection = input.program.operations.jsArrayMutation(node);
+  const selection = input.program.records.jsArrayMutation.get(node);
   if (selection === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,

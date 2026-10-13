@@ -198,7 +198,7 @@ export function tryPlanSourceSyntaxExpression(
       }
       const awaitedCarrierResolution = resolveRuntimeCarrierForExpression(input, expression.Expression, sourceFile);
       const awaitedCarrier = probeCarrierFromResolution(awaitedCarrierResolution);
-      const completion = input.program.operations.awaitCompletion(node);
+      const completion = input.program.records.awaitCompletion.get(node);
       const awaitedResultCarrier = completion?.result;
       if (awaitedCarrier === undefined || completion === undefined || awaitedResultCarrier === undefined) {
         const detail = missingCarrierDiagnosticDetail(awaitedCarrierResolution, "Runtime carrier fact is missing for the awaited expression.");

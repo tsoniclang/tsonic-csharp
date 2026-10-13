@@ -88,7 +88,7 @@ export function getCsharpTypeFromProjectSourceReference(
     return undefined;
   }
   const nameNode = Node_Name(input.program.source.ast, reference.declaration);
-  const factory = input.program.classFactories.get(reference.declaration);
+  const factory = input.program.records.classFactory.get(reference.declaration);
   if (factory !== undefined) return { kind: "QualifiedName",
     left: { kind: "IdentifierName", name: sanitizeIdentifier(factory.instanceScope) },
     name: sanitizeIdentifier(factory.instanceName) };

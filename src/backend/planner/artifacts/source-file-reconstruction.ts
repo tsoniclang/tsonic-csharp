@@ -16,9 +16,6 @@ import type {
 import type {
   CsharpPlanningContext,
 } from "../context.js";
-import type {
-  CsharpModuleInitializationIndex,
-} from "../../../analysis/module-initialization/index.js";
 import {
   planSourceFile,
 } from "../program/source-file.js";
@@ -42,7 +39,6 @@ export interface CsharpReconstructedSourceFiles {
 
 export function reconstructCsharpSourceFiles(
   input: CsharpPlanningContext,
-  moduleInitialization: CsharpModuleInitializationIndex,
   diagnostics: TargetDiagnostic[],
 ): CsharpReconstructedSourceFiles | undefined {
   const sourceFilesByOwner = new Map<string, SourceFile>();
@@ -70,7 +66,7 @@ export function reconstructCsharpSourceFiles(
   const plannedByOwner = new Map<string, PlannedCsharpSourceFile | undefined>();
   let objectShapes: ReturnType<typeof planCsharpObjectShapeSourceFile>;
   const maximumReconstructionCount = csharpArtifactReconstructionBudget(
-    sourceFilesByOwner.size + input.program.captureStorage.frames.length + 1,
+    sourceFilesByOwner.size + input.program.captureFrames.length + 1,
   );
   if (maximumReconstructionCount === undefined) {
     diagnostics.push(reconstructionDiagnostic(
@@ -127,7 +123,7 @@ export function reconstructCsharpSourceFiles(
       }
       return reconstructSourceArtifact(owner, input, moduleDependencies.dependencies, diagnosticsByOwner,
         candidateDiagnostics => {
-          const value = planSourceFile(sourceFile, input, candidateDiagnostics, moduleInitialization);
+          const value = planSourceFile(sourceFile, input, candidateDiagnostics);
           return { value, unit: value?.unit };
         }, value => { plannedByOwner.set(owner, value); });
     },

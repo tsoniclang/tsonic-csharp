@@ -34,7 +34,7 @@ export function planClassDeclaration(
   const declaration = input.program.source.ast.is.IsClassExpression(node)
     ? input.program.source.ast.as.AsClassExpression(node)! : AsClassDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "class declaration", diagnostics, ["abstract"]);
-  const factory = input.program.classFactories.get(node);
+  const factory = input.program.records.classFactory.get(node);
   const staticCompanion = input.types.projectTypes.definitionContainingDeclaration(node)?.staticCompanion === true;
   const className = declaration.name === undefined && factory !== undefined ? factory.instanceName
     : planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");

@@ -1,21 +1,14 @@
+import type { CsharpNamedSelfBinding } from "../../target-model/records/capture-storage.js";
 import type { Node } from "@tsonic/tsts";
 import type { SourceLexicalCaptureSelection, TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
-import type { CsharpStorageIssue } from "../storage/model.js";
-
-export interface CsharpNamedSelfBinding {
-  readonly declaration: Node;
-  readonly calls: readonly Node[];
-  readonly values: readonly Node[];
-  readonly captures: readonly Node[];
-  readonly capturesReceiver: boolean;
-}
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpStorageIssue } from "../../target-model/records/storage.js";
 
 export function selectCsharpNamedSelfBinding(
   source: TargetSourceProgram,
   declaration: Node,
   lexical: SourceLexicalCaptureSelection,
-  evidence: Pick<CsharpSourceEvidenceIndex, "isCompileTimeMetadata">,
+  evidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata">,
   issues: CsharpStorageIssue[],
 ): CsharpNamedSelfBinding | undefined {
   if (!source.ast.is.IsFunctionExpression(declaration) || source.ast.name(declaration) === undefined ||
@@ -24,7 +17,7 @@ export function selectCsharpNamedSelfBinding(
   const calls: Node[] = [];
   const values: Node[] = [];
   for (const reference of lexical.selfReferences) {
-    if (evidence.isCompileTimeMetadata(reference)) continue;
+    if (evidence.compileTimeMetadata.get(reference)) continue;
     const use = uses.get(reference);
     if (use === undefined || use.kind === "source-linkage" || use.kind === "type-only" || use.role === "write") {
       issues.push({ node: reference, code: "CSHARP_NAMED_SELF_NOT_CLOSED",
@@ -35,7 +28,7 @@ export function selectCsharpNamedSelfBinding(
   }
   if (calls.length === 0 && values.length === 0) return undefined;
   return Object.freeze({ declaration, calls: Object.freeze(calls), values: Object.freeze(values),
-    captures: Object.freeze(lexical.captures.filter(capture => !evidence.isCompileTimeMetadata(capture.declaration))
+    captures: Object.freeze(lexical.captures.filter(capture => !evidence.compileTimeMetadata.get(capture.declaration))
       .map(capture => capture.declaration)),
     capturesReceiver: lexical.receivers.length > 0,
   });

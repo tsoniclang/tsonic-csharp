@@ -1,0 +1,171 @@
+import type { CsharpConversionSelection } from "../conversions/selection.js";
+import type { CsharpJsValueOperationSelection } from "../operations/js-values.js";
+import type { CsharpObjectShapeFact, CsharpTargetBinaryExecutionDriver, CsharpTypeofRuntimeKind, TargetTypeRef } from "../types/model.js";
+import type { CsharpObjectShapeMemberLookupResult } from "../types/object-shape-members.js";
+import type { CsharpTypeofResult } from "../types/runtime-kind.js";
+import type { CsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
+import type { CsharpElementDeletionSelection } from "./element-deletion.js";
+import type { CsharpJsStringConversionSelection } from "./explicit-js-string.js";
+import type { CsharpJsArrayMutationSelection } from "./js-array-mutations.js";
+import type { CsharpJsValueObjectShapePropertyResolution } from "./js-value-object-shape-property.js";
+import type { CsharpResolvedResourceManagement } from "./management.js";
+import type { CsharpTargetCallSelection, CsharpTargetElementSelection, CsharpTargetPropertySelection } from "./member-selections.js";
+import type { ResolvedSourceCallInfo } from "./members.js";
+import type { CsharpMemoryBindingSelection } from "./memory-bindings.js";
+import type { CsharpNativePointerOperationSelection } from "./native-pointers.js";
+import type { CsharpProjectConstructibleTypeProjection } from "./object-shapes.js";
+import type { CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpResolvedDestructuringAssignmentOperation, CsharpResolvedUnaryOperation } from "./operator-selection.js";
+import type { CsharpRegularExpressionLiteralSelection } from "./regexp-literal.js";
+import type { CsharpRuntimeUnionObjectShapePropertyResolution } from "./runtime-union-object-shapes.js";
+import type { CsharpResolvedIteration } from "./selection.js";
+import type { CsharpSourceFlowCallSelection } from "./source-flow.js";
+import type { CsharpSwitchSelection } from "./switch.js";
+import type { CsharpNativeRefReturnSelection, CsharpTypedLocationOperationSelection } from "./typed-locations.js";
+import type { CsharpTypeofComparisonSelection } from "./typeof.js";
+import type { CsharpProviderValueSelection } from "./value-selection.js";
+import type { ExtensionFactSubject, Node } from "@tsonic/tsts";
+
+export interface CsharpMethodTypeArgumentProjectionClassification {
+  readonly targetTypeParameterIndex: number;
+  readonly projection: CsharpProjectConstructibleTypeProjection;
+}
+
+export interface CsharpSourceCallArgumentClassification {
+  readonly sourceCall?: import("../operations/source-callees.js").CsharpSourceCalleeSelection;
+  readonly sourceNativeParameters?: readonly import("../types/model.js").CsharpTargetParameter[];
+  readonly sourceMethodValue?: NonNullable<import("../types/model.js").CsharpTargetNamedTypeRef["csharpMethodValue"]>;
+  readonly sourceParameterTypes?: readonly (TargetTypeRef | undefined)[];
+  readonly sourceArgumentParameterTypes?: readonly (TargetTypeRef | undefined)[];
+}
+
+export interface CsharpCallClassification
+  extends CsharpSourceCallArgumentClassification {
+  readonly typeTest?: import("../operations/type-tests.js").CsharpClosedTypeTest;
+  readonly sourceResult?: import("../operations/source-call-results.js").CsharpSourceCallResult;
+  readonly optionalCallee?: {
+    readonly expression: Node;
+    readonly storage: TargetTypeRef;
+    readonly type: TargetTypeRef;
+    readonly guard: true;
+  };
+  readonly optionalReceiver?: {
+    readonly expression: Node;
+    readonly storage: TargetTypeRef;
+    readonly type: TargetTypeRef;
+    readonly guard: boolean;
+    readonly parameterType?: TargetTypeRef;
+    readonly conversion?: CsharpConversionSelection;
+  };
+  readonly unionCall: import("./union-calls.js").CsharpUnionCallClassification;
+  readonly source?: ResolvedSourceCallInfo;
+  readonly sourceFlow: CsharpSourceFlowCallSelection;
+  readonly jsValue: CsharpJsValueOperationSelection;
+  readonly target?: CsharpTargetCallSelection;
+  readonly selectedResultType?: TargetTypeRef;
+  readonly sourceTypeArguments?: readonly TargetTypeRef[];
+  readonly methodTypeArgumentProjections?: readonly CsharpMethodTypeArgumentProjectionClassification[];
+}
+
+export interface CsharpConstructionClassification
+  extends CsharpSourceCallArgumentClassification {
+  readonly jsValue: CsharpJsValueOperationSelection;
+  readonly target?: CsharpTargetCallSelection;
+  readonly selectedResultType?: TargetTypeRef;
+  readonly methodTypeArgumentProjections?: readonly CsharpMethodTypeArgumentProjectionClassification[];
+}
+
+export interface CsharpElementClassification {
+  readonly sourceOwned?: CsharpSourceOwnedMemberClassification;
+  readonly receiverProjection?: CsharpMemberReceiverProjection;
+  readonly jsValue: CsharpJsValueOperationSelection;
+  readonly target?: CsharpTargetElementSelection;
+  readonly receiverType?: TargetTypeRef;
+  readonly selectedResultType?: TargetTypeRef;
+  readonly flowReadConversion?: CsharpConversionSelection;
+}
+
+export interface CsharpSourceOwnedMemberClassification {
+  readonly projectedWrite?: import("./typed-location-storage.js").CsharpTypedLocationStorageSelection;
+  readonly jsValueOperation: CsharpJsValueOperationSelection;
+  readonly objectShape?: CsharpObjectShapeFact;
+  readonly selectedSubjects: readonly ExtensionFactSubject[];
+  readonly selectedReceiverType?: TargetTypeRef;
+  readonly runtimeUnionProperty: CsharpRuntimeUnionObjectShapePropertyResolution;
+  readonly jsValueProperty: CsharpJsValueObjectShapePropertyResolution;
+  readonly shapeMember?: CsharpObjectShapeMemberLookupResult;
+  readonly rawReadType?: TargetTypeRef;
+  readonly selectedReadType?: TargetTypeRef;
+  readonly jsValuePropertyWrite: CsharpJsValueOperationSelection;
+}
+
+export interface CsharpPropertyClassification {
+  readonly receiverProjection?: CsharpMemberReceiverProjection;
+  readonly selection: CsharpTargetPropertySelection;
+  readonly sourceOwned?: CsharpSourceOwnedMemberClassification;
+}
+
+export interface CsharpMemberReceiverProjection {
+  readonly source: TargetTypeRef;
+  readonly target: TargetTypeRef;
+  readonly conversion: CsharpConversionSelection;
+}
+
+export interface CsharpBinaryClassification {
+  readonly instanceTest?: import("../operations/type-tests.js").CsharpClosedTypeTest;
+  readonly instanceFactory?: TargetTypeRef;
+  readonly jsValue: CsharpJsValueOperationSelection;
+  readonly target: CsharpOperationSelection<CsharpResolvedBinaryOperation>;
+  readonly destructuring: CsharpOperationSelection<
+    CsharpResolvedDestructuringAssignmentOperation
+  >;
+  readonly propertyWrite?: CsharpJsValueOperationSelection;
+  readonly elementWrite?: CsharpJsValueOperationSelection;
+  readonly typeofComparison?: {
+    readonly operand: Node;
+    readonly runtimeKind: CsharpTypeofRuntimeKind;
+    readonly selection: CsharpTypeofComparisonSelection;
+  };
+}
+
+export interface CsharpUnaryClassification {
+  readonly jsValue: CsharpJsValueOperationSelection;
+  readonly target: CsharpOperationSelection<CsharpResolvedUnaryOperation>;
+}
+
+export interface CsharpTargetOperationClassifications {
+  readonly awaitCompletion: { get(node: Node): import("../types/await-completions.js").CsharpAwaitCompletion | undefined };
+  readonly classPropertyStorage: { get(declaration: Node): import("./class-property-storage.js").CsharpClassPropertyStorage | undefined };
+  readonly borrowedSequence: { get(expression: Node): CsharpBorrowedSequenceInput | undefined };
+  readonly nativeGuardResult: { get(expression: Node): boolean | undefined };
+  readonly nativeUnreachable: { get(node: Node): boolean };
+  readonly memoryBinding: { get(node: Node): CsharpMemoryBindingSelection | undefined };
+  binaryExecutionDriver(): CsharpTargetBinaryExecutionDriver | undefined;
+  readonly operationResultType: { get(node: Node): TargetTypeRef | undefined };
+  readonly selectedCall: { get(node: Node): CsharpCallClassification | undefined };
+  readonly selectedConstruction: { get(node: Node): CsharpConstructionClassification | undefined };
+  readonly selectedProperty: { get(node: Node): CsharpPropertyClassification | undefined };
+  readonly sourceMember: { get(node: Node): CsharpSourceOwnedMemberClassification | undefined };
+  readonly selectedElement: { get(node: Node): CsharpElementClassification | undefined };
+  readonly binaryOperation: { get(node: Node): CsharpBinaryClassification | undefined };
+  readonly switchStatement: { get(node: Node): CsharpSwitchSelection | undefined };
+  readonly unaryOperation: { get(node: Node): CsharpUnaryClassification | undefined };
+  readonly iteration: { get(node: Node): CsharpOperationSelection<CsharpResolvedIteration> | undefined };
+  readonly resource: { get(node: Node): CsharpOperationSelection<CsharpResolvedResourceManagement> | undefined };
+  readonly nativePointer: { get(node: Node): CsharpNativePointerOperationSelection | undefined };
+  readonly typedLocation: { get(node: Node): CsharpTypedLocationOperationSelection | undefined };
+  readonly nativeRefReturn: { get(node: Node): CsharpNativeRefReturnSelection | undefined };
+  readonly jsCondition: { get(node: Node): CsharpJsValueOperationSelection | undefined };
+  readonly jsTypeof: { get(node: Node): CsharpJsValueOperationSelection | undefined };
+  readonly typeofRuntimeKind: { get(node: Node): CsharpTypeofResult | undefined };
+  readonly jsVoid: { get(node: Node): CsharpJsValueOperationSelection | undefined };
+  readonly jsObjectLiteral: { get(node: Node): CsharpJsValueOperationSelection | undefined };
+  readonly jsArrayMutation: { get(node: Node): CsharpJsArrayMutationSelection | undefined };
+  readonly elementDeletion: { get(node: Node): CsharpElementDeletionSelection | undefined };
+  readonly jsStringConversion: { get(node: Node): CsharpJsStringConversionSelection | undefined };
+  readonly providerValue: { get(node: Node): CsharpProviderValueSelection | undefined };
+  readonly regularExpression: { get(node: Node): CsharpRegularExpressionLiteralSelection | undefined };
+  readonly throwable: { get(node: Node): boolean | undefined };
+  readonly throwValue: { get(node: Node): { readonly expression: Node; readonly sourceCarrier: TargetTypeRef | undefined;
+    readonly targetCarrier: TargetTypeRef | undefined } | undefined };
+  readonly exactCatchRethrow: { get(node: Node): boolean };
+}

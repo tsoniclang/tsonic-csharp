@@ -38,7 +38,6 @@ export function captureDependencies<Value>(
   }
 }
 
-
 export function dependOn(
   { dependencyCapture, contracts }: CsharpArtifactGraphScope,
   owner: string,

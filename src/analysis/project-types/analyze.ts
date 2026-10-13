@@ -6,9 +6,7 @@ import type {
 import type {
   CsharpProjectTypePolicy,
 } from "../../policy/types/index.js";
-import type {
-  CsharpProjectTypeClassifications,
-} from "./model.js";
+import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { snapshotCsharpTargetTypes } from "../../target-model/types/snapshot.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
@@ -31,7 +29,7 @@ export function sealCsharpProjectTypeClassifications(
   >>();
   const constructorsByDeclaration = new WeakMap<
     Node,
-    readonly import("../../policy/types/index.js").CsharpProjectForwardingConstructor[]
+    readonly import("../../target-model/records/project-types.js").CsharpProjectForwardingConstructor[]
   >();
 
   for (const definition of policy.catalog.definitions) {

@@ -26,7 +26,7 @@ export function getCsharpTypeFromSemanticType(
   if (type === undefined) {
     return undefined;
   }
-  const classification = input.program.sourceEvidence.semanticType(
+  const classification = input.program.records.semanticType.get(
     type,
     sourceFile,
   );

@@ -36,11 +36,9 @@ function fixture(text) {
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   visit(file);
-  const evidence = {
-    isCompileTimeMetadata: node => metadata.has(node),
-    storageTargetType: node => storageTypes.get(node),
-    nodeTargetType: node => types.get(node),
-  };
+  const evidence = { compileTimeMetadata: { get: node => metadata.has(node) },
+    storageTargetType: { get: node => storageTypes.get(node) },
+    nodeTargetType: { get: node => types.get(node) } };
   const declaration = name => {
     const selected = declarations.get(name);
     assert.equal(selected !== undefined, true, `exact declaration ${name}`);
@@ -53,9 +51,9 @@ function fixture(text) {
   const select = (groups = new Map(), physicalType = (_declaration, type) => type, valueOwned = new Set()) => {
     const issues = [];
     const selected = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, valueOwned,
-      { declarations: { runtimeDefault: node => runtimeDefaults.has(node) ? {} : undefined },
-        storage: { nativeBacking: node => nativeBackings.get(node), requiresTypedLocationIdentity: () => false },
-        expectedTypes: { callableTarget: () => undefined } });
+      { declarations: { runtimeDefault: Object.freeze({ get: node => runtimeDefaults.has(node) ? {} : undefined }) },
+        storage: { nativeBacking: Object.freeze({ get: node => nativeBackings.get(node) }), typedLocationIdentity: Object.freeze({ get: () => false }) },
+        expectedTypes: { callableTarget: Object.freeze({ get: () => undefined }) } });
     return { ...selected, groups, issues };
   };
   return { source, loops, declaration, owner, types, storageTypes, metadata, runtimeDefaults, nativeBackings, select };

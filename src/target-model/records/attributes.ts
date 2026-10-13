@@ -6,6 +6,6 @@ export interface CsharpAttributeApplication {
 }
 
 export interface CsharpAttributeApplicationIndex {
-  forDeclaration(declaration: Node): readonly CsharpAttributeApplication[];
-  isErasedSubject(subject: Node): boolean;
+  readonly attributeApplication: { get(declaration: Node): readonly CsharpAttributeApplication[] };
+  readonly erasedAttribute: { get(subject: Node): boolean };
 }

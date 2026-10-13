@@ -1,5 +1,5 @@
 import type { TargetTypeRef } from "../../../../target-model/types/index.js";
-import type { CsharpStorageClassifications } from "../../../../analysis/storage/model.js";
+import type { CsharpStorageClassifications } from "../../../../target-model/records/storage.js";
 import { planCsharpNativeMemoryCall } from "../../expressions/native-memory.js";
 import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -47,7 +47,7 @@ export function renderObjectShapeMembers(
   receiverBoundMethodKeys: ReadonlySet<string>,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
-  storage: CsharpStorageClassifications,
+  storage: Pick<CsharpStorageClassifications, "nativeField">,
   deferredCaptures: ReadonlySet<string> = new Set(),
 ): CsharpClassDeclaration["members"] | undefined {
   const members = canonicalCsharpObjectShapeMembers(fact.members).flatMap((member) => {
@@ -92,7 +92,7 @@ export function renderObjectShapeMembers(
       );
     }
     if (member.bound === true) return renderBoundRecordMember(typeParameterNames, fact, member, type);
-    const backing = storage.nativeField(fact.targetType, member.targetName);
+    const backing = storage.nativeField.get(fact.targetType, member.targetName);
     if (backing !== undefined) {
       const locationType = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(member.type), typeParameterNames);
       const initializer = planCsharpNativeMemoryCall(typeParameterNames, "Allocate", { kind: "DefaultExpression", type }, backing.layout);
@@ -137,7 +137,7 @@ export function renderObjectShapeMembers(
 
 function renderCopiedGenericMethod(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
-  shape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number], storage: CsharpStorageClassifications,
+  shape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number], storage: Pick<CsharpStorageClassifications, "nativeField">,
 ): readonly (CsharpTypeMember | undefined)[] {
   const storageType = member.methodStorageType === undefined ? undefined : csharpTypeFromTargetTypeRef(member.methodStorageType, typeParameterNames);
   const contract = renderCsharpStructuralInterfaceMembers(typeParameterNames, { ...shape, members: [member] }, storage, false, []);

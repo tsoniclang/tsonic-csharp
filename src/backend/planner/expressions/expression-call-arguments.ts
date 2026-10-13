@@ -39,7 +39,7 @@ export function planCallArgumentCore(
   state?: DestructuringPlannerState,
   selectedTargetParameter?: CsharpTargetParameter,
 ): CsharpPlannedArgument | undefined {
-  const selected = input.program.sourceEvidence.argument(node);
+  const selected = input.program.records.sourceArgument.get(node);
   if (selected === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -118,7 +118,7 @@ export function planCallArgumentCore(
   if (expression === undefined) {
     return undefined;
   }
-  const nativeLocation = passing === undefined ? undefined : input.program.storage.nativeLocation(argument.storageExpression);
+  const nativeLocation = passing === undefined ? undefined : input.program.records.nativeLocation.get(argument.storageExpression);
   if (passing !== undefined && (nativeLocation?.kind !== "resolved" || nativeLocation.address === undefined ||
     (passing === "ref" || passing === "out") && nativeLocation.address.passing !== "byref-readwrite")) {
     diagnostics.push(unsupportedNodeDiagnostic(node, nativeLocation?.kind === "rejected" ? nativeLocation.reason

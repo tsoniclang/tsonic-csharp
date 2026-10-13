@@ -13,7 +13,7 @@ export function planCsharpProjectCallableAdapters(
   node: Node, method: CsharpMethodDeclaration, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpMethodDeclaration[] {
-  const dispatch = input.program.callableAdapters.get(node);
+  const dispatch = input.program.records.callableDispatch.get(node);
   if (dispatch === undefined) return [];
   const methods: CsharpMethodDeclaration[] = [];
   for (const adapter of dispatch.adapters) {

@@ -5,9 +5,7 @@ import type {
 import type {
   TargetBindingFact,
 } from "../../target-model/types/model.js";
-import type {
-  CsharpProviderTargetRelation,
-} from "../native/relations/index.js";
+import type { CsharpProviderTargetRelation } from "../../target-model/identities/provider-relations.js";
 
 export type CsharpProviderRelationResolution =
   | {

@@ -26,7 +26,7 @@ function classifications(source, destination) {
       }],
     }) } }),
   };
-  return analyzeCsharpObjectShapes(policy, { targetTypes: [] }, {});
+  return analyzeCsharpObjectShapes(policy, { targetTypes: [] }, {  });
 }
 
 test("C# structural identity is accepted without manufacturing a self-inheritance edge", () => {

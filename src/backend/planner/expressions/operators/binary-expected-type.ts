@@ -21,10 +21,10 @@ export function tryPlanBinaryExpressionWithExpectedType(
   state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
   if (!input.program.source.ast.is.IsBinaryExpression(node)) return undefined;
-  const baseline = input.program.operations.binary(node)?.target;
+  const baseline = input.program.records.binaryOperation.get(node)?.target;
   if (expectedTargetType === undefined || baseline?.kind === "resolved" &&
     !binaryOperationUsesExpectedResultType(baseline.sourceOperator)) return undefined;
-  const selection = input.program.expectedTypes.binaryExpected(node, expectedTargetType);
+  const selection = input.program.records.expectedBinary.get(node, expectedTargetType);
   if (selection === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node,
       "C# binary planning requires a sealed expected-target operation classification that analysis did not produce."));

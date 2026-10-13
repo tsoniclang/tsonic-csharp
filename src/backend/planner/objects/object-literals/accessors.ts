@@ -195,7 +195,7 @@ function planSetter(
   }
   const sourceTarget = csharpDelegateTargetType("System.Action", [valueType]);
   const bodyTarget = lambdaTargetContextFromTargetRef(input.scope.typeParameterNames, sourceTarget);
-  const sealedParameterType = input.program.storage.requiredType(parameterNode);
+  const sealedParameterType = input.program.records.requiredStorageType.get(parameterNode);
   if (
     bodyTarget === undefined ||
     sealedParameterType === undefined ||

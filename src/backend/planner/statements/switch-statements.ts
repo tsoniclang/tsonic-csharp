@@ -26,7 +26,7 @@ export function planSwitchStatement(
   state: DestructuringPlannerState,
   planner: SwitchStatementPlanner,
 ): CsharpStatement | undefined {
-  const selection = input.program.operations.switchStatement(node);
+  const selection = input.program.records.switchStatement.get(node);
   if (selection === undefined || selection.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection?.reason ?? "Switch requires sealed C# classification."));
     return undefined;

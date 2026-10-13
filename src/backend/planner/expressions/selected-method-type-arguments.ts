@@ -3,9 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpSelectedTargetCall,
-} from "../../../analysis/operations/index.js";
+import type { CsharpSelectedTargetCall } from "../../../target-model/records/members.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -45,8 +43,8 @@ export function renderSelectedCsharpTargetMethodTypeArguments(
     return undefined;
   }
   const classification = input.program.source.ast.is.IsNewExpression(node)
-    ? input.program.operations.construction(node)
-    : input.program.operations.call(node);
+    ? input.program.records.selectedConstruction.get(node)
+    : input.program.records.selectedCall.get(node);
   const classifiedProjections = new Map(
     (classification?.methodTypeArgumentProjections ?? []).map((projection) =>
       [projection.targetTypeParameterIndex, projection.projection] as const

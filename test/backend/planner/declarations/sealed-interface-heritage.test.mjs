@@ -61,7 +61,7 @@ test("generated method-value handles reuse only the identical available inherite
   const member = { memberKind: "method", sourceName: "read", targetName: "read",
     sourceKey: { kind: "property", name: "read" }, type: csharpDelegateTargetType("System.Func", [integer]) };
   const shape = { members: [member] };
-  const storage = { nativeField: () => undefined };
+  const storage = { nativeField: { get: () => undefined } };
   const inherited = [{ shape, methodValues: true }];
   const rendered = renderCsharpStructuralInterfaceMembers(undefined, shape, storage, true, inherited);
   assert.equal(rendered.length, 1);

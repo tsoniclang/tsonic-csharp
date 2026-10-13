@@ -101,7 +101,7 @@ export function tryPlanBinaryExpression(
     expression?.Left !== undefined &&
     expression.Right !== undefined
   ) {
-    const classification = input.program.operations.binary(node);
+    const classification = input.program.records.binaryOperation.get(node);
     if (classification === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
@@ -177,7 +177,7 @@ export function tryPlanBinaryExpression(
       return jsValueAssignment.expression;
     }
   }
-  const classification = input.program.operations.binary(node);
+  const classification = input.program.records.binaryOperation.get(node);
   if (classification === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -219,7 +219,7 @@ function tryPlanJsValueAssignment(
   if (input.program.source.ast.is.IsPropertyAccessExpression(left)) {
     const property = input.program.source.ast.as.AsPropertyAccessExpression(left);
     const receiverNode = property?.Expression;
-    const propertyClassification = input.program.operations.property(left);
+    const propertyClassification = input.program.records.selectedProperty.get(left);
     if (propertyClassification === undefined) {
       return { handled: false };
     }
@@ -307,7 +307,7 @@ function tryPlanJsValueAssignment(
     if (sourceOperator !== "=") {
       return { handled: false };
     }
-    const selection = input.program.operations.binary(node)?.propertyWrite;
+    const selection = input.program.records.binaryOperation.get(node)?.propertyWrite;
     if (selection === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
@@ -351,7 +351,7 @@ function tryPlanJsValueAssignment(
     const element = input.program.source.ast.as.AsElementAccessExpression(left);
     const receiverNode = element?.Expression;
     const argumentNode = element?.ArgumentExpression;
-    const selection = input.program.operations.binary(node)?.elementWrite;
+    const selection = input.program.records.binaryOperation.get(node)?.elementWrite;
     if (selection === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,

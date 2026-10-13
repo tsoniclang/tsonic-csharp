@@ -158,13 +158,11 @@ test("retained adapter planning rejects a stale activation or carrier and keeps 
   const selection = selectCsharpConversion(policy, source, target, "implicit");
   const identity = Object.freeze({ declaration: {}, scope: {}, source, target, selection });
   const node = {};
-  const base = { scope: { delegateAdapters: new Map([[identity, "adapter"]]) }, program: {
-    conversions: { delegateAdapter: expression => expression === node ? identity : undefined },
-  }, names: { temporaryName: () => assert.fail("retained native binding must not create per-use wrapper temporaries") } };
+  const base = { scope: { delegateAdapters: new Map([[identity, "adapter"]]) }, program: { records: { delegateAdapter: { get: expression => expression === node ? identity : undefined } } }, names: { temporaryName: () => assert.fail("retained native binding must not create per-use wrapper temporaries") } };
   for (const context of [
     { ...base, scope: { delegateAdapters: new Map() } },
-    { ...base, program: { conversions: { delegateAdapter: () => ({ ...identity,
-      target: csharpDelegateTargetType("System.Action", [{ kind: "source-primitive", name: "int64" }]) }) } } },
+    { ...base, program: { records: { delegateAdapter: { get: () => ({ ...identity,
+      target: csharpDelegateTargetType("System.Action", [{ kind: "source-primitive", name: "int64" }]) }) } } } },
   ]) {
     const diagnostics = [];
     assert.equal(planCsharpDelegateAdapter(node, {}, context, diagnostics, source, target, selection,

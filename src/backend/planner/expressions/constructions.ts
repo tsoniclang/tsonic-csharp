@@ -3,10 +3,8 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpConstructionClassification,
-  CsharpTargetCallSelection,
-} from "../../../analysis/operations/index.js";
+import type { CsharpConstructionClassification } from "../../../target-model/records/operations.js";
+import type { CsharpTargetCallSelection } from "../../../target-model/records/member-selections.js";
 import type {
   CsharpExpression,
 } from "../../target-ast/syntax/index.js";
@@ -52,7 +50,7 @@ export function translateCsharpConstruction(
 ): CsharpPlannedValue | undefined {
   const expression = input.program.source.ast.as.AsNewExpression(node);
   const calleeNode = expression?.Expression;
-  const classification = input.program.operations.construction(node);
+  const classification = input.program.records.selectedConstruction.get(node);
   if (classification === undefined) {
     diagnostics.push(targetPolicyDiagnostic(
       node,
@@ -239,7 +237,7 @@ function buildSelectedConstruction(
     };
   }
   if (member.csharpInvocation?.kind === "source-module-construction") {
-    const construction = input.program.sourceModuleConstructions.construction(
+    const construction = input.program.records.sourceModuleConstruction.get(
       node,
     );
     if (
@@ -336,7 +334,7 @@ function translateSourceOwnedConstruction(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpPlannedValue | undefined {
-  const declaration = input.program.sourceEvidence.signatureDeclaration(
+  const declaration = input.program.records.signatureDeclaration.get(
     selection.source.selectedSignature,
   );
   if (

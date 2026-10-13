@@ -61,7 +61,7 @@ export function planMethodDeclaration(
   const declaration = AsMethodDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "method declaration", diagnostics, ["public", "private", "protected", "abstract", "override"]);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
-  const callable = input.program.callableAdapters.get(node)?.implementation;
+  const callable = input.program.records.callableDispatch.get(node)?.implementation;
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   const declaredReturnTargetType = callable?.returnType ?? getDeclarationReturnTargetType(
     declaration.Type,
@@ -126,7 +126,7 @@ export function planMethodDeclaration(
     state.currentReturnExpressionTypeSubject = returnExpressionType?.subject;
     state.currentReturnExpressionTargetType = returnExpressionType?.targetType;
   }
-  const returnContract = input.program.declarations.returnContract(node);
+  const returnContract = input.program.records.returnContract.get(node);
   state.currentUndefinedReturn = returnContract?.kind === "resolved" && returnContract.undefinedReturn === true;
   const bodyStatements = planBlockStatements(
     declaration.Body,
@@ -174,7 +174,7 @@ function planMethodDeclarationName(
   diagnostics: TargetDiagnostic[],
 ): string {
   if (nameNode !== undefined && input.program.source.ast.is.IsComputedPropertyName(nameNode)) {
-    const selected = input.program.sourceEvidence.wellKnownSymbol(nameNode);
+    const selected = input.program.records.wellKnownSymbol.get(nameNode);
     if (selected !== undefined) {
       const targetName = csharpWellKnownSymbolTargetMemberName(selected.kind);
       if (targetName !== undefined) {

@@ -85,11 +85,7 @@ function directInput(node, targetType) {
   );
   return {
     scope: {},
-    program: {
-      operations: {
-        regularExpression: (candidate) =>
-          candidate === node ? selection : undefined,
-      },
-    },
+    program: { records: { regularExpression: { get: (candidate) =>
+          candidate === node ? selection : undefined } } },
   };
 }

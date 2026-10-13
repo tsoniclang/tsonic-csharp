@@ -38,7 +38,7 @@ export function tryPlanCsharpNativePointerOperation(
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   state: DestructuringPlannerState | undefined,
 ): CsharpNativePointerOperationPlan {
-  const selection = input.program.operations.nativePointer(node);
+  const selection = input.program.records.nativePointer.get(node);
   if (selection === undefined) {
     return { handled: false };
   }

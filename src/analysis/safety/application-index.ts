@@ -1,39 +1,17 @@
+import type { CsharpSafetyApplication, CsharpSafetyApplicationFactIndex, CsharpSafetyOperation } from "../../target-model/records/safety.js";
 import type {
   AstReader,
   Node,
   ReadonlySourceFactResolver,
   SourceFile,
 } from "@tsonic/tsts";
-import type {
-  TsonicSafetyApplicationFact,
-  TsonicSafetyBuilderFact,
-  TsonicUnsafeContextFact,
-} from "@tsonic/source-core/facts";
+import type { TsonicSafetyApplicationFact } from "@tsonic/source-core/facts";
 import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import { isAstNode } from "@tsonic/target-api/source";
 import {
   readCsharpSourceSafetyBuilder,
   readCsharpSourceUnsafeContext,
 } from "../../policy/operations/safety/explicit.js";
-
-export interface CsharpSafetyApplicationFactIndex {
-  readonly all: readonly CsharpSafetyApplication[];
-  forSourceFile(sourceFile: SourceFile): readonly CsharpSafetyApplication[];
-  forDeclaration(declaration: Node): readonly CsharpSafetyApplication[];
-  operationForSubject(subject: Node): CsharpSafetyOperation | undefined;
-}
-
-export interface CsharpSafetyApplication extends TsonicSafetyApplicationFact {
-  readonly sourceSubject: Node;
-  readonly sourceFile: SourceFile;
-  readonly selectedMemberDeclarations: readonly Node[];
-  readonly resolvedRootDeclaration?: Node;
-  readonly targetDeclarations: readonly Node[];
-}
-
-export type CsharpSafetyOperation =
-  | { readonly kind: "unsafe-context"; readonly fact: TsonicUnsafeContextFact }
-  | { readonly kind: "safety-builder"; readonly fact: TsonicSafetyBuilderFact };
 
 export interface CsharpSafetyApplicationFactIndexInput {
   readonly ast: AstReader;
@@ -88,15 +66,15 @@ export function createCsharpSafetyApplicationFactIndex(
   }
   return Object.freeze({
     all: Object.freeze(all),
-    forSourceFile(sourceFile: SourceFile): readonly CsharpSafetyApplication[] {
+    sourceSafetyApplication: Object.freeze({ get(sourceFile: SourceFile): readonly CsharpSafetyApplication[] {
       return bySourceFile.get(sourceFile) ?? emptyApplications;
-    },
-    forDeclaration(declaration: Node): readonly CsharpSafetyApplication[] {
+    } }),
+    safetyApplication: Object.freeze({ get(declaration: Node): readonly CsharpSafetyApplication[] {
       return byDeclaration.get(declaration) ?? emptyApplications;
-    },
-    operationForSubject(subject: Node): CsharpSafetyOperation | undefined {
+    } }),
+    safetyOperation: Object.freeze({ get(subject: Node): CsharpSafetyOperation | undefined {
       return bySubject.get(subject);
-    },
+    } }),
   });
 }
 
@@ -212,7 +190,7 @@ function walkSourceFile(
 const emptyApplications = Object.freeze([]) as readonly CsharpSafetyApplication[];
 const emptyIndex: CsharpSafetyApplicationFactIndex = Object.freeze({
   all: emptyApplications,
-  forSourceFile: () => emptyApplications,
-  forDeclaration: () => emptyApplications,
-  operationForSubject: () => undefined,
+  sourceSafetyApplication: Object.freeze({ get: () => emptyApplications }),
+  safetyApplication: Object.freeze({ get: () => emptyApplications }),
+  safetyOperation: Object.freeze({ get: () => undefined }),
 });

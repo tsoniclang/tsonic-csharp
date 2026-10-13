@@ -29,7 +29,7 @@ export function planCsharpArrayConstruction(
   const sole = elements.length === 1 ? elements[0] : undefined;
   const soleOperand = sole === undefined || !input.program.source.ast.is.IsSpreadElement(sole)
     ? undefined : input.program.source.ast.as.AsSpreadElement(sole)?.Expression;
-  const soleBorrowed = soleOperand === undefined ? undefined : input.program.operations.borrowedSequence(soleOperand);
+  const soleBorrowed = soleOperand === undefined ? undefined : input.program.records.borrowedSequence.get(soleOperand);
   if (construction === undefined && sole !== undefined && soleBorrowed !== undefined) {
     return planCsharpBorrowedDenseSequence(sole, soleBorrowed, sourceFile, input, diagnostics,
       elementType, elementTarget, planner.planExpression);
@@ -45,7 +45,7 @@ export function planCsharpArrayConstruction(
     }
     const operand = input.program.source.ast.as.AsSpreadElement(element)?.Expression;
     if (operand === undefined) return undefined;
-    const selected = input.program.operations.borrowedSequence(operand);
+    const selected = input.program.records.borrowedSequence.get(operand);
     const borrowed = selected?.inputs.length === 1 && selected.inputs[0]?.kind === "sequence" &&
       !selected.inputs[0].optional ? undefined : selected;
     const spread = borrowed === undefined ? planCsharpArraySpreadInput(element, operand, sourceFile,

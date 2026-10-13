@@ -1,29 +1,12 @@
+import type { CsharpTypedArrayMutation, CsharpTypedArrayUpdate } from "../../../target-model/records/typed-array-mutations.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import { csharpSourceProfileDeclarationIdentity } from "../members/index.js";
-import { csharpJsTypedArrayElementTargetType, type TargetTypeRef } from "../../types/index.js";
+import { csharpJsTypedArrayElementTargetType } from "../../types/index.js";
 import { isCsharpAssignmentOperator, sourceOperatorFromKindName, type CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
-import { selectCsharpBinaryOperands, type CsharpResolvedBinaryOperation } from "../operators/operator-selection.js";
+import { selectCsharpBinaryOperands } from "../operators/operator-selection.js";
+
 import { csharpUnaryNumericPromotion } from "../numeric/promotion.js";
-
-export interface CsharpTypedArrayMutation {
-  readonly kind: "set-typed-element";
-  readonly receiver: Node;
-  readonly index: Node;
-  readonly value: Node;
-  readonly resultType: TargetTypeRef;
-  readonly calculation?: CsharpResolvedBinaryOperation;
-}
-
-export interface CsharpTypedArrayUpdate {
-  readonly kind: "update-typed-element";
-  readonly receiver: Node;
-  readonly index: Node;
-  readonly indexType: TargetTypeRef;
-  readonly resultType: TargetTypeRef;
-  readonly increment: boolean;
-  readonly prefix: boolean;
-}
 
 export function selectCsharpTypedArrayMutation(input: CsharpPolicyContext, node: Node, sourceFile: SourceFile):
   CsharpTypedArrayMutation | CsharpTypedArrayUpdate | { readonly kind: "rejected"; readonly reason: string } | undefined {

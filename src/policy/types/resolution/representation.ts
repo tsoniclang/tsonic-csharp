@@ -85,7 +85,6 @@ export function resolveBinaryTargetRepresentation(
   }
 }
 
-
 export function commonTargetRepresentation(
   left: TargetTypeRef | undefined,
   right: TargetTypeRef | undefined,
@@ -105,13 +104,11 @@ export function commonTargetRepresentation(
   return undefined;
 }
 
-
 export function getNonNullableTargetRepresentation(
   type: TargetTypeRef,
 ): TargetTypeRef {
   return getCsharpNullableElementTargetType(type) ?? getCsharpGenericOptionalParts(type)?.element ?? type;
 }
-
 
 export function getTaskResultType(
   type: TargetTypeRef,

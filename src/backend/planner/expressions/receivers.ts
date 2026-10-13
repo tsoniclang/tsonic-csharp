@@ -10,7 +10,7 @@ import type {
 import type {
   CsharpPlanningContext,
 } from "../context.js";
-import type { CsharpMemberReceiverProjection } from "../../../analysis/operations/index.js";
+import type { CsharpMemberReceiverProjection } from "../../../target-model/records/operations.js";
 import { applyCsharpConversionSelection } from "./conversions.js";
 import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
@@ -34,7 +34,7 @@ export function csharpProjectTypeReceiver(
   if (declaration === undefined) return undefined;
   const reference = input.program.sourceNavigation.referenceFor(receiver.valueDeclaration === undefined
     ? receiver.expression : input.program.source.ast.name(declaration));
-  return reference === undefined || reference.declaration !== declaration || input.program.classFactories.get(declaration) !== undefined
+  return reference === undefined || reference.declaration !== declaration || input.program.records.classFactory.get(declaration) !== undefined
     ? undefined : getCsharpTypeFromProjectSourceReference(reference, input, diagnostics);
 }
 

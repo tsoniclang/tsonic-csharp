@@ -5,7 +5,7 @@ import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../../
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../../../../target-model/types/index.js";
 import type { Node } from "@tsonic/tsts";
-import type { ResolvedSourceCallInfo } from "../../../../../analysis/operations/index.js";
+import type { ResolvedSourceCallInfo } from "../../../../../target-model/records/members.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 export function sourceCalleeRequiresExactTargetArity(

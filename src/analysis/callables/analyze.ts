@@ -13,26 +13,21 @@ import {
   isCsharpSourceDelegateTargetType,
   targetTypeRefEquals,
 } from "../../policy/types/index.js";
-import type {
-  CsharpProjectForwardingConstructor,
-  CsharpSourceCallableArtifactIdentity,
-  CsharpSourceCallableContract,
-  CsharpSourceCallableParameterContract,
-  CsharpTargetParameter,
-  TargetTypeRef,
-} from "../../policy/types/index.js";
-import type { CsharpDeclarationClassifications } from "../declarations/index.js";
+import type { CsharpProjectForwardingConstructor } from "../../target-model/records/project-types.js";
+import type { CsharpSourceCallableArtifactIdentity, CsharpTargetParameter, TargetTypeRef } from "../../policy/types/index.js";
+import type { CsharpSourceCallableContract, CsharpSourceCallableParameterContract } from "../../target-model/records/source-callable-contract.js";
+import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpSourceNameResolver } from "../names/index.js";
-import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpCallableContractIndex } from "./model.js";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
-import type { CsharpGenericProjectionIndex } from "../declarations/type-projections.js";
+import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import { closeCsharpProjectCallableContracts } from "../project-types/callable-contracts.js";
 import { selectCsharpClosedCallableContext } from "./contextual-inputs.js";
 import type { CsharpClosedCallableContext } from "./contextual-inputs.js";
 import { csharpCallableValueType } from "./value-type.js";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpTargetOperationClassifications } from "../operations/index.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 
 export function analyzeCsharpCallableContracts(
   policy: CsharpPolicyContext,
@@ -94,7 +89,7 @@ export function analyzeCsharpCallableContracts(
   });
 
   function visit(node: Node, sourceFile: SourceFile): void {
-    if (evidence.isCompileTimeMetadata(node)) return;
+    if (evidence.compileTimeMetadata.get(node)) return;
     if (isCsharpSourceCallableArtifactDeclaration(policy.ast, node)) {
       const context = selectCsharpClosedCallableContext(source, policy, operations, node);
       const contract = sourceCallableContract(
@@ -152,10 +147,10 @@ function sourceCallableContract(
   projections: CsharpGenericProjectionIndex,
   contextualInputs: readonly (TargetTypeRef | undefined)[] | undefined,
 ): CsharpSourceCallableContract | undefined {
-  const returnContract = declarations.returnContract(declaration);
-  const returnType = evidence.generatorTargetType(declaration) ??
+  const returnContract = declarations.returnContract.get(declaration);
+  const returnType = evidence.generatorTargetType.get(declaration) ??
     (returnContract?.kind === "resolved" ? returnContract.type : undefined) ??
-    getCsharpCallableValueSignature(evidence.contextualTargetType(declaration))
+    getCsharpCallableValueSignature(evidence.contextualTargetType.get(declaration))
       ?.returnType ??
     constructorReturnType(policy, declaration, sourceFile);
   if (returnType === undefined) {
@@ -196,7 +191,7 @@ function sourceCallableContract(
   return Object.freeze({
     sourceDeclaration: declaration,
     methodTypeParameterIdentities: Object.freeze(
-      [...methodTypeParameterIdentities as string[], ...projections.get(declaration).map(parameter => parameter.identity)],
+      [...methodTypeParameterIdentities as string[], ...projections.genericProjection.get(declaration).map(parameter => parameter.identity)],
     ),
     ...(owner === undefined ? {} : { receiverTypeOwner: owner }),
     parameters: Object.freeze(parameters),
@@ -225,12 +220,12 @@ function sourceParameterContract(
   const typeSubject = parameter.Type ?? parameter.name;
   const selectedType = contextualInput ?? (typeSubject === undefined
     ? undefined
-    : evidence.nodeTargetType(typeSubject));
+    : evidence.nodeTargetType.get(typeSubject));
   if (selectedType === undefined) {
     return undefined;
   }
   const questionToken = policy.ast.questionToken(parameterNode);
-  const targetType: TargetTypeRef = declarations.runtimeDefault(parameterNode)?.parameterType ??
+  const targetType: TargetTypeRef = declarations.runtimeDefault.get(parameterNode)?.parameterType ??
     (questionToken === undefined ? selectedType : csharpNullableTargetType(selectedType));
   const resolvedName = HasSourceKind(
       policy.ast,

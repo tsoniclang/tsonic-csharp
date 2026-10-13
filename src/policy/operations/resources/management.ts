@@ -1,8 +1,5 @@
-import type {
-  Node,
-  ResolvedSourceResourceManagementInfo,
-  SourceFile,
-} from "@tsonic/tsts";
+import type { CsharpResolvedResourceManagement, CsharpResourceDisposalOperation } from "../../../target-model/records/management.js";
+import type { Node, SourceFile } from "@tsonic/tsts";
 import type {
   CsharpPolicyContext,
 } from "../../model/context.js";
@@ -15,36 +12,7 @@ import {
   isCsharpAbsenceTargetType,
   targetTypeRefEquals,
 } from "../../types/index.js";
-import type {
-  CsharpOperationSelection,
-} from "../operators/index.js";
-
-export interface CsharpResolvedResourceManagement {
-  readonly kind: "resolved";
-  readonly source: ResolvedSourceResourceManagementInfo;
-  readonly registration:
-    | {
-        readonly kind: "direct";
-        readonly resourceType: TargetTypeRef;
-        readonly disposal: CsharpResourceDisposalOperation;
-      }
-    | {
-        readonly kind: "runtime-union";
-        readonly resourceType: TargetTypeRef;
-        readonly arms: readonly CsharpResourceDisposalArm[];
-      };
-}
-
-export interface CsharpResourceDisposalOperation {
-  readonly kind: "sync" | "async";
-  readonly targetName: "Dispose" | "DisposeAsync";
-}
-
-export interface CsharpResourceDisposalArm {
-  readonly armIndex: number;
-  readonly targetType: TargetTypeRef;
-  readonly disposal: CsharpResourceDisposalOperation;
-}
+import type { CsharpOperationSelection } from "../../../target-model/records/operator-selection.js";
 
 export function selectCsharpResourceManagement(
   input: CsharpPolicyContext,

@@ -14,9 +14,8 @@ const node = {};
 
 function context(select = () => assert.fail("identity needs no conversion")) {
   let count = 0;
-  return { scope: {}, names: { temporaryName: name => `${name}_${count++}` }, program: {
-    source: { ast: { pos: () => 1, end: () => 2, getSourceFile: () => undefined } }, conversions: { select },
-  } };
+  return { scope: {}, names: { temporaryName: name => `${name}_${count++}` }, program: { source: { ast: { pos: () => 1, end: () => 2, getSourceFile: () => undefined } },
+    records: { conversion: { get: select } } } };
 }
 
 test("coalescing with exact native absence preserves one unchanged nullable input", () => {

@@ -19,7 +19,7 @@ function fixture() {
       assert.equal(node === declaration, true, "exact named function declaration");
       return uses;
     } } };
-  const evidence = { isCompileTimeMetadata: () => false };
+  const evidence = { compileTimeMetadata: { get: () => false } };
   return { declaration, call, value, otherDeclaration, lexical, uses, source, evidence };
 }
 
@@ -55,7 +55,7 @@ test("named-self capture selection excludes erased metadata but retains real rec
   const input = fixture();
   const metadata = {};
   const lexical = { ...input.lexical, captures: [{ declaration: metadata, references: [] }] };
-  const evidence = { isCompileTimeMetadata: node => node === metadata };
+  const evidence = { compileTimeMetadata: { get: node => node === metadata } };
   const issues = [];
   const erased = selectCsharpNamedSelfBinding(input.source, input.declaration, lexical, evidence, issues);
   assert.equal(erased?.captures.length, 0);
@@ -93,7 +93,7 @@ test("missing, writable and non-runtime self evidence fail closed without spelli
 test("an erased self reference does not require a runtime value or environment", () => {
   const input = fixture();
   const issues = [];
-  const evidence = { isCompileTimeMetadata: () => true };
+  const evidence = { compileTimeMetadata: { get: () => true } };
   assert.equal(selectCsharpNamedSelfBinding(input.source, input.declaration, input.lexical, evidence, issues) === undefined, true);
   assert.equal(issues.length, 0);
 });

@@ -45,7 +45,7 @@ function translateCsharpCallExpressionCore(
   planCallArgument: CallArgumentPlanner,
   state: DestructuringPlannerState | undefined,
 ): CsharpPlannedValue | undefined {
-  const classification = input.program.operations.call(node);
+  const classification = input.program.records.selectedCall.get(node);
   if (classification === undefined) {
     diagnostics.push(targetPolicyDiagnostic(
       node,

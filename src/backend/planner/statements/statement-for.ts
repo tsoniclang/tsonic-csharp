@@ -76,7 +76,7 @@ function planForStatementCore(
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
   const capturePrelude = planCsharpCaptureFrame(node, input, diagnostics, state);
-  const frame = input.program.captureStorage.frame(node);
+  const frame = input.program.records.captureFrame.get(node);
   const initializer = statement.Initializer === undefined
     ? undefined
     : planForInitializer(statement.Initializer, sourceFile, input, diagnostics, state);

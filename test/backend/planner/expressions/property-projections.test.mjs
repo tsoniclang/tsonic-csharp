@@ -16,10 +16,9 @@ function fixture() {
   const shape = { targetType: source, members: [count, method, grouping] };
   const members = Object.freeze([count, grouping]);
   const conversions = [];
-  const input = { program: { source: { ast: { pos: () => 1 } }, conversions: {
-    propertyProjection: () => members,
-    select(type) { conversions.push(type); return { kind: "js-value-box" }; },
-  } }, types: { objectShapes: { resolveTarget: () => shape } }, scope: {},
+  const input = { program: { source: { ast: { pos: () => 1 } },
+    records: { propertyProjection: { get: () => members },
+      conversion: { get(type) { conversions.push(type); return { kind: "js-value-box" }; } } } }, types: { objectShapes: { resolveTarget: () => shape } }, scope: {},
     names: { temporaryName: value => value },
     artifacts: { requireObjectShapeProjection() { assert.fail("native options are not a generic class capability"); } },
   };
@@ -49,7 +48,7 @@ test("native selected properties use exact instantiated fields at the call site,
 
 test("native property projection rejects missing sealed demand and the removed generic helper path", () => {
   const current = fixture();
-  current.input.program.conversions.propertyProjection = () => undefined;
+  current.input.program.records.propertyProjection.get = () => undefined;
   const diagnostics = [];
   assert.equal(planCsharpPropertyValueProjection({}, {}, current.input, diagnostics, current.source,
     { kind: "IdentifierName", name: "value" }) === undefined, true, "missing evidence rejects");

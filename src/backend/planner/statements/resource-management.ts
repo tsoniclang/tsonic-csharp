@@ -3,11 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpResourceDisposalArm,
-  CsharpResourceDisposalOperation,
-  CsharpResolvedResourceManagement,
-} from "../../../analysis/operations/index.js";
+import type { CsharpResourceDisposalArm, CsharpResourceDisposalOperation, CsharpResolvedResourceManagement } from "../../../target-model/records/management.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -199,7 +195,7 @@ export function planResourceRegistrationStatement(
     ));
     return undefined;
   }
-  const selected = input.program.operations.resource(declaration);
+  const selected = input.program.records.resource.get(declaration);
   if (selected === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       declaration,

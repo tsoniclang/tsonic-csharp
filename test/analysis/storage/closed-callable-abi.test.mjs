@@ -45,15 +45,15 @@ for (const [name, annotation] of [
 ]) {
   test(`${name} callable storage retains its existing carrier owner and exact aliased identity`, () => {
     const selected = fixture(`const mapper: ${annotation} = (value: int): int => value; const alias = mapper; Array.from(values, alias); return mapper === alias;`);
-    const original = selected.program.storage.type(selected.variables.get("mapper"));
+    const original = selected.program.records.storageType.get(selected.variables.get("mapper"));
     const nullable = getCsharpNullableElementTargetType(original);
     const arms = getCsharpRuntimeUnionArms(nullable ?? original, selected.program.typeDefinitions);
     const signatures = arms === undefined ? [getCsharpDelegateSignature(nullable ?? original)] : arms.map(getCsharpDelegateSignature);
     assert.equal(signatures.filter(signature => signature !== undefined).length, 1, "one exact callable carrier in the canonical absence/union owner");
     assert.equal(signatures.find(signature => signature !== undefined).parameters.length, 1, "authored ABI is not contextual callback ABI");
-    assert.equal(getCsharpDelegateSignature(selected.program.storage.type(selected.variables.get("alias")))?.parameters.length, 1,
+    assert.equal(getCsharpDelegateSignature(selected.program.records.storageType.get(selected.variables.get("alias")))?.parameters.length, 1,
       "narrowed alias retains the original callable identity");
-    assert.equal(selected.program.captureStorage.lambdaCreation(selected.lambda).kind, "fresh", "no cache for observed identity");
+    assert.equal(selected.program.records.lambdaCreation.get(selected.lambda).kind, "fresh", "no cache for observed identity");
   });
 }
 
@@ -63,15 +63,15 @@ for (const [name, expression, creation] of [
 ]) {
   test(`closed ${name} const aliases share the selected native storage ABI`, () => {
     const selected = fixture(`const mapper = (value: int): int => ${expression}; const alias = mapper; return Array.from(values, alias);`);
-    const target = selected.program.expectedTypes.callableTarget(selected.lambda);
+    const target = selected.program.records.callableTarget.get(selected.lambda);
     assert.equal(getCsharpDelegateSignature(target)?.parameters.length, 2, "one selected native invocation signature");
     for (const name of ["mapper", "alias"]) {
       const declaration = selected.variables.get(name);
       assert.equal(declaration !== undefined, true, name);
-      assert.equal(targetTypeRefEquals(selected.program.storage.requiredType(declaration), target), true, name);
-      assert.equal(targetTypeRefEquals(selected.program.storage.type(declaration), target), true, name);
+      assert.equal(targetTypeRefEquals(selected.program.records.requiredStorageType.get(declaration), target), true, name);
+      assert.equal(targetTypeRefEquals(selected.program.records.storageType.get(declaration), target), true, name);
     }
-    assert.equal(selected.program.captureStorage.lambdaCreation(selected.lambda).kind, creation);
+    assert.equal(selected.program.records.lambdaCreation.get(selected.lambda).kind, creation);
   });
 }
 
@@ -84,10 +84,10 @@ for (const [name, body] of [
 ]) {
   test(`${name} retains its exact intrinsic origin ABI and fresh identity`, () => {
     const selected = fixture(body);
-    assert.equal(getCsharpDelegateSignature(selected.program.storage.type(selected.variables.get("mapper")))?.parameters.length, 1,
+    assert.equal(getCsharpDelegateSignature(selected.program.records.storageType.get(selected.variables.get("mapper")))?.parameters.length, 1,
       "no unproved source storage promotion");
-    assert.equal(getCsharpDelegateSignature(selected.program.storage.type(selected.variables.get("alias")))?.parameters.length, 1,
+    assert.equal(getCsharpDelegateSignature(selected.program.records.storageType.get(selected.variables.get("alias")))?.parameters.length, 1,
       "aliases preserve the identical authored value carrier until the invocation boundary");
-    assert.equal(selected.program.captureStorage.lambdaCreation(selected.lambda).kind, "fresh", "observable or unknown identity preserved");
+    assert.equal(selected.program.records.lambdaCreation.get(selected.lambda).kind, "fresh", "observable or unknown identity preserved");
   });
 }

@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { sourceCallableInterface, sourceClassFieldIsTypeOnly, sourceInterfaceRepresentationBase, type TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpStorageIssue } from "../storage/model.js";
+import type { CsharpStorageIssue } from "../../target-model/records/storage.js";
 
 export function analyzeCsharpTypeOnlyDeclarations(source: TargetSourceProgram, sourceFiles: readonly SourceFile[]): {
   readonly declarations: ReadonlySet<Node>;

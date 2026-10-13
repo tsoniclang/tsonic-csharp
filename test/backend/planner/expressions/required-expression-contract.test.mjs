@@ -39,9 +39,9 @@ function fixture() {
     source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
   }
   const call = nodes.find(node => source.ast.is.IsCallExpression(node)
-    && program.operations.call(node)?.source.sourceArguments.length === 2);
+    && program.records.selectedCall.get(node)?.source.sourceArguments.length === 2);
   assert.equal(call !== undefined, true, "exact original call with explicitly absent radix");
-  const classification = program.operations.call(call);
+  const classification = program.records.selectedCall.get(call);
   assert.equal(classification?.target?.kind === "resolved", true, "native operation is finalized");
   const selected = classification.target.call;
   const radix = classification.source.sourceArguments[1].expression;
@@ -61,13 +61,12 @@ function fixture() {
       ? Object.freeze({ ...argument, targetParameter: parameter }) : argument)),
   });
   const changed = Object.freeze({ ...program,
-    operations: Object.freeze({ ...program.operations,
-      call: node => node === call ? Object.freeze({ ...classification,
-        target: Object.freeze({ ...classification.target, call: wrongCall }) }) : program.operations.call(node) }),
-    conversions: Object.freeze({ ...program.conversions,
-      selectExpression: (node, from, to, mode) => node === radix && mode === "implicit"
+    records: Object.freeze({ ...program.records,
+      selectedCall: Object.freeze({ get: node => node === call ? Object.freeze({ ...classification,
+        target: Object.freeze({ ...classification.target, call: wrongCall }) }) : program.records.selectedCall.get(node) }),
+      expressionConversion: Object.freeze({ get: (node, from, to, mode) => node === radix && mode === "implicit"
         && targetTypeRefEquals(from, absence) && targetTypeRefEquals(to, number)
-        ? rejection : program.conversions.selectExpression(node, from, to, mode) }),
+        ? rejection : program.records.expressionConversion.get(node, from, to, mode) }) }),
   });
   return { source, program, changed, call, radix, number };
 }
@@ -109,8 +108,8 @@ test("required planning retains specific errors and valid value, void and never 
   assert.equal(/public static void effect\(\)/.test(output) && /public static[\s\S]*?fail\(/.test(output), true,
     "void and never functions remain explicitly represented");
   const specific = Object.freeze({ ...current.program,
-    sourceEvidence: Object.freeze({ ...current.program.sourceEvidence,
-      argument: node => node === current.call ? undefined : current.program.sourceEvidence.argument(node) }),
+    records: Object.freeze({ ...current.program.records,
+      sourceArgument: Object.freeze({ get: node => node === current.call ? undefined : current.program.records.sourceArgument.get(node) }) }),
   });
   const diagnostics = [];
   const planned = planExpression(current.call, current.source.ast.getSourceFile(current.call),

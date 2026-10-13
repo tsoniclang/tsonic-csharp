@@ -1,3 +1,4 @@
+import type { CsharpTypeofComparisonSelection } from "../../../target-model/records/typeof.js";
 import type {
   CsharpTypeofRuntimeKind,
   TargetTypeRef,
@@ -5,23 +6,6 @@ import type {
 import { getCsharpTypeofResult, type CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 export { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
-
-export type CsharpTypeofComparisonSelection =
-  | {
-      readonly kind: "constant";
-      readonly value: boolean;
-    }
-  | {
-      readonly kind: "runtime-category-test";
-      readonly sourceCarrier: TargetTypeRef;
-      readonly category: CsharpTypeofResult;
-      readonly runtimeKind: CsharpTypeofRuntimeKind;
-      readonly negated: boolean;
-    }
-  | {
-      readonly kind: "rejected";
-      readonly reason: string;
-    };
 
 export function selectCsharpTypeofComparison(
   operandType: TargetTypeRef | undefined,

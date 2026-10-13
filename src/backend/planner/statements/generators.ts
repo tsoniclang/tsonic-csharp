@@ -100,7 +100,7 @@ export function planCsharpGeneratorFunction(
   if (!hasCsharpGeneratorSyntax(declaration, input)) {
     return undefined;
   }
-  const source = input.program.sourceEvidence.generator(declaration);
+  const source = input.program.records.generator.get(declaration);
   if (source === undefined) {
     diagnostics.push(generatorDiagnostic(
       "CSHARP_GENERATOR_EVIDENCE_NOT_PROVEN",
@@ -108,7 +108,7 @@ export function planCsharpGeneratorFunction(
     ));
     return undefined;
   }
-  const generatorType = input.program.sourceEvidence.generatorTargetType(
+  const generatorType = input.program.records.generatorTargetType.get(
     declaration,
   );
   const protocol = getCsharpGeneratorProtocol(generatorType);
@@ -302,7 +302,7 @@ function firstUnsupportedGeneratorYield(
   while (stack.length > 0) {
     const node = stack.pop()!;
     if (input.program.source.ast.is.IsYieldExpression(node)) {
-      const evidence = input.program.sourceEvidence.yield(node);
+      const evidence = input.program.records.yield.get(node);
       if (evidence?.generator.declaration === declaration) {
         const reason = unsupportedYieldRegionReason(node, declaration, input);
         if (reason !== undefined) {

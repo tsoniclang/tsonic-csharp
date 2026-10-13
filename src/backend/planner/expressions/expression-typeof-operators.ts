@@ -44,7 +44,7 @@ export function planTypeofExpression(
   const operand = input.program.source.ast.as.AsTypeOfExpression(node)?.Expression;
   const jsValueOperation = operand === undefined
     ? undefined
-    : input.program.operations.jsTypeof(operand);
+    : input.program.records.jsTypeof.get(operand);
   if (jsValueOperation === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -71,7 +71,7 @@ export function planTypeofExpression(
   }
   const runtimeKind = operand === undefined
     ? undefined
-    : input.program.operations.typeofRuntimeKind(operand);
+    : input.program.records.typeofRuntimeKind.get(operand);
   if (operand === undefined || runtimeKind === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -114,10 +114,10 @@ export function tryPlanTypeTestExpression(
     return undefined;
   }
   const planned = planExpression(left, sourceFile, input, diagnostics, state);
-  const factoryType = input.program.operations.binary(node)?.instanceFactory;
+  const factoryType = input.program.records.binaryOperation.get(node)?.instanceFactory;
   const factory = getCsharpClassFactory(factoryType);
   if (factory !== undefined) {
-    const retained = input.program.classFactories.get(factory.declaration);
+    const retained = input.program.records.classFactory.get(factory.declaration);
     const receiver = planExpression(right, sourceFile, input, diagnostics);
     const owner = factoryType === undefined ? undefined : csharpTypeFromTargetTypeRef(factoryType, input.scope.typeParameterNames);
     if (!retained?.requiresInstanceTest || planned === undefined || receiver === undefined || owner === undefined) {
@@ -130,7 +130,7 @@ export function tryPlanTypeTestExpression(
       { kind: "Argument", expression: values[0]! }, { kind: "Argument", expression: values[1]! },
     ] }));
   }
-  const fact = input.program.operations.binary(node)?.instanceTest;
+  const fact = input.program.records.binaryOperation.get(node)?.instanceTest;
   const sourceCarrier = input.types.classifications.resolveNode(left, sourceFile);
   const result = planned === undefined || fact === undefined || sourceCarrier === undefined ||
     !targetTypeRefEquals(fact.sourceCarrier, sourceCarrier) ? undefined
@@ -163,12 +163,12 @@ export function tryPlanTypeofComparisonExpression(
   ) {
     return undefined;
   }
-  const comparison = input.program.operations.binary(node)?.typeofComparison;
+  const comparison = input.program.records.binaryOperation.get(node)?.typeofComparison;
   if (comparison === undefined) {
     return undefined;
   }
   const negated = sourceOperator === "!==" || sourceOperator === "!=";
-  const jsValueOperation = input.program.operations.jsTypeof(
+  const jsValueOperation = input.program.records.jsTypeof.get(
     comparison.operand,
   );
   if (jsValueOperation === undefined) {

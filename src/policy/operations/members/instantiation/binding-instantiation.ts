@@ -3,9 +3,7 @@ import type {
   SourceFile,
   Type,
 } from "@tsonic/tsts";
-import type {
-  CsharpProviderTypeParameterRelation,
-} from "../../../../providers/native/relations/index.js";
+import type { CsharpProviderTypeParameterRelation } from "../../../../target-model/identities/provider-relations.js";
 import type {
   CsharpTargetBindingFact,
   CsharpTargetMember,

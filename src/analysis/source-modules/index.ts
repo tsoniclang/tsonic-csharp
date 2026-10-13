@@ -1,8 +1,2 @@
 export { analyzeCsharpSourceModuleConstructions } from "./analyze.js";
-export type {
-  CsharpSourceModuleAnalysis,
-  CsharpSourceModuleAnalysisIssue,
-  CsharpSourceModuleBootstrap,
-  CsharpSourceModuleConstruction,
-  CsharpSourceModuleConstructionIndex,
-} from "./model.js";
+export type { CsharpSourceModuleAnalysis, CsharpSourceModuleAnalysisIssue, CsharpSourceModuleBootstrap, CsharpSourceModuleConstruction, CsharpSourceModuleConstructionIndex } from "../../target-model/records/source-modules.js";

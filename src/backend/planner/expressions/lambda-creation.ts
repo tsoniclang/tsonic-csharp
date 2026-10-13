@@ -6,7 +6,7 @@ import type { LambdaTargetContext } from "./expression-lambdas.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { withCsharpSafetyModifiers } from "../safety/explicit-safety.js";
-import type { CsharpLambdaCreation } from "../../../analysis/callables/capture-storage.js";
+import type { CsharpLambdaCreation } from "../../../target-model/records/capture-storage.js";
 
 export function planCsharpLocalLambdaCreation(
   node: Node, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
@@ -16,7 +16,7 @@ export function planCsharpLocalLambdaCreation(
 ): { readonly method: CsharpStatement; readonly value: CsharpExpression } | undefined {
   const returnType = target?.signature.returnTargetType === undefined ? undefined
     : csharpTypeFromTargetTypeRef(target.signature.returnTargetType, input.scope.typeParameterNames);
-  const self = input.program.captureStorage.namedSelf(node);
+  const self = input.program.records.namedSelf.get(node);
   const authoredParameterCount = input.program.source.ast.parameters(node).length;
   const nativeParameters = parameters.map((parameter, index) => {
     const type = parameter.type ?? target?.signature.parameters[index];
