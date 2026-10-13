@@ -6,7 +6,8 @@ import { parentPort, workerData } from "node:worker_threads";
 import { compileCsharpSource } from "../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../helpers/native-construction.mjs";
 
-const compiled = compileCsharpSource({ sourceText: "export function run(): boolean { return true; }" });
+const compiled = compileCsharpSource({ targetOptions: { outputType: "Library" },
+  sourceText: "export function run(): boolean { return true; }" });
 const nodeProject = fileURLToPath(new URL(
   "../../../csharp-nodejs/csharp/src/Tsonic.CSharp.Node/Tsonic.CSharp.Node.csproj", import.meta.url,
 ));
