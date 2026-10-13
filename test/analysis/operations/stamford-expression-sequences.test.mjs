@@ -26,7 +26,7 @@ for (const surface of [undefined, "js"]) {
     let sequences = 0;
     const visit = node => {
       if (source.ast.is.IsBinaryExpression(node) && source.ast.operatorKindName(node) === "KindCommaToken") {
-        const selected = program.operations.binary(node)?.target;
+        const selected = program.records.binaryOperation.get(node)?.target;
         assert.equal(selected?.kind, "resolved");
         assert.equal(selected.sourceOperator, ",");
         assert.equal(selected.targetOperation.kind, "sequence");
@@ -45,7 +45,7 @@ for (const surface of [undefined, "js"]) {
           ["completion carrier", { ...selected, resultType: csharpSourcePrimitiveTargetType("uint128") }],
         ]) {
           assert.equal(csharpBinarySelectionsEqual(selected, changed), false, label);
-          assert.equal(program.operations.binary(node)?.target === selected, true, label);
+          assert.equal(program.records.binaryOperation.get(node)?.target === selected, true, label);
         }
         sequences++;
       }

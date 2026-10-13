@@ -16,14 +16,12 @@ function projectReceiver(kind, scopeName = "ModuleScope") {
   const file = { IsDeclarationFile: false };
   const carrier = csharpStringTargetType();
   const input = {
-    program: {
-      sourceNavigation: { referenceFor: () => ({ declaration, sourceFile: file }),
+    program: { sourceNavigation: { referenceFor: () => ({ declaration, sourceFile: file }),
         sourceReferenceFor: () => ({ declaration, sourceFile: file }),
         isProjectDeclaration: candidate => candidate === declaration },
       source: { ast: { kindName: () => kind, name: () => name, getFileName: () => "/project/entry.ts",
         is: { IsClassExpression: () => false } } },
-      classFactories: { get: () => undefined },
-    },
+      records: { classFactory: { get: () => undefined } } },
     types: { classifications: { resolveNode: () => carrier },
       projectTypes: { definitionContainingDeclaration: () => ({ scopeName }) } },
     names: { resolve: () => ({ kind: "resolved", name: "Entry" }) },
@@ -95,7 +93,7 @@ test("project type receivers never bypass missing or rejected selected carrier e
 
 test("local class factories remain exact runtime receiver values rather than namespace references", () => {
   const { expression, file, carrier, input } = projectReceiver("KindClassDeclaration");
-  input.program.classFactories.get = () => ({});
+  input.program.records.classFactory.get = () => ({});
   const planned = csharpPlannedValue(carrier, { kind: "IdentifierName", name: "selectedFactory" });
   let evaluations = 0;
   const diagnostics = [];

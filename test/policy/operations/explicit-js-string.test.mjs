@@ -63,7 +63,7 @@ test("explicit C# JsString planning transports the native expression and prelude
   const effect = { kind: "ExpressionStatement", expression: { kind: "InvocationExpression",
     expression: { kind: "IdentifierName", name: "observe" }, arguments: [] } };
   const source = csharpPlannedValue(nativeString, expression, [effect]);
-  const input = { program: { operations: { jsStringConversion: () => selected.selection } } };
+  const input = { program: { records: { jsStringConversion: { get: () => selected.selection } } } };
   const diagnostics = [];
   let calls = 0;
   const result = tryPlanCsharpJsStringConversion(selected.node, selected.sourceFile, input, diagnostics,
@@ -80,7 +80,7 @@ test("explicit C# JsString planning transports the native expression and prelude
 
 test("explicit C# JsString planning preserves never completion and rejects missing value completion", () => {
   const selected = fixture();
-  const input = { program: { operations: { jsStringConversion: () => selected.selection } } };
+  const input = { program: { records: { jsStringConversion: { get: () => selected.selection } } } };
   const thrown = { kind: "ThrowStatement", expression: { kind: "IdentifierName", name: "failure" } };
   const never = csharpPlannedEffect(csharpNeverTargetType(), [thrown]);
   const result = tryPlanCsharpJsStringConversion(selected.node, selected.sourceFile, input, [], () => never);
@@ -91,7 +91,7 @@ test("explicit C# JsString planning preserves never completion and rejects missi
     assert.equal(missing.expression === undefined, true);
   }
   const unowned = tryPlanCsharpJsStringConversion(selected.node, selected.sourceFile,
-    { program: { operations: { jsStringConversion: () => undefined } } }, [], () => assert.fail("Unowned marker cannot evaluate its argument."));
+    { program: { records: { jsStringConversion: Object.freeze({ get: () => undefined }) } } }, [], () => assert.fail("Unowned marker cannot evaluate its argument."));
   assert.equal(unowned.handled, false);
 });
 

@@ -1,20 +1,9 @@
+import type { CsharpJsValueObjectShapePropertyResolution } from "../../../../target-model/records/js-value-object-shape-property.js";
 import type { ExtensionFactSubject } from "@tsonic/tsts";
-import type {
-  CsharpObjectShapeFact,
-  CsharpObjectShapeMemberFact,
-} from "../../../types/index.js";
+import type { CsharpObjectShapeFact } from "../../../types/index.js";
 import {
   resolveCsharpJsValueObjectShapeMember,
 } from "../../../types/index.js";
-
-export type CsharpJsValueObjectShapePropertyResolution =
-  | { readonly kind: "not-js-value-object-shape" }
-  | {
-      readonly kind: "resolved";
-      readonly shape: CsharpObjectShapeFact;
-      readonly member: CsharpObjectShapeMemberFact;
-    }
-  | { readonly kind: "rejected"; readonly reason: string };
 
 export function resolveCsharpJsValueObjectShapeProperty(
   shape: CsharpObjectShapeFact | undefined,

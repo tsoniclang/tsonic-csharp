@@ -18,7 +18,7 @@ export function planCsharpRuntimeParameterDefault(
   state: DestructuringPlannerState,
 ): { readonly valueType: CsharpTypeNode; readonly parameterType: CsharpTypeNode;
   readonly defaultValue?: CsharpExpression; readonly value: CsharpPlannedValue; readonly passthrough: boolean } | undefined {
-  const contract = input.program.declarations.runtimeDefault(node);
+  const contract = input.program.records.runtimeDefault.get(node);
   const declaration = input.program.source.ast.as.AsParameterDeclaration(node);
   if (contract === undefined || declaration?.Initializer === undefined) return undefined;
   const valueType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, contract.valueType, diagnostics, node);

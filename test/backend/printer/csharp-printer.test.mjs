@@ -24,7 +24,7 @@ import {
   targetTypeRefEquals,
 } from "../../../dist/policy/types/index.js";
 
-const unbackedObjectStorage = Object.freeze({ nativeField: () => undefined });
+const unbackedObjectStorage = Object.freeze({ nativeField: { get: () => undefined } });
 
 test("generated native expressions retain precedence and exact association at printing", () => {
   const name = value => ({ kind: "IdentifierName", name: value });

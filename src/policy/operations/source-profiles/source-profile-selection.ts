@@ -30,11 +30,8 @@ import {
   csharpErrorSourceProfilePropertyPolicies,
 } from "./error-source-profile.js";
 import { csharpPromiseSourceProfileCallPolicies } from "./promise-source-profile.js";
-import type {
-  CsharpSourceProfileCallPolicyResult,
-  CsharpSourceProfileElementPolicyResult,
-  CsharpSourceProfilePropertyPolicyResult,
-} from "./source-profile-policy.js";
+import type { CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicyResult } from "./source-profile-policy.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
 import { csharpSourceProfileDeclarationIdentity } from "./source-profile-identity.js";
 import type { CsharpTargetMember } from "../../../target-model/types/model.js";
 import {
@@ -43,9 +40,7 @@ import {
   selectCsharpSourceProfileElementPolicy,
   selectCsharpSourceProfilePropertyPolicy,
 } from "./source-profile-policy.js";
-import type {
-  ResolvedSourceCallInfo,
-} from "../members/selection/selection-types.js";
+import type { ResolvedSourceCallInfo } from "../../../target-model/records/members.js";
 type ResolvedSourcePropertyAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
 >;

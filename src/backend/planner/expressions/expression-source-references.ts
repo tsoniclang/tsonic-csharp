@@ -55,12 +55,12 @@ export function planIdentifierExpression(
   const sourceName = Node_Text(input.program.source.ast, AsIdentifier(input.program.source.ast, identifier));
   const sourceReference = input.program.sourceNavigation.referenceFor(identifier);
   const declarationReference = input.program.sourceNavigation.sourceReferenceFor(identifier);
-  if (declarationReference !== undefined && input.program.captureStorage.closure(declarationReference.declaration) !== undefined) {
+  if (declarationReference !== undefined && input.program.records.captureClosure.get(declarationReference.declaration) !== undefined) {
     return planCsharpFrameClosureReference(declarationReference.declaration, input, diagnostics, state);
   }
   const selectedClass = declarationReference === undefined ? undefined : input.scope.classValues?.get(declarationReference.declaration);
   if (selectedClass !== undefined) return selectedClass;
-  if (declarationReference !== undefined && input.program.classFactories.get(declarationReference.declaration) !== undefined) {
+  if (declarationReference !== undefined && input.program.records.classFactory.get(declarationReference.declaration) !== undefined) {
     return { kind: "IdentifierName", name: getCsharpLocalBindingName(identifier, input, state) ??
       requireCsharpIdentifier(sourceName, diagnostics, "Local class value") };
   }
@@ -116,7 +116,7 @@ export function planIdentifierExpression(
     name: getCsharpLocalBindingName(identifier, input, state) ??
       requireCsharpIdentifier(sourceName, diagnostics, "Source identifier"),
   };
-  const value: CsharpExpression = declaration !== undefined && input.program.storage.nativeBacking(declaration) !== undefined
+  const value: CsharpExpression = declaration !== undefined && input.program.records.nativeBacking.get(declaration) !== undefined
     ? { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Value" } : expression;
   return planFlowReadUseSiteProjection(identifier, value, sourceFile, input, diagnostics);
 }
@@ -126,7 +126,7 @@ function planProviderValueReference(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  const selection = input.program.operations.providerValue(identifier);
+  const selection = input.program.records.providerValue.get(identifier);
   if (selection === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       identifier,
@@ -181,9 +181,9 @@ function isGlobalUndefinedExpression(
   if (!nullLiteralGlobalSourceNames.has(sourceName) || sourceReference !== undefined) {
     return false;
   }
-  const type = input.program.sourceEvidence.expressionType(identifier);
+  const type = input.program.records.expressionType.get(identifier);
   return type !== undefined &&
-    input.program.sourceEvidence.semanticType(type, sourceFile)?.nullish === true;
+    input.program.records.semanticType.get(type, sourceFile)?.nullish === true;
 }
 
 const nullLiteralGlobalSourceNames = new Set(["undefined"]);
@@ -263,7 +263,7 @@ function isProviderVirtualDeclarationIdentifier(
   if (declaration === undefined) {
     return false;
   }
-  return input.program.sourceEvidence.providerVirtualDeclaration(declaration) ||
+  return input.program.records.providerVirtualDeclaration.get(declaration) ||
     isProviderVirtualSourceFile(input, input.program.source.ast.getSourceFile(declaration));
 }
 

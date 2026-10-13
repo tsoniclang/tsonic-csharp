@@ -12,10 +12,7 @@ import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/targe
 import type {
   CsharpProviderRelationResolver,
 } from "../../../../providers/model/relation-resolver.js";
-import type {
-  CsharpProviderTargetRelation,
-  CsharpTargetReceiverRelation,
-} from "../../../../providers/native/relations/index.js";
+import type { CsharpProviderTargetRelation, CsharpTargetReceiverRelation } from "../../../../target-model/identities/provider-relations.js";
 import type {
   CsharpTargetMember,
   CsharpProjectTypePolicy,
@@ -51,13 +48,7 @@ import {
 import {
   selectCsharpSourceArgument,
 } from "../selection/argument-selection.js";
-import type {
-  CsharpSelectedCallArgument,
-  CsharpProviderArgumentMapping,
-  CsharpSelectedTargetMethodTypeArgument,
-  CsharpSelectedTargetCall,
-  ResolvedSourceCallInfo,
-} from "../selection/selection-types.js";
+import type { CsharpSelectedCallArgument, CsharpProviderArgumentMapping, CsharpSelectedTargetMethodTypeArgument, CsharpSelectedTargetCall, ResolvedSourceCallInfo } from "../../../../target-model/records/members.js";
 
 type CsharpProviderSignatureRelation = Extract<
   CsharpProviderTargetRelation,

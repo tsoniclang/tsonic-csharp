@@ -50,7 +50,7 @@ export function planPrefixUnaryExpression(
     return undefined;
   }
   if (sourceOperator !== undefined) {
-    const classification = input.program.operations.unary(node);
+    const classification = input.program.records.unaryOperation.get(node);
     if (classification === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
@@ -80,7 +80,7 @@ export function planPrefixUnaryExpression(
           ));
     }
   }
-  const classification = input.program.operations.unary(node);
+  const classification = input.program.records.unaryOperation.get(node);
   if (classification === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -149,7 +149,7 @@ export function planPostfixUnaryExpression(
     return undefined;
   }
   if (sourceOperator !== undefined) {
-    const classification = input.program.operations.unary(node);
+    const classification = input.program.records.unaryOperation.get(node);
     if (classification === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
@@ -179,7 +179,7 @@ export function planPostfixUnaryExpression(
           ));
     }
   }
-  const classification = input.program.operations.unary(node);
+  const classification = input.program.records.unaryOperation.get(node);
   if (classification === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -231,7 +231,7 @@ function rejectUnloweredJsValueObjectShapeUpdate(
   ) {
     return false;
   }
-  const classification = input.program.operations.property(operand);
+  const classification = input.program.records.selectedProperty.get(operand);
   if (classification === undefined) {
     return false;
   }

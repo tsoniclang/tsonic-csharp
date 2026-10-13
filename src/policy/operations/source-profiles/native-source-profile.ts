@@ -11,18 +11,8 @@ import {
   getCsharpIndexableLengthMemberName,
   targetTypeRefEquals,
 } from "../../../target-model/types/index.js";
-import type {
-  CsharpSourceProfileCallPolicy,
-  CsharpSourceProfileCallPolicyContext,
-  CsharpSourceProfileCallPolicyResult,
-  CsharpSourceProfileElementPolicy,
-  CsharpSourceProfileElementPolicyContext,
-  CsharpSourceProfileElementPolicyResult,
-  CsharpSourceProfileIdentitySelector,
-  CsharpSourceProfilePropertyPolicy,
-  CsharpSourceProfilePropertyPolicyContext,
-  CsharpSourceProfilePropertyPolicyResult,
-} from "./source-profile-policy.js";
+import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicy, CsharpSourceProfileElementPolicyContext, CsharpSourceProfileElementPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "./source-profile-policy.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
 import {
   csharpSourceProfileCall,
   csharpSourceProfileDiagnostic,

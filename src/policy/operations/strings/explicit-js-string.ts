@@ -1,3 +1,4 @@
+import type { CsharpJsStringConversionSelection } from "../../../target-model/records/explicit-js-string.js";
 import {
   sourceMarkerFactKey,
 } from "@tsonic/tsts";
@@ -11,19 +12,6 @@ import {
   csharpStringTargetType,
   targetTypeRefEquals,
 } from "../../types/index.js";
-import type { TargetTypeRef } from "../../types/index.js";
-
-export type CsharpJsStringConversionSelection =
-  | { readonly kind: "not-js-string-conversion" }
-  | {
-      readonly kind: "resolved";
-      readonly sourceValue: Node;
-      readonly resultType: TargetTypeRef;
-    }
-  | {
-      readonly kind: "rejected";
-      readonly reason: string;
-    };
 
 export function selectCsharpJsStringConversion(
   policy: CsharpPolicyContext,

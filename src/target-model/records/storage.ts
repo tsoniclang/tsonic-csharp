@@ -1,6 +1,6 @@
+import type { CsharpNativeMemoryLayout } from "../operations/native-memory.js";
+import type { TargetTypeRef } from "../types/model.js";
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";
 
 export interface CsharpNativeObjectField {
   readonly owner: TargetTypeRef;
@@ -22,24 +22,24 @@ export interface CsharpNativeArrayStorage {
 }
 
 export interface CsharpStorageClassifications extends CsharpStorageRepresentationClassifications {
-  nativeModuleField(declaration: Node): boolean;
-  nativeLocation(expression: Node): import("./native-locations.js").CsharpNativeLocationSelection | undefined;
+  readonly nativeModuleField: { get(declaration: Node): boolean };
+  readonly nativeLocation: { get(expression: Node): import("./native-locations.js").CsharpNativeLocationSelection | undefined };
   readonly closedNativeContracts: readonly TargetTypeRef[];
   readonly nativeArrays: readonly { readonly subject: Node; readonly storage: CsharpNativeArrayStorage }[];
-  nativeArray(subject: Node): CsharpNativeArrayStorage | undefined;
+  readonly nativeArray: { get(subject: Node): CsharpNativeArrayStorage | undefined };
   readonly nativeFields: readonly CsharpNativeObjectField[];
-  nativeField(owner: TargetTypeRef, memberName: string): CsharpNativeObjectField | undefined;
-  readonly nativeBackings: readonly { readonly subject: Node; readonly layout: import("../../target-model/operations/native-memory.js").CsharpNativeMemoryLayout }[];
-  nativeBacking(subject: Node): import("../../target-model/operations/native-memory.js").CsharpNativeMemoryLayout | undefined;
+  readonly nativeField: { get(owner: TargetTypeRef, memberName: string): CsharpNativeObjectField | undefined };
+  readonly nativeBackings: readonly { readonly subject: Node; readonly layout: import("../operations/native-memory.js").CsharpNativeMemoryLayout }[];
+  readonly nativeBacking: { get(subject: Node): import("../operations/native-memory.js").CsharpNativeMemoryLayout | undefined };
 }
 
 export interface CsharpStorageRepresentationClassifications {
   readonly issues: readonly CsharpStorageIssue[];
   readonly contracts: readonly CsharpStorageContractClassification[];
-  type(node: Node): TargetTypeRef | undefined;
-  requiredType(node: Node): TargetTypeRef | undefined;
-  lambdaParameterType(node: Node): TargetTypeRef | undefined;
-  requiresTypedLocationIdentity(declaration: Node): boolean;
+  readonly storageType: { get(node: Node): TargetTypeRef | undefined };
+  readonly requiredStorageType: { get(node: Node): TargetTypeRef | undefined };
+  readonly lambdaParameterType: { get(node: Node): TargetTypeRef | undefined };
+  readonly typedLocationIdentity: { get(declaration: Node): boolean };
 }
 
 export interface CsharpStorageContractClassification {

@@ -69,7 +69,7 @@ export function planPropertyDeclaration(
   const declaration = parameterProperty ? AsParameterDeclaration(input.program.source.ast, node)! :
     AsPropertyDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "property declaration", diagnostics, ["public", "private", "protected", "readonly", "abstract", "override"]);
-  const sourceField = input.program.sourceEvidence.sourceField([node, declaration.name, declaration.Type,
+  const sourceField = input.program.records.sourceField.get([node, declaration.name, declaration.Type,
     ...(parameterProperty ? [] : [declaration.Initializer])]);
   if (sourceField !== undefined) {
     diagnoseUnavailableCsharpSafetyAccessors(
@@ -101,7 +101,7 @@ export function planPropertyDeclaration(
   );
   const propertyName = planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name");
   const modifiers = planClassMemberModifiers(node, declaration.name, input);
-  const storage = input.program.operations.classPropertyStorage(node);
+  const storage = input.program.records.classPropertyStorage.get(node);
   if (storage === undefined) diagnostics.push(unsupportedNodeDiagnostic(node,
     "The class property has no sealed native field/property representation."));
   if (input.program.source.ast.hasModifierKind(node, "abstract")) {

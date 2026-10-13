@@ -55,7 +55,6 @@ export function reconstructArtifact(
   }
 }
 
-
 export function verifyContractClosure(
   { contracts }: CsharpArtifactGraphScope,
 ): CsharpArtifactRequestResult {

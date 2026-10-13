@@ -1,16 +1,6 @@
-import type {
-  ExtensionDiagnostic,
-  Node,
-  SourceFile,
-} from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type {
-  CsharpTargetMember,
-  TargetTypeRef,
-} from "../../../types/index.js";
-import type {
-  CsharpTargetReceiverRelation,
-} from "../../../../providers/native/relations/index.js";
+import type { CsharpTargetCallSelection, CsharpTargetElementSelection, CsharpTargetPropertySelection } from "../../../../target-model/records/member-selections.js";
+import type { Node, SourceFile } from "@tsonic/tsts";
+
 import type {
   CsharpProviderCallSelectionHost,
 } from "./call-selection.js";
@@ -31,117 +21,14 @@ import {
   selectCsharpComposedSourceProfileElement,
   selectCsharpComposedSourceProfileProperty,
 } from "../../source-profiles/source-profile-selection.js";
-import type {
-  CsharpTargetPropertyInvocation,
-} from "../../source-profiles/source-profile-policy.js";
-import { selectCsharpUnionProperty, type CsharpUnionProperty } from "../../union-properties.js";
+
+import { selectCsharpUnionProperty } from "../../union-properties.js";
+
 import { selectCsharpInheritedConstructorTarget } from "./inherited-construction.js";
 import {
   selectCsharpSourceCoreFixedArrayElement,
   selectCsharpSourceCoreFixedArrayProperty,
 } from "../../source-profiles/source-core-fixed-array.js";
-import type {
-  CsharpSelectedTargetCall,
-  CsharpTargetElementInvocation,
-  ResolvedSourceCallInfo,
-} from "./selection-types.js";
-
-type ResolvedSourcePropertyAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
->;
-type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
->;
-
-export type CsharpTargetCallSelection =
-  | {
-      readonly kind: "resolved";
-      readonly source: ResolvedSourceCallInfo;
-      readonly call: CsharpSelectedTargetCall;
-    }
-  | {
-      readonly kind: "source-owned";
-      readonly source: ResolvedSourceCallInfo;
-      readonly reason: string;
-    }
-  | {
-      readonly kind: "missing" | "conflict";
-      readonly reason: string;
-    }
-  | {
-      readonly kind: "ambiguous";
-      readonly reason: string;
-      readonly candidates: readonly string[];
-    }
-  | {
-      readonly kind: "rejected";
-      readonly diagnostic: ExtensionDiagnostic;
-    };
-
-export type CsharpTargetPropertySelection =
-  | CsharpUnionProperty
-  | {
-      readonly kind: "resolved";
-      readonly source: ResolvedSourcePropertyAccessInfo;
-      readonly targetMember: CsharpTargetMember;
-      readonly receiver: CsharpTargetReceiverRelation;
-      readonly origin: "provider" | "source-profile";
-      readonly invocation: CsharpTargetPropertyInvocation;
-    }
-  | {
-      readonly kind: "source-owned";
-      readonly source: ResolvedSourcePropertyAccessInfo;
-      readonly reason: string;
-    }
-  | {
-      readonly kind: "missing" | "conflict";
-      readonly reason: string;
-    }
-  | {
-      readonly kind: "ambiguous";
-      readonly reason: string;
-      readonly candidates: readonly string[];
-    }
-  | {
-      readonly kind: "rejected";
-      readonly diagnostic: ExtensionDiagnostic;
-    };
-
-export type CsharpTargetElementSelection =
-  | {
-      readonly kind: "resolved";
-      readonly source: ResolvedSourceElementAccessInfo;
-      readonly targetMember: CsharpTargetMember;
-      readonly targetParameterIndex: number;
-      readonly receiver: CsharpTargetReceiverRelation;
-      readonly invocation: CsharpTargetElementInvocation;
-      readonly origin: "provider" | "source-profile";
-    }
-  | {
-      readonly kind: "project-indexer";
-      readonly source: ResolvedSourceElementAccessInfo;
-      readonly keyType: TargetTypeRef;
-      readonly valueType: TargetTypeRef;
-      readonly selectedReadType?: TargetTypeRef;
-    }
-  | {
-      readonly kind: "source-owned";
-      readonly source: ResolvedSourceElementAccessInfo;
-      readonly reason: string;
-    }
-  | {
-      readonly kind: "missing" | "conflict";
-      readonly reason: string;
-    }
-  | {
-      readonly kind: "ambiguous";
-      readonly reason: string;
-      readonly candidates: readonly string[];
-    }
-  | {
-      readonly kind: "rejected";
-      readonly diagnostic: ExtensionDiagnostic;
-    };
 
 export function selectCsharpTargetCall(
   host: CsharpProviderCallSelectionHost,

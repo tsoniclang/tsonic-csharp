@@ -11,8 +11,7 @@ test("C# call planning fails closed when its sealed classification is absent", (
   const node = {};
   const diagnostics = [];
   const input = {
-    program: {
-      source: {
+    program: { source: {
         ast: {
           as: {
             AsCallExpression(subject) {
@@ -22,13 +21,10 @@ test("C# call planning fails closed when its sealed classification is absent", (
           },
         },
       },
-      operations: {
-        call(subject) {
+      records: { selectedCall: { get(subject) {
           assert.equal(subject, node);
           return undefined;
-        },
-      },
-    },
+        } } } },
   };
 
   const result = translateCsharpCallExpression(
@@ -54,13 +50,9 @@ test("C# conversion planning fails closed when its sealed classification is abse
   const node = {};
   const diagnostics = [];
   const input = {
-    program: {
-      conversions: {
-        select() {
+    program: { records: { conversion: { get() {
           return undefined;
-        },
-      },
-    },
+        } } } },
   };
 
   const result = readCsharpConversionClassification(

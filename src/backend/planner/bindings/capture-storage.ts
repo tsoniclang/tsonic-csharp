@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpCaptureFrame } from "../../../analysis/callables/capture-storage.js";
+import type { CsharpCaptureFrame } from "../../../target-model/records/capture-storage.js";
 import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
@@ -23,7 +23,7 @@ export function csharpCapturedBindingExpression(
 ): CsharpExpression | undefined {
   const override = input.scope.capturedBindings?.get(declaration);
   if (override !== undefined) return override;
-  const selected = input.program.captureStorage.binding(declaration);
+  const selected = input.program.records.capturedBinding.get(declaration);
   const receiver = selected === undefined ? undefined : csharpCaptureFrameExpression(selected.frame.scope, input, state);
   return selected === undefined || receiver === undefined ? undefined : {
     kind: "SimpleMemberAccessExpression", receiver, name: selected.fieldName,
@@ -36,7 +36,7 @@ export function planCsharpCaptureFrame(
   receivers: ReadonlyMap<Node, CsharpExpression> = new Map(),
 ): readonly CsharpStatement[] {
   if (input.scope.captureFrames?.has(scope)) return [];
-  const frame = input.program.captureStorage.frame(scope);
+  const frame = input.program.records.captureFrame.get(scope);
   if (frame === undefined) return [];
   const type = csharpTypeFromObjectShapeFact(input, frame.shape, diagnostics, scope);
   if (type === undefined) return [];
@@ -73,7 +73,7 @@ export function planCsharpCaptureEntryBindings(
   scope: Node, input: CsharpPlanningContext, state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
   const owner = input.program.source.ast.parent(scope);
-  const frame = input.program.captureStorage.frame(scope);
+  const frame = input.program.records.captureFrame.get(scope);
   if (frame === undefined || owner === undefined || !input.program.source.ast.is.IsCatchClause(owner)) return [];
   return frame.bindings.flatMap(binding => {
     if (input.program.source.ast.parent(binding.declaration) !== owner ||

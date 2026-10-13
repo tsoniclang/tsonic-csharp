@@ -34,29 +34,20 @@ import {
   targetTypeRefKey,
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type {
-  CsharpTargetOperationClassifications,
-} from "../operations/index.js";
-import type {
-  CsharpSourceEvidenceIndex,
-} from "../source-evidence/index.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type {
   CsharpObjectShapeClassifications,
 } from "../objects/index.js";
 import type {
   CsharpCallableContractIndex,
 } from "../callables/index.js";
-import type {
-  CsharpExpectedTypeClassifications,
-  CsharpExpectedTypeIssue,
-} from "./model.js";
+import type { CsharpExpectedTypeClassifications, CsharpExpectedTypeIssue } from "../../target-model/records/expected-types.js";
 import {
   selectCsharpBinaryOperation,
 } from "../../policy/operations/index.js";
 import { csharpBinarySelectionsEqual } from "./binary-equality.js";
-import type {
-  CsharpTargetCallSelection,
-} from "../../policy/operations/members/index.js";
+import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
 import {
   csharpTargetRepresentationContractId,
 } from "../../target-model/identities/identities.js";
@@ -180,33 +171,33 @@ export function analyzeCsharpExpectedTypes(
     targetTypes: Object.freeze([...targetTypes.entries()]
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([, type]) => type)),
-    forExpression(expression) {
+    expectedType: Object.freeze({ get(expression) {
       return expressionTypes(expression);
-    },
-    requiredTypesForExpression(expression) { return expressionTypes(expression, "required"); },
-    requiresExactIntegerConversion(expression, targetType) {
+    } }),
+    requiredExpectedType: Object.freeze({ get(expression) { return expressionTypes(expression, "required"); } }),
+    exactIntegerConversion: Object.freeze({ get(expression, targetType) {
       return byExpression.get(expression)?.get(targetTypeRefKey(targetType))?.exactInteger === true;
-    },
-    storageTypesForExpression(expression) {
+    } }),
+    storageExpectedType: Object.freeze({ get(expression) {
       const uses = [...(byExpression.get(expression)?.entries() ?? [])]
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([, use]) => use);
       const required = uses.filter((use) => use.strength === "required");
       return Object.freeze((required.length > 0 ? required : uses).map((use) =>
         use.targetType));
-    },
-    callableTarget(expression) {
+    } }),
+    callableTarget: Object.freeze({ get(expression) {
       return callableTargets.get(expression);
-    },
-    arrayLiteralCarrier(expression, targetType) {
+    } }),
+    arrayLiteralCarrier: Object.freeze({ get(expression, targetType) {
       return arrayCarriers.get(expression)?.get(targetTypeRefKey(targetType));
-    },
-    binaryExpected(expression, targetType) {
+    } }),
+    expectedBinary: Object.freeze({ get(expression, targetType) {
       return binaryFacts.get(
         expectedBinaryUse(expression, targetType),
         expectedBinaryKey,
       );
-    },
+    } }),
   };
   return Object.freeze(classifications);
 
@@ -232,7 +223,7 @@ export function analyzeCsharpExpectedTypes(
         ? getCsharpTaskResultTargetType(selectedReturnType)
         : selectedReturnType;
     }
-    if (evidence.generator(callable.sourceDeclaration) !== undefined) {
+    if (evidence.generator.get(callable.sourceDeclaration) !== undefined) {
       return getCsharpGeneratorProtocol(callable.returnType)?.returnType;
     }
     return HasSyntacticModifier(
@@ -260,7 +251,7 @@ export function analyzeCsharpExpectedTypes(
         : contextualTargets;
       const distinctTargets = new Map(effectiveTargets.map((use) =>
         [targetTypeRefKey(use.targetType), use.targetType]));
-      const sourceTarget = evidence.nodeTargetType(declaration);
+      const sourceTarget = evidence.nodeTargetType.get(declaration);
       const intrinsic = getCsharpMethodValue(sourceTarget) === undefined ? undefined : sourceTarget;
       const targetType = callables.closedInputType(declaration) ?? (distinctTargets.size === 1
         ? [...distinctTargets.values()][0]
@@ -333,27 +324,27 @@ export function analyzeCsharpExpectedTypes(
   }
 
   function visit(node: Node, sourceFile: SourceFile): void {
-    if (evidence.isCompileTimeMetadata(node)) return;
-    if (operations.nativeUnreachable(node)) return;
+    if (evidence.compileTimeMetadata.get(node)) return;
+    if (operations.nativeUnreachable.get(node)) return;
     recordInitializer(node);
     recordReturnExpression(node);
     recordExpressionBodyReturn(node);
-    const thrown = operations.throwValue(node);
+    const thrown = operations.throwValue.get(node);
     if (thrown !== undefined) record(thrown.expression, thrown.targetCarrier, "required");
-    const contextualType = evidence.contextualType(node);
+    const contextualType = evidence.contextualType.get(node);
     record(
       node,
       contextualType === undefined
         ? undefined
-        : evidence.targetType(contextualType, sourceFile),
+        : evidence.semanticTargetType.get(contextualType, sourceFile),
       "contextual",
     );
     recordIntrinsicArrayLiteralElements(node);
     recordIntrinsicObjectLiteralMembers(node);
 
-    const call = operations.call(node);
-    const typedLocation = operations.typedLocation(node);
-    const nativePointer = operations.nativePointer(node);
+    const call = operations.selectedCall.get(node);
+    const typedLocation = operations.typedLocation.get(node);
+    const nativePointer = operations.nativePointer.get(node);
     if (nativePointer?.kind === "layout-query") {
       return;
     }
@@ -401,7 +392,7 @@ export function analyzeCsharpExpectedTypes(
       }
     }
 
-    const construction = operations.construction(node);
+    const construction = operations.selectedConstruction.get(node);
     if (construction?.target?.kind === "resolved") {
       recordSelectedCallReceiver(construction.target, "required");
       recordSelectedCallArguments(
@@ -429,7 +420,7 @@ export function analyzeCsharpExpectedTypes(
       }
     }
 
-    const switchSelection = operations.switchStatement(node);
+    const switchSelection = operations.switchStatement.get(node);
     if (switchSelection?.kind === "ordered") {
       for (const clause of switchSelection.clauses) {
         if (clause.comparison?.kind !== "resolved") continue;
@@ -438,7 +429,7 @@ export function analyzeCsharpExpectedTypes(
       }
     }
 
-    const binary = operations.binary(node)?.target;
+    const binary = operations.binaryOperation.get(node)?.target;
     if (binary?.kind === "resolved") {
       record(binary.left, binary.leftInputType, "required");
       if (binary.targetOperation.kind === "conditional-value" && binary.targetOperation.branch !== "right") {
@@ -458,17 +449,17 @@ export function analyzeCsharpExpectedTypes(
           member?.kind === "resolved" && member.member.exactNumericStorage === true);
       }
     }
-    const mutation = operations.jsArrayMutation(node);
+    const mutation = operations.jsArrayMutation.get(node);
     if (mutation?.kind === "set-typed-element" && mutation.calculation !== undefined) {
       record(mutation.calculation.left, mutation.calculation.leftInputType, "required");
       record(mutation.calculation.right, mutation.calculation.rightInputType, "required");
     }
-    const unary = operations.unary(node)?.target;
+    const unary = operations.unaryOperation.get(node)?.target;
     if (unary?.kind === "resolved") {
       record(unary.operand, unary.operandType, "required");
     }
 
-    const element = operations.element(node)?.target;
+    const element = operations.selectedElement.get(node)?.target;
     if (element?.kind === "resolved") {
       const argument = policy.ast.as.AsElementAccessExpression(node)?.ArgumentExpression;
       record(
@@ -490,7 +481,7 @@ export function analyzeCsharpExpectedTypes(
       record(nativePointer.offsetExpression, nativePointer.offsetType, "required");
     }
 
-    const iteration = operations.iteration(node);
+    const iteration = operations.iteration.get(node);
     if (iteration?.kind === "resolved") {
       record(
         policy.ast.as.AsForInOrOfStatement(node)?.Expression,
@@ -499,12 +490,12 @@ export function analyzeCsharpExpectedTypes(
       );
     }
 
-    const yieldSelection = evidence.yield(node);
+    const yieldSelection = evidence.yield.get(node);
     if (yieldSelection?.operand !== undefined) {
       const expectedYieldType = yieldSelection.yieldKind === "delegate"
-        ? evidence.yieldTargetType(node)
+        ? evidence.yieldTargetType.get(node)
         : getCsharpGeneratorProtocol(
-            evidence.generatorTargetType(yieldSelection.generator.declaration),
+            evidence.generatorTargetType.get(yieldSelection.generator.declaration),
           )?.yieldType;
       record(
         yieldSelection.operand.expression,
@@ -585,8 +576,8 @@ export function analyzeCsharpExpectedTypes(
     record(
       initializer,
       typeNode === undefined
-        ? evidence.storageTargetType(node)
-        : evidence.nodeTargetType(typeNode),
+        ? evidence.storageTargetType.get(node)
+        : evidence.nodeTargetType.get(typeNode),
       typeNode === undefined ? "contextual" : "required",
     );
   }
@@ -631,7 +622,7 @@ export function analyzeCsharpExpectedTypes(
       const expectedSelection = selectCsharpBinaryOperation(
         policy,
         expression,
-        evidence.nodeTargetType,
+        evidence.nodeTargetType.get,
         targetType,
       );
       if (expectedSelection !== undefined) {
@@ -646,7 +637,7 @@ export function analyzeCsharpExpectedTypes(
           );
         }
       }
-      const selection = expectedSelection ?? operations.binary(expression)?.target;
+      const selection = expectedSelection ?? operations.binaryOperation.get(expression)?.target;
       if (selection?.kind === "resolved") {
         record(selection.left, selection.leftInputType, strength);
         if (selection.targetOperation.kind === "conditional-value" && selection.targetOperation.branch !== "right") {
@@ -704,7 +695,7 @@ export function analyzeCsharpExpectedTypes(
         const selected = propertyName !== undefined &&
             policy.ast.is.IsComputedPropertyName(propertyName)
           ? (() => {
-              const symbol = evidence.wellKnownSymbol(propertyName);
+              const symbol = evidence.wellKnownSymbol.get(propertyName);
               return symbol === undefined
                 ? undefined
                 : resolveCsharpObjectShapeMemberBySourceKey(
@@ -753,9 +744,9 @@ export function analyzeCsharpExpectedTypes(
     if (!policy.ast.is.IsArrayLiteralExpression(node)) {
       return;
     }
-    const targetType = operations.resultType(node) ??
-      evidence.storageTargetType(node) ??
-      evidence.nodeTargetType(node);
+    const targetType = operations.operationResultType.get(node) ??
+      evidence.storageTargetType.get(node) ??
+      evidence.nodeTargetType.get(node);
     if (targetType !== undefined) {
       recordArrayLiteralElements(node, targetType, "contextual");
     }
@@ -767,7 +758,7 @@ export function analyzeCsharpExpectedTypes(
     strength: ExpectedTypeStrength,
   ): void {
     const carrier = selectCsharpArrayLiteralCarrier(targetType,
-      operations.resultType(expression) ?? evidence.nodeTargetType(expression), policy.typeDefinitions);
+      operations.operationResultType.get(expression) ?? evidence.nodeTargetType.get(expression), policy.typeDefinitions);
     if (carrier === undefined) return;
     let carriers = arrayCarriers.get(expression);
     if (carriers === undefined) {
@@ -826,7 +817,7 @@ export function analyzeCsharpExpectedTypes(
         typeof csharpTargetParameterValueType
       >[1];
     }[],
-    argumentMappings: readonly import("../../policy/operations/members/index.js").CsharpProviderArgumentMapping[] | undefined,
+    argumentMappings: readonly import("../../target-model/records/members.js").CsharpProviderArgumentMapping[] | undefined,
     strength: ExpectedTypeStrength,
   ): void {
     for (const argument of arguments_) {

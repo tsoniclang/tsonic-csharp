@@ -11,11 +11,11 @@ import type {
   SourceTypeComponentEvidence,
 } from "@tsonic/target-api/source";
 import { sourceTypeSyntaxRoot, sourceNodeIsNativeUnreachable } from "@tsonic/target-api/source";
-import type { CsharpSourceCallContract } from "../callables/source-callable-contract.js";
+import type { CsharpSourceCallContract } from "../../../target-model/records/source-callable-contract.js";
 import { resolveSourceCallContract as resolveSourceCallContractImplementation } from "./call-contracts.js";
 import type { CsharpSourceCallContractSelection } from "./call-contracts.js";
 import { resolveCsharpPointerReturnContract } from "../callables/pointer-return.js";
-import type { CsharpPointerReturnContract } from "../callables/pointer-return.js";
+import type { CsharpPointerReturnContract } from "../../../target-model/records/pointer-return.js";
 import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
 import type { ResolvedSourceCallInfo, CsharpRecursiveTypeResolver, CsharpTypePolicyHost, CsharpScopedTypePolicyResult, CsharpTypePolicy, CsharpTypeResolutionState } from "./model.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";

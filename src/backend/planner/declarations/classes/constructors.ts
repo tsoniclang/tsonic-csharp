@@ -91,8 +91,8 @@ export function planConstructorDeclarations(
       body: { kind: "Block", statements: [] },
   };
   if (baseArgumentPlans === undefined) return [constructor];
-  if (csharpConstructorRequiresPreparation(input.program.source.ast, node, input.program.declarations, input.program.storage,
-    parameter => input.program.captureStorage.binding(parameter) !== undefined)) return planCsharpPreparedConstructor(node, declaration.Body, constructor,
+  if (csharpConstructorRequiresPreparation(input.program.source.ast, node, input.program.records, input.program.records,
+    parameter => input.program.records.capturedBinding.get(parameter) !== undefined)) return planCsharpPreparedConstructor(node, declaration.Body, constructor,
     parameters, baseArgumentPlans, sourceFile, input, diagnostics, state, leadingSuperCall !== undefined, initializers);
   const baseArguments: CsharpArgument[] = [];
   for (const argument of baseArgumentPlans) {
@@ -122,7 +122,7 @@ function planBaseConstructorArguments(
 ): readonly CsharpConstructorArgumentPlan[] | undefined {
   const planned: CsharpConstructorArgumentPlan[] = [];
   const callNode = call.Expression === undefined ? undefined : input.program.source.ast.parent(call.Expression);
-  const selection = callNode === undefined ? undefined : input.program.operations.call(callNode);
+  const selection = callNode === undefined ? undefined : input.program.records.selectedCall.get(callNode);
   for (const [index, argument] of (call.Arguments?.Nodes ?? []).entries()) {
     if (argument === undefined) {
       continue;

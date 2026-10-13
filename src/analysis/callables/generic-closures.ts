@@ -1,11 +1,11 @@
 import type { Node } from "@tsonic/tsts";
 import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceBindingCapturedBeforeInitialization, sourceLexicalCaptures,
   type TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
-import type { CsharpStorageIssue } from "../storage/model.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpStorageIssue } from "../../target-model/records/storage.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
-import type { CsharpFrameClosure } from "./capture-closures.js";
+import type { CsharpFrameClosure } from "../../target-model/records/capture-storage.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 
 const maximumGenericClosureCaptures = 131_072;
@@ -20,18 +20,18 @@ export function selectCsharpGenericFrameClosures(
   let capturesCount = 0;
   let exhausted = false;
   const visit = (node: Node): void => {
-    if (exhausted || evidence.isCompileTimeMetadata(node)) return;
+    if (exhausted || evidence.compileTimeMetadata.get(node)) return;
     if ((source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) &&
       sourceCallableDefinitionIsDiscarded(node, source.ast)) return;
     if ((source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) && source.ast.typeParameters(node).length > 0) {
-      const type = evidence.nodeTargetType(node);
+      const type = evidence.nodeTargetType.get(node);
       const method = getCsharpMethodValue(type);
       if (type === undefined || method === undefined || method.typeParameters.length !== source.ast.typeParameters(node).length) {
         issues.push({ node, code: "CSHARP_GENERIC_CALLABLE_CONTRACT_NOT_CLOSED",
           message: "A generic callable value requires its exact quantified native invocation contract." });
       } else {
         const lexical = sourceLexicalCaptures(node, [node], source.ast, source.navigation);
-        const captures = lexical.captures.filter(capture => !evidence.isCompileTimeMetadata(capture.declaration));
+        const captures = lexical.captures.filter(capture => !evidence.compileTimeMetadata.get(capture.declaration));
         capturesCount += captures.length + lexical.receivers.length + 1;
         if (capturesCount > maximumGenericClosureCaptures) {
           exhausted = true;
@@ -40,7 +40,7 @@ export function selectCsharpGenericFrameClosures(
           return;
         }
         const bindings = captures.map(capture => {
-          const type = evidence.storageTargetType(capture.declaration) ?? evidence.nodeTargetType(capture.declaration);
+          const type = evidence.storageTargetType.get(capture.declaration) ?? evidence.nodeTargetType.get(capture.declaration);
           const scope = sourceBindingScope(capture.declaration, source.ast);
           return type === undefined || scope === undefined ? undefined : { declaration: capture.declaration, scope,
             type: physicalType(capture.declaration, type),
@@ -50,7 +50,7 @@ export function selectCsharpGenericFrameClosures(
         });
         const receivers = lexical.receivers.map(receiver => {
           const reference = receiver.references[0];
-          const type = reference === undefined ? undefined : evidence.nodeTargetType(reference);
+          const type = reference === undefined ? undefined : evidence.nodeTargetType.get(reference);
           return type === undefined ? undefined : { owner: receiver.owner, references: receiver.references, type };
         });
         if (bindings.some(binding => binding === undefined) || receivers.some(receiver => receiver === undefined)) {
@@ -100,7 +100,7 @@ export function selectCsharpGenericFrameClosures(
     const method = methods[0]!;
     const group = groups.get(scope)!;
     for (const capture of method.captures) {
-      const type = evidence.storageTargetType(capture) ?? evidence.nodeTargetType(capture);
+      const type = evidence.storageTargetType.get(capture) ?? evidence.nodeTargetType.get(capture);
       if (type !== undefined) group.set(capture, physicalType(capture, type));
     }
     activationByDeclaration.set(method.declaration, scope);

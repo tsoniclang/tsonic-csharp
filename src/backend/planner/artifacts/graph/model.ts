@@ -112,7 +112,7 @@ export interface CsharpArtifactGraphHost {
   readonly ast: AstReader;
   readonly objectShapes: CsharpObjectShapeClassifications;
   readonly projectTypes?: Pick<
-    import("../../../../analysis/project-types/model.js").CsharpProjectTypeClassifications,
+    import("../../../../target-model/records/project-types.js").CsharpProjectTypeClassifications,
     "heritageForTarget"
   >;
   readonly typeDefinitions?: import("../../../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;

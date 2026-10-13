@@ -3,9 +3,7 @@ import type {
   ProviderMemberKey,
   ProviderVirtualDeclarationFact,
 } from "@tsonic/tsts";
-import type {
-  CsharpProviderTargetRelation,
-} from "./index.js";
+import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import {
   providerMemberSourceIdentity,
   providerSignatureSourceIdentity,

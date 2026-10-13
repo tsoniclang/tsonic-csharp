@@ -8,9 +8,9 @@ import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/sy
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { CsharpTargetParameter } from "../../../../../target-model/types/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { ResolvedSourceCallInfo } from "../../../../../analysis/operations/index.js";
-import type { CsharpCallClassification } from "../../../../../analysis/operations/index.js";
-import type { CsharpSourceCallArgumentClassification } from "../../../../../analysis/operations/index.js";
+import type { ResolvedSourceCallInfo } from "../../../../../target-model/records/members.js";
+import type { CsharpCallClassification } from "../../../../../target-model/records/operations.js";
+import type { CsharpSourceCallArgumentClassification } from "../../../../../target-model/records/operations.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { csharpSourceArgumentGroups } from "./source-argument-groups.js";
 import { convertCsharpPlannedValue } from "../../planned-value-conversions.js";
@@ -52,7 +52,7 @@ export function translateSourceOwnedCall(
       : "Source call has no exact sealed callee acquisition contract."));
     return undefined;
   }
-  const signatureDeclaration = input.program.sourceEvidence.signatureDeclaration(source.selectedSignature);
+  const signatureDeclaration = input.program.records.signatureDeclaration.get(source.selectedSignature);
   if (!isProjectSourceDeclaration(input, source.sourceCallee.selectedDeclaration) &&
     !isProjectSourceDeclaration(input, signatureDeclaration)) {
     diagnostics.push(unsupportedNodeDiagnostic(node,
@@ -228,7 +228,7 @@ export function translateSourceOwnedArguments(
     const declaration = parameter === undefined ? undefined
       : input.program.source.ast.as.AsParameterDeclaration(parameter.parameterDeclaration);
     if (declaration?.Initializer !== undefined && parameter?.parameterDeclaration !== undefined &&
-      input.program.declarations.runtimeDefault(parameter.parameterDeclaration) === undefined) {
+      input.program.records.runtimeDefault.get(parameter.parameterDeclaration) === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node,
         `Omitted source-owned delegate parameter ${group.parameterIndex} has a default initializer that requires exact callee-side default evaluation before C# emission.`));
       return undefined;

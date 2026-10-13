@@ -46,7 +46,7 @@ for (const kind of ["nominal", "array"]) test(`closed ${kind} tests reject missi
   const arms = fact.test.test.arms;
   assert.ok(Object.isFrozen(fact.test) && Object.isFrozen(arms) && arms.every(Object.isFrozen));
   const expression = { kind: "IdentifierName", name: "operand" };
-  const input = { scope: {}, program: {} };
+  const input = { scope: {}, program: {  } };
   const state = () => ({ nextTempIndex: 0, usedNames: new Set() });
   assert.equal(csharpClosedTypeTestMatches(fact), true);
   assert.equal(planCsharpClosedTypeTest(expression, fact, input, state()).kind, "SwitchExpression");

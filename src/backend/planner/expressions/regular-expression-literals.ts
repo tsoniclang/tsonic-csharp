@@ -10,7 +10,7 @@ export function planRegularExpressionLiteral(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  const selection = input.program.operations.regularExpression(node);
+  const selection = input.program.records.regularExpression.get(node);
   if (selection === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,

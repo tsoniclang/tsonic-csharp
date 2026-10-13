@@ -14,8 +14,8 @@ import {
   getCsharpRuntimeUnionArms,
 } from "../../policy/types/index.js";
 import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDeclarations } from "../../policy/types/objects/object-shape-policy/union-construction.js";
-import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
-import type { CsharpTargetOperationClassifications } from "../operations/index.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpObjectShapeClassifications } from "./model.js";
 import { selectCsharpStructuralInterface, type CsharpStructuralInterfaceRegistration } from "./structural-interfaces.js";
 import { mergeCsharpObjectShapeSubjects } from "../../policy/types/objects/object-shape-policy/construction.js";
@@ -157,7 +157,7 @@ export function analyzeCsharpObjectShapes(
       reserveClassification();
       const carrier = selectCsharpObjectLiteralUnionCarrier(type, elements, policy.objectShapes.resolveTarget,
         (element, candidate) => csharpObjectLiteralDestinationDeclarations(element, candidate, policy.semantics(sourceFile)),
-        policy.typeDefinitions, evidence.nodeTargetType(literal));
+        policy.typeDefinitions, evidence.nodeTargetType.get(literal));
       if (carrier !== undefined) {
         unionCarriers.set(targetTypeRefKey(type), carrier);
         rememberShape(policy.objectShapes.resolveTarget(carrier));
@@ -167,7 +167,7 @@ export function analyzeCsharpObjectShapes(
     const results = new Map<string, CsharpObjectLiteralTargetShapeResolution>();
     literalResults.set(literal, results);
     const contextualShape = policy.objectShapes.resolveType(
-      evidence.contextualType(literal),
+      evidence.contextualType.get(literal),
       sourceFile,
     );
     const expectedShapes = new Set<CsharpObjectShapeFact | undefined>([
@@ -326,8 +326,8 @@ export function analyzeCsharpObjectShapes(
   return Object.freeze(classifications);
 
   function visit(node: Node, sourceFile: SourceFile): void {
-    if (evidence.isCompileTimeMetadata(node)) return;
-    const operation = operations.call(node) ?? operations.construction(node);
+    if (evidence.compileTimeMetadata.get(node)) return;
+    const operation = operations.selectedCall.get(node) ?? operations.selectedConstruction.get(node);
     for (const type of operation?.sourceArgumentParameterTypes ?? []) {
       if (type !== undefined) operationTypes.push(type);
     }

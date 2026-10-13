@@ -44,7 +44,7 @@ export function planForInStatement(
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
   const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
-  const selectedIteration = input.program.operations.iteration(statementNode);
+  const selectedIteration = input.program.records.iteration.get(statementNode);
   if (selectedIteration === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       diagnosticNode,

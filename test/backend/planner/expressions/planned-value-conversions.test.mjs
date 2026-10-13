@@ -11,10 +11,8 @@ const prelude = [{ kind: "ExpressionStatement", expression: {
   kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "observe" }, arguments: [],
 } }];
 const node = {};
-const input = selection => ({ scope: {}, program: {
-  source: { ast: { pos: () => 0, end: () => 1, getSourceFile: () => undefined } },
-  conversions: { select: selection },
-} });
+const input = selection => ({ scope: {}, program: { source: { ast: { pos: () => 0, end: () => 1, getSourceFile: () => undefined } },
+  records: { conversion: { get: selection } } } });
 
 test("planned completion identity and never preserve native evaluation without conversion", () => {
   const context = input(() => assert.fail("identity and never require no conversion"));

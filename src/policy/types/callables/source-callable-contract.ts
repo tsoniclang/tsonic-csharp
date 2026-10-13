@@ -1,29 +1,8 @@
+import type { CsharpSourceCallContract, CsharpSourceCallParameterContract } from "../../../target-model/records/source-callable-contract.js";
 import type {
   AstReader,
   Node,
 } from "@tsonic/tsts";
-import type {
-  CsharpTargetParameter,
-  TargetTypeRef,
-} from "../../../target-model/types/model.js";
-
-export interface CsharpSourceCallParameterContract {
-  readonly sourceParameter?: Node;
-  readonly targetParameter: CsharpTargetParameter;
-}
-
-export interface CsharpSourceCallContract {
-  readonly sourceDeclaration?: Node;
-  readonly methodTypeParameterIdentities: readonly string[];
-  readonly receiverTypeOwner?: Node;
-  readonly parameters: readonly CsharpSourceCallParameterContract[];
-  readonly returnType: TargetTypeRef;
-  readonly sourceReturnType?: TargetTypeRef;
-}
-
-export interface CsharpSourceCallableParameterContract extends CsharpSourceCallParameterContract {
-  readonly sourceParameter: Node;
-}
 
 export function csharpSourceCallArgumentParameter(
   callable: CsharpSourceCallContract,
@@ -31,11 +10,6 @@ export function csharpSourceCallArgumentParameter(
 ): CsharpSourceCallParameterContract | undefined {
   const restIndex = callable.parameters.findIndex(parameter => parameter.targetParameter.paramsArray === true);
   return callable.parameters[restIndex < 0 ? effectiveArgumentIndex : Math.min(effectiveArgumentIndex, restIndex)];
-}
-
-export interface CsharpSourceCallableContract extends CsharpSourceCallContract {
-  readonly sourceDeclaration: Node;
-  readonly parameters: readonly CsharpSourceCallableParameterContract[];
 }
 
 export type CsharpSourceCallableArtifactIdentity =

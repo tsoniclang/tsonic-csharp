@@ -14,7 +14,7 @@ export function tryPlanCsharpMemoryBinding(
   node: Node, file: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner,
 ): { readonly handled: boolean; readonly expression?: CsharpPlannedValue } {
-  const binding = input.program.operations.memoryBinding(node);
+  const binding = input.program.records.memoryBinding.get(node);
   if (binding === undefined) return { handled: false };
   const reject = (reason: string) => {
     diagnostics.push(unsupportedNodeDiagnostic(node, reason));

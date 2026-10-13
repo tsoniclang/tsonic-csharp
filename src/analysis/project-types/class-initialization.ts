@@ -1,13 +1,8 @@
+import type { CsharpClassInitializationIndex } from "../../target-model/records/class-initialization.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { sourceExpressionUsesLexicalThis } from "@tsonic/target-api/source";
-import type { CsharpClassFactoryIndex } from "./class-factories.js";
-
-export interface CsharpClassInitializationIndex {
-  requiresConstructor(declaration: Node): boolean;
-  relocatesField(declaration: Node): boolean;
-  orderedRegion(declaration: Node, isStatic: boolean): readonly Node[];
-}
+import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
 
 export function analyzeCsharpClassInitialization(
   source: TargetSourceProgram,
@@ -20,7 +15,7 @@ export function analyzeCsharpClassInitialization(
   const visit = (node: Node): void => {
     if (ast.is.IsClassDeclaration(node) || ast.is.IsClassExpression(node)) {
       const properties = ast.members(node).filter((member): member is Node => member !== undefined && ast.is.IsPropertyDeclaration(member));
-      const factory = factories.get(node) !== undefined;
+      const factory = factories.classFactory.get(node) !== undefined;
       const instance = properties.filter(member => !ast.hasModifierKind(member, "static"));
       regions.set(node, Object.freeze({ instance: Object.freeze(instance), static: Object.freeze(ast.members(node).filter(
         (member): member is Node => member !== undefined && (ast.is.IsClassStaticBlockDeclaration(member) ||
@@ -41,8 +36,8 @@ export function analyzeCsharpClassInitialization(
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   source.navigation.sourceFiles.forEach(visit);
-  return Object.freeze({ requiresConstructor: (declaration: Node) => constructors.has(declaration),
-    relocatesField: (declaration: Node) => fields.has(declaration),
-    orderedRegion: (declaration: Node, isStatic: boolean) => isStatic
-      ? regions.get(declaration)?.static ?? [] : regions.get(declaration)?.instance ?? [] });
+  return Object.freeze({ requiresClassConstructor: Object.freeze({ get: (declaration: Node) => constructors.has(declaration) }),
+    relocatedClassField: Object.freeze({ get: (declaration: Node) => fields.has(declaration) }),
+    classInitializationRegion: Object.freeze({ get: (declaration: Node, isStatic: boolean) => isStatic
+      ? regions.get(declaration)?.static ?? [] : regions.get(declaration)?.instance ?? [] }) });
 }

@@ -27,9 +27,9 @@ export function csharpObjectCaptureFields(shape: CsharpObjectShapeFact, input: C
   const fields: ObjectCaptureField[] = [];
   const frames = new Map<Node, number>();
   for (const capture of shape.methodImplementation?.captures ?? []) {
-    const selected = input.program.captureStorage.binding(capture.declaration);
+    const selected = input.program.records.capturedBinding.get(capture.declaration);
     if (selected === undefined) {
-      fields.push({ name: capture.fieldName, type: input.program.captureStorage.physicalType(capture.declaration, capture.type),
+      fields.push({ name: capture.fieldName, type: input.program.records.physicalStorageType.get(capture.declaration, capture.type),
         declarations: [{ declaration: capture.declaration }] });
       continue;
     }
@@ -58,7 +58,7 @@ export function renderCsharpAuthoredObjectMethods(
   for (const field of csharpObjectCaptureFields(shape, input)) {
     const type = csharpTypeFromTargetTypeRef(field.type, input.scope.typeParameterNames);
     if (type === undefined) return undefined;
-    const frame = field.frameScope === undefined ? undefined : input.program.captureStorage.frame(field.frameScope);
+    const frame = field.frameScope === undefined ? undefined : input.program.records.captureFrame.get(field.frameScope);
     if (frame !== undefined && csharpTypeFromObjectShapeFact(input, frame.shape, diagnostics, implementation.declaration) === undefined) return undefined;
     members.push({ kind: "FieldDeclaration", name: field.name, type, modifiers: ["public", "required"] });
     const receiver: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: field.name };

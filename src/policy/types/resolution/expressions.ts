@@ -212,7 +212,6 @@ export function resolveSelectedExpressionType(
   return undefined;
 }
 
-
 export function resolveMemberAccessTargetType(
   { host, optionalAccessTargetType, policy, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSelectedSymbolType, resolveSelectedValueWithState }: CsharpTypeResolutionScope,
   node: Node,
@@ -318,7 +317,6 @@ export function resolveMemberAccessTargetType(
   );
 }
 
-
 export function resolveNonNullExpressionType(
   scope: CsharpTypeResolutionScope,
   node: Node,
@@ -358,7 +356,6 @@ export function resolveNonNullExpressionType(
   );
   return refinement.kind === "resolved" ? refinement.type : undefined;
 }
-
 
 export function resolveProjectThisTargetType(
   { host }: CsharpTypeResolutionScope,
@@ -412,7 +409,6 @@ export function resolveProjectThisTargetType(
   return undefined;
 }
 
-
 export function resolveSourceOwnedCallResult(
   { resolveSourceCallResultWithState }: CsharpTypeResolutionScope,
   source: NonNullable<
@@ -428,7 +424,6 @@ export function resolveSourceOwnedCallResult(
     undefined,
   )?.selectedType;
 }
-
 
 export function resolveSelectedReceiverTargetType(
   { host, resolveNodeWithState, resolveTypeWithState }: CsharpTypeResolutionScope,
@@ -472,7 +467,6 @@ export function resolveSelectedReceiverTargetType(
       );
 }
 
-
 export function resolveSourceOwnedConstructionResult(
   { host, projectSourceDeclarationTargetType, resolveSourceOwnedCallResult,
     resolveNodeWithState, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
@@ -509,7 +503,6 @@ export function resolveSourceOwnedConstructionResult(
         source.sourceResultType,
       );
 }
-
 
 export function optionalAccessTargetType(
   {  }: CsharpTypeResolutionScope,

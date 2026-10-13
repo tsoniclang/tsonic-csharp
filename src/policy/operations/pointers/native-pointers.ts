@@ -1,3 +1,4 @@
+import type { CsharpNativePointerOperationKind, CsharpNativePointerOperationSelection, CsharpResolvedNativePointerOperationBase } from "../../../target-model/records/native-pointers.js";
 import type {
   Node,
   SourceFile,
@@ -5,9 +6,7 @@ import type {
 import type {
   CsharpPolicyContext,
 } from "../../model/context.js";
-import type {
-  TargetTypeRef,
-} from "../../types/index.js";
+
 import {
   csharpSourcePrimitiveTargetType,
   targetTypeRefEquals,
@@ -19,51 +18,9 @@ import { readCsharpSourceRawPointerIdentity } from "./source-raw-pointers.js";
 import { csharpRuntimeRawPointerTargetType, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { selectCsharpRawAddress } from "./raw-addresses.js";
-import type { CsharpRawAddressSelection, CsharpSourceRawAddressOperation } from "./raw-addresses.js";
+
 import { selectCsharpLayoutObservation } from "./layout-observations.js";
-import { selectCsharpRawLocation, type CsharpRawLocationSelection } from "./native-memory.js";
-
-export type CsharpNativePointerOperationKind = "load" | "store" | "offset" | "equal-raw-pointer" | "hash-raw-pointer" | "layout-query" | "raw-location" | CsharpSourceRawAddressOperation["operation"];
-
-export type CsharpNativePointerOperationSelection =
-  | { readonly kind: "not-native-pointer" }
-  | {
-      readonly kind: "rejected";
-      readonly operation: CsharpNativePointerOperationKind;
-      readonly reason: string;
-    }
-  | CsharpResolvedNativePointerOperation;
-
-export type CsharpResolvedNativePointerOperation =
-  | Extract<CsharpRawLocationSelection, { readonly kind: "raw-location" }>
-  | { readonly kind: "layout-query"; readonly value: number }
-  | Extract<CsharpRawAddressSelection, { readonly kind: "raw-address" }>
-  | {
-      readonly kind: "raw-identity";
-      readonly method: "Same" | "Hash";
-      readonly arguments: readonly Node[];
-      readonly carrier: TargetTypeRef;
-      readonly parameterType: TargetTypeRef;
-    }
-  | CsharpResolvedNativePointerOperationBase & {
-      readonly kind: "load";
-    }
-  | CsharpResolvedNativePointerOperationBase & {
-      readonly kind: "store";
-      readonly valueExpression: Node;
-    }
-  | CsharpResolvedNativePointerOperationBase & {
-      readonly kind: "offset";
-      readonly offsetExpression: Node;
-      readonly offsetType: TargetTypeRef;
-    };
-
-interface CsharpResolvedNativePointerOperationBase {
-  readonly call: Node;
-  readonly pointerExpression: Node;
-  readonly pointerType: Extract<TargetTypeRef, { readonly kind: "pointer" }>;
-  readonly pointeeType: TargetTypeRef;
-}
+import { selectCsharpRawLocation } from "./native-memory.js";
 
 export function selectCsharpNativePointerOperation(
   input: CsharpPolicyContext,

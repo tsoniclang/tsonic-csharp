@@ -33,8 +33,8 @@ test("a later guarded extraction cannot promote its broad producer storage", () 
   const visit = node => {
     if ((source.ast.is.IsIdentifier(node) && source.ast.text(node) === "current") ||
       (source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "current")) {
-      assert.equal(isCsharpJsValueTargetType(program.storage.type(node)), true);
-      assert.equal(program.storage.requiredType(node), undefined);
+      assert.equal(isCsharpJsValueTargetType(program.records.storageType.get(node)), true);
+      assert.equal(program.records.requiredStorageType.get(node), undefined);
       references++;
     }
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });

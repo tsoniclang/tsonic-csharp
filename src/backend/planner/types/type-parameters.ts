@@ -20,7 +20,7 @@ export function planTypeParameters(
   diagnostics: TargetDiagnostic[],
   owner: Node | undefined = nodes[0] === undefined ? undefined : input.program.source.ast.parent(nodes[0]),
 ): readonly CsharpTypeParameter[] {
-  const projections = owner === undefined ? [] : input.program.typeProjections.get(owner);
+  const projections = owner === undefined ? [] : input.program.records.genericProjection.get(owner);
   return [...nodes
     .filter((node): node is Node => node !== undefined)
     .map((node) => planTypeParameter(node, input, diagnostics)), ...planProjectedTypeParameters(projections, owner, input, diagnostics)];
@@ -75,7 +75,7 @@ function planTypeParameterConstraints(
 ): readonly CsharpGenericConstraint[] {
   const declaration = AsTypeParameterDeclaration(input.program.source.ast, node)!;
   const typeParameterName = input.program.source.ast.text(declaration.name);
-  const resolution = input.program.sourceEvidence.typeParameterConstraints(
+  const resolution = input.program.records.typeParameterConstraints.get(
     node,
   );
   if (resolution === undefined) {

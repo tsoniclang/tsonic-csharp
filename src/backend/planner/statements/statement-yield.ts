@@ -48,7 +48,7 @@ export function planCsharpYieldValue(
   state: DestructuringPlannerState,
 ): CsharpYieldValuePlan | undefined {
   const generator = state.generator;
-  const source = input.program.sourceEvidence.yield(yieldExpression);
+  const source = input.program.records.yield.get(yieldExpression);
   if (
     generator === undefined ||
     source === undefined ||
@@ -124,7 +124,7 @@ function planCsharpDelegatedYield(
     ));
     return undefined;
   }
-  const delegatedType = input.program.sourceEvidence.yieldTargetType(
+  const delegatedType = input.program.records.yieldTargetType.get(
     source.yieldExpression,
   );
   const inner = getCsharpGeneratorProtocol(delegatedType);

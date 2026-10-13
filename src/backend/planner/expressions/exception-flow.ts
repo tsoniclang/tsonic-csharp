@@ -48,5 +48,5 @@ export function isExactUnmodifiedCatchRethrow(
   _expression: Node,
   input: CsharpPlanningContext,
 ): boolean {
-  return input.program.operations.exactCatchRethrow(throwStatement);
+  return input.program.records.exactCatchRethrow.get(throwStatement);
 }

@@ -34,7 +34,7 @@ export function planLocalFunctionDeclaration(
   node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], parent: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  if (input.program.source.ast.body(node) === undefined || input.program.captureStorage.closure(node) !== undefined) return [];
+  if (input.program.source.ast.body(node) === undefined || input.program.records.captureClosure.get(node) !== undefined) return [];
   if (sourceLexicalFunctionIsUnused(node, input.program.source.ast, input.program.sourceNavigation)) return [];
   const planned = planSourceFunctionDeclaration(node, sourceFile, input, diagnostics, parent);
   return [{ ...planned.declaration, kind: "LocalFunctionStatement",
@@ -91,7 +91,7 @@ export function planSourceFunctionDeclaration(
     state.currentReturnExpressionTypeSubject = returnExpressionType?.subject;
     state.currentReturnExpressionTargetType = returnExpressionType?.targetType;
   }
-  const returnContract = input.program.declarations.returnContract(node);
+  const returnContract = input.program.records.returnContract.get(node);
   state.currentUndefinedReturn = returnContract?.kind === "resolved" && returnContract.undefinedReturn === true;
   const bodyStatements = planBlockStatements(
     declaration.Body,

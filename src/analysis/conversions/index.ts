@@ -1,9 +1,6 @@
 export { analyzeCsharpConversions } from "./analyze.js";
-export type {
-  CsharpConversionAnalysis,
-  CsharpConversionClassifications,
-  CsharpConversionIssue,
-} from "./model.js";
+export type { CsharpConversionAnalysis } from "./model.js";
+export type { CsharpConversionClassifications, CsharpConversionIssue } from "../../target-model/records/conversions.js";
 export type {
   CsharpConversionMode,
   CsharpConversionSelection,

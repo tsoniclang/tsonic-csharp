@@ -1,3 +1,4 @@
+import type { CsharpBindingProjection } from "../../../target-model/records/binding-projection-policy.js";
 import type {
   AstReader,
   Node,
@@ -39,11 +40,6 @@ export interface CsharpBindingProjectionPolicy {
     sourceFile: SourceFile | undefined,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined;
-}
-
-export interface CsharpBindingProjection {
-  readonly storageCarrier: TargetTypeRef;
-  readonly bindingCarrier: TargetTypeRef;
 }
 
 export function createCsharpBindingProjectionPolicy(

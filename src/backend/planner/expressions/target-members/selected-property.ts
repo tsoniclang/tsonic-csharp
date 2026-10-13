@@ -3,9 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpTargetPropertySelection,
-} from "../../../../analysis/operations/index.js";
+import type { CsharpTargetPropertySelection } from "../../../../target-model/records/member-selections.js";
 import type {
   CsharpExpression,
 } from "../../../target-ast/syntax/index.js";
@@ -41,7 +39,7 @@ export function translateCsharpPropertyAccess(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpPlannedValue | undefined {
-  const classification = input.program.operations.property(node);
+  const classification = input.program.records.selectedProperty.get(node);
   if (classification === undefined) {
     diagnostics.push(targetPolicyDiagnostic(
       node,
@@ -146,7 +144,7 @@ function translateSelectedProperty(
       input,
       diagnostics,
       planExpression,
-      input.program.operations.property(node)?.receiverProjection,
+      input.program.records.selectedProperty.get(node)?.receiverProjection,
     );
     if (receiver === undefined) {
       return undefined;
@@ -194,7 +192,7 @@ function translateSelectedProperty(
         input,
         diagnostics,
         planExpression,
-        input.program.operations.property(node)?.receiverProjection,
+        input.program.records.selectedProperty.get(node)?.receiverProjection,
       );
   if (receiver === undefined) {
     return undefined;

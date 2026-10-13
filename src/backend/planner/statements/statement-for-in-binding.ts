@@ -32,9 +32,7 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
-import {
-  type CsharpResolvedIteration,
-} from "../../../analysis/operations/index.js";
+import { type CsharpResolvedIteration } from "../../../target-model/records/selection.js";
 import type {
   CsharpPropertyKeyIterationPolicy,
   TargetTypeRef,
@@ -108,7 +106,7 @@ export function planForInBinding(
       ));
       return undefined;
     }
-    const storageType = input.program.storage.type(first) ?? targetType;
+    const storageType = input.program.records.storageType.get(first) ?? targetType;
     const currentType = csharpTypeFromTargetTypeRef(storageType, input.scope.typeParameterNames);
     if (currentType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
@@ -230,7 +228,7 @@ export function planForInBindingActivation(
     ? input.program.sourceNavigation.sourceReferenceFor(binding.node)?.declaration : binding.node;
   const captured = declaration === undefined ? undefined : planCsharpCapturedInitialization(declaration, keyExpression, input, state);
   if (captured !== undefined) {
-    const selected = input.program.captureStorage.binding(declaration!);
+    const selected = input.program.records.capturedBinding.get(declaration!);
     const scope = selected?.frame.scope;
     const loop = scope !== undefined && ["KindForInStatement", "KindForOfStatement"].includes(input.program.source.ast.kindName(scope));
     const identity = planCsharpTypedLocationIdentityDeclaration(declaration!, input, state);

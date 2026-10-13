@@ -45,9 +45,7 @@ import {
   selectCsharpTargetElement,
   selectCsharpTargetProperty,
 } from "../../policy/operations/members/index.js";
-import type {
-  CsharpSelectedTargetCall,
-} from "../../policy/operations/members/index.js";
+import type { CsharpSelectedTargetCall } from "../../target-model/records/members.js";
 import {
   selectCsharpBinaryOperation,
   selectCsharpDestructuringAssignmentOperation,
@@ -71,21 +69,11 @@ import {
   isCsharpThrowableType,
 } from "../../policy/types/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type {
-  CsharpCallClassification,
-  CsharpBinaryClassification,
-  CsharpConstructionClassification,
-  CsharpElementClassification,
-  CsharpPropertyClassification,
-  CsharpUnaryClassification,
-  CsharpTargetOperationClassifications,
-} from "./model.js";
+import type { CsharpCallClassification, CsharpBinaryClassification, CsharpConstructionClassification, CsharpElementClassification, CsharpPropertyClassification, CsharpUnaryClassification, CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import {
   composeCsharpBinaryExecutionDriver,
 } from "../../providers/model/provider-policy-contribution.js";
-import type {
-  CsharpSourceEvidenceIndex,
-} from "../source-evidence/index.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import { classifyExactUnmodifiedCatchRethrow } from "./catch-rethrow.js";
 import { selectCsharpThrownOperandCarrier } from "../../policy/conversions/program-error.js";
 import {
@@ -163,7 +151,7 @@ const regularExpressionKey = createTargetClassificationKey<ReturnType<typeof sel
 const throwableKey = createTargetClassificationKey<boolean>(
   "csharp.operation.throwable",
 );
-const throwValueKey = createTargetClassificationKey<NonNullable<ReturnType<CsharpTargetOperationClassifications["throwValue"]>>>(
+const throwValueKey = createTargetClassificationKey<NonNullable<ReturnType<CsharpTargetOperationClassifications["throwValue"]["get"]>>>(
   "csharp.operation.throw-value",
 );
 const exactCatchRethrowKey = createTargetClassificationKey<boolean>(
@@ -196,40 +184,40 @@ export function analyzeCsharpTargetOperations(
   const selectedBinaryExecutionDriver =
     composeCsharpBinaryExecutionDriver(...binaryExecutionDrivers);
   const classifications: CsharpTargetOperationClassifications = {
-    awaitCompletion: node => facts.get(node, awaitKey),
-    classPropertyStorage,
-    borrowedSequence: node => facts.get(node, borrowedSequenceKey),
-    nativeGuardResult: node => facts.get(node, nativeGuardResultKey),
-    nativeUnreachable: node => facts.get(node, nativeUnreachableKey) === true,
-    memoryBinding: node => facts.get(node, memoryBindingKey),
+    awaitCompletion: Object.freeze({ get: node => facts.get(node, awaitKey) }),
+    classPropertyStorage: Object.freeze({ get: classPropertyStorage }),
+    borrowedSequence: Object.freeze({ get: node => facts.get(node, borrowedSequenceKey) }),
+    nativeGuardResult: Object.freeze({ get: node => facts.get(node, nativeGuardResultKey) }),
+    nativeUnreachable: Object.freeze({ get: node => facts.get(node, nativeUnreachableKey) === true }),
+    memoryBinding: Object.freeze({ get: node => facts.get(node, memoryBindingKey) }),
     binaryExecutionDriver: () => selectedBinaryExecutionDriver,
-    resultType: (node) => operationResultType(facts, node),
-    call: (node) => facts.get(node, callKey),
-    construction: (node) => facts.get(node, constructionKey),
-    property: (node) => facts.get(node, propertyKey),
-    sourceMember: node => facts.get(node, propertyKey)?.sourceOwned ?? facts.get(node, elementKey)?.sourceOwned,
-    element: (node) => facts.get(node, elementKey),
-    binary: (node) => facts.get(node, binaryKey),
-    switchStatement: (node) => facts.get(node, switchKey),
-    unary: (node) => facts.get(node, unaryKey),
-    iteration: (node) => facts.get(node, iterationKey),
-    resource: (node) => facts.get(node, resourceKey),
-    nativePointer: (node) => facts.get(node, nativePointerKey),
-    typedLocation: (node) => facts.get(node, typedLocationKey),
-    nativeRefReturn: (node) => facts.get(node, nativeRefReturnKey),
-    jsCondition: (node) => facts.get(node, jsConditionKey),
-    jsTypeof: (node) => facts.get(node, jsTypeofKey),
-    typeofRuntimeKind: (node) => facts.get(node, typeofRuntimeKindKey),
-    jsVoid: (node) => facts.get(node, jsVoidKey),
-    jsObjectLiteral: (node) => facts.get(node, jsObjectLiteralKey),
-    jsArrayMutation: (node) => facts.get(node, jsArrayMutationKey),
-    elementDeletion: (node) => facts.get(node, elementDeletionKey),
-    jsStringConversion: (node) => facts.get(node, jsStringConversionKey),
-    providerValue: (node) => facts.get(node, providerValueKey),
-    regularExpression: (node) => facts.get(node, regularExpressionKey),
-    throwable: (node) => facts.get(node, throwableKey),
-    throwValue: (node) => facts.get(node, throwValueKey),
-    exactCatchRethrow: (node) => facts.get(node, exactCatchRethrowKey) === true,
+    operationResultType: Object.freeze({ get: (node) => operationResultType(facts, node) }),
+    selectedCall: Object.freeze({ get: (node) => facts.get(node, callKey) }),
+    selectedConstruction: Object.freeze({ get: (node) => facts.get(node, constructionKey) }),
+    selectedProperty: Object.freeze({ get: (node) => facts.get(node, propertyKey) }),
+    sourceMember: Object.freeze({ get: node => facts.get(node, propertyKey)?.sourceOwned ?? facts.get(node, elementKey)?.sourceOwned }),
+    selectedElement: Object.freeze({ get: (node) => facts.get(node, elementKey) }),
+    binaryOperation: Object.freeze({ get: (node) => facts.get(node, binaryKey) }),
+    switchStatement: Object.freeze({ get: (node) => facts.get(node, switchKey) }),
+    unaryOperation: Object.freeze({ get: (node) => facts.get(node, unaryKey) }),
+    iteration: Object.freeze({ get: (node) => facts.get(node, iterationKey) }),
+    resource: Object.freeze({ get: (node) => facts.get(node, resourceKey) }),
+    nativePointer: Object.freeze({ get: (node) => facts.get(node, nativePointerKey) }),
+    typedLocation: Object.freeze({ get: (node) => facts.get(node, typedLocationKey) }),
+    nativeRefReturn: Object.freeze({ get: (node) => facts.get(node, nativeRefReturnKey) }),
+    jsCondition: Object.freeze({ get: (node) => facts.get(node, jsConditionKey) }),
+    jsTypeof: Object.freeze({ get: (node) => facts.get(node, jsTypeofKey) }),
+    typeofRuntimeKind: Object.freeze({ get: (node) => facts.get(node, typeofRuntimeKindKey) }),
+    jsVoid: Object.freeze({ get: (node) => facts.get(node, jsVoidKey) }),
+    jsObjectLiteral: Object.freeze({ get: (node) => facts.get(node, jsObjectLiteralKey) }),
+    jsArrayMutation: Object.freeze({ get: (node) => facts.get(node, jsArrayMutationKey) }),
+    elementDeletion: Object.freeze({ get: (node) => facts.get(node, elementDeletionKey) }),
+    jsStringConversion: Object.freeze({ get: (node) => facts.get(node, jsStringConversionKey) }),
+    providerValue: Object.freeze({ get: (node) => facts.get(node, providerValueKey) }),
+    regularExpression: Object.freeze({ get: (node) => facts.get(node, regularExpressionKey) }),
+    throwable: Object.freeze({ get: (node) => facts.get(node, throwableKey) }),
+    throwValue: Object.freeze({ get: (node) => facts.get(node, throwValueKey) }),
+    exactCatchRethrow: Object.freeze({ get: (node) => facts.get(node, exactCatchRethrowKey) === true }),
   };
   return Object.freeze(classifications);
 }
@@ -243,7 +231,7 @@ function visit(
   binaryExecutionDrivers:
     import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[],
 ): void {
-  if (evidence.isCompileTimeMetadata(node)) return;
+  if (evidence.compileTimeMetadata.get(node)) return;
   if (policy.types.nativeUnreachable(node)) {
     setClassification(builder, node, nativeUnreachableKey, true);
     return;
@@ -601,9 +589,9 @@ function visit(
       ? resolveCsharpInstanceType(policy.semantics(sourceFile), expression.Right,
         type => policy.types.resolveType(type, sourceFile)) : undefined;
     const instanceFactory = sourceOperator === "instanceof" && expression?.Right !== undefined
-      ? evidence.nodeTargetType(expression.Right) : undefined;
+      ? evidence.nodeTargetType.get(expression.Right) : undefined;
     const instanceSource = sourceOperator === "instanceof" && expression?.Left !== undefined
-      ? evidence.nodeTargetType(expression.Left) : undefined;
+      ? evidence.nodeTargetType.get(expression.Left) : undefined;
     const instancePredicate = instanceType === undefined ? undefined : Object.freeze({ kind: "nominal" as const, targetCarrier: instanceType });
     const instancePlan = instanceSource === undefined || instancePredicate === undefined ? undefined
       : selectCsharpClosedTypeTestPlan(instanceSource, instancePredicate, undefined, policy.typeDefinitions);
@@ -622,7 +610,7 @@ function visit(
         target: selectCsharpBinaryOperation(
           policy,
           node,
-          evidence.nodeTargetType,
+          evidence.nodeTargetType.get,
         ),
         destructuring: selectCsharpDestructuringAssignmentOperation(
           policy,

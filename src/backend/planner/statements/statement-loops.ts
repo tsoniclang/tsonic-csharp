@@ -70,7 +70,7 @@ export function planForOfStatement(
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
   const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
-  const selectedIteration = input.program.operations.iteration(statementNode);
+  const selectedIteration = input.program.records.iteration.get(statementNode);
   if (selectedIteration === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       diagnosticNode,
@@ -280,7 +280,7 @@ function planForOfBindingCore(
       diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-of variable declaration must contain exactly one binding."));
       return undefined;
     }
-    const storageType = input.program.storage.type(first) ??
+    const storageType = input.program.records.storageType.get(first) ??
       selectedIteration.elementType;
     const itemStorageType = csharpTypeFromTargetTypeRef(storageType, input.scope.typeParameterNames);
     if (itemStorageType === undefined) {

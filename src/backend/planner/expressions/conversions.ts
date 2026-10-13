@@ -63,7 +63,7 @@ export function readCsharpConversionClassification(
   targetType: TargetTypeRef | undefined,
   mode: CsharpConversionMode,
 ): CsharpConversionSelection | undefined {
-  const selection = input.program.conversions.select(
+  const selection = input.program.records.conversion.get(
     sourceType,
     targetType,
     mode,
@@ -85,7 +85,7 @@ export function readCsharpExpressionConversionClassification(
   targetType: TargetTypeRef | undefined,
   mode: CsharpConversionMode,
 ): CsharpConversionSelection | undefined {
-  const selection = input.program.conversions.selectExpression(
+  const selection = input.program.records.expressionConversion.get(
     node,
     sourceType,
     targetType,
@@ -569,7 +569,6 @@ function applyRuntimeUnionArmConversion(
     arguments: [{ kind: "Argument", expression: convertedExpression }],
   };
 }
-
 
 function invokeStaticGeneric(
   typeParameterNames: ReadonlyMap<string, string> | undefined,

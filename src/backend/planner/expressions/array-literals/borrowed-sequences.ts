@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { sourceSequenceInputChoice, sourceSequenceInputIsEmpty } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpBorrowedSequenceInput } from "../../../../analysis/operations/borrowed-sequences.js";
+import type { CsharpBorrowedSequenceInput } from "../../../../target-model/records/borrowed-sequences.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
@@ -33,8 +33,8 @@ export function planCsharpBorrowedSequenceConsumption(
   const spread = input.program.source.ast.parent(fact.expression);
   const array = spread === undefined ? undefined : input.program.source.ast.parent(spread);
   const sourceCarrier = array === undefined ? undefined : input.types.classifications.resolveNode(array, sourceFile);
-  const constructions = array === undefined ? [] : [sourceCarrier, ...input.program.expectedTypes.forExpression(array)
-    .map(target => input.program.expectedTypes.arrayLiteralCarrier(array, target))];
+  const constructions = array === undefined ? [] : [sourceCarrier, ...input.program.records.expectedType.get(array)
+    .map(target => input.program.records.arrayLiteralCarrier.get(array, target))];
   if (choice === undefined || choice.inputs.length !== fact.inputs.length ||
     array !== fact.array || sourceCarrier === undefined || !targetTypeRefEquals(sourceCarrier, fact.sourceCarrier) ||
     !constructions.some(carrier => {
@@ -75,7 +75,7 @@ export function planCsharpBorrowedSequenceConsumption(
     }
     const type = csharpTypeFromTargetTypeRef(selected.presentCarrier, input.scope.typeParameterNames);
     const elements = selected.elements.map(carrier => ({ carrier,
-      conversion: input.program.conversions.select(carrier, elementTarget, "implicit"),
+      conversion: input.program.records.conversion.get(carrier, elementTarget, "implicit"),
       type: csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames) }));
     if (elements.some(element => element.conversion === undefined || !csharpConversionIsApplicable(element.conversion, "implicit"))) {
       return reject("Borrowed sequence elements require their sealed exact source/destination conversion pairs.");

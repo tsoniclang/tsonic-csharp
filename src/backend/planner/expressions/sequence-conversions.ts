@@ -19,7 +19,6 @@ import { composeCsharpPlannedValues } from "./planned-value-composition.js";
 import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
 import { qualifiedCsharpType } from "../types/index.js";
 
-
 export function planCsharpSequenceValue(
   node: Node,
   planned: CsharpPlannedArraySpreadInput,
@@ -91,7 +90,6 @@ export function planCsharpSequenceSnapshotStatements(
     ...consumed];
 }
 
-
 export function planCsharpJsArraySpreadAppend(
   node: Node,
   operand: Node,
@@ -106,7 +104,7 @@ export function planCsharpJsArraySpreadAppend(
   if (destination.completion.kind === "never") return destination;
   if (destination.completion.kind !== "value") return reject(node, diagnostics, "Sequence append requires a native destination value.");
   const resultCarrier = destination.completion.carrier;
-  const borrowed = input.program.operations.borrowedSequence(operand);
+  const borrowed = input.program.records.borrowedSequence.get(operand);
   if (borrowed !== undefined) {
     const name = input.names.temporaryName("__tsonic_sequence_destination");
     const receiver = identifier(name);
@@ -194,7 +192,6 @@ export function planCsharpSequenceLength(source: Omit<CsharpArraySpreadInput, "e
   return source.carrier.kind === "tuple" ? { kind: "LiteralExpression", value: source.carrier.elements.length }
     : source.lengthMember === undefined ? undefined : { kind: "SimpleMemberAccessExpression", receiver, name: source.lengthMember };
 }
-
 
 function identifier(name: string): CsharpExpression { return { kind: "IdentifierName", name }; }
 

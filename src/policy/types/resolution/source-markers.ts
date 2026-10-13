@@ -1,3 +1,4 @@
+import type { CsharpSourceDefaultValue, CsharpSourceField, CsharpSourceStruct } from "../../../target-model/records/source-markers.js";
 import {
   defaultValueFactKey,
   fieldFactKey,
@@ -17,23 +18,6 @@ import type {
   SourceFile,
   Type,
 } from "@tsonic/tsts";
-
-export interface CsharpSourceDefaultValue {
-  readonly kind: "csharp-default-value";
-  readonly sourceType: Node;
-}
-
-export interface CsharpSourceField {
-  readonly sourceName: string;
-  readonly sourceType: Node;
-  readonly readonly: boolean;
-}
-
-export interface CsharpSourceStruct {
-  readonly kind: "csharp-struct";
-  readonly valueType: boolean;
-  readonly fields: readonly CsharpSourceField[];
-}
 
 export interface CsharpSourcePointerType {
   readonly kind: "csharp-typed-location";

@@ -33,7 +33,7 @@ export function planVoidExpression(
     return undefined;
   }
   const operand = input.program.source.ast.as.AsVoidExpression(node)?.Expression;
-  const jsValueOperation = input.program.operations.jsVoid(node);
+  const jsValueOperation = input.program.records.jsVoid.get(node);
   if (jsValueOperation === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,

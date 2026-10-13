@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpCallClassification } from "../../../../../analysis/operations/index.js";
+import type { CsharpCallClassification } from "../../../../../target-model/records/operations.js";
 import { targetTypeRefEquals } from "../../../../../target-model/types/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
@@ -29,7 +29,7 @@ export function planCsharpOptionalReceiverChain(
     readonly selected: NonNullable<CsharpCallClassification["optionalReceiver"] | CsharpCallClassification["optionalCallee"]> }[] = [];
   let current = node;
   for (;;) {
-    const classification = input.program.operations.call(current);
+    const classification = input.program.records.selectedCall.get(current);
     const selected = classification?.optionalReceiver ?? classification?.optionalCallee;
     if (classification === undefined || selected === undefined) break;
     chain.push({ node: current, classification, selected });

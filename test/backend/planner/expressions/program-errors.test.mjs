@@ -27,7 +27,7 @@ test("native throw planning requires its exact sealed operand, source carrier an
   const declaration = program.sourceFiles.flatMap(file => source.ast.statements(file))
     .find(node => source.ast.text(source.ast.name(node)) === "fail");
   const statement = source.ast.statements(source.ast.body(declaration))[0];
-  const classification = program.operations.throwValue(statement);
+  const classification = program.records.throwValue.get(statement);
   assert.ok(classification && classification.targetCarrier);
   const context = createCsharpPlanningContext(program);
   const diagnostics = [];
@@ -35,15 +35,15 @@ test("native throw planning requires its exact sealed operand, source carrier an
   assertNoTargetDiagnostics(diagnostics);
   for (const selected of [undefined, { ...classification, expression: declaration },
     { ...classification, sourceCarrier: csharpStringTargetType() }]) {
-    const changed = { ...program, operations: { ...program.operations, throwValue: () => selected } };
+    const changed = { ...program, records: { ...program.records, throwValue: { get: () => selected } } };
     const diagnostics = [];
     assert.deepEqual(planThrowStatement(statement, source.ast.getSourceFile(statement),
       { ...context, program: changed }, diagnostics), []);
     assert.equal(diagnostics.length, 1);
     assert.equal(diagnostics[0].message, "Throw expression has no exact sealed C# native error carrier classification.");
   }
-  const changed = { ...program, operations: { ...program.operations,
-    throwValue: () => ({ ...classification, targetCarrier: csharpStringTargetType() }) } };
+  const changed = { ...program, records: { ...program.records,
+    throwValue: { get: () => ({ ...classification, targetCarrier: csharpStringTargetType() }) } } };
   const invalid = [];
   assert.deepEqual(planThrowStatement(statement, source.ast.getSourceFile(statement), { ...context, program: changed }, invalid), []);
   assert.equal(invalid.length, 1);

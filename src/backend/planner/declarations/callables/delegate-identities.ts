@@ -12,7 +12,7 @@ import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { isCsharpNullableReferenceTargetType } from "../../../../target-model/types/carriers/nullable.js";
 
 export function withCsharpDelegateAdapterDeclarations(block: Node, input: CsharpPlanningContext): CsharpPlanningContext {
-  const identities = input.program.conversions.delegateAdapters(block);
+  const identities = input.program.records.delegateAdapters.get(block);
   if (identities.length === 0) return input;
   const adapters = new Map(input.scope.delegateAdapters);
   for (const identity of identities) adapters.set(identity, input.names.temporaryName("__tsonic_adapter"));
@@ -22,7 +22,7 @@ export function withCsharpDelegateAdapterDeclarations(block: Node, input: Csharp
 export function planCsharpDelegateAdapterDeclarations(block: Node, sourceFile: SourceFile,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState): readonly CsharpStatement[] {
   const statements: CsharpStatement[] = [];
-  for (const identity of input.program.conversions.delegateAdapters(block)) {
+  for (const identity of input.program.records.delegateAdapters.get(block)) {
     const identifier = input.program.source.ast.name(identity.declaration);
     const name = input.scope.delegateAdapters?.get(identity);
     const signature = getCsharpDelegateSignature(identity.target);
@@ -32,7 +32,7 @@ export function planCsharpDelegateAdapterDeclarations(block: Node, sourceFile: S
       diagnostics.push(unsupportedNodeDiagnostic(identity.declaration, "A retained native delegate adapter requires its exact lexical binding, name and return signature."));
       continue;
     }
-    const storage = input.program.storage.type(identity.declaration);
+    const storage = input.program.records.storageType.get(identity.declaration);
     const presentCallee: CsharpExpression = isCsharpNullableReferenceTargetType(storage)
       ? { kind: "PostfixUnaryExpression", operand: callee, operatorToken: { kind: "ExclamationToken" } } : callee;
     const method = planCsharpDelegateAdaptationBody(identifier!, sourceFile, input, diagnostics,

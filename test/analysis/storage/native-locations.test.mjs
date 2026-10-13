@@ -7,8 +7,8 @@ import { csharpNullableTargetType } from "../../../dist/target-model/types/carri
 const integer = { kind: "source-primitive", name: "int32" };
 const owner = { kind: "target-named", id: "Project.Owner" };
 const sourceFile = { kind: "file" };
-const physical = { nativeBacking: () => undefined, nativeField: () => undefined,
-  nativeArray: () => undefined, nativeModuleField: () => false, type: () => undefined };
+const physical = { nativeBacking: { get: () => undefined }, nativeField: { get: () => undefined },
+  nativeArray: { get: () => undefined }, nativeModuleField: { get: () => false }, storageType: { get: () => undefined } };
 const ast = {
   is: Object.fromEntries([
     ["ParenthesizedExpression", "parentheses"], ["Identifier", "identifier"],
@@ -109,11 +109,11 @@ test("only the exact sealed module field supplies a native address, including na
   for (const declaration of [variable, binding]) {
     for (const kind of ["identifier", "property"]) {
       const input = fixture(kind, { declaration, writable: false });
-      const selected = select(input, null, { ...physical, nativeModuleField: node => node === declaration });
+      const selected = select(input, null, { ...physical, nativeModuleField: { get: node => node === declaration } });
       assert.equal(selected.kind, "resolved");
       assert.equal(selected.address?.passing, "byref-readwrite");
       assert.equal(selected.writable, false, "native contents do not authorize source reassignment");
-      assert.equal(select(input, null, { ...physical, nativeModuleField: node => node === {} }).address, undefined);
+      assert.equal(select(input, null, { ...physical, nativeModuleField: { get: node => node === {} } }).address, undefined);
     }
   }
 });
@@ -121,7 +121,7 @@ test("only the exact sealed module field supplies a native address, including na
 test("physical native backing never masquerades as an ordinary managed local", () => {
   const input = fixture();
   const selected = select(input, "field", { ...physical,
-    nativeBacking: node => node === input.declaration ? { pointeeType: integer } : undefined });
+    nativeBacking: { get: node => node === input.declaration ? { pointeeType: integer } : undefined } });
   assert.equal(selected.kind, "resolved");
   assert.equal(selected.storageType, integer);
   assert.equal(selected.address, undefined);
@@ -132,11 +132,11 @@ test("physical native backing never masquerades as an ordinary managed local", (
 test("native-backed identity retains exact layout and rejects a different physical pointee", () => {
   const input = fixture();
   const layout = Object.freeze({ pointeeType: integer });
-  const selected = select(input, "field", { ...physical, nativeBacking: () => layout });
+  const selected = select(input, "field", { ...physical, nativeBacking: { get: () => layout } });
   assert.equal(selected.nativeCell.layout, layout);
   assert.ok(Object.isFrozen(selected.nativeCell));
   const rejected = select(input, "field", { ...physical,
-    nativeBacking: () => ({ pointeeType: { kind: "source-primitive", name: "uint64" } }) });
+    nativeBacking: { get: () => ({ pointeeType: { kind: "source-primitive", name: "uint64" } }) } });
   assert.equal(rejected.kind, "rejected");
   assert.match(rejected.reason, /pointee carrier/u);
 });
@@ -144,11 +144,11 @@ test("native-backed identity retains exact layout and rejects a different physic
 test("native-backed array cells keep pointer-cell identity without inventing a managed address", () => {
   const input = fixture("element");
   const backing = Object.freeze({ kind: "element", layout: Object.freeze({ pointeeType: integer }), stride: 4 });
-  const selected = select(input, "field", { ...physical, nativeArray: () => backing });
+  const selected = select(input, "field", { ...physical, nativeArray: { get: () => backing } });
   assert.equal(selected.nativeCell.backing, backing);
   assert.equal(selected.address, undefined);
   assert.ok(Object.isFrozen(selected.nativeCell));
-  const array = select(input, "field", { ...physical, nativeArray: () => ({ ...backing, kind: "reference" }) });
+  const array = select(input, "field", { ...physical, nativeArray: { get: () => ({ ...backing, kind: "reference" }) } });
   assert.equal(array.nativeCell, undefined);
   assert.equal(array.address, undefined);
 });
@@ -203,7 +203,7 @@ test("value-type setters capture their receiver storage rather than a nonexisten
 test("managed address proof uses sealed physical storage rather than a narrower source read", () => {
   const input = fixture();
   const optional = { kind: "target-named", id: "System.Nullable", typeArguments: [integer], csharpValueType: true };
-  const selected = select(input, "field", { ...physical, type: node => node === input.declaration ? optional : undefined });
+  const selected = select(input, "field", { ...physical, storageType: { get: node => node === input.declaration ? optional : undefined } });
   assert.equal(selected.storageType, optional);
   assert.equal(selected.address.passing, "byref-readwrite");
 });
@@ -244,8 +244,8 @@ test("class declaration emission and byref checking share one immutable represen
     memberDispatch: node => node === overridden ? { overridesBase: true } : undefined },
     objectShapes: { resolveNode: () => ({ implements: [owner], members: [
       { memberKind: "property", sourceName: "structural", targetName: "structural", sourceSubjects: [structural] } ] }) } };
-  const evidence = { isCompileTimeMetadata: () => false,
-    sourceField: subjects => subjects[0] === explicit ? {} : undefined };
+  const evidence = { compileTimeMetadata: { get: () => false },
+    sourceField: { get: subjects => subjects[0] === explicit ? {} : undefined } };
   const selected = classifyCsharpClassPropertyStorage(policy, evidence);
   assert.deepEqual(selected(field), { kind: "field", readonly: false });
   for (const node of [contractual, inherited, overridden, structural]) assert.deepEqual(selected(node), { kind: "property", readonly: false });
@@ -272,7 +272,8 @@ test("readonly source value fields retain mutable native contents without a sett
   const policy = { ast: { ...ast, text: node => { assert.notEqual(node, symbolName, "computed names are not text"); return node?.text ?? ""; } },
     sourceFiles: [root], types: { resolveStorage: node => types.get(node) }, objectShapes: { resolveNode: () => undefined },
     navigation: { memberDispatch: () => undefined, memberContracts: node => ({ kind: "resolved", contracts: node === computed ? [contract] : [] }) } };
-  const selected = classifyCsharpClassPropertyStorage(policy, { isCompileTimeMetadata: () => false, sourceField: () => undefined });
+  const selected = classifyCsharpClassPropertyStorage(policy, { compileTimeMetadata: Object.freeze({ get: () => false }),
+    sourceField: Object.freeze({ get: () => undefined }) });
   for (const node of [scalar, reference, optional]) assert.deepEqual(selected(node), { kind: "field", readonly: true });
   for (const node of [aggregate, generic]) assert.deepEqual(selected(node), { kind: "field", readonly: false });
   assert.deepEqual(selected(computed), { kind: "property", readonly: false }, "exact computed contract remains a property");

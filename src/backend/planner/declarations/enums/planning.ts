@@ -65,7 +65,7 @@ function planEnumMember(
   diagnostics: TargetDiagnostic[],
 ): CsharpEnumMember {
   const member = AsEnumMember(input.program.source.ast, node)!;
-  const enumValue = input.program.sourceEvidence.constantValue(node)?.value;
+  const enumValue = input.program.records.constantValue.get(node)?.value;
   const enumExpressionValue = member.Initializer === undefined
     ? undefined
     : planEnumConstantExpression(member.Initializer, sourceFile, input, diagnostics);

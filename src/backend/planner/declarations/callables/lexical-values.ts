@@ -15,9 +15,9 @@ export function planCsharpLexicalFunctionValues(
 ): ReadonlyMap<Node, readonly CsharpStatement[]> {
   const statements = new Map<Node, CsharpStatement[]>();
   const { ast } = input.program.source;
-  for (const statement of children) for (const declaration of input.program.captureStorage.valueDeclarationsAt(statement)) {
+  for (const statement of children) for (const declaration of input.program.records.lexicalValueDeclarations.get(statement)) {
     const references = input.program.sourceNavigation.declarationUseSummary(declaration).uses
-      .filter(use => use.kind === "first-class" && !input.program.sourceEvidence.isCompileTimeMetadata(use.reference));
+      .filter(use => use.kind === "first-class" && !input.program.records.compileTimeMetadata.get(use.reference));
     if (references.length === 0) continue;
     const carrier = input.types.classifications.resolveNode(declaration, sourceFile);
     const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
@@ -27,18 +27,18 @@ export function planCsharpLexicalFunctionValues(
       diagnostics.push(unsupportedNodeDiagnostic(declaration, "A lexical function requires one exact checked native delegate contract."));
       continue;
     }
-    const expression = input.program.captureStorage.closure(declaration) === undefined
+    const expression = input.program.records.captureClosure.get(declaration) === undefined
       ? { kind: "IdentifierName" as const, name: methodName }
       : planCsharpFrameClosureReference(declaration, input, diagnostics, state);
     if (expression === undefined) continue;
     const initializer: CsharpExpression = { kind: "ObjectCreationExpression", type,
       arguments: [{ kind: "Argument", expression }] };
-    const creation = input.program.captureStorage.valueCreation(declaration);
+    const creation = input.program.records.lexicalValueCreation.get(declaration);
     if (creation?.kind === "resolved" && creation.inlineReference !== undefined) {
       state.expressionOverrides.set(creation.inlineReference, initializer);
       continue;
     }
-    const name = input.program.captureStorage.valueName(declaration);
+    const name = input.program.records.lexicalValueName.get(declaration);
     if (name === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(declaration, "A lexical callable owner requires its stable analyzed storage name."));
       continue;

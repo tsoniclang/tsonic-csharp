@@ -40,7 +40,7 @@ export function planCsharpArraySpreadInput(
   const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
   const elements = carriers?.map(selected => ({ carrier: selected,
     type: csharpTypeFromTargetTypeRef(selected, input.scope.typeParameterNames),
-    conversion: input.program.conversions.select(selected, elementTarget, "implicit") }));
+    conversion: input.program.records.conversion.get(selected, elementTarget, "implicit") }));
   if (carrier === undefined || type === undefined || elements === undefined ||
     elements.some(selected => selected.type === undefined || selected.conversion === undefined || !csharpConversionIsApplicable(selected.conversion, "implicit"))) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Array spread requires an exact native sequence and sealed destination element conversions."));

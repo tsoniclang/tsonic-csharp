@@ -8,14 +8,14 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
 import type { TsonicFixedArraySelection, TsonicPointerReturnQueries, TsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
-import type { CsharpPointerReturnContract } from "../callables/pointer-return.js";
+import type { CsharpPointerReturnContract } from "../../../target-model/records/pointer-return.js";
 import type {
   SourceFileSemantics,
   SourceProgramNavigation,
 } from "@tsonic/target-api/source";
 import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../project/project-types.js";
 import type { CsharpProviderRelationResolver } from "../../../providers/model/relation-resolver.js";
-import type { CsharpSourceCallableContract } from "../callables/source-callable-contract.js";
+import type { CsharpSourceCallableContract } from "../../../target-model/records/source-callable-contract.js";
 import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
@@ -60,7 +60,7 @@ export interface CsharpTypePolicyBaseHost {
 
 export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
   closedTypeGuard(node: Node): import("@tsonic/target-api/source").SourceNativeGuard<import("../../../target-model/operations/type-tests.js").CsharpClosedTypePredicate> | undefined;
-  bindingProjection(node: Node, sourceFile: SourceFile): import("../objects/binding-projection-policy.js").CsharpBindingProjection | undefined;
+  bindingProjection(node: Node, sourceFile: SourceFile): import("../../../target-model/records/binding-projection-policy.js").CsharpBindingProjection | undefined;
   readonly representations: CsharpPlanningRepresentationQueries;
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
   readonly objectShapes: CsharpObjectShapePolicy;
@@ -106,7 +106,7 @@ export interface CsharpTypePolicy {
   nativeUnreachable(node: Node): boolean;
   nativeFlowMembers(reference: Node, sourceCarrier: TargetTypeRef): readonly TargetTypeRef[] | undefined;
   nativeFlowTypes(reference: Node, sourceType: Type): readonly Type[] | undefined;
-  resolveBindingProjection(node: Node, sourceFile: SourceFile): import("../objects/binding-projection-policy.js").CsharpBindingProjection | undefined;
+  resolveBindingProjection(node: Node, sourceFile: SourceFile): import("../../../target-model/records/binding-projection-policy.js").CsharpBindingProjection | undefined;
   selectFixedArray(type: Type, sourceFile: SourceFile): TsonicFixedArraySelection | undefined;
   resolvePointerReturn(declaration: Node): CsharpPointerReturnContract | undefined;
   resolveNode(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;

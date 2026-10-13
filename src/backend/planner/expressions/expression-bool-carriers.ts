@@ -41,7 +41,7 @@ export function planCsharpConditionExpression(
   if (HasSourceKind(input.program.source.ast, expression, KindTrueKeyword) || HasSourceKind(input.program.source.ast, expression, KindFalseKeyword)) {
     return planExpression(expression, sourceFile, input, diagnostics);
   }
-  const jsValueOperation = input.program.operations.jsCondition(expression);
+  const jsValueOperation = input.program.records.jsCondition.get(expression);
   if (jsValueOperation === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       expression,

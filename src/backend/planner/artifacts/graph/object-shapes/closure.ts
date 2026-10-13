@@ -72,7 +72,6 @@ export function collectJsonClosure(
   return { kind: "accepted", shapes: state.collected };
 }
 
-
 export function collectCapabilityClosure(
   scope: CsharpArtifactGraphScope,
   capability: CsharpObjectShapeCapability,
@@ -96,7 +95,6 @@ export function collectCapabilityClosure(
   }
 }
 
-
 export function addShapeCapabilities(
   {  }: CsharpArtifactGraphScope,
   target: Map<string, Set<CsharpObjectShapeCapability>>,
@@ -109,7 +107,6 @@ export function addShapeCapabilities(
     target.set(key, capabilities);
   }
 }
-
 
 export function validateProjectionShapes(
   {  }: CsharpArtifactGraphScope,
@@ -137,7 +134,6 @@ export function validateProjectionShapes(
   return undefined;
 }
 
-
 export function addShapeProjection(
   {  }: CsharpArtifactGraphScope,
   target: Map<string, Map<string, CsharpObjectShapeProjection>>,
@@ -153,7 +149,6 @@ export function addShapeProjection(
   }
 }
 
-
 export function visibleObjectShapes(
   { records }: CsharpArtifactGraphScope,
   pendingShapes: ReadonlyMap<string, CsharpObjectShapeFact>,
@@ -167,7 +162,6 @@ export function visibleObjectShapes(
   }
   return [...visible.values()];
 }
-
 
 export function collectJsonType(
   { collectJsonShape, collectJsonType, host }: CsharpArtifactGraphScope,
@@ -230,7 +224,6 @@ export function collectJsonType(
   }
 }
 
-
 export function collectJsonShape(
   { collectJsonType }: CsharpArtifactGraphScope,
   shape: CsharpObjectShapeFact,
@@ -290,7 +283,6 @@ export function collectJsonShape(
   state.collected.set(key, shape);
   return undefined;
 }
-
 
 export function inheritedObjectShapeCapabilities(
   scope: CsharpArtifactGraphScope,

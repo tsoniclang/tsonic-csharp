@@ -2,7 +2,7 @@ import type { CsharpObjectShapeFact } from "../../../../target-model/types/model
 import { getCsharpDelegateSignature } from "../../../../target-model/types/index.js";
 import type { CsharpInterfaceMember } from "../../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import type { CsharpStorageClassifications } from "../../../../analysis/storage/model.js";
+import type { CsharpStorageClassifications } from "../../../../target-model/records/storage.js";
 import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { objectShapeStorageMemberName } from "../object-shape-storage.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -46,7 +46,7 @@ export function csharpMethodValueHandleIsInherited(
   }));
 }
 
-export function renderCsharpStructuralInterfaceMembers(typeParameterNames: ReadonlyMap<string, string> | undefined, shape: CsharpObjectShapeFact, storage: CsharpStorageClassifications, methodValues: boolean, inherited: readonly CsharpInheritedStructuralInterface[]): readonly CsharpInterfaceMember[] | undefined {
+export function renderCsharpStructuralInterfaceMembers(typeParameterNames: ReadonlyMap<string, string> | undefined, shape: CsharpObjectShapeFact, storage: Pick<CsharpStorageClassifications, "nativeField">, methodValues: boolean, inherited: readonly CsharpInheritedStructuralInterface[]): readonly CsharpInterfaceMember[] | undefined {
   const result: CsharpInterfaceMember[] = [];
   for (const member of shape.members) {
     if (member.memberKind === "method") {
@@ -83,7 +83,7 @@ export function renderCsharpStructuralInterfaceMembers(typeParameterNames: Reado
       if (type === undefined) return undefined;
       result.push({ kind: "PropertyDeclaration", name: member.targetName, type,
         writable: member.readonly !== true && member.accessor?.setter !== false });
-      const backing = storage.nativeField(shape.targetType, member.targetName);
+      const backing = storage.nativeField.get(shape.targetType, member.targetName);
       if (backing !== undefined) {
         const locationType = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(member.type), typeParameterNames);
         if (locationType === undefined) return undefined;

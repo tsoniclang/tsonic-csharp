@@ -42,9 +42,10 @@ test("native method planning requires one exact closed member contract", () => {
   };
   const invoke = fact => {
     const diagnostics = [];
-    const input = { program: { operations: { property: () => fact, element: () => undefined,
-      sourceMember: () => fact?.sourceOwned },
-      sourceNavigation: { sourceReferenceFor: () => undefined, referenceFor: () => undefined } } };
+    const input = { program: { sourceNavigation: { sourceReferenceFor: () => undefined, referenceFor: () => undefined },
+      records: { selectedProperty: { get: () => fact },
+        selectedElement: { get: () => undefined },
+        sourceMember: { get: () => fact?.sourceOwned } } } };
     const result = planCsharpNativeMethodCallee(selected, {}, input, diagnostics, plan);
     return { result, diagnostics };
   };
@@ -81,17 +82,16 @@ test("generic class static callees remain exact namespace syntax, never runtime 
   const classification = { selection: { kind: "source-owned", source: { callCallee: true,
     selectedDeclaration: declaration, receiver: { expression: receiver, type: {} } } }, sourceOwned };
   const input = {
-    program: {
-      operations: { property: () => classification, element: () => undefined,
-        sourceMember: () => input.program.operations.property()?.sourceOwned },
-      sourceNavigation: { referenceFor: () => ({ declaration: classDeclaration, sourceFile: file }),
+    program: { sourceNavigation: { referenceFor: () => ({ declaration: classDeclaration, sourceFile: file }),
         sourceReferenceFor: () => ({ declaration: classDeclaration, sourceFile: file }),
         isProjectDeclaration: candidate => candidate === classDeclaration },
-      classFactories: { get: () => undefined },
       source: { ast: { kindName: () => "KindClassDeclaration", getFileName: () => "/project/entry.ts",
         name: candidate => candidate === classDeclaration ? className : methodName,
         is: { IsClassExpression: () => false } } },
-    },
+      records: { selectedProperty: { get: () => classification },
+        selectedElement: { get: () => undefined },
+        sourceMember: { get: () => input.program.records.selectedProperty.get()?.sourceOwned },
+        classFactory: { get: () => undefined } } },
     types: { projectTypes: { definitionContainingDeclaration: () => ({ scopeName: "ModuleScope" }) } },
     names: { resolve: name => ({ kind: "resolved", name: name === className ? "Entry" : "identity" }) },
   };
@@ -103,7 +103,7 @@ test("generic class static callees remain exact namespace syntax, never runtime 
   assert.deepEqual(result.receiver,
     { kind: "QualifiedName", left: { kind: "IdentifierName", name: "ModuleScope" }, name: "Entry" });
   assert.equal(diagnostics.length, 0);
-  input.program.operations.property = () => ({ ...classification, receiverProjection: {
+  input.program.records.selectedProperty.get = () => ({ ...classification, receiverProjection: {
     conversion: { kind: "rejected", reason: "missing selected native receiver proof" },
   } });
   const rejected = planCsharpNativeMethodCallee({ kind: "method", expression, declaration }, file, input, diagnostics,

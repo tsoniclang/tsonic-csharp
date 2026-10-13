@@ -31,7 +31,7 @@ for (const surface of ["native", "js"]) {
     const { program } = createSourceFixture(surface);
     const context = createCsharpPlanningContext(program);
     const diagnostics = [];
-    const reconstructed = reconstructCsharpSourceFiles(context, program.moduleInitialization, diagnostics);
+    const reconstructed = reconstructCsharpSourceFiles(context, diagnostics);
     assert.equal(reconstructed !== undefined, true);
     assert.equal(diagnostics.length, 0);
     const { contractGraph } = context.artifacts;
@@ -66,9 +66,9 @@ for (const surface of ["native", "js"]) {
       ]));
       const changed = {
         ...program,
-        operations: {
-          ...program.operations,
-          throwValue: subject => mutations.has(subject) ? mutations.get(subject) : program.operations.throwValue(subject),
+        records: {
+          ...program.records,
+          throwValue: { get: subject => mutations.has(subject) ? mutations.get(subject) : program.records.throwValue.get(subject) },
         },
       };
       const context = createCsharpPlanningContext(changed);
@@ -90,7 +90,7 @@ for (const surface of ["native", "js"]) {
         },
       };
       const diagnostics = [];
-      const reconstructed = reconstructCsharpSourceFiles(input, changed.moduleInitialization, diagnostics);
+      const reconstructed = reconstructCsharpSourceFiles(input, diagnostics);
       assert.equal(reconstructed === undefined, true, label);
       for (const owner of dependenciesByOwner.keys()) {
         assert.equal(captures.some(captured => captured.owner === owner && captured.stable && captured.unpublishedImport), true, label);
@@ -130,7 +130,7 @@ function createSourceFixture(surface) {
     .map(declaration => {
       const statement = source.ast.statements(source.ast.body(declaration))[0];
       assert.equal(statement !== undefined, true);
-      const classification = program.operations.throwValue(statement);
+      const classification = program.records.throwValue.get(statement);
       assert.equal(classification !== undefined && classification.targetCarrier !== undefined, true);
       return { statement, classification };
     });
@@ -145,7 +145,8 @@ for (const discovered of ["unrelated", "shape"]) {
     const artifacts = [];
     let reads = 0;
     const input = {
-      program: { sourceNavigation: { sourceFiles: [] }, captureStorage: { frames: [] } },
+      program: { sourceNavigation: { sourceFiles: [] },
+        captureFrames: [] },
       artifacts: {
         contractGraph: graph,
         captureDependencies: (owner, dependencies, build) => captureDependencies(scope, owner, dependencies, build),
@@ -171,7 +172,7 @@ for (const discovered of ["unrelated", "shape"]) {
       },
     };
     const diagnostics = [];
-    const reconstructed = reconstructCsharpSourceFiles(input, {}, diagnostics);
+    const reconstructed = reconstructCsharpSourceFiles(input, diagnostics);
     assert.equal(reconstructed !== undefined, true);
     assert.equal(diagnostics.length, 0);
     assert.equal(reads, discovered === "shape" ? 8 : 4,

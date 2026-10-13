@@ -3,9 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpSafetyApplication,
-} from "../../../analysis/safety/application-index.js";
+import type { CsharpSafetyApplication } from "../../../target-model/records/safety.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -155,10 +153,10 @@ export function csharpSafetyModifiersForDeclaration(
     return [];
   }
   const applications = uniqueApplications([
-    ...input.program.safetyApplications.forDeclaration(declaration),
+    ...input.program.records.safetyApplication.get(declaration),
     ...(additionalDeclaration === undefined
       ? []
-      : input.program.safetyApplications.forDeclaration(additionalDeclaration)),
+      : input.program.records.safetyApplication.get(additionalDeclaration)),
   ]).filter((application) => application.applicationPlacement === placement);
   const contracts = new Set(applications.map((application) =>
     application.contract));
@@ -216,7 +214,7 @@ export function diagnoseUnavailableCsharpSafetyAccessors(
   }
   const available = new Set(availablePlacements);
   for (const application of uniqueApplications(
-    input.program.safetyApplications.forDeclaration(declaration),
+    input.program.records.safetyApplication.get(declaration),
   )) {
     if (
       application.contract !== "requires-unsafe" ||
@@ -238,7 +236,7 @@ export function diagnoseCsharpSafetyApplications(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): void {
-  const applications = input.program.safetyApplications.forSourceFile(sourceFile);
+  const applications = input.program.records.sourceSafetyApplication.get(sourceFile);
   const conflicts = diagnoseConflictingSafetyApplications(
     sourceFile,
     input,
@@ -286,12 +284,12 @@ function diagnoseConflictingSafetyApplications(
   diagnostics: TargetDiagnostic[],
 ): ReadonlySet<Node> {
   const conflicts = new Set<Node>();
-  for (const application of input.program.safetyApplications.forSourceFile(sourceFile)) {
+  for (const application of input.program.records.sourceSafetyApplication.get(sourceFile)) {
     for (const declaration of application.targetDeclarations) {
       if (conflicts.has(declaration)) {
         continue;
       }
-      const related = input.program.safetyApplications.forDeclaration(declaration)
+      const related = input.program.records.safetyApplication.get(declaration)
         .filter((candidate) =>
           candidate.applicationPlacement === application.applicationPlacement);
       if (new Set(related.map((candidate) => candidate.contract)).size <= 1) {
@@ -319,7 +317,7 @@ function exactSafetyOperation(
 ) {
   let current: Node | undefined = expression;
   while (current !== undefined) {
-    const operation = input.program.safetyApplications.operationForSubject(current);
+    const operation = input.program.records.safetyOperation.get(current);
     if (operation !== undefined) {
       return operation;
     }

@@ -1,13 +1,8 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpOutputType } from "../../target-model/configuration/model.js";
-import type { CsharpTargetOperationClassifications } from "../operations/index.js";
-import type {
-  CsharpSourceModuleAnalysis,
-  CsharpSourceModuleAnalysisIssue,
-  CsharpSourceModuleConstruction,
-  CsharpSourceModuleConstructionIndex,
-} from "./model.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpSourceModuleAnalysis, CsharpSourceModuleAnalysisIssue, CsharpSourceModuleConstruction, CsharpSourceModuleConstructionIndex } from "../../target-model/records/source-modules.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 
 export function analyzeCsharpSourceModuleConstructions(input: {
@@ -22,7 +17,7 @@ export function analyzeCsharpSourceModuleConstructions(input: {
     if (sourceFile.IsDeclarationFile) continue;
     visit(sourceFile, (node) => {
       if (input.source.ast.kindName(node) !== "KindNewExpression") return;
-      const classification = input.operations.construction(node);
+      const classification = input.operations.selectedConstruction.get(node);
       const selection = classification?.target;
       if (selection?.kind !== "resolved") return;
       const invocation = selection.call.targetMember.csharpInvocation;
@@ -128,7 +123,7 @@ function createIndex(
   );
   const targets = Object.freeze([...targetSourceFiles]);
   return Object.freeze({
-    construction: (node: Node) => byExpression.get(node),
+    sourceModuleConstruction: Object.freeze({ get: (node: Node) => byExpression.get(node) }),
     entries: () => entries,
     from: (sourceFile: SourceFile) =>
       frozenBySourceFile.get(sourceFile) ?? emptyEntries,

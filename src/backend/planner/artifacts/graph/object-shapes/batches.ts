@@ -67,7 +67,6 @@ export function collectShapeDependencies(
   return { kind: "accepted", shapes, dependencies };
 }
 
-
 export function prepareObjectShapeBatch(
   { addObjectShapesToBatch }: CsharpArtifactGraphScope,
   roots: readonly {
@@ -87,7 +86,6 @@ export function prepareObjectShapeBatch(
     ? added
     : { kind: "accepted", batch };
 }
-
 
 export function addObjectShapesToBatch(
   { collectShapeDependencies }: CsharpArtifactGraphScope,
@@ -224,7 +222,6 @@ export function validateObjectShapeBatch(
   }
   return accepted;
 }
-
 
 export function commitObjectShapeBatch(
   { connect, contracts, records }: CsharpArtifactGraphScope,

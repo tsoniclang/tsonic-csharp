@@ -95,10 +95,10 @@ export function planArrowFunctionExpression(
   expectedTargetType?: TargetTypeRef,
   planExpressionWithExpectedType?: ExpectedExpressionPlanner,
 ): CsharpPlannedValue | undefined {
-  const creationPolicy = input.program.captureStorage.lambdaCreation(node);
+  const creationPolicy = input.program.records.lambdaCreation.get(node);
   if (creationPolicy.kind === "discarded") return csharpPlannedEffect(csharpVoidTargetType(), []);
   const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
-  const closure = input.scope.nativeCallableBody?.declaration === node ? undefined : input.program.captureStorage.closure(node);
+  const closure = input.scope.nativeCallableBody?.declaration === node ? undefined : input.program.records.captureClosure.get(node);
   const complete = (expression: CsharpExpression | undefined): CsharpPlannedValue | undefined => {
     const carrier = closure?.method.type ?? targetContext?.carrier;
     if (creationPolicy.kind === "quotation") {
@@ -232,7 +232,7 @@ export function planFunctionExpression(
   state?: DestructuringPlannerState,
   expectedTargetType?: TargetTypeRef,
 ): CsharpPlannedValue | undefined {
-  const creationPolicy = input.program.captureStorage.lambdaCreation(node);
+  const creationPolicy = input.program.records.lambdaCreation.get(node);
   if (creationPolicy.kind === "discarded") return csharpPlannedEffect(csharpVoidTargetType(), []);
   if (creationPolicy.kind === "quotation") {
     diagnostics.push(unsupportedNodeDiagnostic(node,
@@ -240,7 +240,7 @@ export function planFunctionExpression(
     return undefined;
   }
   const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
-  const closure = input.scope.nativeCallableBody?.declaration === node ? undefined : input.program.captureStorage.closure(node);
+  const closure = input.scope.nativeCallableBody?.declaration === node ? undefined : input.program.records.captureClosure.get(node);
   const complete = (expression: CsharpExpression | undefined, prelude: readonly CsharpStatement[] = []): CsharpPlannedValue | undefined =>
     planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression,
       closure?.method.type ?? targetContext?.carrier, prelude);
@@ -257,7 +257,7 @@ export function planFunctionExpression(
     return undefined;
   }
   const creationState = state ?? createDestructuringPlannerState(node, input.program.source.ast);
-  const self = input.program.captureStorage.closure(node) === undefined ? input.program.captureStorage.namedSelf(node) : undefined;
+  const self = input.program.records.captureClosure.get(node) === undefined ? input.program.records.namedSelf.get(node) : undefined;
   const captureContext = self === undefined ? undefined
     : planCsharpNamedSelfCaptureContext(self, input, diagnostics, creationState);
   if (self !== undefined && captureContext === undefined) return undefined;
@@ -357,7 +357,7 @@ export function planLambdaBlockBody(
   const previousReturnExpressionTypeSubject = lambdaState.currentReturnExpressionTypeSubject;
   const previousReturnExpressionTargetType = lambdaState.currentReturnExpressionTargetType;
   const previousUndefinedReturn = lambdaState.currentUndefinedReturn;
-  const returnContract = input.program.declarations.returnContract(lambdaNode);
+  const returnContract = input.program.records.returnContract.get(lambdaNode);
   lambdaState.currentUndefinedReturn = returnContract?.kind === "resolved" && returnContract.undefinedReturn === true;
   if (returnContext !== undefined) {
     lambdaState.currentReturnExpressionType = returnContext.returnExpressionType;
@@ -465,7 +465,7 @@ export function planLambdaParameters(
           input.program.source.ast.questionToken(parameterNode) === undefined
         ? authoredParameterType
         : nullableCsharpType(authoredParameterType);
-      const nativeParameterType = input.program.storage.lambdaParameterType(parameterNode);
+      const nativeParameterType = input.program.records.lambdaParameterType.get(parameterNode);
       const explicitParameterType = nativeParameterType === undefined
         ? sourceParameterType
         : csharpTypeFromTargetTypeRef(nativeParameterType, input.scope.typeParameterNames);
@@ -515,13 +515,13 @@ export function getLambdaTargetContext(
     return undefined;
   }
   void expectedType;
-  const observedSelf = (input.program.captureStorage.namedSelf(node)?.values.length ?? 0) > 0;
+  const observedSelf = (input.program.records.namedSelf.get(node)?.values.length ?? 0) > 0;
   const nativeBody = input.scope.nativeCallableBody;
   return lambdaTargetContextFromTargetRef(
     input.scope.typeParameterNames,
     nativeBody?.declaration === node ? nativeBody.carrier
       : observedSelf ? input.types.classifications.resolveNode(node, sourceFile)
-      : input.program.expectedTypes.callableTarget(node) ?? expectedTargetType ?? input.types.classifications.resolveNode(node, sourceFile),
+      : input.program.records.callableTarget.get(node) ?? expectedTargetType ?? input.types.classifications.resolveNode(node, sourceFile),
   );
 }
 
@@ -588,7 +588,7 @@ function createLambdaPlanningContext(
     targetType: targetContext.signature.parameterTargetTypes[index]!,
   }));
   for (const binding of bindings) {
-    const sealedTarget = input.program.storage.lambdaParameterType(binding.declaration);
+    const sealedTarget = input.program.records.lambdaParameterType.get(binding.declaration);
     if (sealedTarget === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         binding.declaration,

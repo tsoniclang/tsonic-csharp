@@ -172,8 +172,11 @@ test("repeated carriers classify published occurrences and the final merge, neve
       resolveTarget: () => undefined, resolveCopyShape: () => undefined,
       resolveObjectLiteralTargetShape: (_expected, literal) => ({ kind: "resolved", shape: shapes.get(literal) }),
     },
-  }, { targetTypes: [], isCompileTimeMetadata: () => false, contextualType: () => undefined },
-  { call: () => undefined, construction: () => undefined });
+  }, { targetTypes: [],
+    compileTimeMetadata: Object.freeze({ get: () => false }),
+    contextualType: Object.freeze({ get: () => undefined }) },
+  { selectedCall: Object.freeze({ get: () => undefined }),
+    selectedConstruction: Object.freeze({ get: () => undefined }) });
   for (let index = 0; index < occurrences.length; index += 1) {
     assert.equal(builder.registerStructuralInterface({}, targetType, targetType), false,
       "a Boolean-only registration does not publish its intermediate merge inputs");

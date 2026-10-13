@@ -199,7 +199,7 @@ function planJsValueObjectLiteral(
       planned.expression,
     );
   }
-  const operation = input.program.operations.jsObjectLiteral(node);
+  const operation = input.program.records.jsObjectLiteral.get(node);
   if (operation?.kind !== "resolved") {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,

@@ -48,9 +48,6 @@ import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 import {
   csharpModuleInitMethodName,
 } from "./module-initialization-names.js";
-import type {
-  CsharpModuleInitializationIndex,
-} from "../../../analysis/module-initialization/index.js";
 import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "../declarations/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planExpression } from "../expressions/index.js";
@@ -90,19 +87,19 @@ export function planSourceFile(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-  moduleInitialization: CsharpModuleInitializationIndex,
 ): PlannedCsharpSourceFile | undefined {
+  const moduleInitialization = input.program.records;
   const fileName = SourceFile_FileName(input.program.source.ast, sourceFile);
   if (sourceFile.IsDeclarationFile || isProviderVirtualSourceFile(input, sourceFile)) {
     return undefined;
   }
   input = createCsharpMemberPlanningContext(input);
   const moduleClassName = sourceFileClassName(input, fileName);
-  const hasModuleInitializer = moduleInitialization.requiresInitializer(
+  const hasModuleInitializer = moduleInitialization.requiresModuleInitializer.get(
     sourceFile,
   );
   const asyncModuleInitializer = hasModuleInitializer &&
-    moduleInitialization.isAsync(sourceFile);
+    moduleInitialization.asyncModuleInitializer.get(sourceFile);
   const members: CsharpTypeMember[] = [];
   const namespaceMembers: CsharpTypeDeclaration[] = [];
   const scopedTypeMembers = new Map<string, CsharpTypeDeclaration[]>();
@@ -117,7 +114,7 @@ export function planSourceFile(
       scopedTypeMembers.set(scopeName, declarations);
     }
   };
-  for (const factory of input.program.classFactories.factories) {
+  for (const factory of input.program.classFactories) {
     if (factory.sourceFile !== sourceFile) continue;
     const instance = planClassDeclaration(factory.declaration, sourceFile, input, diagnostics);
     localTypeScopes.push({ kind: "NamespaceDeclaration", name: `${readNamespace(input)}.${factory.instanceScope}`,
@@ -135,7 +132,7 @@ export function planSourceFile(
     topLevelState,
     () => {
       for (const statement of sourceFile.Statements?.Nodes ?? []) {
-        if (statement === undefined || input.program.sourceEvidence.isCompileTimeMetadata(statement)) {
+        if (statement === undefined || input.program.records.compileTimeMetadata.get(statement)) {
           continue;
         }
         if (
@@ -201,7 +198,7 @@ export function planSourceFile(
   diagnoseCsharpSafetyApplications(sourceFile, input, diagnostics);
   if (hasModuleInitializer) {
     const initializationStatements = [
-      ...moduleInitialization.dependenciesFor(sourceFile)
+      ...moduleInitialization.moduleInitializationDependencies.get(sourceFile)
         .filter((dependency) => dependency !== sourceFile)
         .map((dependency) =>
           createModuleInitializerCall(
@@ -209,7 +206,7 @@ export function planSourceFile(
               input,
               SourceFile_FileName(input.program.source.ast, dependency),
             ),
-            moduleInitialization.isAsync(dependency),
+            moduleInitialization.asyncModuleInitializer.get(dependency),
           )),
       ...plannedTopLevelStatements,
     ];

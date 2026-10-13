@@ -30,10 +30,12 @@ function fixture(acceptsOmission, foreign = false) {
     },
   } };
   const policy = { ast, sourceFiles: [parameter], semanticsFor: () => queries };
-  const evidence = { isCompileTimeMetadata: () => false, nodeTargetType: () => valueType,
-    contextualTargetType: () => undefined, expressionType: () => ({}) };
+  const evidence = { compileTimeMetadata: { get: () => false },
+    nodeTargetType: { get: () => valueType },
+    contextualTargetType: { get: () => undefined },
+    expressionType: { get: () => ({}) } };
   return { parameter, selected: () => analyzeCsharpDeclarations(policy, evidence,
-    { property: () => undefined }).runtimeDefault(parameter) };
+    { selectedProperty: { get: () => undefined } }).runtimeDefault.get(parameter) };
 }
 
 test("native default declarations retain exact omission independently of their initializer and carrier", () => {

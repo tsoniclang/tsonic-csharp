@@ -1,11 +1,11 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 
 export interface CsharpModuleInitializationIndex {
-  dependenciesFor(sourceFile: SourceFile): readonly SourceFile[];
-  requiresInitializer(sourceFile: SourceFile): boolean;
-  isAsync(sourceFile: SourceFile): boolean;
+  readonly moduleInitializationDependencies: { get(sourceFile: SourceFile): readonly SourceFile[] };
+  readonly requiresModuleInitializer: { get(sourceFile: SourceFile): boolean };
+  readonly asyncModuleInitializer: { get(sourceFile: SourceFile): boolean };
   entrypointInitializer(): SourceFile | undefined;
-  directCallableVisibility(declaration: Node): "public" | "internal" | undefined;
+  readonly callableVisibility: { get(declaration: Node): "public" | "internal" | undefined };
 }
 
 export interface CsharpModuleInitializationIssue {

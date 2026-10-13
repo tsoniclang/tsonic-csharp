@@ -23,7 +23,7 @@ export function planArrayDefaultProjection(
   state: DestructuringPlannerState,
   planDefaultExpression: BindingDefaultExpressionPlanner,
 ): { readonly value: CsharpPlannedValue; readonly carrier: TargetTypeRef; readonly type: CsharpTypeNode } | undefined {
-  const defaultCarrier = input.program.sourceEvidence.nodeTargetType(initializer);
+  const defaultCarrier = input.program.records.nodeTargetType.get(initializer);
   const carrier = defaultCarrier === undefined ? undefined : csharpBindingDefaultCarrier(sourceCarrier.element, defaultCarrier);
   const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
   if (carrier === undefined || type === undefined) {

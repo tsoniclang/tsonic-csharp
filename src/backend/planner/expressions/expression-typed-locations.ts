@@ -6,10 +6,8 @@ import { planCsharpNativeMemoryCall } from "./native-memory.js";
 import { planCsharpIndexedLocation } from "./indexed-locations.js";
 import { objectShapeBoundStorageMemberName, objectShapeBoundStorageTargetType } from "../objects/object-shape-storage.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpTypedLocationOperationKind,
-  CsharpTypedLocationStorage,
-} from "../../../analysis/operations/index.js";
+import type { CsharpTypedLocationOperationKind } from "../../../target-model/records/typed-locations.js";
+import type { CsharpTypedLocationStorage } from "../../../target-model/records/typed-location-storage.js";
 import {
   csharpRuntimeLocationTargetType,
 } from "../../../target-model/types/index.js";
@@ -57,7 +55,7 @@ export function tryPlanCsharpTypedLocationOperation(
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   state?: DestructuringPlannerState,
 ): CsharpTypedLocationOperationPlan {
-  const operation = input.program.operations.typedLocation(node);
+  const operation = input.program.records.typedLocation.get(node);
   if (operation === undefined) {
     return { handled: false };
   }
@@ -118,7 +116,7 @@ export function tryPlanCsharpTypedLocationOperation(
         }) };
     }
     case "location-address": {
-      if (input.program.storage.nativeArray(operation.storage.expression)?.kind === "element") {
+      if (input.program.records.nativeArray.get(operation.storage.expression)?.kind === "element") {
         const value = planExpression(operation.storage.expression, sourceFile, input, diagnostics);
         if (value?.completion.kind === "value" && value.completion.expression.kind === "ElementAccessExpression" && value.completion.expression.arguments.length === 1) {
           return { handled: true, expression: projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
@@ -128,11 +126,11 @@ export function tryPlanCsharpTypedLocationOperation(
         return { handled: true };
       }
       if (operation.storage.kind === "reference-property-storage") {
-        const source = input.program.operations.sourceMember(operation.storage.expression);
+        const source = input.program.records.sourceMember.get(operation.storage.expression);
         const shape = source?.objectShape;
         const member = source?.shapeMember?.kind === "resolved" ? source.shapeMember.member : undefined;
         const backing = shape === undefined || member === undefined ? undefined
-          : input.program.storage.nativeField(shape.targetType, member.targetName);
+          : input.program.records.nativeField.get(shape.targetType, member.targetName);
         if (backing !== undefined) {
           const value = planExpression(operation.storage.expression, sourceFile, input, diagnostics);
           if (value?.completion.kind === "value" && value.completion.expression.kind === "SimpleMemberAccessExpression") {
@@ -144,7 +142,7 @@ export function tryPlanCsharpTypedLocationOperation(
         }
       }
       if (operation.storage.kind === "direct-storage" && operation.storage.identity.kind === "local-storage" &&
-        input.program.storage.nativeBacking(operation.storage.identity.declaration) !== undefined) {
+        input.program.records.nativeBacking.get(operation.storage.identity.declaration) !== undefined) {
         const value = planExpression(operation.storage.expression, sourceFile, input, diagnostics);
         if (value?.completion.kind === "value" && value.completion.expression.kind === "SimpleMemberAccessExpression" && value.completion.expression.name === "Value") {
           return { handled: true, expression: projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
@@ -178,7 +176,7 @@ export function tryPlanCsharpTypedLocationOperation(
         undefined,
         operation.pointeeType,
       );
-      const backing = input.program.storage.nativeBacking(node);
+      const backing = input.program.records.nativeBacking.get(node);
       if (backing !== undefined) return { handled: true, expression: initial === undefined
         ? undefined : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, initial,
           value => planCsharpNativeMemoryCall(input.scope.typeParameterNames, "Allocate", value, backing)) };
@@ -228,7 +226,7 @@ export function tryPlanCsharpTypedLocationOperation(
       );
       if (operation.location.kind === "native-ref-return" && location !== undefined && value !== undefined &&
         (value.prelude.length !== 0 || value.completion.kind !== "value")) {
-        const fact = input.program.storage.nativeLocation(operation.location.expression);
+        const fact = input.program.records.nativeLocation.get(operation.location.expression);
         if (fact?.kind !== "resolved" || !fact.writable || fact.address?.passing !== "byref-readwrite") {
           diagnostics.push(typedLocationDiagnostic(node, operation.kind, fact?.kind === "rejected" ? fact.reason
             : "A native ref-return store requires its sealed writable managed address."));
@@ -296,7 +294,7 @@ export function planCsharpProjectedFieldWrite(
   planExpression: ExpressionPlanner,
   state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
-  const selection = input.program.operations.sourceMember(node)?.projectedWrite;
+  const selection = input.program.records.sourceMember.get(node)?.projectedWrite;
   if (selection === undefined) return planned;
   if (selection.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
@@ -473,7 +471,7 @@ function planValuePropertyLocation(
 }
 
 function boundRecordStorage(node: Node, input: CsharpPlanningContext): { readonly name: string; readonly type: CsharpTypeNode } | undefined {
-  const selected = input.program.operations.sourceMember(node);
+  const selected = input.program.records.sourceMember.get(node);
   const shape = selected?.objectShape;
   const field = selected?.shapeMember?.kind === "resolved" ? selected.shapeMember.member : undefined;
   if (shape === undefined || field?.bound !== true) return undefined;
@@ -522,7 +520,7 @@ function planDirectLocation(
   const valueName = allocateSyntheticParameter(state);
   switch (storage.identity.kind) {
     case "local-storage": {
-      const captured = input.program.captureStorage.binding(storage.identity.declaration);
+      const captured = input.program.records.capturedBinding.get(storage.identity.declaration);
       if (captured !== undefined) {
         if (planned.kind !== "SimpleMemberAccessExpression" || planned.name !== captured.fieldName) {
           diagnostics.push(typedLocationDiagnostic(storage.expression, "location-address",

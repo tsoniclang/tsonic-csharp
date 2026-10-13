@@ -77,7 +77,7 @@ export function planLocalDeclaration(
     getTargetTypeRefForNode(input, variable.name, sourceFile);
   const nativeRefReturn = variable.Initializer !== undefined &&
       input.program.source.ast.variableDeclarationKind(declarationNode) === "const"
-    ? input.program.operations.nativeRefReturn(variable.Initializer)
+    ? input.program.records.nativeRefReturn.get(variable.Initializer)
     : undefined;
   if (
     nativeRefReturn?.kind === "resolved" &&
@@ -108,10 +108,10 @@ export function planLocalDeclaration(
         variable.Type === undefined ? undefined : expectedTargetType,
       )?.type
     : undefined;
-  const inferredTargetType = input.program.sourceEvidence.storageTargetType(
+  const inferredTargetType = input.program.records.storageTargetType.get(
     declarationNode,
   );
-  const storageType = input.program.storage.type(declarationNode);
+  const storageType = input.program.records.storageType.get(declarationNode);
   const requiredStorageType = storageType !== undefined &&
       inferredTargetType !== undefined &&
       !targetTypeRefEquals(storageType, inferredTargetType)
@@ -164,13 +164,13 @@ export function planLocalDeclaration(
         };
     initializer = csharpPlannedValue(inferredTargetType, expression);
   }
-  const nativeArray = input.program.storage.nativeArray(declarationNode);
+  const nativeArray = input.program.records.nativeArray.get(declarationNode);
   if (nativeArray !== undefined && initializer !== undefined) {
     const nativeType = csharpTypeFromTargetTypeRef(csharpRuntimeNativeArrayTargetType(nativeArray.layout.pointeeType), input.scope.typeParameterNames);
     if (nativeType !== undefined) return { kind: "VariableDeclarator", name, type: nativeType, initializer };
     diagnostics.push(unsupportedNodeDiagnostic(declarationNode, "The sealed native array has no renderable storage type."));
   }
-  const nativeBacking = input.program.storage.nativeBacking(declarationNode);
+  const nativeBacking = input.program.records.nativeBacking.get(declarationNode);
   if (nativeBacking !== undefined && initializer !== undefined) {
     const nativeType = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(nativeBacking.pointeeType), input.scope.typeParameterNames);
     if (nativeType !== undefined) return { kind: "VariableDeclarator", name, type: nativeType,
@@ -201,7 +201,7 @@ export function planLocalDeclarationStatements(
   state: DestructuringPlannerState,
   retainBinding?: (binding: CsharpEntryBinding, declaration: Node) => void,
 ): readonly CsharpStatement[] {
-  if (input.program.sourceEvidence.isCompileTimeMetadata(declarationNode)) return [];
+  if (input.program.records.compileTimeMetadata.get(declarationNode)) return [];
   const variable = AsVariableDeclaration(input.program.source.ast, declarationNode)!;
   const declarationKind = input.program.source.ast.variableDeclarationKind(declarationNode);
   if (declarationKind === "using" || declarationKind === "await using") {

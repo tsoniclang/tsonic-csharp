@@ -15,8 +15,8 @@ import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/di
 
 const integer = { kind: "source-primitive", name: "int32" };
 const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() {} }, target: {} };
-const context = { scope: {}, program: { conversions: { directCallableReference: () => undefined },
-  captureStorage: { closure: () => undefined } }, names: { temporaryName: () => assert.fail("Native bindings must not allocate wrapper temporaries") } };
+const context = { scope: {}, program: { records: { directCallableReference: { get: () => undefined },
+  captureClosure: { get: () => undefined } } }, names: { temporaryName: () => assert.fail("Native bindings must not allocate wrapper temporaries") } };
 
 function nativeDelegate(name, mode = "by-value", returnPassing) {
   return csharpTargetNamedType(`Fixture.${name}`, undefined,

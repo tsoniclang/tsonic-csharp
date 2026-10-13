@@ -1,3 +1,4 @@
+import type { CsharpCaptureFrame, CsharpCaptureStorage, CsharpCapturedBinding, CsharpLambdaCreation } from "../../target-model/records/capture-storage.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceBindingHasSingleCaptureOwner, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization,
@@ -7,88 +8,51 @@ import type { SourceLexicalValueCreation } from "@tsonic/target-api/source";
 import { createHash } from "node:crypto";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeClassifications } from "../objects/model.js";
-import type { CsharpStorageClassifications, CsharpStorageIssue } from "../storage/model.js";
+import type { CsharpStorageClassifications, CsharpStorageIssue } from "../../target-model/records/storage.js";
 import { createStructuralObjectShapeTarget } from "../../policy/types/objects/object-shape-policy/construction.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
-import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
-import { selectCsharpFrameClosures, type CsharpFrameClosure } from "./capture-closures.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import { selectCsharpFrameClosures } from "./capture-closures.js";
+import { type CsharpFrameClosure } from "../../target-model/records/capture-storage.js";
 import { csharpTargetNamedType } from "../../target-model/types/factories.js";
 import { selectCsharpGenericFrameClosures } from "./generic-closures.js";
 import { getCsharpMethodValue, csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import type { CsharpSourceNameResolver } from "../names/source-names.js";
 import { createCsharpTypeParameterEnvironment } from "../../policy/constraints/type-parameter-environment.js";
-import type { CsharpNamedSelfBinding } from "./named-self.js";
+
 import { csharpCapturedMemberAccess } from "./captured-member-access.js";
-import type { CsharpDeclarationClassifications } from "../declarations/model.js";
-import type { CsharpTargetOperationClassifications } from "../operations/model.js";
-import type { CsharpExpectedTypeClassifications } from "../expected-types/model.js";
+import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 import { getCsharpExpressionTreeDelegateType } from "../../target-model/types/carriers/delegates.js";
 import { HasSyntacticModifier, ModifierFlagsAsync } from "@tsonic/target-api/source";
 
-export type CsharpLambdaCreation =
-  | { readonly kind: "discarded"; readonly staticBody: true }
-  | { readonly kind: "cached"; readonly staticBody: true }
-  | { readonly kind: "quotation"; readonly staticBody: false }
-  | { readonly kind: "inline" | "direct" | "fresh"; readonly staticBody: boolean };
-
 const unknownLambdaCreation: CsharpLambdaCreation = Object.freeze({ kind: "fresh", staticBody: false });
-
-export interface CsharpCaptureFrame {
-  readonly scope: Node;
-  readonly ownership: "activation" | "value";
-  readonly shape: CsharpObjectShapeFact;
-  readonly bindings: readonly { readonly declaration: Node; readonly fieldName: string; readonly type: TargetTypeRef;
-    readonly initialization?: "deferred" }[];
-  readonly parents: readonly { readonly frame: CsharpCaptureFrame; readonly fieldName: string }[];
-  readonly methods: readonly CsharpFrameClosure[];
-  readonly receivers: readonly { readonly owner: Node; readonly references: readonly Node[]; readonly type: TargetTypeRef; readonly fieldName: string }[];
-}
-
-export interface CsharpCapturedBinding {
-  readonly frame: CsharpCaptureFrame;
-  readonly fieldName: string;
-}
-
-export interface CsharpCaptureStorage {
-  readonly issues: readonly CsharpStorageIssue[];
-  readonly frames: readonly CsharpCaptureFrame[];
-  frame(scope: Node): CsharpCaptureFrame | undefined;
-  binding(declaration: Node): CsharpCapturedBinding | undefined;
-  physicalType(declaration: Node, logicalType: TargetTypeRef): TargetTypeRef;
-  closure(declaration: Node): { readonly frame: CsharpCaptureFrame; readonly method: CsharpFrameClosure } | undefined;
-  namedSelf(declaration: Node): CsharpNamedSelfBinding | undefined;
-  lambdaCreation(declaration: Node): CsharpLambdaCreation;
-  requiresHelperAccess(declaration: Node): boolean;
-  forShape(type: TargetTypeRef): CsharpCaptureFrame | undefined;
-  valueDeclarationsAt(statement: Node): readonly Node[];
-  valueCreation(declaration: Node): SourceLexicalValueCreation | undefined;
-  valueName(declaration: Node): string | undefined;
-}
 
 export function analyzeCsharpCaptureStorage(
   source: TargetSourceProgram,
   shapes: CsharpObjectShapeClassifications,
   storage: CsharpStorageClassifications,
   evidence: CsharpSourceEvidenceIndex,
-  classCaptures: readonly import("../project-types/class-factories.js").CsharpClassCapture[],
+  classCaptures: readonly import("../../target-model/records/class-factories.js").CsharpClassCapture[],
   names: CsharpSourceNameResolver,
   declarations: CsharpDeclarationClassifications,
   operations: CsharpTargetOperationClassifications,
   expectedTypes: Pick<CsharpExpectedTypeClassifications, "callableTarget">,
 ): CsharpCaptureStorage {
-  const environment = createCsharpTypeParameterEnvironment(source.ast, declaration => evidence.typeParameterConstraints(declaration));
+  const environment = createCsharpTypeParameterEnvironment(source.ast, declaration => evidence.typeParameterConstraints.get(declaration));
   const groups = new Map<Node, Map<Node, TargetTypeRef>>();
   const issues: CsharpStorageIssue[] = [];
   const physicalType = (declaration: Node, logicalType: TargetTypeRef): TargetTypeRef => {
-    const backing = storage.nativeBacking(declaration);
+    const backing = storage.nativeBacking.get(declaration);
     if (backing !== undefined) return csharpRuntimeLocationTargetType(backing.pointeeType);
-    const array = storage.nativeArray(declaration);
-    return array === undefined ? storage.type(declaration) ?? logicalType : csharpRuntimeNativeArrayTargetType(array.layout.pointeeType);
+    const array = storage.nativeArray.get(declaration);
+    return array === undefined ? storage.storageType.get(declaration) ?? logicalType : csharpRuntimeNativeArrayTargetType(array.layout.pointeeType);
   };
   for (const shape of shapes.knownShapes()) {
     for (const capture of (shape.declarationTemplate ?? shape).methodImplementation?.captures ?? []) {
-      if (!capture.mutable || storage.nativeBacking(capture.declaration) !== undefined) continue;
+      if (!capture.mutable || storage.nativeBacking.get(capture.declaration) !== undefined) continue;
       if (!shapes.methodImplementationHasCopies(shape) && hasSingleCaptureOwner(source, capture.declaration, shape.declarationTemplate ?? shape)) continue;
       const scope = sourceBindingScope(capture.declaration, source.ast);
       if (scope === undefined || source.ast.is.IsSourceFile(scope)) {
@@ -108,7 +72,7 @@ export function analyzeCsharpCaptureStorage(
     }
   }
   for (const capture of classCaptures) {
-    if (!capture.mutable || storage.nativeBacking(capture.declaration) !== undefined) continue;
+    if (!capture.mutable || storage.nativeBacking.get(capture.declaration) !== undefined) continue;
     const scope = sourceBindingScope(capture.declaration, source.ast);
     if (scope === undefined || source.ast.is.IsSourceFile(scope)) {
       issues.push({ node: capture.declaration, code: "CSHARP_CAPTURE_SCOPE_NOT_CLOSED",
@@ -190,7 +154,7 @@ export function analyzeCsharpCaptureStorage(
   const valueMethods = genericClosures.filter(method => method.scope === method.declaration);
   for (const method of valueMethods) {
     const captured = method.captures.map(declaration => {
-      const type = evidence.storageTargetType(declaration) ?? evidence.nodeTargetType(declaration);
+      const type = evidence.storageTargetType.get(declaration) ?? evidence.nodeTargetType.get(declaration);
       return type === undefined ? undefined : { declaration, type: physicalType(declaration, type), shared: byBinding.get(declaration) };
     });
     const contract = getCsharpMethodValue(method.type)?.owner;
@@ -225,13 +189,13 @@ export function analyzeCsharpCaptureStorage(
   const valueCreations = new Map<Node, SourceLexicalValueCreation>();
   const valueNames = new Map<Node, string>();
   const visitValues = (node: Node): void => {
-    if (evidence.isCompileTimeMetadata(node)) return;
+    if (evidence.compileTimeMetadata.get(node)) return;
     if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
       if (sourceCallableDefinitionIsDiscarded(node, source.ast)) {
         lambdaCreations.set(node, Object.freeze({ kind: "discarded", staticBody: true }));
         return;
       }
-      if (getCsharpExpressionTreeDelegateType(expectedTypes.callableTarget(node)) !== undefined) {
+      if (getCsharpExpressionTreeDelegateType(expectedTypes.callableTarget.get(node)) !== undefined) {
         if (HasSyntacticModifier(source.ast, node, ModifierFlagsAsync)) {
           issues.push({ node, code: "CSHARP_EXPRESSION_TREE_ASYNC_UNSUPPORTED",
             message: "A native expression-tree quotation cannot contain an asynchronous lambda." });
@@ -254,11 +218,11 @@ export function analyzeCsharpCaptureStorage(
       }
     }
     if (source.ast.is.IsFunctionDeclaration(node) && source.ast.body(node) !== undefined &&
-      !evidence.isCompileTimeMetadata(node)) {
+      !evidence.compileTimeMetadata.get(node)) {
       const quantifiedUse = source.ast.typeParameters(node).length === 0 ? undefined
         : source.navigation.declarationUseSummary(node).uses.find(use => use.kind === "first-class" &&
-          !evidence.isCompileTimeMetadata(use.reference) &&
-          (getCsharpMethodValue(evidence.nodeTargetType(use.reference))?.typeParameters.length ?? 0) > 0);
+          !evidence.compileTimeMetadata.get(use.reference) &&
+          (getCsharpMethodValue(evidence.nodeTargetType.get(use.reference))?.typeParameters.length ?? 0) > 0);
       if (quantifiedUse !== undefined) {
         issues.push({ node: quantifiedUse.reference, code: "CSHARP_QUANTIFIED_NAMED_CALLABLE_NOT_SUPPORTED",
           message: "A named quantified function has no supported native callable-value owner." });
@@ -268,7 +232,7 @@ export function analyzeCsharpCaptureStorage(
         return;
       }
       const creation = sourceLexicalFunctionValueCreation(node, source.ast, source.navigation,
-        use => !evidence.isCompileTimeMetadata(use.reference));
+        use => !evidence.compileTimeMetadata.get(use.reference));
       valueCreations.set(node, creation);
       if (creation.kind === "unresolved") issues.push({ node, code: "CSHARP_LEXICAL_VALUE_ACTIVATION_NOT_CLOSED", message: creation.reason });
       if (creation.kind === "resolved") {
@@ -291,21 +255,21 @@ export function analyzeCsharpCaptureStorage(
   const scheduledValues = new Map<Node, readonly Node[]>();
   for (const [statement, values] of valueDeclarations) {
     const ordered = sourceLexicalFunctionValueOrder(values, source.ast, source.navigation,
-      use => !evidence.isCompileTimeMetadata(use.reference));
+      use => !evidence.compileTimeMetadata.get(use.reference));
     if (ordered.kind === "resolved") scheduledValues.set(statement, ordered.declarations);
     else issues.push({ node: statement, code: "CSHARP_LEXICAL_VALUE_ACTIVATION_NOT_CLOSED", message: ordered.reason });
   }
   const frames = Object.freeze([...byScope.values(), ...valueFrames]);
   const helperMembers = csharpCapturedMemberAccess(source, frames);
   return Object.freeze({ issues: Object.freeze(issues), frames,
-    frame: (scope: Node) => byScope.get(scope), binding: (declaration: Node) => byBinding.get(declaration), physicalType,
-    closure: (declaration: Node) => byClosure.get(declaration), forShape: (type: TargetTypeRef) => byShape.get(targetTypeRefKey(type)),
-    namedSelf: (declaration: Node) => namedSelfBindings.get(declaration),
-    lambdaCreation: (declaration: Node) => lambdaCreations.get(declaration) ?? unknownLambdaCreation,
-    requiresHelperAccess: (declaration: Node) => helperMembers.has(declaration),
-    valueDeclarationsAt: (statement: Node) => scheduledValues.get(statement) ?? empty,
-    valueCreation: (declaration: Node) => valueCreations.get(declaration),
-    valueName: (declaration: Node) => valueNames.get(declaration),
+    captureFrame: Object.freeze({ get: (scope: Node) => byScope.get(scope) }), capturedBinding: Object.freeze({ get: (declaration: Node) => byBinding.get(declaration) }), physicalStorageType: Object.freeze({ get: physicalType }),
+    captureClosure: Object.freeze({ get: (declaration: Node) => byClosure.get(declaration) }), captureFrameShape: Object.freeze({ get: (type: TargetTypeRef) => byShape.get(targetTypeRefKey(type)) }),
+    namedSelf: Object.freeze({ get: (declaration: Node) => namedSelfBindings.get(declaration) }),
+    lambdaCreation: Object.freeze({ get: (declaration: Node) => lambdaCreations.get(declaration) ?? unknownLambdaCreation }),
+    helperAccess: Object.freeze({ get: (declaration: Node) => helperMembers.has(declaration) }),
+    lexicalValueDeclarations: Object.freeze({ get: (statement: Node) => scheduledValues.get(statement) ?? empty }),
+    lexicalValueCreation: Object.freeze({ get: (declaration: Node) => valueCreations.get(declaration) }),
+    lexicalValueName: Object.freeze({ get: (declaration: Node) => valueNames.get(declaration) }),
   });
 }
 
@@ -324,7 +288,7 @@ function hasOnlyInvocationArguments(
     arguments_ = [argument];
   }
   return arguments_ !== undefined && arguments_.every(argument => {
-    const selected = operations.call(argument.call)?.target;
+    const selected = operations.selectedCall.get(argument.call)?.target;
     if (selected?.kind !== "resolved" || selected.call.origin !== "source-profile" ||
       !selected.call.invocationOnlyCallableArgumentIndexes?.includes(argument.argumentIndex)) return false;
     const bindings = selected.call.arguments.filter(binding => binding.sourceArgumentIndex === argument.argumentIndex);

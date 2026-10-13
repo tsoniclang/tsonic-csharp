@@ -1,27 +1,11 @@
+import type { CsharpCallableParameterAdapter, CsharpCallableRestSegment, CsharpCallableValueAdapter } from "../../target-model/records/callable-adapters.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { csharpConversionIsApplicable, selectCsharpConversion, type CsharpConversionSelection } from "../../policy/conversions/selection.js";
+import { csharpConversionIsApplicable, selectCsharpConversion } from "../../policy/conversions/selection.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpJsArrayElementTargetType } from "../../target-model/types/carriers/collections.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
 import { selectCsharpFlowReadConversion } from "../../policy/conversions/expression.js";
-import type { CsharpSourceCallableContract } from "../../policy/types/callables/source-callable-contract.js";
-
-export interface CsharpCallableValueAdapter {
-  readonly source: TargetTypeRef;
-  readonly target: TargetTypeRef;
-  readonly conversion: CsharpConversionSelection;
-}
-
-export type CsharpCallableRestSegment =
-  | { readonly kind: "value"; readonly parameterIndex: number; readonly adapter: CsharpCallableValueAdapter }
-  | { readonly kind: "sequence"; readonly parameterIndex: number; readonly offset: number; readonly adapter: CsharpCallableValueAdapter };
-
-export type CsharpCallableParameterAdapter =
-  | { readonly kind: "value"; readonly parameterIndex: number; readonly adapter: CsharpCallableValueAdapter }
-  | { readonly kind: "omitted"; readonly parameterIndex: number }
-  | { readonly kind: "rest-element"; readonly parameterIndex: number; readonly offset: number;
-      readonly optional: boolean; readonly adapter: CsharpCallableValueAdapter }
-  | { readonly kind: "rest"; readonly target: TargetTypeRef; readonly segments: readonly CsharpCallableRestSegment[] };
+import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
 
 export function csharpCallableRestElement(type: TargetTypeRef): TargetTypeRef | undefined {
   return type.kind === "array" ? type.element : getCsharpJsArrayElementTargetType(type);

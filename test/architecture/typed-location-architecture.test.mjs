@@ -96,7 +96,7 @@ test("C# backend consumes only resolved C# typed-location operations", () => {
   );
 
   assert.match(analysis, /selectCsharpTypedLocationOperation/u);
-  assert.match(planner, /input\.program\.operations\.typedLocation/u);
+  assert.match(planner, /input\.program\.records\.typedLocation\.get/u);
   assert.doesNotMatch(
     planner,
     /selectCsharpTypedLocationOperation|pointerOperationFactKey|PointerOperationFact|sourceFacts|getResolvedStorageInfo|getResolvedPropertyAccessInfo|getResolvedElementAccessInfo/u,

@@ -270,7 +270,7 @@ export function planExpressionWithExpectedTypeCore(
     HasSourceKind(input.program.source.ast, node, KindArrayLiteralExpression) &&
     effectiveExpectedTargetType !== undefined
   ) {
-    const sourceCarrier = input.program.expectedTypes.arrayLiteralCarrier(node, effectiveExpectedTargetType);
+    const sourceCarrier = input.program.records.arrayLiteralCarrier.get(node, effectiveExpectedTargetType);
     const conversion = readCsharpConversionClassification(
       node,
       input,

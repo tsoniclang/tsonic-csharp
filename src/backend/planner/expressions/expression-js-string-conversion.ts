@@ -20,7 +20,7 @@ export function tryPlanCsharpJsStringConversion(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpJsStringConversionPlan {
-  const selection = input.program.operations.jsStringConversion(node);
+  const selection = input.program.records.jsStringConversion.get(node);
   if (
     selection === undefined ||
     selection.kind === "not-js-string-conversion"

@@ -95,7 +95,7 @@ function planDestructuringAssignmentCore(
   planExpression: ExpressionPlanner,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
 ): CsharpPlannedValue | undefined {
-  const selectedOperator = input.program.operations.binary(node)
+  const selectedOperator = input.program.records.binaryOperation.get(node)
     ?.destructuring;
   if (selectedOperator === undefined) {
     pushMissingDestructuringAssignmentFactsDiagnostic(node, diagnostics);

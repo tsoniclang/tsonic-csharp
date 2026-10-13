@@ -1,3 +1,4 @@
+import type { CsharpResolvedIteration } from "../../../target-model/records/selection.js";
 import type {
   Node,
   ResolvedSourceIterationInfo,
@@ -6,13 +7,7 @@ import type {
 import type {
   CsharpPolicyContext,
 } from "../../model/context.js";
-import type {
-  CsharpObjectShapeFact,
-  CsharpPropertyKeyIterationPolicy,
-  CsharpStringIterationPolicy,
-  CsharpTargetNamedTypeRef,
-  TargetTypeRef,
-} from "../../types/index.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
 import {
   csharpStringTargetType,
   getCsharpCollectionElementTargetType,
@@ -20,94 +15,7 @@ import {
   isCsharpStringTargetType,
   targetTypeRefEquals,
 } from "../../types/index.js";
-import type {
-  CsharpOperationSelection,
-} from "../operators/index.js";
-
-export type CsharpResolvedIteration =
-  | {
-      readonly kind: "resolved";
-      readonly iterationKind: "for-await-of";
-      readonly source: Extract<
-        ResolvedSourceIterationInfo,
-        { readonly iterationKind: "for-await-of" }
-      >;
-      readonly iterableType: TargetTypeRef;
-      readonly elementType: TargetTypeRef;
-      readonly lowering: {
-        readonly kind: "await-foreach" | "await-foreach-sync-adapter";
-      } | {
-        readonly kind: "string-code-point";
-        readonly policy: CsharpStringIterationPolicy;
-      };
-    }
-  | {
-      readonly kind: "resolved";
-      readonly iterationKind: "for-of";
-      readonly source: Extract<
-        ResolvedSourceIterationInfo,
-        { readonly iterationKind: "for-of" }
-      >;
-      readonly iterableType: TargetTypeRef;
-      readonly elementType: TargetTypeRef;
-      readonly lowering: { readonly kind: "foreach" };
-    }
-  | {
-      readonly kind: "resolved";
-      readonly iterationKind: "for-of";
-      readonly source: Extract<
-        ResolvedSourceIterationInfo,
-        { readonly iterationKind: "for-of" }
-      >;
-      readonly iterableType: TargetTypeRef;
-      readonly elementType: TargetTypeRef;
-      readonly lowering: {
-        readonly kind: "string-code-point";
-        readonly policy: CsharpStringIterationPolicy;
-      };
-    }
-  | {
-      readonly kind: "resolved";
-      readonly iterationKind: "for-in";
-      readonly source: Extract<
-        ResolvedSourceIterationInfo,
-        { readonly iterationKind: "for-in" }
-      >;
-      readonly iterableType: TargetTypeRef;
-      readonly elementType: TargetTypeRef;
-      readonly lowering: {
-        readonly kind: "object-shape-keys";
-        readonly objectShape: CsharpObjectShapeFact;
-      };
-    }
-  | {
-      readonly kind: "resolved";
-      readonly iterationKind: "for-in";
-      readonly source: Extract<
-        ResolvedSourceIterationInfo,
-        { readonly iterationKind: "for-in" }
-      >;
-      readonly iterableType: TargetTypeRef;
-      readonly elementType: TargetTypeRef;
-      readonly lowering: Extract<
-        CsharpPropertyKeyIterationPolicy,
-        { readonly kind: "index" }
-      >;
-    }
-  | {
-      readonly kind: "resolved";
-      readonly iterationKind: "for-in";
-      readonly source: Extract<
-        ResolvedSourceIterationInfo,
-        { readonly iterationKind: "for-in" }
-      >;
-      readonly iterableType: TargetTypeRef;
-      readonly elementType: TargetTypeRef;
-      readonly lowering: Extract<
-        CsharpPropertyKeyIterationPolicy,
-        { readonly kind: "key-collection" }
-      >;
-    };
+import type { CsharpOperationSelection } from "../../../target-model/records/operator-selection.js";
 
 export type CsharpForInIteration = Extract<
   CsharpResolvedIteration,

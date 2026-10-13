@@ -4,9 +4,7 @@ import type {
 import type {
   TargetTypeRef,
 } from "../../target-model/types/index.js";
-import type {
-  CsharpProjectTypeClassifications,
-} from "../../analysis/project-types/index.js";
+import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
 import type {
   CsharpObjectShapeClassifications,
 } from "../../analysis/objects/index.js";
@@ -30,7 +28,7 @@ import type {
 } from "../../analysis/program/index.js";
 import type { SourceFile } from "@tsonic/tsts";
 import type { CsharpExpression, CsharpMethodDeclaration } from "../target-ast/syntax/index.js";
-import type { CsharpDelegateAdapterIdentity } from "../../analysis/conversions/model.js";
+import type { CsharpDelegateAdapterIdentity } from "../../target-model/records/conversions.js";
 
 export interface CsharpPlanningTypeClassifications {
   resolveNode(
@@ -112,7 +110,7 @@ export function createCsharpPlanningContext(
     ast: program.source.ast,
     sourceFiles: program.sourceFiles,
     paths: program.host.paths,
-    generatedTypeNames: [...projectTypes.declarationScopeNames, ...program.classFactories.factories.flatMap(factory => [
+    generatedTypeNames: [...projectTypes.declarationScopeNames, ...program.classFactories.flatMap(factory => [
       factory.instanceScope, factory.factoryName, ...(factory.identity === undefined ? [] : [factory.identity.name]),
     ])],
   });
@@ -135,21 +133,21 @@ function createCsharpPlanningTypeClassifications(
     resolveNode(node: Node | undefined) {
       return node === undefined
         ? undefined
-        : program.sourceEvidence.valueRefinement(node)?.flowReadTargetType ??
-          program.operations.resultType(node) ??
-          program.storage.type(node) ??
-          program.sourceEvidence.nodeTargetType(node);
+        : program.records.valueRefinement.get(node)?.flowReadTargetType ??
+          program.records.operationResultType.get(node) ??
+          program.records.storageType.get(node) ??
+          program.records.nodeTargetType.get(node);
     },
     resolveStorage(node: Node | undefined) {
       return node === undefined
         ? undefined
-        : program.storage.type(node);
+        : program.records.storageType.get(node);
     },
     resolveReadStorage(node: Node | undefined) {
       return node === undefined
         ? undefined
-        : program.storage.type(node) ??
-          program.sourceEvidence.readStorageTargetType(node);
+        : program.records.storageType.get(node) ??
+          program.records.readStorageTargetType.get(node);
     },
   });
 }

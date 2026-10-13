@@ -15,9 +15,7 @@ import type {
   CsharpTargetBindingFact,
   TargetTypeRef,
 } from "../../target-model/types/model.js";
-import type {
-  CsharpProviderTargetRelation,
-} from "../native/relations/index.js";
+import type { CsharpProviderTargetRelation } from "../../target-model/identities/provider-relations.js";
 import { csharpRankedArrayDescriptors } from "../../source/profiles/ranked-arrays.js";
 
 export interface CsharpBuiltInProviderPolicy {

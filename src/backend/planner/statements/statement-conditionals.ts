@@ -40,7 +40,7 @@ export function planIfStatement(
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
   const statement = AsIfStatement(input.program.source.ast, node)!;
-  const selected = statement.Expression === undefined ? undefined : input.program.operations.nativeGuardResult(statement.Expression);
+  const selected = statement.Expression === undefined ? undefined : input.program.records.nativeGuardResult.get(statement.Expression);
   if (selected !== undefined) {
     const branch = selected ? statement.ThenStatement : statement.ElseStatement;
     return branch === undefined ? [] : [{ kind: "Block", body: { kind: "Block",

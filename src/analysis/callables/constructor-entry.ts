@@ -1,7 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { HasSourceKind, KindSuperKeyword } from "@tsonic/target-api/source";
-import type { CsharpDeclarationClassifications } from "../declarations/model.js";
-import type { CsharpStorageClassifications } from "../storage/model.js";
+import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 
 export function csharpConstructorBaseCall(ast: AstReader, constructor: Node): Node | undefined {
   const body = ast.body(constructor);
@@ -14,15 +14,15 @@ export function csharpConstructorBaseCall(ast: AstReader, constructor: Node): No
 export function csharpConstructorRequiresPreparation(
   ast: AstReader, constructor: Node,
   declarations: Pick<CsharpDeclarationClassifications, "runtimeDefault">,
-  storage: Pick<CsharpStorageClassifications, "nativeBacking" | "requiresTypedLocationIdentity">,
+  storage: Pick<CsharpStorageClassifications, "nativeBacking" | "typedLocationIdentity">,
   captured: (declaration: Node) => boolean,
 ): boolean {
   if (csharpConstructorBaseCall(ast, constructor) === undefined) return false;
   return ast.parameters(constructor).some(parameter => {
     if (parameter === undefined) return false;
     const name = ast.name(parameter);
-    return declarations.runtimeDefault(parameter) !== undefined || storage.nativeBacking(parameter) !== undefined ||
-      storage.requiresTypedLocationIdentity(parameter) || captured(parameter) ||
+    return declarations.runtimeDefault.get(parameter) !== undefined || storage.nativeBacking.get(parameter) !== undefined ||
+      storage.typedLocationIdentity.get(parameter) || captured(parameter) ||
       name !== undefined && (ast.is.IsObjectBindingPattern(name) || ast.is.IsArrayBindingPattern(name));
   });
 }

@@ -4,7 +4,7 @@ import type { CsharpPlannedValue } from "../../planned-values.js";
 import { projectCsharpPlannedValue } from "../../planned-value-composition.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { ExpressionPlanner } from "../../expression-planner-types.js";
-import type { CsharpSelectedTargetCall } from "../../../../../analysis/operations/index.js";
+import type { CsharpSelectedTargetCall } from "../../../../../target-model/records/members.js";
 import type { SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { csharpConversionIsApplicable } from "../../../../../target-model/conversions/selection.js";

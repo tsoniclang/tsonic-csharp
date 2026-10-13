@@ -1,3 +1,4 @@
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
 import type {
   ExtensionDiagnostic,
   Node,
@@ -5,9 +6,7 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import { selectedSourceIndexedDeclarations, selectedSourcePropertyDeclarations, type SourceFileSemantics } from "@tsonic/target-api/source";
-import type {
-  CsharpTargetReceiverRelation,
-} from "../../../providers/native/relations/index.js";
+import type { CsharpTargetReceiverRelation } from "../../../target-model/identities/provider-relations.js";
 import type {
   CsharpTargetMember,
   TargetTypeRef,
@@ -22,12 +21,7 @@ import type {
   CsharpSourceProfileDeclarationIdentity,
   CsharpSourceProfileOwner,
 } from "./source-profile-identity.js";
-import type {
-  CsharpSelectedCallArgument,
-  CsharpSelectedTargetCall,
-  CsharpTargetElementInvocation,
-  ResolvedSourceCallInfo,
-} from "../members/selection/selection-types.js";
+import type { CsharpSelectedCallArgument, CsharpSelectedTargetCall, CsharpTargetElementInvocation, ResolvedSourceCallInfo } from "../../../target-model/records/members.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
@@ -61,12 +55,6 @@ export interface CsharpSourceProfilePropertyPolicyContext {
   readonly readonly: boolean;
 }
 
-export type CsharpTargetPropertyInvocation =
-  | { readonly kind: "member" }
-  | { readonly kind: "receiver-call" }
-  | { readonly kind: "array-like"; readonly projection: import("../../../target-model/conversions/selection.js").CsharpArrayLikeUnionProjection }
-  | { readonly kind: "source-name-indexer"; readonly optionalRead: boolean };
-
 export interface CsharpSourceProfileElementPolicyContext {
   readonly host: CsharpProviderCallSelectionHost;
   readonly source: ResolvedSourceElementAccessInfo;
@@ -79,18 +67,6 @@ export type CsharpSourceProfileCallPolicyResult =
   | {
       readonly kind: "resolved";
       readonly call: CsharpSelectedTargetCall;
-    }
-  | {
-      readonly kind: "rejected";
-      readonly diagnostic: ExtensionDiagnostic;
-    };
-
-export type CsharpSourceProfilePropertyPolicyResult =
-  | {
-      readonly kind: "resolved";
-      readonly targetMember: CsharpTargetMember;
-      readonly receiver: CsharpTargetReceiverRelation;
-      readonly invocation: CsharpTargetPropertyInvocation;
     }
   | {
       readonly kind: "rejected";

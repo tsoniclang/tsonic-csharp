@@ -11,7 +11,7 @@ const policy = { ast: { is: {
   IsObjectLiteralExpression: node => node.kind === "object",
   IsSpreadElement: node => node.kind === "spread",
 }, elements: node => node.elements } };
-const evidence = { nodeTargetType: node => node === expression ? array : element };
+const evidence = { nodeTargetType: { get: node => node === expression ? array : element } };
 const shapes = {};
 
 test("tuple construction consumes the exact contextual element carriers rather than inferred literal carriers", () => {
@@ -23,16 +23,16 @@ test("tuple construction consumes the exact contextual element carriers rather t
 });
 
 test("fresh storage construction requires the exact carrier and every element conversion", () => {
-  const conversions = { selectExpression: (_node, actual, required, mode) => {
+  const conversions = { expressionConversion: { get: (_node, actual, required, mode) => {
     assert.deepEqual(actual, element);
     assert.deepEqual(required, element);
     assert.equal(mode, "implicit");
     return { kind: "identity" };
-  } };
+  } } };
   assert.equal(canConstructCsharpStorageLiteral(expression, array, policy, evidence, shapes, conversions), true);
   for (const selected of [undefined, { kind: "rejected", reason: "different width" }]) {
     assert.equal(canConstructCsharpStorageLiteral(expression, array, policy, evidence, shapes,
-      { selectExpression: () => selected }), false);
+      { expressionConversion: Object.freeze({ get: () => selected }) }), false);
   }
   assert.equal(canConstructCsharpStorageLiteral(expression, element, policy, evidence, shapes, conversions), false);
   for (const rejected of [undefined, { kind: "spread" }]) {

@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpResolvedBinaryOperation } from "../../../../analysis/operations/index.js";
+import type { CsharpResolvedBinaryOperation } from "../../../../target-model/records/operator-selection.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import type { ExpectedExpressionPlanner, ExpressionPlanner } from "../expression-planner-types.js";

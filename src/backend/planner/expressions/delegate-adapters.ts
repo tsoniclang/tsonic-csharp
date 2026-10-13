@@ -50,10 +50,10 @@ export function planCsharpDelegateAdapter(
       }
       return expression;
     }
-    const reference = input.program.conversions.directCallableReference(node);
+    const reference = input.program.records.directCallableReference.get(node);
     const direct = reference === undefined ? undefined
       : planCsharpSourceModuleValueReference(reference, input, diagnostics);
-    const captured = input.program.captureStorage.closure(node);
+    const captured = input.program.records.captureClosure.get(node);
     const methodGroup = direct !== undefined && csharpSourceModuleValueReferencesEqual(expression, direct) ||
       captured !== undefined && expression.kind === "SimpleMemberAccessExpression" &&
       expression.name === captured.method.methodName && sourceType !== undefined &&
@@ -67,7 +67,7 @@ export function planCsharpDelegateAdapter(
     return undefined;
   }
   const identity = sourceType === undefined || targetType === undefined || input.scope.delegateAdapters === undefined
-    ? undefined : input.program.conversions.delegateAdapter(node, sourceType, targetType);
+    ? undefined : input.program.records.delegateAdapter.get(node, sourceType, targetType);
   if (identity !== undefined) {
     const name = input.scope.delegateAdapters?.get(identity);
     if (name === undefined ||
@@ -121,12 +121,12 @@ function planCsharpDelegateAdaptation(
     arguments_.push({ kind: "Argument", expression: converted });
   }
   const name = input.names.temporaryName("__tsonic_callable");
-  const reference = input.program.conversions.directCallableReference(node);
+  const reference = input.program.records.directCallableReference.get(node);
   const direct = reference === undefined ? undefined
     : planCsharpSourceModuleValueReference(reference, input, diagnostics);
   const directReference = direct !== undefined && csharpSourceModuleValueReferencesEqual(expression, direct) ||
-    expression.kind === "IdentifierName" && (input.program.captureStorage.namedSelf(node)?.values.length ?? 0) > 0;
-  const captured = input.program.captureStorage.closure(node);
+    expression.kind === "IdentifierName" && (input.program.records.namedSelf.get(node)?.values.length ?? 0) > 0;
+  const captured = input.program.records.captureClosure.get(node);
   const capturedReceiver = captured !== undefined && expression.kind === "SimpleMemberAccessExpression" &&
     expression.name === captured.method.methodName &&
     sourceType !== undefined && targetTypeRefEquals(captured.method.type, sourceType) ? expression.receiver : undefined;

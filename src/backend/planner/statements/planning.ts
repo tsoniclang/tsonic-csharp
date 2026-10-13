@@ -139,7 +139,7 @@ export function planStatements(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState = createDestructuringPlannerState(),
 ): readonly CsharpStatement[] {
-  if (input.program.operations.nativeUnreachable(node)) return [];
+  if (input.program.records.nativeUnreachable.get(node)) return [];
   switch (SourceKind(input.program.source.ast, node)) {
     case KindFunctionDeclaration:
       return planLocalFunctionDeclaration(node, sourceFile, input, diagnostics, state);
@@ -197,7 +197,7 @@ export function planStatements(
       return withCsharpLoopContinuation(node, state, () => planForOfStatement(node, statement, sourceFile, input, diagnostics, state, planNestedStatementBody));
     }
     case "KindClassDeclaration": {
-      const factory = input.program.classFactories.get(node);
+      const factory = input.program.records.classFactory.get(node);
       const initializer = factory === undefined ? undefined : planClassFactoryExpression(factory, sourceFile, input, diagnostics, state);
       const type = factory === undefined ? undefined : csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames);
       if (initializer === undefined || type === undefined) {

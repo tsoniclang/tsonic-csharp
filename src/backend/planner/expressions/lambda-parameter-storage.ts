@@ -57,14 +57,14 @@ function planParameterValue(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): { readonly parameter: CsharpLambdaParameter; readonly prelude: readonly CsharpStatement[] } | undefined {
-  const nativeType = input.program.storage.lambdaParameterType(node);
+  const nativeType = input.program.records.lambdaParameterType.get(node);
   if (nativeType === undefined) return { parameter, prelude: [] };
-  const valueType = input.program.storage.requiredType(node);
+  const valueType = input.program.records.requiredStorageType.get(node);
   if (valueType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# lambda parameter storage requires its sealed native and source representations."));
     return undefined;
   }
-  if (input.program.declarations.runtimeDefault(node) !== undefined) {
+  if (input.program.records.runtimeDefault.get(node) !== undefined) {
     const name = allocateSyntheticParameter(state);
     const selected = planCsharpRuntimeParameterDefault(node, name, sourceFile, input, diagnostics, state);
     if (selected === undefined) return undefined;

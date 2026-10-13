@@ -6,12 +6,7 @@ import type {
   ProviderPropertyName,
   ProviderSignatureDeclaration,
 } from "@tsonic/tsts";
-import type {
-  CsharpProviderParameterRelation,
-  CsharpProviderBindingTypeArgumentSource,
-  CsharpTargetReceiverRelation,
-  CsharpProviderTypeParameterRelation,
-} from "./index.js";
+import type { CsharpProviderParameterRelation, CsharpProviderBindingTypeArgumentSource, CsharpTargetReceiverRelation, CsharpProviderTypeParameterRelation } from "../../../target-model/identities/provider-relations.js";
 import type {
   CsharpTargetBindingFact,
   CsharpTargetMember,

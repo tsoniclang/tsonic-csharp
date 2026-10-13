@@ -11,11 +11,9 @@ const contextual = csharpDelegateTargetType("System.Action", [number, number, nu
 function context(node, nativeBody, self = false) {
   return {
     scope: { ...(nativeBody ? { nativeCallableBody: { declaration: node, carrier: physical } } : {}) },
-    program: {
-      source: { ast: { kindName: () => "KindArrowFunction" } },
-      captureStorage: { namedSelf: () => self ? { values: [{}] } : undefined },
-      expectedTypes: { callableTarget: () => contextual },
-    },
+    program: { source: { ast: { kindName: () => "KindArrowFunction" } },
+      records: { namedSelf: { get: () => self ? { values: [{}] } : undefined },
+        callableTarget: { get: () => contextual } } },
     types: { classifications: { resolveNode: () => physical } },
   };
 }

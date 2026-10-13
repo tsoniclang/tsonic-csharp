@@ -1,9 +1,5 @@
-import type {
-  AstReader,
-  Node,
-  ReadonlySourceFactResolver,
-  SourceFile,
-} from "@tsonic/tsts";
+import type { CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue } from "../../../target-model/records/project-types.js";
+import type { AstReader, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
 import { sourceNodeIdentity, sourceCallableInterface } from "@tsonic/target-api/source";
 import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../../target-model/types/generic-references.js";
 import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
@@ -32,40 +28,11 @@ import {
 import {
   csharpTargetNamedType,
 } from "../../../target-model/types/factories.js";
-import type {
-  CsharpProjectConstructorPolicy,
-  CsharpProjectForwardingConstructor,
-} from "./project-type-constructors.js";
+import type { CsharpProjectConstructorPolicy } from "./project-type-constructors.js";
+import type { CsharpProjectForwardingConstructor } from "../../../target-model/records/project-types.js";
 import {
   createCsharpProjectConstructorPolicy,
 } from "./project-type-constructors.js";
-
-export interface CsharpProjectTypeIssue {
-  readonly node: Node;
-  readonly code: string;
-  readonly message: string;
-}
-
-export interface CsharpProjectTypeDefinition {
-  readonly id: string;
-  readonly declaration: Node;
-  readonly sourceFile: SourceFile;
-  readonly sourceName: string;
-  readonly kind: "class" | "interface" | "enum" | "struct";
-  readonly typeParameterBindings: readonly Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[];
-  readonly typeProjections: readonly import("../../../target-model/types/projections.js").CsharpProjectedType[];
-  readonly outerTypeProjections: readonly import("../../../target-model/types/projections.js").CsharpProjectedType[];
-  readonly outerTypeParameters: readonly Node[];
-  readonly typeParameters: readonly Node[];
-  readonly sourceTypeParameterCount: number;
-  readonly staticCompanion: boolean;
-  readonly abstract: boolean;
-  readonly publicParameterlessConstructor: boolean;
-  readonly local: boolean;
-  readonly scopeName?: string;
-  readonly factoryName?: string;
-  readonly factoryIdentityName?: string;
-}
 
 export interface CsharpProjectTypeCatalog {
   readonly definitions: readonly CsharpProjectTypeDefinition[];
@@ -83,12 +50,6 @@ export interface CsharpProjectTypeCatalog {
     declaration: Node | undefined,
     typeArguments: readonly TargetTypeRef[],
   ): CsharpTargetNamedTypeRef | undefined;
-}
-
-export interface CsharpProjectTypeHeritage {
-  readonly definition: CsharpProjectTypeDefinition;
-  readonly baseType?: TargetTypeRef;
-  readonly interfaces: readonly TargetTypeRef[];
 }
 
 export interface CsharpProjectTypePolicy {

@@ -5,9 +5,9 @@ import type { CsharpNativeMemoryLayout } from "../../target-model/operations/nat
 import { csharpNativeMemoryLayoutsEqual } from "../../target-model/operations/native-memory.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpStructuralObjectShapeIdentity } from "../../target-model/types/object-shape-identity.js";
-import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
-import type { CsharpTargetOperationClassifications } from "../operations/index.js";
-import type { CsharpNativeArrayStorage, CsharpStorageIssue } from "./model.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpNativeArrayStorage, CsharpStorageIssue } from "../../target-model/records/storage.js";
 import type { CsharpObjectShapeClassifications } from "../objects/model.js";
 import { createCsharpNativeFieldBacking } from "./native-field-backing.js";
 import { createCsharpTypeParameterEnvironment } from "../../policy/constraints/type-parameter-environment.js";
@@ -19,7 +19,7 @@ export function analyzeCsharpNativeBacking(
 ) {
   const backings = new Map<Node, CsharpNativeMemoryLayout>();
   const fields = createCsharpNativeFieldBacking(objectShapes.knownShapes(),
-    createCsharpTypeParameterEnvironment(policy.ast, declaration => evidence.typeParameterConstraints(declaration)));
+    createCsharpTypeParameterEnvironment(policy.ast, declaration => evidence.typeParameterConstraints.get(declaration)));
   const arrays = new Map<Node, CsharpNativeArrayStorage>();
   const issues: CsharpStorageIssue[] = [];
   const reject = (node: Node, message: string): void => {
@@ -45,7 +45,7 @@ export function analyzeCsharpNativeBacking(
       }
       continue;
     }
-    const operation = operations.typedLocation(origin.call);
+    const operation = operations.typedLocation.get(origin.call);
     if ((operation?.kind !== "location-allocate" && operation?.kind !== "location-address") ||
       !targetTypeRefEquals(selected.pointeeType, operation.pointeeType)) {
       reject(origin.call, "The physical storage origin and layout have different exact native value types.");
@@ -55,7 +55,7 @@ export function analyzeCsharpNativeBacking(
     if (operation.kind === "location-address") {
       const storage = operation.storage;
       if (storage.kind === "reference-element-storage") {
-        const component = evidence.closedArrayStorage(storage.expression);
+        const component = evidence.closedArrayStorage.get(storage.expression);
         if (component.kind !== "closed") { reject(origin.call, component.reason); continue; }
         const subjects: [Node, CsharpNativeArrayStorage["kind"]][] = [
           ...component.declarations.map(node => [node, "binding"] as [Node, "binding"]),
@@ -64,10 +64,10 @@ export function analyzeCsharpNativeBacking(
           ...component.elements.map(element => [element.expression, "element"] as [Node, "element"]),
         ];
         const valid = component.declarations.every(node => {
-          const carrier = evidence.storageTargetType(node);
+          const carrier = evidence.storageTargetType.get(node);
           return carrier?.kind === "array" && targetTypeRefEquals(carrier.element, selected.pointeeType);
         }) && component.elements.every(element => {
-          const target = operations.element(element.expression);
+          const target = operations.selectedElement.get(element.expression);
           return target?.receiverType?.kind === "array" && targetTypeRefEquals(target.receiverType.element, selected.pointeeType);
         }) && subjects.every(([node]) => {
           const previous = arrays.get(node);
@@ -78,7 +78,7 @@ export function analyzeCsharpNativeBacking(
         continue;
       }
       if (storage.kind === "reference-property-storage") {
-        const source = operations.property(storage.expression)?.sourceOwned;
+        const source = operations.selectedProperty.get(storage.expression)?.sourceOwned;
         const shape = source?.objectShape;
         const member = source?.shapeMember?.kind === "resolved" ? source.shapeMember.member : undefined;
         if (shape === undefined || csharpStructuralObjectShapeIdentity(shape.targetType) === undefined ||

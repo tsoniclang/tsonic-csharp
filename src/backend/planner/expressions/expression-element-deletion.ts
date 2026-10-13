@@ -15,7 +15,7 @@ export function planCsharpElementDeletion(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpPlannedValue | undefined {
-  const selection = input.program.operations.elementDeletion(node);
+  const selection = input.program.records.elementDeletion.get(node);
   if (selection?.kind !== "resolved") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection?.reason ?? "Element deletion requires a sealed native operation."));
     return undefined;

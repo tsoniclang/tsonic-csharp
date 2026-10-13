@@ -1,8 +1,6 @@
 import type { TargetCapabilityContribution } from "@tsonic/target-api/provider";
-import type {
-  CsharpProviderTargetRejection,
-  CsharpProviderTargetRelation,
-} from "../native/relations/index.js";
+import type { CsharpProviderTargetRejection } from "../native/relations/index.js";
+import type { CsharpProviderTargetRelation } from "../../target-model/identities/provider-relations.js";
 import type {
   CsharpTargetBinaryExecutionDriver,
 } from "../../target-model/types/model.js";

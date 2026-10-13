@@ -340,7 +340,7 @@ export function convertClosedShapeValue(
   | { readonly kind: "rejected"; readonly reason: string } {
   return applyClosedShapeConversion(
     input.scope.typeParameterNames,
-    input.program.conversions.select(
+    input.program.records.conversion.get(
       sourceType,
       targetType,
       "implicit",

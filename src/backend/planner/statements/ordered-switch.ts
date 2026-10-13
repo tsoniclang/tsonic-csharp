@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpSwitchSelection } from "../../../analysis/operations/index.js";
+import type { CsharpSwitchSelection } from "../../../target-model/records/switch.js";
 import type { CsharpExpression, CsharpStatement, CsharpSwitchSection } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";

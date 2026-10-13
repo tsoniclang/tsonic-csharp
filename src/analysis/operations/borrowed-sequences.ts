@@ -1,23 +1,11 @@
+import type { CsharpBorrowedSequenceInput } from "../../target-model/records/borrowed-sequences.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { sourceSequenceInputChoice, sourceSequenceInputIsEmpty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+
 import { getCsharpCollectionElementTargetType, getCsharpIndexableLengthMemberName } from "../../target-model/types/carriers/collections.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
-
-export interface CsharpBorrowedSequenceInput {
-  readonly expression: Node;
-  readonly array: Node;
-  readonly sourceCarrier: TargetTypeRef;
-  readonly controlNodes: readonly Node[];
-  readonly inputs: readonly (
-    | { readonly kind: "empty"; readonly expression: Node }
-    | { readonly kind: "sequence"; readonly expression: Node; readonly carrier: TargetTypeRef;
-        readonly presentCarrier: TargetTypeRef; readonly optional: boolean; readonly lengthMember: string | undefined;
-        readonly elements: readonly TargetTypeRef[] }
-  )[];
-}
 
 export function classifyCsharpBorrowedSequenceInput(
   policy: CsharpPolicyContext,

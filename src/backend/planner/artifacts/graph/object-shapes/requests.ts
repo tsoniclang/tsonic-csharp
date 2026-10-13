@@ -88,7 +88,6 @@ export function registerObjectShape(
   return committed;
 }
 
-
 export function requireObjectShapeCapability(
   { addObjectShapesToBatch, addShapeCapabilities, collectCapabilityClosure, commitObjectShapeBatch, dependOn, host, prepareObjectShapeBatch, validateObjectShapeBatch }: CsharpArtifactGraphScope,
   node: Node | undefined,
@@ -175,7 +174,6 @@ export function requireObjectShapeCapability(
   return committed;
 }
 
-
 export function objectShapeHasCapability(
   { dependOn, records }: CsharpArtifactGraphScope,
   fact: CsharpObjectShapeFact,
@@ -185,7 +183,6 @@ export function objectShapeHasCapability(
   dependOn(key, "object-shape-behavior");
   return records.get(key)?.capabilities.has(capability) === true;
 }
-
 
 export function requireObjectShapeProjection(
   { addShapeProjection, commitObjectShapeBatch, dependOn, host, prepareObjectShapeBatch, validateObjectShapeBatch, validateProjectionShapes }: CsharpArtifactGraphScope,
@@ -360,7 +357,6 @@ export function requireObjectShapeProjection(
     : { kind: "accepted", projection };
 }
 
-
 export function objectShapeProjections(
   { dependOn, records }: CsharpArtifactGraphScope,
   fact: CsharpObjectShapeFact,
@@ -373,7 +369,6 @@ export function objectShapeProjections(
     ),
   );
 }
-
 
 export function requireObjectShapeMethodReceiver(
   { commitObjectShapeBatch, dependOn, prepareObjectShapeBatch, validateObjectShapeBatch }: CsharpArtifactGraphScope,
@@ -425,7 +420,6 @@ export function requireObjectShapeMethodReceiver(
   return committed;
 }
 
-
 export function objectShapeMethodUsesReceiver(
   { dependOn, records }: CsharpArtifactGraphScope,
   fact: CsharpObjectShapeFact,
@@ -437,7 +431,6 @@ export function objectShapeMethodUsesReceiver(
     csharpObjectShapeMemberContractKey(member),
   ) === true;
 }
-
 
 export function objectShapeArtifacts(
   { records }: CsharpArtifactGraphScope,
@@ -461,7 +454,6 @@ export function objectShapeArtifacts(
       dependents: Object.freeze([...record.dependents].sort()),
     }));
 }
-
 
 export function connect(
   { records }: CsharpArtifactGraphScope,

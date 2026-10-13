@@ -53,7 +53,7 @@ function fixture(body, overrides = {}) {
     const trailing = overrides.foreignTrailing ? { ...scopedBinder, identity: "foreign:same-name" } : scopedBinder;
     scopedType = csharpDelegateTargetType("System.Func", [scopedBinder, scalar, csharpJsArrayTargetType(trailing)], scopedBinder);
   }
-  const operations = { call(node) {
+  const operations = { selectedCall: { get(node) {
     const target = source.ast.text(source.ast.as.AsCallExpression(node).Expression);
     const type = target === "other" ? overrides.otherType ?? scopedType ?? selectedType : overrides.type ?? scopedType ?? selectedType;
     return { target: { kind: "resolved", call: {
@@ -63,20 +63,21 @@ function fixture(body, overrides = {}) {
         type, passingMode: "by-value",
       } }]),
     } } };
-  } };
+  } } };
   const policy = { ast: source.ast, sourceFiles: [file],
     semantics: sourceFile => source.semantics.forFile(sourceFile),
     semanticsFor: node => source.semantics.forNode(node),
     projectTypes: { catalog: { definitions: [] } },
   };
-  const evidence = { isCompileTimeMetadata: () => false, generatorTargetType: () => undefined,
-    contextualTargetType: () => undefined, nodeTargetType: () => overrides.sourceParameter ?? scopedBinder ?? scalar };
-  const declarations = { runtimeDefault: () => undefined,
-    returnContract: node => ({ kind: "resolved", type: node === lambda ? overrides.sourceReturn ?? scopedBinder ?? scalar : scalar }),
-  };
+  const evidence = { compileTimeMetadata: { get: () => false },
+    generatorTargetType: { get: () => undefined },
+    contextualTargetType: { get: () => undefined },
+    nodeTargetType: { get: () => overrides.sourceParameter ?? scopedBinder ?? scalar } };
+  const declarations = { runtimeDefault: { get: () => undefined },
+    returnContract: { get: node => ({ kind: "resolved", type: node === lambda ? overrides.sourceReturn ?? scopedBinder ?? scalar : scalar }) } };
   const names = { resolve: node => ({ kind: "resolved", name: source.ast.text(node) }) };
   const context = selectCsharpClosedCallableContext(source, policy, operations, lambda);
-  const analyzed = analyzeCsharpCallableContracts(policy, evidence, declarations, names, { get: () => [] }, source, operations);
+  const analyzed = analyzeCsharpCallableContracts(policy, evidence, declarations, names, { genericProjection: Object.freeze({ get: () => [] }) }, source, operations);
   return { context, scopedType, type: analyzed.closedInputType(lambda), contract: analyzed.get({ kind: "declaration", declaration: lambda }),
     aliasTypes: source.navigation.expressionValueFlow(lambda).aliasDeclarations.map(alias => analyzed.closedInputType(alias)),
   };

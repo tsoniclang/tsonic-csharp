@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpResolvedBinaryOperation } from "../../../analysis/operations/index.js";
+import type { CsharpResolvedBinaryOperation } from "../../../target-model/records/operator-selection.js";
 import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
@@ -31,7 +31,7 @@ export function planCsharpUnionEquality(
   state: DestructuringPlannerState | undefined,
 ): CsharpPlannedValue | undefined {
   const operation = selection.targetOperation;
-  const sealed = input.program.operations.binary(node)?.target;
+  const sealed = input.program.records.binaryOperation.get(node)?.target;
   if (operation.kind !== "union-equality" || state === undefined ||
     sealed?.kind !== "resolved" || sealed.targetOperation.kind !== "union-equality" ||
     typeof operation.negated !== "boolean" || operation.negated !== sealed.targetOperation.negated ||

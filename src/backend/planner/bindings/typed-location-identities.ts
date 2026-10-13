@@ -26,7 +26,7 @@ export function planCsharpParameterStorageDeclaration(
   state: DestructuringPlannerState,
   diagnostics: TargetDiagnostic[],
 ): Extract<CsharpStatement, { readonly kind: "LocalDeclarationStatement" }> | undefined {
-  const backing = input.program.storage.nativeBacking(declaration);
+  const backing = input.program.records.nativeBacking.get(declaration);
   const name = input.program.source.ast.name(declaration);
   if (backing !== undefined && name !== undefined && input.program.source.ast.is.IsParameterDeclaration(declaration)) {
     const binding = redirectCsharpParameterStorage(name, input, state);
@@ -47,7 +47,7 @@ export function planCsharpTypedLocationIdentityDeclaration(
   input: CsharpPlanningContext,
   state: DestructuringPlannerState,
 ): Extract<CsharpStatement, { readonly kind: "LocalDeclarationStatement" }> | undefined {
-  if (input.program.captureStorage.binding(declaration) !== undefined || !input.program.storage.requiresTypedLocationIdentity(declaration)) {
+  if (input.program.records.capturedBinding.get(declaration) !== undefined || !input.program.records.typedLocationIdentity.get(declaration)) {
     return undefined;
   }
   return {

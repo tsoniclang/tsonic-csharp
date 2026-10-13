@@ -1,34 +1,16 @@
+import type { CsharpProjectCallableAdapter, CsharpProjectCallableAdapters, CsharpProjectCallableDispatch } from "../../target-model/records/callable-adapters.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpSourceCallableContract } from "../../policy/types/callables/source-callable-contract.js";
+
 import { isCsharpSourceCallableArtifactDeclaration } from "../../policy/types/callables/source-callable-contract.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+
 import type { CsharpCallableContractIndex } from "../callables/model.js";
-import { selectCsharpCallableParameterAdapters, selectCsharpCallableResultAdapter,
-  type CsharpCallableParameterAdapter, type CsharpCallableValueAdapter } from "../callables/adapters.js";
-import type { CsharpProjectTypeIssue } from "../../policy/types/project/project-types.js";
+import { selectCsharpCallableParameterAdapters, selectCsharpCallableResultAdapter } from "../callables/adapters.js";
+
+import type { CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
 import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } from "../callables/instantiation.js";
 import { namedTargetTypeImplicitlyAccepts } from "../../policy/conversions/carriers.js";
-
-export interface CsharpProjectCallableAdapter {
-  readonly contract: CsharpSourceCallableContract;
-  readonly parameters: readonly CsharpCallableParameterAdapter[];
-  readonly result: CsharpCallableValueAdapter;
-  readonly interfaceType?: TargetTypeRef;
-}
-
-export interface CsharpProjectCallableDispatch {
-  readonly overridesBase: boolean;
-  readonly hasDerivedOverride: boolean;
-  readonly implementation: CsharpSourceCallableContract;
-  readonly adapters: readonly CsharpProjectCallableAdapter[];
-}
-
-export interface CsharpProjectCallableAdapters {
-  readonly issues: readonly CsharpProjectTypeIssue[];
-  get(declaration: Node): CsharpProjectCallableDispatch | undefined;
-}
 
 export function analyzeCsharpProjectCallableAdapters(
   policy: CsharpPolicyContext, callables: CsharpCallableContractIndex,
@@ -104,7 +86,7 @@ export function analyzeCsharpProjectCallableAdapters(
       hasDerivedOverride: dispatch?.hasDerivedOverride === true,
       adapters: Object.freeze(adapters) }));
   }
-  return Object.freeze({ issues: Object.freeze(issues), get: (declaration: Node) => byDeclaration.get(declaration) });
+  return Object.freeze({ issues: Object.freeze(issues), callableDispatch: Object.freeze({ get: (declaration: Node) => byDeclaration.get(declaration) }) });
 
   function reject(node: Node, message: string): void {
     issues.push(Object.freeze({ node, code: "CSHARP_PROJECT_CALLABLE_ADAPTER_NOT_PROVEN", message }));

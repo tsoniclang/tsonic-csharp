@@ -22,7 +22,7 @@ export function planClassMemberModifiers(node: Node, name: Node | undefined, inp
   const ast = input.program.source.ast;
   const access = HasSourceKind(ast, name, KindPrivateIdentifier) || ast.hasModifierKind(node, "private") ? "private"
     : ast.hasModifierKind(node, "protected") ? "protected" : "public";
-  const visibility: readonly ("public" | "private" | "protected" | "internal")[] = input.program.captureStorage.requiresHelperAccess(node)
+  const visibility: readonly ("public" | "private" | "protected" | "internal")[] = input.program.records.helperAccess.get(node)
     ? access === "private" ? ["internal" as const] : access === "protected" ? ["protected" as const, "internal" as const] : [access]
     : [access];
   return HasSyntacticModifier(input.program.source.ast, node, ModifierFlagsStatic)
@@ -33,7 +33,7 @@ export function planClassMemberModifiers(node: Node, name: Node | undefined, inp
 export function planMethodModifiers(node: Node, name: Node | undefined, _sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[]): CsharpMethodDeclaration["modifiers"] {
   const modifiers: CsharpMethodDeclaration["modifiers"][number][] = [...planClassMemberModifiers(node, name, input)];
   if (!modifiers.includes("static")) {
-    const dispatch = input.program.callableAdapters.get(node);
+    const dispatch = input.program.records.callableDispatch.get(node);
     if (dispatch === undefined) diagnostics.push(unsupportedNodeDiagnostic(node, "A method has no sealed native dispatch contract."));
     else addDispatchModifiers(modifiers, dispatch, input.program.source.ast.hasModifierKind(node, "abstract"));
   }

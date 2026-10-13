@@ -1,12 +1,5 @@
-import type {
-  CsharpSourceProfileCallPolicy,
-  CsharpSourceProfileCallPolicyContext,
-  CsharpSourceProfileCallPolicyResult,
-  CsharpSourceProfileIdentitySelector,
-  CsharpSourceProfilePropertyPolicy,
-  CsharpSourceProfilePropertyPolicyContext,
-  CsharpSourceProfilePropertyPolicyResult,
-} from "./source-profile-policy.js";
+import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "./source-profile-policy.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
 import {
   csharpSourceProfileCall,
   csharpSourceProfileDiagnostic,

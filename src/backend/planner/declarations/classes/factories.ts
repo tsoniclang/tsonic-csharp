@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpClassFactory } from "../../../../analysis/project-types/class-factories.js";
-import type { CsharpCaptureFrame } from "../../../../analysis/callables/capture-storage.js";
+import type { CsharpClassFactory } from "../../../../target-model/records/class-factories.js";
+import type { CsharpCaptureFrame } from "../../../../target-model/records/capture-storage.js";
 import type { CsharpClassDeclaration, CsharpConstructorDeclaration, CsharpExpression, CsharpInterfaceDeclaration, CsharpStatement, CsharpTypeMember, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { DestructuringPlannerState } from "../../bindings/index.js";
@@ -32,16 +32,16 @@ function captureSlots(factory: CsharpClassFactory, input: CsharpPlanningContext,
   const slots: CaptureSlot[] = [];
   const frames = new Set<Node>();
   for (const capture of factory.captures) {
-    const shared = input.program.captureStorage.binding(capture.declaration);
+    const shared = input.program.records.capturedBinding.get(capture.declaration);
     if (shared !== undefined) {
       if (frames.has(shared.frame.scope)) continue;
       frames.add(shared.frame.scope);
       const type = csharpTypeFromObjectShapeFact(input, shared.frame.shape, diagnostics, factory.declaration);
       if (type !== undefined) slots.push({ name: capture.fieldName, type, carrier: shared.frame.shape.targetType, frame: shared.frame });
     } else {
-      const type = csharpTypeFromTargetTypeRef(input.program.captureStorage.physicalType(capture.declaration, capture.type), input.scope.typeParameterNames);
+      const type = csharpTypeFromTargetTypeRef(input.program.records.physicalStorageType.get(capture.declaration, capture.type), input.scope.typeParameterNames);
       if (type === undefined) diagnostics.push(unsupportedNodeDiagnostic(capture.declaration, "A class capture has no renderable native storage."));
-      else slots.push({ name: capture.fieldName, type, carrier: input.program.captureStorage.physicalType(capture.declaration, capture.type), reference: capture.reference, declaration: capture.declaration });
+      else slots.push({ name: capture.fieldName, type, carrier: input.program.records.physicalStorageType.get(capture.declaration, capture.type), reference: capture.reference, declaration: capture.declaration });
     }
   }
   return slots;
@@ -66,7 +66,7 @@ export function classFactoryContext(
   const frames = new Map(input.scope.captureFrames);
   for (const slot of slots) if (slot.frame !== undefined) frames.set(slot.frame.scope, member(receiver, slot.name));
   for (const capture of factory.captures) {
-    const shared = input.program.captureStorage.binding(capture.declaration);
+    const shared = input.program.records.capturedBinding.get(capture.declaration);
     const target = shared === undefined ? member(receiver, capture.fieldName)
       : member(frames.get(shared.frame.scope)!, shared.fieldName);
     bindings.set(capture.declaration, target);
@@ -86,7 +86,7 @@ export function planClassFactoryExpression(
       const value = csharpCaptureFrameExpression(slot.frame.scope, input, state);
       return value === undefined ? undefined : csharpPlannedValue(slot.carrier, value);
     }
-    if (slot.declaration !== undefined && input.program.storage.nativeBacking(slot.declaration) !== undefined) {
+    if (slot.declaration !== undefined && input.program.records.nativeBacking.get(slot.declaration) !== undefined) {
       const captured = csharpCapturedBindingExpression(slot.declaration, input, state);
       const name = getCsharpLocalBindingName(slot.reference!, input, state);
       const value = captured ?? (name === undefined ? undefined : { kind: "IdentifierName" as const, name });

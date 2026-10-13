@@ -197,7 +197,7 @@ test("expected-result specializations are classified by exact target use", () =>
     ),
     "utf8",
   );
-  assert.match(planner, /program\.expectedTypes\.binaryExpected/u);
+  assert.match(planner, /program\.records\.expectedBinary\.get/u);
   assert.doesNotMatch(planner, /selectCsharpBinaryOperation/u);
   assert.doesNotMatch(planner, /selectExpectedResultType|sameCsharpType|expectedResultCompatible/u);
 });
@@ -229,7 +229,7 @@ test("C# conversion analysis seals sparse exact uses without a type Cartesian pr
     resolve(repositoryRoot, "src/backend/planner/expressions/conversions.ts"),
     "utf8",
   );
-  assert.match(planner, /program\.conversions\.select/u);
+  assert.match(planner, /program\.records\.(?:expressionConversion|conversion)\.get/u);
   assert.doesNotMatch(planner, /selectCsharp(?:Expression)?Conversion/u);
 });
 

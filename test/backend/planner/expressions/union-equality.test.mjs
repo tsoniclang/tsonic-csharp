@@ -18,7 +18,7 @@ test("union equality rejects stale carriers, paths, operations, coverage and pol
   const operation = { kind: "union-equality", negated: false, arms };
   const selection = { kind: "resolved", sourceOperator: "===", targetOperation: operation,
     left: {}, right: {}, leftType: union, rightType: string, resultType: csharpSourcePrimitiveTargetType("bool") };
-  const input = { program: { operations: { binary: () => ({ target: selection }) } }, scope: {},
+  const input = { program: { records: { binaryOperation: { get: () => ({ target: selection }) } } }, scope: {},
     types: { classifications: { resolveNode: () => selection.resultType } } };
   const diagnostics = [];
   const state = () => ({ nextTempIndex: 0, usedNames: new Set() });
@@ -63,7 +63,7 @@ test("nullable union equality plans canonical native presence guards with each o
       const selection = { kind: "resolved", sourceOperator: negated ? "!==" : "===",
         targetOperation: { kind: "union-equality", negated, arms }, left, right, leftType: union, rightType,
         resultType: csharpSourcePrimitiveTargetType("bool") };
-      const input = { program: { operations: { binary: () => ({ target: selection }) } }, scope: {},
+      const input = { program: { records: { binaryOperation: { get: () => ({ target: selection }) } } }, scope: {},
         types: { classifications: { resolveNode: () => selection.resultType } } };
       const seen = [];
       const diagnostics = [];

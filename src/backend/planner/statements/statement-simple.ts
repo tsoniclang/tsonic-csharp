@@ -258,7 +258,7 @@ export function planThrowStatement(
     sourceFile,
   );
   const carrier = probeCarrierFromResolution(carrierResolution);
-  const thrown = input.program.operations.throwValue(node);
+  const thrown = input.program.records.throwValue.get(node);
   if (thrown === undefined || thrown.expression !== statement.Expression ||
     (carrier === undefined ? thrown.sourceCarrier !== undefined
       : thrown.sourceCarrier === undefined || !targetTypeRefEquals(thrown.sourceCarrier, carrier))) {
@@ -326,7 +326,7 @@ export function planExpressionStatement(
     return [];
   }
   const expression = AsExpressionStatement(input.program.source.ast, node)!.Expression;
-  if (expression !== undefined && input.program.sourceEvidence.isCompileTimeMetadata(expression)) return [];
+  if (expression !== undefined && input.program.records.compileTimeMetadata.get(expression)) return [];
   const directYield = state === undefined || expression === undefined
     ? undefined
     : directCsharpSourceYieldExpression(input.program.source.ast, expression);

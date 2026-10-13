@@ -1,6 +1,6 @@
 import type { SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../../model/context.js";
-import type { ResolvedSourceCallInfo } from "../../members/selection/selection-types.js";
+import type { ResolvedSourceCallInfo } from "../../../../target-model/records/members.js";
 import type { CsharpClosedTypePredicate, CsharpClosedTypeTest } from "../../../../target-model/operations/type-tests.js";
 import type { SourceNativeGuard } from "@tsonic/target-api/source";
 import { csharpSourceProfileDeclarationIdentity } from "../source-profile-identity.js";

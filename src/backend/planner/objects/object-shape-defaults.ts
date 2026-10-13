@@ -33,7 +33,7 @@ export function planObjectShapeDefaultProjection(
     return undefined;
   }
   const nullableSourceCarrier = getCsharpNullableElementTargetType(member.type);
-  const initializerCarrier = input.program.sourceEvidence.nodeTargetType(initializer);
+  const initializerCarrier = input.program.records.nodeTargetType.get(initializer);
   const defaultCarrier = initializerCarrier === undefined ? undefined : csharpBindingDefaultCarrier(member.type, initializerCarrier);
   if (member.optional === true && nullableSourceCarrier === undefined && isCsharpValueTypeTargetType(member.type)) {
     diagnostics.push(unsupportedNodeDiagnostic(initializer, `Object-shape member '${member.sourceName}' default requires optional value-type members to carry a nullable target carrier before C# emission.`));

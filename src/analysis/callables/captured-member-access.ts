@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpCaptureFrame } from "./capture-storage.js";
+import type { CsharpCaptureFrame } from "../../target-model/records/capture-storage.js";
 
 export function csharpCapturedMemberAccess(
   source: TargetSourceProgram,

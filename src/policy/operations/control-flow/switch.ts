@@ -1,18 +1,9 @@
+import type { CsharpSwitchSelection } from "../../../target-model/records/switch.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../model/context.js";
-import { csharpSourcePrimitiveTargetType, isCsharpIntegralTargetType, isCsharpStringTargetType, targetTypeRefEquals, type TargetTypeRef } from "../../types/index.js";
-import { selectCsharpBinaryOperands, type CsharpResolvedBinaryOperation } from "../operators/operator-selection.js";
-
-export type CsharpSwitchSelection =
-  | { readonly kind: "native" }
-  | {
-      readonly kind: "ordered";
-      readonly expression: Node;
-      readonly type: TargetTypeRef;
-      readonly clauses: readonly { readonly node: Node; readonly comparison?: CsharpResolvedBinaryOperation }[];
-      readonly defaultIndex: number;
-    }
-  | { readonly kind: "rejected"; readonly reason: string };
+import { csharpSourcePrimitiveTargetType, isCsharpIntegralTargetType, isCsharpStringTargetType, targetTypeRefEquals } from "../../types/index.js";
+import { selectCsharpBinaryOperands } from "../operators/operator-selection.js";
+import { type CsharpResolvedBinaryOperation } from "../../../target-model/records/operator-selection.js";
 
 export function selectCsharpSwitch(input: CsharpPolicyContext, node: Node, sourceFile: SourceFile): CsharpSwitchSelection {
   const statement = input.ast.as.AsSwitchStatement(node);

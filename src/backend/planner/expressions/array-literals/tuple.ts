@@ -96,7 +96,7 @@ function completeOptionalTupleElements(
     ));
     return undefined;
   }
-  const selection = input.program.sourceEvidence.contextualTuple(node);
+  const selection = input.program.records.contextualTuple.get(node);
   if (
     selection?.kind !== "selected" ||
     selection.elementTypes.length !== tupleTarget.elements.length

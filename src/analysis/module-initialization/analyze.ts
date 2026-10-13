@@ -17,20 +17,12 @@ import {
   SourceFile_FileName,
   sourceMayReadBeforeInitialization,
 } from "@tsonic/target-api/source";
-import type {
-  CsharpAttributeApplicationIndex,
-} from "../attributes/model.js";
-import type {
-  CsharpSafetyApplicationFactIndex,
-} from "../safety/application-index.js";
-import type {
-  CsharpModuleInitializationAnalysis,
-  CsharpModuleInitializationIndex,
-  CsharpModuleInitializationIssue,
-} from "./model.js";
+import type { CsharpAttributeApplicationIndex } from "../../target-model/records/attributes.js";
+import type { CsharpSafetyApplicationFactIndex } from "../../target-model/records/safety.js";
+import type { CsharpModuleInitializationAnalysis, CsharpModuleInitializationIndex, CsharpModuleInitializationIssue } from "../../target-model/records/module-initialization.js";
 
 interface CsharpModuleInitializationAnalysisInput {
-  readonly sourceEvidence: import("../source-evidence/model.js").CsharpSourceEvidenceIndex;
+  readonly sourceEvidence: import("../../target-model/records/source-evidence.js").CsharpSourceEvidenceIndex;
   readonly source: TargetSourceProgram;
   readonly sourceFiles: readonly SourceFile[];
   readonly projectRoot: string;
@@ -92,21 +84,21 @@ export function analyzeCsharpModuleInitialization(
     input.entryPoint,
   ));
   const index: CsharpModuleInitializationIndex = Object.freeze({
-    dependenciesFor(sourceFile: SourceFile) {
+    moduleInitializationDependencies: Object.freeze({ get(sourceFile: SourceFile) {
       return dependenciesByFile.get(normalizedFileName(input, sourceFile)) ?? emptySourceFiles;
-    },
-    requiresInitializer(sourceFile: SourceFile) {
+    } }),
+    requiresModuleInitializer: Object.freeze({ get(sourceFile: SourceFile) {
       return requiredByFile.get(normalizedFileName(input, sourceFile)) === true;
-    },
-    isAsync(sourceFile: SourceFile) {
+    } }),
+    asyncModuleInitializer: Object.freeze({ get(sourceFile: SourceFile) {
       return asyncByFile.get(normalizedFileName(input, sourceFile)) === true;
-    },
+    } }),
     entrypointInitializer() {
       return entries.get(entrypointFileName)?.sourceFile;
     },
-    directCallableVisibility(declaration: Node) {
+    callableVisibility: Object.freeze({ get(declaration: Node) {
       return directCallables.get(declaration);
-    },
+    } }),
   });
   return Object.freeze({
     index,
@@ -155,11 +147,11 @@ function isErasedCompileTimeStatement(
   if (expression === undefined) {
     return false;
   }
-  if (input.sourceEvidence.isCompileTimeMetadata(expression)) return true;
-  if (input.attributeApplications.isErasedSubject(expression)) {
+  if (input.sourceEvidence.compileTimeMetadata.get(expression)) return true;
+  if (input.attributeApplications.erasedAttribute.get(expression)) {
     return true;
   }
-  const safety = input.safetyApplications.operationForSubject(expression);
+  const safety = input.safetyApplications.safetyOperation.get(expression);
   return safety?.kind === "safety-builder" ||
     safety?.kind === "unsafe-context" && safety.fact.kind === "remaining-block";
 }
@@ -178,7 +170,7 @@ function variableStatementHasInitializer(
   return input.source.ast.children(declarationList).some((node) =>
     node !== undefined &&
     input.source.ast.is.IsVariableDeclaration(node) &&
-    !input.sourceEvidence.isCompileTimeMetadata(node) &&
+    !input.sourceEvidence.compileTimeMetadata.get(node) &&
     AsVariableDeclaration(input.source.ast, node)?.Initializer !== undefined);
 }
 

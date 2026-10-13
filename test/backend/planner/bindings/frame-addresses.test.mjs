@@ -7,8 +7,8 @@ import { recursiveCallbackProtocolCases } from "../../../../../tsonic/test/fixtu
 
 test("captured field addresses retain their physical frame identity without an extra local identity allocation", () => {
   const declaration = {};
-  const input = { program: { captureStorage: { binding: selected => selected === declaration ? { fieldName: "seed" } : undefined },
-    storage: { requiresTypedLocationIdentity: () => { assert.fail("a captured field already has its native frame identity"); } } } };
+  const input = { program: { records: { capturedBinding: { get: selected => selected === declaration ? { fieldName: "seed" } : undefined },
+    typedLocationIdentity: { get: () => { assert.fail("a captured field already has its native frame identity"); } } } } };
   assert.equal(planCsharpTypedLocationIdentityDeclaration(declaration, input, createDestructuringPlannerState()), undefined);
 });
 
@@ -16,9 +16,8 @@ test("ordinary addressed locals still allocate their one required canonical iden
   const declaration = {};
   const state = createDestructuringPlannerState();
   let selections = 0;
-  const input = { program: { captureStorage: { binding: () => undefined }, storage: {
-    requiresTypedLocationIdentity: selected => { selections += 1; return selected === declaration; },
-  } } };
+  const input = { program: { records: { capturedBinding: { get: () => undefined },
+    typedLocationIdentity: { get: selected => { selections += 1; return selected === declaration; } } } } };
   const statement = planCsharpTypedLocationIdentityDeclaration(declaration, input, state);
   assert.equal(selections, 1);
   assert.equal(statement.kind, "LocalDeclarationStatement");

@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpStatement } from "../../target-ast/syntax/index.js";
-import type { CsharpNamedSelfBinding } from "../../../analysis/callables/named-self.js";
+import type { CsharpNamedSelfBinding } from "../../../target-model/records/capture-storage.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import { csharpCaptureFrameExpression, csharpCapturedBindingExpression } from "./capture-storage.js";
@@ -20,7 +20,7 @@ export function planCsharpNamedSelfCaptureContext(
   let capturedBindings: Map<Node, CsharpExpression> | undefined;
   const prelude: CsharpStatement[] = [];
   for (const declaration of self.captures) {
-    const frame = input.program.captureStorage.binding(declaration)?.frame;
+    const frame = input.program.records.capturedBinding.get(declaration)?.frame;
     if (frame === undefined || (captureFrames ?? input.scope.captureFrames)?.has(frame.scope)) continue;
     const initializer = csharpCaptureFrameExpression(frame.scope, input, state);
     const type = csharpTypeFromObjectShapeFact(input, frame.shape, diagnostics, self.declaration);
@@ -47,7 +47,7 @@ export function planCsharpNamedSelfCaptureContext(
 export function planCsharpFrameClosureReference(
   node: Node, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
-  const selected = input.program.captureStorage.closure(node);
+  const selected = input.program.records.captureClosure.get(node);
   if (selected === undefined) return undefined;
   if (selected.frame.ownership === "value") {
     const retained = input.scope.captureFrames?.get(selected.frame.scope);

@@ -15,10 +15,7 @@ import {
   type Node,
   type SourceFile,
 } from "@tsonic/tsts";
-import type {
-  CsharpSourceField,
-  CsharpSourceStruct,
-} from "../../../analysis/source-evidence/index.js";
+import type { CsharpSourceField, CsharpSourceStruct } from "../../../target-model/records/source-markers.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeMember, CsharpStructDeclaration, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { renderBoundRecordMember } from "../objects/declarations/members.js";
@@ -109,7 +106,7 @@ function diagnoseUnprovenValueTypeFields(
       continue;
     }
     const assignment = AsPropertyAssignment(input.program.source.ast, property)!;
-    if (input.program.sourceEvidence.sourceField([
+    if (input.program.records.sourceField.get([
       property,
       assignment.Initializer,
       Node_Name(input.program.source.ast, property),

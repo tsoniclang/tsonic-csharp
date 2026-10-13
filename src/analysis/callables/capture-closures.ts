@@ -1,24 +1,17 @@
+import type { CsharpFrameClosure } from "../../target-model/records/capture-storage.js";
 import type { Node } from "@tsonic/tsts";
 import { sourceCallableDefinitionIsDiscarded, sourceCallableValueExpression, sourceBindingScope, sourceBindingIterationScope, sourceLexicalCaptures, sourceBindingCapturedBeforeInitialization, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
-import type { CsharpStorageIssue } from "../storage/model.js";
-import { selectCsharpNamedSelfBinding, type CsharpNamedSelfBinding } from "./named-self.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpStorageIssue } from "../../target-model/records/storage.js";
+import { selectCsharpNamedSelfBinding } from "./named-self.js";
+import { type CsharpNamedSelfBinding } from "../../target-model/records/capture-storage.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import type { CsharpDeclarationClassifications } from "../declarations/model.js";
-import type { CsharpStorageClassifications } from "../storage/model.js";
+import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import { csharpConstructorRequiresPreparation } from "./constructor-entry.js";
 import { getCsharpExpressionTreeDelegateType } from "../../target-model/types/carriers/delegates.js";
-import type { CsharpExpectedTypeClassifications } from "../expected-types/model.js";
-
-export interface CsharpFrameClosure {
-  readonly declaration: Node;
-  readonly scope: Node;
-  readonly methodName: string;
-  readonly type: TargetTypeRef;
-  readonly captures: readonly Node[];
-  readonly receivers: readonly { readonly owner: Node; readonly references: readonly Node[]; readonly type: TargetTypeRef }[];
-}
+import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 
 export function selectCsharpFrameClosures(
   source: TargetSourceProgram,
@@ -29,14 +22,14 @@ export function selectCsharpFrameClosures(
   valueOwned: ReadonlySet<Node>,
   constructorEntry: {
     readonly declarations: Pick<CsharpDeclarationClassifications, "runtimeDefault">;
-    readonly storage: Pick<CsharpStorageClassifications, "nativeBacking" | "requiresTypedLocationIdentity">;
+    readonly storage: Pick<CsharpStorageClassifications, "nativeBacking" | "typedLocationIdentity">;
     readonly expectedTypes: Pick<CsharpExpectedTypeClassifications, "callableTarget">;
   },
 ): { readonly closures: readonly CsharpFrameClosure[]; readonly namedSelfBindings: readonly CsharpNamedSelfBinding[];
   readonly captureFreeDeclarations: readonly Node[] } {
   const candidates: Node[] = [];
   const visit = (node: Node): void => {
-    if (evidence.isCompileTimeMetadata(node)) return;
+    if (evidence.compileTimeMetadata.get(node)) return;
     if ((source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) &&
       sourceCallableDefinitionIsDiscarded(node, source.ast)) return;
     if (!valueOwned.has(node) && (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node) ||
@@ -48,7 +41,7 @@ export function selectCsharpFrameClosures(
   const captures = candidates.map(declaration => {
     const lexical = sourceLexicalCaptures(declaration, [declaration], source.ast, source.navigation);
     return { declaration, namedSelf: selectCsharpNamedSelfBinding(source, declaration, lexical, evidence, issues), selected: { ...lexical,
-      captures: lexical.captures.filter(capture => !evidence.isCompileTimeMetadata(capture.declaration)),
+      captures: lexical.captures.filter(capture => !evidence.compileTimeMetadata.get(capture.declaration)),
     } };
   });
   const namedSelfDeclarations = new Set(captures.flatMap(candidate => candidate.namedSelf === undefined ? [] : [candidate.declaration]));
@@ -78,13 +71,13 @@ export function selectCsharpFrameClosures(
     }
     const prepared = constructor !== undefined && source.ast.is.IsConstructorDeclaration(constructor) &&
       source.ast.is.IsParameterDeclaration(binding) && source.ast.parent(binding) === constructor &&
-      constructorEntry.storage.nativeBacking(capture.declaration) === undefined &&
+      constructorEntry.storage.nativeBacking.get(capture.declaration) === undefined &&
       csharpConstructorRequiresPreparation(source.ast, constructor, constructorEntry.declarations, constructorEntry.storage,
         parameter => groups.get(scope!)?.has(parameter) === true);
     const selfInitializer = source.ast.is.IsVariableDeclaration(capture.declaration) &&
       sourceCallableValueExpression(source.ast, source.ast.as.AsVariableDeclaration(capture.declaration)?.Initializer) === candidate.declaration;
     if (!iteration && !prepared && !selfInitializer && !sourceBindingCapturedBeforeInitialization(capture.declaration, source.ast, source.navigation)) continue;
-    const type = evidence.storageTargetType(capture.declaration) ?? evidence.nodeTargetType(capture.declaration);
+    const type = evidence.storageTargetType.get(capture.declaration) ?? evidence.nodeTargetType.get(capture.declaration);
     if (scope === undefined || type === undefined) {
       issues.push({ node: capture.declaration,
         code: iteration ? "CSHARP_ITERATION_CAPTURE_NOT_CLOSED"
@@ -109,17 +102,17 @@ export function selectCsharpFrameClosures(
       })) continue;
       const bindings = candidate.selected.captures.map(capture => {
         const scope = sourceBindingScope(capture.declaration, source.ast);
-        const logicalType = evidence.storageTargetType(capture.declaration) ?? evidence.nodeTargetType(capture.declaration);
+        const logicalType = evidence.storageTargetType.get(capture.declaration) ?? evidence.nodeTargetType.get(capture.declaration);
         return scope === undefined || logicalType === undefined ? undefined : {
           declaration: capture.declaration, scope, type: physicalType(capture.declaration, logicalType),
         };
       });
-      const expected = constructorEntry.expectedTypes.callableTarget(candidate.declaration);
+      const expected = constructorEntry.expectedTypes.callableTarget.get(candidate.declaration);
       const type = getCsharpExpressionTreeDelegateType(expected) === undefined
-        ? evidence.nodeTargetType(candidate.declaration) : expected;
+        ? evidence.nodeTargetType.get(candidate.declaration) : expected;
       const receivers = candidate.selected.receivers.map(receiver => {
         const reference = receiver.references[0];
-        const type = reference === undefined ? undefined : evidence.nodeTargetType(reference);
+        const type = reference === undefined ? undefined : evidence.nodeTargetType.get(reference);
         return reference === undefined || type === undefined ? undefined : { owner: receiver.owner, references: receiver.references, type };
       });
       if (type === undefined || bindings.some(binding => binding === undefined) || receivers.some(receiver => receiver === undefined)) {

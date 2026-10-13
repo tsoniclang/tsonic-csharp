@@ -10,9 +10,7 @@ import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import type {
   CsharpProviderRelationResolver,
 } from "../../../../providers/model/relation-resolver.js";
-import type {
-  CsharpProviderTargetRelation,
-} from "../../../../providers/native/relations/index.js";
+import type { CsharpProviderTargetRelation } from "../../../../target-model/identities/provider-relations.js";
 import {
   resolveCsharpProviderDeclarationEvidence,
   resolveCsharpProviderDeclarationEvidenceKinds,

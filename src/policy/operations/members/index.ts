@@ -1,5 +1,12 @@
 export * from "./providers/operations.js";
-export * from "./selection/selection-types.js";
+export type {
+  CsharpProviderArgumentMapping,
+  CsharpSelectedCallArgument,
+  CsharpSelectedTargetCall,
+  CsharpSelectedTargetMethodTypeArgument,
+  CsharpTargetElementInvocation,
+  ResolvedSourceCallInfo,
+} from "../../../target-model/records/members.js";
 export * from "./instantiation/binding-instantiation.js";
 export * from "./selection/argument-selection.js";
 export * from "./instantiation/instantiation.js";

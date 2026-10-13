@@ -1,20 +1,11 @@
+import type { CsharpUnionProperty } from "../../target-model/records/union-properties.js";
 import type { ResolvedSourcePropertyAccessInfo, SourceFile } from "@tsonic/tsts";
 import type { CsharpProviderCallSelectionHost } from "./members/selection/call-selection.js";
-import type { CsharpSourceProfilePropertyPolicyResult } from "./source-profiles/source-profile-policy.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../target-model/records/source-profile-invocations.js";
+
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { selectCsharpSourceProfilePropertyForCarrier } from "./source-profiles/source-profile-selection.js";
-
-export interface CsharpUnionProperty {
-  readonly kind: "union-property";
-  readonly source: ResolvedSourcePropertyAccessInfo;
-  readonly unionCarrier: TargetTypeRef;
-  readonly selectedVariantIndexes: readonly number[];
-  readonly variants: readonly { readonly carrier: TargetTypeRef;
-    readonly operation?: Extract<CsharpSourceProfilePropertyPolicyResult, { readonly kind: "resolved" }> }[];
-  readonly resultCarrier: TargetTypeRef;
-}
 
 export function selectCsharpUnionProperty(
   host: CsharpProviderCallSelectionHost,

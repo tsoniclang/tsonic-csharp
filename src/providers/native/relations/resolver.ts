@@ -10,9 +10,7 @@ import type {
 import {
   resolveDotnetProviderTargetRelations,
 } from "./target-relation-resolver.js";
-import type {
-  CsharpProviderTargetRelation,
-} from "./index.js";
+import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import {
   assertCsharpProviderPolicyIsNonContradictory,
   createCsharpProviderRejectionCatalog,

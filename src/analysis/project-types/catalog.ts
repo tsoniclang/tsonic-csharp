@@ -2,12 +2,8 @@ import type { AstReader, Node } from "@tsonic/tsts";
 import { createHash } from "node:crypto";
 import { sourceFileIdentity } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type {
-  CsharpProjectTypeCatalog,
-  CsharpProjectTypeCatalogHost,
-  CsharpProjectTypeDefinition,
-  CsharpProjectTypeIssue,
-} from "../../policy/types/project/project-types.js";
+import type { CsharpProjectTypeCatalog, CsharpProjectTypeCatalogHost } from "../../policy/types/project/project-types.js";
+import type { CsharpProjectTypeDefinition, CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
 import {
   projectDefinitionTargetType,
   projectTypeDefinition,
@@ -15,7 +11,7 @@ import {
 
 export function createCsharpProjectTypeCatalog(
   host: CsharpProjectTypeCatalogHost,
-  projections?: import("../declarations/type-projections.js").CsharpGenericProjectionIndex,
+  projections?: import("../../target-model/records/type-projections.js").CsharpGenericProjectionIndex,
 ): CsharpProjectTypeCatalog {
   const definitions: CsharpProjectTypeDefinition[] = [];
   const issues: CsharpProjectTypeIssue[] = [];
@@ -28,8 +24,8 @@ export function createCsharpProjectTypeCatalog(
       if (sourceDefinition === undefined) {
         return;
       }
-      const selectedProjections = projections?.get(declaration) ?? [];
-      const outerProjections = projections?.outer(declaration) ?? [];
+      const selectedProjections = projections?.genericProjection.get(declaration) ?? [];
+      const outerProjections = projections?.outerGenericProjection.get(declaration) ?? [];
       const outerCount = sourceDefinition.outerTypeParameters.length;
       const definition = Object.freeze({ ...sourceDefinition, typeProjections: selectedProjections, outerTypeProjections: outerProjections,
         typeParameterBindings: Object.freeze([

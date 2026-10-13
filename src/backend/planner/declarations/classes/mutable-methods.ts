@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpDeclarationClassifications } from "../../../../analysis/declarations/model.js";
+import type { CsharpDeclarationClassifications } from "../../../../target-model/records/declarations.js";
 import type { CsharpMethodDeclaration, CsharpTypeMember } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
@@ -9,7 +9,7 @@ import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 
 export function planCsharpMutableMethod(
   node: Node, method: CsharpMethodDeclaration,
-  write: NonNullable<ReturnType<CsharpDeclarationClassifications["methodWrite"]>>,
+  write: NonNullable<ReturnType<CsharpDeclarationClassifications["methodWrite"]["get"]>>,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeMember[] {
   const type = csharpTypeFromTargetTypeRef(write.type, input.scope.typeParameterNames);

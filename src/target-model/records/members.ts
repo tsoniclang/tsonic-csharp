@@ -1,35 +1,38 @@
-import type {
-  Node,
-  Type,
-} from "@tsonic/tsts";
+import type { CsharpConversionSelection } from "../conversions/selection.js";
+import type { CsharpProviderTargetRelation, CsharpTargetReceiverRelation } from "../identities/provider-relations.js";
+import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../types/model.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type {
-  CsharpProviderTargetRelation,
-  CsharpTargetReceiverRelation,
-} from "../../../../providers/native/relations/index.js";
-import type {
-  CsharpConversionSelection,
-} from "../../../conversions/index.js";
-import type {
-  CsharpTargetMember,
-  CsharpTargetParameter,
-  TargetTypeRef,
-} from "../../../types/index.js";
+import type { Node, Type } from "@tsonic/tsts";
 
 export type ResolvedSourceCallInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["call"]>
 >;
 
-export interface CsharpSelectedCallArgument {
-  readonly sourceArgumentIndex: number;
-  readonly effectiveArgumentIndex: number;
-  readonly sourceForm: "value" | "spread-element" | "spread-sequence";
-  readonly spreadElementIndex?: number;
-  readonly targetParameterIndex: number;
-  readonly targetParameter: CsharpTargetParameter;
-}
+export type CsharpSelectedTargetCall =
+  | CsharpSelectedTargetCallBase & {
+      readonly origin: "provider";
+      readonly relation: Extract<
+        CsharpProviderTargetRelation,
+        { readonly kind: "signature" }
+      >;
+      readonly argumentMappings: readonly CsharpProviderArgumentMapping[];
+    }
+  | CsharpSelectedTargetCallBase & {
+      readonly origin: "source-profile";
+      readonly invocationOnlyCallableArgumentIndexes?: readonly number[];
+    };
 
-interface CsharpSelectedTargetCallBase {
+export type CsharpTargetElementInvocation =
+  | { readonly kind: "indexer"; readonly indexedLocationMethod?: string }
+  | { readonly kind: "record-optional-read" }
+  | { readonly kind: "array-like"; readonly projection: import("../conversions/selection.js").CsharpArrayLikeUnionProjection }
+  | {
+      readonly kind: "method";
+      readonly targetName: string;
+      readonly appendInt32Literal?: number;
+    };
+
+export interface CsharpSelectedTargetCallBase {
   readonly sequenceArguments?: readonly {
     readonly sourceArgumentIndex: number;
     readonly expression: Node;
@@ -75,20 +78,6 @@ export type CsharpProviderArgumentMapping =
       readonly proof: "selected-provider-signature";
     };
 
-export type CsharpSelectedTargetCall =
-  | CsharpSelectedTargetCallBase & {
-      readonly origin: "provider";
-      readonly relation: Extract<
-        CsharpProviderTargetRelation,
-        { readonly kind: "signature" }
-      >;
-      readonly argumentMappings: readonly CsharpProviderArgumentMapping[];
-    }
-  | CsharpSelectedTargetCallBase & {
-      readonly origin: "source-profile";
-      readonly invocationOnlyCallableArgumentIndexes?: readonly number[];
-    };
-
 export type CsharpSelectedTargetMethodTypeArgument =
   | {
       readonly kind: "target-derived";
@@ -101,12 +90,11 @@ export type CsharpSelectedTargetMethodTypeArgument =
       readonly explicitTypeNode?: Node;
     };
 
-export type CsharpTargetElementInvocation =
-  | { readonly kind: "indexer"; readonly indexedLocationMethod?: string }
-  | { readonly kind: "record-optional-read" }
-  | { readonly kind: "array-like"; readonly projection: import("../../../../target-model/conversions/selection.js").CsharpArrayLikeUnionProjection }
-  | {
-      readonly kind: "method";
-      readonly targetName: string;
-      readonly appendInt32Literal?: number;
-    };
+export interface CsharpSelectedCallArgument {
+  readonly sourceArgumentIndex: number;
+  readonly effectiveArgumentIndex: number;
+  readonly sourceForm: "value" | "spread-element" | "spread-sequence";
+  readonly spreadElementIndex?: number;
+  readonly targetParameterIndex: number;
+  readonly targetParameter: CsharpTargetParameter;
+}

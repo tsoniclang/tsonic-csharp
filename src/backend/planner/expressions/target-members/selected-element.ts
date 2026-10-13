@@ -3,9 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpTargetElementSelection,
-} from "../../../../analysis/operations/index.js";
+import type { CsharpTargetElementSelection } from "../../../../target-model/records/member-selections.js";
 import {
   csharpNullableTargetType,
   getCsharpNullableElementTargetType,
@@ -64,7 +62,7 @@ export function translateCsharpElementAccess(
   const expression = input.program.source.ast.as.AsElementAccessExpression(node);
   const receiverNode = expression?.Expression;
   const argumentNode = expression?.ArgumentExpression;
-  const classification = input.program.operations.element(node);
+  const classification = input.program.records.selectedElement.get(node);
   if (classification === undefined) {
     diagnostics.push(targetPolicyDiagnostic(
       node,
@@ -200,7 +198,7 @@ function translateProjectIndexerElement(
     input,
     diagnostics,
     planExpression,
-    input.program.operations.element(node)?.receiverProjection,
+    input.program.records.selectedElement.get(node)?.receiverProjection,
   );
   const argument = planCallArgument(
     selection.source.argument.expression,
@@ -232,7 +230,7 @@ function translateProjectIndexerElement(
     diagnostics,
     selection.valueType,
     selection.selectedReadType,
-    input.program.operations.element(node)?.flowReadConversion ?? {
+    input.program.records.selectedElement.get(node)?.flowReadConversion ?? {
       kind: "rejected",
       reason: "The sealed C# element-read classification has no conversion.",
     },
@@ -280,7 +278,7 @@ function translateSelectedElement(
     input,
     diagnostics,
     planExpression,
-    input.program.operations.element(node)?.receiverProjection,
+    input.program.records.selectedElement.get(node)?.receiverProjection,
   );
   const argument = planCallArgument(
     selection.source.argument.expression,
@@ -387,7 +385,7 @@ function translateSourceOwnedElement(
     CsharpTargetElementSelection,
     { readonly kind: "source-owned" }
   >,
-  classification: NonNullable<ReturnType<CsharpPlanningContext["program"]["operations"]["element"]>>,
+  classification: NonNullable<ReturnType<CsharpPlanningContext["program"]["records"]["selectedElement"]["get"]>>,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
@@ -434,7 +432,7 @@ function translateSourceOwnedElement(
       input,
       diagnostics,
       planExpression,
-      input.program.operations.element(node)?.receiverProjection,
+      input.program.records.selectedElement.get(node)?.receiverProjection,
     );
     return receiver === undefined
       ? undefined
@@ -478,7 +476,7 @@ function translateSourceOwnedElement(
     input,
     diagnostics,
     planExpression,
-    input.program.operations.element(node)?.receiverProjection,
+    input.program.records.selectedElement.get(node)?.receiverProjection,
   );
   const argument = planExpression(
     selection.source.argument.expression,

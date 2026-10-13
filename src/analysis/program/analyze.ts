@@ -5,8 +5,10 @@ import { analyzeCsharpCaptureStorage } from "../callables/capture-storage.js";
 import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-adapters.js";
 import { analyzeCsharpClassFactories } from "../project-types/class-factories.js";
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
+import { createCsharpProgramRecords } from "./records/create.js";
 import { analyzeCsharpNativeControlFlow } from "../control-flow/native-control-flow.js";
-import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual, type CsharpGenericProjectionIndex } from "../declarations/type-projections.js";
+import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
+import { type CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import { csharpCallableValueType } from "../callables/value-type.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { analyzeCsharpNumericRepresentations } from "../numeric/representations.js";
@@ -34,9 +36,7 @@ import type {
 import type {
   CsharpPlanningRepresentationQueries,
 } from "../../policy/types/index.js";
-import type {
-  ResolvedSourceCallInfo,
-} from "../operations/index.js";
+import type { ResolvedSourceCallInfo } from "../../target-model/records/members.js";
 import { analyzeCsharpAttributeApplications } from "../attributes/application-index.js";
 import {
   createCsharpSafetyApplicationFactIndex,
@@ -89,9 +89,7 @@ import {
 import {
   csharpStorageClassificationsEqual,
 } from "../storage/index.js";
-import type {
-  CsharpStorageClassifications,
-} from "../storage/index.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import {
   analyzeCsharpProject,
 } from "../project/index.js";
@@ -308,15 +306,22 @@ export function analyzeCsharpTargetProgram(
   if (captureStorage.issues.length > 0) return rejectedTargetStage(captureStorage.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));
+  const typeDefinitions = analysis.typeDefinitions.seal();
+  const classInitialization = analyzeCsharpClassInitialization(source, classFactories);
+  const numericRepresentations = analyzeCsharpNumericRepresentations({ source, sourceFiles,
+    evidence: analysis.sourceEvidence, operations: analysis.operations });
+  const records = createCsharpProgramRecords({
+    callableAdapters, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
+    numericRepresentations, attributeApplications, safetyApplications, operations: analysis.operations,
+    sourceEvidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions: analysis.conversions,
+    expectedTypes: analysis.expectedTypes, storage: analysis.storage,
+    sourceModuleConstructions: sourceModuleConstructions.index, moduleInitialization: moduleInitialization.index,
+  });
   const program: CsharpTargetProgram = Object.freeze({
-    typeDefinitions: analysis.typeDefinitions.seal(),
-    callableAdapters,
-    typeProjections: analysis.typeProjections,
-    classFactories,
-    classInitialization: analyzeCsharpClassInitialization(source, classFactories),
-    captureStorage,
-    numericRepresentations: analyzeCsharpNumericRepresentations({ source, sourceFiles,
-      evidence: analysis.sourceEvidence, operations: analysis.operations }),
+    typeDefinitions,
+    records,
+    classFactories: classFactories.factories,
+    captureFrames: captureStorage.frames,
     host: Object.freeze({
       paths: Object.freeze({ ...input.paths }),
       entryPoint: input.project.entryPoint,
@@ -326,23 +331,24 @@ export function analyzeCsharpTargetProgram(
     source: targetSourceSyntaxProgram(source),
     sourceNavigation: snapshotTargetPlanningSourceNavigation(source),
     sourceFiles,
-    attributeApplications,
-    safetyApplications,
     projectTypes: sealCsharpProjectTypeClassifications(
       analysis.typeSystem.projectTypes,
       source.ast,
       sourceFiles,
     ),
     objectShapes: analysis.objectShapes,
-    operations: analysis.operations,
-    sourceEvidence: analysis.sourceEvidence,
-    declarations: analysis.declarations,
     names,
-    conversions: analysis.conversions,
-    expectedTypes: analysis.expectedTypes,
-    storage: analysis.storage,
-    sourceModuleConstructions: sourceModuleConstructions.index,
-    moduleInitialization: moduleInitialization.index,
+    conversions: Object.freeze({
+      matchesUnionMapping: analysis.conversions.matchesUnionMapping,
+      matchesUnionProjection: analysis.conversions.matchesUnionProjection,
+    }),
+    sourceModuleConstructions: Object.freeze({
+      entries: sourceModuleConstructions.index.entries,
+      from: sourceModuleConstructions.index.from,
+      targets: sourceModuleConstructions.index.targets,
+      bootstraps: sourceModuleConstructions.index.bootstraps,
+    }),
+    moduleInitialization: Object.freeze({ entrypointInitializer: moduleInitialization.index.entrypointInitializer }),
     ...(binaryExecutionDriver === undefined
       ? {}
       : { binaryExecutionDriver }),
@@ -362,12 +368,12 @@ function analyzeIteration(
 ) {
   let typeSystem: CsharpTypeSystem | undefined;
   const planningRepresentations: CsharpPlanningRepresentationQueries = {
-    genericProjections(declaration) { return previous?.typeProjections.get(declaration) ?? []; },
+    genericProjections(declaration) { return previous?.typeProjections.genericProjection.get(declaration) ?? []; },
     requiresClosedStructuralContract(type) {
       return previous?.storage.closedNativeContracts.some(contract => targetTypeRefEquals(contract, type)) === true;
     },
     scopedTargetType(node) {
-      const storage = previous?.storage.requiredType(node);
+      const storage = previous?.storage.requiredStorageType.get(node);
       if (storage !== undefined) return storage;
       if (!input.source.ast.is.IsArrowFunction(node) && !input.source.ast.is.IsFunctionExpression(node) &&
         !input.source.ast.is.IsFunctionDeclaration(node)) return undefined;

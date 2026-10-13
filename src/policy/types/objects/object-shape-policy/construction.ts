@@ -78,7 +78,6 @@ export function createStructuralObjectShapeTarget(
   ));
 }
 
-
 export function objectShapeMemberTargetName(sourceName: string): string {
   return isPlainCsharpIdentifier(sourceName)
     ? sourceName

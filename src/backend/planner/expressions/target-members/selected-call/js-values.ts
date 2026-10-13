@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { ResolvedSourceCallInfo } from "../../../../../analysis/operations/index.js";
+import type { ResolvedSourceCallInfo } from "../../../../../target-model/records/members.js";
 import type { CsharpJsValueOperationSelection } from "../../../../../target-model/operations/js-values.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { ExpressionPlanner } from "../../expression-planner-types.js";
