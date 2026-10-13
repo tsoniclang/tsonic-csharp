@@ -1,9 +1,9 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-carriers.js";
+import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { targetPolicyDiagnostic } from "../diagnostics.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";

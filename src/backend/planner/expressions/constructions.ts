@@ -9,7 +9,7 @@ import type {
 } from "../../../analysis/operations/index.js";
 import type {
   CsharpExpression,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import {
   selectedPolicyDiagnostic,
   targetPolicyDiagnostic,
@@ -36,8 +36,8 @@ import {
   translateCsharpJsValueInvocation,
 } from "./js-value-operations.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
-import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";
+import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
+import { getCsharpClassFactory } from "../../../target-model/types/carriers/class-factories.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue, planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { composeCsharpPlannedCall } from "./target-members/selected-call/planned-arguments.js";
@@ -206,7 +206,7 @@ function buildSelectedConstruction(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-  arguments_: readonly import("../../target-ast/roslyn/index.js").CsharpArgument[],
+  arguments_: readonly import("../../target-ast/syntax/index.js").CsharpArgument[],
 ): CsharpExpression | undefined {
   const member = selection.call.targetMember;
   if (member.csharpInvocation?.kind === "static-factory-construction") {
@@ -386,7 +386,7 @@ function translateSourceOwnedConstruction(
     return callee === undefined ? undefined : composeCsharpPlannedCall(node, sourceFile, input, diagnostics, callee, arguments_, (value, args) =>
       planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "InvocationExpression",
         callee: { kind: "SimpleMemberAccessExpression", receiver: value!, name: factory.createMethodName,
-          ...(typeArguments.length === 0 ? {} : { typeArguments: typeArguments as import("../../target-ast/roslyn/index.js").CsharpTypeNode[] }) }, arguments: args }));
+          ...(typeArguments.length === 0 ? {} : { typeArguments: typeArguments as import("../../target-ast/syntax/index.js").CsharpTypeNode[] }) }, arguments: args }));
   }
   if (arguments_ !== undefined && getCsharpDelegateSignature(input.types.classifications.resolveNode(calleeNode)) !== undefined &&
     (calleeReference === undefined || !input.program.source.ast.is.IsClassDeclaration(calleeReference.declaration))) {

@@ -19,7 +19,7 @@ import type { CsharpTargetOperationClassifications } from "../operations/index.j
 import type { CsharpObjectShapeClassifications } from "./model.js";
 import { selectCsharpStructuralInterface, type CsharpStructuralInterfaceRegistration } from "./structural-interfaces.js";
 import { mergeCsharpObjectShapeSubjects } from "../../policy/types/objects/object-shape-policy/construction.js";
-import { getCsharpNullableElementTargetType } from "../../target-model/types/nullable.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";

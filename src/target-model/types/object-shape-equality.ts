@@ -2,7 +2,7 @@ import { canonicalCsharpObjectShapeImplementedTypes, canonicalCsharpObjectShapeM
 import { targetTypeRefEquals } from "./equality.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "./model.js";
 import { csharpSourceMemberKeysEqual } from "./source-member-keys.js";
-import { csharpOwnerTypeParameterConstraintKey } from "../declarations/generic-constraints.js";
+import { csharpOwnerTypeParameterConstraintKey } from "./generic-constraints.js";
 
 export function csharpObjectShapesEqual(
   left: CsharpObjectShapeFact,

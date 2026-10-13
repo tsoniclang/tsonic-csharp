@@ -3,7 +3,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetPropertySelection } from "../../../../analysis/operations/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { ExpressionPlanner } from "../expression-planner-types.js";
-import type { CsharpExpression } from "../../../target-ast/roslyn/index.js";
+import type { CsharpExpression } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";

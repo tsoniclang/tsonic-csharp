@@ -1,7 +1,7 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpCollectionElementRead } from "../../../target-model/types/collection-reads.js";
-import { getCsharpIndexableLengthMemberName } from "../../../target-model/types/collections.js";
-import type { CsharpExpression, CsharpStatement } from "../../target-ast/roslyn/index.js";
+import { csharpCollectionElementRead } from "../../../target-model/types/carriers/collection-reads.js";
+import { getCsharpIndexableLengthMemberName } from "../../../target-model/types/carriers/collections.js";
+import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 
 export function planCsharpCollectionElementRead(

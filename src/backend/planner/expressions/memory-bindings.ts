@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../context.js";
-import type { CsharpObjectInitializerAssignment } from "../../target-ast/roslyn/index.js";
+import type { CsharpObjectInitializerAssignment } from "../../target-ast/syntax/index.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
@@ -25,7 +25,7 @@ export function tryPlanCsharpMemoryBinding(
   const type = csharpConstructibleTypeFromObjectShapeFact(input, binding.shape, diagnostics, node);
   if (type === undefined) return reject("The bound record has no renderable C# target type.");
   const values: CsharpPlannedValue[] = [];
-  const storages: import("../../target-ast/roslyn/index.js").CsharpTypeNode[] = [];
+  const storages: import("../../target-ast/syntax/index.js").CsharpTypeNode[] = [];
   for (const field of binding.fields) {
     const pointer = planExpression(field.expression, file, input, diagnostics);
     const storage = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(field.member), input.scope.typeParameterNames);

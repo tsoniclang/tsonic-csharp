@@ -3,7 +3,7 @@ import { sourceObjectMemberDeclarations, sourceParameterIsProperty } from "@tson
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import { isCsharpValueTypeTargetType } from "../../target-model/types/identity.js";
-import { getCsharpNullableElementTargetType } from "../../target-model/types/nullable.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 export interface CsharpClassPropertyStorage {

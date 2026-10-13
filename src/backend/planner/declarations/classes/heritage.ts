@@ -1,7 +1,7 @@
 import type { CsharpPlanningContext } from "../../context.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
+import type { CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type {
   CsharpObjectShapeFact,
   TargetTypeRef,

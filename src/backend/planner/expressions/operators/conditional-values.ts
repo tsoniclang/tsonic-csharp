@@ -10,7 +10,7 @@ import { planCsharpValueBranch } from "../planned-value-composition.js";
 import { planCsharpPlannedDiscard } from "../../statements/statement-output.js";
 import { applyCsharpConversionSelection, readCsharpExpressionConversionClassification } from "../conversions.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
-import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/scalar-types.js";
+import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 
 export function planCsharpConditionalValue(
   node: Node,

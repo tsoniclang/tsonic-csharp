@@ -12,7 +12,7 @@ import type {
 import type {
   CsharpAccessorModifier,
   CsharpModifier,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";

@@ -11,7 +11,7 @@ import {
 } from "../../../target-model/types/object-shape-members.js";
 import {
   getCsharpRuntimeUnionArms,
-} from "../../../target-model/types/runtime-carriers.js";
+} from "../../../target-model/types/carriers/runtime-carriers.js";
 import {
   targetTypeRefEquals,
 } from "../../../target-model/types/equality.js";

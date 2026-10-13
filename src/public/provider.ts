@@ -9,33 +9,33 @@ export type {
   TargetTypeRef,
 } from "../target-model/types/model.js";
 export { csharpTargetNamedType } from "../target-model/types/factories.js";
-export { csharpReadOnlyListTargetType } from "../target-model/types/collections.js";
+export { csharpReadOnlyListTargetType } from "../target-model/types/carriers/collections.js";
 export {
   csharpSourcePrimitiveTargetType,
   csharpExceptionTargetType,
   csharpStringTargetType,
   csharpVoidTargetType,
-} from "../target-model/types/scalar-types.js";
+} from "../target-model/types/carriers/scalar-types.js";
 export { csharpQualifiedTypeRenderShape } from "../target-model/types/render-shapes.js";
 export { targetParameter } from "../target-model/types/member-facts.js";
 export {
   csharpDelegateTargetType,
   csharpTaskTargetType,
-} from "../target-model/types/delegates.js";
+} from "../target-model/types/carriers/delegates.js";
 export {
   csharpNullableTargetType,
   csharpNullableValueTargetType,
   getCsharpNullableElementTargetType,
-} from "../target-model/types/nullable.js";
+} from "../target-model/types/carriers/nullable.js";
 export { csharpJsDateTargetType } from "../policy/types/resolution/surface-types.js";
 export { csharpJsArrayTargetType } from "../policy/types/resolution/surface-types.js";
 export { csharpJsTypedArrayTargetType } from "../policy/types/resolution/surface-types.js";
-export { csharpTsValueTargetType } from "../target-model/types/runtime-carriers.js";
+export { csharpTsValueTargetType } from "../target-model/types/carriers/runtime-carriers.js";
 export {
   csharpRuntimeUnionTargetType,
   csharpAbsenceTargetType,
   combineCsharpTargetUnionMembers,
-} from "../target-model/types/runtime-carriers.js";
+} from "../target-model/types/carriers/runtime-carriers.js";
 export {
   csharpProviderPolicyContribution,
   csharpProviderPolicyContributionKind,
@@ -47,7 +47,7 @@ export {
   assertCsharpProviderPolicyIsNonContradictory,
   createCsharpProviderRejectionCatalog,
   createCsharpProviderRelationCatalog,
-} from "../providers/relations/index.js";
+} from "../providers/native/relations/index.js";
 export type {
   CsharpProviderArgumentAdapter,
   CsharpProviderBindingTypeArgumentSource,
@@ -65,7 +65,7 @@ export type {
   CsharpProviderTypeSourceIdentity,
   CsharpProviderValueSourceIdentity,
   CsharpTargetReceiverRelation,
-} from "../providers/relations/index.js";
+} from "../providers/native/relations/index.js";
 export { substituteTargetTypeParameters } from "../target-model/types/substitution.js";
 export { csharpApplyExternAliasToTargetBinding } from "../policy/types/project/extern-aliases.js";
 export { csharpProviderVersion } from "../target-model/identities/source.js";

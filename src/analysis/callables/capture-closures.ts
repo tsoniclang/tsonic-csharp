@@ -8,7 +8,7 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { CsharpDeclarationClassifications } from "../declarations/model.js";
 import type { CsharpStorageClassifications } from "../storage/model.js";
 import { csharpConstructorRequiresPreparation } from "./constructor-entry.js";
-import { getCsharpExpressionTreeDelegateType } from "../../target-model/types/delegates.js";
+import { getCsharpExpressionTreeDelegateType } from "../../target-model/types/carriers/delegates.js";
 import type { CsharpExpectedTypeClassifications } from "../expected-types/model.js";
 
 export interface CsharpFrameClosure {

@@ -3,7 +3,7 @@ import type {
   CsharpLocalDeclaration,
   CsharpStatement,
   CsharpSwitchSection,
-} from "../../backend/target-ast/roslyn/index.js";
+} from "../../backend/target-ast/syntax/index.js";
 import type { CsharpPrintContext } from "./context.js";
 import { failUnsupportedCsharpSyntax } from "./fail-closed.js";
 import { indentLines } from "./format.js";

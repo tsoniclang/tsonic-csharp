@@ -8,7 +8,7 @@ import {
   combineCsharpTargetUnionMembers,
   csharpRuntimeLocationTargetType,
   csharpRuntimeLocationPointee,
-} from "../../../target-model/types/runtime-carriers.js";
+} from "../../../target-model/types/carriers/runtime-carriers.js";
 
 export interface CsharpPointerReturnContract {
   readonly type: TargetTypeRef;

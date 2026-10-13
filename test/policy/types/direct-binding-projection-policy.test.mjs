@@ -9,10 +9,10 @@ import {
   reconcileCsharpSelectedTargetType,
   resolveCsharpArrayBindingCarrier,
 } from "../../../dist/policy/types/index.js";
-import { csharpEmptyObjectTargetType, csharpTsValueTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
+import { csharpEmptyObjectTargetType, csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { retainCsharpBroadValueCarrier } from "../../../dist/policy/types/resolution/selected-type-evidence.js";
-import { csharpNullableReferenceTargetType, csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
-import { conversionIsImplicitlyApplicable } from "../../../dist/policy/conversions/selection/core.js";
+import { csharpNullableReferenceTargetType, csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { conversionIsImplicitlyApplicable } from "../../../dist/policy/conversions/core.js";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createCsharpBindingProjectionPolicy } from "../../../dist/policy/types/objects/binding-projection-policy.js";

@@ -6,7 +6,7 @@ import type {
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type {
   CsharpProviderTargetRelation,
-} from "../../../../providers/relations/index.js";
+} from "../../../../providers/native/relations/index.js";
 import type {
   CsharpTargetMember,
 } from "../../../types/index.js";

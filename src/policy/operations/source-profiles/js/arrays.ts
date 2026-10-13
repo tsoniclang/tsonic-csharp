@@ -31,8 +31,8 @@ import type {
 } from "../source-profile-policy.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { selectCsharpArrayCopy } from "./array-copy.js";
-import { csharpArrayLikeElement } from "../../../../target-model/types/array-like.js";
-import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/runtime-carriers.js";
+import { csharpArrayLikeElement } from "../../../../target-model/types/carriers/array-like.js";
+import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import {
   instanceMethod,
   jsCallIdentity,

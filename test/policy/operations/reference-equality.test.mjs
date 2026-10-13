@@ -3,7 +3,7 @@ import test from "node:test";
 import { selectCsharpReferenceEquality } from "../../../dist/policy/operations/operators/reference-equality.js";
 import { selectCsharpBinaryOperands } from "../../../dist/policy/operations/operators/operator-selection.js";
 import { selectCsharpUnionEquality } from "../../../dist/policy/operations/operators/union-equality.js";
-import { selectDelegateConversion } from "../../../dist/policy/conversions/selection/carriers.js";
+import { selectDelegateConversion } from "../../../dist/policy/conversions/carriers.js";
 import { csharpDelegateTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTargetNamedType } from "../../../dist/target-model/types/index.js";
 import { csharpMethodValueType } from "../../../dist/target-model/types/method-values.js";

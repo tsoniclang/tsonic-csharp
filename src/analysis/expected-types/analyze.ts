@@ -59,7 +59,7 @@ import type {
 } from "../../policy/operations/members/index.js";
 import {
   csharpTargetRepresentationContractId,
-} from "../../target-model/contracts/identities.js";
+} from "../../target-model/identities/identities.js";
 import { getCsharpMethodValue, rebindCsharpMethodValueTypeParameters } from "../../target-model/types/method-values.js";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 

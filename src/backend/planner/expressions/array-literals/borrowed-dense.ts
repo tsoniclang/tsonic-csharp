@@ -2,7 +2,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpBorrowedSequenceInput } from "../../../../analysis/operations/borrowed-sequences.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { ExpressionPlanner } from "../expression-planner-types.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";

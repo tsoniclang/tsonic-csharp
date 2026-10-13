@@ -97,7 +97,7 @@ import {
 } from "../project/index.js";
 import {
   csharpTargetRepresentationContractId,
-} from "../../target-model/contracts/identities.js";
+} from "../../target-model/identities/identities.js";
 import {
   analyzeCsharpSourceModuleConstructions,
 } from "../source-modules/index.js";

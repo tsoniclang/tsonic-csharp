@@ -4,8 +4,8 @@ import type { TsonicMemoryLayoutFact, TsonicRawLocationSelection } from "@tsonic
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import { csharpFixedArrayRepresentationRejection, readCsharpSourceStruct } from "../../types/resolution/source-markers.js";
 import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../../types/callables/member-substitution.js";
-import { csharpRuntimeLocationPointee, csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType, isCsharpAbsenceTargetType } from "../../../target-model/types/runtime-carriers.js";
-import { getCsharpNullableElementTargetType, csharpNullableReferenceTargetType } from "../../../target-model/types/nullable.js";
+import { csharpRuntimeLocationPointee, csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType, csharpNullableReferenceTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";

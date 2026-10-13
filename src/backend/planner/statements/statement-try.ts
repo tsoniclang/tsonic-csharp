@@ -13,7 +13,7 @@ import { sourceNodesEqual } from "@tsonic/target-api/source";
 import type {
   CsharpCatchClause,
   CsharpStatement,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import {
   allocateCatchValue,

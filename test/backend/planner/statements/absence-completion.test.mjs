@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { planCsharpAbsenceReturn, planCsharpVoidReturn } from "../../../../dist/backend/planner/statements/statement-output.js";
-import { csharpCarrierAdmitsSourceAbsence, csharpTsValueTargetType } from "../../../../dist/target-model/types/runtime-carriers.js";
-import { csharpNullableTargetType } from "../../../../dist/target-model/types/nullable.js";
-import { csharpSourcePrimitiveTargetType, csharpVoidTargetType } from "../../../../dist/target-model/types/scalar-types.js";
+import { csharpCarrierAdmitsSourceAbsence, csharpTsValueTargetType } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
+import { csharpSourcePrimitiveTargetType, csharpVoidTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpPlannedEffect, csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
 
 test("absence completion uses the exact native storage without an adapter", () => {

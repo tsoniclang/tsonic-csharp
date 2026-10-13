@@ -2,7 +2,7 @@ import type {
   CsharpObjectShapeFact,
   TargetTypeRef,
 } from "../../../target-model/types/index.js";
-import { csharpRuntimeRecordFieldTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { csharpRuntimeRecordFieldTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import {
   csharpDelegateTargetType,
   getCsharpDelegateSignature,

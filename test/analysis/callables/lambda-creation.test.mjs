@@ -3,7 +3,7 @@ import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { analyzeCsharpCaptureStorage } from "../../../dist/analysis/callables/capture-storage.js";
-import { csharpDelegateTargetType } from "../../../dist/target-model/types/delegates.js";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
 const callable = csharpDelegateTargetType("System.Func", [scalar], scalar);

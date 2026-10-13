@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../../dist/target-model/types/delegates.js";
-import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/scalar-types.js";
+import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
+import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpPlannedValue, csharpPlannedExpressionIsStable } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { planCsharpPlannedDiscard, planCsharpDiscardedStatement, planDiscardedExpression } from "../../../../dist/backend/planner/statements/statement-output.js";
 

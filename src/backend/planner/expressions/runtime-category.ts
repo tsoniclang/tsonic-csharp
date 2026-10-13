@@ -1,6 +1,6 @@
 import type { CsharpTypeofRuntimeKind, TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTypeofResultsEqual, getCsharpTypeofResult, type CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
-import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";

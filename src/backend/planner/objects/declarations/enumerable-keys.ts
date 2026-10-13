@@ -1,6 +1,6 @@
 import type { CsharpPlanningContext } from "../../context.js";
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
-import type { CsharpInterfaceMember, CsharpTypeMember, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
+import type { CsharpInterfaceMember, CsharpTypeMember, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 
 export const csharpEnumerableKeysMethodName = "__tsonicObjectEnumerableKeys";
 const storageName = "__tsonicObjectEnumerableKeyStorage";

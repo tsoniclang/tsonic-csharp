@@ -7,7 +7,7 @@ import {
   csharpVoidTargetType,
   targetParameter,
 } from "../../dist/public/provider.js";
-import { csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType } from "../../dist/target-model/types/runtime-carriers.js";
+import { csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType } from "../../dist/target-model/types/carriers/runtime-carriers.js";
 
 export const nativeProviderInferredProofSource = `
 import * as native from "test:memory";

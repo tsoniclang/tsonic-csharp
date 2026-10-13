@@ -5,7 +5,7 @@ import type { CsharpObjectShapePolicyHost, CsharpStructuralUnionResolution } fro
 import type { CsharpTypeResolutionState } from "../../resolution/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpTargetNamedType } from "../../../../target-model/types/factories.js";
-import { csharpRuntimeUnionTargetType } from "../../../../target-model/types/runtime-carriers.js";
+import { csharpRuntimeUnionTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpStructuralObjectShapeIdPrefix } from "../../../../target-model/types/object-shape-identity.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import { nextState } from "../../resolution/state.js";

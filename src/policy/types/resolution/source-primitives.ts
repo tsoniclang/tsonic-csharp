@@ -6,8 +6,8 @@ import {
   csharpNeverTargetType,
   csharpVoidTargetType,
   csharpObjectTargetType,
-} from "../../../target-model/types/scalar-types.js";
-import { csharpAnyTargetType, csharpTsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
+} from "../../../target-model/types/carriers/scalar-types.js";
+import { csharpAnyTargetType, csharpTsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 
 export function resolveKeywordType(
   kind: string,

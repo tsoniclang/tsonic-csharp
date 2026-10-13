@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { classifyCsharpNativeLocation } from "../../../dist/analysis/storage/native-locations.js";
 import { classifyCsharpClassPropertyStorage } from "../../../dist/analysis/operations/class-property-storage.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 
 const integer = { kind: "source-primitive", name: "int32" };
 const owner = { kind: "target-named", id: "Project.Owner" };

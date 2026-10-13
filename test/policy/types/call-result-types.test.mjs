@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpSourceCallResult } from "../../../dist/policy/types/resolution/call-results.js";
-import { csharpTsValueTargetType, csharpEmptyObjectTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
+import { csharpTsValueTargetType, csharpEmptyObjectTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 
 const base = { kind: "target-named", id: "fixture.Base" };
 const child = { kind: "target-named", id: "fixture.Child" };

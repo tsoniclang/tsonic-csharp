@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpMethodValueType, csharpMethodValueCoversContract, csharpMethodValueContractsEqual, csharpPresentObjectShapeMethod } from "../../../dist/target-model/types/method-values.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/nullable.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
-import { csharpDelegateTargetType } from "../../../dist/target-model/types/delegates.js";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { substituteTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-types.js";

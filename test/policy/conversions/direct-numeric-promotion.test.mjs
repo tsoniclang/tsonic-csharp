@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { csharpBigIntegerTargetType } from "../../../dist/target-model/types/scalar-types.js";
+import { csharpBigIntegerTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
 import {
   csharpSourcePrimitiveTargetType,

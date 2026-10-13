@@ -4,8 +4,8 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNa
 import { isCsharpValueTypeTargetType, resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/index.js";
 import { csharpObjectShapeMemberTypeKey } from "../../target-model/types/object-shape-identity.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType } from "../../target-model/types/nullable.js";
-import { getCsharpDelegateSignature } from "../../target-model/types/delegates.js";
+import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType } from "../../target-model/types/carriers/nullable.js";
+import { getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";

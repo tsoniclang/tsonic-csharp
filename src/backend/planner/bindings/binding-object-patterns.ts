@@ -5,7 +5,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpStatement,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.js";

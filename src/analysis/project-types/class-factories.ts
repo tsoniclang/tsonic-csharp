@@ -4,7 +4,7 @@ import type { CsharpProjectTypeCatalog } from "../../policy/types/project/projec
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
 import type { CsharpStorageClassifications, CsharpStorageIssue } from "../storage/model.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
-import { getCsharpClassFactory, type CsharpClassFactoryType } from "../../target-model/types/class-factories.js";
+import { getCsharpClassFactory, type CsharpClassFactoryType } from "../../target-model/types/carriers/class-factories.js";
 import type { CsharpSourceNameResolver } from "../names/source-names.js";
 import { csharpTargetNamedType } from "../../target-model/types/factories.js";
 

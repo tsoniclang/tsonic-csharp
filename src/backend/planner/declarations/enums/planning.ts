@@ -23,7 +23,7 @@ import type {
   CsharpEnumMember,
   CsharpExpression,
   CsharpPrefixUnaryOperatorToken,
-} from "../../../target-ast/roslyn/index.js";
+} from "../../../target-ast/syntax/index.js";
 import { planAttributesForSubject } from "../attributes.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../modifiers.js";

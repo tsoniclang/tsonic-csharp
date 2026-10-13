@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypedArrayMutation, CsharpTypedArrayUpdate } from "../../../analysis/operations/index.js";
-import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";

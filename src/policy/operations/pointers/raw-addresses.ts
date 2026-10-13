@@ -3,9 +3,9 @@ import { readTsonicDataLayout, readTsonicRawMemoryOperation } from "@tsonic/sour
 import type { TsonicRawMemoryOperationFact } from "@tsonic/source-core/facts";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
-import { csharpRuntimeRawPointerTargetType } from "../../../target-model/types/runtime-carriers.js";
-import { csharpNullableReferenceTargetType } from "../../../target-model/types/nullable.js";
+import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { csharpRuntimeRawPointerTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableReferenceTargetType } from "../../../target-model/types/carriers/nullable.js";
 
 export type CsharpSourceRawAddressOperation = Extract<TsonicRawMemoryOperationFact,
   { readonly operation: "byte-offset" | "raw-to-address-integer" | "address-integer-to-raw" }>;

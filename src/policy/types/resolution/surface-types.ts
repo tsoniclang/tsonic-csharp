@@ -8,12 +8,12 @@ import {
 import {
   csharpTargetNamedType,
 } from "../../../target-model/types/factories.js";
-import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
+import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import {
   csharpSourcePrimitiveTargetType,
   csharpJsStringTargetType,
   csharpStringTargetType,
-} from "../../../target-model/types/scalar-types.js";
+} from "../../../target-model/types/carriers/scalar-types.js";
 
 export const csharpJsArrayCarrierId = "Tsonic.CSharp.Js.JSArray`1";
 

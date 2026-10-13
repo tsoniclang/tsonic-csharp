@@ -6,13 +6,13 @@ import { substituteTargetTypeParameters, inferCsharpTargetTypeParameterBindings 
 import { csharpGeneratedTypeParameterNames } from "../../../dist/target-model/names/type-parameters.js";
 import { csharpFreeTypeParameterIdentities, csharpObjectShapeTypeParameters } from "../../../dist/target-model/types/generic-references.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-types.js";
-import { csharpDelegateTargetType } from "../../../dist/target-model/types/delegates.js";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpObjectShapeMemberTypeKey } from "../../../dist/target-model/types/object-shape-identity.js";
 import { dotnetTypeRefKey } from "../../../dist/providers/native/model/type-refs.js";
-import { csharpAbsenceTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
+import { csharpAbsenceTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
-import { resolveCsharpOptionalStorage } from "../../../dist/target-model/types/optional-storage.js";
+import { resolveCsharpOptionalStorage } from "../../../dist/target-model/types/carriers/optional-storage.js";
 
 const outer = Object.freeze({ kind: "type-parameter", identity: "source:outer/0", name: "T" });
 const inner = Object.freeze({ kind: "type-parameter", identity: "source:inner/0", name: "T" });

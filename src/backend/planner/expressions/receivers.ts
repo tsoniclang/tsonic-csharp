@@ -16,7 +16,7 @@ import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } fr
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { getCsharpTypeFromProjectSourceReference } from "../types/project-source-types.js";
-import type { CsharpTypeNode } from "../../target-ast/roslyn/index.js";
+import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
 
 export interface CsharpSelectedReceiverEvidence {
   readonly expression: Node;

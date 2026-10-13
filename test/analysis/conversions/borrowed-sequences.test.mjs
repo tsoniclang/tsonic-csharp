@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeCsharpConversions } from "../../../dist/analysis/conversions/analyze.js";
-import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/scalar-types.js";
+import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
 const int32 = csharpSourcePrimitiveTargetType("int32");
 const int64 = csharpSourcePrimitiveTargetType("int64");

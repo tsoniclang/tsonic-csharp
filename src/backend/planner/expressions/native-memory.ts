@@ -1,7 +1,7 @@
-import type { CsharpExpression, CsharpStatement } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { CsharpNativeMemoryLayout } from "../../../target-model/operations/native-memory.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import { csharpRuntimeNativeLayoutTargetType, csharpRuntimeNativeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { csharpRuntimeNativeLayoutTargetType, csharpRuntimeNativeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 
 export function planCsharpNativeMemoryCall(
   typeParameterNames: ReadonlyMap<string, string> | undefined,

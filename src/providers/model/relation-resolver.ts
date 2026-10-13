@@ -7,7 +7,7 @@ import type {
 } from "../../target-model/types/model.js";
 import type {
   CsharpProviderTargetRelation,
-} from "../relations/index.js";
+} from "../native/relations/index.js";
 
 export type CsharpProviderRelationResolution =
   | {

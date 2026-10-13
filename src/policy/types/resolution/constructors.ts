@@ -3,7 +3,7 @@ import { sourceCallableParameterEvidence, type SourceFileSemantics } from "@tson
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
-import { csharpClassFactoryTargetType } from "../../../target-model/types/class-factories.js";
+import { csharpClassFactoryTargetType } from "../../../target-model/types/carriers/class-factories.js";
 import { nextState } from "./state.js";
 
 export function resolveCsharpConstructorValueType(

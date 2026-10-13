@@ -3,7 +3,7 @@ import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { sealCsharpDelegateAdapterIdentities } from "../../../dist/analysis/conversions/delegate-identities.js";
-import { csharpDelegateTargetType } from "../../../dist/target-model/types/delegates.js";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
 
 const sourceType = csharpDelegateTargetType("System.Action", [{ kind: "source-primitive", name: "float64" }]);

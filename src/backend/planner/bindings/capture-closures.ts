@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpStatement } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { CsharpNamedSelfBinding } from "../../../analysis/callables/named-self.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
@@ -11,7 +11,7 @@ import { allocateExpressionTemp, getCsharpLocalBindingName } from "./binding-sta
 import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import { planThisExpression } from "../expressions/expression-this.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
-import { getCsharpExpressionTreeDelegateType } from "../../../target-model/types/delegates.js";
+import { getCsharpExpressionTreeDelegateType } from "../../../target-model/types/carriers/delegates.js";
 
 export function planCsharpNamedSelfCaptureContext(
   self: CsharpNamedSelfBinding, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState,

@@ -1,19 +1,19 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../context.js";
-import type { CsharpExpression, CsharpStatement } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
-import { isCsharpNeverTargetType } from "../../../target-model/types/scalar-types.js";
+import { isCsharpNeverTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planCsharpNeverValue } from "./never-values.js";
-import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
+import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { planCsharpAbsentValue, planCsharpPresentValueGuard } from "./optional-storage.js";
 import { convertCsharpPlannedValue } from "./planned-value-conversions.js";
 import {

@@ -1,5 +1,5 @@
 import type { CsharpObjectShapeFact } from "../../../target-model/types/index.js";
-import type { CsharpExpression, CsharpStatement, CsharpTypeMember } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpStatement, CsharpTypeMember } from "../../target-ast/syntax/index.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import { objectShapeStorageMemberName } from "./object-shape-storage.js";
 import type { CsharpPlanningContext } from "../context.js";

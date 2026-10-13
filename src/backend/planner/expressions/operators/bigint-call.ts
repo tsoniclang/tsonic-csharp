@@ -2,7 +2,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpResolvedBinaryOperation } from "../../../../analysis/operations/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
-import type { CsharpExpression } from "../../../target-ast/roslyn/index.js";
+import type { CsharpExpression } from "../../../target-ast/syntax/index.js";
 import type { ExpressionPlanner } from "../expression-planner-types.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { callStatic } from "../csharp-expression-builders.js";

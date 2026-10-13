@@ -5,18 +5,18 @@ import type {
 } from "@tsonic/tsts";
 import type {
   CsharpProviderTargetRelation,
-} from "../../relations/index.js";
+} from "./index.js";
 import {
   providerMemberSourceIdentity,
   providerSignatureSourceIdentity,
   providerTypeSourceIdentity,
-} from "../../relations/index.js";
+} from "./index.js";
 import type {
   DotnetProviderTargetRelationTemplate,
 } from "./target-relations.js";
 import type {
   DotnetReflectionTypeDataProvider,
-} from "../reflection/provider.js";
+} from "../acquisition/provider.js";
 
 export type DotnetProviderTargetRelationResolution =
   | {

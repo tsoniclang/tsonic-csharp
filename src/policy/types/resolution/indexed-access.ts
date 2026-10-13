@@ -4,7 +4,7 @@ import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../callables/member-substitution.js";
-import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
+import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { nextState } from "./state.js";
 

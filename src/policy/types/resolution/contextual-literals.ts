@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
-import { getCsharpArrayLiteralElementTargetType, isCsharpRecordDictionaryTargetType } from "../../../target-model/types/collections.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { getCsharpArrayLiteralElementTargetType, isCsharpRecordDictionaryTargetType } from "../../../target-model/types/carriers/collections.js";
 import type { CsharpTypePolicyHost } from "./model.js";
 
 export function resolveCsharpContextualLiteralCarrier(

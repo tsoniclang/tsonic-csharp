@@ -11,7 +11,7 @@ import type {
 } from "../../../target-model/types/model.js";
 import {
   csharpSourcePrimitiveTargetType,
-} from "../../../target-model/types/scalar-types.js";
+} from "../../../target-model/types/carriers/scalar-types.js";
 import {
   selectedCsharpSourceProfileOwner,
 } from "./source-profile.js";

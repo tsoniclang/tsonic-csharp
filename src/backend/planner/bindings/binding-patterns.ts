@@ -17,7 +17,7 @@ import type {
   CsharpExpression,
   CsharpStatement,
   CsharpTypeNode,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import { planArrayBindingPattern } from "./binding-array-patterns.js";
 import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.js";
 import { allocateDestructuringTemp } from "./binding-state.js";

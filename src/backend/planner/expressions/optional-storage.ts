@@ -1,8 +1,8 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
-import { csharpCarrierAdmitsSourceAbsence, isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { csharpCarrierAdmitsSourceAbsence, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../../target-model/types/index.js";
-import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 
 export function planCsharpOptionalStorageOperation(

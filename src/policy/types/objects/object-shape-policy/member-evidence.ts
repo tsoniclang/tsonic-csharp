@@ -3,7 +3,7 @@ import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourceProperty
 import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpTypeResolutionState } from "../../resolution/model.js";
-import { csharpNullableTargetType } from "../../../../target-model/types/nullable.js";
+import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { csharpSourceMemberDisplayName } from "../../../../target-model/types/source-member-keys.js";
 import { nextState } from "../../resolution/state.js";
@@ -12,7 +12,7 @@ import { typeIncludesNullish } from "./source-evidence.js";
 import { resolveObjectShapeSourceMemberKey } from "./source-member-identity.js";
 import { resolveCsharpCallableTypeParameters } from "../../../constraints/callable-type-parameters.js";
 import { csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../../target-model/types/method-values.js";
-import { isCsharpIntegralTargetType } from "../../../../target-model/types/scalar-types.js";
+import { isCsharpIntegralTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 import { csharpNumericLiteralValue } from "../../../../target-model/syntax/numeric-literals.js";
 
 export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePolicyHost) {

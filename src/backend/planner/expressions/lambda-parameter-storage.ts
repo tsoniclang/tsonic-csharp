@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpLambdaParameter, CsharpStatement } from "../../target-ast/roslyn/index.js";
+import type { CsharpLambdaParameter, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { allocateSyntheticParameter, planParameterBindingPrelude } from "../bindings/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";

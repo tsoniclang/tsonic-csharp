@@ -1,15 +1,15 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../../context.js";
-import type { CsharpExpression, CsharpStatement } from "../../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpStatement } from "../../../target-ast/syntax/index.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { planIdentifierExpression } from "../../expressions/expression-source-references.js";
 import { planCsharpDelegateAdaptationBody } from "../../expressions/delegate-adapters.js";
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";
-import { getCsharpDelegateSignature } from "../../../../target-model/types/delegates.js";
+import { getCsharpDelegateSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
-import { isCsharpNullableReferenceTargetType } from "../../../../target-model/types/nullable.js";
+import { isCsharpNullableReferenceTargetType } from "../../../../target-model/types/carriers/nullable.js";
 
 export function withCsharpDelegateAdapterDeclarations(block: Node, input: CsharpPlanningContext): CsharpPlanningContext {
   const identities = input.program.conversions.delegateAdapters(block);

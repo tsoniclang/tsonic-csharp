@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeCsharpDeclarations } from "../../../dist/analysis/declarations/analyze.js";
-import { getCsharpNullableElementTargetType } from "../../../dist/target-model/types/nullable.js";
+import { getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 
 function fixture(acceptsOmission, foreign = false) {
   const parameter = {};

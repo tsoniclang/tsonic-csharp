@@ -1,8 +1,8 @@
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpOutputSourceFile } from "../../artifact-model/output.js";
-import type { CsharpExpression, CsharpStructDeclaration, CsharpTypeMember, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpStructDeclaration, CsharpTypeMember, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import { csharpRuntimeUnionTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { csharpRuntimeUnionTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { finalizeCsharpCompilationUnit } from "../program/compilation-unit.js";
 import { readNamespace } from "../project/project-artifacts.js";
 

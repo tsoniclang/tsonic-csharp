@@ -1,11 +1,11 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
-import { getCsharpGenericOptionalParts, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
-import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { getCsharpGenericOptionalParts, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "./binding-state.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { planCsharpPresentValueGuard } from "../expressions/optional-storage.js";
-import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
+import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../expressions/planned-values.js";
 import { planCsharpCoalescingValue, planCsharpValueBranch } from "../expressions/planned-value-composition.js";
 import { convertCsharpPlannedValue } from "../expressions/planned-value-conversions.js";

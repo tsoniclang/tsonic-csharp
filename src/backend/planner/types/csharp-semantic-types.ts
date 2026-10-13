@@ -7,7 +7,7 @@ import type {
 } from "../context.js";
 import type {
   CsharpTypeNode,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";

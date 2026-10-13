@@ -1,9 +1,9 @@
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpConversionIsApplicable, selectCsharpConversion, type CsharpConversionSelection } from "../../policy/conversions/selection.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
-import { getCsharpJsArrayElementTargetType } from "../../target-model/types/collections.js";
+import { getCsharpJsArrayElementTargetType } from "../../target-model/types/carriers/collections.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
-import { selectCsharpFlowReadConversion } from "../../policy/conversions/selection/expression.js";
+import { selectCsharpFlowReadConversion } from "../../policy/conversions/expression.js";
 import type { CsharpSourceCallableContract } from "../../policy/types/callables/source-callable-contract.js";
 
 export interface CsharpCallableValueAdapter {

@@ -29,7 +29,7 @@ import {
   csharpSourceFileContractCandidate,
 } from "./source-file-contract.js";
 import { planCsharpObjectShapeSourceFile } from "../objects/planning.js";
-import type { CsharpCompilationUnit } from "../../target-ast/roslyn/index.js";
+import type { CsharpCompilationUnit } from "../../target-ast/syntax/index.js";
 
 const minimumCsharpArtifactReconstructionCount = 64;
 const maximumReconstructionsPerSourceFile = 32;

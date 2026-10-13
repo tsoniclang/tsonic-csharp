@@ -6,11 +6,11 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { selectCsharpNativeFlowMembers } from "../../../dist/policy/types/resolution/native-flow-refinement.js";
 import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsRegExpTargetType } from "../../../dist/policy/types/resolution/surface-types.js";
-import { csharpStringTargetType, csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/scalar-types.js";
-import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/runtime-carriers.js";
+import { csharpStringTargetType, csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { resolveCsharpInstanceType } from "../../../dist/policy/types/resolution/instance-tests.js";
 import { resolveSelectedValueWithState } from "../../../dist/policy/types/resolution/public-api.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/nullable.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { createCsharpSourceUnionIndex } from "../../../dist/policy/types/resolution/source-unions.js";
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { retainCsharpGenericCallableValue } from "../../../dist/policy/types/callables/generic-values.js";
-import { csharpDelegateTargetType, getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../../dist/target-model/types/delegates.js";
+import { csharpDelegateTargetType, getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpMethodValueType, getCsharpMethodValue, rebindCsharpMethodValueTypeParameters } from "../../../dist/target-model/types/method-values.js";
 import { targetTypeRefEquals, targetTypeRefIsClosed } from "../../../dist/target-model/types/equality.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-types.js";

@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { classifyCsharpUnionCall } from "../../../dist/analysis/operations/union-calls.js";
-import { csharpDelegateTargetType } from "../../../dist/target-model/types/delegates.js";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
-import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
-import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/scalar-types.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
 function fixture() {
   const sourceFile = {};

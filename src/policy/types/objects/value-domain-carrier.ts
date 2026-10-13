@@ -4,7 +4,7 @@ import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpTypePolicy } from "../resolution/model.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { getCsharpCollectionElementTargetType } from "../../../target-model/types/collections.js";
+import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
 import type { CsharpObjectShapePolicy } from "./object-shape-policy/model.js";
 

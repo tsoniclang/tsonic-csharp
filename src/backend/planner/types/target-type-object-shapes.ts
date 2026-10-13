@@ -6,7 +6,7 @@ import type {
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type {
   CsharpTypeNode,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import {
   getCsharpObjectShapeFactForTargetType,
 } from "../objects/fact-queries.js";

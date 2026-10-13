@@ -4,7 +4,7 @@ import type { ResolvedSourceCallInfo } from "../../../../../analysis/operations/
 import type { CsharpJsValueOperationSelection } from "../../../../../target-model/operations/js-values.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { ExpressionPlanner } from "../../expression-planner-types.js";
-import type { CsharpExpression } from "../../../../target-ast/roslyn/index.js";
+import type { CsharpExpression } from "../../../../target-ast/syntax/index.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../../planned-values.js";
 import {

@@ -258,7 +258,7 @@ test("C# runtime-reference construction has one owner and preserves core target 
 
 test("compiler-intrinsic value carriers belong to the core C# runtime", () => {
   const carriers = readFileSync(
-    resolve(repositoryRoot, "src/target-model/types/runtime-carriers.ts"),
+    resolve(repositoryRoot, "src/target-model/types/carriers/runtime-carriers.ts"),
     "utf8",
   );
   const exceptionFlow = readFileSync(

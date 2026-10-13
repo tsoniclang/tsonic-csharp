@@ -1,9 +1,9 @@
 import type { SourceFile } from "@tsonic/tsts";
 import type { CsharpSourceCallContract, CsharpSourceCallParameterContract } from "../callables/source-callable-contract.js";
 import { classifyCsharpSourceCallee } from "../callables/source-callees.js";
-import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpCallableValueSignature } from "../../../target-model/types/delegates.js";
+import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpCallableValueSignature } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { ResolvedSourceCallInfo, CsharpTypeResolutionState } from "./model.js";
 import { nextState } from "./state.js";

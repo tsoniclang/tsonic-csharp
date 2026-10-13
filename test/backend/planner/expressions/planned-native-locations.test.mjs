@@ -7,7 +7,7 @@ import { composeCsharpPlannedCall } from "../../../../dist/backend/planner/expre
 import { planSelectedCsharpBinaryOperation } from "../../../../dist/backend/planner/expressions/operators/selected-binary.js";
 import { tryPlanCsharpTypedLocationOperation } from "../../../../dist/backend/planner/expressions/expression-typed-locations.js";
 import { csharpRuntimeLocationTargetType } from "../../../../dist/target-model/types/index.js";
-import { csharpVoidTargetType } from "../../../../dist/target-model/types/scalar-types.js";
+import { csharpVoidTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 
 const integer = { kind: "source-primitive", name: "int32" };
 const identifier = name => ({ kind: "IdentifierName", name });

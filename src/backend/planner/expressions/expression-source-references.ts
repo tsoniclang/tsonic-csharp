@@ -20,7 +20,7 @@ import {
 } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import {
@@ -40,7 +40,7 @@ import {
 } from "../types/target-types.js";
 import { csharpCapturedBindingExpression } from "../bindings/capture-storage.js";
 import { planCsharpFrameClosureReference } from "../bindings/capture-closures.js";
-import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
+import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpTypeFromProjectSourceReference } from "../types/project-source-types.js";
 
 export function planIdentifierExpression(

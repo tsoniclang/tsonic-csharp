@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { classifyCsharpSourceCallee } from "../../dist/policy/types/callables/source-callees.js";
-import { csharpDelegateTargetType } from "../../dist/target-model/types/delegates.js";
-import { csharpNullableTargetType } from "../../dist/target-model/types/nullable.js";
-import { csharpRuntimeUnionTargetType } from "../../dist/target-model/types/runtime-carriers.js";
+import { csharpDelegateTargetType } from "../../dist/target-model/types/carriers/delegates.js";
+import { csharpNullableTargetType } from "../../dist/target-model/types/carriers/nullable.js";
+import { csharpRuntimeUnionTargetType } from "../../dist/target-model/types/carriers/runtime-carriers.js";
 
 const expression = {};
 const receiver = {};

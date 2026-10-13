@@ -5,7 +5,7 @@ import { analyzeCsharpConversions } from "../../../dist/analysis/conversions/ana
 import { csharpRuntimeUnionMappingMatches } from "../../../dist/analysis/conversions/validation.js";
 import { createCsharpTypeDefinitionRegistry } from "../../../dist/analysis/project-types/type-definitions.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
-import { csharpUnionReferenceImplicitlyAccepts } from "../../../dist/policy/conversions/selection/carriers.js";
+import { csharpUnionReferenceImplicitlyAccepts } from "../../../dist/policy/conversions/carriers.js";
 import { csharpAbsenceTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType, csharpStringTargetType,
   csharpTargetNamedType } from "../../../dist/target-model/types/index.js";

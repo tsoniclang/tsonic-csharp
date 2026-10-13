@@ -19,8 +19,8 @@ import {
   csharpExceptionTargetType,
   csharpStringTargetType,
   csharpVoidTargetType,
-} from "../../../target-model/types/scalar-types.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+} from "../../../target-model/types/carriers/scalar-types.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 import { csharpQualifiedTypeRenderShape } from "../../../target-model/types/render-shapes.js";

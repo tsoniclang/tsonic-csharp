@@ -4,7 +4,7 @@ import type { CsharpConversionSelection } from "../../../analysis/conversions/in
 import type { CsharpDelegateSignatureShape, TargetTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, csharpDelegateSignaturesMatchNativeBinding, getCsharpDelegateSignature, getCsharpNullableElementTargetType, isCsharpVoidTargetType } from "../../../target-model/types/index.js";
-import type { CsharpArgument, CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
+import type { CsharpArgument, CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";

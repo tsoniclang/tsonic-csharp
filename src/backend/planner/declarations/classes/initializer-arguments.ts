@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpArgument, CsharpParameter } from "../../../target-ast/roslyn/index.js";
+import type { CsharpArgument, CsharpParameter } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { CsharpPlannedArgument } from "../../expressions/planned-values.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";

@@ -56,26 +56,26 @@ export type {
   DotnetReflectionTypeDataProvider,
   DotnetReflectionTypeDataProviderOptions,
   DotnetReflectionProviderStorage,
-} from "./reflection/provider.js";
+} from "./acquisition/provider.js";
 export type {
   DotnetReflectionProviderBroker,
-} from "./reflection/broker.js";
+} from "./acquisition/broker.js";
 export type {
   DotnetProviderModuleRequestTelemetry,
   DotnetProviderTelemetry,
   DotnetProviderTelemetrySnapshot,
-} from "./reflection/telemetry.js";
+} from "./acquisition/telemetry.js";
 export {
   createDotnetReflectionTypeDataProvider,
-} from "./reflection/provider.js";
+} from "./acquisition/provider.js";
 export {
   createDotnetReflectionProviderBroker,
-} from "./reflection/broker.js";
+} from "./acquisition/broker.js";
 export {
   createDotnetProviderTelemetry,
   dotnetProviderTelemetryCounters,
   formatDotnetProviderTelemetrySnapshot,
-} from "./reflection/telemetry.js";
+} from "./acquisition/telemetry.js";
 export {
   createDotnetModuleSpecifierPolicy,
   createDotnetModuleSpecifier,
@@ -85,20 +85,20 @@ export {
   dotnetModuleSpecifierPolicy,
   normalizeDotnetAssemblySourcePackages,
   parseDotnetModuleSpecifier,
-} from "./modules/specifier.js";
+} from "./projection/modules/specifier.js";
 export type {
   DotnetAssemblySourcePackage,
   DotnetModuleSpecifier,
   DotnetModuleSpecifierPolicy,
-} from "./modules/specifier.js";
+} from "./projection/modules/specifier.js";
 export {
   augmentDotnetModuleWithNativeArray,
   dotnetNativeArrayCreateMemberId,
   dotnetNativeArrayIndexerMemberId,
   dotnetNativeArrayLengthMemberId,
   dotnetNativeArrayTypeId,
-} from "./modules/native-array.js";
-export { dotnetModuleToProviderDeclarationModel } from "./declarations/index.js";
+} from "./projection/modules/native-array.js";
+export { dotnetModuleToProviderDeclarationModel } from "./projection/declarations/index.js";
 export {
   csharpDotnetProviderContributionKind,
 } from "./contributions.js";

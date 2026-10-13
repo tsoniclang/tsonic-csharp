@@ -6,7 +6,7 @@ import type {
   CsharpCompilationUnit,
   CsharpTypeDeclaration,
   CsharpTypeNode,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import type {
   CsharpOutputSourceFile,
 } from "../../artifact-model/output.js";
@@ -52,7 +52,7 @@ export {
   objectShapeStorageMemberName,
 } from "./object-shape-storage.js";
 
-import { isCsharpEmptyObjectTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { isCsharpEmptyObjectTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { guardCsharpFrozenDataProperties } from "./frozen-data-properties.js";
 import { csharpInheritedStructuralInterfaces, renderCsharpStructuralInterfaceMembers } from "./declarations/structural-interfaces.js";
 import { renderCsharpMethodValueContracts } from "./declarations/method-values.js";

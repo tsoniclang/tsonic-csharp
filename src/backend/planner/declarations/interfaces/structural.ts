@@ -1,8 +1,8 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
-import { getCsharpDelegateSignature } from "../../../../target-model/types/delegates.js";
-import type { CsharpExpression, CsharpTypeMember } from "../../../target-ast/roslyn/index.js";
+import { getCsharpDelegateSignature } from "../../../../target-model/types/carriers/delegates.js";
+import type { CsharpExpression, CsharpTypeMember } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";

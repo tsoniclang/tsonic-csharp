@@ -9,7 +9,7 @@ import {
 } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import {
   allocateSyntheticParameter,
   createDestructuringPlannerState,

@@ -2,8 +2,8 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
 import { csharpStructuralObjectShapeIdentity } from "./object-shape-identity.js";
 import { targetTypeRefEquals, scopedTargetTypeRefKey } from "./equality.js";
-import { getCsharpDelegateSignature } from "./delegates.js";
-import { getCsharpNullableElementTargetType } from "./nullable.js";
+import { getCsharpDelegateSignature } from "./carriers/delegates.js";
+import { getCsharpNullableElementTargetType } from "./carriers/nullable.js";
 import { csharpFreeTypeParameterIdentities } from "./generic-references.js";
 import { substituteTargetTypeParameters } from "./substitution.js";
 

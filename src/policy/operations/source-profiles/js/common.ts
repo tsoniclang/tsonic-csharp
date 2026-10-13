@@ -1,6 +1,6 @@
 import type {
   CsharpTargetReceiverRelation,
-} from "../../../../providers/relations/index.js";
+} from "../../../../providers/native/relations/index.js";
 import { finalizeCsharpRestSequences } from "../rest-sequences.js";
 import { jsSourceInvocationOnlyCallableParameters } from "@tsonic/js-source-profile";
 import type {

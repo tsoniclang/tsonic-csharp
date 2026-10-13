@@ -8,7 +8,7 @@ import { maximumArtifactCount } from "../model.js";
 import { objectShapeArtifactKey, objectShapeMaterialization } from "./identity.js";
 import { csharpTargetTypeComponents } from "../../../../../target-model/types/components.js";
 import { targetTypeRefKey } from "../../../../../target-model/types/equality.js";
-import { isCsharpEmptyObjectTargetType } from "../../../../../target-model/types/runtime-carriers.js";
+import { isCsharpEmptyObjectTargetType } from "../../../../../target-model/types/carriers/runtime-carriers.js";
 
 export function collectShapeDependencies(
   { host }: CsharpArtifactGraphScope,

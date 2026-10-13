@@ -15,7 +15,7 @@ import type {
   CsharpExpression,
   CsharpLocalDeclaration,
   CsharpStatement,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import { getCsharpTypeForNode } from "../types/index.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
@@ -47,7 +47,7 @@ import {
 import type { CsharpPlannedValue } from "../expressions/planned-values.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
 import { planCsharpCollectionIndexedIteration } from "../expressions/collection-reads.js";
-import { csharpCollectionElementRead } from "../../../target-model/types/collection-reads.js";
+import { csharpCollectionElementRead } from "../../../target-model/types/carriers/collection-reads.js";
 import { allocateExpressionTemp } from "../bindings/binding-state.js";
 
 export { planForInStatement } from "./statement-for-in.js";

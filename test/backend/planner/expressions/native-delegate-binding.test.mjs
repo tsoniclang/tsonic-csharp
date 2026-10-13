@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { planCsharpDelegateAdapter } from "../../../../dist/backend/planner/expressions/delegate-adapters.js";
 import { applyCsharpConversionSelection } from "../../../../dist/backend/planner/expressions/conversions.js";
 import { selectCsharpConversion } from "../../../../dist/policy/conversions/index.js";
-import { csharpDelegateTargetType } from "../../../../dist/target-model/types/delegates.js";
+import { csharpDelegateTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
 import { csharpTargetNamedType } from "../../../../dist/target-model/types/factories.js";
 import { printCsharpExpression } from "../../../../dist/print/source/printer.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";

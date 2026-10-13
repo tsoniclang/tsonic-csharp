@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypedLocationStorage } from "../../../analysis/operations/index.js";
-import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";

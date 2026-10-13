@@ -4,8 +4,8 @@ import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts"
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { analyzeCsharpCallableContracts } from "../../../dist/analysis/callables/analyze.js";
 import { selectCsharpClosedCallableContext } from "../../../dist/analysis/callables/contextual-inputs.js";
-import { csharpDelegateTargetType } from "../../../dist/target-model/types/delegates.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpSourceTypeParameter } from "../../../dist/target-model/names/type-parameters.js";
 import { csharpJsArrayTargetType } from "../../../dist/policy/types/resolution/surface-types.js";
 

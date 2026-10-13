@@ -8,7 +8,7 @@ import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { sourcePropertyTypeEvidenceNodes } from "@tsonic/target-api/source";
 import type {
   CsharpProviderTargetRelation,
-} from "../../../../providers/relations/index.js";
+} from "../../../../providers/native/relations/index.js";
 import { canonicalProviderValue } from "../../../../providers/model/canonical-value.js";
 import {
   csharpTargetTypeFromBinding,
@@ -24,7 +24,7 @@ import type {
 import {
   csharpNullableTargetType,
   getCsharpNullableElementTargetType,
-} from "../../../../target-model/types/nullable.js";
+} from "../../../../target-model/types/carriers/nullable.js";
 import {
   targetTypeRefEquals,
 } from "../../../../target-model/types/equality.js";

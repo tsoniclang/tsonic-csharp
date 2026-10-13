@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { planClassHeritage, planInterfaceHeritage } from "../../../../dist/backend/planner/declarations/classes/heritage.js";
 import { renderCsharpStructuralInterfaceMembers, shadowCsharpInheritedInterfaceMembers } from "../../../../dist/backend/planner/objects/declarations/structural-interfaces.js";
-import { csharpDelegateTargetType } from "../../../../dist/target-model/types/delegates.js";
+import { csharpDelegateTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
 
 function type(argument, id = "Native.View") {
   return { kind: "target-named", id, name: "View", typeArguments: [argument], csharpRender: { kind: "named", name: "View" } };

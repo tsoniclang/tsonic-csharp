@@ -4,7 +4,7 @@ import type {
 import { sourceIntegerConstantValue } from "@tsonic/target-api/source";
 import type {
   CsharpExpression,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";

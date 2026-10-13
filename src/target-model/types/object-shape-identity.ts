@@ -19,7 +19,7 @@ import {
   scopedTargetTypeRefKey,
 } from "./equality.js";
 import { csharpSourceMemberKeyParts } from "./source-member-keys.js";
-import { csharpOwnerTypeParameterConstraintKey } from "../declarations/generic-constraints.js";
+import { csharpOwnerTypeParameterConstraintKey } from "./generic-constraints.js";
 
 export function csharpObjectShapeMemberContractParts(
   member: CsharpObjectShapeMemberFact,

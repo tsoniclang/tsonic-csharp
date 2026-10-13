@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { convertCsharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-value-conversions.js";
 import { csharpPlannedValue, csharpPlannedEffect } from "../../../../dist/backend/planner/expressions/planned-values.js";
-import { csharpVoidTargetType, csharpNeverTargetType } from "../../../../dist/target-model/types/scalar-types.js";
-import { csharpNullableTargetType } from "../../../../dist/target-model/types/nullable.js";
+import { csharpVoidTargetType, csharpNeverTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpNullableTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
 
 const integer = { kind: "source-primitive", name: "uint64" };
 const identifier = { kind: "IdentifierName", name: "exact" };

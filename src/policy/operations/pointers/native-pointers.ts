@@ -16,8 +16,8 @@ import {
   readCsharpSourceNativePointerOperation,
 } from "./source-native-pointers.js";
 import { readCsharpSourceRawPointerIdentity } from "./source-raw-pointers.js";
-import { csharpRuntimeRawPointerTargetType, isCsharpAbsenceTargetType } from "../../../target-model/types/runtime-carriers.js";
-import { csharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { csharpRuntimeRawPointerTargetType, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { selectCsharpRawAddress } from "./raw-addresses.js";
 import type { CsharpRawAddressSelection, CsharpSourceRawAddressOperation } from "./raw-addresses.js";
 import { selectCsharpLayoutObservation } from "./layout-observations.js";

@@ -7,7 +7,7 @@ import {
   planCsharpPlannedBranch,
   sequenceCsharpPlannedValues,
 } from "../../../../dist/backend/planner/expressions/planned-values.js";
-import { csharpVoidTargetType, csharpNeverTargetType } from "../../../../dist/target-model/types/scalar-types.js";
+import { csharpVoidTargetType, csharpNeverTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 import { planCsharpDiscardedOperand } from "../../../../dist/backend/planner/statements/statement-output.js";
 
 const integer = { kind: "source-primitive", name: "int32" };

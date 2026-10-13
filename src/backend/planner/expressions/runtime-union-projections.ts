@@ -11,7 +11,7 @@ import type { CsharpConversionSelection } from "../../../analysis/conversions/in
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type {
   CsharpExpression,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";

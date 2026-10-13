@@ -13,7 +13,7 @@ import {
   csharpGeneratorTargetType,
   csharpIteratorResultTargetType,
   closeCsharpGeneratorProtocolType,
-} from "../../../target-model/types/generators.js";
+} from "../../../target-model/types/carriers/generators.js";
 import {
   csharpJsArrayTargetType,
   csharpJsDateTargetType,
@@ -43,11 +43,11 @@ import {
   type CsharpJsTypedArrayName,
 } from "./surface-types.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
-import { combineCsharpTargetUnionMembers } from "../../../target-model/types/runtime-carriers.js";
-import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../target-model/types/delegates.js";
-import { csharpEnumerableTargetType } from "../../../target-model/types/collections.js";
-import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
-import { csharpExceptionTargetType, csharpRuntimeErrorTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/scalar-types.js";
+import { combineCsharpTargetUnionMembers } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../target-model/types/carriers/delegates.js";
+import { csharpEnumerableTargetType } from "../../../target-model/types/carriers/collections.js";
+import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { csharpExceptionTargetType, csharpRuntimeErrorTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpTargetTypeFromBinding } from "../storage/bindings.js";
 import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";

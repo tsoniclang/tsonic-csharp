@@ -9,7 +9,7 @@ import { selectCsharpCallableParameterAdapters, selectCsharpCallableResultAdapte
   type CsharpCallableParameterAdapter, type CsharpCallableValueAdapter } from "../callables/adapters.js";
 import type { CsharpProjectTypeIssue } from "../../policy/types/project/project-types.js";
 import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } from "../callables/instantiation.js";
-import { namedTargetTypeImplicitlyAccepts } from "../../policy/conversions/selection/carriers.js";
+import { namedTargetTypeImplicitlyAccepts } from "../../policy/conversions/carriers.js";
 
 export interface CsharpProjectCallableAdapter {
   readonly contract: CsharpSourceCallableContract;

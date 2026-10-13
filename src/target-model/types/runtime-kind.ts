@@ -1,7 +1,7 @@
 import type { CsharpTargetNamedTypeRef, CsharpTypeofRuntimeKind, TargetTypeRef } from "./model.js";
-import { getCsharpNullableElementTargetType } from "./nullable.js";
-import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "./runtime-carriers.js";
-import { getCsharpDelegateSignature } from "./delegates.js";
+import { getCsharpNullableElementTargetType } from "./carriers/nullable.js";
+import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "./carriers/runtime-carriers.js";
+import { getCsharpDelegateSignature } from "./carriers/delegates.js";
 import { targetTypeRefEquals } from "./equality.js";
 import type { CsharpTypeDefinitions } from "./source-union-definitions.js";
 

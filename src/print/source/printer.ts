@@ -3,7 +3,7 @@ import type {
   CsharpExpression,
   CsharpStatement,
   CsharpTypeNode,
-} from "../../backend/target-ast/roslyn/index.js";
+} from "../../backend/target-ast/syntax/index.js";
 import {
   printCsharpArgument as printCsharpArgumentWithContext,
   printCsharpAttributes as printCsharpAttributesWithContext,

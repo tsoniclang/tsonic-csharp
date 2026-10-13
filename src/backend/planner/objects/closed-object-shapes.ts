@@ -23,7 +23,7 @@ import type {
   CsharpExpression,
   CsharpMethodDeclaration,
   CsharpStatement,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import {
   objectShapeStorageMemberName,
 } from "./object-shape-storage.js";

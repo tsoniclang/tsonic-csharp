@@ -13,7 +13,7 @@ import {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpObjectInitializerAssignment,
-} from "../../../target-ast/roslyn/index.js";
+} from "../../../target-ast/syntax/index.js";
 import type {
   CsharpObjectShapeFact,
 } from "../../../../target-model/types/index.js";

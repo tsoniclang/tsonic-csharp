@@ -1,7 +1,7 @@
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
 import { isCsharpVoidTargetType } from "./identity.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "./nullable.js";
-import { isCsharpJsValueTargetType } from "./runtime-carriers.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "./carriers/nullable.js";
+import { isCsharpJsValueTargetType } from "./carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "./equality.js";
 
 export type CsharpRuntimeParameterDefault = {

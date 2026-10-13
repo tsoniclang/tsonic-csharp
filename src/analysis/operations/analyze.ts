@@ -4,13 +4,13 @@ import { classifyCsharpSourceCallee } from "../../policy/types/callables/source-
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 import { classifyCsharpClassPropertyStorage } from "./class-property-storage.js";
 import { selectCsharpAwaitCompletion } from "../../target-model/types/await-completions.js";
-import { validateCsharpJsValueOperationSelection } from "../../policy/js-value-operations/selection.js";
+import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";
 import { resolveCsharpInstanceType } from "../../policy/types/resolution/instance-tests.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
 import { selectCsharpArrayTypeTest } from "../../policy/operations/source-profiles/js/type-tests.js";
 import { getCsharpTypeofResult, type CsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
-import { getCsharpClassFactory } from "../../target-model/types/class-factories.js";
+import { getCsharpClassFactory } from "../../target-model/types/carriers/class-factories.js";
 import { classifyCsharpOptionalCallCallee, classifyCsharpOptionalCallReceiver } from "./optional-calls.js";
 import { selectCsharpMemoryBinding } from "../../policy/operations/memory-bindings.js";
 import { selectCsharpElementDeletion } from "../../policy/operations/collections/element-deletion.js";
@@ -38,7 +38,7 @@ import {
   selectCsharpJsValueCondition,
   selectCsharpJsValueVoidOperation,
   selectCsharpJsObjectLiteralOperation,
-} from "../../policy/js-value-operations/index.js";
+} from "../../policy/operations/js-values/index.js";
 import {
   selectCsharpProviderValue,
   selectCsharpTargetCall,

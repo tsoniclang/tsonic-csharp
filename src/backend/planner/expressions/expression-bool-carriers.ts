@@ -4,7 +4,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTypeNode } from "../../target-ast/roslyn/index.js";
+import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import {
   HasSourceKind,
   KindFalseKeyword,
@@ -28,7 +28,7 @@ import {
   translateCsharpJsValueInvocation,
 } from "./js-value-operations.js";
 import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
-import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
+import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 
 export function planCsharpConditionExpression(
   expression: Node,
