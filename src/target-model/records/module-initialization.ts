@@ -9,7 +9,8 @@ export interface CsharpModuleInitializationIndex {
 }
 
 export interface CsharpModuleInitializationIssue {
-  readonly code: "CSHARP_UNSUPPORTED_RUNTIME_MODULE_CYCLE";
+  readonly code: "CSHARP_UNSUPPORTED_RUNTIME_MODULE_CYCLE" | "TSONIC_UNCALLED_BINARY_ENTRY_MAIN";
+  readonly node?: Node;
   readonly message: string;
   readonly evidence: readonly string[];
 }

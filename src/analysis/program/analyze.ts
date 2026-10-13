@@ -287,12 +287,16 @@ export function analyzeCsharpTargetProgram(
     sourceFiles,
     projectRoot: input.paths.projectRoot,
     entryPoint: input.project.entryPoint,
+    outputType: configuration.outputType,
     attributeApplications,
     safetyApplications,
   });
   if (moduleInitialization.issues.length > 0) {
     return rejectedTargetStage(moduleInitialization.issues.map((issue) => ({
-      ...issue,
+      code: issue.code,
+      message: issue.message,
+      evidence: issue.evidence,
+      sourceNode: issue.node,
       category: "error" as const,
       source: "tsonic-csharp",
     })));

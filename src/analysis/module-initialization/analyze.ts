@@ -16,6 +16,7 @@ import {
   KindVariableStatement,
   SourceFile_FileName,
   sourceMayReadBeforeInitialization,
+  validateSourceBinaryEntry,
 } from "@tsonic/target-api/source";
 import type { CsharpAttributeApplicationIndex } from "../../target-model/records/attributes.js";
 import type { CsharpSafetyApplicationFactIndex } from "../../target-model/records/safety.js";
@@ -27,6 +28,7 @@ interface CsharpModuleInitializationAnalysisInput {
   readonly sourceFiles: readonly SourceFile[];
   readonly projectRoot: string;
   readonly entryPoint: string;
+  readonly outputType: "Library" | "Exe";
   readonly attributeApplications: CsharpAttributeApplicationIndex;
   readonly safetyApplications: CsharpSafetyApplicationFactIndex;
 }
@@ -83,6 +85,10 @@ export function analyzeCsharpModuleInitialization(
     input.projectRoot,
     input.entryPoint,
   ));
+  const entrySourceFile = entries.get(entrypointFileName)?.sourceFile;
+  if (input.outputType === "Exe" && entrySourceFile !== undefined) {
+    issues.push(...validateSourceBinaryEntry(input.source, entrySourceFile));
+  }
   const index: CsharpModuleInitializationIndex = Object.freeze({
     moduleInitializationDependencies: Object.freeze({ get(sourceFile: SourceFile) {
       return dependenciesByFile.get(normalizedFileName(input, sourceFile)) ?? emptySourceFiles;
