@@ -16,7 +16,7 @@ import type {
   CsharpConstructorDeclaration,
   CsharpModifier,
   CsharpParameter,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";

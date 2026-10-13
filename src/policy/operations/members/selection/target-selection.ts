@@ -10,7 +10,7 @@ import type {
 } from "../../../types/index.js";
 import type {
   CsharpTargetReceiverRelation,
-} from "../../../../providers/relations/index.js";
+} from "../../../../providers/native/relations/index.js";
 import type {
   CsharpProviderCallSelectionHost,
 } from "./call-selection.js";

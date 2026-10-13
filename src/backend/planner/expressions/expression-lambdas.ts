@@ -22,7 +22,7 @@ import type {
   TargetTypeRef,
 } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpBlock, CsharpExpression, CsharpLambdaParameter, CsharpStatement, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
+import type { CsharpBlock, CsharpExpression, CsharpLambdaParameter, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import {
   createDestructuringPlannerState,
   createNestedPlannerState,

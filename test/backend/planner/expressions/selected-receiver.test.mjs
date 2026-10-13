@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { translateCsharpSelectedReceiver } from "../../../../dist/backend/planner/expressions/receivers.js";
 import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
-import { csharpStringTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/scalar-types.js";
-import { csharpNullableReferenceTargetType } from "../../../../dist/target-model/types/nullable.js";
+import { csharpStringTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpNullableReferenceTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
 
 const instanceInput = { program: { sourceNavigation: {
   sourceReferenceFor: () => undefined, referenceFor: () => undefined,

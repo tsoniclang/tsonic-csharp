@@ -8,7 +8,7 @@ import type {
 } from "../context.js";
 import type {
   CsharpExpression,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
@@ -19,7 +19,7 @@ import type {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
-import { csharpRuntimeRawPointerTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { csharpRuntimeRawPointerTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { planCsharpNativeMemoryCall } from "./native-memory.js";
 import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";

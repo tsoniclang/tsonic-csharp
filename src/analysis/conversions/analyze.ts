@@ -52,8 +52,8 @@ import type {
 import { sealCsharpDelegateAdapterIdentities } from "./delegate-identities.js";
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
-import { selectCsharpIntegerTruncationConversion } from "../../policy/conversions/selection/integer-truncation.js";
-import { selectCsharpExactIntegerConversion } from "../../policy/conversions/selection/exact-integer.js";
+import { selectCsharpIntegerTruncationConversion } from "../../policy/conversions/integer-truncation.js";
+import { selectCsharpExactIntegerConversion } from "../../policy/conversions/exact-integer.js";
 import { csharpRuntimeUnionMappingMatches, csharpRuntimeUnionProjectionMatches } from "./validation.js";
 import { selectCsharpPropertyProjections } from "./property-projections.js";
 

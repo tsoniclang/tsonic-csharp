@@ -1,4 +1,4 @@
-import type { CsharpTypeMember, CsharpTypeNode, CsharpExpression } from "../../../target-ast/roslyn/index.js";
+import type { CsharpTypeMember, CsharpTypeNode, CsharpExpression } from "../../../target-ast/syntax/index.js";
 
 export function renderCsharpDeferredCaptureMember(name: string, type: CsharpTypeNode): readonly CsharpTypeMember[] {
   const valueName = `${name}Value`;

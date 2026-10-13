@@ -5,7 +5,7 @@ import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target
 import { csharpMethodValueType, csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } from "../../../target-model/types/method-values.js";
 import { csharpSourceMemberKeyParts } from "../../../target-model/types/source-member-keys.js";
 import { csharpMethodEnvironment } from "./object-shape-policy/method-values.js";
-import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
+import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 
 export function selectCsharpMethodValue(
   owner: TargetTypeRef | undefined, subjects: readonly ExtensionFactSubject[], host: CsharpTypePolicyHost, directCall = false,

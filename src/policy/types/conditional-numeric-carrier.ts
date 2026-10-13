@@ -1,9 +1,9 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { isCsharpIntegralTargetType } from "../../target-model/types/scalar-types.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../target-model/types/nullable.js";
-import { isCsharpAbsenceTargetType } from "../../target-model/types/runtime-carriers.js";
+import { isCsharpIntegralTargetType } from "../../target-model/types/carriers/scalar-types.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
+import { isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { csharpLiteralIsRepresentableAs } from "../conversions/literals.js";
 import { selectCsharpNumericBinaryPromotion } from "../operations/numeric/promotion.js";
 

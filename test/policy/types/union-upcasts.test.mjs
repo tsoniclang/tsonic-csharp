@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/selection.js";
-import { selectCsharpFlowReadConversion } from "../../../dist/policy/conversions/selection/expression.js";
+import { selectCsharpFlowReadConversion } from "../../../dist/policy/conversions/expression.js";
 import { csharpRuntimeUnionProjectionMatches } from "../../../dist/analysis/conversions/validation.js";
 import { csharpRuntimeUnionTargetType, csharpNullableTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 

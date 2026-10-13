@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCallClassification, ResolvedSourceCallInfo } from "../../../../../analysis/operations/index.js";
 import { isCsharpVoidTargetType } from "../../../../../target-model/types/identity.js";
-import type { CsharpArgument, CsharpExpression, CsharpStatement } from "../../../../target-ast/roslyn/index.js";
+import type { CsharpArgument, CsharpExpression, CsharpStatement } from "../../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";

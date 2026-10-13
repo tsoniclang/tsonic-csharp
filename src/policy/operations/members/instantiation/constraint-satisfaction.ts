@@ -28,7 +28,7 @@ import {
 } from "../../../../target-model/types/index.js";
 import type {
   CsharpTypeParameterConstraint,
-} from "../../../../target-model/declarations/generic-constraints.js";
+} from "../../../../target-model/types/generic-constraints.js";
 import {
   resolveCsharpTypeParameterConstraints,
 } from "../../../constraints/index.js";
@@ -37,7 +37,7 @@ import type {
 } from "../selection/selection-types.js";
 import {
   namedTargetTypeImplicitlyAccepts,
-} from "../../../conversions/selection/carriers.js";
+} from "../../../conversions/carriers.js";
 import type {
   CsharpProjectTypePolicy,
   CsharpTypePolicy,

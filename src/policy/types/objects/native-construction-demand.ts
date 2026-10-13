@@ -4,7 +4,7 @@ import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpObjectShapesEqual } from "../../../target-model/types/object-shape-equality.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
-import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
+import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { createCsharpMetadataBudget } from "../../../target-model/metadata/immutable.js";
 import type { CsharpTypePolicyBaseHost } from "../resolution/model.js";
 import { csharpNativeConstructionMembersMatch } from "./native-construction-members.js";

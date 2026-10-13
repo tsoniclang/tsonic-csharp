@@ -21,7 +21,7 @@ import type {
   CsharpExpression,
   CsharpLambdaParameter,
   CsharpTypeNode,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import {
   allocateSyntheticParameter,
   createDestructuringPlannerState,

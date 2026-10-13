@@ -3,14 +3,14 @@ import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { checkCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpTargetProgram } from "../../../../dist/analysis/program/index.js";
-import { createCsharpProviderRelationResolver } from "../../../../dist/providers/relations/resolver.js";
+import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/relations/resolver.js";
 import { createCsharpTargetConfiguration } from "../../../../dist/options/csharp-target-options.js";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { planExpression, planExpressionWithExpectedType, planCallArgument } from "../../../../dist/backend/planner/expressions/index.js";
 import { planCsharpOutput } from "../../../../dist/backend/planner/program/planning.js";
 import { printCsharpCompilationUnit } from "../../../../dist/print/source/printer.js";
 import { csharpAbsenceTargetType, csharpSourcePrimitiveTargetType, targetTypeRefEquals } from "../../../../dist/target-model/types/index.js";
-import { selectCsharpConversion } from "../../../../dist/policy/conversions/selection/core.js";
+import { selectCsharpConversion } from "../../../../dist/policy/conversions/core.js";
 import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/target-types.js";
 
 function fixture() {

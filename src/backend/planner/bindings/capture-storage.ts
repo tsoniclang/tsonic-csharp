@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCaptureFrame } from "../../../analysis/callables/capture-storage.js";
-import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpStatement } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import { csharpCaptureFrameName, getCsharpLocalBindingName } from "./binding-state.js";

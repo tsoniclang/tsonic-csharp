@@ -1,6 +1,6 @@
 import type { TargetTypeRef } from "./model.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "./nullable.js";
-import { getCsharpGenericOptionalParts, isCsharpAbsenceTargetType } from "./runtime-carriers.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "./carriers/nullable.js";
+import { getCsharpGenericOptionalParts, isCsharpAbsenceTargetType } from "./carriers/runtime-carriers.js";
 
 export function csharpBindingDefaultCarrier(projected: TargetTypeRef, defaultValue: TargetTypeRef): TargetTypeRef {
   if (isCsharpAbsenceTargetType(projected)) return defaultValue;

@@ -7,7 +7,7 @@ import {
 } from "../../../target-model/types/equality.js";
 import {
   isCsharpNullableReferenceTargetType,
-} from "../../../target-model/types/nullable.js";
+} from "../../../target-model/types/carriers/nullable.js";
 
 export function resolveCsharpTargetTypePatternArguments(
   pattern: TargetTypeRef,

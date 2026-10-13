@@ -1,11 +1,11 @@
 import type { CsharpClosedTypeTest, CsharpClosedTypeTestPlan } from "../../../target-model/operations/type-tests.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpExpression, CsharpSwitchExpressionArm, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpSwitchExpressionArm, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "../bindings/binding-state.js";
 import { allocateExpressionTemp } from "../bindings/binding-state.js";
 import { csharpClosedTypeTestMatches } from "../../../analysis/operations/type-tests.js";
-import { csharpTsValueTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { csharpTsValueTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "./union-access.js";

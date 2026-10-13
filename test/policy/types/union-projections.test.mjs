@@ -3,7 +3,7 @@ import test from "node:test";
 import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpStringTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/index.js";
 import { csharpSourceUnionTargetType } from "../../../dist/target-model/types/source-union-definitions.js";
 import { csharpUnionProjectionPath } from "../../../dist/target-model/types/union-relations.js";
-import { selectCsharpRuntimeUnionProjection } from "../../../dist/policy/conversions/selection/carriers.js";
+import { selectCsharpRuntimeUnionProjection } from "../../../dist/policy/conversions/carriers.js";
 import { csharpRuntimeUnionProjectionMatches } from "../../../dist/analysis/conversions/validation.js";
 
 test("nested union payload paths are exact, immutable and independently checked", () => {

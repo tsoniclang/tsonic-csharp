@@ -4,7 +4,7 @@ import { planCsharpSourceUndefinedValue } from "../../undefined-values.js";
 import { translateCallArgument } from "./arguments.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
-import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/roslyn/index.js";
+import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { CsharpTargetParameter } from "../../../../../target-model/types/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";

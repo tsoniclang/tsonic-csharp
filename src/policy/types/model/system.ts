@@ -21,7 +21,7 @@ import {
   resolveCsharpObjectShapeMemberReadTargetType,
   csharpObjectShapeMemberRetainsNativeReference,
 } from "../../../target-model/types/object-shape-members.js";
-import { isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import type {
   CsharpPlanningRepresentationQueries,
   CsharpTypePolicy,

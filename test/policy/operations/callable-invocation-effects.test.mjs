@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { jsCallPolicy, jsMemberIdentity } from "../../../dist/policy/operations/source-profiles/js/common.js";
-import { csharpDelegateTargetType } from "../../../dist/target-model/types/delegates.js";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 const callable = csharpDelegateTargetType("System.Func", [integer], integer);

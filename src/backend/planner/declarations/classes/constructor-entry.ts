@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpArgument, CsharpConstructorDeclaration, CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
+import type { CsharpArgument, CsharpConstructorDeclaration, CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import type { CsharpEntryBinding } from "../../bindings/binding-patterns.js";

@@ -1,6 +1,6 @@
 import { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
 import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects, objectShapeMemberTargetName } from "./construction.js";
-import { getCsharpNullableElementTargetType } from "../../../../target-model/types/nullable.js";
+import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { csharpObjectShapesEqual } from "../../../../target-model/types/object-shape-equality.js";
 import { isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, selectedObjectShapeSource, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIsExcludedFromObjectShape } from "./source-evidence.js";
 import { readCsharpSourceField, readCsharpSourceStruct } from "../../resolution/source-markers.js";
@@ -36,7 +36,7 @@ import {
 } from "../../../../target-model/types/substitution.js";
 import {
   isCsharpJsValueTargetType,
-} from "../../../../target-model/types/runtime-carriers.js";
+} from "../../../../target-model/types/carriers/runtime-carriers.js";
 import {
   csharpPropertySourceMemberKey,
   csharpSourceMemberKeysEqual,

@@ -1,10 +1,10 @@
 import type { CsharpPlanningContext } from "../../context.js";
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
 import { csharpObjectShapeMemberContractKey, targetTypeRefKey } from "../../../../target-model/types/index.js";
-import type { CsharpTypeMember } from "../../../target-ast/roslyn/index.js";
+import type { CsharpTypeMember } from "../../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { objectShapeStorageMemberName } from "../object-shape-storage.js";
-import { csharpNullableTargetType } from "../../../../target-model/types/nullable.js";
+import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { csharpObjectShapeMethodDeclaration } from "../../../../target-model/types/method-values.js";
 import { csharpPresentObjectShapeMethod } from "../../../../target-model/types/method-values.js";
 import { csharpInheritedStructuralInterfaces, csharpMethodValueHandleIsInherited } from "./structural-interfaces.js";

@@ -14,7 +14,7 @@ import type {
   CsharpExpression,
   CsharpStatement,
   CsharpTypeNode,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import {
   getCsharpTypeForNode,
   predefined,

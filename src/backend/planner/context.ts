@@ -29,7 +29,7 @@ import type {
   CsharpTargetProgram,
 } from "../../analysis/program/index.js";
 import type { SourceFile } from "@tsonic/tsts";
-import type { CsharpExpression, CsharpMethodDeclaration } from "../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpMethodDeclaration } from "../target-ast/syntax/index.js";
 import type { CsharpDelegateAdapterIdentity } from "../../analysis/conversions/model.js";
 
 export interface CsharpPlanningTypeClassifications {

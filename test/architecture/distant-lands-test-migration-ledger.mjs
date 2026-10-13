@@ -4,7 +4,7 @@ export const replacementContracts = Object.freeze({
     [
       "test/integration/provider-selection/direct-provider-call-selection-relations-and-conversions.test.mjs",
       "test/integration/provider-selection/direct-provider-member-selection.test.mjs",
-      "test/providers/relations/direct-provider-relations.test.mjs",
+      "test/providers/native/relations/direct-provider-relations.test.mjs",
       "test/providers/native/target-bindings/dotnet-provider-members-and-cross-module-bindings.test.mjs",
       "../tsonic/test/cli-build/providers/dotnet/core.test.mjs",
     ],

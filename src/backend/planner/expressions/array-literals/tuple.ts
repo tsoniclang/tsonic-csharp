@@ -8,7 +8,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpTypeNode,
-} from "../../../target-ast/roslyn/index.js";
+} from "../../../target-ast/syntax/index.js";
 import type {
   ArrayLiteralPlanner,
 } from "./types.js";

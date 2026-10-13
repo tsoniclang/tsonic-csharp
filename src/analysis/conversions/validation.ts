@@ -1,5 +1,5 @@
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { csharpUnionReferenceImplicitlyAccepts, selectCsharpRuntimeUnionProjection } from "../../policy/conversions/selection/carriers.js";
+import { csharpUnionReferenceImplicitlyAccepts, selectCsharpRuntimeUnionProjection } from "../../policy/conversions/carriers.js";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";

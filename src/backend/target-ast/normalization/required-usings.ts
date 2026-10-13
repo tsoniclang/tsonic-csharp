@@ -1,5 +1,5 @@
-import type { CsharpCompilationUnit } from "../roslyn/index.js";
-import type { CsharpTypeNode } from "../roslyn/index.js";
+import type { CsharpCompilationUnit } from "../syntax/index.js";
+import type { CsharpTypeNode } from "../syntax/index.js";
 import { transformCsharpTargetAst } from "./transformation.js";
 
 export function applyRequiredCsharpUsings(

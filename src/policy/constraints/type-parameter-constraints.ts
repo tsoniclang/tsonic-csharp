@@ -17,12 +17,12 @@ import {
 import type {
   CsharpTypeParameterConstraint,
   CsharpTypeParameterConstraintResolution,
-} from "../../target-model/declarations/generic-constraints.js";
+} from "../../target-model/types/generic-constraints.js";
 
 export type {
   CsharpTypeParameterConstraint,
   CsharpTypeParameterConstraintResolution,
-} from "../../target-model/declarations/generic-constraints.js";
+} from "../../target-model/types/generic-constraints.js";
 
 export interface CsharpTypeParameterConstraintPolicyHost {
   readonly ast: AstReader;

@@ -7,7 +7,7 @@ import type {
 import { selectedSourceIndexedDeclarations, selectedSourcePropertyDeclarations, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type {
   CsharpTargetReceiverRelation,
-} from "../../../providers/relations/index.js";
+} from "../../../providers/native/relations/index.js";
 import type {
   CsharpTargetMember,
   TargetTypeRef,

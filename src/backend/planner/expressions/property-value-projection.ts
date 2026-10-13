@@ -8,7 +8,7 @@ import {
   isCsharpJsValueTargetType,
 } from "../../../target-model/types/index.js";
 import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
-import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";

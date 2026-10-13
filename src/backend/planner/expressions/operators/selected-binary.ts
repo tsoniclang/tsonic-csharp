@@ -11,7 +11,7 @@ import type {
 } from "../../context.js";
 import type {
   CsharpExpression,
-} from "../../../target-ast/roslyn/index.js";
+} from "../../../target-ast/syntax/index.js";
 import {
   csharpAssignmentOperatorTokenFromText,
   csharpBinaryOperatorTokenFromText,
@@ -33,7 +33,7 @@ import {
   callStatic,
   literalNumber,
 } from "../csharp-expression-builders.js";
-import { isCsharpAbsenceTargetType } from "../../../../target-model/types/runtime-carriers.js";
+import { isCsharpAbsenceTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { planCsharpBigIntCall } from "./bigint-call.js";
 import { planCsharpClosedValueCoalescing } from "./closed-value-coalescing.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
@@ -42,7 +42,7 @@ import { runtimeUnionArmProjection, runtimeUnionArmTest } from "../union-access.
 import { planCsharpUnionEquality } from "../union-equality.js";
 import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";
 import { buildCsharpPlannedValue, planCsharpCoalescingValue, planCsharpValueBranch } from "../planned-value-composition.js";
-import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/scalar-types.js";
+import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 import { captureCsharpPlannedLocation } from "../planned-locations.js";
 import { captureCsharpPlannedValue } from "../planned-value-composition.js";
 import { planCsharpPlannedDiscard } from "../../statements/statement-output.js";

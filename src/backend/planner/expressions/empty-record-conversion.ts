@@ -1,7 +1,7 @@
 import type { CsharpConversionSelection } from "../../../analysis/conversions/index.js";
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import { targetTypeRefEquals } from "../../../target-model/types/index.js";
-import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 
 export function planCsharpEmptyRecordConversion(

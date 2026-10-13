@@ -11,7 +11,7 @@ import type {
   CsharpPostfixUnaryOperatorToken,
   CsharpPrefixUnaryOperatorToken,
   CsharpTypeNode,
-} from "../../backend/target-ast/roslyn/index.js";
+} from "../../backend/target-ast/syntax/index.js";
 import type { CsharpPrintContext } from "./context.js";
 import { failUnsupportedCsharpSyntax } from "./fail-closed.js";
 import {

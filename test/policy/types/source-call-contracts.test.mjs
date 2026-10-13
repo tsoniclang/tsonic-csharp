@@ -3,8 +3,8 @@ import test from "node:test";
 import { resolveSourceCallContract } from "../../../dist/policy/types/resolution/call-contracts.js";
 import { resolveSourceCallParameter, resolveSourceCallParameters, resolveSourceCallArgumentParameter,
   resolveSourceCallResultWithState, resolveSourceCallTypeArguments } from "../../../dist/policy/types/resolution/public-api.js";
-import { csharpDelegateTargetType } from "../../../dist/target-model/types/delegates.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { retainCsharpGenericCallableValue } from "../../../dist/policy/types/callables/generic-values.js";
 import { substituteTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/types/generic-references.js";

@@ -1,6 +1,6 @@
 import type {
   CsharpCompilationUnit,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import type {
   CsharpLanguageDialect,
 } from "../../../target-model/configuration/model.js";

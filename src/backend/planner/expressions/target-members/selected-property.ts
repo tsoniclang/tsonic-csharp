@@ -8,7 +8,7 @@ import type {
 } from "../../../../analysis/operations/index.js";
 import type {
   CsharpExpression,
-} from "../../../target-ast/roslyn/index.js";
+} from "../../../target-ast/syntax/index.js";
 import {
   selectedPolicyDiagnostic,
   targetPolicyDiagnostic,

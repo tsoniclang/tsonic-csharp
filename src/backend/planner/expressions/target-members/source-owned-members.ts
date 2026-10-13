@@ -2,7 +2,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import { sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetPropertySelection, CsharpPropertyClassification } from "../../../../analysis/operations/index.js";
-import type { CsharpExpression } from "../../../target-ast/roslyn/index.js";
+import type { CsharpExpression } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { targetPolicyDiagnostic, unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { translateCsharpJsValueInvocation } from "../js-value-operations.js";

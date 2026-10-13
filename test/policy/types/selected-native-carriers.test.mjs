@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { reconcileCsharpSelectedTargetType } from "../../../dist/policy/types/resolution/selected-type-evidence.js";
-import { csharpBigIntegerTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/scalar-types.js";
+import { csharpBigIntegerTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
 test("checked bigint selection does not replace an authored native integer carrier", () => {
   for (const name of ["int64", "uint64", "int128", "uint128", "native-int", "native-uint"]) {

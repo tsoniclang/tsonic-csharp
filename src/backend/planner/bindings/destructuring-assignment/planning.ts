@@ -42,7 +42,7 @@ import { runtimeArrayHelperCall } from "../../expressions/arrays/helpers.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import type { BindingDefaultExpressionPlanner } from "../binding-array-patterns.js";
 import type { CsharpArrayBindingCarrier } from "../../../../target-model/types/index.js";
-import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { DestructuringAssignmentArrayElement, DestructuringAssignmentObjectElement, DestructuringAssignmentPattern, DestructuringAssignmentTarget } from "./entry.js";

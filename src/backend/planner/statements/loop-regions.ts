@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpStatement } from "../../target-ast/roslyn/index.js";
+import type { CsharpStatement } from "../../target-ast/syntax/index.js";
 import { allocateControlLabel, type DestructuringPlannerState } from "../bindings/binding-state.js";
 
 export function withCsharpLoopContinuation(

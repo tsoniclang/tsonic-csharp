@@ -8,7 +8,7 @@ import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../
 import { buildUnsupportedMemberFixture } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 import { planCsharpDelegateAdapter, planCsharpDelegateAdaptationBody } from "../../../../dist/backend/planner/expressions/delegate-adapters.js";
 import { applyCsharpConversionSelection } from "../../../../dist/backend/planner/expressions/conversions.js";
-import { csharpDelegateTargetType } from "../../../../dist/target-model/types/delegates.js";
+import { csharpDelegateTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
 import { selectCsharpConversion } from "../../../../dist/policy/conversions/index.js";
 
 const importSource = 'import { EventSignatures } from "@tsonic/dotnet/ProviderUnsupportedMemberFixtures.js";';

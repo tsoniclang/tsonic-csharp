@@ -2,7 +2,7 @@ import type { TargetCapabilityContribution } from "@tsonic/target-api/provider";
 import type {
   CsharpProviderTargetRejection,
   CsharpProviderTargetRelation,
-} from "../relations/index.js";
+} from "../native/relations/index.js";
 import type {
   CsharpTargetBinaryExecutionDriver,
 } from "../../target-model/types/model.js";

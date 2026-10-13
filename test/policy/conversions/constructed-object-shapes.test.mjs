@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpExpressionConversion } from "../../../dist/policy/conversions/selection/expression.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
+import { selectCsharpExpressionConversion } from "../../../dist/policy/conversions/expression.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 
 const source = { kind: "target-named", id: "source.Constructed" };
 const target = { kind: "target-named", id: "source.Contract" };

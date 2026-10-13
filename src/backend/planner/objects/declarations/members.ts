@@ -1,7 +1,7 @@
 import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import type { CsharpStorageClassifications } from "../../../../analysis/storage/model.js";
 import { planCsharpNativeMemoryCall } from "../../expressions/native-memory.js";
-import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/runtime-carriers.js";
+import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpClassDeclaration,
@@ -9,7 +9,7 @@ import type {
   CsharpParameter,
   CsharpTypeMember,
   CsharpTypeNode,
-} from "../../../target-ast/roslyn/index.js";
+} from "../../../target-ast/syntax/index.js";
 import type {
   CsharpObjectShapeFact,
 } from "../../../../target-model/types/index.js";
@@ -36,7 +36,7 @@ import {
   isCsharpVoidTargetType,
 } from "../../../../target-model/types/index.js";
 import { renderCsharpStructuralInterfaceMembers } from "./structural-interfaces.js";
-import { csharpNullableTargetType } from "../../../../target-model/types/nullable.js";
+import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { csharpObjectShapeMethodDeclaration } from "../../../../target-model/types/method-values.js";
 import { renderCsharpDeferredCaptureMember } from "./deferred-captures.js";
 

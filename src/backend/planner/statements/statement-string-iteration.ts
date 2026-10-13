@@ -6,7 +6,7 @@ import type {
   CsharpExpression,
   CsharpLocalDeclaration,
   CsharpStatement,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import {
   predefined,
   sameCsharpType,

@@ -3,7 +3,7 @@ import type {
   CsharpTypeMember,
   CsharpTypeNode,
   CsharpTypeParameter,
-} from "../../../target-ast/roslyn/index.js";
+} from "../../../target-ast/syntax/index.js";
 import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeProjection,

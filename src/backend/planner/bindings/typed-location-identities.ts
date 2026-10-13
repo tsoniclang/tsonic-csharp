@@ -6,7 +6,7 @@ import type {
 } from "../context.js";
 import type {
   CsharpStatement,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import {
   declareCsharpTypedLocationIdentityName,
 } from "./index.js";
@@ -15,7 +15,7 @@ import type {
 } from "./index.js";
 import { redirectCsharpParameterStorage } from "./binding-state.js";
 import { planCsharpNativeMemoryCall } from "../expressions/native-memory.js";
-import { csharpRuntimeLocationTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { csharpRuntimeLocationTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";

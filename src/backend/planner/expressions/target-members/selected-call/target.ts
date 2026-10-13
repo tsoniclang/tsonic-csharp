@@ -7,7 +7,7 @@ import { translateCsharpSelectedReceiver } from "../../receivers.js";
 import { translateSelectedTargetArguments } from "./arguments.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
-import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/roslyn/index.js";
+import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { CsharpSelectedTargetCall, ResolvedSourceCallInfo } from "../../../../../analysis/operations/index.js";
 import type { CsharpTargetMember, CsharpObjectShapeProjection } from "../../../../../target-model/types/index.js";

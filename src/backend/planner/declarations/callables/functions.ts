@@ -2,7 +2,7 @@ import type { CsharpPlanningContext } from "../../context.js";
 import { AsFunctionDeclaration, sourceLexicalFunctionIsUnused } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpMethodDeclaration, CsharpStatement } from "../../../target-ast/roslyn/index.js";
+import type { CsharpMethodDeclaration, CsharpStatement } from "../../../target-ast/syntax/index.js";
 import { planAttributesForSubject } from "../attributes.js";
 import { createDestructuringPlannerState, createNestedPlannerState, getCsharpLocalBindingName,
   type DestructuringPlannerState } from "../../bindings/index.js";

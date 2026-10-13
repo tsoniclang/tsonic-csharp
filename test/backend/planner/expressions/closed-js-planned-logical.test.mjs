@@ -4,7 +4,7 @@ import test from "node:test";
 import { planCsharpJsValueLogical } from "../../../../dist/backend/planner/expressions/js-value-logical.js";
 import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { csharpTsValueTargetType } from "../../../../dist/target-model/types/index.js";
-import { selectCsharpJsValueBinaryOperation, validateCsharpJsValueOperationSelection } from "../../../../dist/policy/js-value-operations/selection.js";
+import { selectCsharpJsValueBinaryOperation, validateCsharpJsValueOperationSelection } from "../../../../dist/policy/operations/js-values/selection.js";
 
 const carrier = csharpTsValueTargetType();
 const identifier = name => ({ kind: "IdentifierName", name });

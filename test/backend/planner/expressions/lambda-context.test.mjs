@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { getLambdaTargetContext } from "../../../../dist/backend/planner/expressions/expression-lambdas.js";
-import { csharpDelegateTargetType } from "../../../../dist/target-model/types/delegates.js";
-import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/scalar-types.js";
+import { csharpDelegateTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
+import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 
 const number = csharpSourcePrimitiveTargetType("float64");
 const physical = csharpDelegateTargetType("System.Action", []);

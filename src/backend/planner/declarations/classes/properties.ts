@@ -11,7 +11,7 @@ import type {
   CsharpPropertyDeclaration,
   CsharpStatement,
   CsharpTypeMember,
-} from "../../../target-ast/roslyn/index.js";
+} from "../../../target-ast/syntax/index.js";
 import {
   AsGetAccessorDeclaration,
   AsParameterDeclaration,

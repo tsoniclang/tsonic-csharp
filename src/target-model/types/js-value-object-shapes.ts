@@ -7,7 +7,7 @@ import type {
 import {
   csharpTsValueTargetType,
   isCsharpJsValueTargetType,
-} from "./runtime-carriers.js";
+} from "./carriers/runtime-carriers.js";
 import {
   resolveCsharpObjectShapeMemberBySelectedSubject,
 } from "./object-shape-members.js";

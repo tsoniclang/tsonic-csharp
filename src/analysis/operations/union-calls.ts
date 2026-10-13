@@ -1,14 +1,14 @@
 import type { Node, ResolvedSourceCallInfo, SourceFile } from "@tsonic/tsts";
 import { asSourceNode } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { getCsharpRuntimeUnionArms } from "../../target-model/types/runtime-carriers.js";
+import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
-import { getCsharpNullableElementTargetType } from "../../target-model/types/nullable.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpSourceArgumentPassingMode } from "../../policy/operations/members/selection/argument-selection.js";
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
-import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpCallableValueSignature } from "../../target-model/types/delegates.js";
+import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpCallableValueSignature } from "../../target-model/types/carriers/delegates.js";
 
 export type CsharpUnionCallClassification =
   | { readonly kind: "not-union" }

@@ -6,15 +6,15 @@ import type { CsharpSourceCallResult } from "../../../target-model/operations/so
 import { selectCsharpSourceCallResult } from "./call-results.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType, csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType, csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpTargetParameterValueType } from "../../../target-model/types/member-facts.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
+import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 import { nextState } from "./state.js";
 import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
 import { retainCsharpUnionObjectShapes, selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { Node_Expression } from "@tsonic/target-api/source";
 import { selectCsharpNativeFlowMembers } from "./native-flow-refinement.js";
 import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";

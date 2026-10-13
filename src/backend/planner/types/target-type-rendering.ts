@@ -2,7 +2,7 @@ import type {
   SourcePrimitiveKind,
 } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
-import type { CsharpTypeNode } from "../../target-ast/roslyn/index.js";
+import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { csharpTupleType } from "./csharp-tuples.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { sanitizeIdentifier, tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";

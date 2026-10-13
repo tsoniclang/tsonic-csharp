@@ -4,10 +4,10 @@ import type { CsharpArrayLikeUnionProjection } from "../../../../target-model/co
 import type { CsharpSourceProfileElementPolicyResult, CsharpSourceProfilePropertyPolicyResult } from "../source-profile-policy.js";
 import { sourceProfilePropertyIdentities } from "../source-profile-policy.js";
 import { csharpSourceProfileDeclarationIdentity, type CsharpSourceProfileDeclarationIdentity } from "../source-profile-identity.js";
-import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../../../target-model/types/array-like.js";
-import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/runtime-carriers.js";
-import { csharpNullableValueTargetType } from "../../../../target-model/types/nullable.js";
-import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/scalar-types.js";
+import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../../../target-model/types/carriers/array-like.js";
+import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableValueTargetType } from "../../../../target-model/types/carriers/nullable.js";
+import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { typedArrayNames } from "../../../types/resolution/surface-types.js";
 import { jsRuntimeTargetType, staticMethod, targetParameter, targetProperty } from "./common.js";

@@ -3,7 +3,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpMethodDeclaration,
-} from "../../../target-ast/roslyn/index.js";
+} from "../../../target-ast/syntax/index.js";
 import { AsMethodDeclaration } from "@tsonic/target-api/source";
 import { planCsharpAbsenceReturn } from "../../statements/statement-output.js";
 import {

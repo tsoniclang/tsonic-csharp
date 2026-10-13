@@ -13,7 +13,7 @@ import {
   csharpSourceMemberKeysEqual,
 } from "./source-member-keys.js";
 import { isCsharpStringTargetType } from "./identity.js";
-import { isCsharpJsValueTargetType } from "./runtime-carriers.js";
+import { isCsharpJsValueTargetType } from "./carriers/runtime-carriers.js";
 
 export type CsharpObjectShapeMemberLookupProvenance =
   | "checked-property-access"

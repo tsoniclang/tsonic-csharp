@@ -4,7 +4,7 @@ import { csharpTargetTypeComponents } from "./components.js";
 import { csharpTypeProjection } from "./projections.js";
 import { snapshotCsharpTargetTypes } from "./snapshot.js";
 import { createCsharpMetadataBudget } from "../metadata/immutable.js";
-import { csharpTypeParameterConstraintResolutionKey, type CsharpTypeParameterConstraintResolution } from "../declarations/generic-constraints.js";
+import { csharpTypeParameterConstraintResolutionKey, type CsharpTypeParameterConstraintResolution } from "./generic-constraints.js";
 
 type TypeParameter = Extract<TargetTypeRef, { readonly kind: "type-parameter" }>;
 type TraversalBudget = ReturnType<typeof createCsharpMetadataBudget>;

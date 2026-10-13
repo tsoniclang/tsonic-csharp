@@ -15,7 +15,7 @@ import {
 } from "../../../target-model/types/index.js";
 import type {
   CsharpExpression,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";

@@ -6,18 +6,18 @@ import type {
 import type {
   DotnetAssemblySourcePackage,
   DotnetModuleSpecifierPolicy,
-} from "./modules/specifier.js";
+} from "./projection/modules/specifier.js";
 import {
   createDotnetModuleSpecifierPolicy,
   normalizeDotnetAssemblySourcePackages,
-} from "./modules/specifier.js";
+} from "./projection/modules/specifier.js";
 import type { DotnetProviderIdentity } from "./model/index.js";
 import {
   createDotnetReflectionTypeDataProvider,
-} from "./reflection/provider.js";
+} from "./acquisition/provider.js";
 import type {
   DotnetReflectionTypeDataProvider,
-} from "./reflection/provider.js";
+} from "./acquisition/provider.js";
 import {
   csharpProviderPolicyContributionKind,
   composeCsharpBinaryExecutionDriver,
@@ -106,7 +106,7 @@ export function collectCsharpCapabilityContributions(
 export function createCapabilityDotnetProviders(
   contributions: CollectedCsharpCapabilityContributions,
   storage: CsharpDotnetProviderStorage,
-  toolchain: import("./reflection/tool/toolchain.js").DotnetProviderToolchain,
+  toolchain: import("./acquisition/toolchain.js").DotnetProviderToolchain,
 ): readonly CsharpCapabilityDotnetProvider[] {
   const providers: CsharpCapabilityDotnetProvider[] = [];
   const identities = new Set<string>();

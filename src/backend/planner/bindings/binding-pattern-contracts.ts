@@ -6,7 +6,7 @@ import type {
   CsharpExpression,
   CsharpStatement,
   CsharpTypeNode,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 
 export type BindingProjectionPlanner = (

@@ -1,4 +1,4 @@
-import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 
 export function planCsharpNeverValue(
   expression: CsharpExpression,

@@ -4,9 +4,9 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
-import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
+import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpBindingDefaultCarrier } from "../../../target-model/types/binding-normalization.js";
-import { getCsharpCollectionElementTargetType } from "../../../target-model/types/collections.js";
+import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import {
   resolveCsharpObjectShapeMemberBySourceContract,
 } from "../../../target-model/types/object-shape-members.js";
@@ -21,7 +21,7 @@ import type {
 import {
   csharpArrayBindingProjectionTarget,
   resolveCsharpArrayBindingCarrier,
-} from "../../../target-model/types/binding-array-carrier.js";
+} from "../../../target-model/types/carriers/binding-array-carrier.js";
 import { nextState } from "../resolution/state.js";
 
 export interface CsharpBindingProjectionPolicyHost {

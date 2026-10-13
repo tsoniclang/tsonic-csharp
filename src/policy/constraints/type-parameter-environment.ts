@@ -2,7 +2,7 @@ import type { AstReader, Node } from "@tsonic/tsts";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import { csharpTypeProjection } from "../../target-model/types/projections.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpTypeParameterConstraintResolution } from "../../target-model/declarations/generic-constraints.js";
+import type { CsharpTypeParameterConstraintResolution } from "../../target-model/types/generic-constraints.js";
 import type { CsharpTypeParameterConstraintResolver } from "../../target-model/types/generic-references.js";
 import { snapshotCsharpTargetTypes } from "../../target-model/types/snapshot.js";
 

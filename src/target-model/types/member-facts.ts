@@ -5,7 +5,7 @@ import type {
   CsharpTargetMember,
   CsharpTargetParameter,
 } from "./model.js";
-import { getCsharpJsArrayElementTargetType } from "./collections.js";
+import { getCsharpJsArrayElementTargetType } from "./carriers/collections.js";
 
 export function targetMethod(
   id: string,

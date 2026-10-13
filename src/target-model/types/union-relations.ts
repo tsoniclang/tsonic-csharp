@@ -1,6 +1,6 @@
 import type { TargetTypeRef } from "./model.js";
 import { targetTypeRefEquals } from "./equality.js";
-import { getCsharpRuntimeUnionArms } from "./runtime-carriers.js";
+import { getCsharpRuntimeUnionArms } from "./carriers/runtime-carriers.js";
 import type { CsharpTypeDefinitions } from "./source-union-definitions.js";
 import { csharpMetadataDescriptors } from "../metadata/immutable.js";
 import { snapshotCsharpTargetTypes } from "./snapshot.js";

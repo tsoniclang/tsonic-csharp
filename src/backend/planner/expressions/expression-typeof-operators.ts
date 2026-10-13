@@ -3,7 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";
+import { getCsharpClassFactory } from "../../../target-model/types/carriers/class-factories.js";
 import {
   sourceOperatorFromKindName,
 } from "../../../target-model/syntax/operators.js";

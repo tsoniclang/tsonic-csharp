@@ -1,4 +1,4 @@
-import type { CsharpArgument, CsharpExpression } from "../../../target-ast/roslyn/index.js";
+import type { CsharpArgument, CsharpExpression } from "../../../target-ast/syntax/index.js";
 
 export function runtimeArrayHelperCall(name: string, args: readonly CsharpArgument[]): CsharpExpression {
   return {

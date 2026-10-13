@@ -2,7 +2,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpResolvedBinaryOperation } from "../../../../analysis/operations/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
-import type { CsharpExpression } from "../../../target-ast/roslyn/index.js";
+import type { CsharpExpression } from "../../../target-ast/syntax/index.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
@@ -11,7 +11,7 @@ import { planCsharpStorageIsAbsent } from "../optional-storage.js";
 import { planCsharpAssignmentLocation } from "./assignment-location.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";
 import { planCsharpValueBranch } from "../planned-value-composition.js";
-import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/scalar-types.js";
+import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 
 export function planCsharpClosedValueCoalescing(
   node: Node,

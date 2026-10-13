@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { sourceParameterIsProperty } from "@tsonic/target-api/source";
-import type { CsharpStatement } from "../../../target-ast/roslyn/index.js";
+import type { CsharpStatement } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { declareCsharpLocalBindingName, type DestructuringPlannerState } from "../../bindings/index.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";

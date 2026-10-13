@@ -3,7 +3,7 @@ import type {
   CsharpBlock,
   CsharpCollectionInitializerElement,
   CsharpExpression,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import {
   csharpTypeRequiresUnsafe,
 } from "../types/target-types.js";

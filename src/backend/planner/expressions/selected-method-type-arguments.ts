@@ -14,7 +14,7 @@ import {
 } from "../objects/index.js";
 import type {
   CsharpTypeNode,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";

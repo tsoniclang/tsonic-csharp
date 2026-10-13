@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { planCsharpDelegateAdapter } from "../../../../dist/backend/planner/expressions/delegate-adapters.js";
 import { applyCsharpConversionSelection } from "../../../../dist/backend/planner/expressions/conversions.js";
-import { csharpAbsenceTargetType, csharpTsValueTargetType } from "../../../../dist/target-model/types/runtime-carriers.js";
-import { csharpDelegateTargetType, isCsharpSourceDelegateTargetType } from "../../../../dist/target-model/types/delegates.js";
-import { csharpNullableTargetType } from "../../../../dist/target-model/types/nullable.js";
-import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/scalar-types.js";
+import { csharpAbsenceTargetType, csharpTsValueTargetType } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpDelegateTargetType, isCsharpSourceDelegateTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
+import { csharpNullableTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
+import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 
 const number = csharpSourcePrimitiveTargetType("float64");
 const source = csharpDelegateTargetType("System.Action", []);

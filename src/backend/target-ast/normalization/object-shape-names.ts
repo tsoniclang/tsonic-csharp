@@ -1,4 +1,4 @@
-import type { CsharpCompilationUnit } from "../roslyn/index.js";
+import type { CsharpCompilationUnit } from "../syntax/index.js";
 import { transformCsharpTargetAst } from "./transformation.js";
 
 export interface CsharpObjectShapeNameCandidate {

@@ -5,7 +5,7 @@ import type {
 } from "./model.js";
 import {
   getCsharpDelegateSignature,
-} from "./delegates.js";
+} from "./carriers/delegates.js";
 import {
   isCsharpStringTargetType,
 } from "./identity.js";

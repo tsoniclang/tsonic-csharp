@@ -2,10 +2,10 @@ import type { TargetTypeRef } from "./model.js";
 import type { CsharpTypeDefinitions } from "./source-union-definitions.js";
 import type { CsharpUnionArmMapping, CsharpUnionPathStep } from "./union-relations.js";
 import { csharpUnionLeaves, csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "./union-relations.js";
-import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "./runtime-carriers.js";
-import { getCsharpNullableElementTargetType } from "./nullable.js";
+import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "./carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "./carriers/nullable.js";
 import { isCsharpVoidTargetType } from "./identity.js";
-import { csharpVoidTargetType } from "./scalar-types.js";
+import { csharpVoidTargetType } from "./carriers/scalar-types.js";
 import { targetTypeRefEquals } from "./equality.js";
 
 export interface CsharpAwaitAlternative {

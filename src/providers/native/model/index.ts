@@ -33,7 +33,7 @@ export {
   dotnetTypeParameterToProviderTypeParameter,
   dotnetTypeRefToProviderType,
   tryDotnetTypeRefToProviderType,
-} from "../declarations/provider-conversion.js";
+} from "../projection/declarations/provider-conversion.js";
 export {
   dotnetConstraintToTargetConstraint,
   dotnetExportToTargetBinding,

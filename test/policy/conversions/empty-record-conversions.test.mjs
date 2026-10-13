@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpEmptyRecordConversion } from "../../../dist/policy/conversions/selection/empty-record.js";
-import { csharpEmptyObjectTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
+import { selectCsharpEmptyRecordConversion } from "../../../dist/policy/conversions/empty-record.js";
+import { csharpEmptyObjectTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 
 test("empty-record conversion requires exact fieldless value facts", () => {
   const object = csharpEmptyObjectTargetType();

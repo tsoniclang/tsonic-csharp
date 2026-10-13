@@ -17,7 +17,7 @@ import type {
   CsharpInterfaceMember,
   CsharpInterfaceMethodDeclaration,
   CsharpInterfacePropertyDeclaration,
-} from "../../../target-ast/roslyn/index.js";
+} from "../../../target-ast/syntax/index.js";
 import { planAttributesForSubject } from "../attributes.js";
 import {
   getCsharpTypeForNode,

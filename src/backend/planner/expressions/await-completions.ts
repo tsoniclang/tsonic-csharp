@@ -2,11 +2,11 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpAwaitAlternative, CsharpAwaitCompletion } from "../../../target-model/types/await-completions.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpTaskTargetType } from "../../../target-model/types/delegates.js";
+import { csharpTaskTargetType } from "../../../target-model/types/carriers/delegates.js";
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
-import { isCsharpAbsenceTargetType } from "../../../target-model/types/runtime-carriers.js";
-import { csharpVoidTargetType } from "../../../target-model/types/scalar-types.js";
-import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/roslyn/index.js";
+import { isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
@@ -14,7 +14,7 @@ import { planCsharpUnionMapping } from "./union-mappings.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { captureCsharpPlannedValue, planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
-import type { CsharpStatement } from "../../target-ast/roslyn/index.js";
+import type { CsharpStatement } from "../../target-ast/syntax/index.js";
 
 export function planCsharpAwaitCompletion(
   node: Node,

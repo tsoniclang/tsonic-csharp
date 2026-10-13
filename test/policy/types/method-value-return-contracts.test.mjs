@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpMethodValueType, csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../dist/target-model/types/method-values.js";
-import { csharpDelegateTargetType } from "../../../dist/target-model/types/delegates.js";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { reconcileInferredReturnTargetContract } from "../../../dist/analysis/declarations/analyze.js";
-import { selectCsharpConversion } from "../../../dist/policy/conversions/selection/core.js";
+import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 
 const owner = { kind: "target-named", id: "tsonic.shape:environment", csharpRender: { kind: "named", name: "Environment" } };
 const protocol = { kind: "target-named", id: "tsonic.shape:protocol", csharpRender: { kind: "named", name: "Protocol" } };

@@ -5,7 +5,7 @@ import type {
   CsharpArgument,
   CsharpConstructorDeclaration,
   CsharpStatement,
-} from "../../../target-ast/roslyn/index.js";
+} from "../../../target-ast/syntax/index.js";
 import {
   AsCallExpression,
   AsClassStaticBlockDeclaration,

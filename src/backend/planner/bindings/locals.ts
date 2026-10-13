@@ -15,14 +15,14 @@ import type {
   CsharpExpression,
   CsharpLocalDeclaration,
   CsharpStatement,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import { getCsharpTypeForNode } from "../types/index.js";
 import {
   getTargetTypeRefForNode,
 } from "../types/runtime-carriers.js";
 import { planExpressionWithExpectedType } from "../expressions/index.js";
 import { planCsharpNativeMemoryCall } from "../expressions/native-memory.js";
-import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getLambdaTargetContext } from "../expressions/expression-lambdas.js";
 import { planVariableBindingStatements } from "./index.js";
 import {

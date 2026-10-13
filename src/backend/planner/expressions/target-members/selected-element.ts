@@ -16,7 +16,7 @@ import {
 import type {
   CsharpArgument,
   CsharpExpression,
-} from "../../../target-ast/roslyn/index.js";
+} from "../../../target-ast/syntax/index.js";
 import {
   selectedPolicyDiagnostic,
   targetPolicyDiagnostic,
@@ -48,7 +48,7 @@ import { buildCsharpPlannedValue, composeCsharpPlannedValues, planCsharpOptional
 import { csharpPlannedValue } from "../planned-values.js";
 import { planCsharpDiscardedOperand } from "../../statements/statement-output.js";
 import { translateCsharpSourceOwnedMember } from "./source-owned-members.js";
-import { csharpCollectionElementRead } from "../../../../target-model/types/collection-reads.js";
+import { csharpCollectionElementRead } from "../../../../target-model/types/carriers/collection-reads.js";
 import { planCsharpCollectionElementRead } from "../collection-reads.js";
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import { captureCsharpPlannedMemberReceiver } from "../planned-locations.js";

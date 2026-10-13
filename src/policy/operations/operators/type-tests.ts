@@ -1,10 +1,10 @@
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpClosedTypePredicate, CsharpClosedTypeTestPlan } from "../../../target-model/operations/type-tests.js";
-import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/collections.js";
+import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
-import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../target-model/types/runtime-carriers.js";
-import { isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";

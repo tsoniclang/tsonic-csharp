@@ -3,13 +3,13 @@ import { selectSourceGuardedValueMembers, selectSourceGuardedTypeMembers, select
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
 import { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
-import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/collections.js";
+import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { CsharpClosedTypePredicate } from "../../../target-model/operations/type-tests.js";
 import { selectCsharpClosedTypeTestPlan } from "../../operations/operators/type-tests.js";
 import type { CsharpTypePolicyHost } from "./model.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
-import { csharpAbsenceTargetType, csharpCarrierAdmitsSourceAbsence, isCsharpAbsenceTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { csharpAbsenceTargetType, csharpCarrierAdmitsSourceAbsence, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 
 export function selectCsharpNativeFlowMembers(
   host: CsharpTypePolicyHost,

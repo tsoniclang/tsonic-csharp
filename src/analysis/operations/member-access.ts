@@ -5,7 +5,7 @@ import type {
 import { readCsharpSourceField } from "../../policy/types/resolution/source-markers.js";
 import { sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpTargetElementSelection } from "../../policy/operations/members/index.js";
-import { validateCsharpJsValueOperationSelection } from "../../policy/js-value-operations/selection.js";
+import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";
 import {
   resolveCsharpJsValueObjectShapeProperty,
   selectCsharpTargetProperty,
@@ -13,7 +13,7 @@ import {
 import {
   selectCsharpJsValueReceiverExpressionOperation,
   selectCsharpJsValueReceiverOperation,
-} from "../../policy/js-value-operations/index.js";
+} from "../../policy/operations/js-values/index.js";
 import {
   csharpNullableTargetType,
   resolveCsharpObjectShapeMemberBySelectedSubject,

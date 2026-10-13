@@ -20,7 +20,7 @@ import type {
   CsharpSourceStruct,
 } from "../../../analysis/source-evidence/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTypeMember, CsharpStructDeclaration, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
+import type { CsharpTypeMember, CsharpStructDeclaration, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { renderBoundRecordMember } from "../objects/declarations/members.js";
 import { planAttributesForSubject } from "./attributes.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "../types/index.js";

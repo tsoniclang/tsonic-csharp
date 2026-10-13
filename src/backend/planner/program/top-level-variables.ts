@@ -17,7 +17,7 @@ import type {
   CsharpTypeDeclaration,
   CsharpTypeMember,
   CsharpTypeNode,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import { planLocalDeclaration, planLocalDeclarationStatements } from "../bindings/locals.js";
 import { planStatements } from "../statements/index.js";
 import { planValueTypeDeclaration } from "../declarations/value-types.js";

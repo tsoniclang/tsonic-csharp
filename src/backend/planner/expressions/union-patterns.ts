@@ -1,4 +1,4 @@
-import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpUnionPathStep } from "../../../target-model/types/union-relations.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "./union-access.js";

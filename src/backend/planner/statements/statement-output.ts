@@ -1,5 +1,5 @@
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
-import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import {
   isCsharpVoidTargetType,
   isCsharpNeverTargetType,
@@ -11,7 +11,7 @@ import { planCsharpNeverValue } from "../expressions/never-values.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import type { CsharpPlannedValue, CsharpPlannedEffectOperand } from "../expressions/planned-values.js";
 import { csharpPlannedEffect, csharpPlannedExpressionIsStable } from "../expressions/planned-values.js";
-import { csharpVoidTargetType } from "../../../target-model/types/scalar-types.js";
+import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 
 export function consumeCsharpPlannedValue(
   planned: CsharpPlannedValue,

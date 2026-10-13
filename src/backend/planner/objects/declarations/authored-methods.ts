@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../../target-model/types/model.js";
-import type { CsharpExpression, CsharpTypeMember } from "../../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpTypeMember } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlannedObjectAssignment } from "../../expressions/planned-initializers.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { createCsharpMemberPlanningContext, createCsharpThisBindingPlanningContext } from "../../context.js";

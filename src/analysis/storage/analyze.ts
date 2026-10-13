@@ -3,7 +3,7 @@ import { IsTypeSyntaxNode } from "@tsonic/target-api/source";
 import { csharpNativeMemoryLayoutsEqual } from "../../target-model/operations/native-memory.js";
 import {
   conversionIsImplicitlyApplicable,
-} from "../../policy/conversions/selection/core.js";
+} from "../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/index.js";
 import {
   getCsharpCallableValueSignature,

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Node, Type } from "@tsonic/tsts";
 import type { TargetTypeRef } from "./model.js";
-import type { CsharpTypeParameterConstraint } from "../declarations/generic-constraints.js";
+import type { CsharpTypeParameterConstraint } from "./generic-constraints.js";
 import { targetTypeRefKey } from "./equality.js";
 import { csharpTargetNamedType } from "./factories.js";
 import { csharpQualifiedTypeRenderShape } from "./render-shapes.js";

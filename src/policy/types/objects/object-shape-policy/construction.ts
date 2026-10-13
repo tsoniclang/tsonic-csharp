@@ -8,7 +8,7 @@ import {
 import { canUseCsharpJsValueObjectShapeCarrier } from "../../../../target-model/types/js-value-object-shapes.js";
 import { createHash } from "node:crypto";
 import { csharpTargetNamedType } from "../../../../target-model/types/factories.js";
-import { csharpEmptyObjectTargetType, csharpTsValueTargetType } from "../../../../target-model/types/runtime-carriers.js";
+import { csharpEmptyObjectTargetType, csharpTsValueTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { isPlainCsharpIdentifier } from "../../../../target-model/names/identifiers.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import { csharpObjectShapeTypeParameters, closeCsharpOwnerTypeParameterEnvironment,
@@ -17,7 +17,7 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMe
 import {
   csharpWellKnownSymbolTargetMemberName,
 } from "../../../../target-model/types/source-member-keys.js";
-import { csharpTypeParameterConstraintResolutionKey } from "../../../../target-model/declarations/generic-constraints.js";
+import { csharpTypeParameterConstraintResolutionKey } from "../../../../target-model/types/generic-constraints.js";
 
 export function createStructuralObjectShapeTarget(
   members: readonly CsharpObjectShapeMemberFact[],

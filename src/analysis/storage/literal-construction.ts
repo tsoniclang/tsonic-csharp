@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/index.js";
 import { selectCsharpArrayLiteralCarrier } from "../../policy/types/collections/literal-construction.js";
-import { getCsharpArrayLiteralElementTargetType } from "../../target-model/types/collections.js";
+import { getCsharpArrayLiteralElementTargetType } from "../../target-model/types/carriers/collections.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpConversionClassifications } from "../conversions/index.js";

@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
 import { createCsharpNativeConstructionDemandQuery } from "../../../dist/policy/types/objects/native-construction-demand.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/nullable.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { maximumCsharpMetadataEntries } from "../../../dist/target-model/metadata/immutable.js";
-import { csharpStringTargetType } from "../../../dist/target-model/types/scalar-types.js";
-import { csharpTsValueTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
+import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int64" });
 const floating = Object.freeze({ kind: "source-primitive", name: "float64" });

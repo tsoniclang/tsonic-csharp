@@ -2,11 +2,11 @@ import type { ResolvedSourceCallInfo, SourceFile } from "@tsonic/tsts";
 import type { CsharpTypePolicyBaseHost, CsharpTypePolicy } from "../resolution/model.js";
 import type { CsharpSourceCalleeSelection } from "../../../target-model/operations/source-callees.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
-import { getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import type { CsharpProjectTypePolicy } from "../project/project-types.js";
 import { resolveCsharpStaticMemberReceiver } from "../project/static-members.js";
-import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-carriers.js";
+import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 
 export interface CsharpSourceCalleeHost {

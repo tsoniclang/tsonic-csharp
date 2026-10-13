@@ -14,7 +14,7 @@ import type {
   ProviderOwnership,
   SourceDeclarationProvider,
 } from "@tsonic/tsts";
-import { dotnetModuleToProviderDeclarationModel } from "./declarations/index.js";
+import { dotnetModuleToProviderDeclarationModel } from "./projection/declarations/index.js";
 import {
   validateDotnetProviderDeclarationModelContract,
 } from "./model/contract.js";
@@ -25,13 +25,13 @@ import type {
 } from "./model/index.js";
 import {
   augmentDotnetModuleWithNativeArray,
-} from "./modules/native-array.js";
+} from "./projection/modules/native-array.js";
 import {
   dotnetModuleSpecifierPolicy,
-} from "./modules/specifier.js";
+} from "./projection/modules/specifier.js";
 import type {
   DotnetModuleSpecifierPolicy,
-} from "./modules/specifier.js";
+} from "./projection/modules/specifier.js";
 import {
   dotnetExtensionDiagnostic,
   dotnetProviderDeclarationModelInvalidDiagnostic,
@@ -45,15 +45,15 @@ import {
   dotnetProviderModuleContext,
   dotnetProviderModuleRequest,
   providerVirtualDeclarationFileName,
-} from "./modules/request.js";
+} from "./projection/modules/request.js";
 import {
   dotnetProviderResolutionContext,
   missingDotnetRequestedExports,
   sliceDotnetModuleExports,
-} from "./modules/slices.js";
+} from "./projection/modules/slices.js";
 import type {
   DotnetProviderResolutionContext,
-} from "./modules/slices.js";
+} from "./projection/modules/slices.js";
 
 export interface DotnetTypeDataProvider {
   readonly identity: DotnetProviderIdentity;

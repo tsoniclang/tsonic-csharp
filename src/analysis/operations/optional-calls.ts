@@ -5,7 +5,7 @@ import { selectCsharpConversion } from "../../policy/conversions/index.js";
 import { getCsharpDelegateSignature, getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
-import { isCsharpJsValueTargetType } from "../../target-model/types/runtime-carriers.js";
+import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpCallClassification } from "./model.js";
 
 export function classifyCsharpOptionalCallCallee(

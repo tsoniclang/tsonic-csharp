@@ -15,7 +15,7 @@ import type {
 import type {
   CsharpProviderTargetRelation,
   CsharpTargetReceiverRelation,
-} from "../../../../providers/relations/index.js";
+} from "../../../../providers/native/relations/index.js";
 import type {
   CsharpTargetMember,
   CsharpProjectTypePolicy,
@@ -40,7 +40,7 @@ import {
 import { csharpSourceArgumentPassingMode } from "../selection/argument-selection.js";
 import { selectCsharpProviderPointerResult } from "../../pointers/provider-result.js";
 import { inferCsharpTargetTypeParameterBindings } from "../../../../target-model/types/substitution.js";
-import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/runtime-carriers.js";
+import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import {
   mergeCsharpTypeParameterSubstitutions,
   resolveCsharpTargetBindingArguments,

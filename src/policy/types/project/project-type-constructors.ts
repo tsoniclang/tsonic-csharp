@@ -18,7 +18,7 @@ import type {
 } from "../../../providers/model/relation-resolver.js";
 import type {
   CsharpProviderTargetRelation,
-} from "../../../providers/relations/index.js";
+} from "../../../providers/native/relations/index.js";
 import {
   resolveCsharpProviderDeclarationEvidence,
 } from "../../operations/members/providers/evidence.js";

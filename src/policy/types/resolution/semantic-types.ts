@@ -15,7 +15,7 @@ import {
   csharpAbsenceTargetType,
   isCsharpAbsenceTargetType,
   csharpTsValueTargetType,
-} from "../../../target-model/types/runtime-carriers.js";
+} from "../../../target-model/types/carriers/runtime-carriers.js";
 import {
   csharpBigIntegerTargetType,
   csharpObjectTargetType,
@@ -24,7 +24,7 @@ import {
   csharpStringTargetType,
   csharpNeverTargetType,
   csharpVoidTargetType,
-} from "../../../target-model/types/scalar-types.js";
+} from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpJsSymbolTargetType } from "./surface-types.js";
 import {
   csharpFixedArrayRepresentationRejection,
@@ -39,7 +39,7 @@ import {
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
 import { csharpTargetTypeFromBinding } from "../storage/bindings.js";
 import { readCsharpSourceKeepAlive } from "../../operations/flow/source-flow.js";
-import { csharpNullableReferenceTargetType, isCsharpNullableReferenceTargetType } from "../../../target-model/types/nullable.js";
+import { csharpNullableReferenceTargetType, isCsharpNullableReferenceTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { maximumTypeResolutionDepth } from "./model.js";
 import { nextState } from "./state.js";
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";

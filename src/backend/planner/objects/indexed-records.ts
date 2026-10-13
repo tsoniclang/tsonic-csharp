@@ -1,4 +1,4 @@
-import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";

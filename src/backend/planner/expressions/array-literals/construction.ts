@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import type { ArrayLiteralPlanner } from "./types.js";
@@ -11,7 +11,7 @@ import { planCsharpSequenceAppendStatements, planCsharpSequenceLength, planCshar
 import { csharpPlannedValue, csharpPlannedExpressionIsStable, type CsharpPlannedValue } from "../planned-values.js";
 import { composeCsharpPlannedValues } from "../planned-value-composition.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { csharpCollectionElementRead } from "../../../../target-model/types/collection-reads.js";
+import { csharpCollectionElementRead } from "../../../../target-model/types/carriers/collection-reads.js";
 
 interface Contribution {
   readonly node: Node;

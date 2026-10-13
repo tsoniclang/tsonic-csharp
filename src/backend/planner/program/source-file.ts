@@ -36,7 +36,7 @@ import type {
   CsharpTypeDeclaration,
   CsharpTypeMember,
   CsharpTypeNode,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import { isErasedAttributeExpressionStatement } from "../declarations/attributes.js";
 import {
   getCsharpTypeForNode,

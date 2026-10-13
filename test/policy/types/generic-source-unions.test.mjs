@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
+import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeFactTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 import { selectCsharpAuthoredUnionRefinement, sourceRefinementOnlyRemovesNullish } from "../../../dist/policy/types/resolution/source-union-refinement.js";
-import { selectCsharpConversion } from "../../../dist/policy/conversions/selection/core.js";
+import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { selectCsharpObjectLiteralUnionCarrier } from "../../../dist/policy/types/objects/object-shape-policy/union-construction.js";
 import { csharpSourceUnionTargetType } from "../../../dist/target-model/types/source-union-definitions.js";
-import { csharpStringTargetType } from "../../../dist/target-model/types/scalar-types.js";
+import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
 const byte = { kind: "source-primitive", name: "uint8" };
 const integer = { kind: "source-primitive", name: "int32" };

@@ -1,4 +1,4 @@
-import type { CsharpExpression } from "../../backend/target-ast/roslyn/index.js";
+import type { CsharpExpression } from "../../backend/target-ast/syntax/index.js";
 import { failUnsupportedCsharpSyntax } from "./fail-closed.js";
 
 export function csharpExpressionPrecedence(expression: CsharpExpression): number {

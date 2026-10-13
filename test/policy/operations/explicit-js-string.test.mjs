@@ -5,7 +5,7 @@ import { selectCsharpJsStringConversion } from "../../../dist/policy/operations/
 import { tryPlanCsharpJsStringConversion } from "../../../dist/backend/planner/expressions/expression-js-string-conversion.js";
 import { csharpPlannedValue, csharpPlannedEffect } from "../../../dist/backend/planner/expressions/planned-values.js";
 import { csharpJsStringTargetType, csharpStringTargetType, csharpNeverTargetType, csharpVoidTargetType } from "../../../dist/policy/types/index.js";
-import { selectCsharpConversion } from "../../../dist/policy/conversions/selection/core.js";
+import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 
 const nativeString = csharpStringTargetType();
 const exactString = csharpJsStringTargetType();

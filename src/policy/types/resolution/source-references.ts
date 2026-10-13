@@ -10,9 +10,9 @@ import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType
 import { csharpJsArrayTargetType } from "./surface-types.js";
 import { csharpSourceTypeArgumentNodes } from "../../../target-model/syntax/type-arguments.js";
 import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
-import { getCsharpCollectionElementTargetType } from "../../../target-model/types/collections.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
-import { csharpNeverTargetType } from "../../../target-model/types/scalar-types.js";
+import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { csharpNeverTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { nextState } from "./state.js";
 import { sourceFactSubjectsForNode, definedValues, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { sourcePrimitiveFactKey } from "@tsonic/tsts";

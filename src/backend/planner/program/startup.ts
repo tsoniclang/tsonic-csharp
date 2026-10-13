@@ -16,7 +16,7 @@ import { targetPolicyDiagnostic } from "../diagnostics.js";
 import type {
   CsharpExpression,
   CsharpStatement,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 
 export function planCsharpStartupSourceFile(
   input: CsharpPlanningContext,

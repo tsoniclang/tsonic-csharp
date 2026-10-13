@@ -11,7 +11,7 @@ import type {
   CsharpProviderBindingTypeArgumentSource,
   CsharpTargetReceiverRelation,
   CsharpProviderTypeParameterRelation,
-} from "../../relations/index.js";
+} from "./index.js";
 import type {
   CsharpTargetBindingFact,
   CsharpTargetMember,
@@ -24,10 +24,10 @@ import {
 } from "../model/index.js";
 import {
   dotnetMemberToProviderMember,
-} from "../declarations/members.js";
+} from "../projection/declarations/members.js";
 import {
   dotnetProviderSignatureIdsForMember,
-} from "../declarations/signatures.js";
+} from "../projection/declarations/signatures.js";
 import {
   dotnetMemberToTargetMemberRecords,
 } from "../projection/members.js";

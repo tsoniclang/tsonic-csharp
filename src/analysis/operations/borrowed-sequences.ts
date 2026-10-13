@@ -2,8 +2,8 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import { sourceSequenceInputChoice, sourceSequenceInputIsEmpty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { getCsharpCollectionElementTargetType, getCsharpIndexableLengthMemberName } from "../../target-model/types/collections.js";
-import { getCsharpNullableElementTargetType } from "../../target-model/types/nullable.js";
+import { getCsharpCollectionElementTargetType, getCsharpIndexableLengthMemberName } from "../../target-model/types/carriers/collections.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 
 export interface CsharpBorrowedSequenceInput {

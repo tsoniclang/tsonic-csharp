@@ -4,8 +4,8 @@ import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram, Node_Initializer } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { csharpValueDomainHasTargetType } from "../../../dist/policy/types/objects/value-domain-carrier.js";
-import { csharpEmptyObjectTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
+import { csharpEmptyObjectTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 
 function fixture() {

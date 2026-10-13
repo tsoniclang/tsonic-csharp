@@ -9,7 +9,7 @@ import {
 } from "../../../tsonic/test/architecture/tooling/target-layer-contract.mjs";
 
 export const csharpLayerRules = createTargetLayerRules({
-  providerModelPaths: ["src/providers/relations/index.ts", "src/providers/relations/relation-model.ts"],
+  providerModelPaths: ["src/providers/native/relations/index.ts", "src/providers/native/relations/relation-model.ts"],
   providerSdkPaths: ["src/public/provider-dotnet.ts"],
 });
 

@@ -3,13 +3,13 @@ import { AsTypeParameterDeclaration } from "@tsonic/target-api/source";
 import type { Node } from "@tsonic/tsts";
 
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpGenericConstraint, CsharpTypeParameter } from "../../target-ast/roslyn/index.js";
+import type { CsharpGenericConstraint, CsharpTypeParameter } from "../../target-ast/syntax/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import type {
   CsharpTypeParameterConstraint,
-} from "../../../target-model/declarations/generic-constraints.js";
+} from "../../../target-model/types/generic-constraints.js";
 import type { CsharpProjectedType } from "../../../target-model/types/projections.js";
 import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";

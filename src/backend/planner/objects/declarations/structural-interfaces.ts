@@ -1,14 +1,14 @@
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
 import { getCsharpDelegateSignature } from "../../../../target-model/types/index.js";
-import type { CsharpInterfaceMember } from "../../../target-ast/roslyn/index.js";
+import type { CsharpInterfaceMember } from "../../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import type { CsharpStorageClassifications } from "../../../../analysis/storage/model.js";
-import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/runtime-carriers.js";
+import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { objectShapeStorageMemberName } from "../object-shape-storage.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTypeParameter } from "../../../target-ast/roslyn/index.js";
+import type { CsharpTypeParameter } from "../../../target-ast/syntax/index.js";
 import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../../types/type-parameters.js";
-import { csharpNullableTargetType } from "../../../../target-model/types/nullable.js";
+import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import type { CsharpPlanningContext } from "../../context.js";
 

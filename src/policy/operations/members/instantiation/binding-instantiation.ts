@@ -5,7 +5,7 @@ import type {
 } from "@tsonic/tsts";
 import type {
   CsharpProviderTypeParameterRelation,
-} from "../../../../providers/relations/index.js";
+} from "../../../../providers/native/relations/index.js";
 import type {
   CsharpTargetBindingFact,
   CsharpTargetMember,

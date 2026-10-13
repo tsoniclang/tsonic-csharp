@@ -9,7 +9,7 @@ import type {
   CsharpParameter,
   CsharpStatement,
   CsharpTypeNode,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";

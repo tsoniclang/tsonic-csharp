@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
 import { resolveProviderObjectLiteralShape } from "../../../dist/policy/types/objects/object-shape-policy/provider-construction.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int64" });

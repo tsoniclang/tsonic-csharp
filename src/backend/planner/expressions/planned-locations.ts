@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpNativeLocationSelection } from "../../../analysis/storage/native-locations.js";
-import type { CsharpExpression, CsharpStatement } from "../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpPlannedValue, CsharpPlannedCapture, CsharpPlannedLocationCapture } from "./planned-values.js";
 import { csharpPlannedValue } from "./planned-values.js";

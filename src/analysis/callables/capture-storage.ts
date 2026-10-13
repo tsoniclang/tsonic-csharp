@@ -9,7 +9,7 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef 
 import type { CsharpObjectShapeClassifications } from "../objects/model.js";
 import type { CsharpStorageClassifications, CsharpStorageIssue } from "../storage/model.js";
 import { createStructuralObjectShapeTarget } from "../../policy/types/objects/object-shape-policy/construction.js";
-import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../target-model/types/runtime-carriers.js";
+import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
 import { selectCsharpFrameClosures, type CsharpFrameClosure } from "./capture-closures.js";
@@ -23,7 +23,7 @@ import { csharpCapturedMemberAccess } from "./captured-member-access.js";
 import type { CsharpDeclarationClassifications } from "../declarations/model.js";
 import type { CsharpTargetOperationClassifications } from "../operations/model.js";
 import type { CsharpExpectedTypeClassifications } from "../expected-types/model.js";
-import { getCsharpExpressionTreeDelegateType } from "../../target-model/types/delegates.js";
+import { getCsharpExpressionTreeDelegateType } from "../../target-model/types/carriers/delegates.js";
 import { HasSyntacticModifier, ModifierFlagsAsync } from "@tsonic/target-api/source";
 
 export type CsharpLambdaCreation =

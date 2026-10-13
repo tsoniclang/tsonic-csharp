@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCaptureFrame } from "../../../../analysis/callables/capture-storage.js";
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
-import type { CsharpExpression, CsharpTypeMember } from "../../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpTypeMember } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { createCsharpMemberPlanningContext } from "../../context.js";
 import { planArrowFunctionExpression, planFunctionExpression } from "../../expressions/expression-lambdas.js";

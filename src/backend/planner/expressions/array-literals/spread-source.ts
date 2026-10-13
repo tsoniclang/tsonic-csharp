@@ -5,7 +5,7 @@ import { getCsharpCollectionElementTargetType, getCsharpIndexableLengthMemberNam
 import type { CsharpConversionSelection } from "../../../../target-model/conversions/selection.js";
 import { csharpConversionIsApplicable } from "../../../../target-model/conversions/selection.js";
 import type { CsharpPlanningContext } from "../../context.js";
-import type { CsharpExpression, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { ExpressionPlanner } from "../expression-planner-types.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { probeCarrierFromResolution, resolveRuntimeCarrierForExpression } from "../../types/runtime-carriers.js";

@@ -21,7 +21,7 @@ import {
 } from "../providers/native/contributions.js";
 import {
   createCsharpProviderRelationResolver,
-} from "../providers/relations/resolver.js";
+} from "../providers/native/relations/resolver.js";
 import { compileCsharpTarget } from "../backend/compile.js";
 import {
   createCsharpTargetConfiguration,
@@ -36,7 +36,7 @@ import {
   csharpSourceProfileContributions,
 } from "../source/profiles/source-profile-declarations.js";
 import { csharpCoreRuntimeSource, csharpRuntimeSourceContributions } from "../providers/runtime/source-projects.js";
-import { resolveDotnetProviderToolchain } from "../providers/native/reflection/tool/toolchain.js";
+import { resolveDotnetProviderToolchain } from "../providers/native/acquisition/toolchain.js";
 
 type CsharpCompilationSessionState =
   | "created"

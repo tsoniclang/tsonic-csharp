@@ -7,8 +7,8 @@ import {
 import {
   compileCsharpSource,
 } from "../../helpers/direct-csharp-session.mjs";
-import { csharpStringTargetType } from "../../../dist/target-model/types/scalar-types.js";
-import { csharpTsValueTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
+import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 
 test("object-shape reads retain exact authored member carriers through utility projections", () => {
   const compiled = compileCsharpSource({

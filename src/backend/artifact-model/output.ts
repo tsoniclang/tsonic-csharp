@@ -1,4 +1,4 @@
-import type { CsharpCompilationUnit } from "../target-ast/roslyn/index.js";
+import type { CsharpCompilationUnit } from "../target-ast/syntax/index.js";
 import type { CsharpProjectPlan } from "./project/model.js";
 
 export interface CsharpOutputPlan {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeCsharpObjectShapes } from "../../../dist/analysis/objects/analyze.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 
 const integer = { kind: "source-primitive", name: "int64" };
 const floating = { kind: "source-primitive", name: "float64" };

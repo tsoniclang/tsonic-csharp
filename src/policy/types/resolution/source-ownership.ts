@@ -15,9 +15,9 @@ import type {
 } from "../../../target-model/types/model.js";
 import {
   isCsharpJsValueTargetType,
-} from "../../../target-model/types/runtime-carriers.js";
+} from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
-import { isCsharpSourceDelegateTargetType } from "../../../target-model/types/delegates.js";
+import { isCsharpSourceDelegateTargetType } from "../../../target-model/types/carriers/delegates.js";
 
 export function isTypeParameterTargetRef(
   type: TargetTypeRef | undefined,

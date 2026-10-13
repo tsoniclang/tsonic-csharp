@@ -1,7 +1,7 @@
 import type {
   CsharpTypeMember,
   CsharpTypeNode,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import {
   nullableCsharpType,
   qualifiedCsharpType,

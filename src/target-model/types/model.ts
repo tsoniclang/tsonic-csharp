@@ -32,7 +32,7 @@ export interface CsharpObjectShapeMemberFact {
     readonly declaration: Node;
     readonly identity: string;
     readonly name: string;
-    readonly constraints: readonly import("../declarations/generic-constraints.js").CsharpTypeParameterConstraint[];
+    readonly constraints: readonly import("./generic-constraints.js").CsharpTypeParameterConstraint[];
   }[];
   readonly optional?: boolean;
   readonly readonly?: boolean;
@@ -91,7 +91,7 @@ export type TargetTypeRef =
   | { readonly kind: "target-named"; readonly id: string; readonly typeArguments?: readonly TargetTypeRef[] }
   | { readonly kind: "type-parameter"; readonly identity: string; readonly name: string;
       readonly csharpDeclaration?: Node;
-      readonly csharpConstraints?: import("../declarations/generic-constraints.js").CsharpTypeParameterConstraintResolution;
+      readonly csharpConstraints?: import("./generic-constraints.js").CsharpTypeParameterConstraintResolution;
       readonly csharpProjection?: import("./projections.js").CsharpTypeProjection }
   | { readonly kind: "array"; readonly element: TargetTypeRef; readonly rank?: number }
   | { readonly kind: "tuple"; readonly elements: readonly TargetTypeRef[] }
@@ -232,7 +232,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpPropertyKeyIteration?: CsharpPropertyKeyIterationPolicy;
   readonly csharpDelegateSignature?: CsharpDelegateSignatureShape;
   readonly csharpExpressionTreeDelegateType?: TargetTypeRef;
-  readonly csharpClassFactory?: import("./class-factories.js").CsharpClassFactoryType;
+  readonly csharpClassFactory?: import("./carriers/class-factories.js").CsharpClassFactoryType;
   readonly csharpMethodValue?: {
     readonly owner: TargetTypeRef;
     readonly method: string;

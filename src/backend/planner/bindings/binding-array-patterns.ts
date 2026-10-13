@@ -13,7 +13,7 @@ import type {
   CsharpExpression,
   CsharpStatement,
   CsharpTypeNode,
-} from "../../target-ast/roslyn/index.js";
+} from "../../target-ast/syntax/index.js";
 import { runtimeArrayHelperCall } from "../expressions/arrays/helpers.js";
 import {
   getArrayBoundaryCoreCarrierForExpression,

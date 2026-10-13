@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpExactIntegerConversion } from "../../../dist/policy/conversions/selection/exact-integer.js";
-import { csharpNullableTargetType, csharpNullableValueTargetType } from "../../../dist/target-model/types/nullable.js";
+import { selectCsharpExactIntegerConversion } from "../../../dist/policy/conversions/exact-integer.js";
+import { csharpNullableTargetType, csharpNullableValueTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpObjectShapesEqual } from "../../../dist/target-model/types/object-shape-equality.js";
-import { selectCsharpConversion } from "../../../dist/policy/conversions/selection/core.js";
+import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { csharpJsArrayTargetType, csharpReadOnlyListTargetType, csharpStringTargetType, csharpObjectTargetType, csharpRuntimeErrorTargetType, csharpVoidTargetType } from "../../../dist/policy/types/index.js";
-import { selectCsharpFlowReadConversion } from "../../../dist/policy/conversions/selection/expression.js";
+import { selectCsharpFlowReadConversion } from "../../../dist/policy/conversions/expression.js";
 
 const primitive = name => ({ kind: "source-primitive", name });
 const integers = ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "native-int", "native-uint", "int128", "uint128"];

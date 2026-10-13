@@ -5,8 +5,8 @@ import type { CsharpTypePolicyHost, CsharpTypeResolutionState, CsharpRecursiveTy
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourceUnionTargetType } from "../../../target-model/types/source-union-definitions.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
-import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-carriers.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { nextState } from "./state.js";
 import { csharpSourceTemplateState } from "./type-bindings.js";
 

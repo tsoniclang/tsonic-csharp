@@ -1,7 +1,7 @@
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { sourceFileIdentity } from "@tsonic/target-api/source";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
-import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../../../target-ast/roslyn/index.js";
+import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../../../../target-model/types/index.js";
 import type { Node } from "@tsonic/tsts";

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpStructuralInterface } from "../../../dist/analysis/objects/structural-interfaces.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
-import { resolveCsharpOptionalStorage } from "../../../dist/target-model/types/optional-storage.js";
+import { resolveCsharpOptionalStorage } from "../../../dist/target-model/types/carriers/optional-storage.js";
 
 const element = { kind: "type-parameter", identity: "interface:Element", name: "Element" };
 const captured = { kind: "type-parameter", identity: "class:Element", name: "Element" };

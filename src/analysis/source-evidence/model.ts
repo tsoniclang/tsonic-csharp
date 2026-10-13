@@ -15,7 +15,7 @@ import type {
 } from "../../target-model/types/model.js";
 import type {
   CsharpTypeParameterConstraintResolution,
-} from "../../target-model/declarations/generic-constraints.js";
+} from "../../target-model/types/generic-constraints.js";
 import type {
   CsharpConversionSelection,
 } from "../../policy/conversions/index.js";

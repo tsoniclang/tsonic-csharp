@@ -11,15 +11,15 @@ import {
   csharpNullableTargetType,
   isCsharpNullableReferenceTargetType,
   getCsharpNullableElementTargetType,
-} from "./nullable.js";
-import { getCsharpRuntimeUnionArms, getCsharpGenericOptionalParts, isCsharpAbsenceTargetType } from "./runtime-carriers.js";
+} from "./carriers/nullable.js";
+import { getCsharpRuntimeUnionArms, getCsharpGenericOptionalParts, isCsharpAbsenceTargetType } from "./carriers/runtime-carriers.js";
 import {
   targetTypeRefEquals,
 } from "./equality.js";
 import { csharpTypeProjection, type CsharpOptionalTypeProjection } from "./projections.js";
-import { resolveCsharpOptionalStorage } from "./optional-storage.js";
+import { resolveCsharpOptionalStorage } from "./carriers/optional-storage.js";
 import { csharpFreeTypeParameterIdentities } from "./generic-references.js";
-import type { CsharpTypeParameterConstraint } from "../declarations/generic-constraints.js";
+import type { CsharpTypeParameterConstraint } from "./generic-constraints.js";
 
 export function substituteTargetTypeParameters(
   type: TargetTypeRef,
