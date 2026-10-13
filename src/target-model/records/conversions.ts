@@ -28,10 +28,10 @@ export interface CsharpExpressionConversionClassification {
 
 export interface CsharpConversionClassifications {
   readonly issues: readonly CsharpConversionIssue[];
-  readonly propertyProjection: { get(expression: Node, source: TargetTypeRef): readonly CsharpObjectShapeMemberFact[] | undefined };
-  readonly delegateAdapters: { get(scope: Node): readonly CsharpDelegateAdapterIdentity[] };
-  readonly delegateAdapter: { get(expression: Node, source: TargetTypeRef, target: TargetTypeRef): CsharpDelegateAdapterIdentity | undefined };
-  readonly directCallableReference: { get(expression: Node): SourceProjectReference | undefined };
+  readonly propertyProjection: { readonly get: (expression: Node, source: TargetTypeRef) => readonly CsharpObjectShapeMemberFact[] | undefined };
+  readonly delegateAdapters: { readonly get: (scope: Node) => readonly CsharpDelegateAdapterIdentity[] };
+  readonly delegateAdapter: { readonly get: (expression: Node, source: TargetTypeRef, target: TargetTypeRef) => CsharpDelegateAdapterIdentity | undefined };
+  readonly directCallableReference: { readonly get: (expression: Node) => SourceProjectReference | undefined };
   matchesUnionMapping(
     source: TargetTypeRef | undefined, target: TargetTypeRef | undefined,
     selection: Extract<CsharpConversionSelection, { readonly kind: "union-map" }>,
@@ -40,6 +40,6 @@ export interface CsharpConversionClassifications {
     source: TargetTypeRef | undefined, target: TargetTypeRef | undefined,
     selection: Extract<CsharpConversionSelection, { readonly kind: "runtime-union-projection" }>,
   ): boolean;
-  readonly conversion: { get(source: TargetTypeRef | undefined, target: TargetTypeRef | undefined, mode: CsharpConversionMode): CsharpConversionSelection | undefined };
-  readonly expressionConversion: { get(expression: Node, source: TargetTypeRef | undefined, target: TargetTypeRef | undefined, mode: CsharpConversionMode): CsharpConversionSelection | undefined };
+  readonly conversion: { readonly get: (source: TargetTypeRef | undefined, target: TargetTypeRef | undefined, mode: CsharpConversionMode) => CsharpConversionSelection | undefined };
+  readonly expressionConversion: { readonly get: (expression: Node, source: TargetTypeRef | undefined, target: TargetTypeRef | undefined, mode: CsharpConversionMode) => CsharpConversionSelection | undefined };
 }

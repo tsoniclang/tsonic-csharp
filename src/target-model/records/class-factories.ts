@@ -29,5 +29,5 @@ export interface CsharpClassFactory {
 export interface CsharpClassFactoryIndex {
   readonly factories: readonly CsharpClassFactory[];
   readonly issues: readonly CsharpStorageIssue[];
-  readonly classFactory: { get(declaration: Node): CsharpClassFactory | undefined };
+  readonly classFactory: { readonly get: (declaration: Node) => CsharpClassFactory | undefined };
 }

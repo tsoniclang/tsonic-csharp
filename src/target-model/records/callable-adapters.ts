@@ -20,7 +20,7 @@ export interface CsharpProjectCallableDispatch {
 
 export interface CsharpProjectCallableAdapters {
   readonly issues: readonly CsharpProjectTypeIssue[];
-  readonly callableDispatch: { get(declaration: Node): CsharpProjectCallableDispatch | undefined };
+  readonly callableDispatch: { readonly get: (declaration: Node) => CsharpProjectCallableDispatch | undefined };
 }
 
 export type CsharpCallableParameterAdapter =

@@ -7,6 +7,6 @@ export interface CsharpGenericProjectionIndex {
     readonly parameters: readonly CsharpProjectedType[];
     readonly outerParameters: readonly CsharpProjectedType[];
   }[];
-  readonly genericProjection: { get(declaration: Node): readonly CsharpProjectedType[] };
-  readonly outerGenericProjection: { get(declaration: Node): readonly CsharpProjectedType[] };
+  readonly genericProjection: { readonly get: (declaration: Node) => readonly CsharpProjectedType[] };
+  readonly outerGenericProjection: { readonly get: (declaration: Node) => readonly CsharpProjectedType[] };
 }

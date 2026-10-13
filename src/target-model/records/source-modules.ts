@@ -18,7 +18,7 @@ export interface CsharpSourceModuleConstruction {
 }
 
 export interface CsharpSourceModuleConstructionIndex {
-  readonly sourceModuleConstruction: { get(node: Node): CsharpSourceModuleConstruction | undefined };
+  readonly sourceModuleConstruction: { readonly get: (node: Node) => CsharpSourceModuleConstruction | undefined };
   entries(): readonly CsharpSourceModuleConstruction[];
   from(sourceFile: SourceFile): readonly CsharpSourceModuleConstruction[];
   targets(): readonly SourceFile[];

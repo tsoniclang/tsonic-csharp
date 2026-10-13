@@ -11,7 +11,7 @@ export type CsharpDefaultParameterContract = CsharpRuntimeParameterDefault & {
 };
 
 export interface CsharpDeclarationClassifications {
-  readonly returnContract: { get(node: Node): CsharpReturnTargetContract | undefined };
-  readonly runtimeDefault: { get(node: Node): CsharpDefaultParameterContract | undefined };
-  readonly methodWrite: { get(node: Node): { readonly type: TargetTypeRef; readonly storageName: string; readonly implementationName: string } | undefined };
+  readonly returnContract: { readonly get: (node: Node) => CsharpReturnTargetContract | undefined };
+  readonly runtimeDefault: { readonly get: (node: Node) => CsharpDefaultParameterContract | undefined };
+  readonly methodWrite: { readonly get: (node: Node) => { readonly type: TargetTypeRef; readonly storageName: string; readonly implementationName: string } | undefined };
 }

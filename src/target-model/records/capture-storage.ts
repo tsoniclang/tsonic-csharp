@@ -28,17 +28,17 @@ export interface CsharpCapturedBinding {
 export interface CsharpCaptureStorage {
   readonly issues: readonly CsharpStorageIssue[];
   readonly frames: readonly CsharpCaptureFrame[];
-  readonly captureFrame: { get(scope: Node): CsharpCaptureFrame | undefined };
-  readonly capturedBinding: { get(declaration: Node): CsharpCapturedBinding | undefined };
-  readonly physicalStorageType: { get(declaration: Node, logicalType: TargetTypeRef): TargetTypeRef };
-  readonly captureClosure: { get(declaration: Node): { readonly frame: CsharpCaptureFrame; readonly method: CsharpFrameClosure } | undefined };
-  readonly namedSelf: { get(declaration: Node): CsharpNamedSelfBinding | undefined };
-  readonly lambdaCreation: { get(declaration: Node): CsharpLambdaCreation };
-  readonly helperAccess: { get(declaration: Node): boolean };
-  readonly captureFrameShape: { get(type: TargetTypeRef): CsharpCaptureFrame | undefined };
-  readonly lexicalValueDeclarations: { get(statement: Node): readonly Node[] };
-  readonly lexicalValueCreation: { get(declaration: Node): SourceLexicalValueCreation | undefined };
-  readonly lexicalValueName: { get(declaration: Node): string | undefined };
+  readonly captureFrame: { readonly get: (scope: Node) => CsharpCaptureFrame | undefined };
+  readonly capturedBinding: { readonly get: (declaration: Node) => CsharpCapturedBinding | undefined };
+  readonly physicalStorageType: { readonly get: (declaration: Node, logicalType: TargetTypeRef) => TargetTypeRef };
+  readonly captureClosure: { readonly get: (declaration: Node) => { readonly frame: CsharpCaptureFrame; readonly method: CsharpFrameClosure } | undefined };
+  readonly namedSelf: { readonly get: (declaration: Node) => CsharpNamedSelfBinding | undefined };
+  readonly lambdaCreation: { readonly get: (declaration: Node) => CsharpLambdaCreation };
+  readonly helperAccess: { readonly get: (declaration: Node) => boolean };
+  readonly captureFrameShape: { readonly get: (type: TargetTypeRef) => CsharpCaptureFrame | undefined };
+  readonly lexicalValueDeclarations: { readonly get: (statement: Node) => readonly Node[] };
+  readonly lexicalValueCreation: { readonly get: (declaration: Node) => SourceLexicalValueCreation | undefined };
+  readonly lexicalValueName: { readonly get: (declaration: Node) => string | undefined };
 }
 
 export interface CsharpFrameClosure {
