@@ -14,7 +14,7 @@ function evidenceFor(sourceText) {
   return { source, sourceFiles, result: analyzeCsharpSourceEvidence(source, sourceFiles, unknownTypes, { types: unknownTypes }) };
 }
 
-test("source evidence publishes an index without the closed-array inspector", () => {
+test("storage evidence publishes an index without the closed-array inspector", () => {
   const { result } = evidenceFor("export {};");
   assert.deepEqual(Object.keys(result).sort(), ["index", "inspectClosedArrayStorage"]);
   assert.equal(Object.isFrozen(result) && Object.isFrozen(result.index), true);
