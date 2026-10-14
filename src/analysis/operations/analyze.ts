@@ -24,6 +24,7 @@ import type {
 } from "@tsonic/target-api/analysis";
 import {
   AsForInOrOfStatement,
+  selectSourceNativeValueGuard,
 } from "@tsonic/target-api/source";
 import type {
   Node,
@@ -572,19 +573,7 @@ function visit(
               ?.QuestionDotToken !== undefined,
         )
       : undefined;
-    const typeofComparison = classifyTypeofComparison(
-      policy,
-      expression?.Left,
-      expression?.Right,
-      sourceOperator,
-      sourceFile,
-    ) ?? classifyTypeofComparison(
-      policy,
-      expression?.Right,
-      expression?.Left,
-      sourceOperator,
-      sourceFile,
-    );
+    const typeofComparison = classifyTypeofComparison(policy, node, sourceFile);
     const instanceType = sourceOperator === "instanceof" && expression?.Right !== undefined
       ? resolveCsharpInstanceType(policy.semantics(sourceFile), expression.Right,
         type => policy.types.resolveType(type, sourceFile)) : undefined;
@@ -727,33 +716,24 @@ function visit(
 
 function classifyTypeofComparison(
   policy: CsharpPolicyContext,
-  typeofNode: Node | undefined,
-  literalNode: Node | undefined,
-  sourceOperator: string,
+  comparison: Node,
   sourceFile: SourceFile,
 ): CsharpBinaryClassification["typeofComparison"] {
-  if (
-    (sourceOperator !== "===" && sourceOperator !== "==" &&
-      sourceOperator !== "!==" && sourceOperator !== "!=") ||
-    typeofNode === undefined ||
-    literalNode === undefined ||
-    !policy.ast.is.IsTypeOfExpression(typeofNode) ||
-    !policy.ast.is.IsStringLiteral(literalNode)
-  ) {
+  const guard = selectSourceNativeValueGuard(policy, comparison);
+  if (guard?.kind !== "typeof") {
     return undefined;
   }
-  const operand = policy.ast.as.AsTypeOfExpression(typeofNode)?.Expression;
-  const runtimeKind = runtimeKindLiteral(policy.ast.text(literalNode));
-  if (operand === undefined || runtimeKind === undefined) {
+  const runtimeKind = runtimeKindLiteral(guard.value);
+  if (runtimeKind === undefined) {
     return undefined;
   }
   return Object.freeze({
-    operand,
+    operand: guard.sourceOperand,
     runtimeKind,
     selection: selectCsharpTypeofComparison(
-      policy.types.resolveNode(operand, sourceFile),
+      policy.types.resolveNode(guard.sourceOperand, sourceFile),
       runtimeKind,
-      sourceOperator === "!==" || sourceOperator === "!=",
+      guard.negated,
       policy.typeDefinitions,
     ),
   });
