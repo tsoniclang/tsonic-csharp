@@ -2,8 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 
-// Each form is paired with the unwrapped form it must classify and emit identically to.
-// The Rust owner test test/analysis/operations/typeof-comparisons.test.mjs uses the same sources.
 const forms = [
   ["reversed parenthesized", `("string") === (typeof x)`, `"string" === typeof x`, "string"],
   ["parenthesized typeof", `(typeof x) === "string"`, `typeof x === "string"`, "string"],
