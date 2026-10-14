@@ -65,15 +65,6 @@ function matchTargetTypePattern(
   switch (pattern.kind) {
     case "source-primitive":
       return actual.kind === "source-primitive" && pattern.name === actual.name;
-    case "source-global":
-      return actual.kind === "source-global" &&
-        pattern.name === actual.name &&
-        matchTargetTypePatternList(
-          pattern.typeArguments ?? [],
-          actual.typeArguments ?? [],
-          parameterIdentities,
-          bindings,
-        );
     case "target-named":
       return actual.kind === "target-named" &&
         pattern.id === actual.id &&
@@ -128,22 +119,6 @@ function matchTargetTypePattern(
         );
     case "opaque":
       return actual.kind === "opaque" && pattern.id === actual.id;
-    case "associated-type":
-      return actual.kind === "associated-type" &&
-        pattern.name === actual.name &&
-        matchTargetTypePattern(
-          pattern.owner,
-          actual.owner,
-          parameterIdentities,
-          bindings,
-        );
-    case "lifetime":
-      return actual.kind === "lifetime" && pattern.name === actual.name;
-    case "target-specific":
-      return actual.kind === "target-specific" &&
-        pattern.target === actual.target &&
-        pattern.name === actual.name &&
-        pattern.payloadId === actual.payloadId;
   }
 }
 

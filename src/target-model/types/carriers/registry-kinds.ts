@@ -10,24 +10,10 @@ export const kindsCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTyp
     frozen: false,
   },
   {
-    id: "kind:associated-type",
-    kinds: ["associated-type"],
-    declaration: { module: "src/target-model/types/model.ts", symbol: "TargetTypeRef" },
-    counterpart: { module: "src/target-model/types/model.ts", symbol: "TargetTypeRef" },
-    frozen: false,
-  },
-  {
     id: "kind:function-pointer",
     kinds: ["function-pointer"],
     declaration: { module: "src/target-model/types/model.ts", symbol: "TargetTypeRef" },
     counterpart: { module: "src/target-model/types/model.ts", symbol: "TargetTypeRef" },
-    frozen: false,
-  },
-  {
-    id: "kind:lifetime",
-    kinds: ["lifetime"],
-    declaration: { module: "src/target-model/types/model.ts", symbol: "TargetTypeRef" },
-    counterpart: null,
     frozen: false,
   },
   {
@@ -45,13 +31,6 @@ export const kindsCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTyp
     frozen: false,
   },
   {
-    id: "kind:source-global",
-    kinds: ["source-global"],
-    declaration: { module: "src/target-model/types/model.ts", symbol: "TargetTypeRef" },
-    counterpart: null,
-    frozen: false,
-  },
-  {
     id: "kind:source-primitive",
     kinds: ["source-primitive"],
     declaration: { module: "src/target-model/types/model.ts", symbol: "TargetTypeRef" },
@@ -62,13 +41,6 @@ export const kindsCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTyp
     id: "kind:target-named",
     kinds: ["target-named"],
     declaration: { module: "src/target-model/types/factories.ts", symbol: "csharpTargetNamedType" },
-    counterpart: { module: "src/target-model/types/model.ts", symbol: "TargetTypeRef" },
-    frozen: false,
-  },
-  {
-    id: "kind:target-specific",
-    kinds: ["target-specific"],
-    declaration: { module: "src/target-model/types/model.ts", symbol: "TargetTypeRef" },
     counterpart: { module: "src/target-model/types/model.ts", symbol: "TargetTypeRef" },
     frozen: false,
   },

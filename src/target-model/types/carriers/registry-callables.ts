@@ -53,7 +53,7 @@ export const callablesCarrierRegistry: readonly TargetCarrierRegistryEntry<Targe
   },
   {
     id: "src/target-model/types/carriers/generators.ts#closeCsharpGeneratorProtocolType",
-    kinds: ["array", "associated-type", "function-pointer", "lifetime", "opaque", "pointer", "source-global", "source-primitive", "target-named", "target-specific", "tuple", "type-parameter"],
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/target-model/types/carriers/generators.ts", symbol: "closeCsharpGeneratorProtocolType" },
     counterpart: { module: "src/target-model/types/carriers/native.ts", symbol: "rustUnitTargetType" },
     frozen: false,

@@ -69,9 +69,8 @@ export function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
         valid = typeof type.name === "string" && ["bool", "char", "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64",
           "native-int", "native-uint", "float16", "float32", "float64", "decimal", "int128", "uint128"].includes(type.name);
         break;
-      case "source-global":
       case "target-named":
-        valid = string(type.kind === "source-global" ? type.name : type.id) &&
+        valid = string(type.id) &&
           (type.typeArguments === undefined || list(type.typeArguments, depth));
         break;
       case "type-parameter": valid = string(type.identity) && string(type.name) &&
@@ -83,9 +82,6 @@ export function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
       case "function-pointer": valid = list(type.args, depth) && visit(type.result, depth + 1) &&
         (type.abi === undefined || Array.isArray(type.abi) && type.abi.every(string)); break;
       case "opaque": valid = string(type.id); break;
-      case "associated-type": valid = string(type.name) && visit(type.owner, depth + 1); break;
-      case "lifetime": valid = string(type.name); break;
-      case "target-specific": valid = string(type.target) && string(type.name) && (type.payloadId === undefined || string(type.payloadId)); break;
     }
     active.delete(input);
     return valid;

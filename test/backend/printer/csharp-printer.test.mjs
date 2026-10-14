@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { isCsharpTargetTypeRef, snapshotCsharpTargetTypes } from "../../../dist/target-model/types/snapshot.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../../dist/backend/planner/types/target-types.js";
@@ -667,7 +668,7 @@ test("target type rendering requires explicit C# render shape for non-predefined
   assert.equal(printCsharpType(rendered), "System.Collections.Generic.List<int>");
 });
 
-test("source-global target refs remain source evidence until wrapped by a C# target carrier", () => {
+test("source-global evidence is rejected at the native metadata boundary while native Task remains renderable", () => {
   const promiseOfString = {
     kind: "source-global",
     name: "Promise",
@@ -679,9 +680,10 @@ test("source-global target refs remain source evidence until wrapped by a C# tar
     typeArguments: [{ kind: "target-named", id: "System.Double" }],
   };
 
-  assert.equal(csharpTypeFromTargetTypeRef(promiseOfString), undefined);
-  assert.equal(targetTypeRefEquals(promiseOfString, { ...promiseOfString }), true);
-  assert.equal(targetTypeRefEquals(promiseOfString, promiseOfNumber), false);
+  for (const type of [promiseOfString, promiseOfNumber]) {
+    assert.equal(isCsharpTargetTypeRef(type), false);
+    assert.throws(() => snapshotCsharpTargetTypes([type]), /bounded valid carriers/u);
+  }
 
   const rendered = csharpTypeFromTargetTypeRef({
     kind: "target-named",

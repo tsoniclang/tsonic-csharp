@@ -12,13 +12,6 @@ export function csharpTargetStorageIdentityEquals(
   switch (left.kind) {
     case "source-primitive":
       return right.kind === "source-primitive" && left.name === right.name;
-    case "source-global":
-      return right.kind === "source-global" &&
-        left.name === right.name &&
-        targetStorageListEquals(
-          left.typeArguments ?? [],
-          right.typeArguments ?? [],
-        );
     case "target-named":
       return right.kind === "target-named" &&
         left.id === right.id &&
@@ -46,17 +39,6 @@ export function csharpTargetStorageIdentityEquals(
         csharpTargetStorageIdentityEquals(left.result, right.result);
     case "opaque":
       return right.kind === "opaque" && left.id === right.id;
-    case "associated-type":
-      return right.kind === "associated-type" &&
-        left.name === right.name &&
-        csharpTargetStorageIdentityEquals(left.owner, right.owner);
-    case "lifetime":
-      return right.kind === "lifetime" && left.name === right.name;
-    case "target-specific":
-      return right.kind === "target-specific" &&
-        left.target === right.target &&
-        left.name === right.name &&
-        left.payloadId === right.payloadId;
   }
 }
 

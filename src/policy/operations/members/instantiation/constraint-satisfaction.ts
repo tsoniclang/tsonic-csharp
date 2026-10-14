@@ -240,12 +240,6 @@ function targetTypeFailsConstraint(
           : "The argument is nullable or has no exact C# nullability category.";
       }
       return `The target constraint '${constraint.target}:${constraint.name}' has no C# satisfaction rule.`;
-    case "copy":
-    case "clone":
-    case "default":
-    case "sized":
-    case "lifetime":
-      return `The '${constraint.kind}' constraint is not a C# target constraint.`;
   }
 }
 
@@ -329,11 +323,7 @@ function validateConstructedTargetType(
     case "pointer":
     case "function-pointer":
       return `C# target type '${targetTypeRefKey(type)}' cannot be used as a generic type argument.`;
-    case "source-global":
     case "opaque":
-    case "associated-type":
-    case "lifetime":
-    case "target-specific":
       return `Target type '${targetTypeRefKey(type)}' is not a proven legal C# generic type argument.`;
   }
 }
@@ -411,12 +401,6 @@ function sourceConstraintsImplyTargetConstraint(
           hasSourceKeyword(sourceConstraints, "struct") ||
           hasSourceKeyword(sourceConstraints, "unmanaged")
         );
-    case "copy":
-    case "clone":
-    case "default":
-    case "sized":
-    case "lifetime":
-      return false;
   }
 }
 
@@ -532,11 +516,7 @@ function isCsharpUnmanagedType(
     }
     case "array":
     case "type-parameter":
-    case "source-global":
     case "opaque":
-    case "associated-type":
-    case "lifetime":
-    case "target-specific":
       return false;
   }
 }
