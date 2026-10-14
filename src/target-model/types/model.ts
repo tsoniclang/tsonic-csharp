@@ -415,6 +415,7 @@ export interface CsharpTargetMember extends Omit<TargetMember, "parameters" | "t
   readonly declaringType?: TargetTypeRef;
   readonly receiverPassing?: "instance" | "target-parameter";
   readonly readonly?: boolean;
+  readonly csharpLiteral?: true;
   readonly attributes?: readonly CsharpTargetAttributeFact[];
   readonly unsupportedAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
   readonly returnAttributes?: readonly CsharpTargetAttributeFact[];

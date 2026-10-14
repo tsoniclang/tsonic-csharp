@@ -194,6 +194,10 @@ function validateDotnetMemberList(
       collector.add(`${memberPath}.sourceReceiverParameterIndex`, "Source receiver parameter index must be a non-negative safe integer.", member.sourceReceiverParameterIndex);
     }
     validateDotnetSourceProjection(member, memberPath, collector);
+    if (member.literal !== undefined &&
+      (member.literal !== true || member.kind !== "field" || member.static !== true || member.writable === true)) {
+      collector.add(`${memberPath}.literal`, "A .NET literal member must be a static, non-writable field marked literal: true.", member.literal);
+    }
     validateOptionalDotnetTypeRef(member.targetDeclaringType, `${memberPath}.targetDeclaringType`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
     switch (member.kind) {
       case "constructor":
