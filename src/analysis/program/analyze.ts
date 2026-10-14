@@ -348,7 +348,7 @@ export function analyzeCsharpTargetProgram(
     projectTypes: sealCsharpProjectTypeClassifications(
       analysis.typeSystem.projectTypes,
       source.ast,
-      sourceFiles,
+      sourceStorage.nodes,
     ),
     objectShapes: analysis.objectShapes,
     names: names.seal(),

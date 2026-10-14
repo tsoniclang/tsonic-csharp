@@ -1,8 +1,8 @@
 import type {
   AstReader,
   Node,
-  SourceFile,
 } from "@tsonic/tsts";
+import { createSourceDeclarationMembership } from "@tsonic/target-api/analysis";
 import type {
   CsharpProjectTypePolicy,
 } from "../../policy/types/index.js";
@@ -14,12 +14,10 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 export function sealCsharpProjectTypeClassifications(
   policy: CsharpProjectTypePolicy,
   ast: AstReader,
-  sourceFiles: readonly SourceFile[],
+  sourceNodes: readonly Node[],
 ): CsharpProjectTypeClassifications {
-  const containingDefinitions = new WeakMap<
-    Node,
-    NonNullable<ReturnType<CsharpProjectTypePolicy["catalog"]["definitionContainingDeclaration"]>>
-  >();
+  const containingDefinitions = createSourceDeclarationMembership(ast, sourceNodes,
+    new Map(policy.catalog.definitions.map(definition => [definition.declaration, definition])));
   const heritageByDeclaration = new WeakMap<
     Node,
     NonNullable<ReturnType<CsharpProjectTypePolicy["heritageForDeclaration"]>>
@@ -48,10 +46,6 @@ export function sealCsharpProjectTypeClassifications(
       );
     }
   }
-  for (const sourceFile of sourceFiles) {
-    visit(sourceFile);
-  }
-
   const issues = Object.freeze([...policy.issues]);
   const declarationScopeNames = Object.freeze([...new Set(policy.catalog.definitions.flatMap(definition =>
     definition.scopeName === undefined ? [] : [definition.scopeName]))].sort());
@@ -91,14 +85,4 @@ export function sealCsharpProjectTypeClassifications(
       constructorsByDeclaration.get(declaration),
   };
   return Object.freeze(classifications);
-
-  function visit(node: Node): void {
-    const definition = policy.catalog.definitionContainingDeclaration(node);
-    if (definition !== undefined) {
-      containingDefinitions.set(node, definition);
-    }
-    ast.forEachChild(node, (child) => {
-      if (child !== undefined) visit(child);
-    });
-  }
 }

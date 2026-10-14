@@ -31,13 +31,14 @@ function fixture() {
     },
     heritageForDeclaration: query,
     implicitConstructorsForDeclaration: () => [],
-  }, { forEachChild() {} }, [sourceFile]);
+  }, { parent() { assert.equal(sealed, false, "membership cannot navigate after publication"); } }, [sourceFile, declaration]);
   sealed = true;
   return { classifications, definition, declaration, parameter };
 }
 
 test("sealed native storage heritage instantiates exact outer binders without policy queries", () => {
   const { classifications, definition, declaration, parameter } = fixture();
+  assert.equal(classifications.definitionContainingDeclaration(declaration) === definition, true, "inclusive exact declaration membership");
   const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
   const selection = classifications.heritageForTarget({
     kind: "target-named", id: definition.id, typeArguments: [integer],
