@@ -68,7 +68,7 @@ export interface CsharpCallClassification
 
 export interface CsharpConstructionClassification
   extends CsharpSourceCallArgumentClassification {
-  readonly jsValue: CsharpJsValueOperationSelection;
+  readonly jsValue: Exclude<CsharpJsValueOperationSelection, { readonly kind: "rejected" }>;
   readonly target?: CsharpTargetCallSelection;
   readonly selectedResultType?: TargetTypeRef;
   readonly methodTypeArgumentProjections?: readonly CsharpMethodTypeArgumentProjectionClassification[];

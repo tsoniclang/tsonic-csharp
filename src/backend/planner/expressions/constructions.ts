@@ -60,10 +60,6 @@ export function translateCsharpConstruction(
     return undefined;
   }
   const jsValueOperation = classification.jsValue;
-  if (jsValueOperation.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
-    return undefined;
-  }
   if (jsValueOperation.kind === "resolved") {
     const sourceArguments = input.program.source.ast.arguments(node)
       .filter((argument): argument is Node => argument !== undefined);

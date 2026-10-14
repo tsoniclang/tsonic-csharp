@@ -491,6 +491,7 @@ function visit(
       sourceFile,
       "construct",
     );
+    if (jsValue.kind === "rejected") issues.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message: jsValue.reason }));
     const selectedTarget = jsValue.kind === "not-js-value"
       ? selectCsharpTargetCall(policy, node, sourceFile)
       : undefined;
@@ -504,7 +505,7 @@ function visit(
     const selectedResultType = jsValue.kind === "resolved"
       ? jsValue.resultType
       : policy.types.resolveNode(node, sourceFile);
-    setClassification(builder, node, constructionKey, Object.freeze({
+    if (jsValue.kind !== "rejected") setClassification(builder, node, constructionKey, Object.freeze({
       jsValue,
       ...(target === undefined ? {} : { target }),
       ...(selectedResultType === undefined ? {} : { selectedResultType }),
