@@ -9,6 +9,7 @@ import { analyzeCsharpClassInitialization } from "../project-types/class-initial
 import { createCsharpProgramRecords } from "./records/create.js";
 import { analyzeCsharpNativeControlFlow } from "../control-flow/native-control-flow.js";
 import { analyzeCsharpBindingPatterns } from "../control-flow/binding-patterns.js";
+import { admitCsharpSafetyApplications } from "../safety/admission.js";
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
 import { type CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import { csharpCallableValueType } from "../callables/value-type.js";
@@ -329,6 +330,13 @@ export function analyzeCsharpTargetProgram(
   if (bindingPatterns.issues.length > 0) return rejectedTargetStage(bindingPatterns.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
     ...(issue.evidence.length === 0 ? {} : { evidence: issue.evidence }),
+  })));
+  const safetyIssues = admitCsharpSafetyApplications({ ast: source.ast, sourceFiles, navigation: source.navigation,
+    captureClosure: captureStorage.captureClosure, evidence: analysis.sourceEvidence, operations: analysis.operations,
+    languageDialect: configuration.languageDialect, memorySafetyRules: configuration.memorySafetyRules,
+    safety: safetyApplications, erasedAttribute: attributeApplications.erasedAttribute });
+  if (safetyIssues.length > 0) return rejectedTargetStage(safetyIssues.map(issue => ({
+    code: issue.code, category: "error" as const, source: "tsonic-csharp", message: issue.message,
   })));
   const typeDefinitions = analysis.typeDefinitions.seal();
   const classInitialization = analyzeCsharpClassInitialization(source, classFactories);

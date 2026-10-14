@@ -77,6 +77,22 @@ export interface CsharpBindingPatternAnalysisInput {
   readonly objectShapes: CsharpObjectShapeClassifications;
 }
 
+export interface CsharpPlannedSubtreeInput {
+  readonly ast: AstReader;
+  readonly navigation: Pick<SourceProgramNavigation, "declarationUseSummary">;
+  readonly captureClosure: CsharpCaptureStorage["captureClosure"];
+  readonly evidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata">;
+  readonly operations: Pick<CsharpTargetOperationClassifications, "nativeUnreachable">;
+}
+
+export function isCsharpUnplannedSubtree(input: CsharpPlannedSubtreeInput, node: Node): boolean {
+  const { ast } = input;
+  return input.evidence.compileTimeMetadata.get(node) || input.operations.nativeUnreachable.get(node) ||
+    ast.is.IsModuleDeclaration(node) ||
+    (ast.is.IsFunctionDeclaration(node) && ast.body(node) !== undefined && input.captureClosure.get(node) === undefined &&
+      sourceLexicalFunctionIsUnused(node, ast, input.navigation));
+}
+
 const unprovenCarrierReason =
   "C# runtime representation is not proven by authored source facts, the selected source profile, project declarations, or an exact provider relation.";
 const unprovenCarrierEvidence = "C# type policy found no exact runtime representation.";
@@ -95,8 +111,7 @@ export function analyzeCsharpBindingPatterns(
   });
 
   function visit(node: Node, sourceFile: SourceFile): void {
-    if (input.evidence.compileTimeMetadata.get(node) || input.operations.nativeUnreachable.get(node) ||
-      ast.is.IsModuleDeclaration(node) || isUnplannedLexicalFunction(node)) return;
+    if (isCsharpUnplannedSubtree(input, node)) return;
     if (ast.is.IsVariableDeclaration(node)) {
       const variable = AsVariableDeclaration(ast, node);
       const name = variable?.name;
@@ -123,11 +138,6 @@ export function analyzeCsharpBindingPatterns(
   function completesWithValue(source: Node): boolean {
     const carrier = input.valueReads.valueRead.get(source)?.value;
     return !isCsharpNeverTargetType(carrier) && !isCsharpVoidTargetType(carrier);
-  }
-
-  function isUnplannedLexicalFunction(node: Node): boolean {
-    return ast.is.IsFunctionDeclaration(node) && ast.body(node) !== undefined && input.captureClosure.get(node) === undefined &&
-      sourceLexicalFunctionIsUnused(node, ast, input.navigation);
   }
 
   function parameterOwnerIsPlanned(owner: Node, sourceFile: SourceFile): boolean {

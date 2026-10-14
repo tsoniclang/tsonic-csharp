@@ -2,6 +2,7 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
+import { failTargetPlannerInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpSafetyApplication } from "../../../target-model/records/safety.js";
 import type {
@@ -44,27 +45,15 @@ export function tryPlanCsharpExplicitSafetyExpression(
   const selected = input.program.records.safetyOperation.get(node);
   if (selected?.kind !== "unsafe-context") {
     if (selected?.kind === "safety-builder") {
-      diagnostics.push(targetDiagnostic(
-        "CSHARP_SAFETY_MARKER_RUNTIME_POSITION_UNSUPPORTED",
-        "C# declaration safety markers must be complete standalone expression statements.",
-      ));
-      return { handled: true };
+      return failTargetPlannerInvariant("tsonic-csharp", "C# safety admission left a declaration safety marker in a runtime expression position.", node);
     }
     return { handled: false };
   }
   if (selected.fact.kind !== "expression") {
-    diagnostics.push(targetDiagnostic(
-      "CSHARP_UNSAFE_CONTEXT_BLOCK_POSITION_INVALID",
-      "The no-argument unsafe-context marker must be handled as the first direct statement of a source block.",
-    ));
-    return { handled: true };
+    return failTargetPlannerInvariant("tsonic-csharp", "C# safety admission left a no-argument unsafe-context marker in an expression position.", node);
   }
   if (input.program.configuration.languageDialect !== "csharp15-preview") {
-    diagnostics.push(targetDiagnostic(
-      "CSHARP_UNSAFE_EXPRESSION_DIALECT_UNSUPPORTED",
-      "C# unsafe expressions require target option languageDialect='csharp15-preview'.",
-    ));
-    return { handled: true };
+    return failTargetPlannerInvariant("tsonic-csharp", "C# safety admission left an unsafe expression without languageDialect='csharp15-preview'.", node);
   }
   const expressionFact = selected.fact;
   const plannerState = state ?? createDestructuringPlannerState(
@@ -203,7 +192,7 @@ export function diagnoseUnavailableCsharpSafetyAccessors(
   declaration: Node,
   availablePlacements: readonly ("getter" | "setter")[],
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
+  _diagnostics: TargetDiagnostic[],
 ): void {
   if (
     input.program.configuration.languageDialect !== "csharp15-preview" ||
@@ -223,10 +212,7 @@ export function diagnoseUnavailableCsharpSafetyAccessors(
     ) {
       continue;
     }
-    diagnostics.push(targetDiagnostic(
-      "CSHARP_SAFETY_ACCESSOR_TARGET_NOT_EMITTED",
-      `The selected source ${application.applicationPlacement} has no corresponding emitted C# accessor for its explicit safety contract.`,
-    ));
+    failTargetPlannerInvariant("tsonic-csharp", "C# safety admission left an accessor safety contract for an accessor C# does not emit.", declaration);
   }
 }
 
