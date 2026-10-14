@@ -18,6 +18,12 @@ const emptyOccurrence = Object.freeze({ kind: "empty" as const });
 const rejected = (reason: string): CsharpObjectShapePropertyOrderSelection => Object.freeze({ kind: "rejected", reason });
 const resolved = (propertyOrder: readonly string[]): CsharpObjectShapePropertyOrderSelection =>
   Object.freeze({ kind: "resolved", propertyOrder: Object.freeze(propertyOrder) });
+const missingProjectionOrder = rejected("Object-shape projection has no exact completed own-property order proof.");
+const missingAssignmentSourceOrder = rejected("Object-shape assignment source has no exact completed own-property order proof.");
+const missingEmptyOccurrence: Readonly<Record<CsharpObjectShapeProjectionKind, CsharpObjectShapePropertyOrderSelection>> =
+  Object.freeze(Object.fromEntries((["keys", "values", "entries", "has-own", "assign"] as const).map(projection =>
+    [projection, rejected(`Selected '${projection}' operation has no exact authored empty-object occurrence.`)])) as
+    Record<CsharpObjectShapeProjectionKind, CsharpObjectShapePropertyOrderSelection>);
 
 export function createCsharpObjectShapePropertyOrderIndex(
   ast: AstReader,
@@ -50,13 +56,13 @@ export function createCsharpObjectShapePropertyOrderIndex(
     propertyOrder(shape: CsharpObjectShapeFact, sourceValue: Node | undefined,
       projection: CsharpObjectShapeProjectionKind): CsharpObjectShapePropertyOrderSelection {
       const selected = selection(shape)?.projections[projection];
-      if (selected === undefined) return rejected("Object-shape projection has no exact completed own-property order proof.");
+      if (selected === undefined) return missingProjectionOrder;
       return selected.kind !== "empty" ? selected
         : sourceValue !== undefined && emptyLiterals.has(sourceValue) ? emptyOrder
-          : rejected(`Selected '${projection}' operation has no exact authored empty-object occurrence.`);
+          : missingEmptyOccurrence[projection];
     },
     assignmentSourceOrder(shape: CsharpObjectShapeFact): CsharpObjectShapePropertyOrderSelection {
-      return selection(shape)?.assignmentSource ?? rejected("Object-shape assignment source has no exact completed own-property order proof.");
+      return selection(shape)?.assignmentSource ?? missingAssignmentSourceOrder;
     },
   });
 }
