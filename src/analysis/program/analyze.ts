@@ -422,12 +422,13 @@ function analyzeIteration(
   });
   if (policyContext.issues.length > 0) return rejectCsharpAnalysisIssues(policyContext.issues);
   const policy = policyContext.policy;
-  const sourceEvidence = analyzeCsharpSourceEvidence(
+  const evidence = analyzeCsharpSourceEvidence(
     input.source,
     sourceFiles,
     typeSystem.analysisTypes,
     policy,
   );
+  const sourceEvidence = evidence.index;
   const operations = analyzeCsharpTargetOperations(policy, sourceEvidence);
   const valueReadStages = analyzeCsharpValueReadStages(policy, sourceEvidence, operations);
   const typeProjections = analyzeCsharpTypeProjections(input.source, sourceEvidence, operations);
@@ -478,7 +479,9 @@ function analyzeIteration(
     storage: storageRepresentations,
   });
   const sealedObjectShapes = objectShapes.seal();
-  const storage = sealCsharpStorage(policy, sourceEvidence, operations, sealedObjectShapes, storageRepresentations);
+  const storage = sealCsharpStorage(policy,
+    Object.freeze({ ...sourceEvidence, inspectClosedArrayStorage: evidence.inspectClosedArrayStorage }),
+    operations, sealedObjectShapes, storageRepresentations);
   return resolvedTargetStage(Object.freeze({
     policy,
     typeDefinitions,
