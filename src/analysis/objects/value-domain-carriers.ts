@@ -17,19 +17,32 @@ export interface CsharpValueDomainAnalysisHost {
   semantics(sourceFile: SourceFile): SourceFileSemantics;
 }
 
+export interface CsharpValueDomainCarrierIssue {
+  readonly node: Node;
+  readonly code: "CSHARP_VALUE_DOMAIN_METADATA_BUDGET_EXHAUSTED";
+  readonly message: string;
+}
+
+export interface CsharpValueDomainCarrierAnalysis extends CsharpValueDomainCarrierQueries {
+  readonly issues: readonly CsharpValueDomainCarrierIssue[];
+}
+
 export function analyzeCsharpValueDomainCarriers(
   host: CsharpValueDomainAnalysisHost,
   expressions: Iterable<Node>,
-): CsharpValueDomainCarrierQueries {
+  budget = createCsharpMetadataBudget(),
+): CsharpValueDomainCarrierAnalysis {
   const storage = host.sourceStorage;
   const carriers = new WeakMap<Node, TargetTypeRef>();
   const originCarriers = new Map<SourceStorageSubject, TargetTypeRef | undefined>();
-  const budget = createCsharpMetadataBudget();
+  const issues: CsharpValueDomainCarrierIssue[] = [];
   let complete = storage.failureReason() === undefined;
+  let current: Node | undefined;
   if (complete) {
     try {
       const seen = new Set<Node>();
       for (const node of expressions) {
+        current = node;
         budget.reserve(1);
         if (seen.has(node)) continue;
         seen.add(node);
@@ -38,11 +51,14 @@ export function analyzeCsharpValueDomainCarriers(
       }
       complete = storage.failureReason() === undefined;
     } catch (error) {
-      if (!(error instanceof TypeError) || error.message !== "C# immutable metadata exceeds its finite resource budget.") throw error;
+      if (!(error instanceof TypeError) || error.message !== "C# immutable metadata exceeds its finite resource budget." ||
+        current === undefined) throw error;
+      issues.push(Object.freeze({ node: current, code: "CSHARP_VALUE_DOMAIN_METADATA_BUDGET_EXHAUSTED",
+        message: "C# value-domain carrier analysis exceeds its finite target metadata budget." }));
       complete = false;
     }
   }
-  return Object.freeze({ carrierFor: (node: Node) => complete ? carriers.get(node) : undefined });
+  return Object.freeze({ issues: Object.freeze(issues), carrierFor: (node: Node) => complete ? carriers.get(node) : undefined });
 
   function selectDomain(node: Node): TargetTypeRef | undefined {
     const selected = storage.subjectFor(node);

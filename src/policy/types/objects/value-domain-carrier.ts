@@ -3,7 +3,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 export interface CsharpValueDomainCarrierQueries {
-  carrierFor(node: Node): TargetTypeRef | undefined;
+  readonly carrierFor: (node: Node) => TargetTypeRef | undefined;
 }
 
 export interface CsharpValueDomainCarrierHost {

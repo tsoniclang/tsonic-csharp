@@ -5,7 +5,7 @@ import type { CsharpProviderRelationResolver } from "../../providers/model/relat
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpSourceIdentityPolicy } from "../../policy/identities/source-nodes.js";
 import type { CsharpTypeSystem } from "../../policy/types/model/system.js";
-import { analyzeCsharpValueDomainCarriers } from "../objects/value-domain-carriers.js";
+import { analyzeCsharpValueDomainCarriers, type CsharpValueDomainCarrierIssue } from "../objects/value-domain-carriers.js";
 
 export interface CsharpAnalysisPolicyContextInput {
   readonly callOnlyAlias: CsharpPolicyContext["callOnlyAlias"];
@@ -17,19 +17,25 @@ export interface CsharpAnalysisPolicyContextInput {
   readonly typeSystem: CsharpTypeSystem;
 }
 
+interface CsharpAnalysisPolicyContextResult {
+  readonly policy: CsharpPolicyContext;
+  readonly issues: readonly CsharpValueDomainCarrierIssue[];
+}
+
 export function createCsharpAnalysisPolicyContext(
   context: CsharpAnalysisPolicyContextInput,
-): CsharpPolicyContext {
+): CsharpAnalysisPolicyContextResult {
   const { input, sourceFiles, providers, sourceIdentities, typeSystem } = context;
   const source = input.source;
-  return Object.freeze({
+  const valueDomainCarriers = analyzeCsharpValueDomainCarriers({ sourceStorage: context.sourceStorage,
+    types: typeSystem.analysisTypes, objectShapes: typeSystem.objectShapes, semantics: source.semantics.forFile },
+    context.sourceStorage.invocations.flatMap(node => source.ast.arguments(node).filter((argument): argument is NonNullable<typeof argument> => argument !== undefined)));
+  const policy: CsharpPolicyContext = Object.freeze({
     callOnlyAlias: context.callOnlyAlias,
     ast: source.ast,
     sourceFiles,
     sourceStorage: context.sourceStorage,
-    valueDomainCarriers: analyzeCsharpValueDomainCarriers({ sourceStorage: context.sourceStorage,
-      types: typeSystem.analysisTypes, objectShapes: typeSystem.objectShapes, semantics: source.semantics.forFile },
-      context.sourceStorage.invocations.flatMap(node => source.ast.arguments(node).filter((argument): argument is NonNullable<typeof argument> => argument !== undefined))),
+    valueDomainCarriers,
     sourceFacts: source.sourceFacts,
     navigation: source.navigation,
     target: input.target,
@@ -43,4 +49,5 @@ export function createCsharpAnalysisPolicyContext(
     semanticsFor: source.semantics.forNode,
     hasSemantics: source.semantics.includes,
   });
+  return Object.freeze({ policy, issues: valueDomainCarriers.issues });
 }
