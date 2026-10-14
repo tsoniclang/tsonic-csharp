@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles } from "@tsonic/tsts";
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram, Node_Initializer } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { csharpValueDomainHasTargetType as selectedValueDomainHasTargetType } from "../../../dist/policy/types/objects/value-domain-carrier.js";
@@ -8,6 +10,7 @@ import { analyzeCsharpValueDomainCarriers } from "../../../dist/analysis/objects
 import { csharpEmptyObjectTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
+import { createCsharpMetadataBudget } from "../../../dist/target-model/metadata/immutable.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { frozenEmptyStorageSources } from "../../../../tsonic/test/fixtures/frozen-empty-storage.mjs";
 
@@ -178,6 +181,111 @@ test("member proofs fail closed for unavailable, accessor and exhausted evidence
     if (control === "open") selected.host.sourceStorage.closedOriginsFor = () => ({ kind: "open", origins: [] });
     assert.equal(csharpValueDomainHasTargetType(selected.host, selected.expression, exact), false, control);
   }
+});
+
+test("finite value-domain budgets distinguish exact completion from source-owned failure", () => {
+  const input = fixture();
+  const exact = csharpEmptyObjectTargetType();
+  const value = shape(input, exact);
+  const selected = domain(input, value.carrier, [member(input)]);
+  selectShape(selected.host, value);
+  const budget = createCsharpMetadataBudget();
+  budget.reserve(budget.remaining() - 3);
+  const completed = analyzeCsharpValueDomainCarriers(selected.host, [selected.expression], budget);
+  assert.equal(budget.remaining(), 0, "exactly enough work completes without a false resource failure");
+  assert.equal(completed.issues.length, 0);
+  assert.equal(completed.carrierFor(selected.expression) === exact, true);
+
+  const next = Node_Initializer(input.source.ast, input.nodes.get("optional"));
+  const exhausted = createCsharpMetadataBudget();
+  exhausted.reserve(exhausted.remaining() - 3);
+  const failed = analyzeCsharpValueDomainCarriers(selected.host, [selected.expression, next], exhausted);
+  assert.equal(failed.issues.length, 1, "one precise issue, not one diagnostic per lost fact");
+  assert.equal(failed.issues[0].node === next, true, "the actual demand exhausting the budget owns the diagnostic");
+  assert.equal(failed.issues[0].code, "CSHARP_VALUE_DOMAIN_METADATA_BUDGET_EXHAUSTED");
+  assert.equal(failed.issues[0].message, "C# value-domain carrier analysis exceeds its finite target metadata budget.");
+  assert.equal(Object.isFrozen(failed.issues) && Object.isFrozen(failed.issues[0]), true);
+  assert.equal(failed.carrierFor(selected.expression) === undefined, true, "partial facts are never treated as a complete proof");
+  assert.equal(failed.carrierFor(next) === undefined, true);
+});
+
+test("ordinary unproved value domains produce no resource failure", () => {
+  const input = fixture();
+  const exact = csharpEmptyObjectTargetType();
+  const value = shape(input, exact);
+  const selected = domain(input, value.carrier, [member(input)]);
+  selected.host.sourceStorage.closedOriginsFor = () => ({ kind: "open", origins: [] });
+  const analysis = analyzeCsharpValueDomainCarriers(selected.host, [selected.expression]);
+  assert.equal(analysis.issues.length, 0, "unproved source evidence is not exhausted finite work");
+  assert.equal(analysis.carrierFor(selected.expression) === undefined, true);
+});
+
+test("value-domain query types reject reassignment while retaining their call signature", () => {
+  const contract = readFileSync(new URL("../../../src/policy/types/objects/value-domain-carrier.ts", import.meta.url), "utf8");
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src",
+    compilerOptions: { strict: true, target: "es2022", module: "esnext", moduleResolution: "bundler" },
+    files: {
+      "/src/policy/types/objects/value-domain-carrier.ts": contract,
+      "/src/target-model/types/model.ts": "export interface TargetTypeRef { readonly kind: string; }",
+      "/src/target-model/types/equality.ts": `
+        import type { TargetTypeRef } from "./model.js";
+        export function targetTypeRefEquals(left: TargetTypeRef, right: TargetTypeRef): boolean { return left === right; }
+      `,
+      "/src/tsts.d.ts": 'declare module "@tsonic/tsts" { export interface Node { readonly source: string; } }',
+      "/src/index.ts": `
+        import type { CsharpValueDomainCarrierQueries } from "./policy/types/objects/value-domain-carrier.js";
+        import type { TargetTypeRef } from "./target-model/types/model.js";
+        declare const queries: CsharpValueDomainCarrierQueries;
+        const carrier: TargetTypeRef | undefined = queries.carrierFor({ source: "node" });
+        queries.carrierFor = () => undefined;
+      `,
+    },
+  }).checkSource();
+  assert.equal(checked.diagnostics.length, 1, "the existing call is valid and only the write is rejected");
+  assert.match(formatDiagnostics(checked.diagnostics), /TS2540: Cannot assign to 'carrierFor' because it is a read-only property/u);
+});
+
+test("value-domain budget exhaustion rejects program publication instead of emitting a fallback", () => {
+  const analyzer = new URL("../../../dist/analysis/objects/value-domain-carriers.js", import.meta.url).href;
+  const metadata = new URL("../../../dist/target-model/metadata/immutable.js", import.meta.url).href;
+  const helper = new URL("../../helpers/direct-csharp-session.mjs", import.meta.url).href;
+  const program = `
+    import assert from "node:assert/strict";
+    import { mock } from "node:test";
+    const { analyzeCsharpValueDomainCarriers } = await import(${JSON.stringify(analyzer)});
+    const { createCsharpMetadataBudget } = await import(${JSON.stringify(metadata)});
+    let failures = 0;
+    let failureNode;
+    mock.module(${JSON.stringify(analyzer)}, { namedExports: {
+      analyzeCsharpValueDomainCarriers(host, expressions) {
+        const budget = createCsharpMetadataBudget();
+        budget.reserve(budget.remaining() - 1);
+        const analysis = analyzeCsharpValueDomainCarriers(host, expressions, budget);
+        assert.equal(analysis.issues.length, 1, "force exhaustion through the existing real budget");
+        failures += 1;
+        failureNode = analysis.issues[0].node;
+        return analysis;
+      },
+    } });
+    const { compileCsharpSource, assertCsharpCheckingSucceeded } = await import(${JSON.stringify(helper)});
+    const { createTargetSourceProgram } = await import("@tsonic/target-api/source");
+    const compiled = compileCsharpSource({ surface: "js", sourceText: ${JSON.stringify(frozenEmptyStorageSources[0][1])} });
+    assertCsharpCheckingSucceeded(compiled);
+    assert.equal(failures, 1, "the first owner failure stops closure before a later pass could lose it");
+    assert.equal(compiled.targetDiagnostics.length, 1, "one bounded pre-publication diagnostic");
+    assert.equal(compiled.targetDiagnostics[0].code, "CSHARP_VALUE_DOMAIN_METADATA_BUDGET_EXHAUSTED");
+    assert.equal(compiled.targetDiagnostics[0].source, "tsonic-csharp");
+    assert.equal(compiled.targetDiagnostics[0].category, "error");
+    assert.equal(compiled.result.diagnostics[0].sourceNode === failureNode, true,
+      "the diagnostic retains exact source-owner identity through the stage rejection");
+    assert.equal(createTargetSourceProgram(compiled.source).ast.getSourceFile(failureNode) ===
+      compiled.source.getSourceFile("/project/index.ts"), true, "the failure belongs to the actual authored file");
+    assert.equal(compiled.artifacts.size, 0, "neither accepted target output nor a slower fallback is published");
+  `;
+  const child = spawnSync(process.execPath, ["--experimental-test-module-mocks", "--input-type=module", "--eval", program],
+    { encoding: "utf8", maxBuffer: 16_384, timeout: 120_000 });
+  assert.equal(child.error === undefined, true, "bounded failure-path process completes");
+  assert.equal(child.status, 0, `${child.stderr.slice(0, 8192)}\n${child.stdout.slice(0, 2048)}`);
 });
 
 test("sealed value domains retain exact source identity without source or physical resolver reads", () => {

@@ -1,4 +1,5 @@
 import type {
+  Node,
   SourceFile,
 } from "@tsonic/tsts";
 import { analyzeCsharpCaptureStorage } from "../callables/capture-storage.js";
@@ -165,11 +166,12 @@ export function analyzeCsharpTargetProgram(
     semanticsFor: source.semantics.forNode,
     hasSemantics: source.semantics.includes,
   };
+  let analysisRejection: TargetStageResult<never> | undefined;
   const closure = resolveTargetContractFixedPoint<CsharpRepresentationContract>({
     roots: [csharpTargetRepresentationContractId],
     evaluate(_id, context) {
       const previous = context.get(csharpTargetRepresentationContractId);
-      const iteration = analyzeIteration(
+      const evaluated = analyzeIteration(
         input,
         providers,
         sourceFiles,
@@ -179,6 +181,11 @@ export function analyzeCsharpTargetProgram(
         sourceStorage,
         previous,
       );
+      if (evaluated.kind === "rejected") {
+        analysisRejection = evaluated;
+        return { kind: "rejected", reason: evaluated.diagnostics[0]!.message };
+      }
+      const iteration = evaluated.value;
       return {
         kind: "resolved",
         revision: {
@@ -196,6 +203,7 @@ export function analyzeCsharpTargetProgram(
     maximumRevisionsPerContract: 32,
     maximumEvaluations: 64,
   });
+  if (analysisRejection !== undefined) return analysisRejection;
   if (closure.kind === "rejected") {
     return rejectedTargetStage([{
       code: "CSHARP_TARGET_CONTRACT_CLOSURE_REJECTED",
@@ -208,7 +216,7 @@ export function analyzeCsharpTargetProgram(
     }]);
   }
   const stable = closure.program.get(csharpTargetRepresentationContractId)!;
-  const analysis = analyzeIteration(
+  const evaluated = analyzeIteration(
     input,
     providers,
     sourceFiles,
@@ -218,6 +226,8 @@ export function analyzeCsharpTargetProgram(
     sourceStorage,
     stable,
   );
+  if (evaluated.kind === "rejected") return evaluated;
+  const analysis = evaluated.value;
   if (!representationContractsEqual(stable, analysis)) {
     return rejectedTargetStage([{
       code: "CSHARP_TARGET_CONTRACT_SEAL_MISMATCH",
@@ -244,13 +254,7 @@ export function analyzeCsharpTargetProgram(
     ...analysis.storage.issues,
   ];
   if (analysisIssues.length > 0) {
-    return rejectedTargetStage(analysisIssues.map((issue) => ({
-      code: issue.code,
-      category: "error" as const,
-      source: "tsonic-csharp",
-      message: issue.message,
-      sourceNode: issue.node,
-    })));
+    return rejectCsharpAnalysisIssues(analysisIssues);
   }
   const sourceModuleConstructions = analyzeCsharpSourceModuleConstructions({
     source,
@@ -405,7 +409,7 @@ function analyzeIteration(
     createCsharpProjectTypeCatalog(typeHost, previous?.typeProjections),
     representations,
   );
-  const policy = createCsharpAnalysisPolicyContext({
+  const policyContext = createCsharpAnalysisPolicyContext({
     callOnlyAlias: typeHost.callOnlyAlias,
     input,
     sourceFiles,
@@ -414,6 +418,8 @@ function analyzeIteration(
     sourceIdentities,
     typeSystem,
   });
+  if (policyContext.issues.length > 0) return rejectCsharpAnalysisIssues(policyContext.issues);
+  const policy = policyContext.policy;
   const sourceEvidence = analyzeCsharpSourceEvidence(
     input.source,
     sourceFiles,
@@ -467,7 +473,7 @@ function analyzeIteration(
   });
   const sealedObjectShapes = objectShapes.seal();
   const storage = sealCsharpStorage(policy, sourceEvidence, operations, sealedObjectShapes, storageRepresentations);
-  return Object.freeze({
+  return resolvedTargetStage(Object.freeze({
     policy,
     typeDefinitions,
     typeProjections,
@@ -480,7 +486,19 @@ function analyzeIteration(
     expectedTypes,
     conversions,
     storage,
-  });
+  }));
+}
+
+function rejectCsharpAnalysisIssues(
+  issues: readonly { readonly node?: Node | undefined; readonly code: string; readonly message: string }[],
+): TargetStageResult<never> {
+  return rejectedTargetStage(issues.map(issue => ({
+    code: issue.code,
+    category: "error" as const,
+    source: "tsonic-csharp",
+    message: issue.message,
+    sourceNode: issue.node,
+  })));
 }
 
 function sourceCallableContract(
