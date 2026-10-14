@@ -84,12 +84,11 @@ export function planSourceFunctionDeclaration(
   const async = isAsyncNode(input.program.source.ast, node);
   state.currentReturnType = declaredReturnType;
   state.currentReturnTypeSubject = declaration.Type;
-  state.currentReturnExpressionTargetType = declaredReturnTargetType;
+  state.currentReturnExpressionTargetType = input.program.records.returnContext.get(node)?.target;
   if (async) {
     const returnExpressionType = getAsyncReturnExpressionExpectedType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
     state.currentReturnExpressionType = returnExpressionType?.type;
     state.currentReturnExpressionTypeSubject = returnExpressionType?.subject;
-    state.currentReturnExpressionTargetType = returnExpressionType?.targetType;
   }
   const returnContract = input.program.records.returnContract.get(node);
   state.currentUndefinedReturn = returnContract?.kind === "resolved" && returnContract.undefinedReturn === true;

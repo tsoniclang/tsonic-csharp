@@ -207,7 +207,7 @@ function mergeGetterAccessor(
   const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, existing?.type ?? invalidCsharpType("get accessor type"), diagnostics);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
   state.currentReturnType = type;
-  state.currentReturnExpressionTargetType = input.types.classifications.resolveNode(declaration.Type ?? declaration.name, sourceFile);
+  state.currentReturnExpressionTargetType = input.program.records.returnContext.get(node)?.target;
   return {
     kind: "PropertyDeclaration",
     name,

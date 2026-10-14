@@ -46,6 +46,7 @@ export interface CsharpProgramRecords {
   readonly methodWrite: CsharpDeclarationClassifications["methodWrite"];
   readonly expectedType: CsharpExpectedTypeClassifications["expectedType"];
   readonly requiredExpectedType: CsharpExpectedTypeClassifications["requiredExpectedType"];
+  readonly returnContext: CsharpExpectedTypeClassifications["returnContext"];
   readonly exactIntegerConversion: CsharpExpectedTypeClassifications["exactIntegerConversion"];
   readonly storageExpectedType: CsharpExpectedTypeClassifications["storageExpectedType"];
   readonly callableTarget: CsharpExpectedTypeClassifications["callableTarget"];

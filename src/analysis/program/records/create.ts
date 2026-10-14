@@ -69,6 +69,7 @@ export function createCsharpProgramRecords(input: CsharpProgramRecordInput): Csh
     methodWrite: input.declarations.methodWrite,
     expectedType: input.expectedTypes.expectedType,
     requiredExpectedType: input.expectedTypes.requiredExpectedType,
+    returnContext: input.expectedTypes.returnContext,
     exactIntegerConversion: input.expectedTypes.exactIntegerConversion,
     storageExpectedType: input.expectedTypes.storageExpectedType,
     callableTarget: input.expectedTypes.callableTarget,

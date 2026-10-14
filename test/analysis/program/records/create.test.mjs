@@ -40,7 +40,7 @@ for (const surface of ["native", "js"]) {
     const { program, call, declaration } = fixture(surface);
     assert.equal(Object.isFrozen(program) && Object.isFrozen(program.records), true, "sealed program and record port");
     const families = Object.entries(program.records);
-    assert.equal(families.length, 118, "every current record family is assembled");
+    assert.equal(families.length, 119, "every current record family is assembled");
     for (const [name, family] of families) {
       assert.equal(Object.isFrozen(family) && typeof family.get === "function", true, `${name}: frozen typed reader`);
       assert.equal(Object.hasOwn(family, "set"), false, `${name}: no public write path`);
@@ -53,6 +53,11 @@ for (const surface of ["native", "js"]) {
     assert.equal(program.records.selectedCall.get(declaration) === undefined, true, "unrelated declaration has no call fact");
     assert.equal(program.records.nativeGuardResult.get(declaration) === undefined, true, "optional booleans stay absent");
     assert.equal(program.records.exactCatchRethrow.get(declaration), false, "guaranteed false is not optionalized");
+    const returned = program.records.returnContext.get(declaration);
+    assert.equal(returned?.target.kind === "source-primitive" && returned.target.name === "int32" && Object.isFrozen(returned), true,
+      "the declaration body returns to its exact int32 contract");
+    assert.equal(program.records.returnContext.get(declaration) === returned, true, "return context identity is stable");
+    assert.equal(program.records.returnContext.get(call) === undefined, true, "a call has no return context");
     const type = program.records.nodeTargetType.get(call);
     assert.equal(type?.kind === "source-primitive" && type.name === "int32", true, "native integer carrier is preserved");
   });
