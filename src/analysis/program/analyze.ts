@@ -476,7 +476,7 @@ function analyzeIteration(
   const conversions = conversionAnalysis.seal({
     operations,
     expectedTypes,
-    storage: storageRepresentations,
+    valueReads,
   });
   const sealedObjectShapes = objectShapes.seal();
   const storage = sealCsharpStorage(policy,
