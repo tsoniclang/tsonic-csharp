@@ -5,7 +5,7 @@ import { instantiateCsharpObjectShape } from "../../../dist/policy/types/objects
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { emptyCsharpTypeDefinitions } from "../../../dist/target-model/types/source-union-definitions.js";
 
-test("sealed shape catalogs retain actual generic instances and project templates without source or cache writes", () => {
+test("sealed shape catalogs retain actual generic instances and read undemanded instances as absent", () => {
   const parameter = { kind: "type-parameter", name: "Value", identity: "test.Shape.Value" };
   const integer = { kind: "source-primitive", name: "int64" };
   const string = { kind: "source-primitive", name: "string" };
@@ -44,13 +44,12 @@ test("sealed shape catalogs retain actual generic instances and project template
   assert.equal(current !== undefined, true);
   assert.equal(shapes.resolveTarget(demanded) === current, true, "actual instance identity is stable");
   assert.equal(shapes.resolveNode(file) === shapes.resolveNode(file), true, "node DTO does not get reconstructed");
+  assert.equal(targetTypeRefEquals(current.members[0].type, integer), true, "exact native generic substitution before publication");
   for (const argument of [string, { kind: "array", element: integer }]) {
     const target = { kind: "target-named", id: "Shape", typeArguments: [argument] };
     for (let index = 0; index < 32; index += 1) {
-      const projected = shapes.resolveTarget(target);
-      assert.equal(projected !== undefined && targetTypeRefEquals(projected.targetType, target), true);
-      assert.equal(targetTypeRefEquals(projected.members[0].type, argument), true, "exact native generic substitution");
-      assert.equal(shapes.knownShapes() === catalog, true, "read-only template projection never populates the catalog");
+      assert.equal(shapes.resolveTarget(target) === undefined, true, "an undemanded instance is a negative lookup, not a late substitution");
+      assert.equal(shapes.knownShapes() === catalog, true, "reads never populate the catalog");
     }
   }
   assert.equal(shapes.resolveTarget({ kind: "target-named", id: "Other", typeArguments: [integer] }) === undefined, true);
