@@ -48,6 +48,7 @@ type CsharpCompilationSessionState =
 
 export function createCsharpCompilationSession(
   context: TargetCompilationSessionContext,
+  compileRequest: typeof compileCsharpTarget = compileCsharpTarget,
 ): TargetCompilationSession {
   const configuration = createCsharpTargetConfiguration(
     context.target,
@@ -128,7 +129,7 @@ export function createCsharpCompilationSession(
     compile(input: TargetCompileInput): TargetCompileResult {
       requireState(state, "runtime-contributed", "compile");
       state = "compiled";
-      return compileCsharpTarget(Object.freeze({
+      return compileRequest(Object.freeze({
         input,
         configuration,
         providers: relationResolver,

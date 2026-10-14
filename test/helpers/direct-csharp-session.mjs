@@ -22,6 +22,8 @@ import {
 import {
   createCsharpTargetPack,
 } from "../../dist/public/index.js";
+import { createCsharpCompilationSession } from "../../dist/compilation/session.js";
+import { compileCsharpTarget } from "../../dist/backend/compile.js";
 
 function createCheckedCsharpSource(options) {
   const projectRoot = options.projectRoot ?? "/project";
@@ -67,7 +69,9 @@ function createCheckedCsharpSource(options) {
       selectedSurfaces,
     }),
   };
-  const targetSession = targetPack.createCompilationSession(sessionContext);
+  const targetSession = options.compileTarget === undefined
+    ? targetPack.createCompilationSession(sessionContext)
+    : createCsharpCompilationSession(sessionContext, options.compileTarget);
   const sourceProfile = collectTargetSourceProfileContributions({
     project,
     projectRoot,
@@ -146,7 +150,13 @@ export function checkCsharpSource(options) {
 
 export function compileCsharpSource(options) {
   const projectRoot = options.projectRoot ?? "/project";
-  const checked = createCheckedCsharpSource(options);
+  let program;
+  let plan;
+  const compileTarget = options.compileTarget ?? compileCsharpTarget;
+  const checked = createCheckedCsharpSource({ ...options, compileTarget: request => compileTarget(request, {
+    analyzed(value) { program = value; },
+    planned(value) { plan = value; },
+  }) });
   const sourceDiagnostics = collectTstsDiagnostics(checked.source, projectRoot);
   let compiled;
   try {
@@ -173,6 +183,8 @@ export function compileCsharpSource(options) {
   const result = {
     artifacts: compiled.kind === "resolved" ? compiled.value.artifacts : [],
     diagnostics: compiled.diagnostics,
+    program,
+    plan,
   };
   return {
     ...checked,
