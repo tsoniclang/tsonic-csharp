@@ -309,12 +309,10 @@ function planForOfBindingCore(
         prelude: planBindingPatternFromExpression(
           variableName,
           { kind: "IdentifierName", name: itemName },
-          first,
           sourceFile,
           input,
           diagnostics,
           state,
-          undefined,
           planExpressionWithExpectedType,
         ),
       };

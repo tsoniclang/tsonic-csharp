@@ -11,7 +11,6 @@ import {
 import type { Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
@@ -53,12 +52,10 @@ export interface CsharpEntryBinding {
 export function planBindingPatternFromExpression(
   patternNode: Node,
   sourceExpression: CsharpExpression,
-  _sourceNode: Node | undefined,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-  _sourceCarrier?: TargetTypeRef,
   planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
   retainBinding?: (binding: CsharpEntryBinding, declaration: Node) => void,
 ): readonly CsharpStatement[] {
@@ -71,7 +68,6 @@ export function planBindingPatternFromExpression(
     projectionInput,
     projectionDiagnostics,
     projectionState,
-    projectedCarrier,
   ) => planBindingNameFromProjection(
     name,
     projected,
@@ -81,7 +77,6 @@ export function planBindingPatternFromExpression(
     projectionInput,
     projectionDiagnostics,
     projectionState,
-    projectedCarrier,
     planDefaultExpressionWithExpectedType,
     retainBinding,
   );
@@ -104,7 +99,6 @@ function planBindingNameFromProjection(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-  projectedCarrier?: TargetTypeRef,
   planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
   retainBinding?: (binding: CsharpEntryBinding, declaration: Node) => void,
 ): readonly CsharpStatement[] {
@@ -149,7 +143,7 @@ function planBindingNameFromProjection(
         type: nestedType,
         initializer: projected,
       },
-      ...planBindingPatternFromExpression(name, nestedSource, projectionNode, sourceFile, input, diagnostics, state, projectedCarrier, planDefaultExpressionWithExpectedType, retainBinding),
+      ...planBindingPatternFromExpression(name, nestedSource, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType, retainBinding),
     ];
   }
   diagnostics.push(unsupportedNodeDiagnostic(name, "Destructuring target binding name is outside the current C# planning surface."));
