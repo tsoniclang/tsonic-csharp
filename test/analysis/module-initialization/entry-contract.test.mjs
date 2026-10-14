@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { binaryEntryNativePrograms } from "../../../../tsonic/test/fixtures/binary-entry-contract.mjs";
 
 for (const surface of [undefined, "js"]) {
   test(`binary entry rejects uncalled main on ${surface ?? "native"}`, () => {
@@ -18,8 +19,7 @@ for (const surface of [undefined, "js"]) {
   ]) {
     test(`binary ${name} runs exactly once on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
       const sourceText = surface === undefined
-        ? name === "explicit" ? "export function main(): void {} main();"
-          : name === "async" ? "export async function main(): Promise<void> {} await main();" : "export const result = 42;"
+        ? binaryEntryNativePrograms[name]
         : source;
       const compiled = compileCsharpSource({ surface, targetOptions: { outputType: "Exe" }, sourceText });
       assertCsharpCompilationSucceeded(compiled);
