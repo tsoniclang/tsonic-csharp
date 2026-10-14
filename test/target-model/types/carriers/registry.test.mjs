@@ -48,3 +48,10 @@ test("C# registry preserves one native absence state without extra broad-value s
   const broad = csharpTsValueTargetType();
   assert.equal(csharpNullableTargetType(broad) === broad, true);
 });
+
+test("retained E71 vocabulary is explicitly frozen, without admitting additional callable behavior", () => {
+  for (const symbol of ["csharpMethodValueType", "rebindCsharpMethodValueTypeParameters"]) {
+    const row = current.rows.find(entry => entry.declaration.symbol === symbol);
+    assert.equal(row?.frozen, true, symbol);
+  }
+});
