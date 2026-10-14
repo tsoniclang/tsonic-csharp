@@ -75,4 +75,3 @@ for (const [name, body, expected] of cases) {
     }
   });
 }
-
