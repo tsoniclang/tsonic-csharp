@@ -328,6 +328,7 @@ sealed partial class ReflectionProvider
                 @static = field.IsStatic ? true : (bool?)null,
                 readable = true,
                 writable = !field.IsLiteral && !field.IsInitOnly ? true : (bool?)null,
+                literal = field.IsLiteral ? true : (bool?)null,
                 type = typeRef,
                 attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
                 unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,

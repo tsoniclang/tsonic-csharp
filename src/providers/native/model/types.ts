@@ -157,6 +157,7 @@ export interface DotnetMemberDeclaration {
   readonly targetDeclaringType?: DotnetTypeRef;
   readonly readable?: boolean;
   readonly writable?: boolean;
+  readonly literal?: true;
   readonly type?: DotnetTypeRef;
   readonly sourceType?: DotnetTypeRef;
   readonly returnPassing?: DotnetReturnPassingMode;

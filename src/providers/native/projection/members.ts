@@ -91,6 +91,7 @@ export function dotnetMemberToTargetMemberRecords(
               declaringType,
               ...(member.static === true ? { static: true } : {}),
               ...(dotnetMemberIsReadonly(member) ? { readonly: true } : {}),
+              ...(member.kind === "field" && member.literal === true ? { csharpLiteral: true as const } : {}),
               ...(member.receiverPassing !== undefined ? { receiverPassing: member.receiverPassing } : {}),
               parameters: [],
               returnType: dotnetTypeRefToTargetTypeRef(member.type),

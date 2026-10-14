@@ -883,3 +883,39 @@ test(".NET target binding provider reports unsupported requested exports with pr
   assert.match(JSON.stringify(model.evidence), /ProviderUnsupportedFixtures\.PointerDelegate/u);
   assert.match(JSON.stringify(model.evidence), new RegExp(escapeRegExp(testTargetId("ProviderUnsupportedFixtures.PointerDelegate")), "u"));
 });
+
+test(".NET provider model contract accepts literal only on static non-writable fields", () => {
+  const model = (member) => ({
+    moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
+    namespaceName: "ProviderContractFixtures",
+    exports: [{
+      kind: "type",
+      typeKind: "class",
+      sourceName: "Limits",
+      namespaceName: "ProviderContractFixtures",
+      targetId: testTargetId("ProviderContractFixtures.Limits"),
+      metadataName: "ProviderContractFixtures.Limits",
+      members: [{
+        sourceName: "Value",
+        targetName: "Value",
+        targetId: testTargetId("ProviderContractFixtures.Limits.Value"),
+        metadataName: "ProviderContractFixtures.Limits.Value",
+        readable: true,
+        type: { kind: "object" },
+        ...member,
+      }],
+    }],
+  });
+  assert.equal(validateDotnetModuleModelContract(model({ kind: "field", static: true, literal: true })), undefined);
+  assert.equal(validateDotnetModuleModelContract(model({ kind: "field", static: true })), undefined);
+  for (const member of [
+    { kind: "field", literal: true },
+    { kind: "field", static: true, writable: true, literal: true },
+    { kind: "field", static: true, literal: false },
+    { kind: "property", static: true, literal: true },
+  ]) {
+    const diagnostic = validateDotnetModuleModelContract(model(member));
+    assert.equal(diagnostic?.code, "DOTNET_PROVIDER_MODEL_CONTRACT_INVALID", JSON.stringify(member));
+    assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].literal"), true, JSON.stringify(member));
+  }
+});
