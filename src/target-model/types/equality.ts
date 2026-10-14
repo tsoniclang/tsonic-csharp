@@ -15,10 +15,6 @@ export function targetTypeRefEquals(
   switch (left.kind) {
     case "source-primitive":
       return right.kind === "source-primitive" && left.name === right.name;
-    case "source-global":
-      return right.kind === "source-global" &&
-        left.name === right.name &&
-        targetTypeRefListEquals(left.typeArguments ?? [], right.typeArguments ?? []);
     case "target-named":
       return right.kind === "target-named" &&
         left.id === right.id &&
@@ -43,17 +39,6 @@ export function targetTypeRefEquals(
         stringListEquals(left.abi ?? [], right.abi ?? []);
     case "opaque":
       return right.kind === "opaque" && left.id === right.id;
-    case "associated-type":
-      return right.kind === "associated-type" &&
-        left.name === right.name &&
-        targetTypeRefEquals(left.owner, right.owner);
-    case "lifetime":
-      return right.kind === "lifetime" && left.name === right.name;
-    case "target-specific":
-      return right.kind === "target-specific" &&
-        left.target === right.target &&
-        left.name === right.name &&
-        left.payloadId === right.payloadId;
   }
 }
 
@@ -61,12 +46,9 @@ export function targetTypeRefIsClosed(type: TargetTypeRef): boolean {
   switch (type.kind) {
     case "source-primitive":
     case "opaque":
-    case "lifetime":
-    case "target-specific":
       return true;
     case "type-parameter":
       return false;
-    case "source-global":
     case "target-named":
       return (type.typeArguments ?? []).every(targetTypeRefIsClosed);
     case "array":
@@ -78,8 +60,6 @@ export function targetTypeRefIsClosed(type: TargetTypeRef): boolean {
     case "function-pointer":
       return targetTypeRefIsClosed(type.result) &&
         type.args.every(targetTypeRefIsClosed);
-    case "associated-type":
-      return targetTypeRefIsClosed(type.owner);
   }
 }
 
@@ -97,8 +77,6 @@ export function scopedTargetTypeRefKey(type: TargetTypeRef, boundParameters: Rea
   switch (type.kind) {
     case "source-primitive":
       return `${nullablePrefix}source:${type.name}`;
-    case "source-global":
-      return `${nullablePrefix}source-global:${type.name}<${(type.typeArguments ?? []).map(key).join(",")}>`;
     case "target-named":
       return `${nullablePrefix}target:${type.id}<${(type.typeArguments ?? []).map(key).join(",")}>`;
     case "type-parameter":
@@ -115,12 +93,6 @@ export function scopedTargetTypeRefKey(type: TargetTypeRef, boundParameters: Rea
       return `${nullablePrefix}function-pointer:${(type.abi ?? []).join(",")}:${type.args.map(key).join(",")}=>${key(type.result)}`;
     case "opaque":
       return `${nullablePrefix}opaque:${type.id}`;
-    case "associated-type":
-      return `${nullablePrefix}associated:${type.name}:${key(type.owner)}`;
-    case "lifetime":
-      return `${nullablePrefix}lifetime:${type.name}`;
-    case "target-specific":
-      return `${nullablePrefix}target-specific:${type.target}:${type.name}:${type.payloadId ?? ""}`;
   }
 }
 

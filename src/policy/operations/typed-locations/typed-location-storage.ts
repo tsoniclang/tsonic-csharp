@@ -500,12 +500,8 @@ function classifyCsharpStorageReceiver(
     case "pointer":
     case "function-pointer":
       return "value";
-    case "source-global":
     case "type-parameter":
     case "opaque":
-    case "associated-type":
-    case "lifetime":
-    case "target-specific":
       return "unknown";
   }
 }

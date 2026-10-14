@@ -42,8 +42,6 @@ function csharpTypeFromEnrichedTargetTypeRef(
   switch (type.kind) {
     case "source-primitive":
       return csharpTypeFromSourcePrimitiveKind(type.name);
-    case "source-global":
-      return undefined;
     case "target-named":
       return csharpTypeFromTargetNamedType(type, typeParameterNames);
     case "type-parameter":
@@ -79,10 +77,7 @@ function csharpTypeFromEnrichedTargetTypeRef(
             ...convention,
           };
     }
-    case "target-specific":
     case "opaque":
-    case "associated-type":
-    case "lifetime":
       return undefined;
   }
 }

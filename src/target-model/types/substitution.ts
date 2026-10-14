@@ -46,13 +46,6 @@ export function substituteTargetTypeParameters(
       return isCsharpNullableReferenceTargetType(type)
         ? csharpNullableTargetType(substitution)
         : substitution;
-    case "source-global":
-      return {
-        ...type,
-        ...(type.typeArguments === undefined
-          ? {}
-          : { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeParameters(argument, substitutions)) }),
-      };
     case "target-named":
       const arrayLiteralElementType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType;
       const arrayLiteralConstructionType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralConstructionType;
@@ -161,12 +154,8 @@ export function substituteTargetTypeParameters(
         args: type.args.map((argument) => substituteTargetTypeParameters(argument, substitutions)),
         result: substituteTargetTypeParameters(type.result, substitutions),
       };
-    case "associated-type":
-      return { ...type, owner: substituteTargetTypeParameters(type.owner, substitutions) };
     case "source-primitive":
     case "opaque":
-    case "lifetime":
-    case "target-specific":
       return type;
   }
 }
@@ -231,12 +220,6 @@ export function inferCsharpTargetTypeParameterBindings(
       return false;
     }
     switch (left.kind) {
-      case "source-global": {
-        if (right.kind !== "source-global" || left.name !== right.name) {
-          return false;
-        }
-        return matchArguments(left.typeArguments, right.typeArguments);
-      }
       case "target-named": {
         if (right.kind !== "target-named" || left.id !== right.id) {
           return false;
@@ -264,15 +247,9 @@ export function inferCsharpTargetTypeParameterBindings(
           left.args.every((argument, index) =>
             match(argument, right.args[index]!)) &&
           match(left.result, right.result);
-      case "associated-type":
-        return right.kind === "associated-type" &&
-          left.name === right.name &&
-          match(left.owner, right.owner);
       case "source-primitive":
       case "type-parameter":
       case "opaque":
-      case "lifetime":
-      case "target-specific":
         return targetTypeRefEquals(left, right);
     }
   }

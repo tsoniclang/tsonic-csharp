@@ -384,14 +384,10 @@ function targetTypeImplicitlyConvertsToObject(source: TargetTypeRef): boolean {
       return true;
     case "target-named":
       return (source as CsharpTargetNamedTypeRef).csharpSpecialType !== "void";
-    case "source-global":
     case "type-parameter":
     case "pointer":
     case "function-pointer":
     case "opaque":
-    case "associated-type":
-    case "lifetime":
-    case "target-specific":
       return false;
   }
 }

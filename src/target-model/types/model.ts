@@ -87,7 +87,6 @@ export interface CsharpStructuralInterfaceImplementation {
 
 export type TargetTypeRef =
   | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind }
-  | { readonly kind: "source-global"; readonly name: string; readonly typeArguments?: readonly TargetTypeRef[] }
   | { readonly kind: "target-named"; readonly id: string; readonly typeArguments?: readonly TargetTypeRef[] }
   | { readonly kind: "type-parameter"; readonly identity: string; readonly name: string;
       readonly csharpDeclaration?: Node;
@@ -97,10 +96,7 @@ export type TargetTypeRef =
   | { readonly kind: "tuple"; readonly elements: readonly TargetTypeRef[] }
   | { readonly kind: "pointer"; readonly pointee: TargetTypeRef; readonly mutability?: "const" | "mut" | "target-defined" }
   | { readonly kind: "function-pointer"; readonly args: readonly TargetTypeRef[]; readonly result: TargetTypeRef; readonly abi?: readonly string[] }
-  | { readonly kind: "opaque"; readonly id: string }
-  | { readonly kind: "associated-type"; readonly owner: TargetTypeRef; readonly name: string }
-  | { readonly kind: "lifetime"; readonly name: string }
-  | { readonly kind: "target-specific"; readonly target: string; readonly name: string; readonly payloadId?: string };
+  | { readonly kind: "opaque"; readonly id: string };
 
 export type TargetConstraint =
   | { readonly kind: "implements"; readonly contract: string; readonly typeArguments?: readonly TargetTypeRef[] }
@@ -108,11 +104,6 @@ export type TargetConstraint =
   | { readonly kind: "reference-type" }
   | { readonly kind: "constructible" }
   | { readonly kind: "unmanaged" }
-  | { readonly kind: "copy" }
-  | { readonly kind: "clone" }
-  | { readonly kind: "default" }
-  | { readonly kind: "sized" }
-  | { readonly kind: "lifetime"; readonly name: string }
   | { readonly kind: "target-specific"; readonly target: string; readonly name: string; readonly payloadId?: string };
 
 export interface TargetTypeParameter {

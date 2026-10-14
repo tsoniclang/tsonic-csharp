@@ -24,7 +24,6 @@ export function csharpTargetTypeComponents(
     for (const type of types) components.push(type);
   };
   switch (type.kind) {
-    case "source-global":
     case "target-named":
       addAll(type.typeArguments);
       break;
@@ -41,9 +40,6 @@ export function csharpTargetTypeComponents(
       addAll(type.args);
       add(type.result);
       break;
-    case "associated-type":
-      add(type.owner);
-      break;
     case "type-parameter":
       addAll(type.csharpProjection?.arguments);
       if (type.csharpConstraints?.kind === "resolved") {
@@ -55,8 +51,6 @@ export function csharpTargetTypeComponents(
       break;
     case "source-primitive":
     case "opaque":
-    case "lifetime":
-    case "target-specific":
       break;
   }
   if (type.kind === "target-named") {

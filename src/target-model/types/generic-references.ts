@@ -70,7 +70,6 @@ function walkTypeParameters(type: TargetTypeRef, visit: (parameter: TypeParamete
     visited.add(type);
     switch (type.kind) {
       case "type-parameter": visit(type); break;
-      case "source-global":
       case "target-named":
         for (const argument of type.typeArguments ?? []) enqueue(argument, selected.depth + 1);
         break;
@@ -83,11 +82,9 @@ function walkTypeParameters(type: TargetTypeRef, visit: (parameter: TypeParamete
         for (const argument of type.args) enqueue(argument, selected.depth + 1);
         enqueue(type.result, selected.depth + 1);
         break;
-      case "associated-type": enqueue(type.owner, selected.depth + 1); break;
       case "source-primitive":
       case "opaque":
-      case "lifetime":
-      case "target-specific": break;
+        break;
     }
   }
 }

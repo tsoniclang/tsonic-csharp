@@ -1,16 +1,18 @@
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { CsharpNativeMemoryLayout } from "../../../target-model/operations/native-memory.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import { csharpRuntimeNativeLayoutTargetType, csharpRuntimeNativeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpRuntimeNativeLayoutTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpNativeLayoutOwner, csharpNativeMemoryOwner } from "../../../target-model/names/native-memory.js";
+import { qualifiedCsharpType } from "../types/csharp-type-primitives.js";
 
 export function planCsharpNativeMemoryCall(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   method: "Allocate" | "ToRaw" | "Reinterpret", value: CsharpExpression, layout: CsharpNativeMemoryLayout,
 ): CsharpExpression | undefined {
   const pointee = csharpTypeFromTargetTypeRef(layout.pointeeType, typeParameterNames);
-  const owner = csharpTypeFromTargetTypeRef(csharpRuntimeNativeLocationTargetType(), typeParameterNames);
+  const owner = qualifiedCsharpType(csharpNativeMemoryOwner.namespace, csharpNativeMemoryOwner.name);
   const codec = planCsharpNativeLayout(typeParameterNames, layout);
-  if (pointee === undefined || owner === undefined || codec === undefined) return undefined;
+  if (pointee === undefined || codec === undefined) return undefined;
   return { kind: "InvocationExpression", callee: {
     kind: "SimpleMemberAccessExpression",
     receiver: owner,
@@ -27,7 +29,8 @@ export function planCsharpNativeArray(typeParameterNames: ReadonlyMap<string, st
 
 function planCsharpNativeLayout(typeParameterNames: ReadonlyMap<string, string> | undefined, layout: CsharpNativeMemoryLayout): CsharpExpression | undefined {
   const pointee = csharpTypeFromTargetTypeRef(layout.pointeeType, typeParameterNames);
-  const owner = csharpTypeFromTargetTypeRef(csharpRuntimeNativeLayoutTargetType(layout.kind === "scalar" ? undefined : layout.pointeeType), typeParameterNames);
+  const owner = layout.kind === "scalar" ? qualifiedCsharpType(csharpNativeLayoutOwner.namespace, csharpNativeLayoutOwner.name)
+    : csharpTypeFromTargetTypeRef(csharpRuntimeNativeLayoutTargetType(layout.pointeeType), typeParameterNames);
   if (pointee === undefined || owner === undefined) return undefined;
   const dimensions: CsharpExpression[] = [
     { kind: "NumericLiteralExpression" as const, value: layout.size },

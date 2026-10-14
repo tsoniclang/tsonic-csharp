@@ -30,7 +30,7 @@ export function csharpTypeParameterConstraintResolutionKey(
 }
 
 export function csharpOwnerTypeParameterConstraintKey(type: TargetTypeRef): string {
-  return JSON.stringify((type.kind === "source-global" || type.kind === "target-named" ? type.typeArguments ?? [] : [])
+  return JSON.stringify((type.kind === "target-named" ? type.typeArguments ?? [] : [])
     .flatMap(argument => argument.kind === "type-parameter" ? [[argument.identity,
       csharpTypeParameterConstraintResolutionKey(argument.csharpConstraints)]] : []));
 }
