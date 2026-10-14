@@ -11,8 +11,17 @@ export type CsharpBindingPatternSource =
   | { readonly kind: "object-shape-source"; readonly shape: CsharpObjectShapeFact }
   | { readonly kind: "source-owned-source" };
 
+export type CsharpTupleDefaultUse =
+  | { readonly kind: "planned"; readonly carrier: TargetTypeRef }
+  | { readonly kind: "unused" };
+
 export type CsharpBindingElementProjection =
-  | { readonly kind: "array-element"; readonly index: number; readonly elementCarrier?: TargetTypeRef }
+  | {
+      readonly kind: "array-element";
+      readonly index: number;
+      readonly elementCarrier?: TargetTypeRef;
+      readonly tupleDefault?: CsharpTupleDefaultUse;
+    }
   | { readonly kind: "array-rest"; readonly start: number; readonly restCarrier: TargetTypeRef }
   | { readonly kind: "tuple-rest"; readonly start: number; readonly restCarrier: Extract<TargetTypeRef, { readonly kind: "tuple" }> }
   | { readonly kind: "object-shape-member"; readonly member: CsharpObjectShapeMemberFact }

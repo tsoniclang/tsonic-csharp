@@ -325,16 +325,17 @@ export function analyzeCsharpTargetProgram(
   const flowReads = analyzeCsharpFlowReadProjections(analysis.policy, analysis.sourceEvidence, analysis.operations, analysis.valueReads);
   if (flowReads.issues.length > 0) return rejectCsharpAnalysisIssues(flowReads.issues);
   const bindingPatterns = analyzeCsharpBindingPatterns({ ast: source.ast, sourceFiles, navigation: source.navigation,
-    captureClosure: captureStorage.captureClosure, evidence: analysis.sourceEvidence,
+    captureClosure: captureStorage.captureClosure, lambdaCreation: captureStorage.lambdaCreation, evidence: analysis.sourceEvidence,
     operations: analysis.operations, valueReads: analysis.valueReads, objectShapes: analysis.objectShapes });
   if (bindingPatterns.issues.length > 0) return rejectedTargetStage(bindingPatterns.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
     ...(issue.evidence.length === 0 ? {} : { evidence: issue.evidence }),
   })));
   const safetyIssues = admitCsharpSafetyApplications({ ast: source.ast, sourceFiles, navigation: source.navigation,
-    captureClosure: captureStorage.captureClosure, evidence: analysis.sourceEvidence, operations: analysis.operations,
+    captureClosure: captureStorage.captureClosure, lambdaCreation: captureStorage.lambdaCreation, evidence: analysis.sourceEvidence, operations: analysis.operations,
     languageDialect: configuration.languageDialect, memorySafetyRules: configuration.memorySafetyRules,
-    safety: safetyApplications, erasedAttribute: attributeApplications.erasedAttribute });
+    safety: safetyApplications, erasedAttribute: attributeApplications.erasedAttribute,
+    bindingPatternProjection: bindingPatterns.bindingPatternProjection });
   if (safetyIssues.length > 0) return rejectedTargetStage(safetyIssues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", message: issue.message,
   })));

@@ -20,7 +20,6 @@ import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import { csharpTupleExpression } from "../types/csharp-tuples.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/index.js";
 import type { CsharpBindingElementProjection, CsharpBindingPatternSource } from "../../../target-model/records/value-projections.js";
 import { planArrayDefaultProjection } from "./array-defaults.js";
 import type {
@@ -132,9 +131,13 @@ function planArrayBindingElement(
   }
   if (element.Initializer !== undefined) {
     if (sourceCarrier.kind !== "array") {
-      const defaultedElementCarrier =
-        getCsharpNullableElementTargetType(elementCarrier);
-      if (defaultedElementCarrier !== undefined) {
+      const tupleDefault = projection.tupleDefault;
+      if (tupleDefault === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(elementNode, missingBindingPatternProjectionMessage));
+        return [];
+      }
+      if (tupleDefault.kind === "planned") {
+        const defaultedElementCarrier = tupleDefault.carrier;
         const defaultedElementType = csharpTypeFromTargetTypeRef(
           defaultedElementCarrier, input.scope.typeParameterNames,
         );

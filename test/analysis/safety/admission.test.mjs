@@ -133,12 +133,14 @@ test("a no-argument unsafe-context fact in an expression position is rejected wi
     sourceFiles: program.sourceNavigation.sourceFiles,
     navigation: program.sourceNavigation,
     captureClosure: program.records.captureClosure,
+    lambdaCreation: program.records.lambdaCreation,
     evidence: { compileTimeMetadata: program.records.compileTimeMetadata, sourceField: program.records.sourceField },
     operations: { nativeUnreachable: program.records.nativeUnreachable, classPropertyStorage: program.records.classPropertyStorage },
     languageDialect: "csharp15-preview",
     memorySafetyRules: "preview",
     safety: { safetyApplication: program.records.safetyApplication, safetyOperation: program.records.safetyOperation, findings: noFindings },
     erasedAttribute: program.records.erasedAttribute,
+    bindingPatternProjection: program.records.bindingPatternProjection,
     ...overrides,
   });
   assert.deepEqual(admitCsharpSafetyApplications(input()), []);
@@ -181,4 +183,18 @@ test("safety diagnostics follow source-file identity order across files", () => 
   const dependency = `${header}export function other(value: int32): int32 { return value; }\nsafety(other).safe();`;
   rejectedBeforePublication(entry("zeta"), preview, [accessor("setter"), safeTarget], { "zeta.ts": dependency });
   rejectedBeforePublication(entry("alpha"), preview, [safeTarget, accessor("setter")], { "alpha.ts": dependency });
+});
+
+test("safety admission does not enter discarded callables or unused tuple defaults", () => {
+  const read = "export function read(pair: [int32, int32], p: NativePointer<int32>): int32";
+  for (const body of [
+    `${read} { (() => unsafecontext(loadnativeptr(p))); return 1; }`,
+    `${read} { const [value = unsafecontext(loadnativeptr(p))] = pair; return value; }`,
+  ]) {
+    const { compiled, result } = analyze(body, undefined);
+    assert.equal(result.kind, "resolved");
+    assertCsharpCompilationSucceeded(compiled);
+  }
+  rejectedBeforePublication("export function read(pair: [int32, int32?], p: NativePointer<int32>): int32 { const [, value = unsafecontext(loadnativeptr(p))] = pair; return value; }",
+    undefined, [expressionDialect]);
 });

@@ -3,7 +3,6 @@ import {
   KindIdentifier,
   Node_Text,
 } from "@tsonic/target-api/source";
-import { getCsharpNullableElementTargetType } from "../../../../target-model/types/index.js";
 import { allocateDestructuringTemp } from "../binding-state.js";
 import { csharpConstructibleTypeFromObjectShapeFact, csharpTypeFromObjectShapeFact, objectShapeStorageMemberName } from "../../objects/index.js";
 import { csharpTupleExpression } from "../../types/csharp-tuples.js";
@@ -136,9 +135,13 @@ function planArrayAssignmentElement(
   const projected = planArrayAssignmentProjection(sourceExpression, index, sourceCarrier);
   if (element.initializer !== undefined) {
     if (sourceCarrier.kind !== "array") {
-      const defaultedElementCarrier =
-        getCsharpNullableElementTargetType(elementCarrier);
-      if (defaultedElementCarrier !== undefined) {
+      const tupleDefault = projection.tupleDefault;
+      if (tupleDefault === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, missingBindingPatternProjectionMessage));
+        return [];
+      }
+      if (tupleDefault.kind === "planned") {
+        const defaultedElementCarrier = tupleDefault.carrier;
         const defaultedElementType = csharpTypeFromTargetTypeRef(
           defaultedElementCarrier, input.scope.typeParameterNames,
         );

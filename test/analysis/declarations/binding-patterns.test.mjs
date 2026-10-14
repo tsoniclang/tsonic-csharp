@@ -286,6 +286,7 @@ function sealedInputs(sourceText, surface = "native") {
       sourceFiles: value.source.navigation.sourceFiles,
       navigation: value.source.navigation,
       captureClosure: program.records.captureClosure,
+      lambdaCreation: program.records.lambdaCreation,
       evidence: {
         compileTimeMetadata: program.records.compileTimeMetadata,
         sourceOwnedProjectShape: overrides.sourceOwnedProjectShape ?? program.records.sourceOwnedProjectShape,
@@ -405,4 +406,82 @@ test("object-shape assignment member and rest decisions are made once by the bin
     objectAssignmentSourceMessage,
   ]);
   assert.deepEqual(unproven.issues[0].evidence, ["C# type policy found no exact runtime representation."]);
+});
+
+test("js destructuring in discarded callables is not planned; invoked, returned and stored callables keep their rejection", () => {
+  for (const sourceText of [
+    "export function example(): number { (() => { const [value] = new Set([1]); return value; }); return 7; }",
+    "export function example(): number { (function () { const [value] = new Set([1]); return value; }); return 7; }",
+    "export function example(): number { (([value]: Set<number>) => value); return 7; }",
+    "export function example(): number { (() => { (() => { const [value] = new Set([1]); return value; }); return 1; }); return 7; }",
+  ]) {
+    const value = analyze(sourceText, "js");
+    assert.equal(value.result.kind, "resolved");
+    assert.equal(ofKind(value, "KindArrayBindingPattern").every(node => value.result.value.records.bindingPatternProjection.get(node) === undefined), true,
+      "a discarded callable's patterns have no projection");
+    assertCsharpCompilationSucceeded(value.compiled);
+  }
+  for (const sourceText of [
+    "export function example(): number { return (() => { const [value] = new Set([1]); return value; })(); }",
+    "export function example(): () => number { return () => { const [value] = new Set([1]); return value; }; }",
+    "export function example(): number { const f = () => { const [value] = new Set([1]); return value; }; return f(); }",
+  ]) {
+    rejectedBeforePublication(sourceText, "js", [arrayMessage]);
+  }
+});
+
+test("the tuple default-use decision is made once and read by the traversal and both tuple planners", () => {
+  const unusedDefault = "(() => { const [unused] = new Set([1]); return unused; })()";
+  for (const sourceText of [
+    `export function example(pair: [number, number]): number { const [value = ${unusedDefault}] = pair; return value; }`,
+    `export function example(pair: [[number], number]): number { const [[value] = (() => { const [unused] = new Set([[1]]); return unused; })()] = pair; return value; }`,
+    `export function example(pair: [number, number]): number { let value = 0; [value = ${unusedDefault}] = pair; return value; }`,
+  ]) {
+    const value = analyze(sourceText, "js");
+    assert.equal(value.result.kind, "resolved");
+    const records = value.result.value.records;
+    const defaults = [...ofKind(value, "KindBindingElement"), ...ofKind(value, "KindBinaryExpression")]
+      .map(node => records.bindingPatternProjection.get(node)?.element)
+      .filter(element => element?.kind === "array-element" && element.tupleDefault !== undefined)
+      .map(element => element.tupleDefault.kind);
+    assert.deepEqual(defaults, ["unused"], "a non-nullable tuple element never consumes its default");
+    assertCsharpCompilationSucceeded(value.compiled);
+  }
+  rejectedBeforePublication(`export function example(pair: [number, number?]): number { const [, value = ${unusedDefault}] = pair; return value; }`, "js", [arrayMessage]);
+  rejectedBeforePublication(`export function example(pair: [number, number?]): number { let value = 0; [, value = ${unusedDefault}] = pair; return value; }`, "js", [arrayMessage]);
+  rejectedBeforePublication(`export function example(xs: number[]): number { const [value = ${unusedDefault}] = xs; return value; }`, "js", [arrayMessage]);
+  const planned = analyze("export function example(pair: [number, number?]): number { const [, value = 3] = pair; return value; }", "native");
+  assert.equal(planned.result.kind, "resolved");
+  const element = ofKind(planned, "KindBindingElement").map(node => planned.result.value.records.bindingPatternProjection.get(node)?.element)
+    .find(candidate => candidate?.tupleDefault !== undefined);
+  assert.equal(element?.tupleDefault.kind, "planned", "a nullable tuple element consumes its default");
+  assert.equal(element.tupleDefault.carrier !== undefined && Object.isFrozen(element.tupleDefault), true);
+  assertCsharpCompilationSucceeded(planned.compiled);
+});
+
+test("newly allocated array-binding descriptors and tuple slices are published frozen", () => {
+  const value = analyze(`
+    export function read(xs: number[], t: [number, string, boolean], nested: [[number, string], number]): number {
+      const [first] = xs;
+      const [head, ...tail] = t;
+      const [[inner, ...innerTail]] = nested;
+      return first + head + inner;
+    }
+  `, "native");
+  assert.equal(value.result.kind, "resolved");
+  const records = value.result.value.records;
+  const sources = ofKind(value, "KindArrayBindingPattern").map(node => records.bindingPatternProjection.get(node)?.source);
+  assert.deepEqual(sources.map(source => source?.bindingCarrier.kind), ["array", "tuple", "tuple", "tuple"]);
+  assert.deepEqual(sources.map(source => source.bindingCarrier.kind === "array"
+    ? Object.isFrozen(source.bindingCarrier)
+    : source.bindingCarrier === source.sourceCarrier), [true, true, true, true],
+  "newly allocated array descriptors are frozen; tuple carriers keep their exact source identity");
+  const rests = ofKind(value, "KindBindingElement").map(node => records.bindingPatternProjection.get(node)?.element)
+    .filter(element => element?.kind === "tuple-rest");
+  assert.deepEqual(rests.map(rest => rest.restCarrier.elements.length), [2, 1]);
+  assert.deepEqual(rests.map(rest => Object.isFrozen(rest.restCarrier) && Object.isFrozen(rest.restCarrier.elements)), [true, true],
+    "tuple-rest slices and their element lists are frozen");
+  assert.equal(Reflect.set(rests[0].restCarrier.elements, "length", 0), false);
+  assert.equal(rests[0].restCarrier.elements.length, 2);
+  assertCsharpCompilationSucceeded(value.compiled);
 });

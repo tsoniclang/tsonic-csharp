@@ -29,14 +29,14 @@ export function resolveCsharpArrayBindingCarrier(
   sourceCarrier: TargetTypeRef | undefined,
 ): CsharpArrayBindingCarrier | undefined {
   if (sourceCarrier?.kind === "array") {
-    return {
+    return Object.freeze({
       kind: "array",
       carrier: sourceCarrier,
       element: sourceCarrier.element,
       lengthMember: "Length",
       restSlice: "runtime-array-helper",
       restCarrier: sourceCarrier,
-    };
+    });
   }
   if (sourceCarrier?.kind === "tuple") {
     return sourceCarrier;
@@ -52,22 +52,22 @@ export function resolveCsharpArrayBindingCarrier(
     return undefined;
   }
   return csharpCollectionUsesJsArraySemantics(sourceCarrier)
-    ? {
+    ? Object.freeze({
         kind: "array",
         carrier: sourceCarrier,
         element,
         lengthMember,
         restSlice: "instance-slice",
         restCarrier: sourceCarrier,
-      }
-    : {
+      })
+    : Object.freeze({
         kind: "array",
         carrier: sourceCarrier,
         element,
         lengthMember,
         restSlice: "js-array-helper",
         restCarrier: csharpListTargetType(element),
-      };
+      });
 }
 
 export function csharpArrayBindingProjectionTarget(
@@ -82,6 +82,6 @@ export function csharpArrayBindingProjectionTarget(
     return rest ? carrier.restCarrier : carrier.element;
   }
   return rest
-    ? { kind: "tuple", elements: carrier.elements.slice(index) }
+    ? Object.freeze({ kind: "tuple", elements: Object.freeze(carrier.elements.slice(index)) })
     : carrier.elements[index];
 }

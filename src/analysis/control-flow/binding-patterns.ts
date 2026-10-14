@@ -49,6 +49,7 @@ import type {
   CsharpDestructuringAssignmentObjectElement,
   CsharpDestructuringAssignmentPattern,
   CsharpDestructuringAssignmentTarget,
+  CsharpTupleDefaultUse,
 } from "../../target-model/records/value-projections.js";
 import { csharpBindingDefaultCarrier } from "../../target-model/types/binding-normalization.js";
 import {
@@ -71,6 +72,7 @@ export interface CsharpBindingPatternAnalysisInput {
   readonly sourceFiles: readonly SourceFile[];
   readonly navigation: Pick<SourceProgramNavigation, "declarationUseSummary">;
   readonly captureClosure: CsharpCaptureStorage["captureClosure"];
+  readonly lambdaCreation: CsharpCaptureStorage["lambdaCreation"];
   readonly evidence: CsharpSourceEvidenceIndex;
   readonly operations: CsharpTargetOperationClassifications;
   readonly valueReads: CsharpValueReadClassifications;
@@ -81,6 +83,7 @@ export interface CsharpPlannedSubtreeInput {
   readonly ast: AstReader;
   readonly navigation: Pick<SourceProgramNavigation, "declarationUseSummary">;
   readonly captureClosure: CsharpCaptureStorage["captureClosure"];
+  readonly lambdaCreation: CsharpCaptureStorage["lambdaCreation"];
   readonly evidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata">;
   readonly operations: Pick<CsharpTargetOperationClassifications, "nativeUnreachable">;
 }
@@ -89,8 +92,20 @@ export function isCsharpUnplannedSubtree(input: CsharpPlannedSubtreeInput, node:
   const { ast } = input;
   return input.evidence.compileTimeMetadata.get(node) || input.operations.nativeUnreachable.get(node) ||
     ast.is.IsModuleDeclaration(node) ||
+    ((ast.is.IsArrowFunction(node) || ast.is.IsFunctionExpression(node)) && input.lambdaCreation.get(node).kind === "discarded") ||
     (ast.is.IsFunctionDeclaration(node) && ast.body(node) !== undefined && input.captureClosure.get(node) === undefined &&
       sourceLexicalFunctionIsUnused(node, ast, input.navigation));
+}
+
+export function isCsharpUnusedTupleDefault(
+  ast: AstReader,
+  bindingPatternProjection: CsharpBindingPatternClassifications["bindingPatternProjection"],
+  node: Node,
+): boolean {
+  const owner = ast.parent(node);
+  const element = owner === undefined ? undefined : bindingPatternProjection.get(owner)?.element;
+  if (owner === undefined || element?.kind !== "array-element" || element.tupleDefault?.kind !== "unused") return false;
+  return (AsBindingElement(ast, owner)?.Initializer ?? AsBinaryExpression(ast, owner)?.Right) === node;
 }
 
 const unprovenCarrierReason =
@@ -102,16 +117,17 @@ export function analyzeCsharpBindingPatterns(
 ): CsharpBindingPatternClassifications {
   const { ast } = input;
   const facts = new WeakMap<Node, CsharpBindingProjectionFact>();
+  const lookup = Object.freeze({ get: (node: Node) => facts.get(node) });
   const issues: CsharpBindingPatternIssue[] = [];
   const assignmentDefaults = new WeakSet<Node>();
   for (const sourceFile of input.sourceFiles) visit(sourceFile, sourceFile);
   return Object.freeze({
-    bindingPatternProjection: Object.freeze({ get: (node: Node) => facts.get(node) }),
+    bindingPatternProjection: lookup,
     issues: Object.freeze(issues),
   });
 
   function visit(node: Node, sourceFile: SourceFile): void {
-    if (isCsharpUnplannedSubtree(input, node)) return;
+    if (isCsharpUnplannedSubtree(input, node) || isCsharpUnusedTupleDefault(ast, lookup, node)) return;
     if (ast.is.IsVariableDeclaration(node)) {
       const variable = AsVariableDeclaration(ast, node);
       const name = variable?.name;
@@ -150,6 +166,11 @@ export function analyzeCsharpBindingPatterns(
     const shape = input.objectShapes.resolveNode(declaringInterface, sourceFile);
     const selected = shape === undefined ? undefined : resolveCsharpObjectShapeMemberBySelectedSubject(shape, [owner]);
     return selected?.kind !== "resolved" || selected.member.optional !== true;
+  }
+
+  function tupleDefaultUse(elementCarrier: TargetTypeRef): CsharpTupleDefaultUse {
+    const carrier = getCsharpNullableElementTargetType(elementCarrier);
+    return carrier === undefined ? { kind: "unused" } : { kind: "planned", carrier };
   }
 
   function isBindingPattern(node: Node): boolean {
@@ -233,15 +254,21 @@ export function analyzeCsharpBindingPatterns(
         continue;
       }
       const elementCarrier = csharpArrayBindingProjectionTarget(bindingCarrier, index, false);
-      recordElement(elementNode, elementCarrier === undefined
-        ? { kind: "array-element", index }
-        : { kind: "array-element", index, elementCarrier });
+      const tupleDefault = element.Initializer !== undefined && bindingCarrier.kind !== "array" && elementCarrier !== undefined
+        ? tupleDefaultUse(elementCarrier)
+        : undefined;
+      recordElement(elementNode, {
+        kind: "array-element",
+        index,
+        ...(elementCarrier === undefined ? {} : { elementCarrier }),
+        ...(tupleDefault === undefined ? {} : { tupleDefault: Object.freeze(tupleDefault) }),
+      });
       if (elementCarrier === undefined) continue;
       if (element.Initializer === undefined) {
         analyzeNested(name, elementNode, sourceFile, elementCarrier);
-      } else if (bindingCarrier.kind !== "array") {
-        analyzeNested(name, elementNode, sourceFile, getCsharpNullableElementTargetType(elementCarrier) ?? elementCarrier);
-      } else {
+      } else if (tupleDefault !== undefined) {
+        analyzeNested(name, elementNode, sourceFile, tupleDefault.kind === "planned" ? tupleDefault.carrier : elementCarrier);
+      } else if (bindingCarrier.kind === "array") {
         const defaultValue = input.evidence.nodeTargetType.get(element.Initializer);
         if (defaultValue !== undefined) {
           analyzeNested(name, elementNode, sourceFile, csharpBindingDefaultCarrier(bindingCarrier.element, defaultValue));
@@ -453,15 +480,21 @@ export function analyzeCsharpBindingPatterns(
         continue;
       }
       const elementCarrier = csharpArrayBindingProjectionTarget(bindingCarrier, index, false);
-      recordElement(element.sourceNode, elementCarrier === undefined
-        ? { kind: "array-element", index }
-        : { kind: "array-element", index, elementCarrier });
+      const tupleDefault = element.initializer !== undefined && bindingCarrier.kind !== "array" && elementCarrier !== undefined
+        ? tupleDefaultUse(elementCarrier)
+        : undefined;
+      recordElement(element.sourceNode, {
+        kind: "array-element",
+        index,
+        ...(elementCarrier === undefined ? {} : { elementCarrier }),
+        ...(tupleDefault === undefined ? {} : { tupleDefault: Object.freeze(tupleDefault) }),
+      });
       if (elementCarrier === undefined) continue;
       if (element.initializer === undefined) {
         analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, elementCarrier);
-      } else if (bindingCarrier.kind !== "array") {
-        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, getCsharpNullableElementTargetType(elementCarrier) ?? elementCarrier);
-      } else {
+      } else if (tupleDefault !== undefined) {
+        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, tupleDefault.kind === "planned" ? tupleDefault.carrier : elementCarrier);
+      } else if (bindingCarrier.kind === "array") {
         const defaultValue = input.evidence.nodeTargetType.get(element.initializer);
         if (defaultValue !== undefined) {
           analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, csharpBindingDefaultCarrier(bindingCarrier.element, defaultValue));

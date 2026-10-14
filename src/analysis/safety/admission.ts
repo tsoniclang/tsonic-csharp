@@ -11,8 +11,9 @@ import type { CsharpSafetyApplicationFactIndex } from "../../target-model/record
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpLanguageDialect, CsharpMemorySafetyRules } from "../../target-model/configuration/model.js";
-import { isCsharpUnplannedSubtree } from "../control-flow/binding-patterns.js";
+import { isCsharpUnplannedSubtree, isCsharpUnusedTupleDefault } from "../control-flow/binding-patterns.js";
 import type { CsharpPlannedSubtreeInput } from "../control-flow/binding-patterns.js";
+import type { CsharpBindingPatternClassifications } from "../../target-model/records/value-projections.js";
 
 export interface CsharpSafetyAdmissionInput extends CsharpPlannedSubtreeInput {
   readonly sourceFiles: readonly SourceFile[];
@@ -20,6 +21,7 @@ export interface CsharpSafetyAdmissionInput extends CsharpPlannedSubtreeInput {
   readonly memorySafetyRules: CsharpMemorySafetyRules;
   readonly safety: Pick<CsharpSafetyApplicationFactIndex, "safetyApplication" | "safetyOperation" | "findings">;
   readonly erasedAttribute: CsharpAttributeApplicationIndex["erasedAttribute"];
+  readonly bindingPatternProjection: CsharpBindingPatternClassifications["bindingPatternProjection"];
   readonly evidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata" | "sourceField">;
   readonly operations: Pick<CsharpTargetOperationClassifications, "nativeUnreachable" | "classPropertyStorage">;
 }
@@ -68,7 +70,8 @@ export function admitCsharpSafetyApplications(input: CsharpSafetyAdmissionInput)
   }
 
   function visit(node: Node): void {
-    if (isCsharpUnplannedSubtree(input, node) || isErasedStatement(node)) return;
+    if (isCsharpUnplannedSubtree(input, node) || isCsharpUnusedTupleDefault(ast, input.bindingPatternProjection, node) ||
+      isErasedStatement(node)) return;
     const operation = input.safety.safetyOperation.get(node);
     if (operation?.kind === "safety-builder") {
       issue("CSHARP_SAFETY_MARKER_RUNTIME_POSITION_UNSUPPORTED", "C# declaration safety markers must be complete standalone expression statements.");
