@@ -33,18 +33,18 @@ for (const surface of ["native", "js"]) {
     let results = 0;
     for (const node of nodes) {
       const type = records.operationResultType.get(node);
-      assert.equal(records.operationResultType.get(node), type, "repeated reads return the materialized record");
+      assert.equal(records.operationResultType.get(node) === type, true, "repeated reads return the materialized record");
       if (type === undefined) continue;
       results += 1;
       const call = records.selectedCall.get(node);
-      if (call?.selectedResultType !== undefined) assert.equal(type, call.selectedResultType, "a call result is its selected result");
+      if (call?.selectedResultType !== undefined) assert.equal(type === call.selectedResultType, true, "a call result is its selected result");
       const construction = records.selectedConstruction.get(node);
       if (call === undefined && construction?.selectedResultType !== undefined) {
-        assert.equal(type, construction.selectedResultType, "a construction result is its selected result");
+        assert.equal(type === construction.selectedResultType, true, "a construction result is its selected result");
       }
     }
     assert.equal(results > 0, true, "operation results are covered");
-    assert.equal(records.operationResultType.get({}), undefined, "an unrecorded subject has no result");
+    assert.equal(records.operationResultType.get({}) === undefined, true, "an unrecorded subject has no result");
   });
 
   test(`materialized operation results keep diagnostics and generated output deterministic in ${surface}`, () => {

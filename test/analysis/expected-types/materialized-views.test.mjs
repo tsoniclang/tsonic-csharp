@@ -33,14 +33,14 @@ for (const surface of ["native", "js"]) {
       const all = records.expectedType.get(node);
       const required = records.requiredExpectedType.get(node);
       const storage = records.storageExpectedType.get(node);
-      assert.equal(records.expectedType.get(node), all, "repeated reads return the materialized view");
-      assert.equal(records.requiredExpectedType.get(node), required);
-      assert.equal(records.storageExpectedType.get(node), storage);
+      assert.equal(records.expectedType.get(node) === all, true, "repeated reads return the materialized view");
+      assert.equal(records.requiredExpectedType.get(node) === required, true, "the required view retains identity");
+      assert.equal(records.storageExpectedType.get(node) === storage, true, "the storage view retains identity");
       assert.equal(Object.isFrozen(all) && Object.isFrozen(required) && Object.isFrozen(storage), true);
       const keys = all.map(targetTypeRefKey);
       assert.deepEqual(keys, [...keys].sort((left, right) => left.localeCompare(right)), "contextual keys keep their order");
       assert.equal(required.every(type => keys.includes(targetTypeRefKey(type))), true, "required uses are a subset");
-      assert.equal(storage, required.length > 0 ? required : all, "storage reads required uses when present");
+      assert.equal(storage === (required.length > 0 ? required : all), true, "storage reads required uses when present");
       if (all.length > 0) expectedNodes += 1;
     }
     assert.equal(expectedNodes > 0, true, "expected uses are covered");
@@ -55,7 +55,7 @@ for (const surface of ["native", "js"]) {
     for (const node of binaries) {
       for (const target of records.expectedType.get(node)) {
         const selection = records.expectedBinary.get(node, target);
-        assert.equal(records.expectedBinary.get(node, target), selection, "repeated reads return the materialized selection");
+        assert.equal(records.expectedBinary.get(node, target) === selection, true, "repeated reads return the materialized selection");
         if (selection !== undefined) selected += 1;
       }
     }

@@ -52,8 +52,8 @@ for (const surface of ["native", "js"]) {
     assert.equal(diagnostic.sourceNode !== undefined && ast.is.IsAwaitExpression(diagnostic.sourceNode), true,
       "the issue names the await expression");
     assert.equal(sourceText.slice(ast.pos(diagnostic.sourceNode), ast.end(diagnostic.sourceNode)).trim(), "await pending");
-    assert.equal(result.result.program, undefined, "no program is published");
-    assert.equal(result.result.plan, undefined, "nothing is planned");
+    assert.equal(result.result.program === undefined, true, "no program is published");
+    assert.equal(result.result.plan === undefined, true, "nothing is planned");
     assert.equal(result.artifacts.size, 0, "nothing is emitted");
   });
 

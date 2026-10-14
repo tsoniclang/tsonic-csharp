@@ -2,9 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 
-// A return statement inside a nested callable body is not a return of the enclosing function. The callable body
-// boundary is the shared isSourceCallableBodyBoundary from @tsonic/target-api/source. The Rust owner test
-// test/analysis/declarations/return-boundaries.test.mjs uses the same local-class sources.
 const localClass = constructorBody => `export function make() {
   class Local {
     tag: number = 2;
