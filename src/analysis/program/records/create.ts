@@ -3,7 +3,7 @@ import type { CsharpProjectCallableAdapters } from "../../../target-model/record
 import type { CsharpCaptureStorage } from "../../../target-model/records/capture-storage.js";
 import type { CsharpClassFactoryIndex } from "../../../target-model/records/class-factories.js";
 import type { CsharpClassInitializationIndex } from "../../../target-model/records/class-initialization.js";
-import type { CsharpConversionClassifications } from "../../../target-model/records/conversions.js";
+import type { CsharpConversionClassifications, CsharpValueReadClassifications } from "../../../target-model/records/conversions.js";
 import type { CsharpDeclarationClassifications } from "../../../target-model/records/declarations.js";
 import type { CsharpExpectedTypeClassifications } from "../../../target-model/records/expected-types.js";
 import type { CsharpModuleInitializationIndex } from "../../../target-model/records/module-initialization.js";
@@ -20,6 +20,7 @@ import type { CsharpProgramRecords } from "../../../target-model/records/program
 export interface CsharpProgramRecordInput {
   readonly sourceEvidence: CsharpSourceEvidenceIndex;
   readonly flowReads: CsharpFlowReadClassifications;
+  readonly valueReads: CsharpValueReadClassifications;
   readonly operations: CsharpTargetOperationClassifications;
   readonly expectedTypes: CsharpExpectedTypeClassifications;
   readonly declarations: CsharpDeclarationClassifications;
@@ -116,6 +117,7 @@ export function createCsharpProgramRecords(input: CsharpProgramRecordInput): Csh
     safetyOperation: input.safetyApplications.safetyOperation,
     bindingProjection: input.sourceEvidence.bindingProjection,
     flowReadProjection: input.flowReads.flowReadProjection,
+    valueRead: input.valueReads.valueRead,
     compileTimeMetadata: input.sourceEvidence.compileTimeMetadata,
     nodeTargetType: input.sourceEvidence.nodeTargetType,
     classConstructorType: input.sourceEvidence.classConstructorType,

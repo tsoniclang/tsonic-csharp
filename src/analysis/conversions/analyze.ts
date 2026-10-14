@@ -42,7 +42,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
 import type { CsharpBorrowedSequenceInput } from "../../target-model/records/borrowed-sequences.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpStorageRepresentationClassifications } from "../../target-model/records/storage.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import type { CsharpConversionAnalysis } from "./model.js";
 import type { CsharpConversionClassifications, CsharpConversionIssue, CsharpExpressionConversionClassification } from "../../target-model/records/conversions.js";
 import { sealCsharpDelegateAdapterIdentities } from "./delegate-identities.js";
@@ -114,12 +114,12 @@ export function analyzeCsharpConversions(
 
   const analysis: CsharpConversionAnalysis = {
     classifications,
-    seal({ operations, expectedTypes, storage }) {
+    seal({ operations, expectedTypes, valueReads }) {
       if (sealedClassifications !== undefined) {
         return sealedClassifications;
       }
       for (const sourceFile of policy.sourceFiles) {
-        visit(sourceFile, sourceFile, operations, expectedTypes, storage);
+        visit(sourceFile, sourceFile, operations, expectedTypes, valueReads);
       }
       delegateAdapters = sealCsharpDelegateAdapterIdentities(policy, expressionSelections, issues);
       closed = true;
@@ -158,11 +158,11 @@ export function analyzeCsharpConversions(
     sourceFile: SourceFile,
     operations: CsharpTargetOperationClassifications,
     expectedTypes: CsharpExpectedTypeClassifications,
-    storage: CsharpStorageRepresentationClassifications,
+    valueReads: CsharpValueReadClassifications,
   ): void {
     if (evidence.compileTimeMetadata.get(node)) return;
     if (operations.nativeUnreachable.get(node)) return;
-    const sourceTypes = exactSourceTypes(node, operations, storage, expectedTypes.callableTarget.get(node));
+    const sourceTypes = exactSourceTypes(node, valueReads, expectedTypes.callableTarget.get(node));
     const sourceType = sourceTypes[0];
     const borrowedSequence = operations.borrowedSequence.get(node);
     if (borrowedSequence !== undefined) {
@@ -188,7 +188,7 @@ export function analyzeCsharpConversions(
             requiredTypes.some(required => targetTypeRefEquals(required, targetType)));
         }
       }
-      classifyArrayCarrier(node, targetType, expectedTypes, operations, storage);
+      classifyArrayCarrier(node, targetType, expectedTypes, operations, valueReads);
       if (policy.ast.is.IsObjectLiteralExpression(node)) {
         const unionCarrier = objectShapes.resolveObjectLiteralUnionCarrier(node, targetType);
         const constructionTarget = unionCarrier ?? getCsharpNullableElementTargetType(targetType) ?? targetType;
@@ -219,16 +219,16 @@ export function analyzeCsharpConversions(
         classifyExpression(node, candidate, candidate, "implicit");
       }
     }
-    classifyAssertion(node, operations, storage);
+    classifyAssertion(node, valueReads);
     classifyUndefinedInitializer(node);
     classifyYieldResume(node);
     classifyCallUses(node, operations);
-    classifySelectedTargetCallUses(operations.selectedCall.get(node)?.target ?? operations.selectedConstruction.get(node)?.target, storage);
+    classifySelectedTargetCallUses(operations.selectedCall.get(node)?.target ?? operations.selectedConstruction.get(node)?.target, valueReads);
     policy.ast.forEachChild(
       node,
       (child) => {
         if (child !== undefined) {
-          visit(child, sourceFile, operations, expectedTypes, storage);
+          visit(child, sourceFile, operations, expectedTypes, valueReads);
         }
       },
     );
@@ -236,20 +236,13 @@ export function analyzeCsharpConversions(
 
   function classifyAssertion(
     node: Node,
-    operations: CsharpTargetOperationClassifications,
-    storage: CsharpStorageRepresentationClassifications,
+    valueReads: CsharpValueReadClassifications,
   ): void {
     if (policy.ast.is.IsNonNullExpression(node)) {
       const expression = policy.ast.as.AsNonNullExpression(node)?.Expression;
-      const targetType = operations.operationResultType.get(node) ??
-        evidence.valueRefinement.get(node)?.flowReadTargetType ??
-        evidence.nodeTargetType.get(node);
+      const targetType = valueReads.valueRead.get(node)?.assertedValue;
       if (expression !== undefined) {
-        for (const sourceType of exactSourceTypes(
-          expression,
-          operations,
-          storage,
-        )) {
+        for (const sourceType of exactSourceTypes(expression, valueReads)) {
           classifyExpression(expression, sourceType, targetType, "explicit");
         }
       }
@@ -270,7 +263,7 @@ export function analyzeCsharpConversions(
       return;
     }
     const targetType = evidence.nodeTargetType.get(targetNode);
-    for (const sourceType of exactSourceTypes(expression, operations, storage)) {
+    for (const sourceType of exactSourceTypes(expression, valueReads)) {
       classifyExpression(expression, sourceType, targetType, "explicit");
       classifyExpression(expression, sourceType, targetType, "implicit");
     }
@@ -278,16 +271,16 @@ export function analyzeCsharpConversions(
 
   function exactSourceTypes(
     node: Node,
-    operations: CsharpTargetOperationClassifications,
-    storage: CsharpStorageRepresentationClassifications,
+    valueReads: CsharpValueReadClassifications,
     callableTarget?: TargetTypeRef,
   ): readonly TargetTypeRef[] {
+    const read = valueReads.valueRead.get(node);
     const candidates = [
       callableTarget,
-      operations.operationResultType.get(node),
-      evidence.valueRefinement.get(node)?.flowReadTargetType,
-      storage.storageType.get(node),
-      evidence.nodeTargetType.get(node),
+      read?.selectedOperation,
+      read?.narrowedRead,
+      read?.storage,
+      read?.source,
     ];
     const byIdentity = new Map<string, TargetTypeRef>();
     for (const candidate of candidates) {
@@ -303,7 +296,7 @@ export function analyzeCsharpConversions(
     targetType: TargetTypeRef,
     expectedTypes: CsharpExpectedTypeClassifications,
     operations: CsharpTargetOperationClassifications,
-    storage: CsharpStorageRepresentationClassifications,
+    valueReads: CsharpValueReadClassifications,
   ): void {
     if (!policy.ast.is.IsArrayLiteralExpression(node)) {
       return;
@@ -321,7 +314,7 @@ export function analyzeCsharpConversions(
       const operand = policy.ast.as.AsSpreadElement(contribution)?.Expression;
       if (operand === undefined) continue;
       classifyBorrowedSequencePairs(operations.borrowedSequence.get(operand), elementTarget);
-      for (const carrier of exactSourceTypes(operand, operations, storage)) {
+      for (const carrier of exactSourceTypes(operand, valueReads)) {
         const element = getCsharpCollectionElementTargetType(carrier);
         for (const source of carrier.kind === "tuple" ? carrier.elements : element === undefined ? [] : [element]) {
           classifyPair(source, elementTarget, "implicit", contribution);
@@ -491,7 +484,7 @@ export function analyzeCsharpConversions(
 
   function classifySelectedTargetCallUses(
     selection: CsharpTargetCallSelection | undefined,
-    storage: CsharpStorageRepresentationClassifications,
+    valueReads: CsharpValueReadClassifications,
   ): void {
     if (selection?.kind !== "resolved") {
       return;
@@ -532,7 +525,7 @@ export function analyzeCsharpConversions(
       if (argument.targetParameter.csharpValueProjection !== "properties") continue;
       const subject = selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
       if (subject === undefined) continue;
-      const type = storage.storageType.get(subject) ?? evidence.nodeTargetType.get(subject);
+      const type = valueReads.valueRead.get(subject)?.storedValue;
       const binding = selection.source.sourceArgumentBindings.find(binding =>
         binding.effectiveArgumentIndex === argument.effectiveArgumentIndex);
       const projected = binding === undefined ? undefined
@@ -570,7 +563,7 @@ export function analyzeCsharpConversions(
       }
       const subjectType = requirement.projection === "assign"
         ? member.returnType
-        : storage.storageType.get(subject) ?? evidence.nodeTargetType.get(subject);
+        : valueReads.valueRead.get(subject)?.storedValue;
       const shape = requirement.projection === "assign"
         ? objectShapes.resolveTarget(subjectType) ?? objectShapes.resolveNode(subject)
         : objectShapes.resolveNode(subject) ?? objectShapes.resolveTarget(subjectType);
@@ -580,8 +573,7 @@ export function analyzeCsharpConversions(
         ]?.expression;
         const assignmentType = assignmentSubject === undefined
           ? undefined
-          : storage.storageType.get(assignmentSubject) ??
-            evidence.nodeTargetType.get(assignmentSubject);
+          : valueReads.valueRead.get(assignmentSubject)?.storedValue;
         const assignmentShape = assignmentSubject === undefined
           ? undefined
           : objectShapes.resolveNode(assignmentSubject) ??

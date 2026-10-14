@@ -43,3 +43,30 @@ export interface CsharpConversionClassifications {
   readonly conversion: { readonly get: (source: TargetTypeRef | undefined, target: TargetTypeRef | undefined, mode: CsharpConversionMode) => CsharpConversionSelection | undefined };
   readonly expressionConversion: { readonly get: (expression: Node, source: TargetTypeRef | undefined, target: TargetTypeRef | undefined, mode: CsharpConversionMode) => CsharpConversionSelection | undefined };
 }
+
+export interface CsharpValueReadStages {
+  readonly returnedValue?: TargetTypeRef;
+  readonly literalTarget?: TargetTypeRef;
+  readonly operationValue?: TargetTypeRef;
+}
+
+export interface CsharpValueReadStageIndex {
+  readonly get: (node: Node) => CsharpValueReadStages | undefined;
+}
+
+export interface CsharpValueRead {
+  readonly source?: TargetTypeRef;
+  readonly selectedOperation?: TargetTypeRef;
+  readonly narrowedRead?: TargetTypeRef;
+  readonly storage?: TargetTypeRef;
+  readonly assertedValue?: TargetTypeRef;
+  readonly storedValue?: TargetTypeRef;
+  readonly value?: TargetTypeRef;
+  readonly readStorageValue?: TargetTypeRef;
+  readonly flowReadValue?: TargetTypeRef;
+  readonly flowReadStorage?: TargetTypeRef;
+}
+
+export interface CsharpValueReadClassifications {
+  readonly valueRead: { readonly get: (node: Node) => CsharpValueRead | undefined };
+}

@@ -3,7 +3,7 @@ import type { CsharpProjectCallableAdapters } from "./callable-adapters.js";
 import type { CsharpCaptureStorage } from "./capture-storage.js";
 import type { CsharpClassFactoryIndex } from "./class-factories.js";
 import type { CsharpClassInitializationIndex } from "./class-initialization.js";
-import type { CsharpConversionClassifications } from "./conversions.js";
+import type { CsharpConversionClassifications, CsharpValueReadClassifications } from "./conversions.js";
 import type { CsharpDeclarationClassifications } from "./declarations.js";
 import type { CsharpExpectedTypeClassifications } from "./expected-types.js";
 import type { CsharpModuleInitializationIndex } from "./module-initialization.js";
@@ -94,6 +94,7 @@ export interface CsharpProgramRecords {
   readonly safetyOperation: CsharpSafetyApplicationFactIndex["safetyOperation"];
   readonly bindingProjection: CsharpSourceEvidenceIndex["bindingProjection"];
   readonly flowReadProjection: CsharpFlowReadClassifications["flowReadProjection"];
+  readonly valueRead: CsharpValueReadClassifications["valueRead"];
   readonly compileTimeMetadata: CsharpSourceEvidenceIndex["compileTimeMetadata"];
   readonly nodeTargetType: CsharpSourceEvidenceIndex["nodeTargetType"];
   readonly classConstructorType: CsharpSourceEvidenceIndex["classConstructorType"];

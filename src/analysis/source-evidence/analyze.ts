@@ -34,8 +34,8 @@ import { csharpSourceTypeParameter } from "../../target-model/names/type-paramet
 import type {
   TargetTypeRef,
 } from "../../target-model/types/model.js";
-import type { CsharpSemanticTypeClassification, CsharpContextualTupleClassification } from "../../target-model/records/source-evidence.js";
-import type { CsharpSourceEvidenceAnalysis } from "./model.js";
+import type { CsharpSemanticTypeClassification, CsharpContextualTupleClassification, CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpSourceEvidenceResult } from "./model.js";
 import {
   resolveCsharpTypeParameterConstraints,
 } from "../../policy/constraints/index.js";
@@ -64,7 +64,7 @@ export function analyzeCsharpSourceEvidence(
   sourceFiles: readonly SourceFile[],
   types: CsharpTypePolicy,
   policy: CsharpPolicyContext,
-): CsharpSourceEvidenceAnalysis {
+): CsharpSourceEvidenceResult {
   const memoryMetadata = createTsonicMemoryMetadataIndex(source);
   const pointerBacking = createTsonicPointerBackingDemands(source);
   const arrayStorage = createTsonicClosedArrayStorageQueries(source, 131_072);
@@ -466,9 +466,8 @@ export function analyzeCsharpSourceEvidence(
     }
   }
 
-  const index: CsharpSourceEvidenceAnalysis = {
+  const index: CsharpSourceEvidenceIndex = {
     bindingProjection: Object.freeze({ get: node => bindingProjections.get(node) }),
-    inspectClosedArrayStorage: arrayStorage.resolve,
     pointerBackingDemands: pointerBacking.entries(),
     memoryMetadataIssues: Object.freeze([...memoryMetadataIssues, ...pointerBacking.issues().map(issue => ({
       node: issue.node, code: "CSHARP_POINTER_BACKING_NOT_PROVEN", message: issue.reason,
@@ -562,7 +561,7 @@ export function analyzeCsharpSourceEvidence(
       return sourceOwnedProjectShapes.get(node);
     } }),
   };
-  return Object.freeze(index);
+  return Object.freeze({ index: Object.freeze(index), inspectClosedArrayStorage: arrayStorage.resolve });
 }
 
 function isCsharpFlowReadEvidenceNode(

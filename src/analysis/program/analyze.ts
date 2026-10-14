@@ -110,7 +110,8 @@ import { createCsharpSourceProfileCallableAliasQuery } from "../../policy/operat
 import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-demands.js";
 import { createSourceStorageQuery, type SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../../policy/operations/source-profiles/source-storage-effects.js";
-import { analyzeCsharpFlowReadProjections } from "../objects/flow-read-projections.js";
+import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
+import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -315,14 +316,14 @@ export function analyzeCsharpTargetProgram(
   if (captureStorage.issues.length > 0) return rejectedTargetStage(captureStorage.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));
-  const flowReads = analyzeCsharpFlowReadProjections(analysis.policy, analysis.sourceEvidence, analysis.operations, analysis.storage);
+  const flowReads = analyzeCsharpFlowReadProjections(analysis.policy, analysis.sourceEvidence, analysis.operations, analysis.valueReads);
   if (flowReads.issues.length > 0) return rejectCsharpAnalysisIssues(flowReads.issues);
   const typeDefinitions = analysis.typeDefinitions.seal();
   const classInitialization = analyzeCsharpClassInitialization(source, classFactories);
   const numericRepresentations = analyzeCsharpNumericRepresentations({ source, sourceFiles,
     evidence: analysis.sourceEvidence, operations: analysis.operations });
   const records = createCsharpProgramRecords({
-    flowReads,
+    flowReads, valueReads: analysis.valueReads,
     callableAdapters, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
     numericRepresentations, attributeApplications, safetyApplications, operations: analysis.operations,
     sourceEvidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions: analysis.conversions,
@@ -421,18 +422,21 @@ function analyzeIteration(
   });
   if (policyContext.issues.length > 0) return rejectCsharpAnalysisIssues(policyContext.issues);
   const policy = policyContext.policy;
-  const sourceEvidence = analyzeCsharpSourceEvidence(
+  const evidence = analyzeCsharpSourceEvidence(
     input.source,
     sourceFiles,
     typeSystem.analysisTypes,
     policy,
   );
+  const sourceEvidence = evidence.index;
   const operations = analyzeCsharpTargetOperations(policy, sourceEvidence);
+  const valueReadStages = analyzeCsharpValueReadStages(policy, sourceEvidence, operations);
   const typeProjections = analyzeCsharpTypeProjections(input.source, sourceEvidence, operations);
   const declarations = analyzeCsharpDeclarations(
     policy,
     sourceEvidence,
     operations,
+    valueReadStages.valueReadStages,
   );
   const objectShapes = analyzeCsharpObjectShapes(policy, sourceEvidence, operations);
   const callables = analyzeCsharpCallableContracts(
@@ -450,6 +454,7 @@ function analyzeIteration(
     operations,
     objectShapes,
     callables,
+    valueReadStages.valueReadStages,
   );
   const conversionAnalysis = analyzeCsharpConversions(
     policy,
@@ -467,13 +472,16 @@ function analyzeIteration(
     callables,
     previous?.storage,
   );
+  const valueReads = valueReadStages.seal(storageRepresentations);
   const conversions = conversionAnalysis.seal({
     operations,
     expectedTypes,
-    storage: storageRepresentations,
+    valueReads,
   });
   const sealedObjectShapes = objectShapes.seal();
-  const storage = sealCsharpStorage(policy, sourceEvidence, operations, sealedObjectShapes, storageRepresentations);
+  const storage = sealCsharpStorage(policy,
+    Object.freeze({ ...sourceEvidence, inspectClosedArrayStorage: evidence.inspectClosedArrayStorage }),
+    operations, sealedObjectShapes, storageRepresentations);
   return resolvedTargetStage(Object.freeze({
     policy,
     typeDefinitions,
@@ -487,6 +495,7 @@ function analyzeIteration(
     expectedTypes,
     conversions,
     storage,
+    valueReads,
   }));
 }
 

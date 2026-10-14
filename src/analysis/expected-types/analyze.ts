@@ -35,6 +35,7 @@ import {
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpValueReadStageIndex } from "../../target-model/records/conversions.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type {
   CsharpObjectShapeClassifications,
@@ -68,6 +69,7 @@ export function analyzeCsharpExpectedTypes(
   operations: CsharpTargetOperationClassifications,
   objectShapes: CsharpObjectShapeClassifications,
   callables: CsharpCallableContractIndex,
+  valueReadStages: CsharpValueReadStageIndex,
 ): CsharpExpectedTypeClassifications {
   type ExpectedTypeStrength = "contextual" | "required";
   interface ExpectedTypeUse {
@@ -744,9 +746,7 @@ export function analyzeCsharpExpectedTypes(
     if (!policy.ast.is.IsArrayLiteralExpression(node)) {
       return;
     }
-    const targetType = operations.operationResultType.get(node) ??
-      evidence.storageTargetType.get(node) ??
-      evidence.nodeTargetType.get(node);
+    const targetType = valueReadStages.get(node)?.literalTarget;
     if (targetType !== undefined) {
       recordArrayLiteralElements(node, targetType, "contextual");
     }
@@ -758,7 +758,7 @@ export function analyzeCsharpExpectedTypes(
     strength: ExpectedTypeStrength,
   ): void {
     const carrier = selectCsharpArrayLiteralCarrier(targetType,
-      operations.operationResultType.get(expression) ?? evidence.nodeTargetType.get(expression), policy.typeDefinitions);
+      valueReadStages.get(expression)?.operationValue, policy.typeDefinitions);
     if (carrier === undefined) return;
     let carriers = arrayCarriers.get(expression);
     if (carriers === undefined) {

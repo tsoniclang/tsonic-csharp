@@ -31,12 +31,14 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpRuntimeParameterDefault } from "../../target-model/types/parameter-defaults.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpValueReadStageIndex } from "../../target-model/records/conversions.js";
 import type { CsharpDeclarationClassifications, CsharpDefaultParameterContract, CsharpReturnTargetContract } from "../../target-model/records/declarations.js";
 
 export function analyzeCsharpDeclarations(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
   operations: CsharpTargetOperationClassifications,
+  valueReadStages: CsharpValueReadStageIndex,
 ): CsharpDeclarationClassifications {
   const returnContracts = new WeakMap<Node, CsharpReturnTargetContract>();
   const runtimeDefaults = new WeakMap<Node, CsharpDefaultParameterContract>();
@@ -108,7 +110,7 @@ export function analyzeCsharpDeclarations(
     if (isCallableDeclaration(policy, node)) {
       returnContracts.set(
         node,
-        withAbsenceCompletion(policy, evidence, node, classifyReturnContract(policy, evidence, operations, node)),
+        withAbsenceCompletion(policy, evidence, node, classifyReturnContract(policy, evidence, valueReadStages, node)),
       );
     }
     policy.ast.forEachChild(node, (child) => {
@@ -146,7 +148,7 @@ function withAbsenceCompletion(
 function classifyReturnContract(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
-  operations: CsharpTargetOperationClassifications,
+  valueReadStages: CsharpValueReadStageIndex,
   declaration: Node,
 ): CsharpReturnTargetContract {
   const baseline = evidence.inferredCallableReturnType.get(declaration);
@@ -180,9 +182,7 @@ function classifyReturnContract(
   const observed: TargetTypeRef[] = [];
   let incomplete = false;
   collectDirectReturnExpressions(policy, declaration, (expression) => {
-    const type = operations.operationResultType.get(expression) ??
-      evidence.readStorageTargetType.get(expression) ??
-      evidence.nodeTargetType.get(expression);
+    const type = valueReadStages.get(expression)?.returnedValue;
     if (type === undefined) {
       incomplete = true;
     } else {
