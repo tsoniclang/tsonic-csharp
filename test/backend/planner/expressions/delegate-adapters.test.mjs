@@ -112,9 +112,11 @@ test("native adapters reject missing signatures and mismatched conversion arity"
     [target, source, selection],
   ]) {
     const diagnostics = [];
-    assert.equal(planCsharpDelegateAdapter({}, {}, context(), diagnostics, from, to, selected,
-      { kind: "IdentifierName", name: "original" }, applyCsharpConversionSelection), undefined);
-    assert.equal(diagnostics.length, 1);
+    assert.throws(() => planCsharpDelegateAdapter({}, {}, context(), diagnostics, from, to, selected,
+      { kind: "IdentifierName", name: "original" }, applyCsharpConversionSelection),
+    error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&
+      error.message === "C# delegate adaptation requires exact renderable source and target signatures.");
+    assert.equal(diagnostics.length, 0);
   }
 });
 
