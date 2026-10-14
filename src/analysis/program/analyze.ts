@@ -311,12 +311,13 @@ export function analyzeCsharpTargetProgram(
   if (captureStorage.issues.length > 0) return rejectedTargetStage(captureStorage.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));
+  const flowReads = analyzeCsharpFlowReadProjections(analysis.policy, analysis.sourceEvidence, analysis.operations, analysis.storage);
   const typeDefinitions = analysis.typeDefinitions.seal();
   const classInitialization = analyzeCsharpClassInitialization(source, classFactories);
   const numericRepresentations = analyzeCsharpNumericRepresentations({ source, sourceFiles,
     evidence: analysis.sourceEvidence, operations: analysis.operations });
   const records = createCsharpProgramRecords({
-    flowReads: analyzeCsharpFlowReadProjections(analysis.policy, analysis.sourceEvidence, analysis.operations, analysis.storage),
+    flowReads,
     callableAdapters, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
     numericRepresentations, attributeApplications, safetyApplications, operations: analysis.operations,
     sourceEvidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions: analysis.conversions,
