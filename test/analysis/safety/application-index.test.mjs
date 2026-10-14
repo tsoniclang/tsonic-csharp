@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { createCsharpSafetyApplicationFactIndex } from "../../../dist/analysis/safety/application-index.js";
 
 // Paired with the Rust owner test test/analysis/safety/application-index.test.mjs: the same sources and the same
 // expected membership. Membership is decided once by @tsonic/target-api's createTargetSafetyApplicationIndex.
@@ -45,18 +47,19 @@ function membership(body) {
   const compiled = compileCsharpSource({ sourceText: `${header}${body}\n`,
     targetOptions: { languageDialect: "csharp15-preview", memorySafetyRules: "preview" } });
   assert.equal(compiled.sourceDiagnosticsText, "");
-  const program = compiled.result.program;
-  assert.ok(program, "C# analysis publishes the program");
-  const { ast } = compiled.source;
+  const source = createTargetSourceProgram(compiled.source);
+  const { ast } = source;
+  const index = createCsharpSafetyApplicationFactIndex({ ast, sourceFiles: source.navigation.sourceFiles,
+    sourceFacts: source.sourceFacts, navigation: source.navigation });
   const nodes = [];
   const visit = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
-  program.sourceFiles.forEach(visit);
+  source.navigation.sourceFiles.forEach(visit);
   const find = predicate => {
     const found = nodes.find(predicate);
     assert.ok(found);
     return found;
   };
-  const placements = node => program.records.safetyApplication.get(node)
+  const placements = node => index.safetyApplication.get(node)
     .map(application => `${application.applicationPlacement}:${application.contract}`);
   return {
     get: placements(find(node => ast.is.IsGetAccessorDeclaration(node))),
