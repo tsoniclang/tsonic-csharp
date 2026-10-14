@@ -63,8 +63,6 @@ export const callablesCarrierRegistry: readonly TargetCarrierRegistryEntry<Targe
     kinds: ["target-named"],
     declaration: { module: "src/target-model/types/method-values.ts", symbol: "csharpMethodValueType" },
     counterpart: { module: "src/target-model/types/carriers/callables.ts", symbol: "rustStructuralMethodStorageCarrier" },
-    divergence: { register: "S11-03",
-      reason: "Rust preserves native reference qualifiers, anonymous callable types and explicit lifetimes; CLR references and delegates have no corresponding Rust lifetime parameter." },
     frozen: true,
   },
   {
@@ -72,8 +70,6 @@ export const callablesCarrierRegistry: readonly TargetCarrierRegistryEntry<Targe
     kinds: ["target-named"],
     declaration: { module: "src/target-model/types/method-values.ts", symbol: "rebindCsharpMethodValueTypeParameters" },
     counterpart: { module: "src/target-model/types/carriers/callable-rebinding.ts", symbol: "rebindRustCallableCarrier" },
-    divergence: { register: "S11-03",
-      reason: "Rust preserves native reference qualifiers, anonymous callable types and explicit lifetimes; CLR references and delegates have no corresponding Rust lifetime parameter." },
     frozen: true,
   },
 ]);
