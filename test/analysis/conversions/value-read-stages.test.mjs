@@ -41,8 +41,8 @@ test("each value-read selection keeps the stage order its consumer asks for", ()
   assert.equal(stages.returnedValue, operation, "inferred return: selected operation first");
   assert.equal(stages.literalTarget, operation, "array literal target: selected operation first");
   assert.equal(stages.operationValue, operation);
-  assert.equal(stages.assertedValue, operation, "non-null assertion: selected operation before the narrowed read");
   const read = all.sealed.valueRead.get(all.node);
+  assert.equal(read.assertedValue, operation, "non-null assertion: selected operation before the narrowed read");
   assert.equal(read.value, narrowed, "value at a use: the narrowed read before the selected operation");
   assert.equal(read.storedValue, storage);
   assert.equal(read.readStorageValue, storage);
@@ -55,14 +55,21 @@ test("each value-read selection keeps the stage order its consumer asks for", ()
   assert.equal(partial.returnedValue, readStorage, "inferred return: read storage before the source type");
   assert.equal(partial.literalTarget, declaredStorage, "array literal target: declared storage before the source type");
   assert.equal(partial.operationValue, source);
-  assert.equal(partial.assertedValue, source);
   const sealedPartial = reads.sealed.valueRead.get(reads.node);
+  assert.equal(sealedPartial.assertedValue, source);
   assert.equal(sealedPartial.value, source);
   assert.equal(sealedPartial.storedValue, source);
   assert.equal(sealedPartial.readStorageValue, readStorage);
   assert.equal(sealedPartial.flowReadValue, source);
   assert.equal(sealedPartial.flowReadStorage, memberRaw, "an unresolved union member stores its raw read type");
   assert.equal(Object.hasOwn(sealedPartial, "storage"), false, "absent stages stay absent");
+  assert.deepEqual(Object.keys(stages).sort(), ["literalTarget", "operationValue", "returnedValue"],
+    "pre-storage records publish only the selections their consumers read");
+  for (const raw of ["declaredStorage", "readStorage", "selectedMemberRead", "selectedMemberStorage"]) {
+    assert.equal(Object.hasOwn(read, raw), false, `${raw}: raw stage without a consumer stays private`);
+  }
+  assert.deepEqual([read.selectedOperation, read.narrowedRead, read.storage, read.source], [operation, narrowed, storage, source],
+    "exactSourceTypes reads its four candidate stages");
 });
 
 test("value-read stages are computed once, frozen, and sealed once", () => {

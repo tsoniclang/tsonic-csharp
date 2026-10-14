@@ -13,20 +13,25 @@ import type { TargetTypeRef } from "../../target-model/types/index.js";
 
 export interface CsharpValueReadStageAnalysis {
   readonly valueReadStages: CsharpValueReadStageIndex;
-  /** Adds the selected storage representation once and publishes the sealed stages. */
   seal(storage: Pick<CsharpStorageRepresentationClassifications, "storageType">): CsharpValueReadClassifications;
 }
 
-/**
- * Reads every type stage of every source node once, after operation selection, and records the
- * selections each consumer asks for. Sealing adds the storage stage once. Consumers read the selection
- * they mean; none of them re-selects among stages.
- */
+interface CsharpRawValueReadStages {
+  readonly source: TargetTypeRef | undefined;
+  readonly declaredStorage: TargetTypeRef | undefined;
+  readonly readStorage: TargetTypeRef | undefined;
+  readonly selectedOperation: TargetTypeRef | undefined;
+  readonly narrowedRead: TargetTypeRef | undefined;
+  readonly selectedMemberRead: TargetTypeRef | undefined;
+  readonly selectedMemberStorage: TargetTypeRef | undefined;
+}
+
 export function analyzeCsharpValueReadStages(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
   operations: CsharpTargetOperationClassifications,
 ): CsharpValueReadStageAnalysis {
+  const rawStages = new WeakMap<Node, CsharpRawValueReadStages>();
   const stages = new WeakMap<Node, CsharpValueReadStages>();
   for (const sourceFile of policy.sourceFiles) visitStages(sourceFile);
   let sealed: CsharpValueReadClassifications | undefined;
@@ -36,7 +41,7 @@ export function analyzeCsharpValueReadStages(
       if (sealed !== undefined) return sealed;
       const reads = new WeakMap<Node, CsharpValueRead>();
       const visitReads = (node: Node): void => {
-        const read = sealedValueRead(stages.get(node), storage.storageType.get(node));
+        const read = sealedValueRead(rawStages.get(node), storage.storageType.get(node));
         if (read !== undefined) reads.set(node, read);
         policy.ast.forEachChild(node, child => { if (child !== undefined) visitReads(child); });
       };
@@ -47,12 +52,16 @@ export function analyzeCsharpValueReadStages(
   });
 
   function visitStages(node: Node): void {
-    const read = valueReadStages(node);
-    if (read !== undefined) stages.set(node, read);
+    const raw = rawValueReadStages(node);
+    if (raw !== undefined) {
+      rawStages.set(node, raw);
+      const selected = preStorageValueRead(raw);
+      if (selected !== undefined) stages.set(node, selected);
+    }
     policy.ast.forEachChild(node, child => { if (child !== undefined) visitStages(child); });
   }
 
-  function valueReadStages(node: Node): CsharpValueReadStages | undefined {
+  function rawValueReadStages(node: Node): CsharpRawValueReadStages | undefined {
     const source = evidence.nodeTargetType.get(node);
     const declaredStorage = evidence.storageTargetType.get(node);
     const readStorage = evidence.readStorageTargetType.get(node);
@@ -65,44 +74,48 @@ export function analyzeCsharpValueReadStages(
     if (source === undefined && declaredStorage === undefined && readStorage === undefined &&
       selectedOperation === undefined && narrowedRead === undefined && selectedMemberRead === undefined &&
       selectedMemberStorage === undefined) return undefined;
-    return Object.freeze(definedStages<CsharpValueReadStages>({
-      source,
-      declaredStorage,
-      readStorage,
-      selectedOperation,
-      narrowedRead,
-      selectedMemberRead,
-      selectedMemberStorage,
-      returnedValue: selectedOperation ?? readStorage ?? source,
-      literalTarget: selectedOperation ?? declaredStorage ?? source,
-      operationValue: selectedOperation ?? source,
-      assertedValue: selectedOperation ?? narrowedRead ?? source,
-    }));
+    return Object.freeze({
+      source, declaredStorage, readStorage, selectedOperation, narrowedRead, selectedMemberRead, selectedMemberStorage,
+    });
   }
 }
 
-function sealedValueRead(
-  stages: CsharpValueReadStages | undefined,
-  storage: TargetTypeRef | undefined,
-): CsharpValueRead | undefined {
-  if (stages === undefined && storage === undefined) return undefined;
-  const value = stages?.narrowedRead ?? stages?.selectedOperation ?? storage ?? stages?.source;
-  const readStorageValue = storage ?? stages?.readStorage;
-  return Object.freeze(definedStages<CsharpValueRead>({
-    ...stages,
-    storage,
-    storedValue: storage ?? stages?.source,
-    value,
-    readStorageValue,
-    flowReadValue: stages?.selectedMemberRead ?? value,
-    flowReadStorage: stages?.selectedMemberStorage ?? readStorageValue,
-  }));
+function preStorageValueRead(raw: CsharpRawValueReadStages): CsharpValueReadStages | undefined {
+  const returnedValue = raw.selectedOperation ?? raw.readStorage ?? raw.source;
+  const literalTarget = raw.selectedOperation ?? raw.declaredStorage ?? raw.source;
+  const operationValue = raw.selectedOperation ?? raw.source;
+  if (returnedValue === undefined && literalTarget === undefined) return undefined;
+  return Object.freeze({
+    ...(returnedValue === undefined ? {} : { returnedValue }),
+    ...(literalTarget === undefined ? {} : { literalTarget }),
+    ...(operationValue === undefined ? {} : { operationValue }),
+  });
 }
 
-function definedStages<Stages extends object>(
-  stages: { readonly [Key in keyof Stages]?: Stages[Key] | undefined },
-): Stages {
-  const defined: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(stages)) if (value !== undefined) defined[key] = value;
-  return defined as Stages;
+function sealedValueRead(
+  raw: CsharpRawValueReadStages | undefined,
+  storage: TargetTypeRef | undefined,
+): CsharpValueRead | undefined {
+  if (raw === undefined && storage === undefined) return undefined;
+  const source = raw?.source;
+  const selectedOperation = raw?.selectedOperation;
+  const narrowedRead = raw?.narrowedRead;
+  const assertedValue = selectedOperation ?? narrowedRead ?? source;
+  const storedValue = storage ?? source;
+  const value = narrowedRead ?? selectedOperation ?? storage ?? source;
+  const readStorageValue = storage ?? raw?.readStorage;
+  const flowReadValue = raw?.selectedMemberRead ?? value;
+  const flowReadStorage = raw?.selectedMemberStorage ?? readStorageValue;
+  return Object.freeze({
+    ...(source === undefined ? {} : { source }),
+    ...(selectedOperation === undefined ? {} : { selectedOperation }),
+    ...(narrowedRead === undefined ? {} : { narrowedRead }),
+    ...(storage === undefined ? {} : { storage }),
+    ...(assertedValue === undefined ? {} : { assertedValue }),
+    ...(storedValue === undefined ? {} : { storedValue }),
+    ...(value === undefined ? {} : { value }),
+    ...(readStorageValue === undefined ? {} : { readStorageValue }),
+    ...(flowReadValue === undefined ? {} : { flowReadValue }),
+    ...(flowReadStorage === undefined ? {} : { flowReadStorage }),
+  });
 }
