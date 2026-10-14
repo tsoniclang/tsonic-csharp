@@ -16,7 +16,8 @@ import type {
   TargetTypeRef,
 } from "../../types/index.js";
 
-import type { CsharpJsValueInvocation, CsharpJsValueOperationSelection, CsharpJsValueReceiverOperation, CsharpJsValueCallKind } from "../../../target-model/operations/js-values.js";
+import type { CsharpJsValueInvocation, CsharpJsValueOperationSelection, CsharpJsValueReceiverOperation, CsharpJsValueCallKind, CsharpJsValueRuntimeMember } from "../../../target-model/operations/js-values.js";
+import type { CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
 export type { CsharpJsValueInvocation, CsharpJsValueOperationSelection, CsharpJsValueReceiverOperation, CsharpJsValueCallKind } from "../../../target-model/operations/js-values.js";
 
 export function validateCsharpJsValueOperationSelection(
@@ -56,7 +57,7 @@ export function validateCsharpJsValueOperationSelection(
     return { kind: "rejected", reason: "A closed JS operation requires its exact selected present invocation and receiver-read correspondence." };
   }
   const shortCircuit = selection.shortCircuit;
-  if (selection.runtimeMember === "ApplyDynamicLogical" ?
+  if (logicalRuntimeMembers.has(selection.runtimeMember) ?
     shortCircuit === undefined || !targetTypeRefEquals(selection.resultType, csharpTsValueTargetType()) ||
       !targetTypeRefEquals(shortCircuit.condition.resultType, csharpSourcePrimitiveTargetType("bool")) ||
       (shortCircuit.whenTrue !== "left" && shortCircuit.whenTrue !== "right") ||
@@ -186,7 +187,7 @@ export function selectCsharpJsValueBinaryOperation(
   left: Node | undefined,
   right: Node | undefined,
   sourceFile: SourceFile,
-  operator: string,
+  operator: CsharpSourceOperator | "",
 ): CsharpJsValueOperationSelection {
   if ((operator === "??" || operator === "??=") &&
     isCsharpJsValueTargetType(input.types.resolveReadStorage(left))) {
@@ -200,18 +201,20 @@ export function selectCsharpJsValueBinaryOperation(
   if (mode.kind !== "js-value") {
     return mode;
   }
-  if (booleanBinaryOperators.has(operator)) {
+  const booleanMember = booleanBinaryOperators.get(operator);
+  if (booleanMember !== undefined) {
     return {
       kind: "resolved",
-      runtimeMember: "ApplyDynamicBinaryBoolean",
+      runtimeMember: booleanMember,
       dispatch: "static",
       resultType: csharpSourcePrimitiveTargetType("bool"),
     };
   }
-  if (lazyBinaryOperators.has(operator)) {
+  const lazyMember = lazyBinaryOperators.get(operator);
+  if (lazyMember !== undefined) {
     return {
       kind: "resolved",
-      runtimeMember: "ApplyDynamicLogical",
+      runtimeMember: lazyMember,
       dispatch: "static",
       resultType: csharpTsValueTargetType(),
       shortCircuit: {
@@ -224,10 +227,11 @@ export function selectCsharpJsValueBinaryOperation(
       },
     };
   }
-  return eagerBinaryOperators.has(operator)
+  const valueMember = eagerBinaryOperators.get(operator);
+  return valueMember !== undefined
     ? {
         kind: "resolved",
-        runtimeMember: "ApplyDynamicBinary",
+        runtimeMember: valueMember,
         dispatch: "static",
         resultType: csharpTsValueTargetType(),
       }
@@ -242,7 +246,7 @@ export function selectCsharpJsValueUnaryOperation(
   input: CsharpPolicyContext,
   operand: Node | undefined,
   sourceFile: SourceFile,
-  operator: string,
+  operator: CsharpSourceOperator | "",
 ): CsharpJsValueOperationSelection {
   const mode = selectJsValueOperandMode(
     input,
@@ -255,15 +259,16 @@ export function selectCsharpJsValueUnaryOperation(
   if (operator === "!") {
     return {
       kind: "resolved",
-      runtimeMember: "ApplyDynamicUnaryBoolean",
+      runtimeMember: "LogicalNot",
       dispatch: "static",
       resultType: csharpSourcePrimitiveTargetType("bool"),
     };
   }
-  return valueUnaryOperators.has(operator)
+  const valueMember = valueUnaryOperators.get(operator);
+  return valueMember !== undefined
     ? {
         kind: "resolved",
-        runtimeMember: "ApplyDynamicUnary",
+        runtimeMember: valueMember,
         dispatch: "static",
         resultType: csharpTsValueTargetType(),
       }
@@ -365,7 +370,7 @@ function selectJsValueOperandMode(
 function receiverRuntimeMember(
   operation: CsharpJsValueReceiverOperation,
   optional: boolean,
-): string | undefined {
+): CsharpJsValueRuntimeMember | undefined {
   switch (operation) {
     case "property-read":
       return optional ? "ReadDynamicSlotOptional" : "ReadDynamicSlot";
@@ -397,33 +402,35 @@ function operationLabel(
   }
 }
 
-const eagerBinaryOperators = new Set([
-  "+",
-  "-",
-  "*",
-  "/",
-  "%",
+const eagerBinaryOperators = new Map<string, CsharpJsValueRuntimeMember>([
+  ["+", "Add"],
+  ["-", "Subtract"],
+  ["*", "Multiply"],
+  ["/", "Divide"],
+  ["%", "Remainder"],
 ]);
 
-const lazyBinaryOperators = new Set([
-  "&&",
-  "||",
-  "??",
+const lazyBinaryOperators = new Map<string, CsharpJsValueRuntimeMember>([
+  ["&&", "And"],
+  ["||", "Or"],
+  ["??", "Coalesce"],
 ]);
 
-const booleanBinaryOperators = new Set([
-  "==",
-  "!=",
-  "===",
-  "!==",
-  "<",
-  "<=",
-  ">",
-  ">=",
+const logicalRuntimeMembers = new Set(lazyBinaryOperators.values());
+
+const booleanBinaryOperators = new Map<string, CsharpJsValueRuntimeMember>([
+  ["==", "Equal"],
+  ["!=", "NotEqual"],
+  ["===", "StrictEqual"],
+  ["!==", "StrictNotEqual"],
+  ["<", "LessThan"],
+  ["<=", "LessThanOrEqual"],
+  [">", "GreaterThan"],
+  [">=", "GreaterThanOrEqual"],
 ]);
 
-const valueUnaryOperators = new Set([
-  "+",
-  "-",
-  "~",
+const valueUnaryOperators = new Map<string, CsharpJsValueRuntimeMember>([
+  ["+", "Positive"],
+  ["-", "Negate"],
+  ["~", "BitwiseNot"],
 ]);
