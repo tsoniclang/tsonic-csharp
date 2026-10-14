@@ -500,14 +500,22 @@ function analyzeIteration(
 }
 
 function rejectCsharpAnalysisIssues(
-  issues: readonly { readonly node?: Node | undefined; readonly code: string; readonly message: string }[],
+  issues: readonly {
+    readonly node?: Node | undefined;
+    readonly code: string;
+    readonly message: string;
+    readonly source?: import("@tsonic/target-api/artifacts").TargetDiagnostic["source"];
+    readonly category?: import("@tsonic/target-api/artifacts").TargetDiagnostic["category"];
+    readonly evidence?: import("@tsonic/target-api/artifacts").TargetDiagnostic["evidence"];
+  }[],
 ): TargetStageResult<never> {
   return rejectedTargetStage(issues.map(issue => ({
     code: issue.code,
-    category: "error" as const,
-    source: "tsonic-csharp",
+    category: issue.category ?? "error",
+    source: issue.source ?? "tsonic-csharp",
     message: issue.message,
     sourceNode: issue.node,
+    ...(issue.evidence === undefined ? {} : { evidence: issue.evidence }),
   })));
 }
 

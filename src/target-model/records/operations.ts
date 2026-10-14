@@ -136,6 +136,9 @@ export interface CsharpOperationIssue {
   readonly node: Node;
   readonly code: string;
   readonly message: string;
+  readonly source?: import("@tsonic/target-api/artifacts").TargetDiagnostic["source"];
+  readonly category?: import("@tsonic/target-api/artifacts").TargetDiagnostic["category"];
+  readonly evidence?: import("@tsonic/target-api/artifacts").TargetDiagnostic["evidence"];
 }
 
 export interface CsharpTargetOperationClassifications {
