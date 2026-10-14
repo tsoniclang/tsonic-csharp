@@ -75,7 +75,6 @@ export function analyzeCsharpAttributeApplications(
     diagnostics: Object.freeze(diagnostics),
     index: Object.freeze({
       attributeApplication: Object.freeze({ get: (declaration: Node) => byDeclaration.get(declaration) ?? emptyApplications }),
-      erasedAttribute: Object.freeze({ get: (subject: Node) => applications.forSubject(subject) !== undefined }),
     }),
   });
 }

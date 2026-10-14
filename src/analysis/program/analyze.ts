@@ -304,8 +304,7 @@ export function analyzeCsharpTargetProgram(
     projectRoot: input.paths.projectRoot,
     entryPoint: input.project.entryPoint,
     outputType: configuration.outputType,
-    attributeApplications,
-    safetyApplications,
+    operations: analysis.operations,
   });
   if (moduleInitialization.issues.length > 0) {
     return rejectedTargetStage(moduleInitialization.issues.map((issue) => ({

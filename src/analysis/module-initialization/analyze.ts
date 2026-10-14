@@ -18,8 +18,7 @@ import {
   sourceMayReadBeforeInitialization,
   validateSourceBinaryEntry,
 } from "@tsonic/target-api/source";
-import type { CsharpAttributeApplicationIndex } from "../../target-model/records/attributes.js";
-import type { CsharpSafetyApplicationFactIndex } from "../../target-model/records/safety.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpModuleInitializationAnalysis, CsharpModuleInitializationIndex, CsharpModuleInitializationIssue } from "../../target-model/records/module-initialization.js";
 
 interface CsharpModuleInitializationAnalysisInput {
@@ -29,8 +28,7 @@ interface CsharpModuleInitializationAnalysisInput {
   readonly projectRoot: string;
   readonly entryPoint: string;
   readonly outputType: "Library" | "Exe";
-  readonly attributeApplications: CsharpAttributeApplicationIndex;
-  readonly safetyApplications: CsharpSafetyApplicationFactIndex;
+  readonly operations: Pick<CsharpTargetOperationClassifications, "erasedStatement">;
 }
 
 interface ModuleInitializationEntry {
@@ -154,12 +152,7 @@ function isErasedCompileTimeStatement(
     return false;
   }
   if (input.sourceEvidence.compileTimeMetadata.get(expression)) return true;
-  if (input.attributeApplications.erasedAttribute.get(expression)) {
-    return true;
-  }
-  const safety = input.safetyApplications.safetyOperation.get(expression);
-  return safety?.kind === "safety-builder" ||
-    safety?.kind === "unsafe-context" && safety.fact.kind === "remaining-block";
+  return input.operations.erasedStatement.get(statement);
 }
 
 function variableStatementHasInitializer(
