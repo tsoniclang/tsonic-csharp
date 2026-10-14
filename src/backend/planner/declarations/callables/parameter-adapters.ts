@@ -17,7 +17,7 @@ export function planCsharpCallableArguments(
   if (source.parameters.length !== parameters.length || adapters.length !== implementationParameters.length) return undefined;
   const statements: CsharpStatement[] = [];
   const arguments_: CsharpExpression[] = [];
-  const name = (preferred: string) => input.program.names.temporaryName(preferred);
+  const name = (preferred: string) => input.names.temporaryName(preferred);
   const sourceValue = (index: number): CsharpExpression | undefined => parameters[index] === undefined ? undefined : identifier(parameters[index]!.name);
   const length = (index: number): CsharpExpression | undefined => {
     const parameter = source.parameters[index];
