@@ -1,10 +1,9 @@
 import { allocateDestructuringTemp } from "../binding-state.js";
 import { csharpDestructuringAssignmentSyntax } from "../../../../target-model/syntax/operators.js";
-import { destructuringAssignmentPattern, planAssignmentPatternFromExpression } from "./planning.js";
-import { getArrayBoundaryCoreCarrierForExpression } from "../../expressions/arrays/boundary-facts.js";
+import { planAssignmentPatternFromExpression } from "./planning.js";
 import { getCsharpTypeForExpressionCarrier } from "../binding-patterns.js";
-import { getRuntimeCarrierForExpression } from "../../types/runtime-carriers.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { missingBindingPatternProjectionMessage } from "../binding-array-patterns.js";
 import type { BindingDefaultExpressionPlanner } from "../binding-array-patterns.js";
 import type { CsharpExpression, CsharpStatement } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
@@ -107,9 +106,9 @@ function planDestructuringAssignmentCore(
   }
   const left = selectedOperator.pattern;
   const right = selectedOperator.source;
-  const pattern = destructuringAssignmentPattern(left, input);
+  const pattern = input.program.records.bindingPatternProjection.get(node)?.assignmentPattern;
   if (pattern === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(left, "Destructuring assignment target is outside the current C# planning surface."));
+    diagnostics.push(unsupportedNodeDiagnostic(left, missingBindingPatternProjectionMessage));
     return undefined;
   }
   const sourceExpression = planExpression(right, sourceFile, input, diagnostics);
@@ -119,8 +118,6 @@ function planDestructuringAssignmentCore(
   if (sourceExpression.completion.kind === "never") return sourceExpression;
   if (sourceExpression.completion.kind !== "value") return undefined;
   const sourceType = getCsharpTypeForExpressionCarrier(right, sourceFile, input, diagnostics, left, "Destructuring assignment source");
-  const sourceCarrier = getArrayBoundaryCoreCarrierForExpression(input, right, sourceFile) ??
-    getRuntimeCarrierForExpression(input, right, sourceFile);
   const tempName = allocateDestructuringTemp(state);
   const tempReference: CsharpExpression = { kind: "IdentifierName", name: tempName };
   return csharpPlannedValue(sourceExpression.completion.carrier, tempReference, [
@@ -134,51 +131,11 @@ function planDestructuringAssignmentCore(
     ...planAssignmentPatternFromExpression(
       pattern,
       tempReference,
-      right,
       sourceFile,
       input,
       diagnostics,
       state,
-      sourceCarrier,
       planDefaultExpressionWithExpectedType,
     ),
     ]);
 }
-
-export type DestructuringAssignmentPattern =
-  | {
-      readonly kind: "array";
-      readonly sourceNode: Node;
-      readonly elements: readonly (DestructuringAssignmentArrayElement | undefined)[];
-    }
-  | {
-      readonly kind: "object";
-      readonly sourceNode: Node;
-      readonly elements: readonly DestructuringAssignmentObjectElement[];
-    };
-
-export type DestructuringAssignmentTarget =
-  | { readonly kind: "node"; readonly node: Node }
-  | { readonly kind: "pattern"; readonly pattern: DestructuringAssignmentPattern };
-
-export type DestructuringAssignmentArrayElement = {
-  readonly kind: "array-element";
-  readonly sourceNode: Node;
-  readonly target: DestructuringAssignmentTarget;
-  readonly initializer?: Node;
-  readonly rest: boolean;
-};
-
-export type DestructuringAssignmentObjectElement =
-  | {
-      readonly kind: "object-property";
-      readonly sourceNode: Node;
-      readonly propertyName?: Node;
-      readonly target: DestructuringAssignmentTarget;
-      readonly initializer?: Node;
-    }
-  | {
-      readonly kind: "object-rest";
-      readonly sourceNode: Node;
-      readonly target: DestructuringAssignmentTarget;
-    };

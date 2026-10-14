@@ -176,6 +176,104 @@ test("js destructuring in unused local functions is not planned and stays accept
   assertCsharpCompilationSucceeded(value.compiled);
 });
 
+const arrayAssignmentMessage = "Array destructuring assignment requires a finalized provider array or tuple runtime-carrier fact for the source expression. Runtime carrier fact is missing for the array destructuring assignment source expression.";
+const objectAssignmentSourceMessage = "Object destructuring assignment requires finalized provider object-shape facts before C# emission.";
+const assignmentTargetMessage = "Destructuring assignment target supports source-owned identifiers and nested destructuring patterns only.";
+const assignmentRestTargetMessage = "Object rest destructuring assignment requires an identifier assignment target.";
+
+function destructuringAssignments(value) {
+  return ofKind(value, "KindBinaryExpression").filter(node => value.result.value.records.binaryOperation.get(node)?.destructuring?.kind === "resolved");
+}
+
+for (const surface of ["native", "js"]) {
+  test(`${surface} destructuring assignments publish their sealed pattern and projections`, () => {
+    const value = analyze(`
+      interface Point { x: number; y: number; w: boolean }
+      interface Holder { inner: Point; b: number }
+      export function assign(p: Point, t: [number, number, number], xs: number[], h: Holder): number {
+        let a = 0; let b = 0; let x = 0; let y = 0; let first = 0;
+        let tail: [number, number] = [0, 0];
+        let rest: { y: number; w: boolean } = { y: 0, w: false };
+        [a, b] = [b, a];
+        [, b] = xs;
+        [first, ...tail] = t;
+        ({ x, ...rest } = p);
+        ({ inner: { y }, b } = h);
+        return a + b + first + tail[0] + x + rest.y + y;
+      }
+    `, surface);
+    assert.equal(value.result.kind, "resolved", value.result.kind === "rejected" ? value.result.diagnostics.map(d => d.message).join("\n") : "");
+    const records = value.result.value.records;
+    const assignments = destructuringAssignments(value);
+    assert.equal(assignments.length, 5);
+    assert.deepEqual(assignments.map(node => records.bindingPatternProjection.get(node)?.assignmentPattern?.kind), ["array", "array", "array", "object", "object"]);
+    const sources = [...ofKind(value, "KindArrayLiteralExpression"), ...ofKind(value, "KindObjectLiteralExpression")]
+      .map(node => records.bindingPatternProjection.get(node)?.source?.kind).filter(kind => kind !== undefined).sort();
+    assert.deepEqual(sources, ["array-source", "array-source", "array-source", "object-shape-source", "object-shape-source", "object-shape-source"]);
+    const elementKinds = [...ofKind(value, "KindIdentifier"), ...ofKind(value, "KindSpreadElement"), ...ofKind(value, "KindSpreadAssignment"),
+      ...ofKind(value, "KindShorthandPropertyAssignment"), ...ofKind(value, "KindPropertyAssignment")]
+      .map(node => records.bindingPatternProjection.get(node)?.element?.kind).filter(kind => kind !== undefined).sort();
+    assert.deepEqual(elementKinds, ["array-element", "array-element", "array-element", "array-element",
+      "object-shape-member", "object-shape-member", "object-shape-member", "object-shape-member", "object-shape-rest", "tuple-rest"]);
+    assertCsharpCompilationSucceeded(value.compiled);
+  });
+
+  test(`${surface} destructuring assignment target rejections move to the binding owner`, () => {
+    rejectedBeforePublication(`export function f(): number { const o = { x: 0 }; [o.x] = [1]; return o.x; }`, surface, [assignmentTargetMessage]);
+    rejectedBeforePublication(`export function f(xs: number[][]): number { const o = { x: 0 }; [[o.x]] = xs; return o.x; }`, surface, [assignmentTargetMessage]);
+    rejectedBeforePublication(`interface P { x: number } export function f(p: P): number { const o = { v: 0 }; ({ x: o.v } = p); return o.v; }`, surface, [assignmentTargetMessage]);
+    rejectedBeforePublication(`interface P { x: number; y: number } export function f(p: P): number { let x = 0; const o = { r: { y: 0 } }; ({ x, ...o.r } = p); return x; }`, surface, [assignmentRestTargetMessage]);
+    rejectedBeforePublication(`export function f(r: Record<string, number>, key: string): number { let v = 0; ({ [key]: v } = r); return v; }`, surface, [objectAssignmentSourceMessage]);
+    rejectedBeforePublication(`export function f(p: { 0: number }): number { let a = 0; ({ 0: a } = p); return a; }`, surface, [
+      "Object destructuring assignment from object-shape facts supports only identifier or string-literal property names.",
+      "Object destructuring assignment property must match a finalized provider object-shape member.",
+    ]);
+  });
+
+  test(`${surface} destructuring assignments whose source never completes are not planned`, () => {
+    const value = analyze(`
+      function fail(): never { throw new Error("x"); }
+      export function f(): number { let a = 0; ({ a } = fail()); return a; }
+    `, surface);
+    assert.equal(value.result.kind, "resolved");
+    const [assignment] = destructuringAssignments(value);
+    assert.equal(value.result.value.records.bindingPatternProjection.get(assignment)?.assignmentPattern?.kind, "object");
+    assert.equal(ofKind(value, "KindObjectLiteralExpression").every(node => value.result.value.records.bindingPatternProjection.get(node)?.source === undefined), true,
+      "the pattern under a never-completing source has no projection");
+    assertCsharpCompilationSucceeded(value.compiled);
+  });
+}
+
+test("js destructuring assignment carrier rejections move to the binding owner", () => {
+  rejectedBeforePublication(`export function f(): number { let a = 0; let b = 0; [a, b] = new Set([1, 2]); return a + b; }`, "js", [arrayAssignmentMessage]);
+  rejectedBeforePublication(`export function f(xs: Set<number>[]): number { let a = 0; [[a]] = xs; return a; }`, "js", [arrayAssignmentMessage]);
+  rejectedBeforePublication(`let a = 0; [a] = new Set([1]); export function f(): number { return a; }`, "js", [arrayAssignmentMessage]);
+  rejectedBeforePublication(`export function f(xs: number[]): number { let n = 0; ({ length: n } = xs); return n; }`, "js", [objectAssignmentSourceMessage]);
+});
+
+test("js destructuring assignments outside planned code stay accepted", () => {
+  for (const sourceText of [
+    `export function f(): number { let a = 0; return a; [a] = new Set([1]); }`,
+    `export function f(): number { let a = 0; function g(): void { [a] = new Set([1]); } return a; }`,
+  ]) {
+    const value = analyze(sourceText, "js");
+    assert.equal(value.result.kind, "resolved");
+    assertCsharpCompilationSucceeded(value.compiled);
+  }
+});
+
+test("defaulted nested assignment targets belong to their enclosing pattern", () => {
+  const value = analyze(`export function f(ys: number[][]): number { let x = 0; [[x] = [1]] = ys; return x; }`, "js");
+  assert.equal(value.result.kind, "resolved");
+  const records = value.result.value.records;
+  const binaries = ofKind(value, "KindBinaryExpression");
+  assert.deepEqual(binaries.map(node => records.bindingPatternProjection.get(node)?.assignmentPattern !== undefined), [true, false],
+    "only the statement-level assignment publishes an assignment pattern");
+  assert.deepEqual(binaries.map(node => records.bindingPatternProjection.get(node)?.element?.kind), [undefined, "array-element"]);
+  const nested = ofKind(value, "KindArrayLiteralExpression").filter(node => records.bindingPatternProjection.get(node)?.source !== undefined);
+  assert.equal(nested.length, 2, "the outer and the defaulted nested pattern each have one array source");
+});
+
 function sealedInputs(sourceText, surface = "native") {
   const value = analyze(sourceText, surface);
   assert.equal(value.result.kind, "resolved");
@@ -193,7 +291,7 @@ function sealedInputs(sourceText, surface = "native") {
         sourceOwnedProjectShape: overrides.sourceOwnedProjectShape ?? program.records.sourceOwnedProjectShape,
         nodeTargetType: program.records.nodeTargetType,
       },
-      operations: { nativeUnreachable: program.records.nativeUnreachable },
+      operations: { nativeUnreachable: program.records.nativeUnreachable, binaryOperation: program.records.binaryOperation },
       valueReads: overrides.valueReads ?? { valueRead: program.records.valueRead },
       objectShapes,
     }),
@@ -264,5 +362,47 @@ test("source-owned object patterns admit only plain identifier members", () => {
     { valueReads: { valueRead: { get: () => undefined } } },
   ));
   assert.equal(messages(unproven).filter(message => message.startsWith("Destructuring source expression requires a finalized runtime carrier fact before C# emission.")).length, 3);
+  assert.deepEqual(unproven.issues[0].evidence, ["C# type policy found no exact runtime representation."]);
+});
+
+test("object-shape assignment member and rest decisions are made once by the binding owner", () => {
+  const sealed = sealedInputs(`
+    interface Point { a: number; b: number }
+    export function f(p: Point): number { let a = 0; let rest: { b: number } = { b: 0 }; ({ a, ...rest } = p); return a + rest.b; }
+  `);
+  const ast = sealed.value.ast;
+  const source = sealed.value.nodes.find(node => ast.kindName(node) === "KindIdentifier" && ast.text(node) === "p" &&
+    ast.kindName(ast.parent(node)) === "KindBinaryExpression");
+  const rest = sealed.value.nodes.find(node => ast.kindName(node) === "KindIdentifier" && ast.text(node) === "rest" &&
+    ast.kindName(ast.parent(node)) === "KindSpreadAssignment");
+  const shapes = sealed.program.objectShapes;
+  const sourceShape = shapes.resolveNode(source);
+  assert.equal(sourceShape !== undefined, true, "the assignment source has an object shape");
+  const restShape = shapes.resolveCopyShape(shapes.resolveNode(rest));
+  const replace = (patch) => ({ ...shapes, resolveNode: shapes.resolveNode, resolveCopyShape: shapes.resolveCopyShape, ...patch });
+
+  assert.deepEqual(messages(analyzeCsharpBindingPatterns(sealed.input())), []);
+
+  const missingMember = analyzeCsharpBindingPatterns(sealed.input(replace({
+    resolveNode: (node, file) => node === source ? { ...sourceShape, members: sourceShape.members.filter(member => member.sourceName !== "a") } : shapes.resolveNode(node, file),
+  })));
+  assert.equal(messages(missingMember)[0].startsWith("Object destructuring assignment property source member 'a'"), true, messages(missingMember)[0]);
+
+  assert.deepEqual(messages(analyzeCsharpBindingPatterns(sealed.input(replace({ resolveCopyShape: () => undefined })))),
+    ["Object rest destructuring assignment requires finalized provider object-shape facts for the rest target."]);
+  assert.deepEqual(messages(analyzeCsharpBindingPatterns(sealed.input(replace({ resolveCopyShape: () => sourceShape })))),
+    ["Object rest destructuring assignment rest shape must exclude explicitly extracted member 'a'."]);
+  assert.deepEqual(messages(analyzeCsharpBindingPatterns(sealed.input(replace({
+    resolveCopyShape: () => ({ ...restShape, members: restShape.members.map(member => ({ ...member, type: { kind: "source-primitive", name: "boolean" } })) }),
+  })))), ["Object rest destructuring assignment member 'b' requires matching finalized source and rest member carriers."]);
+
+  const unproven = analyzeCsharpBindingPatterns(sealed.input(
+    { ...shapes, resolveNode: () => undefined, resolveCopyShape: () => undefined },
+    { valueReads: { valueRead: { get: () => undefined } } },
+  ));
+  assert.deepEqual(messages(unproven), [
+    "Destructuring assignment source requires a finalized runtime carrier fact before C# emission. C# runtime representation is not proven by authored source facts, the selected source profile, project declarations, or an exact provider relation.",
+    objectAssignmentSourceMessage,
+  ]);
   assert.deepEqual(unproven.issues[0].evidence, ["C# type policy found no exact runtime representation."]);
 });

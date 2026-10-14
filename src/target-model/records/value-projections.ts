@@ -30,9 +30,48 @@ export type CsharpBindingElementProjection =
       readonly propertyNameKind: "identifier" | "string-literal";
     };
 
+export type CsharpDestructuringAssignmentPattern =
+  | {
+      readonly kind: "array";
+      readonly sourceNode: Node;
+      readonly elements: readonly (CsharpDestructuringAssignmentArrayElement | undefined)[];
+    }
+  | {
+      readonly kind: "object";
+      readonly sourceNode: Node;
+      readonly elements: readonly CsharpDestructuringAssignmentObjectElement[];
+    };
+
+export type CsharpDestructuringAssignmentTarget =
+  | { readonly kind: "node"; readonly node: Node }
+  | { readonly kind: "pattern"; readonly pattern: CsharpDestructuringAssignmentPattern };
+
+export interface CsharpDestructuringAssignmentArrayElement {
+  readonly kind: "array-element";
+  readonly sourceNode: Node;
+  readonly target: CsharpDestructuringAssignmentTarget;
+  readonly initializer?: Node;
+  readonly rest: boolean;
+}
+
+export type CsharpDestructuringAssignmentObjectElement =
+  | {
+      readonly kind: "object-property";
+      readonly sourceNode: Node;
+      readonly propertyName?: Node;
+      readonly target: CsharpDestructuringAssignmentTarget;
+      readonly initializer?: Node;
+    }
+  | {
+      readonly kind: "object-rest";
+      readonly sourceNode: Node;
+      readonly target: CsharpDestructuringAssignmentTarget;
+    };
+
 export interface CsharpBindingProjectionFact {
   readonly source?: CsharpBindingPatternSource;
   readonly element?: CsharpBindingElementProjection;
+  readonly assignmentPattern?: CsharpDestructuringAssignmentPattern;
 }
 
 export interface CsharpBindingPatternIssue {
