@@ -28,8 +28,8 @@ for (const [name, body, markers] of rejectedForms) {
   test(`source-flow marker in ${name} position is rejected at analysis admission before planning`, () => {
     const compiled = compileCsharpSource({ sourceText: header + body });
     assert.equal(compiled.sourceDiagnosticsText, "");
-    assert.equal(compiled.result.program, undefined);
-    assert.equal(compiled.result.plan, undefined);
+    assert.equal(compiled.result.program === undefined, true, "rejected before program publication");
+    assert.equal(compiled.result.plan === undefined, true, "rejected before planning");
     assert.deepEqual([...compiled.artifacts], []);
     assert.deepEqual(
       compiled.result.diagnostics.map(({ code, category, source, message }) => ({ code, category, source, message })),
@@ -90,5 +90,5 @@ test("a local function named like a source-flow marker is an ordinary call with 
   };
   for (const sourceFile of compiled.result.program.sourceFiles) visit(sourceFile);
   assert.ok(calls.length > 0);
-  for (const call of calls) assert.equal(call?.sourceFlow, undefined);
+  for (const call of calls) assert.equal(call?.sourceFlow === undefined, true, "ordinary calls have no source-flow selection");
 });
