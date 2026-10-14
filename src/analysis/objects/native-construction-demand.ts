@@ -1,13 +1,13 @@
 import { providerVirtualDeclarationFactKey, type Node, type SourceFile, type Type } from "@tsonic/tsts";
 import type { SourceStorageQueries, SourceStorageSubject } from "@tsonic/target-api/analysis";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpObjectShapesEqual } from "../../../target-model/types/object-shape-equality.js";
-import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
-import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { createCsharpMetadataBudget } from "../../../target-model/metadata/immutable.js";
-import type { CsharpTypePolicyBaseHost } from "../resolution/model.js";
-import { csharpNativeConstructionMembersMatch } from "./native-construction-members.js";
+import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
+import { csharpObjectShapesEqual } from "../../target-model/types/object-shape-equality.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
+import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
+import { createCsharpMetadataBudget } from "../../target-model/metadata/immutable.js";
+import type { CsharpTypePolicyBaseHost } from "../../policy/types/resolution/model.js";
+import { csharpNativeConstructionMembersMatch } from "../../policy/types/objects/native-construction-members.js";
 
 export interface CsharpNativeConstructionIssue {
   readonly node: Node;

@@ -47,12 +47,21 @@ export interface CsharpValueRefinementClassification {
   readonly selectedTargetType?: TargetTypeRef;
   readonly memberTargetTypes?: readonly (TargetTypeRef | undefined)[];
   readonly flowReadTargetType?: TargetTypeRef;
-  readonly flowReadConversion?: CsharpConversionSelection;
+}
+
+export type CsharpFlowReadProjection =
+  | { readonly kind: "identity" }
+  | { readonly kind: "non-null" }
+  | { readonly kind: "conversion"; readonly source: TargetTypeRef; readonly target: TargetTypeRef;
+      readonly selection: CsharpConversionSelection }
+  | { readonly kind: "rejected"; readonly reason: string };
+
+export interface CsharpFlowReadClassifications {
+  readonly flowReadProjection: { readonly get: (node: Node) => CsharpFlowReadProjection | undefined };
 }
 
 export interface CsharpSourceEvidenceIndex {
   readonly bindingProjection: { readonly get: (node: Node) => import("./binding-projection-policy.js").CsharpBindingProjection | undefined };
-  readonly closedArrayStorage: { readonly get: (node: Node) => import("@tsonic/source-core/facts").TsonicClosedArrayStorage };
   readonly memoryMetadataIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
   readonly typeOnlyIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
   readonly fixedArrayIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];

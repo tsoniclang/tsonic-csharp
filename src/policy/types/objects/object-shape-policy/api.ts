@@ -31,8 +31,6 @@ import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { nextState } from "../../resolution/state.js";
 import {
   substituteTargetTypeParameters,
-  inferCsharpTargetTypeParameterBindings,
-  substituteObjectShapeFactTargetTypeParameters,
 } from "../../../../target-model/types/substitution.js";
 import {
   isCsharpJsValueTargetType,
@@ -54,6 +52,7 @@ import { resolveCsharpTypeParameterConstraints } from "../../../constraints/type
 
 import type { CsharpObjectLiteralTargetShapeResolution, CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
 import type { CsharpProjectConstructibleTypeProjection } from "../../../../target-model/records/object-shapes.js";
+import { instantiateCsharpObjectShape } from "./instantiation.js";
 
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
@@ -169,14 +168,9 @@ export function createCsharpObjectShapePolicy(
       return undefined;
     }
     const template = genericShapes.get(type.id);
-    if (template?.targetType.kind === "target-named") {
-      const parameters = new Set((template.targetType.typeArguments ?? []).flatMap(argument =>
-        argument.kind === "type-parameter" ? [argument.identity] : []));
-      const bindings = inferCsharpTargetTypeParameterBindings(template.targetType, type, parameters);
-      const selected = bindings === undefined ? undefined : substituteObjectShapeFactTargetTypeParameters(template, bindings);
-      if (selected !== undefined && targetTypeRefEquals(selected.targetType, type)) {
-        return rememberTargetShape(selected);
-      }
+    if (template !== undefined) {
+      const selected = instantiateCsharpObjectShape(template, type);
+      if (selected !== undefined) return rememberTargetShape(selected);
     }
     const union = type as Partial<CsharpRuntimeUnionTargetTypeRef>;
     const arms = union.csharpRuntimeUnionArms;
@@ -537,10 +531,7 @@ export function createCsharpObjectShapePolicy(
       canonical.targetType.typeArguments!.every(argument => argument.kind === "type-parameter")) {
       const existingTemplate = genericShapes.get(canonical.targetType.id);
       if (existingTemplate?.targetType.kind === "target-named") {
-        const parameters = new Set((existingTemplate.targetType.typeArguments ?? []).flatMap(argument =>
-          argument.kind === "type-parameter" ? [argument.identity] : []));
-        const bindings = inferCsharpTargetTypeParameterBindings(existingTemplate.targetType, canonical.targetType, parameters);
-        const instantiated = bindings === undefined ? undefined : substituteObjectShapeFactTargetTypeParameters(existingTemplate, bindings);
+        const instantiated = instantiateCsharpObjectShape(existingTemplate, canonical.targetType);
         if (instantiated === undefined || !csharpObjectShapesEqual(instantiated, canonical)) {
           throw new Error("C# structural generic template resolved to contradictory contracts.");
         }

@@ -28,11 +28,11 @@ import type {
   TargetStageResult,
 } from "@tsonic/target-api/artifacts";
 import {
-  createCsharpTypeSystem,
-} from "../../policy/types/model/system.js";
+  createCsharpTypeAnalysis,
+} from "./type-system.js";
 import type {
-  CsharpTypeSystem,
-} from "../../policy/types/model/system.js";
+  CsharpTypeAnalysis,
+} from "./type-system.js";
 import type {
   CsharpPlanningRepresentationQueries,
 } from "../../policy/types/index.js";
@@ -109,6 +109,7 @@ import { createCsharpSourceProfileCallableAliasQuery } from "../../policy/operat
 import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-demands.js";
 import { createSourceStorageQuery, type SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../../policy/operations/source-profiles/source-storage-effects.js";
+import { analyzeCsharpFlowReadProjections } from "../objects/flow-read-projections.js";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -315,6 +316,7 @@ export function analyzeCsharpTargetProgram(
   const numericRepresentations = analyzeCsharpNumericRepresentations({ source, sourceFiles,
     evidence: analysis.sourceEvidence, operations: analysis.operations });
   const records = createCsharpProgramRecords({
+    flowReads: analyzeCsharpFlowReadProjections(analysis.policy, analysis.sourceEvidence, analysis.operations, analysis.storage),
     callableAdapters, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
     numericRepresentations, attributeApplications, safetyApplications, operations: analysis.operations,
     sourceEvidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions: analysis.conversions,
@@ -366,11 +368,11 @@ function analyzeIteration(
   sourceFiles: readonly SourceFile[],
   sourceIdentities: ReturnType<typeof createCsharpSourceIdentityPolicy>,
   names: ReturnType<typeof createCsharpSourceNameResolver>,
-  typeHost: Parameters<typeof createCsharpTypeSystem>[0],
+  typeHost: Parameters<typeof createCsharpTypeAnalysis>[0],
   sourceStorage: SourceStorageQueries,
   previous: CsharpRepresentationContract | undefined,
 ) {
-  let typeSystem: CsharpTypeSystem | undefined;
+  let typeSystem: CsharpTypeAnalysis | undefined;
   const planningRepresentations: CsharpPlanningRepresentationQueries = {
     genericProjections(declaration) { return previous?.typeProjections.genericProjection.get(declaration) ?? []; },
     requiresClosedStructuralContract(type) {
@@ -397,11 +399,10 @@ function analyzeIteration(
   };
   const representations = Object.freeze(planningRepresentations);
   const typeDefinitions = createCsharpTypeDefinitionRegistry(id => providers.findTargetBindingByTargetId(id));
-  typeSystem = createCsharpTypeSystem(
+  typeSystem = createCsharpTypeAnalysis(
     { ...typeHost, typeDefinitions },
     createCsharpProjectTypeCatalog(typeHost, previous?.typeProjections),
     representations,
-    sourceStorage,
   );
   const policy = createCsharpAnalysisPolicyContext({
     callOnlyAlias: typeHost.callOnlyAlias,
@@ -485,7 +486,7 @@ function sourceCallableContract(
   input: CsharpTargetAnalysisRequest["input"],
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
-  typeSystem: CsharpTypeSystem | undefined,
+  typeSystem: CsharpTypeAnalysis | undefined,
   callables: CsharpCallableContractIndex | undefined,
   selection: "checked" | "implementation",
 ) {

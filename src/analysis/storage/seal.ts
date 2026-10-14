@@ -4,7 +4,7 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpSourceArgument } from "../../policy/operations/members/selection/argument-selection.js";
 import type { CsharpObjectShapeClassifications } from "../objects/index.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpSourceEvidenceAnalysis } from "../source-evidence/model.js";
 import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications } from "../../target-model/records/storage.js";
 import { analyzeCsharpNativeBacking } from "./native-backing.js";
 import { classifyCsharpNativeLocation } from "./native-locations.js";
@@ -12,7 +12,7 @@ import { classifyCsharpModuleFieldDemand } from "./module-fields.js";
 
 export function sealCsharpStorage(
   policy: CsharpPolicyContext,
-  evidence: CsharpSourceEvidenceIndex,
+  evidence: CsharpSourceEvidenceAnalysis,
   operations: CsharpTargetOperationClassifications,
   objectShapes: CsharpObjectShapeClassifications,
   representations: CsharpStorageRepresentationClassifications,

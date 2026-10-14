@@ -11,6 +11,7 @@ import type { CsharpNumericRepresentations } from "../../../target-model/records
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations.js";
 import type { CsharpSafetyApplicationFactIndex } from "../../../target-model/records/safety.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
+import type { CsharpFlowReadClassifications } from "../../../target-model/records/source-evidence.js";
 import type { CsharpSourceModuleConstructionIndex } from "../../../target-model/records/source-modules.js";
 import type { CsharpStorageClassifications } from "../../../target-model/records/storage.js";
 import type { CsharpGenericProjectionIndex } from "../../../target-model/records/type-projections.js";
@@ -18,6 +19,7 @@ import type { CsharpProgramRecords } from "../../../target-model/records/program
 
 export interface CsharpProgramRecordInput {
   readonly sourceEvidence: CsharpSourceEvidenceIndex;
+  readonly flowReads: CsharpFlowReadClassifications;
   readonly operations: CsharpTargetOperationClassifications;
   readonly expectedTypes: CsharpExpectedTypeClassifications;
   readonly declarations: CsharpDeclarationClassifications;
@@ -113,7 +115,7 @@ export function createCsharpProgramRecords(input: CsharpProgramRecordInput): Csh
     safetyApplication: input.safetyApplications.safetyApplication,
     safetyOperation: input.safetyApplications.safetyOperation,
     bindingProjection: input.sourceEvidence.bindingProjection,
-    closedArrayStorage: input.sourceEvidence.closedArrayStorage,
+    flowReadProjection: input.flowReads.flowReadProjection,
     compileTimeMetadata: input.sourceEvidence.compileTimeMetadata,
     nodeTargetType: input.sourceEvidence.nodeTargetType,
     classConstructorType: input.sourceEvidence.classConstructorType,
