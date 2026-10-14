@@ -3,10 +3,13 @@ import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram, Node_Initializer } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
-import { csharpValueDomainHasTargetType } from "../../../dist/policy/types/objects/value-domain-carrier.js";
+import { csharpValueDomainHasTargetType as selectedValueDomainHasTargetType } from "../../../dist/policy/types/objects/value-domain-carrier.js";
+import { analyzeCsharpValueDomainCarriers } from "../../../dist/analysis/objects/value-domain-carriers.js";
 import { csharpEmptyObjectTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
+import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { frozenEmptyStorageSources } from "../../../../tsonic/test/fixtures/frozen-empty-storage.mjs";
 
 function fixture() {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src",
@@ -67,6 +70,11 @@ function domain(input, carrier, projection, root = "first", selected = "selected
     } },
   };
   return { host, expression, origin: origin.subject };
+}
+
+function csharpValueDomainHasTargetType(host, expression, expected) {
+  const valueDomainCarriers = analyzeCsharpValueDomainCarriers(host, [expression]);
+  return selectedValueDomainHasTargetType({ valueDomainCarriers }, expression, expected);
 }
 
 const member = input => ({ kind: "member", declaration: input.members.get("value").declarations[0] });
@@ -169,5 +177,39 @@ test("member proofs fail closed for unavailable, accessor and exhausted evidence
     if (control === "budget") selected.host.sourceStorage.failureReason = () => "bounded failure";
     if (control === "open") selected.host.sourceStorage.closedOriginsFor = () => ({ kind: "open", origins: [] });
     assert.equal(csharpValueDomainHasTargetType(selected.host, selected.expression, exact), false, control);
+  }
+});
+
+test("sealed value domains retain exact source identity without source or physical resolver reads", () => {
+  const input = fixture();
+  const exact = csharpEmptyObjectTargetType();
+  const value = shape(input, exact);
+  const selected = domain(input, value.carrier, [member(input)]);
+  selectShape(selected.host, value);
+  const valueDomainCarriers = analyzeCsharpValueDomainCarriers(selected.host, [selected.expression]);
+  const unavailable = () => { throw new Error("source and native carrier proof is already complete"); };
+  selected.host.semantics = unavailable;
+  selected.host.types.resolveNode = unavailable;
+  selected.host.objectShapes.resolveTarget = unavailable;
+  selected.host.sourceStorage.closedOriginsFor = unavailable;
+  selected.host.sourceStorage.failureReason = unavailable;
+  assert.equal(Object.isFrozen(valueDomainCarriers), true);
+  const host = { valueDomainCarriers };
+  for (let index = 0; index < 64; index += 1) {
+    assert.equal(selectedValueDomainHasTargetType(host, selected.expression, exact), true);
+    assert.equal(selectedValueDomainHasTargetType(host, selected.expression, broad), false);
+  }
+  assert.equal(valueDomainCarriers.carrierFor({}) === undefined, true, "foreign source identity cannot reuse a proof");
+  assert.equal(selectedValueDomainHasTargetType({}, selected.expression, exact), false, "missing analysis proof has no resolver fallback");
+});
+
+test("analysis closes actual invocation arguments for broad aliases, containers and selected native freeze calls", () => {
+  for (const index of [0, 1, 2, 5]) {
+    const compiled = compileCsharpSource({ surface: "js", sourceText: frozenEmptyStorageSources[index][1] });
+    assertCsharpCompilationSucceeded(compiled);
+    const text = [...compiled.artifacts.values()].join("\n");
+    assert.match(text, /EmptyObject\.(?:Freeze|IsFrozen)/u, `actual checked invocation ${index}`);
+    assert.doesNotMatch(text, /FrozenObject|ConditionalWeakTable|DynamicInvoke|System\.Reflection/u,
+      `actual checked invocation ${index} has no additional carrier, state table or fallback`);
   }
 });

@@ -24,6 +24,7 @@ import { csharpTargetTypeComponents } from "../../target-model/types/components.
 import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { createCsharpObjectShapePropertyOrderIndex } from "./property-order.js";
+import { instantiateCsharpObjectShape } from "../../policy/types/objects/object-shape-policy/instantiation.js";
 
 const noExpectedShape = "<none>";
 const maximumObjectShapeClassifications = 131_072;
@@ -33,8 +34,10 @@ export function analyzeCsharpObjectShapes(
   evidence: CsharpSourceEvidenceIndex,
   operations: CsharpTargetOperationClassifications,
 ): CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration & { seal(): CsharpObjectShapeClassifications } {
-  const byNode = new WeakMap<Node, CsharpObjectShapeFact>();
+  const byNode = new Map<Node, CsharpObjectShapeFact>();
   const byTarget = new Map<string, CsharpObjectShapeFact>();
+  const templates = new Map<string, CsharpObjectShapeFact>();
+  const completedShapes = new WeakMap<CsharpObjectShapeFact, CsharpObjectShapeFact>();
   const copies = new Map<string, CsharpObjectShapeFact>();
   const objectLiterals = new Map<Node, SourceFile>();
   const copiedMethodImplementations = new Set<string>();
@@ -43,6 +46,7 @@ export function analyzeCsharpObjectShapes(
   const propertyOrders = createCsharpObjectShapePropertyOrderIndex(policy.ast, reserveClassification);
   let classificationCount = 0;
   let sealed = false;
+  let knownShapes: readonly CsharpObjectShapeFact[] = Object.freeze([]);
   const structuralInterfaces = new Map<string, Map<string, CsharpStructuralInterfaceImplementation>>();
   const structuralImplementations = (type: TargetTypeRef): readonly CsharpStructuralInterfaceImplementation[] => {
     if (type.kind !== "target-named") return [];
@@ -93,6 +97,7 @@ export function analyzeCsharpObjectShapes(
       const merged = mergeCsharpObjectShapeSubjects(previous, shape);
       byTarget.set(key, merged);
     }
+    if (shape.declarationTemplate !== undefined) rememberShape(shape.declarationTemplate);
   };
 
   const rememberTargetShape = (
@@ -204,6 +209,7 @@ export function analyzeCsharpObjectShapes(
     assignmentSourceOrder: propertyOrders.assignmentSourceOrder,
     structuralImplementations,
     knownShapes() {
+      if (sealed) return knownShapes;
       if (!sealed) for (const shape of byTarget.values()) admittedShapes.add(shape);
       return Object.freeze([...byTarget.values()].map(shape => withInterfaces(shape)!));
     },
@@ -250,6 +256,7 @@ export function analyzeCsharpObjectShapes(
       return true;
     },
     seal() {
+      if (sealed) throw new Error("C# object-shape analysis is sealed.");
       const pending = [...byTarget.values()].flatMap(shape => [shape.targetType, ...shape.members.map(member => member.type),
         ...shape.members.flatMap(member => member.methodStorageType === undefined ? [] : [member.methodStorageType]), ...shape.implements ?? []]);
       const visited = new Set<string>();
@@ -262,6 +269,7 @@ export function analyzeCsharpObjectShapes(
         const shape = policy.objectShapes.resolveTarget(type);
         rememberShape(shape);
         if (shape !== undefined) {
+          if (shape.declarationTemplate !== undefined) pending.push(shape.declarationTemplate.targetType);
           const copy = policy.objectShapes.resolveCopyShape(shape);
           if (copy !== undefined) {
             copies.set(key, copy);
@@ -285,10 +293,44 @@ export function analyzeCsharpObjectShapes(
       }
       for (const literal of objectLiterals.keys()) propertyOrders.recordEmptyLiteral(literal);
       propertyOrders.seal();
+      const completeShape = (shape: CsharpObjectShapeFact): CsharpObjectShapeFact => {
+        const existing = completedShapes.get(shape);
+        if (existing !== undefined) return existing;
+        const selected = Object.freeze(withInterfaces(shape)!);
+        completedShapes.set(shape, selected);
+        return selected;
+      };
+      for (const shape of admittedShapes) completeShape(shape);
+      for (const [node, shape] of byNode) byNode.set(node, completeShape(shape));
+      for (const shape of byTarget.values()) {
+        const selected = completeShape(shape);
+        if (selected.targetType.kind === "target-named" && (selected.targetType.typeArguments?.length ?? 0) > 0 &&
+            selected.targetType.typeArguments!.every(argument => argument.kind === "type-parameter")) {
+          templates.set(selected.targetType.id, selected);
+        }
+      }
+      for (const [key, shape] of copies) copies.set(key, completeShape(shape));
+      for (const literal of objectLiterals.keys()) {
+        for (const [key, result] of literalResults.get(literal) ?? []) {
+          if (result.kind === "resolved") literalResults.get(literal)!.set(key,
+            Object.freeze({ ...result, shape: completeShape(result.shape) }));
+        }
+      }
+      knownShapes = Object.freeze([...byTarget.values()].map(completeShape));
       admittedShapes.clear();
       sealed = true;
-      const { registerStructuralInterface: _register, seal: _seal, ...snapshot } = classifications;
-      return Object.freeze(snapshot);
+      return Object.freeze({
+        propertyOrder: propertyOrders.propertyOrder,
+        assignmentSourceOrder: propertyOrders.assignmentSourceOrder,
+        structuralImplementations,
+        knownShapes: () => knownShapes,
+        methodImplementationHasCopies: classifications.methodImplementationHasCopies,
+        resolveCopyShape: (shape: CsharpObjectShapeFact) => copies.get(targetTypeRefKey(shape.targetType)),
+        resolveObjectLiteralUnionCarrier: (node: Node, type: TargetTypeRef) => literalUnionCarriers.get(node)?.get(targetTypeRefKey(type)),
+        resolveNode: (node: Node | undefined) => node === undefined ? undefined : byNode.get(node),
+        resolveTarget: completedTargetShape,
+        resolveObjectLiteralTargetShape: completedLiteralResult,
+      });
     },
     resolveObjectLiteralUnionCarrier(node, type) {
       return literalUnionCarriers.get(node)?.get(targetTypeRefKey(type));
@@ -299,10 +341,12 @@ export function analyzeCsharpObjectShapes(
       return copy;
     },
     resolveNode(node: Node | undefined) {
-      return withInterfaces(node === undefined ? undefined : byNode.get(node));
+      const shape = node === undefined ? undefined : byNode.get(node);
+      return sealed ? shape : withInterfaces(shape);
     },
     resolveTarget(type) {
       if (type === undefined) return undefined;
+      if (sealed) return completedTargetShape(type);
       let shape = byTarget.get(targetTypeRefKey(type));
       if (shape === undefined && !sealed) {
         shape = policy.objectShapes.resolveTarget(type);
@@ -312,18 +356,33 @@ export function analyzeCsharpObjectShapes(
       return withInterfaces(shape);
     },
     resolveObjectLiteralTargetShape(expectedShape, objectLiteral) {
+      if (sealed) return completedLiteralResult(expectedShape, objectLiteral);
       const original = expectedShape === undefined ? undefined
         : byTarget.get(targetTypeRefKey(expectedShape.targetType)) ?? expectedShape;
       const key = original === undefined
         ? noExpectedShape
         : csharpObjectShapeContractKey(original);
-      const result = literalResults.get(objectLiteral)?.get(key) ??
-        (sealed ? undefined : classifyLiteral(original, objectLiteral));
+      const result = literalResults.get(objectLiteral)?.get(key) ?? classifyLiteral(original, objectLiteral);
       return result?.kind === "resolved"
         ? { ...result, shape: withInterfaces(result.shape)! } : result;
     },
   };
   return Object.freeze(classifications);
+
+  function completedTargetShape(type: TargetTypeRef | undefined): CsharpObjectShapeFact | undefined {
+    if (type === undefined) return undefined;
+    const element = getCsharpNullableElementTargetType(type) ?? type;
+    const shape = byTarget.get(targetTypeRefKey(element));
+    if (shape !== undefined) return completedShapes.get(shape);
+    const template = element.kind === "target-named" ? templates.get(element.id) : undefined;
+    return template === undefined ? undefined : instantiateCsharpObjectShape(template, element);
+  }
+
+  function completedLiteralResult(expectedShape: CsharpObjectShapeFact | undefined, objectLiteral: Node):
+      CsharpObjectLiteralTargetShapeResolution | undefined {
+    const original = expectedShape === undefined ? undefined : byTarget.get(targetTypeRefKey(expectedShape.targetType)) ?? expectedShape;
+    return literalResults.get(objectLiteral)?.get(original === undefined ? noExpectedShape : csharpObjectShapeContractKey(original));
+  }
 
   function visit(node: Node, sourceFile: SourceFile): void {
     if (evidence.compileTimeMetadata.get(node)) return;

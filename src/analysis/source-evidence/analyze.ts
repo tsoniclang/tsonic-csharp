@@ -34,16 +34,14 @@ import { csharpSourceTypeParameter } from "../../target-model/names/type-paramet
 import type {
   TargetTypeRef,
 } from "../../target-model/types/model.js";
-import type { CsharpSemanticTypeClassification, CsharpContextualTupleClassification, CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpSemanticTypeClassification, CsharpContextualTupleClassification } from "../../target-model/records/source-evidence.js";
+import type { CsharpSourceEvidenceAnalysis } from "./model.js";
 import {
   resolveCsharpTypeParameterConstraints,
 } from "../../policy/constraints/index.js";
 import type {
   CsharpTypeParameterConstraintResolution,
 } from "../../policy/constraints/index.js";
-import {
-  selectCsharpFlowReadConversion,
-} from "../../policy/conversions/index.js";
 import {
   selectCsharpSourceArgument,
 } from "../../policy/operations/members/index.js";
@@ -66,7 +64,7 @@ export function analyzeCsharpSourceEvidence(
   sourceFiles: readonly SourceFile[],
   types: CsharpTypePolicy,
   policy: CsharpPolicyContext,
-): CsharpSourceEvidenceIndex {
+): CsharpSourceEvidenceAnalysis {
   const memoryMetadata = createTsonicMemoryMetadataIndex(source);
   const pointerBacking = createTsonicPointerBackingDemands(source);
   const arrayStorage = createTsonicClosedArrayStorageQueries(source, 131_072);
@@ -344,21 +342,12 @@ export function analyzeCsharpSourceEvidence(
           : recordTargetType(combineCsharpTargetUnionMembers(
               memberTargetTypes as readonly TargetTypeRef[],
             ));
-    const flowReadConversion = flowReadTargetType === undefined ||
-        readStorageTargetType === undefined
-      ? undefined
-      : selectCsharpFlowReadConversion(
-          policy,
-          readStorageTargetType,
-          flowReadTargetType,
-        );
     refinements.set(node, Object.freeze({
       source: refinement,
       ...(selectedTargetType === undefined ? {} : { selectedTargetType }),
       ...(memberTargetTypes === undefined
         ? {}
         : { memberTargetTypes: Object.freeze(memberTargetTypes) }),
-      ...(flowReadConversion === undefined ? {} : { flowReadConversion }),
       ...(flowReadTargetType === undefined ? {} : { flowReadTargetType }),
     }));
     const generator = semantics.operations.generator(node);
@@ -477,9 +466,9 @@ export function analyzeCsharpSourceEvidence(
     }
   }
 
-  const index: CsharpSourceEvidenceIndex = {
+  const index: CsharpSourceEvidenceAnalysis = {
     bindingProjection: Object.freeze({ get: node => bindingProjections.get(node) }),
-    closedArrayStorage: Object.freeze({ get: arrayStorage.resolve }),
+    inspectClosedArrayStorage: arrayStorage.resolve,
     pointerBackingDemands: pointerBacking.entries(),
     memoryMetadataIssues: Object.freeze([...memoryMetadataIssues, ...pointerBacking.issues().map(issue => ({
       node: issue.node, code: "CSHARP_POINTER_BACKING_NOT_PROVEN", message: issue.reason,

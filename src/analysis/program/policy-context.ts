@@ -5,6 +5,7 @@ import type { CsharpProviderRelationResolver } from "../../providers/model/relat
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpSourceIdentityPolicy } from "../../policy/identities/source-nodes.js";
 import type { CsharpTypeSystem } from "../../policy/types/model/system.js";
+import { analyzeCsharpValueDomainCarriers } from "../objects/value-domain-carriers.js";
 
 export interface CsharpAnalysisPolicyContextInput {
   readonly callOnlyAlias: CsharpPolicyContext["callOnlyAlias"];
@@ -26,6 +27,9 @@ export function createCsharpAnalysisPolicyContext(
     ast: source.ast,
     sourceFiles,
     sourceStorage: context.sourceStorage,
+    valueDomainCarriers: analyzeCsharpValueDomainCarriers({ sourceStorage: context.sourceStorage,
+      types: typeSystem.analysisTypes, objectShapes: typeSystem.objectShapes, semantics: source.semantics.forFile },
+      context.sourceStorage.invocations.flatMap(node => source.ast.arguments(node).filter((argument): argument is NonNullable<typeof argument> => argument !== undefined))),
     sourceFacts: source.sourceFacts,
     navigation: source.navigation,
     target: input.target,

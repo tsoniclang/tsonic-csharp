@@ -44,14 +44,20 @@ export function analyzeCsharpCaptureStorage(
   const environment = createCsharpTypeParameterEnvironment(source.ast, declaration => evidence.typeParameterConstraints.get(declaration));
   const groups = new Map<Node, Map<Node, TargetTypeRef>>();
   const issues: CsharpStorageIssue[] = [];
+  const physicalTypes = new WeakMap<Node, TargetTypeRef | null>();
   const physicalType = (declaration: Node, logicalType: TargetTypeRef): TargetTypeRef => {
+    const existing = physicalTypes.get(declaration);
+    if (existing !== undefined) return existing ?? logicalType;
     const backing = storage.nativeBacking.get(declaration);
-    if (backing !== undefined) return csharpRuntimeLocationTargetType(backing.pointeeType);
-    const array = storage.nativeArray.get(declaration);
-    return array === undefined ? storage.storageType.get(declaration) ?? logicalType : csharpRuntimeNativeArrayTargetType(array.layout.pointeeType);
+    const array = backing === undefined ? storage.nativeArray.get(declaration) : undefined;
+    const selected = backing !== undefined ? csharpRuntimeLocationTargetType(backing.pointeeType)
+      : array !== undefined ? csharpRuntimeNativeArrayTargetType(array.layout.pointeeType) : storage.storageType.get(declaration);
+    physicalTypes.set(declaration, selected ?? null);
+    return selected ?? logicalType;
   };
   for (const shape of shapes.knownShapes()) {
     for (const capture of (shape.declarationTemplate ?? shape).methodImplementation?.captures ?? []) {
+      physicalType(capture.declaration, capture.type);
       if (!capture.mutable || storage.nativeBacking.get(capture.declaration) !== undefined) continue;
       if (!shapes.methodImplementationHasCopies(shape) && hasSingleCaptureOwner(source, capture.declaration, shape.declarationTemplate ?? shape)) continue;
       const scope = sourceBindingScope(capture.declaration, source.ast);
@@ -72,6 +78,7 @@ export function analyzeCsharpCaptureStorage(
     }
   }
   for (const capture of classCaptures) {
+    physicalType(capture.declaration, capture.type);
     if (!capture.mutable || storage.nativeBacking.get(capture.declaration) !== undefined) continue;
     const scope = sourceBindingScope(capture.declaration, source.ast);
     if (scope === undefined || source.ast.is.IsSourceFile(scope)) {
@@ -262,7 +269,12 @@ export function analyzeCsharpCaptureStorage(
   const frames = Object.freeze([...byScope.values(), ...valueFrames]);
   const helperMembers = csharpCapturedMemberAccess(source, frames);
   return Object.freeze({ issues: Object.freeze(issues), frames,
-    captureFrame: Object.freeze({ get: (scope: Node) => byScope.get(scope) }), capturedBinding: Object.freeze({ get: (declaration: Node) => byBinding.get(declaration) }), physicalStorageType: Object.freeze({ get: physicalType }),
+    captureFrame: Object.freeze({ get: (scope: Node) => byScope.get(scope) }), capturedBinding: Object.freeze({ get: (declaration: Node) => byBinding.get(declaration) }),
+    physicalStorageType: Object.freeze({ get(declaration: Node, logicalType: TargetTypeRef): TargetTypeRef {
+      const selected = physicalTypes.get(declaration);
+      if (selected === undefined) throw new Error("A physical capture read requires its completed analysis decision.");
+      return selected ?? logicalType;
+    } }),
     captureClosure: Object.freeze({ get: (declaration: Node) => byClosure.get(declaration) }), captureFrameShape: Object.freeze({ get: (type: TargetTypeRef) => byShape.get(targetTypeRefKey(type)) }),
     namedSelf: Object.freeze({ get: (declaration: Node) => namedSelfBindings.get(declaration) }),
     lambdaCreation: Object.freeze({ get: (declaration: Node) => lambdaCreations.get(declaration) ?? unknownLambdaCreation }),

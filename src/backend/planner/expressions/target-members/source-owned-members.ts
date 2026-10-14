@@ -206,10 +206,6 @@ export function translateCsharpSourceOwnedMember(
     sourceFile,
     input,
     diagnostics,
-    {
-      ...(rawReadType === undefined ? {} : { storageType: rawReadType }),
-      ...(selectedReadType === undefined ? {} : { selectedType: selectedReadType }),
-    },
   ));
 }
 
@@ -258,9 +254,5 @@ function translateRuntimeUnionObjectShapeProperty(
     sourceFile,
     input,
     diagnostics,
-    {
-      storageType: property.resultType,
-      selectedType: selectedReadType,
-    },
   ));
 }

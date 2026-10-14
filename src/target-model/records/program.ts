@@ -11,6 +11,7 @@ import type { CsharpNumericRepresentations } from "./numeric.js";
 import type { CsharpTargetOperationClassifications } from "./operations.js";
 import type { CsharpSafetyApplicationFactIndex } from "./safety.js";
 import type { CsharpSourceEvidenceIndex } from "./source-evidence.js";
+import type { CsharpFlowReadClassifications } from "./source-evidence.js";
 import type { CsharpSourceModuleConstructionIndex } from "./source-modules.js";
 import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications } from "./storage.js";
 import type { CsharpGenericProjectionIndex } from "./type-projections.js";
@@ -92,7 +93,7 @@ export interface CsharpProgramRecords {
   readonly safetyApplication: CsharpSafetyApplicationFactIndex["safetyApplication"];
   readonly safetyOperation: CsharpSafetyApplicationFactIndex["safetyOperation"];
   readonly bindingProjection: CsharpSourceEvidenceIndex["bindingProjection"];
-  readonly closedArrayStorage: CsharpSourceEvidenceIndex["closedArrayStorage"];
+  readonly flowReadProjection: CsharpFlowReadClassifications["flowReadProjection"];
   readonly compileTimeMetadata: CsharpSourceEvidenceIndex["compileTimeMetadata"];
   readonly nodeTargetType: CsharpSourceEvidenceIndex["nodeTargetType"];
   readonly classConstructorType: CsharpSourceEvidenceIndex["classConstructorType"];

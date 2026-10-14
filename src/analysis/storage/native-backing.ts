@@ -5,7 +5,7 @@ import type { CsharpNativeMemoryLayout } from "../../target-model/operations/nat
 import { csharpNativeMemoryLayoutsEqual } from "../../target-model/operations/native-memory.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpStructuralObjectShapeIdentity } from "../../target-model/types/object-shape-identity.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpSourceEvidenceAnalysis } from "../source-evidence/model.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpNativeArrayStorage, CsharpStorageIssue } from "../../target-model/records/storage.js";
 import type { CsharpObjectShapeClassifications } from "../objects/model.js";
@@ -13,7 +13,7 @@ import { createCsharpNativeFieldBacking } from "./native-field-backing.js";
 import { createCsharpTypeParameterEnvironment } from "../../policy/constraints/type-parameter-environment.js";
 
 export function analyzeCsharpNativeBacking(
-  policy: CsharpPolicyContext, evidence: CsharpSourceEvidenceIndex,
+  policy: CsharpPolicyContext, evidence: CsharpSourceEvidenceAnalysis,
   operations: CsharpTargetOperationClassifications,
   objectShapes: CsharpObjectShapeClassifications,
 ) {
@@ -55,7 +55,7 @@ export function analyzeCsharpNativeBacking(
     if (operation.kind === "location-address") {
       const storage = operation.storage;
       if (storage.kind === "reference-element-storage") {
-        const component = evidence.closedArrayStorage.get(storage.expression);
+        const component = evidence.inspectClosedArrayStorage(storage.expression);
         if (component.kind !== "closed") { reject(origin.call, component.reason); continue; }
         const subjects: [Node, CsharpNativeArrayStorage["kind"]][] = [
           ...component.declarations.map(node => [node, "binding"] as [Node, "binding"]),
