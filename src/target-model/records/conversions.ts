@@ -32,14 +32,6 @@ export interface CsharpConversionClassifications {
   readonly delegateAdapters: { readonly get: (scope: Node) => readonly CsharpDelegateAdapterIdentity[] };
   readonly delegateAdapter: { readonly get: (expression: Node, source: TargetTypeRef, target: TargetTypeRef) => CsharpDelegateAdapterIdentity | undefined };
   readonly directCallableReference: { readonly get: (expression: Node) => SourceProjectReference | undefined };
-  matchesUnionMapping(
-    source: TargetTypeRef | undefined, target: TargetTypeRef | undefined,
-    selection: Extract<CsharpConversionSelection, { readonly kind: "union-map" }>,
-  ): boolean;
-  matchesUnionProjection(
-    source: TargetTypeRef | undefined, target: TargetTypeRef | undefined,
-    selection: Extract<CsharpConversionSelection, { readonly kind: "runtime-union-projection" }>,
-  ): boolean;
   readonly conversion: { readonly get: (source: TargetTypeRef | undefined, target: TargetTypeRef | undefined, mode: CsharpConversionMode) => CsharpConversionSelection | undefined };
   readonly expressionConversion: { readonly get: (expression: Node, source: TargetTypeRef | undefined, target: TargetTypeRef | undefined, mode: CsharpConversionMode) => CsharpConversionSelection | undefined };
 }

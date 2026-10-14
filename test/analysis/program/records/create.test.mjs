@@ -66,8 +66,10 @@ for (const surface of ["native", "js"]) {
     assert.throws(() => program.records.valueRefinement(call), TypeError, "flat callable form is not supported");
     assert.equal(typeof program.names.resolve === "function", true, "name service stays separate");
     assert.equal(typeof program.sourceNavigation.referenceFor === "function", true, "source navigation stays separate");
-    assert.equal(typeof program.conversions.matchesUnionMapping === "function", true, "relation validation stays a service");
-    assert.equal(Object.hasOwn(program.conversions, "select"), false, "conversion lookup has one record reader");
+    assert.equal(Object.hasOwn(program, "conversions"), false, "union relations are validated at admission; no computing service is published");
+    assert.throws(() => program.conversions.matchesUnionMapping, TypeError, "the removed conversion service cannot be reached");
+    assert.throws(() => { program.conversions = {}; }, TypeError, "the sealed program cannot gain a conversion service");
+    assert.equal(Object.hasOwn(program.records.conversion, "select"), false, "conversion lookup has one record reader");
     assert.equal(Object.hasOwn(program.records, "closedArrayStorage"), false, "unused private analysis resolver is not a final record");
     assert.equal(Object.hasOwn(program.records, "inspectClosedArrayStorage"), false, "private native-backing inspection never crosses the seal");
     assert.equal(Array.isArray(program.classFactories) && Array.isArray(program.captureFrames), true, "catalog data is separate");

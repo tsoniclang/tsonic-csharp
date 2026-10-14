@@ -5,9 +5,38 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpUnionArmMappingsMatch, csharpUnionPathsEqual } from "../../target-model/types/union-relations.js";
 import { csharpMetadataDescriptors } from "../../target-model/metadata/immutable.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
+
+type CsharpUnionValidationPolicy = Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">;
+
+const unionMappingRejected: CsharpConversionSelection = Object.freeze({ kind: "rejected",
+  reason: "Union conversion requires exact sealed arm coverage and native absence correspondence." });
+const unionProjectionRejected: CsharpConversionSelection = Object.freeze({ kind: "rejected",
+  reason: "Union projection requires exact sealed payload and absence correspondence." });
+
+export function admitCsharpUnionSelection(
+  policy: CsharpUnionValidationPolicy,
+  source: TargetTypeRef | undefined, target: TargetTypeRef | undefined,
+  selection: CsharpConversionSelection,
+): CsharpConversionSelection {
+  const sourceElement = getCsharpNullableElementTargetType(source);
+  const targetElement = getCsharpNullableElementTargetType(target);
+  if (selection.kind === "union-map") {
+    return csharpRuntimeUnionMappingMatches(policy, sourceElement ?? source, targetElement ?? target, selection) &&
+      !(selection.coverage === "target" && targetElement !== undefined && sourceElement === undefined)
+      ? selection : unionMappingRejected;
+  }
+  if (selection.kind !== "runtime-union-projection") return selection;
+  const selectedType = targetElement ?? target;
+  return csharpRuntimeUnionProjectionMatches(policy, source, target, selection) &&
+    typeof selection.retainsAbsence === "boolean" && selectedType !== undefined &&
+    targetTypeRefEquals(selection.refinement ?? selection.armType, selectedType) &&
+    !(selection.retainsAbsence && (sourceElement === undefined || targetElement === undefined))
+    ? selection : unionProjectionRejected;
+}
 
 export function csharpRuntimeUnionMappingMatches(
-  policy: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">,
+  policy: CsharpUnionValidationPolicy,
   source: TargetTypeRef | undefined, target: TargetTypeRef | undefined,
   selection: Extract<CsharpConversionSelection, { readonly kind: "union-map" }>,
 ): boolean {
@@ -27,7 +56,7 @@ export function csharpRuntimeUnionMappingMatches(
 }
 
 export function csharpRuntimeUnionProjectionMatches(
-  policy: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">,
+  policy: CsharpUnionValidationPolicy,
   source: TargetTypeRef | undefined, target: TargetTypeRef | undefined,
   selection: Extract<CsharpConversionSelection, { readonly kind: "runtime-union-projection" }>,
 ): boolean {

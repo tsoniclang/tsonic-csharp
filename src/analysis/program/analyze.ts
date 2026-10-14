@@ -351,10 +351,6 @@ export function analyzeCsharpTargetProgram(
     ),
     objectShapes: analysis.objectShapes,
     names,
-    conversions: Object.freeze({
-      matchesUnionMapping: analysis.conversions.matchesUnionMapping,
-      matchesUnionProjection: analysis.conversions.matchesUnionProjection,
-    }),
     sourceModuleConstructions: Object.freeze({
       entries: sourceModuleConstructions.index.entries,
       from: sourceModuleConstructions.index.from,

@@ -3,7 +3,8 @@ import { classifyCsharpUnionCall } from "./union-calls.js";
 import { classifyCsharpSourceCallee } from "../../policy/types/callables/source-callees.js";
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 import { classifyCsharpClassPropertyStorage } from "./class-property-storage.js";
-import { selectCsharpAwaitCompletion } from "../../target-model/types/await-completions.js";
+import { selectCsharpAwaitCompletion, type CsharpAwaitCompletion } from "../../target-model/types/await-completions.js";
+import { admitCsharpUnionSelection } from "../conversions/validation.js";
 import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";
 import { resolveCsharpInstanceType } from "../../policy/types/resolution/instance-tests.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
@@ -239,9 +240,9 @@ function visit(
   const { ast } = policy;
   if (ast.is.IsAwaitExpression(node)) {
     const expression = ast.as.AsAwaitExpression(node)?.Expression;
-    setClassification(builder, node, awaitKey, selectCsharpAwaitCompletion(
+    setClassification(builder, node, awaitKey, admitCsharpAwaitCompletion(policy, selectCsharpAwaitCompletion(
       expression === undefined ? undefined : policy.types.resolveNode(expression, sourceFile),
-      policy.typeDefinitions));
+      policy.typeDefinitions)));
   }
   if (ast.is.IsSpreadElement(node)) {
     const expression = ast.as.AsSpreadElement(node)?.Expression;
@@ -836,6 +837,15 @@ function operationResultType(
   return unary?.target.kind === "resolved"
     ? unary.target.resultType
     : undefined;
+}
+
+function admitCsharpAwaitCompletion(
+  policy: CsharpPolicyContext,
+  completion: CsharpAwaitCompletion | undefined,
+): CsharpAwaitCompletion | undefined {
+  return completion?.alternatives.every(alternative => alternative.resultMapping === undefined ||
+    admitCsharpUnionSelection(policy, alternative.result, completion.result, alternative.resultMapping) ===
+      alternative.resultMapping) ? completion : undefined;
 }
 
 function setClassification<Value>(

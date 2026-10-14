@@ -40,7 +40,7 @@ export function planCsharpAwaitCompletion(
     let result: CsharpExpression = alternative.task ? { kind: "AwaitExpression", expression: value } : value;
     if (alternative.resultMapping !== undefined) {
       const mapped = planCsharpUnionMapping(node, result, alternative.result, completion.result,
-        { kind: "union-map", coverage: "source", arms: alternative.resultMapping }, input, diagnostics);
+        alternative.resultMapping, input, diagnostics);
       if (mapped === undefined) return undefined;
       result = mapped;
     }

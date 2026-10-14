@@ -2,7 +2,7 @@ import { assertNoTargetDiagnostics } from "../../../../tsonic/test/scripts/diagn
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeCsharpConversions } from "../../../dist/analysis/conversions/analyze.js";
-import { csharpRuntimeUnionMappingMatches } from "../../../dist/analysis/conversions/validation.js";
+import { admitCsharpUnionSelection, csharpRuntimeUnionMappingMatches } from "../../../dist/analysis/conversions/validation.js";
 import { createCsharpTypeDefinitionRegistry } from "../../../dist/analysis/project-types/type-definitions.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
 import { csharpUnionReferenceImplicitlyAccepts } from "../../../dist/policy/conversions/carriers.js";
@@ -43,10 +43,9 @@ function fixture({ siblings = false, nested = false, authored = false } = {}) {
 
 function planningContext(policy) {
   const analysis = analyzeCsharpConversions(policy, {}, {});
-  const conversions = analysis.seal({ operations: {}, expectedTypes: {}, storage: {} });
+  const conversions = analysis.seal({ operations: {}, expectedTypes: {}, valueReads: {} });
   return { program: { source: { ast: { pos: () => 0, end: () => 5 } },
     records: { conversion: conversions.conversion },
-    conversions: { matchesUnionMapping: conversions.matchesUnionMapping },
     typeDefinitions: policy.typeDefinitions }, scope: {}, names: { temporaryName: name => name } };
 }
 
@@ -121,7 +120,9 @@ test("C# sealed nominal mapping validation rejects stale relationships and malfo
   const selection = selectCsharpConversion(policy, source, target, "implicit");
   const context = planningContext(policy);
   assert.equal(context.program.records.conversion.get(source, target, "implicit"), undefined);
-  assert.equal(context.program.conversions.matchesUnionMapping(source, target, selection), true);
+  assert.equal(csharpRuntimeUnionMappingMatches(policy, source, target, selection), true);
+  assert.equal(admitCsharpUnionSelection(policy, source, target, selection), selection, "a valid mapping is admitted unchanged");
+  assert.equal(Object.hasOwn(context.program, "conversions"), false, "planning has no conversion validation service");
   let getterCalls = 0;
   const getter = { ...selection.arms[1].carrier };
   Object.defineProperty(getter, "id", { enumerable: true, get() { getterCalls++; throw new Error("must not execute"); } });
@@ -144,17 +145,21 @@ test("C# sealed nominal mapping validation rejects stale relationships and malfo
     [selection.arms[0], { ...selection.arms[1], target: selection.arms[1].target.toReversed() }],
     [selection.arms[0], { ...selection.arms[1], target: [{ ...selection.arms[1].target[0], index: 99 }] }],
     new Array(2)]) {
-    assert.equal(context.program.conversions.matchesUnionMapping(source, target, { ...selection, arms }), false);
+    assert.equal(csharpRuntimeUnionMappingMatches(policy, source, target, { ...selection, arms }), false);
+    assert.equal(admitCsharpUnionSelection(policy, source, target, { ...selection, arms }).kind, "rejected");
   }
   assert.equal(getterCalls, 0);
   const getterSelection = { ...selection };
   Object.defineProperty(getterSelection, "arms", { enumerable: true, get() { getterCalls++; throw new Error("must not execute"); } });
   for (const selected of [getterSelection, { ...selection, extra: true }, { ...selection, coverage: "all" },
     { ...selection, kind: "legacy-union-map" }]) {
-    assert.equal(context.program.conversions.matchesUnionMapping(source, target, selected), false);
+    assert.equal(csharpRuntimeUnionMappingMatches(policy, source, target, selected), false);
+    if (selected.kind === "union-map") assert.equal(admitCsharpUnionSelection(policy, source, target, selected).kind, "rejected");
   }
   assert.equal(getterCalls, 0);
-  assert.equal(context.program.conversions.matchesUnionMapping(target, source, selection), false);
+  assert.equal(csharpRuntimeUnionMappingMatches(policy, target, source, selection), false);
+  assert.deepEqual(admitCsharpUnionSelection(policy, target, source, selection), { kind: "rejected",
+    reason: "Union conversion requires exact sealed arm coverage and native absence correspondence." });
   assert.equal(csharpRuntimeUnionMappingMatches({ ...policy, projectTypes: { directSupertypes: () => [] } }, source, target, selection), false);
   assert.equal(csharpRuntimeUnionMappingMatches(policy, source, target, { ...selection, coverage: "target" }), false);
   assert.equal(csharpUnionArmMappingsMatch(source, target, "source", selection.arms, policy.typeDefinitions), false);
@@ -180,7 +185,9 @@ test("C# nominal union emission retains one evaluation and native payload refere
   assert.equal(optional.arms.at(-2).pattern.kind, "ConstantPattern");
   assert.equal(optional.arms.at(-2).pattern.expression.value, null);
   assert.equal(optional.arms.at(-2).expression.kind, "DefaultExpression");
-  const stale = planningContext({ ...policy, projectTypes: { directSupertypes: () => [] } });
-  assert.equal(planCsharpUnionMapping({}, expression, source, target, selection, stale, diagnostics), undefined);
-  assert.equal(diagnostics.length, 1);
+  const stale = { ...policy, projectTypes: { directSupertypes: () => [] } };
+  assert.deepEqual(admitCsharpUnionSelection(stale, source, target, selection), { kind: "rejected",
+    reason: "Union conversion requires exact sealed arm coverage and native absence correspondence." },
+    "a stale nominal relationship is rejected at admission");
+  assert.equal(diagnostics.length, 0);
 });
