@@ -5,7 +5,7 @@ import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpRuntimeU
 import { selectCsharpUnionArmMapping } from "../../../dist/target-model/types/union-relations.js";
 import { selectCsharpConversion, selectCsharpFlowReadConversion } from "../../../dist/policy/conversions/index.js";
 import { planCsharpUnionMapping } from "../../../dist/backend/planner/expressions/union-mappings.js";
-import { csharpRuntimeUnionMappingMatches } from "../../../dist/analysis/conversions/validation.js";
+import { admitCsharpUnionSelection } from "../../../dist/analysis/conversions/validation.js";
 
 test("union mappings require complete exact coverage and reject forged or numeric-changing arms", () => {
   const integer = csharpSourcePrimitiveTargetType("int64");
@@ -31,9 +31,7 @@ test("union mappings require complete exact coverage and reject forged or numeri
   assert.equal(selectCsharpConversion(policy, wide, narrow, "implicit").kind, "rejected");
   const selection = selectCsharpFlowReadConversion(policy, csharpNullableTargetType(wide), csharpNullableTargetType(narrow));
   assert.deepEqual(selection, { kind: "union-map", coverage: "target", arms: narrowing });
-  const context = { program: { source: { ast: { pos: () => 0, end: () => 5 } }, conversions: {
-    matchesUnionMapping: (source, target, selected) => csharpRuntimeUnionMappingMatches(policy, source, target, selected),
-  } }, scope: {}, names: { temporaryName: name => name } };
+  const context = { program: { source: { ast: { pos: () => 0, end: () => 5 } } }, scope: {}, names: { temporaryName: name => name } };
   const expression = { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "Next" }, arguments: [] };
   const diagnostics = [];
   const planned = planCsharpUnionMapping({}, expression, csharpNullableTargetType(wide), csharpNullableTargetType(narrow), selection, context, diagnostics);
@@ -46,11 +44,9 @@ test("union mappings require complete exact coverage and reject forged or numeri
   for (const arms of [narrowing.slice(1), [...narrowing, narrowing[0]], narrowing.toReversed(),
     narrowing.map((arm, index) => index === 0 ? { ...arm, target: [{ union: narrow, index: 19 }] } : arm),
     narrowing.map((arm, index) => index === 0 ? { ...arm, carrier: boolean } : arm)]) {
-    diagnostics.length = 0;
-    assert.equal(planCsharpUnionMapping({}, expression, wide, narrow, { ...selection, arms }, context, diagnostics), undefined);
-    assert.equal(diagnostics.length, 1);
+    assert.deepEqual(admitCsharpUnionSelection(policy, wide, narrow, { ...selection, arms }), { kind: "rejected", reason: "Union conversion requires exact sealed arm coverage and native absence correspondence." });
   }
-  assert.equal(planCsharpUnionMapping({}, expression, wide, csharpNullableTargetType(narrow), selection, context, diagnostics), undefined);
+  assert.deepEqual(admitCsharpUnionSelection(policy, wide, csharpNullableTargetType(narrow), selection), { kind: "rejected", reason: "Union conversion requires exact sealed arm coverage and native absence correspondence." });
 });
 
 test("nested union paths preserve each native grouping and reject stale intermediate carriers", () => {
@@ -64,9 +60,7 @@ test("nested union paths preserve each native grouping and reject stale intermed
   assert.deepEqual(arms.map(arm => arm.target.map(step => step.index)), [[1, 1], [0], [1, 0]]);
   assert.deepEqual(arms.map(arm => arm.carrier), [string, boolean, integer]);
   const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined } };
-  const context = { program: { source: { ast: { pos: () => 0, end: () => 5 } }, conversions: {
-    matchesUnionMapping: (source, target, selected) => csharpRuntimeUnionMappingMatches(policy, source, target, selected),
-  } }, scope: {}, names: { temporaryName: name => name } };
+  const context = { program: { source: { ast: { pos: () => 0, end: () => 5 } } }, scope: {}, names: { temporaryName: name => name } };
   const expression = { kind: "IdentifierName", name: "original" };
   const selection = { kind: "union-map", coverage: "source", arms };
   const diagnostics = [];
@@ -76,9 +70,7 @@ test("nested union paths preserve each native grouping and reject stale intermed
   assert.equal(planned.arms[0].expression.arguments[0].expression.callee.name, "From2");
   for (const target of [arms[0].target.slice(1), arms[0].target.toReversed(),
     arms[0].target.map(step => ({ ...step, union: flat })), [arms[0].target[0], arms[0].target[0]]]) {
-    diagnostics.length = 0;
-    assert.equal(planCsharpUnionMapping({}, expression, flat, nested,
-      { ...selection, arms: [{ ...arms[0], target }, ...arms.slice(1)] }, context, diagnostics), undefined);
-    assert.equal(diagnostics.length, 1);
+    assert.deepEqual(admitCsharpUnionSelection(policy, flat, nested,
+      { ...selection, arms: [{ ...arms[0], target }, ...arms.slice(1)] }), { kind: "rejected", reason: "Union conversion requires exact sealed arm coverage and native absence correspondence." });
   }
 });
