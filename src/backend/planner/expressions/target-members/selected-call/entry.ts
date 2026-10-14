@@ -55,8 +55,9 @@ function translateCsharpCallExpressionCore(
     return undefined;
   }
   const sourceCall = classification.source;
-  if (classification.typeTest !== undefined) {
-    const fact = classification.typeTest;
+  const form = classification.form;
+  if (form.kind === "type-test") {
+    const fact = form.typeTest;
     const argument = sourceCall?.sourceArguments[0];
     const carrier = argument === undefined ? undefined : input.types.classifications.resolveNode(argument.expression, sourceFile);
     const targetType = csharpTypeFromTargetTypeRef(fact.sourceCarrier, input.scope.typeParameterNames);
@@ -70,8 +71,8 @@ function translateCsharpCallExpressionCore(
       "Array predicate requires its exact sealed native argument and payload test."));
     return result;
   }
-  const keepAlive = classification.sourceFlow;
-  if (keepAlive !== undefined) {
+  if (form.kind === "keep-alive") {
+    const keepAlive = form.sourceFlow;
     const value = planExpression(keepAlive.valueExpression, sourceFile, input, diagnostics);
     return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [value], values => ({
       kind: "InvocationExpression",
@@ -83,12 +84,12 @@ function translateCsharpCallExpressionCore(
       arguments: [{ kind: "Argument", expression: values[0]! }],
     }));
   }
-  const jsValueOperation = classification.jsValue;
-  if (jsValueOperation.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
-    return undefined;
-  }
-  if (jsValueOperation.kind === "resolved") {
+  if (form.kind === "js-value") {
+    const jsValueOperation = form.operation;
+    if (jsValueOperation.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
+      return undefined;
+    }
     return planCsharpJsValueCall(node, sourceFile, input, diagnostics, jsValueOperation, sourceCall, planExpression);
   }
   const selection = classification.target;

@@ -68,9 +68,9 @@ for (const [name, body, count] of acceptedForms) {
       ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
     };
     for (const sourceFile of compiled.result.program.sourceFiles) visit(sourceFile);
-    const keepAlive = calls.filter((call) => call?.sourceFlow !== undefined);
+    const keepAlive = calls.filter((call) => call?.form.kind === "keep-alive");
     assert.equal(keepAlive.length, count);
-    for (const call of keepAlive) assert.equal(call.sourceFlow.kind, "keep-alive");
+    for (const call of keepAlive) assert.equal(call.form.sourceFlow.kind, "keep-alive");
   });
 }
 
@@ -90,7 +90,7 @@ test("a local function named like a source-flow marker is an ordinary call with 
   };
   for (const sourceFile of compiled.result.program.sourceFiles) visit(sourceFile);
   assert.ok(calls.length > 0);
-  for (const call of calls) assert.equal(call?.sourceFlow === undefined, true, "no sealed source-flow selection");
+  for (const call of calls) assert.equal(call?.form.kind === "target", true, "an ordinary call has the target form and no source-flow selection");
 });
 
 const safetyOptions = { targetOptions: { languageDialect: "csharp15-preview", memorySafetyRules: "preview" } };

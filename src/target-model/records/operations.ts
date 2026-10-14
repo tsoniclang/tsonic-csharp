@@ -38,9 +38,15 @@ export interface CsharpSourceCallArgumentClassification {
   readonly sourceArgumentParameterTypes?: readonly (TargetTypeRef | undefined)[];
 }
 
+export type CsharpCallForm =
+  | { readonly kind: "type-test"; readonly typeTest: import("../operations/type-tests.js").CsharpClosedTypeTest }
+  | { readonly kind: "keep-alive"; readonly sourceFlow: Extract<CsharpSourceFlowCallSelection, { readonly kind: "keep-alive" }> }
+  | { readonly kind: "js-value"; readonly operation: Exclude<CsharpJsValueOperationSelection, { readonly kind: "not-js-value" }> }
+  | { readonly kind: "target" };
+
 export interface CsharpCallClassification
   extends CsharpSourceCallArgumentClassification {
-  readonly typeTest?: import("../operations/type-tests.js").CsharpClosedTypeTest;
+  readonly form: CsharpCallForm;
   readonly sourceResult?: import("../operations/source-call-results.js").CsharpSourceCallResult;
   readonly optionalCallee?: {
     readonly expression: Node;
@@ -58,7 +64,6 @@ export interface CsharpCallClassification
   };
   readonly unionCall: import("./union-calls.js").CsharpUnionCallClassification;
   readonly source?: ResolvedSourceCallInfo;
-  readonly sourceFlow?: Extract<CsharpSourceFlowCallSelection, { readonly kind: "keep-alive" }>;
   readonly jsValue: CsharpJsValueOperationSelection;
   readonly target?: CsharpTargetCallSelection;
   readonly selectedResultType?: TargetTypeRef;

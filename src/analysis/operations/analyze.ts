@@ -459,7 +459,10 @@ function visit(
     const sourceMethodValue = source === undefined || sourceCall?.kind !== "value" ? undefined
       : getCsharpMethodValue(policy.types.resolveNode(source.sourceCallee.expression, sourceFile));
     setClassification(builder, node, callKey, Object.freeze({
-      ...(typeTest === undefined ? {} : { typeTest }),
+      form: Object.freeze(typeTest !== undefined ? { kind: "type-test" as const, typeTest }
+        : sourceFlow.kind === "keep-alive" ? { kind: "keep-alive" as const, sourceFlow }
+        : jsValue.kind !== "not-js-value" ? { kind: "js-value" as const, operation: jsValue }
+        : { kind: "target" as const }),
       ...(sourceMethodValue === undefined ? {} : { sourceMethodValue }),
       ...(optionalReceiver === undefined ? {} : { optionalReceiver }),
       ...(optionalCallee === undefined ? {} : { optionalCallee }),
@@ -472,7 +475,6 @@ function visit(
         sourceResult: policy.types.resolveSourceCallResult(source, sourceFile,
           target?.kind === "resolved" ? target.call.targetMember.returnType : undefined),
       }),
-      ...(sourceFlow.kind === "keep-alive" ? { sourceFlow } : {}),
       jsValue,
       ...(target === undefined ? {} : { target }),
       ...(selectedResultType === undefined ? {} : { selectedResultType }),
