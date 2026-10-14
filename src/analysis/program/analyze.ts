@@ -455,6 +455,7 @@ function analyzeIteration(
     objectShapes,
     callables,
     valueReadStages.valueReadStages,
+    declarations,
   );
   const conversionAnalysis = analyzeCsharpConversions(
     policy,
