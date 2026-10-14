@@ -113,20 +113,6 @@ export function isExplicitUnsafeBlockMarker(
     selected.fact.kind === "remaining-block";
 }
 
-export function isErasedSafetyExpressionStatement(
-  statement: Node,
-  input: CsharpPlanningContext,
-): boolean {
-  const expression = AsExpressionStatement(input.program.source.ast, statement)?.Expression;
-  if (expression === undefined) {
-    return false;
-  }
-  const selected = input.program.records.safetyOperation.get(expression);
-  return selected?.kind === "safety-builder" ||
-    (selected?.kind === "unsafe-context" &&
-      selected.fact.kind === "remaining-block");
-}
-
 export function withExplicitUnsafeContext<T>(
   state: DestructuringPlannerState,
   action: () => T,

@@ -92,3 +92,98 @@ test("a local function named like a source-flow marker is an ordinary call with 
   assert.ok(calls.length > 0);
   for (const call of calls) assert.equal(call?.sourceFlow === undefined, true, "no sealed source-flow selection");
 });
+
+const safetyOptions = { targetOptions: { languageDialect: "csharp15-preview", memorySafetyRules: "preview" } };
+const erasureHeader = `
+  import { safety, move, keepalive, attribute as annotate } from "@tsonic/core/lang.js";
+  import type { int } from "@tsonic/csharp/types.js";
+  import { ObsoleteAttribute } from "@tsonic/dotnet/System.js";
+  function use(value: int): int { return value; }
+`;
+
+const erasedForms = [
+  ["source-flow marker in a top-level safety value root", "", "const value: int = 1 as int; safety(move(value)).requiresunsafe(); export const k = 1;"],
+  ["source-flow marker in a safety value root inside a function", "", "export function f(value: int): int { safety(move(value)).requiresunsafe(); return value; }"],
+  ["source-flow marker inside an arrow in a safety value root", "", "const value: int = 1 as int; safety(() => move(value)).requiresunsafe(); export const k = 1;"],
+  ["keep-alive in a safety value root", "", "const value: int = 1 as int; safety(keepalive(value)).requiresunsafe(); export const k = 1;"],
+  ["ordinary call in a safety value root", "", "safety(use(1 as int)).requiresunsafe(); export const k = 1;"],
+  ["rejected JS construction in a safety value root", "js", "safety(new Proxy({}, {})).requiresunsafe(); export const k = 1;"],
+  ["rejected JS-value property write in a safety value root", "js",
+    "type T = { a: unknown }; const x: T = { a: 1 as unknown }; safety((x.toString = () => \"y\")).requiresunsafe(); export const k = 1;"],
+];
+
+for (const [name, surface, body] of erasedForms) {
+  test(`${name} is an erased statement whose outcomes are not reported`, () => {
+    const sourceText = surface === "js"
+      ? `import { safety } from "@tsonic/core/lang.js";\n${body}`
+      : erasureHeader + body;
+    const compiled = compileCsharpSource({ ...safetyOptions, ...(surface === "js" ? { surface } : {}), sourceText });
+    assert.equal(compiled.sourceDiagnosticsText, "");
+    assert.equal(compiled.result.diagnostics.length === 0, true, compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+    assert.equal(compiled.artifacts.has("src/Index.cs"), true, "the program publishes its C# source");
+    const program = compiled.result.program;
+    const ast = program.source.ast;
+    const erased = [];
+    const visit = (node) => {
+      if (ast.is.IsExpressionStatement(node)) erased.push(program.records.erasedStatement.get(node));
+      ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
+    };
+    for (const sourceFile of program.sourceFiles) visit(sourceFile);
+    assert.equal(erased.filter((value) => value === true).length, 1, "exactly the safety statement is erased");
+    assert.equal(compiled.artifacts.get("src/Index.cs").includes("requiresunsafe"), false, "the erased statement emits no C#");
+  });
+}
+
+test("a source-flow marker inside a demanded attribute invocation is still rejected at admission", () => {
+  const compiled = compileCsharpSource({ sourceText: `${erasureHeader}
+    export class Subject { run(): void {} }
+    const value: int = 1 as int;
+    annotate<Subject>().add(() => new ObsoleteAttribute(move(value) === (1 as int) ? "a" : "b"));
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.equal(compiled.result.program === undefined, true, "program is not published");
+  assert.equal(compiled.artifacts.size, 0, "no artifacts are published");
+  assert.deepEqual(
+    compiled.result.diagnostics.map(({ code, category, source, message }) => ({ code, category, source, message })),
+    [{ code: "CSHARP_SOURCE_FLOW_MARKER_UNSUPPORTED", category: "error", source: "tsonic-csharp", message: markerMessage("move") }],
+  );
+  assert.equal(compiled.source.ast.kindName(compiled.result.diagnostics[0].sourceNode), "KindCallExpression");
+});
+
+test("an attribute statement is erased while its admitted invocation is emitted", () => {
+  const compiled = compileCsharpSource({ sourceText: `${erasureHeader}
+    export class Subject { run(): void {} }
+    annotate<Subject>().add(() => new ObsoleteAttribute("old", true));
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.equal(compiled.result.diagnostics.length === 0, true, compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+  const output = compiled.artifacts.get("src/Index.cs");
+  assert.equal(output.includes('[System.ObsoleteAttribute("old", true)]'), true, "the attribute is emitted on its subject");
+  assert.equal(output.includes("annotate"), false, "the builder statement emits no C#");
+  const program = compiled.result.program;
+  const ast = program.source.ast;
+  const statements = [];
+  const visit = (node) => {
+    if (ast.is.IsExpressionStatement(node)) statements.push(program.records.erasedStatement.get(node));
+    ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
+  };
+  for (const sourceFile of program.sourceFiles) visit(sourceFile);
+  assert.equal(statements.length === 1 && statements[0] === true, true, "the one attribute statement is erased");
+});
+
+test("an ordinary expression statement is consumed, not erased", () => {
+  const compiled = compileCsharpSource({ sourceText: `${erasureHeader}
+    export function f(value: int): int { use(value); return value; }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.equal(compiled.result.diagnostics.length === 0, true, compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+  const program = compiled.result.program;
+  const ast = program.source.ast;
+  const statements = [];
+  const visit = (node) => {
+    if (ast.is.IsExpressionStatement(node)) statements.push(program.records.erasedStatement.get(node));
+    ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
+  };
+  for (const sourceFile of program.sourceFiles) visit(sourceFile);
+  assert.equal(statements.length === 1 && statements[0] === false, true, "the call statement is not erased");
+});

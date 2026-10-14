@@ -15,7 +15,7 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { analyzeCsharpNumericRepresentations } from "../numeric/representations.js";
 import { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
 import { createCsharpTypeDefinitionRegistry } from "../project-types/type-definitions.js";
-import { createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
+import { createTsonicAttributeApplicationFactIndex, createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
 import {
   rejectedTargetStage,
   resolvedTargetStage,
@@ -136,6 +136,16 @@ export function analyzeCsharpTargetProgram(
   const nativeControlIssues = analyzeCsharpNativeControlFlow(source);
   if (nativeControlIssues.length !== 0) return rejectedTargetStage(nativeControlIssues);
   const memoryBindings = createTsonicMemoryBindingIndex(source);
+  const sourceAttributeApplications = createTsonicAttributeApplicationFactIndex({
+    ast: source.ast, sourceFiles: source.navigation.sourceFiles, sourceFacts: source.sourceFacts,
+  });
+  const safetyApplications = createCsharpSafetyApplicationFactIndex({
+    ast: source.ast,
+    sourceFiles: source.navigation.sourceFiles,
+    sourceFacts: source.sourceFacts,
+    navigation: source.navigation,
+  });
+  const statementErasure = Object.freeze({ attributeApplications: sourceAttributeApplications, safetyApplications });
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
   const sourceStorage = createSourceStorageQuery(source, sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source));
   const sourceStorageFailure = sourceStorage.failureReason();
@@ -181,6 +191,7 @@ export function analyzeCsharpTargetProgram(
         names,
         typeHost,
         sourceStorage,
+        statementErasure,
         previous,
       );
       if (evaluated.kind === "rejected") {
@@ -225,6 +236,7 @@ export function analyzeCsharpTargetProgram(
     names,
     typeHost,
     sourceStorage,
+    statementErasure,
     stable,
   );
   if (evaluated.kind === "rejected") return evaluated;
@@ -279,18 +291,12 @@ export function analyzeCsharpTargetProgram(
     request.binaryExecutionDriver,
     operationBinaryExecutionDriver,
   );
-  const attributes = analyzeCsharpAttributeApplications(source, source.navigation.sourceFiles, {
+  const attributes = analyzeCsharpAttributeApplications(source, sourceAttributeApplications, {
     operations: analysis.operations, conversions: analysis.conversions,
     valueReads: analysis.valueReads, sourceEvidence: analysis.sourceEvidence,
   });
   if (attributes.diagnostics.length > 0) return rejectedTargetStage(attributes.diagnostics);
   const attributeApplications = attributes.index;
-  const safetyApplications = createCsharpSafetyApplicationFactIndex({
-    ast: source.ast,
-    sourceFiles: source.navigation.sourceFiles,
-    sourceFacts: source.sourceFacts,
-    navigation: source.navigation,
-  });
   const moduleInitialization = analyzeCsharpModuleInitialization({
     sourceEvidence: analysis.sourceEvidence,
     source,
@@ -377,6 +383,7 @@ function analyzeIteration(
   names: ReturnType<typeof createCsharpSourceNameBuilder>,
   typeHost: Parameters<typeof createCsharpTypeAnalysis>[0],
   sourceStorage: SourceStorageQueries,
+  statementErasure: Parameters<typeof analyzeCsharpTargetOperations>[2],
   previous: CsharpRepresentationContract | undefined,
 ) {
   let typeSystem: CsharpTypeAnalysis | undefined;
@@ -429,7 +436,7 @@ function analyzeIteration(
     policy,
   );
   const sourceEvidence = evidence.index;
-  const operations = analyzeCsharpTargetOperations(policy, sourceEvidence);
+  const operations = analyzeCsharpTargetOperations(policy, sourceEvidence, statementErasure);
   const valueReadStages = analyzeCsharpValueReadStages(policy, sourceEvidence, operations);
   const typeProjections = analyzeCsharpTypeProjections(input.source, sourceEvidence, operations);
   const declarations = analyzeCsharpDeclarations(

@@ -18,7 +18,6 @@ import type { CsharpGenericProjectionIndex } from "./type-projections.js";
 
 export interface CsharpProgramRecords {
   readonly attributeApplication: CsharpAttributeApplicationIndex["attributeApplication"];
-  readonly erasedAttribute: CsharpAttributeApplicationIndex["erasedAttribute"];
   readonly callableDispatch: CsharpProjectCallableAdapters["callableDispatch"];
   readonly captureFrame: CsharpCaptureStorage["captureFrame"];
   readonly capturedBinding: CsharpCaptureStorage["capturedBinding"];
@@ -61,6 +60,7 @@ export interface CsharpProgramRecords {
   readonly borrowedSequence: CsharpTargetOperationClassifications["borrowedSequence"];
   readonly nativeGuardResult: CsharpTargetOperationClassifications["nativeGuardResult"];
   readonly nativeUnreachable: CsharpTargetOperationClassifications["nativeUnreachable"];
+  readonly erasedStatement: CsharpTargetOperationClassifications["erasedStatement"];
   readonly memoryBinding: CsharpTargetOperationClassifications["memoryBinding"];
   readonly operationResultType: CsharpTargetOperationClassifications["operationResultType"];
   readonly selectedCall: CsharpTargetOperationClassifications["selectedCall"];

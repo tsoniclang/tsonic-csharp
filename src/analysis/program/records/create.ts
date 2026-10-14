@@ -41,7 +41,6 @@ export interface CsharpProgramRecordInput {
 export function createCsharpProgramRecords(input: CsharpProgramRecordInput): CsharpProgramRecords {
   return Object.freeze({
     attributeApplication: input.attributeApplications.attributeApplication,
-    erasedAttribute: input.attributeApplications.erasedAttribute,
     callableDispatch: input.callableAdapters.callableDispatch,
     captureFrame: input.captureStorage.captureFrame,
     capturedBinding: input.captureStorage.capturedBinding,
@@ -84,6 +83,7 @@ export function createCsharpProgramRecords(input: CsharpProgramRecordInput): Csh
     borrowedSequence: input.operations.borrowedSequence,
     nativeGuardResult: input.operations.nativeGuardResult,
     nativeUnreachable: input.operations.nativeUnreachable,
+    erasedStatement: input.operations.erasedStatement,
     memoryBinding: input.operations.memoryBinding,
     operationResultType: input.operations.operationResultType,
     selectedCall: input.operations.selectedCall,
