@@ -32,7 +32,7 @@ function createCheckedCsharpSource(options) {
   const target = {
     id: "csharp",
     ...(options.surface === "js" ? { surfaces: ["js"] } : {}),
-    ...(options.targetOptions === undefined ? {} : { options: options.targetOptions }),
+    options: { outputType: "Library", ...options.targetOptions },
   };
   const project = options.project ?? {
     entryPoint: "index.ts",
