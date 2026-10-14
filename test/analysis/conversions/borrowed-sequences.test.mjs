@@ -37,7 +37,7 @@ function sealedConversions(inputs, elementTarget = int64) {
       selectedConstruction: Object.freeze({ get: () => undefined }),
       borrowedSequence: Object.freeze({ get: node => node === expression ? sequence : undefined }) },
     expectedTypes: { expectedType: Object.freeze({ get: () => [] }), requiredExpectedType: Object.freeze({ get: () => [] }), callableTarget: Object.freeze({ get: () => undefined }) },
-    storage: { storageType: Object.freeze({ get: () => undefined }) },
+    valueReads: { valueRead: Object.freeze({ get: () => undefined }) },
   });
 }
 
