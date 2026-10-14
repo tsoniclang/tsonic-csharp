@@ -4,6 +4,7 @@ import { selectCsharpArrayLiteralCarrier } from "../../policy/types/collections/
 import {
   HasSourceKind,
   HasSyntacticModifier,
+  isSourceCallableBodyBoundary,
   KindBlock,
   ModifierFlagsAsync,
   ObjectLiteralProperty_SourceName,
@@ -111,7 +112,7 @@ export function analyzeCsharpExpectedTypes(
     if (expression === undefined || targetType === undefined) {
       return;
     }
-    if (isCallableBoundary(expression)) {
+    if (isSourceCallableBodyBoundary(policy.ast, expression)) {
       contextualCallables.add(expression);
     }
     const key = targetTypeRefKey(targetType);
@@ -544,7 +545,7 @@ export function analyzeCsharpExpectedTypes(
         record(expression, targetType, "required");
         return;
       }
-      if (isCallableBoundary(owner)) {
+      if (isSourceCallableBodyBoundary(policy.ast, owner)) {
         return;
       }
     }
@@ -563,16 +564,6 @@ export function analyzeCsharpExpectedTypes(
     ) {
       record(body, targetType, "required");
     }
-  }
-
-  function isCallableBoundary(node: Node): boolean {
-    return policy.ast.is.IsFunctionDeclaration(node) ||
-      policy.ast.is.IsFunctionExpression(node) ||
-      policy.ast.is.IsArrowFunction(node) ||
-      policy.ast.is.IsMethodDeclaration(node) ||
-      policy.ast.is.IsGetAccessorDeclaration(node) ||
-      policy.ast.is.IsSetAccessorDeclaration(node) ||
-      policy.ast.is.IsConstructorDeclaration(node);
   }
 
   function recordInitializer(node: Node): void {
@@ -866,7 +857,7 @@ export function analyzeCsharpExpectedTypes(
     if (
       expression === undefined ||
       parameter.csharpSourceArgumentAdapter === undefined ||
-      !isCallableBoundary(expression)
+      !isSourceCallableBodyBoundary(policy.ast, expression)
     ) {
       return declaredExpectedType;
     }
