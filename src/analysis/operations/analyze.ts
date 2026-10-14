@@ -76,7 +76,7 @@ import {
   isCsharpThrowableType,
 } from "../../policy/types/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpCallClassification, CsharpBinaryClassification, CsharpConstructionClassification, CsharpElementClassification, CsharpPropertyClassification, CsharpUnaryClassification, CsharpTargetOperationClassifications, CsharpOperationIssue } from "../../target-model/records/operations.js";
+import type { CsharpCallClassification, CsharpBinaryClassification, CsharpConstructionClassification, CsharpElementClassification, CsharpNativeHandler, CsharpPropertyClassification, CsharpUnaryClassification, CsharpTargetOperationClassifications, CsharpOperationIssue } from "../../target-model/records/operations.js";
 import {
   composeCsharpBinaryExecutionDriver,
 } from "../../providers/model/provider-policy-contribution.js";
@@ -167,6 +167,7 @@ const exactCatchRethrowKey = createTargetClassificationKey<boolean>(
 const nativeGuardResultKey = createTargetClassificationKey<boolean>("csharp.operation.native-guard-result");
 const nativeUnreachableKey = createTargetClassificationKey<boolean>("csharp.operation.native-unreachable");
 const erasedStatementKey = createTargetClassificationKey<boolean>("csharp.operation.erased-statement");
+const nativeHandlerKey = createTargetClassificationKey<CsharpNativeHandler>("csharp.operation.native-handler");
 const borrowedSequenceKey = createTargetClassificationKey<ReturnType<typeof classifyCsharpBorrowedSequenceInput>>(
   "csharp.operation.borrowed-sequence",
 );
@@ -232,6 +233,7 @@ export function analyzeCsharpTargetOperations(
     nativeGuardResult: Object.freeze({ get: node => facts.get(node, nativeGuardResultKey) }),
     nativeUnreachable: Object.freeze({ get: node => facts.get(node, nativeUnreachableKey) === true }),
     erasedStatement: Object.freeze({ get: node => facts.get(node, erasedStatementKey) === true }),
+    nativeHandler: Object.freeze({ get: node => facts.get(node, nativeHandlerKey) }),
     memoryBinding: Object.freeze({ get: node => facts.get(node, memoryBindingKey) }),
     binaryExecutionDriver: () => selectedBinaryExecutionDriver,
     operationResultType: Object.freeze({ get: (node) => operationResultTypes.get(node) }),
@@ -416,6 +418,8 @@ function visit(
       selectCsharpTypedLocationOperation(policy, node, sourceFile),
     );
   }
+  const nativeHandler = selectCsharpNativeHandler(builder, node, erasure.safetyApplications.safetyOperation.get(node));
+  if (nativeHandler !== undefined) setClassification(builder, node, nativeHandlerKey, nativeHandler);
   if (ast.is.IsCallExpression(node)) {
     const expression = ast.as.AsCallExpression(node);
     const source = policy.semantics(sourceFile).operations.call(node);
@@ -786,6 +790,21 @@ function visit(
       }
     },
   );
+}
+
+function selectCsharpNativeHandler(
+  builder: ReturnType<typeof createTargetClassificationBuilder>,
+  node: Node,
+  safety: ReturnType<CsharpSafetyApplicationFactIndex["safetyOperation"]["get"]>,
+): CsharpNativeHandler | undefined {
+  if (builder.get(node, memoryBindingKey) !== undefined) return "memory-binding";
+  if (safety !== undefined) return "explicit-safety";
+  const conversion = builder.get(node, jsStringConversionKey);
+  if (conversion !== undefined && conversion.kind !== "not-js-string-conversion") return "js-string-conversion";
+  const pointer = builder.get(node, nativePointerKey);
+  if (pointer !== undefined && pointer.kind !== "not-native-pointer") return "native-pointer";
+  const location = builder.get(node, typedLocationKey);
+  return location !== undefined && location.kind !== "not-typed-location" ? "typed-location" : undefined;
 }
 
 function erasedExpressionStatement(

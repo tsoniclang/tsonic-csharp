@@ -141,6 +141,13 @@ export interface CsharpOperationIssue {
   readonly evidence?: import("@tsonic/target-api/artifacts").TargetDiagnostic["evidence"];
 }
 
+export type CsharpNativeHandler =
+  | "memory-binding"
+  | "explicit-safety"
+  | "js-string-conversion"
+  | "native-pointer"
+  | "typed-location";
+
 export interface CsharpTargetOperationClassifications {
   readonly issues: readonly CsharpOperationIssue[];
   readonly awaitCompletion: { readonly get: (node: Node) => import("../types/await-completions.js").CsharpAwaitCompletion | undefined };
@@ -149,6 +156,7 @@ export interface CsharpTargetOperationClassifications {
   readonly nativeGuardResult: { readonly get: (expression: Node) => boolean | undefined };
   readonly nativeUnreachable: { readonly get: (node: Node) => boolean };
   readonly erasedStatement: { readonly get: (statement: Node) => boolean };
+  readonly nativeHandler: { readonly get: (expression: Node) => CsharpNativeHandler | undefined };
   readonly memoryBinding: { readonly get: (node: Node) => CsharpMemoryBindingSelection | undefined };
   binaryExecutionDriver(): CsharpTargetBinaryExecutionDriver | undefined;
   readonly operationResultType: { readonly get: (node: Node) => TargetTypeRef | undefined };

@@ -84,6 +84,7 @@ export function createCsharpProgramRecords(input: CsharpProgramRecordInput): Csh
     nativeGuardResult: input.operations.nativeGuardResult,
     nativeUnreachable: input.operations.nativeUnreachable,
     erasedStatement: input.operations.erasedStatement,
+    nativeHandler: input.operations.nativeHandler,
     memoryBinding: input.operations.memoryBinding,
     operationResultType: input.operations.operationResultType,
     selectedCall: input.operations.selectedCall,
