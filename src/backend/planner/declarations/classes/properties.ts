@@ -54,7 +54,6 @@ import {
 import { getCsharpTypeForSourceField } from "../value-types.js";
 import {
   csharpSafetyAccessorModifiersForDeclaration,
-  diagnoseUnavailableCsharpSafetyAccessors,
   withCsharpSafetyModifiers,
 } from "../../safety/explicit-safety.js";
 
@@ -72,12 +71,6 @@ export function planPropertyDeclaration(
   const sourceField = input.program.records.sourceField.get([node, declaration.name, declaration.Type,
     ...(parameterProperty ? [] : [declaration.Initializer])]);
   if (sourceField !== undefined) {
-    diagnoseUnavailableCsharpSafetyAccessors(
-      node,
-      [],
-      input,
-      diagnostics,
-    );
     const type = getCsharpTypeForSourceField(sourceField, "Class field", sourceFile, input, diagnostics);
     return {
       kind: "FieldDeclaration",
@@ -120,12 +113,6 @@ export function planPropertyDeclaration(
     ));
   }
   if (storage?.kind === "field") {
-    diagnoseUnavailableCsharpSafetyAccessors(
-      node,
-      [],
-      input,
-      diagnostics,
-    );
     return {
       kind: "FieldDeclaration",
       name: propertyName,

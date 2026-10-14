@@ -6,6 +6,7 @@ import type {
 } from "@tsonic/tsts";
 import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import { createTargetSafetyApplicationIndex } from "@tsonic/target-api/analysis";
+import type { TargetSafetyApplicationFindings } from "@tsonic/target-api/analysis";
 import {
   readCsharpSourceSafetyBuilder,
   readCsharpSourceUnsafeContext,
@@ -37,13 +38,19 @@ export function createCsharpSafetyApplicationFactIndex(
     sourceSafetyApplication: Object.freeze({ get: index.forSourceFile }),
     safetyApplication: Object.freeze({ get: index.forDeclaration }),
     safetyOperation: Object.freeze({ get: index.operationForExpression }),
+    findings: Object.freeze({ get: index.findings }),
   });
 }
 
 const emptyApplications = Object.freeze([]) as readonly CsharpSafetyApplication[];
+const emptyFindings: TargetSafetyApplicationFindings<CsharpSafetyApplication> = Object.freeze({
+  conflicts: Object.freeze([]),
+  applications: Object.freeze([]),
+});
 const emptyIndex: CsharpSafetyApplicationFactIndex = Object.freeze({
   all: emptyApplications,
   sourceSafetyApplication: Object.freeze({ get: () => emptyApplications }),
   safetyApplication: Object.freeze({ get: () => emptyApplications }),
   safetyOperation: Object.freeze({ get: () => undefined }),
+  findings: Object.freeze({ get: () => emptyFindings }),
 });

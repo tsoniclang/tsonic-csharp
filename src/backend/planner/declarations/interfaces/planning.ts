@@ -49,7 +49,6 @@ import { renderObjectShapeProjectionMethods } from "../../objects/closed-object-
 import {
   csharpSafetyAccessorModifiersForDeclaration,
   csharpSafetyModifiersForDeclaration,
-  diagnoseUnavailableCsharpSafetyAccessors,
 } from "../../safety/explicit-safety.js";
 
 export function planInterfaceDeclaration(
@@ -182,12 +181,6 @@ function planInterfacePropertyDeclaration(
     diagnostics,
   );
   const writable = !input.program.source.ast.hasModifierKind(node, "readonly");
-  diagnoseUnavailableCsharpSafetyAccessors(
-    node,
-    writable ? ["getter", "setter"] : ["getter"],
-    input,
-    diagnostics,
-  );
   return {
     kind: "PropertyDeclaration",
     name: planIdentifierName(declaration.name, "PropertyDeclaration", input, diagnostics, "Interface property name"),
@@ -233,12 +226,6 @@ function planInterfaceIndexerDeclaration(
   }
   const parameterDeclaration = parameterNode === undefined ? undefined : AsParameterDeclaration(input.program.source.ast, parameterNode);
   const writable = !input.program.source.ast.hasModifierKind(node, "readonly");
-  diagnoseUnavailableCsharpSafetyAccessors(
-    node,
-    writable ? ["getter", "setter"] : ["getter"],
-    input,
-    diagnostics,
-  );
   return {
     kind: "IndexerDeclaration",
     modifiers: csharpSafetyModifiersForDeclaration(

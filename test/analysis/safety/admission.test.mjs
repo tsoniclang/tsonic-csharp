@@ -25,14 +25,36 @@ const expressionDialect = {
   code: "CSHARP_UNSAFE_EXPRESSION_DIALECT_UNSUPPORTED",
   message: "C# unsafe expressions require target option languageDialect='csharp15-preview'.",
 };
+const noFindings = { get: () => ({ conflicts: [], applications: [] }) };
+const contractDialect = {
+  code: "CSHARP_SAFETY_CONTRACT_DIALECT_UNSUPPORTED",
+  message: "C# declaration caller-safety contracts require target option languageDialect='csharp15-preview'.",
+};
+const contractRules = {
+  code: "CSHARP_SAFETY_CONTRACT_RULES_UNSUPPORTED",
+  message: "C# declaration caller-safety contracts require target option memorySafetyRules='preview'; selecting preview syntax alone does not opt the assembly into updated memory-safety rules.",
+};
+const safeTarget = {
+  code: "CSHARP_SAFE_DECLARATION_TARGET_UNSUPPORTED",
+  message: "C# 'safe' is only legal on target declarations that require an explicit safe-or-unsafe choice; current Tsonic source declarations do not represent such a boundary.",
+};
+const conflict = {
+  code: "CSHARP_SAFETY_CONTRACT_CONFLICT",
+  message: "One exact C# declaration received conflicting finalized safe and requires-unsafe contracts.",
+};
+const unresolved = {
+  code: "CSHARP_SAFETY_APPLICATION_TARGET_NOT_RESOLVED",
+  message: "The finalized safety application has no exact emitted C# declaration target.",
+};
 const accessor = (placement) => ({
   code: "CSHARP_SAFETY_ACCESSOR_TARGET_NOT_EMITTED",
   message: `The selected source ${placement} has no corresponding emitted C# accessor for its explicit safety contract.`,
 });
 
-function analyze(body, targetOptions) {
+function analyze(body, targetOptions, files) {
   let result;
   const compiled = compileCsharpSource({ sourceText: `${header}${body}\n`, ...(targetOptions === undefined ? {} : { targetOptions }),
+    ...(files === undefined ? {} : { files }),
     compileTarget: (request, observer) => {
       result = analyzeCsharpTargetProgram(request);
       return compileCsharpTarget(request, observer);
@@ -42,8 +64,8 @@ function analyze(body, targetOptions) {
   return { compiled, result };
 }
 
-function rejectedBeforePublication(body, targetOptions, expected) {
-  const { compiled, result } = analyze(body, targetOptions);
+function rejectedBeforePublication(body, targetOptions, expected, files) {
+  const { compiled, result } = analyze(body, targetOptions, files);
   assert.equal(result.kind, "rejected", "safety admission rejects before the program is published");
   assert.deepEqual(result.diagnostics.map(({ code, message }) => ({ code, message })), expected);
   assert.equal(compiled.result.program === undefined, true, "no program is published");
@@ -115,7 +137,7 @@ test("a no-argument unsafe-context fact in an expression position is rejected wi
     operations: { nativeUnreachable: program.records.nativeUnreachable, classPropertyStorage: program.records.classPropertyStorage },
     languageDialect: "csharp15-preview",
     memorySafetyRules: "preview",
-    safety: { safetyApplication: program.records.safetyApplication, safetyOperation: program.records.safetyOperation },
+    safety: { safetyApplication: program.records.safetyApplication, safetyOperation: program.records.safetyOperation, findings: noFindings },
     erasedAttribute: program.records.erasedAttribute,
     ...overrides,
   });
@@ -123,6 +145,33 @@ test("a no-argument unsafe-context fact in an expression position is rejected wi
   assert.deepEqual(admitCsharpSafetyApplications(input({ safety: {
     safetyApplication: program.records.safetyApplication,
     safetyOperation: { get: node => node === marker ? { kind: "unsafe-context", fact: { kind: "remaining-block" } } : program.records.safetyOperation.get(node) },
+    findings: noFindings,
   } })), [blockPosition]);
   assert.deepEqual(admitCsharpSafetyApplications(input({ languageDialect: "csharp14", memorySafetyRules: "csharp14" })), [expressionDialect]);
+});
+
+test("application contracts are admitted from the shared findings with their existing diagnostics", () => {
+  const snap = "export class Snap { get only(): int32 { return 1; } }\n";
+  rejectedBeforePublication(`${selected}safety(selected).requiresunsafe();`, undefined, [contractDialect]);
+  rejectedBeforePublication(`${selected}safety(selected).requiresunsafe();`, { languageDialect: "csharp15-preview" }, [contractRules]);
+  rejectedBeforePublication(`${selected}safety(selected).safe();`, preview, [safeTarget]);
+  rejectedBeforePublication(`${selected}safety(selected).safe();\nsafety(selected).requiresunsafe();`, preview, [conflict]);
+  rejectedBeforePublication(`${selected}safety(selected).safe();\nsafety(selected).requiresunsafe();`, undefined, [conflict]);
+  rejectedBeforePublication(`${snap}safety<Snap>().property(s => s.only).setter().requiresunsafe();`, preview, [unresolved]);
+  rejectedBeforePublication(`${snap}${selected}safety<Snap>().property(s => s.only).setter().requiresunsafe();\nsafety(selected).safe();\nsafety(selected).requiresunsafe();`,
+    preview, [conflict, unresolved]);
+  rejectedBeforePublication(`${api}${selected}safety<Api>().property(a => a.value).setter().requiresunsafe();\nsafety(selected).safe();`, preview,
+    [accessor("setter"), safeTarget]);
+});
+
+test("every application in every source file is admitted, including erased and unplanned positions", () => {
+  rejectedBeforePublication(`${selected}export function apply(): void { return; safety(selected).requiresunsafe(); }`, undefined, [contractDialect]);
+  rejectedBeforePublication(`${selected}export function apply(): void { function inner(): void { safety(selected).requiresunsafe(); } }`, undefined, [contractDialect]);
+  rejectedBeforePublication(`${selected}(safety(selected).requiresunsafe());`, undefined, [contractDialect]);
+  const apply = { "apply.ts": `${header}import { selected } from "./index.js";\nsafety(selected).requiresunsafe();` };
+  rejectedBeforePublication(selected, undefined, [contractDialect], apply);
+  rejectedBeforePublication(`${selected}safety(selected).safe();`, preview, [conflict], apply);
+  const { compiled, result } = analyze(selected, preview, apply);
+  assert.equal(result.kind, "resolved");
+  assertCsharpCompilationSucceeded(compiled);
 });

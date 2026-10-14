@@ -65,7 +65,6 @@ import {
   planResourceManagedSourceFileStatements,
 } from "../statements/resource-management.js";
 import {
-  diagnoseCsharpSafetyApplications,
   isErasedSafetyExpressionStatement,
 } from "../safety/explicit-safety.js";
 
@@ -195,7 +194,6 @@ export function planSourceFile(
       return topLevelStatements;
     },
   );
-  diagnoseCsharpSafetyApplications(sourceFile, input, diagnostics);
   if (hasModuleInitializer) {
     const initializationStatements = [
       ...moduleInitialization.moduleInitializationDependencies.get(sourceFile)
