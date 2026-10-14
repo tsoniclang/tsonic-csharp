@@ -1,5 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { failTargetPlannerInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionSelection } from "../../../analysis/conversions/index.js";
 import type { CsharpDelegateSignatureShape, TargetTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
@@ -39,9 +39,8 @@ export function planCsharpDelegateAdapter(
       selection.parameterConversions.some(conversion => conversion.kind !== "identity") ||
       selection.returnConversion.kind !== "identity" && !(selection.returnConversion.kind === "void-return" &&
         isCsharpVoidTargetType(sourceSignature.returnType) && isCsharpVoidTargetType(targetSignature.returnType))) {
-      diagnostics.push(unsupportedNodeDiagnostic(node,
-        "A sealed native delegate binding requires identical parameter and return passing signatures."));
-      return undefined;
+      return failTargetPlannerInvariant("tsonic-csharp",
+        "A sealed native delegate binding requires identical parameter and return passing signatures.", node);
     }
     if (expression.kind === "LambdaExpression") {
       if (sourceSignature.returnPassing !== undefined || sourceSignature.parameterPassingModes.some(mode => mode !== "by-value")) {
@@ -63,8 +62,7 @@ export function planCsharpDelegateAdapter(
     }] };
   }
   if (selection.strategy !== "adaptation") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Delegate conversion requires a sealed native binding or adaptation strategy."));
-    return undefined;
+    return failTargetPlannerInvariant("tsonic-csharp", "Delegate conversion requires a sealed native binding or adaptation strategy.", node);
   }
   const identity = sourceType === undefined || targetType === undefined || input.scope.delegateAdapters === undefined
     ? undefined : input.program.records.delegateAdapter.get(node, sourceType, targetType);

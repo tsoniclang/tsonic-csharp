@@ -69,14 +69,24 @@ test("mutated native-binding selections and unsupported byref lambdas fail close
   const source = csharpDelegateTargetType("System.Func", [integer], integer);
   const target = nativeDelegate("Target");
   const selected = selectCsharpConversion(policy, source, target, "implicit");
-  for (const [from, to, selection, expression] of [
-    [source, nativeDelegate("RefTarget", "byref-readwrite"), selected, { kind: "IdentifierName", name: "original" }],
-    [source, target, { ...selected, parameterConversions: [{ kind: "implicit", proof: "numeric" }] }, { kind: "IdentifierName", name: "original" }],
-    [nativeDelegate("RefSource", "byref-readwrite"), nativeDelegate("RefTarget", "byref-readwrite"), selected,
-      { kind: "LambdaExpression", parameters: [], body: { kind: "IdentifierName", name: "original" } }],
+  for (const [from, to, selection, expression, message] of [
+    [source, nativeDelegate("RefTarget", "byref-readwrite"), selected, { kind: "IdentifierName", name: "original" },
+      "A sealed native delegate binding requires identical parameter and return passing signatures."],
+    [source, target, { ...selected, parameterConversions: [{ kind: "implicit", proof: "numeric" }] }, { kind: "IdentifierName", name: "original" },
+      "A sealed native delegate binding requires identical parameter and return passing signatures."],
+    [source, target, { ...selected, strategy: "unselected" }, { kind: "IdentifierName", name: "original" },
+      "Delegate conversion requires a sealed native binding or adaptation strategy."],
   ]) {
     const diagnostics = [];
-    assert.equal(planCsharpDelegateAdapter({}, {}, context, diagnostics, from, to, selection, expression, applyCsharpConversionSelection) === undefined, true);
+    assert.throws(() => planCsharpDelegateAdapter({}, {}, context, diagnostics, from, to, selection, expression, applyCsharpConversionSelection),
+      error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" && error.message === message);
+    assert.equal(diagnostics.length, 0);
+  }
+  {
+    const diagnostics = [];
+    assert.equal(planCsharpDelegateAdapter({}, {}, context, diagnostics, nativeDelegate("RefSource", "byref-readwrite"),
+      nativeDelegate("RefTarget", "byref-readwrite"), selected,
+      { kind: "LambdaExpression", parameters: [], body: { kind: "IdentifierName", name: "original" } }, applyCsharpConversionSelection) === undefined, true);
     assert.equal(diagnostics.length, 1);
   }
   for (const modes of [undefined, [], new Array(1), ["move"], ["by-value", "by-value"]]) {
