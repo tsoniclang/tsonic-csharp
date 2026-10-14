@@ -3,6 +3,7 @@ import { selectCsharpContextualAsyncReturn } from "../../policy/conversions/cont
 import { csharpMethodValueCoversContract } from "../../target-model/types/method-values.js";
 import {
   HasSyntacticModifier,
+  isSourceCallableBodyBoundary,
   ModifierFlagsAsync,
   Node_Type,
 } from "@tsonic/target-api/source";
@@ -336,7 +337,7 @@ function collectDirectReturnExpressions(
   visit(body);
 
   function visit(node: Node): void {
-    if (node !== body && isCallableDeclaration(policy, node)) {
+    if (node !== body && isSourceCallableBodyBoundary(policy.ast, node)) {
       return;
     }
     if (policy.ast.is.IsReturnStatement(node)) {
