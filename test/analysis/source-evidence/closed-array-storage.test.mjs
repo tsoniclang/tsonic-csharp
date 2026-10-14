@@ -4,7 +4,6 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpSourceEvidence } from "../../../dist/analysis/source-evidence/analyze.js";
 
-// Every type query answers "unknown", so evidence analysis runs over the checked source without a target type system.
 const unknownTypes = new Proxy({}, { get: () => () => undefined });
 
 function evidenceFor(sourceText) {
