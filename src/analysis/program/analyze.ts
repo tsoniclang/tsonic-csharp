@@ -62,7 +62,7 @@ import {
   analyzeCsharpDeclarations,
 } from "../declarations/index.js";
 import {
-  createCsharpSourceNameResolver,
+  createCsharpSourceNameBuilder,
 } from "../names/index.js";
 import {
   analyzeCsharpCallableContracts,
@@ -147,7 +147,7 @@ export function analyzeCsharpTargetProgram(
     input.paths.projectRoot,
     input.sourcePackages,
   );
-  const names = createCsharpSourceNameResolver({
+  const names = createCsharpSourceNameBuilder({
     ast: source.ast,
     navigation: source.navigation,
     sourceFiles,
@@ -351,7 +351,7 @@ export function analyzeCsharpTargetProgram(
       sourceFiles,
     ),
     objectShapes: analysis.objectShapes,
-    names,
+    names: names.seal(),
     sourceModuleConstructions: Object.freeze({
       entries: sourceModuleConstructions.index.entries,
       from: sourceModuleConstructions.index.from,
@@ -371,7 +371,7 @@ function analyzeIteration(
   providers: CsharpTargetAnalysisRequest["providers"],
   sourceFiles: readonly SourceFile[],
   sourceIdentities: ReturnType<typeof createCsharpSourceIdentityPolicy>,
-  names: ReturnType<typeof createCsharpSourceNameResolver>,
+  names: ReturnType<typeof createCsharpSourceNameBuilder>,
   typeHost: Parameters<typeof createCsharpTypeAnalysis>[0],
   sourceStorage: SourceStorageQueries,
   previous: CsharpRepresentationContract | undefined,

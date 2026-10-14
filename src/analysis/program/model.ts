@@ -17,9 +17,7 @@ import type { CsharpProjectTypeClassifications } from "../../target-model/record
 import type { CsharpProgramRecords } from "../../target-model/records/program.js";
 import type { CsharpClassFactory } from "../../target-model/records/class-factories.js";
 import type { CsharpCaptureFrame } from "../../target-model/records/capture-storage.js";
-import type {
-  CsharpSourceNameResolver,
-} from "../names/index.js";
+import type { CsharpNamePlan } from "../../target-model/names/model.js";
 import type {
   CsharpObjectShapeClassifications,
 } from "../objects/index.js";
@@ -54,7 +52,7 @@ export interface CsharpTargetProgram {
   readonly sourceFiles: readonly SourceFile[];
   readonly projectTypes: CsharpProjectTypeClassifications;
   readonly objectShapes: CsharpObjectShapeClassifications;
-  readonly names: CsharpSourceNameResolver;
+  readonly names: CsharpNamePlan;
   readonly sourceModuleConstructions: Omit<CsharpSourceModuleConstructionIndex, "sourceModuleConstruction">;
   readonly moduleInitialization: Pick<CsharpModuleInitializationIndex, "entrypointInitializer">;
   readonly binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver;
