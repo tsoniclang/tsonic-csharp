@@ -36,7 +36,7 @@ export function createCsharpSafetyApplicationFactIndex(
     all: index.all,
     sourceSafetyApplication: Object.freeze({ get: index.forSourceFile }),
     safetyApplication: Object.freeze({ get: index.forDeclaration }),
-    safetyOperation: Object.freeze({ get: index.operationForSubject }),
+    safetyOperation: Object.freeze({ get: index.operationForExpression }),
   });
 }
 

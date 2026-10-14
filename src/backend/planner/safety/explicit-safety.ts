@@ -19,7 +19,6 @@ import {
 } from "../bindings/index.js";
 import {
   AsExpressionStatement,
-  AsParenthesizedExpression,
 } from "@tsonic/target-api/source";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../expressions/planned-values.js";
 import { captureCsharpPlannedValue } from "../expressions/planned-value-composition.js";
@@ -42,7 +41,7 @@ export function tryPlanCsharpExplicitSafetyExpression(
     state: DestructuringPlannerState,
   ) => CsharpPlannedValue | undefined,
 ): CsharpExplicitSafetyExpressionPlan {
-  const selected = exactSafetyOperation(node, input);
+  const selected = input.program.records.safetyOperation.get(node);
   if (selected?.kind !== "unsafe-context") {
     if (selected?.kind === "safety-builder") {
       diagnostics.push(targetDiagnostic(
@@ -109,7 +108,7 @@ export function isExplicitUnsafeBlockMarker(
     : AsExpressionStatement(input.program.source.ast, statement)?.Expression;
   const selected = expression === undefined
     ? undefined
-    : exactSafetyOperation(expression, input);
+    : input.program.records.safetyOperation.get(expression);
   return selected?.kind === "unsafe-context" &&
     selected.fact.kind === "remaining-block";
 }
@@ -122,7 +121,7 @@ export function isErasedSafetyExpressionStatement(
   if (expression === undefined) {
     return false;
   }
-  const selected = exactSafetyOperation(expression, input);
+  const selected = input.program.records.safetyOperation.get(expression);
   return selected?.kind === "safety-builder" ||
     (selected?.kind === "unsafe-context" &&
       selected.fact.kind === "remaining-block");
@@ -309,21 +308,6 @@ function diagnoseConflictingSafetyApplications(
     }
   }
   return conflicts;
-}
-
-function exactSafetyOperation(
-  expression: Node,
-  input: CsharpPlanningContext,
-) {
-  let current: Node | undefined = expression;
-  while (current !== undefined) {
-    const operation = input.program.records.safetyOperation.get(current);
-    if (operation !== undefined) {
-      return operation;
-    }
-    current = AsParenthesizedExpression(input.program.source.ast, current)?.Expression;
-  }
-  return undefined;
 }
 
 function uniqueApplications(
