@@ -3,7 +3,6 @@ import { planGenericClassStaticMembers } from "../declarations/classes/generic-s
 import { createCsharpMemberPlanningContext } from "../context.js";
 import {
   AsExportAssignment,
-  AsFunctionDeclaration,
   KindClassDeclaration,
   KindDebuggerStatement,
   KindDoStatement,
@@ -159,7 +158,7 @@ export function planSourceFile(
             appendTypeDeclaration(statement, planEnumDeclaration(statement, sourceFile, input, diagnostics));
             break;
           case KindFunctionDeclaration:
-            if (AsFunctionDeclaration(input.program.source.ast, statement)?.Body !== undefined) {
+            if (input.program.records.nativeParticipation.get(statement) === "body") {
               members.push(planFunctionDeclaration(statement, sourceFile, input, diagnostics));
             }
             break;
