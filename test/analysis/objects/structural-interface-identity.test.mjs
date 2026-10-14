@@ -53,6 +53,13 @@ test("C# structural identity normalization retains independently proven interfac
   const selected = classifications(source, destination);
   assert.equal(selected.registerStructuralInterface(expression, source.targetType, destination.targetType), true);
   assert.equal(selected.structuralImplementations(source.targetType).length, 1);
+  const [implementation] = selected.structuralImplementations(source.targetType);
+  const [property] = implementation.properties;
+  assert.equal([implementation, implementation.properties, property, property.member, implementation.methods]
+    .every(value => Object.isFrozen(value)), true, "the mapped implementation owns frozen containers and entries");
+  let refused = false;
+  try { property.member.type = carrier("tsonic.shape:other"); } catch (error) { refused = error instanceof TypeError; }
+  assert.equal(refused, true, "a mapped member refuses mutation");
   assert.equal(selected.resolveTarget(source.targetType)?.implements.length, 1);
   assert.equal(selected.resolveTarget(source.targetType)?.implements[0].id, destination.targetType.id);
 });

@@ -4,6 +4,8 @@ import { analyzeCsharpObjectShapes } from "../../../dist/analysis/objects/analyz
 import { instantiateCsharpObjectShape } from "../../../dist/policy/types/objects/object-shape-policy/instantiation.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { emptyCsharpTypeDefinitions } from "../../../dist/target-model/types/source-union-definitions.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { resolveCsharpOptionalStorage } from "../../../dist/target-model/types/carriers/optional-storage.js";
 
 const integer = { kind: "source-primitive", name: "int64" };
 const string = { kind: "source-primitive", name: "string" };
@@ -14,7 +16,16 @@ const template = { targetType: { kind: "target-named", id: "Shape", typeArgument
 const component = { kind: "target-named", id: "Shape", typeArguments: [integer] };
 const holder = { targetType: { kind: "target-named", id: "Holder" }, members: [member(component)] };
 
-function harness({ resolvesComponent }) {
+const refusesMutation = (mutate) => {
+  try {
+    mutate();
+    return false;
+  } catch (error) {
+    return error instanceof TypeError;
+  }
+};
+
+function harness({ resolvesComponent, shapeTemplate = template }) {
   const files = { holder: {}, template: {} };
   const counts = { policy: 0 };
   let closed = false;
@@ -29,11 +40,11 @@ function harness({ resolvesComponent }) {
     sourceFiles: [files.holder, files.template], typeDefinitions: emptyCsharpTypeDefinitions,
     projectTypes: { directSupertypes: () => undefined },
     objectShapes: {
-      resolveNode: native("resolveNode", node => node === files.holder ? holder : node === files.template ? template : undefined),
+      resolveNode: native("resolveNode", node => node === files.holder ? holder : node === files.template ? shapeTemplate : undefined),
       resolveTarget: native("resolveTarget", type => {
         if (targetTypeRefEquals(type, holder.targetType)) return holder;
-        if (targetTypeRefEquals(type, template.targetType)) return template;
-        return resolvesComponent && targetTypeRefEquals(type, component) ? instantiateCsharpObjectShape(template, type) : undefined;
+        if (targetTypeRefEquals(type, shapeTemplate.targetType)) return shapeTemplate;
+        return resolvesComponent && targetTypeRefEquals(type, component) ? instantiateCsharpObjectShape(shapeTemplate, type) : undefined;
       }),
       resolveCopyShape: native("resolveCopyShape", () => undefined),
     },
@@ -134,5 +145,111 @@ test("structural implementations are materialized at seal and an unrecorded inst
   assert.throws(() => sealed.structuralImplementations(carrier("tsonic.shape:source", integer)),
     /no structural-implementation record for 'target:tsonic\.shape:source<source:int64>'/u,
     "an owner instantiation no producer demanded fails instead of being substituted late");
+  assert.equal(queries, before, "no native query after seal");
+});
+
+test("a sealed generic instance owns frozen members, type parameters and captures and reads back canonically", () => {
+  const capture = { declaration: {}, reference: {}, fieldName: "captured", type: parameter, mutable: false };
+  const methodParameter = { identity: "test.Shape.pick.Item", name: "Item", constraints: [] };
+  const rich = { targetType: template.targetType, members: [member(parameter), { ...member(parameter),
+    sourceKey: { kind: "property", name: "pick" }, sourceName: "pick", targetName: "pick", memberKind: "method",
+    typeParameters: [methodParameter] }],
+  methodImplementation: { declaration: {}, identity: "test.Shape.methods", methods: [], captures: [capture] } };
+  for (const resolvesComponent of [false, true]) {
+    const { sealed } = harness({ resolvesComponent, shapeTemplate: rich });
+    const instance = sealed.resolveTarget(component);
+    const label = `(native ${resolvesComponent})`;
+    assert.equal(instance !== undefined && instance.members.length === 2, true, `non-empty generic instance is published ${label}`);
+    assert.equal(targetTypeRefEquals(instance.members[0].type, integer) &&
+      targetTypeRefEquals(instance.methodImplementation.captures[0].type, integer), true, `member and capture are substituted ${label}`);
+    for (const [name, mutate] of [
+      ["root field", () => { instance.members = []; }],
+      ["members array", () => instance.members.push(member(string))],
+      ["members length", () => { instance.members.length = 0; }],
+      ["member entry", () => { instance.members[0].type = string; }],
+      ["type-parameter array", () => instance.members[1].typeParameters.push(methodParameter)],
+      ["type-parameter entry", () => { instance.members[1].typeParameters[0].name = "Other"; }],
+      ["method implementation", () => { instance.methodImplementation.identity = "other"; }],
+      ["capture array", () => instance.methodImplementation.captures.push(capture)],
+      ["capture entry", () => { instance.methodImplementation.captures[0].type = string; }],
+    ]) {
+      assert.equal(refusesMutation(mutate), true, `${name} refuses mutation ${label}`);
+    }
+    const again = sealed.resolveTarget(component);
+    assert.equal(again === instance && again.members[0] === instance.members[0] &&
+      targetTypeRefEquals(again.members[0].type, integer), true, `later reads return the same canonical record ${label}`);
+    assert.equal(Object.isFrozen(rich.members) || Object.isFrozen(capture) || Object.isFrozen(capture.declaration), false,
+      `borrowed template, capture and source node objects are not frozen ${label}`);
+  }
+});
+
+test("a generic structural implementation is substituted once at seal into frozen owned payloads", () => {
+  const element = { kind: "type-parameter", identity: "interface:Element", name: "Element" };
+  const captured = { kind: "type-parameter", identity: "class:Element", name: "Element" };
+  const sourceSymbol = {};
+  const destinationSymbol = {};
+  const sourceType = {};
+  const destinationType = {};
+  const optional = type => csharpNullableTargetType(type);
+  const slot = type => ({ kind: "target-named", id: "test.Slot", csharpSourceDeclarationKind: "interface",
+    typeArguments: [type, resolveCsharpOptionalStorage({ kind: "optional", part: "operations", arguments: [element] }, type), optional(type)] });
+  const field = (symbol, type) => ({ sourceName: "value", targetName: "value", sourceKey: { kind: "property", name: "value" },
+    sourceSubjects: [symbol], memberKind: "property", type });
+  const destinationTemplate = { targetType: slot(element), sourceType: destinationType, members: [field(destinationSymbol, optional(element))] };
+  const destination = { targetType: slot(integer), sourceType: destinationType, members: [field(destinationSymbol, optional(integer))],
+    declarationTemplate: destinationTemplate };
+  const recordTemplate = { targetType: { kind: "target-named", id: "test.Record", typeArguments: [captured] },
+    members: [field(sourceSymbol, optional(captured))] };
+  const source = { targetType: { kind: "target-named", id: "test.Record", typeArguments: [integer] },
+    members: [field(sourceSymbol, optional(integer))], declarationTemplate: recordTemplate };
+  const shapes = new Map([source, destination, recordTemplate, destinationTemplate].map(value => [targetTypeRefKey(value.targetType), value]));
+  let closed = false;
+  let queries = 0;
+  const policy = {
+    ast: { is: { IsObjectLiteralExpression: () => false }, forEachChild: () => {}, parent: () => undefined,
+      properties: () => [], authoredRange: () => ({ kind: "unauthored" }) },
+    sourceFiles: [], typeDefinitions: emptyCsharpTypeDefinitions,
+    objectShapes: {
+      resolveTarget: type => { assert.equal(closed, false, "native selection precedes publication"); queries += 1; return shapes.get(targetTypeRefKey(type)); },
+      resolveCopyShape: () => { assert.equal(closed, false, "copy selection precedes publication"); return undefined; },
+    },
+    projectTypes: { directSupertypes: () => [] },
+    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({
+      kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
+        source: { property: { symbol: sourceSymbol, rootSymbols: [] }, declarations: [] },
+        destination: { property: { symbol: destinationSymbol, rootSymbols: [] }, declarations: [] },
+      }],
+    }) } }),
+  };
+  const builder = analyzeCsharpObjectShapes(policy, { targetTypes: [], compileTimeMetadata: { get: () => false } },
+    { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });
+  assert.equal(builder.registerStructuralInterface({}, source.targetType, destination.targetType), true, "generic structural interface admitted");
+  const sealed = builder.seal();
+  closed = true;
+  const before = queries;
+  const selected = sealed.structuralImplementations(source.targetType);
+  assert.equal(selected.length === 1 && selected[0].properties.length === 1, true, "one non-empty generic implementation");
+  const [implementation] = selected;
+  const [property] = implementation.properties;
+  assert.equal(targetTypeRefEquals(implementation.sourceType, source.targetType) &&
+    targetTypeRefEquals(implementation.interfaceType, slot(integer)) &&
+    targetTypeRefEquals(property.member.type, optional(integer)), true, "the instance binding is substituted at seal");
+  assert.equal([selected, implementation, implementation.properties, property, property.member, implementation.methods]
+    .every(value => Object.isFrozen(value)), true, "every owned container and entry is frozen");
+  for (const [name, mutate] of [
+    ["implementation array", () => selected.push(implementation)],
+    ["implementation entry", () => { implementation.interfaceType = source.targetType; }],
+    ["properties array", () => implementation.properties.push(property)],
+    ["properties length", () => { implementation.properties.length = 0; }],
+    ["property entry", () => { property.sourceName = "other"; }],
+    ["property member", () => { property.member.type = integer; }],
+    ["methods array", () => implementation.methods.push(property)],
+  ]) {
+    assert.equal(refusesMutation(mutate), true, `${name} refuses mutation`);
+  }
+  const again = sealed.structuralImplementations({ ...source.targetType });
+  assert.equal(again === selected && again[0].properties[0].member === property.member &&
+    targetTypeRefEquals(again[0].properties[0].member.type, optional(integer)), true, "later reads return the same canonical record");
+  assert.equal(Object.isFrozen(recordTemplate.members) || Object.isFrozen(sourceSymbol), false, "borrowed source objects are not frozen");
   assert.equal(queries, before, "no native query after seal");
 });

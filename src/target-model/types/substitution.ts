@@ -311,22 +311,22 @@ export function substituteObjectShapeFactTargetTypeParameters(
 ): CsharpObjectShapeFact | undefined {
   return objectShape === undefined
     ? undefined
-    : {
+    : Object.freeze({
         ...objectShape,
         declarationTemplate: objectShape.declarationTemplate ?? objectShape,
         targetType: substituteTargetTypeParameters(objectShape.targetType, substitutions),
         ...(objectShape.methodImplementation === undefined ? {} : {
-          methodImplementation: { ...objectShape.methodImplementation,
-            captures: objectShape.methodImplementation.captures.map(capture => ({ ...capture,
+          methodImplementation: Object.freeze({ ...objectShape.methodImplementation,
+            captures: Object.freeze(objectShape.methodImplementation.captures.map(capture => Object.freeze({ ...capture,
               type: substituteTargetTypeParameters(capture.type, substitutions),
-            })),
-          },
+            }))),
+          }),
         }),
-        members: objectShape.members.map(member => {
+        members: Object.freeze(objectShape.members.map(member => {
           const boundParameters = new Set(member.typeParameters?.map(parameter => parameter.identity));
           const freeSubstitutions = boundParameters.size === 0 ? substitutions
             : new Map([...substitutions].filter(([identity]) => !boundParameters.has(identity)));
-          return { ...member,
+          return Object.freeze({ ...member,
             type: substituteTargetTypeParameters(member.type, freeSubstitutions),
             ...(member.methodStorageType === undefined ? {} : {
               methodStorageType: substituteTargetTypeParameters(member.methodStorageType, substitutions),
@@ -335,16 +335,16 @@ export function substituteObjectShapeFactTargetTypeParameters(
               methodValueContract: substituteTargetTypeParameters(member.methodValueContract, substitutions),
             }),
             ...(member.typeParameters === undefined ? {} : {
-              typeParameters: member.typeParameters.map(parameter => ({ ...parameter,
+              typeParameters: Object.freeze(member.typeParameters.map(parameter => Object.freeze({ ...parameter,
                 constraints: substituteConstraints(parameter.constraints, freeSubstitutions),
-              })),
+              }))),
             }),
-          };
-        }),
+          });
+        })),
         ...(objectShape.implements === undefined
           ? {}
-          : { implements: objectShape.implements.map((implemented) => substituteTargetTypeParameters(implemented, substitutions)) }),
-      };
+          : { implements: Object.freeze(objectShape.implements.map((implemented) => substituteTargetTypeParameters(implemented, substitutions))) }),
+      });
 }
 
 function substituteConstraints(
