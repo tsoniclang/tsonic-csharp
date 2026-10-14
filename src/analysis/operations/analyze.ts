@@ -163,11 +163,22 @@ const nativeUnreachableKey = createTargetClassificationKey<boolean>("csharp.oper
 const borrowedSequenceKey = createTargetClassificationKey<ReturnType<typeof classifyCsharpBorrowedSequenceInput>>(
   "csharp.operation.borrowed-sequence",
 );
+const operationResultKeyIds: ReadonlySet<string> = new Set([memoryBindingKey.id, jsArrayMutationKey.id, callKey.id,
+  constructionKey.id, propertyKey.id, elementKey.id, binaryKey.id, unaryKey.id]);
+
 export function analyzeCsharpTargetOperations(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
 ): CsharpTargetOperationClassifications {
   const builder = createTargetClassificationBuilder();
+  const operationResultSubjects = new Set<Node>();
+  const producer: ReturnType<typeof createTargetClassificationBuilder> = Object.freeze({
+    ...builder,
+    set<Value>(subject: Node, key: TargetClassificationKey<Value>, value: Value) {
+      if (operationResultKeyIds.has(key.id)) operationResultSubjects.add(subject);
+      return builder.set(subject, key, value);
+    },
+  });
   const classPropertyStorage = classifyCsharpClassPropertyStorage(policy, evidence);
   const binaryExecutionDrivers:
     import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[] = [];
@@ -177,11 +188,16 @@ export function analyzeCsharpTargetOperations(
       sourceFile,
       policy,
       evidence,
-      builder,
+      producer,
       binaryExecutionDrivers,
     );
   }
   const facts = builder.seal();
+  const operationResultTypes = new WeakMap<Node, import("../../target-model/types/model.js").TargetTypeRef>();
+  for (const subject of operationResultSubjects) {
+    const type = operationResultType(facts, subject);
+    if (type !== undefined) operationResultTypes.set(subject, type);
+  }
   const selectedBinaryExecutionDriver =
     composeCsharpBinaryExecutionDriver(...binaryExecutionDrivers);
   const classifications: CsharpTargetOperationClassifications = {
@@ -192,7 +208,7 @@ export function analyzeCsharpTargetOperations(
     nativeUnreachable: Object.freeze({ get: node => facts.get(node, nativeUnreachableKey) === true }),
     memoryBinding: Object.freeze({ get: node => facts.get(node, memoryBindingKey) }),
     binaryExecutionDriver: () => selectedBinaryExecutionDriver,
-    operationResultType: Object.freeze({ get: (node) => operationResultType(facts, node) }),
+    operationResultType: Object.freeze({ get: (node) => operationResultTypes.get(node) }),
     selectedCall: Object.freeze({ get: (node) => facts.get(node, callKey) }),
     selectedConstruction: Object.freeze({ get: (node) => facts.get(node, constructionKey) }),
     selectedProperty: Object.freeze({ get: (node) => facts.get(node, propertyKey) }),
