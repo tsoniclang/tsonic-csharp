@@ -250,6 +250,7 @@ export function analyzeCsharpTargetProgram(
     ...analysis.sourceEvidence.fixedArrayIssues,
     ...analysis.typeSystem.projectTypes.issues,
     ...analysis.typeSystem.nativeConstruction.issues,
+    ...analysis.operations.issues,
     ...analysis.expectedTypes.issues,
     ...analysis.conversions.issues,
     ...analysis.storage.issues,

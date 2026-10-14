@@ -70,7 +70,7 @@ import {
   isCsharpThrowableType,
 } from "../../policy/types/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpCallClassification, CsharpBinaryClassification, CsharpConstructionClassification, CsharpElementClassification, CsharpPropertyClassification, CsharpUnaryClassification, CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpCallClassification, CsharpBinaryClassification, CsharpConstructionClassification, CsharpElementClassification, CsharpPropertyClassification, CsharpUnaryClassification, CsharpTargetOperationClassifications, CsharpOperationIssue } from "../../target-model/records/operations.js";
 import {
   composeCsharpBinaryExecutionDriver,
 } from "../../providers/model/provider-policy-contribution.js";
@@ -182,6 +182,7 @@ export function analyzeCsharpTargetOperations(
   const classPropertyStorage = classifyCsharpClassPropertyStorage(policy, evidence);
   const binaryExecutionDrivers:
     import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[] = [];
+  const issues: CsharpOperationIssue[] = [];
   for (const sourceFile of policy.sourceFiles) {
     visit(
       sourceFile,
@@ -190,6 +191,7 @@ export function analyzeCsharpTargetOperations(
       evidence,
       producer,
       binaryExecutionDrivers,
+      issues,
     );
   }
   const facts = builder.seal();
@@ -201,6 +203,7 @@ export function analyzeCsharpTargetOperations(
   const selectedBinaryExecutionDriver =
     composeCsharpBinaryExecutionDriver(...binaryExecutionDrivers);
   const classifications: CsharpTargetOperationClassifications = {
+    issues: Object.freeze(issues),
     awaitCompletion: Object.freeze({ get: node => facts.get(node, awaitKey) }),
     classPropertyStorage: Object.freeze({ get: classPropertyStorage }),
     borrowedSequence: Object.freeze({ get: node => facts.get(node, borrowedSequenceKey) }),
@@ -247,6 +250,7 @@ function visit(
   builder: ReturnType<typeof createTargetClassificationBuilder>,
   binaryExecutionDrivers:
     import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[],
+  issues: CsharpOperationIssue[],
 ): void {
   if (evidence.compileTimeMetadata.get(node)) return;
   if (policy.types.nativeUnreachable(node)) {
@@ -256,9 +260,14 @@ function visit(
   const { ast } = policy;
   if (ast.is.IsAwaitExpression(node)) {
     const expression = ast.as.AsAwaitExpression(node)?.Expression;
-    setClassification(builder, node, awaitKey, admitCsharpAwaitCompletion(policy, selectCsharpAwaitCompletion(
+    const completion = selectCsharpAwaitCompletion(
       expression === undefined ? undefined : policy.types.resolveNode(expression, sourceFile),
-      policy.typeDefinitions)));
+      policy.typeDefinitions);
+    const rejection = awaitResultMappingRejection(policy, completion);
+    if (rejection !== undefined) {
+      issues.push(Object.freeze({ node, code: "CSHARP_AWAIT_RESULT_MAPPING_NOT_PROVEN", message: rejection }));
+    }
+    setClassification(builder, node, awaitKey, rejection === undefined ? completion : undefined);
   }
   if (ast.is.IsSpreadElement(node)) {
     const expression = ast.as.AsSpreadElement(node)?.Expression;
@@ -736,6 +745,7 @@ function visit(
           evidence,
           builder,
           binaryExecutionDrivers,
+          issues,
         );
       }
     },
@@ -855,13 +865,17 @@ function operationResultType(
     : undefined;
 }
 
-function admitCsharpAwaitCompletion(
+function awaitResultMappingRejection(
   policy: CsharpPolicyContext,
   completion: CsharpAwaitCompletion | undefined,
-): CsharpAwaitCompletion | undefined {
-  return completion?.alternatives.every(alternative => alternative.resultMapping === undefined ||
-    admitCsharpUnionSelection(policy, alternative.result, completion.result, alternative.resultMapping) ===
-      alternative.resultMapping) ? completion : undefined;
+): string | undefined {
+  if (completion === undefined) return undefined;
+  for (const alternative of completion.alternatives) {
+    if (alternative.resultMapping === undefined) continue;
+    const admitted = admitCsharpUnionSelection(policy, alternative.result, completion.result, alternative.resultMapping);
+    if (admitted.kind === "rejected") return admitted.reason;
+  }
+  return undefined;
 }
 
 function setClassification<Value>(
