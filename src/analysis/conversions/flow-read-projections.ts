@@ -3,13 +3,13 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpFlowReadProjection } from "../../policy/types/objects/read-projections.js";
 import type { CsharpFlowReadClassifications, CsharpFlowReadProjection, CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 
 export function analyzeCsharpFlowReadProjections(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
   operations: CsharpTargetOperationClassifications,
-  storage: CsharpStorageClassifications,
+  valueReads: CsharpValueReadClassifications,
 ): CsharpFlowReadClassifications {
   const projections = new WeakMap<Node, Exclude<CsharpFlowReadProjection, { readonly kind: "rejected" }>>();
   const runtimeReads = new WeakMap<Node, ReadonlySet<Node>>();
@@ -24,14 +24,9 @@ export function analyzeCsharpFlowReadProjections(
     if (evidence.compileTimeMetadata.get(node) || operations.nativeUnreachable.get(node)) return;
     if ((policy.ast.is.IsIdentifier(node) || policy.ast.is.IsPropertyAccessExpression(node) ||
         policy.ast.is.IsElementAccessExpression(node)) && requiresFlowReadProjection(node)) {
-      const refinement = evidence.valueRefinement.get(node);
-      const member = operations.sourceMember.get(node);
-      const storageType = (member?.runtimeUnionProperty.kind === "resolved" ? member.runtimeUnionProperty.resultType : member?.rawReadType) ??
-        storage.storageType.get(node) ?? evidence.readStorageTargetType.get(node);
-      const selectedType = member?.selectedReadType ?? refinement?.flowReadTargetType ??
-        operations.operationResultType.get(node) ?? storage.storageType.get(node) ?? evidence.nodeTargetType.get(node);
+      const read = valueReads.valueRead.get(node);
       const projection = selectCsharpFlowReadProjection(
-        policy, storageType, selectedType, refinement, deferredConstructorFieldRead(policy.ast, node),
+        policy, read?.flowReadStorage, read?.flowReadValue, evidence.valueRefinement.get(node), deferredConstructorFieldRead(policy.ast, node),
       );
       const failure = projection.kind === "rejected" ? projection
         : projection.kind === "conversion" &&

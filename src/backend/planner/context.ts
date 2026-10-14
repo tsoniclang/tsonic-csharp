@@ -131,12 +131,7 @@ function createCsharpPlanningTypeClassifications(
 ): CsharpPlanningTypeClassifications {
   return Object.freeze({
     resolveNode(node: Node | undefined) {
-      return node === undefined
-        ? undefined
-        : program.records.valueRefinement.get(node)?.flowReadTargetType ??
-          program.records.operationResultType.get(node) ??
-          program.records.storageType.get(node) ??
-          program.records.nodeTargetType.get(node);
+      return node === undefined ? undefined : program.records.valueRead.get(node)?.value;
     },
     resolveStorage(node: Node | undefined) {
       return node === undefined
@@ -144,10 +139,7 @@ function createCsharpPlanningTypeClassifications(
         : program.records.storageType.get(node);
     },
     resolveReadStorage(node: Node | undefined) {
-      return node === undefined
-        ? undefined
-        : program.records.storageType.get(node) ??
-          program.records.readStorageTargetType.get(node);
+      return node === undefined ? undefined : program.records.valueRead.get(node)?.readStorageValue;
     },
   });
 }
