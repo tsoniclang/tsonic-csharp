@@ -70,9 +70,9 @@ function translateCsharpCallExpressionCore(
       "Array predicate requires its exact sealed native argument and payload test."));
     return result;
   }
-  const sourceFlow = classification.sourceFlow;
-  if (sourceFlow.kind === "keep-alive") {
-    const value = planExpression(sourceFlow.valueExpression, sourceFile, input, diagnostics);
+  const keepAlive = classification.sourceFlow;
+  if (keepAlive !== undefined) {
+    const value = planExpression(keepAlive.valueExpression, sourceFile, input, diagnostics);
     return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [value], values => ({
       kind: "InvocationExpression",
       callee: { kind: "SimpleMemberAccessExpression", receiver: {
@@ -82,14 +82,6 @@ function translateCsharpCallExpressionCore(
       }, name: "KeepAlive" },
       arguments: [{ kind: "Argument", expression: values[0]! }],
     }));
-  }
-  if (sourceFlow.kind === "rejected") {
-    diagnostics.push(targetPolicyDiagnostic(
-      node,
-      sourceFlow.code,
-      sourceFlow.reason,
-    ));
-    return undefined;
   }
   const jsValueOperation = classification.jsValue;
   if (jsValueOperation.kind === "rejected") {
