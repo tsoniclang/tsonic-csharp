@@ -57,7 +57,10 @@ export type CsharpFlowReadProjection =
   | { readonly kind: "rejected"; readonly reason: string };
 
 export interface CsharpFlowReadClassifications {
-  readonly flowReadProjection: { readonly get: (node: Node) => CsharpFlowReadProjection | undefined };
+  readonly flowReadProjection: {
+    readonly get: (node: Node) => Exclude<CsharpFlowReadProjection, { readonly kind: "rejected" }> | undefined;
+  };
+  readonly issues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
 }
 
 export interface CsharpSourceEvidenceIndex {

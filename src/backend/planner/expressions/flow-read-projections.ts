@@ -3,6 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { failTargetPlannerInvariant } from "@tsonic/target-api/artifacts";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -12,9 +13,6 @@ import {
 import type {
   CsharpExpression,
 } from "../../target-ast/syntax/index.js";
-import {
-  unsupportedNodeDiagnostic,
-} from "../diagnostics.js";
 
 export function planFlowReadUseSiteProjection(
   node: Node,
@@ -29,12 +27,13 @@ export function planFlowReadUseSiteProjection(
   if (projection?.kind === "non-null") {
     return { kind: "PostfixUnaryExpression", operand: baseExpression, operatorToken: { kind: "ExclamationToken" } };
   }
-  if (projection === undefined || projection.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(
+  if (projection?.kind !== "conversion" || projection.source === undefined || projection.target === undefined ||
+    projection.selection === undefined || projection.selection.kind === "rejected" || projection.selection.kind === "ambiguous") {
+    return failTargetPlannerInvariant(
+      "tsonic-csharp",
+      "C# planning received a source value without a valid sealed storage-read projection.",
       node,
-      projection?.reason ?? "C# planning received a source value without its sealed storage-read projection.",
-    ));
-    return undefined;
+    );
   }
   return applyCsharpConversionSelection(
     node,

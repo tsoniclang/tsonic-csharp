@@ -11,25 +11,59 @@ export function analyzeCsharpFlowReadProjections(
   operations: CsharpTargetOperationClassifications,
   storage: CsharpStorageClassifications,
 ): CsharpFlowReadClassifications {
-  const projections = new WeakMap<Node, CsharpFlowReadProjection>();
+  const projections = new WeakMap<Node, Exclude<CsharpFlowReadProjection, { readonly kind: "rejected" }>>();
+  const runtimeReads = new WeakMap<Node, ReadonlySet<Node>>();
+  const issues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
   for (const sourceFile of policy.sourceFiles) visit(sourceFile);
-  return Object.freeze({ flowReadProjection: Object.freeze({ get: (node: Node) => projections.get(node) }) });
+  return Object.freeze({
+    flowReadProjection: Object.freeze({ get: (node: Node) => projections.get(node) }),
+    issues: Object.freeze(issues),
+  });
 
   function visit(node: Node): void {
-    if (evidence.compileTimeMetadata.get(node)) return;
-    if (policy.ast.is.IsIdentifier(node) || policy.ast.is.IsPropertyAccessExpression(node) ||
-        policy.ast.is.IsElementAccessExpression(node)) {
+    if (evidence.compileTimeMetadata.get(node) || operations.nativeUnreachable.get(node)) return;
+    if ((policy.ast.is.IsIdentifier(node) || policy.ast.is.IsPropertyAccessExpression(node) ||
+        policy.ast.is.IsElementAccessExpression(node)) && requiresFlowReadProjection(node)) {
       const refinement = evidence.valueRefinement.get(node);
       const member = operations.sourceMember.get(node);
       const storageType = (member?.runtimeUnionProperty.kind === "resolved" ? member.runtimeUnionProperty.resultType : member?.rawReadType) ??
         storage.storageType.get(node) ?? evidence.readStorageTargetType.get(node);
       const selectedType = member?.selectedReadType ?? refinement?.flowReadTargetType ??
         operations.operationResultType.get(node) ?? storage.storageType.get(node) ?? evidence.nodeTargetType.get(node);
-      projections.set(node, Object.freeze(selectCsharpFlowReadProjection(
+      const projection = selectCsharpFlowReadProjection(
         policy, storageType, selectedType, refinement, deferredConstructorFieldRead(policy.ast, node),
-      )));
+      );
+      const failure = projection.kind === "rejected" ? projection
+        : projection.kind === "conversion" &&
+          (projection.selection.kind === "rejected" || projection.selection.kind === "ambiguous")
+          ? projection.selection : undefined;
+      if (failure !== undefined) {
+        issues.push(Object.freeze({ node, code: "CSHARP_FLOW_READ_PROJECTION_NOT_PROVEN", message: failure.reason }));
+      } else if (projection.kind !== "rejected") {
+        projections.set(node, Object.freeze(projection));
+      }
     }
     policy.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  }
+
+  function requiresFlowReadProjection(node: Node): boolean {
+    if (!policy.ast.is.IsIdentifier(node)) {
+      if (operations.sourceMember.get(node) === undefined) return false;
+      const selected = policy.ast.is.IsPropertyAccessExpression(node)
+        ? operations.selectedProperty.get(node)?.selection : operations.selectedElement.get(node)?.target;
+      return selected?.kind === "source-owned" && selected.source.accessMode === "read" && !selected.source.callCallee;
+    }
+    const reference = policy.navigation.sourceReferenceFor(node);
+    if (reference === undefined) return false;
+    let reads = runtimeReads.get(reference.declaration);
+    if (reads === undefined) {
+      reads = new Set(policy.navigation.declarationUses(reference.declaration)
+        .filter(use => use.kind !== "type-only" && use.kind !== "source-linkage" &&
+          (use.role !== "write" || use.throughMember))
+        .map(use => use.reference));
+      runtimeReads.set(reference.declaration, reads);
+    }
+    return reads.has(node);
   }
 }
 
