@@ -8,14 +8,12 @@ import type {
 } from "../../target-ast/syntax/index.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
+import { missingBindingPatternProjectionMessage } from "./binding-array-patterns.js";
 import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.js";
 import { getCsharpObjectShapeFactForNode } from "../objects/fact-queries.js";
 import { csharpTypeFromObjectShapeFact } from "../objects/index.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/index.js";
-import {
-  isSourceOwnedBindingSource,
-  planObjectBindingElement,
-} from "./binding-object-source-patterns.js";
+import { planObjectBindingElement } from "./binding-object-source-patterns.js";
 import {
   planObjectShapeBindingPattern,
 } from "./binding-object-shape-patterns.js";
@@ -26,7 +24,6 @@ import {
 export function planObjectBindingPattern(
   patternNode: Node,
   sourceExpression: CsharpExpression,
-  sourceNode: Node | undefined,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
@@ -34,16 +31,13 @@ export function planObjectBindingPattern(
   planBindingNameFromProjection: BindingProjectionPlanner,
   planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
-  const objectShape = getObjectShapeForBindingSource(sourceNode, sourceFile, input);
-  if (objectShape !== undefined) {
-    csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, patternNode);
-    return planObjectShapeBindingPattern(patternNode, sourceExpression, objectShape, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planDefaultExpressionWithExpectedType);
+  const source = input.program.records.bindingPatternProjection.get(patternNode)?.source;
+  if (source?.kind === "object-shape-source") {
+    csharpTypeFromObjectShapeFact(input, source.shape, diagnostics, patternNode);
+    return planObjectShapeBindingPattern(patternNode, sourceExpression, source.shape, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planDefaultExpressionWithExpectedType);
   }
-  if (!isSourceOwnedBindingSource(sourceNode, sourceFile, input)) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      patternNode,
-      "Object destructuring requires an exact source-owned declaration or target object-shape policy.",
-    ));
+  if (source?.kind !== "source-owned-source") {
+    diagnostics.push(unsupportedNodeDiagnostic(patternNode, missingBindingPatternProjectionMessage));
     return [];
   }
   const elements = AsBindingPattern(input.program.source.ast, patternNode)?.Elements?.Nodes ?? [];

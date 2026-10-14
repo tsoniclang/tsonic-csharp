@@ -8,6 +8,7 @@ import { analyzeCsharpClassFactories } from "../project-types/class-factories.js
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 import { createCsharpProgramRecords } from "./records/create.js";
 import { analyzeCsharpNativeControlFlow } from "../control-flow/native-control-flow.js";
+import { analyzeCsharpBindingPatterns } from "../control-flow/binding-patterns.js";
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
 import { type CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import { csharpCallableValueType } from "../callables/value-type.js";
@@ -322,12 +323,19 @@ export function analyzeCsharpTargetProgram(
   })));
   const flowReads = analyzeCsharpFlowReadProjections(analysis.policy, analysis.sourceEvidence, analysis.operations, analysis.valueReads);
   if (flowReads.issues.length > 0) return rejectCsharpAnalysisIssues(flowReads.issues);
+  const bindingPatterns = analyzeCsharpBindingPatterns({ ast: source.ast, sourceFiles, navigation: source.navigation,
+    captureClosure: captureStorage.captureClosure, evidence: analysis.sourceEvidence,
+    operations: analysis.operations, valueReads: analysis.valueReads, objectShapes: analysis.objectShapes });
+  if (bindingPatterns.issues.length > 0) return rejectedTargetStage(bindingPatterns.issues.map(issue => ({
+    code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
+    ...(issue.evidence.length === 0 ? {} : { evidence: issue.evidence }),
+  })));
   const typeDefinitions = analysis.typeDefinitions.seal();
   const classInitialization = analyzeCsharpClassInitialization(source, classFactories);
   const numericRepresentations = analyzeCsharpNumericRepresentations({ source, sourceFiles,
     evidence: analysis.sourceEvidence, operations: analysis.operations });
   const records = createCsharpProgramRecords({
-    flowReads, valueReads: analysis.valueReads,
+    flowReads, valueReads: analysis.valueReads, bindingPatterns,
     callableAdapters, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
     numericRepresentations, attributeApplications, safetyApplications, operations: analysis.operations,
     sourceEvidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions: analysis.conversions,

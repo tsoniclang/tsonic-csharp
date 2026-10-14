@@ -53,12 +53,12 @@ export interface CsharpEntryBinding {
 export function planBindingPatternFromExpression(
   patternNode: Node,
   sourceExpression: CsharpExpression,
-  sourceNode: Node | undefined,
+  _sourceNode: Node | undefined,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-  sourceCarrier?: TargetTypeRef,
+  _sourceCarrier?: TargetTypeRef,
   planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
   retainBinding?: (binding: CsharpEntryBinding, declaration: Node) => void,
 ): readonly CsharpStatement[] {
@@ -86,10 +86,10 @@ export function planBindingPatternFromExpression(
     retainBinding,
   );
   if (HasSourceKind(input.program.source.ast, patternNode, KindArrayBindingPattern)) {
-    return planArrayBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, projectionPlanner, planDefaultExpressionWithExpectedType, sourceCarrier);
+    return planArrayBindingPattern(patternNode, sourceExpression, sourceFile, input, diagnostics, state, projectionPlanner, planDefaultExpressionWithExpectedType);
   }
   if (HasSourceKind(input.program.source.ast, patternNode, KindObjectBindingPattern)) {
-    return planObjectBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, projectionPlanner, planDefaultExpressionWithExpectedType);
+    return planObjectBindingPattern(patternNode, sourceExpression, sourceFile, input, diagnostics, state, projectionPlanner, planDefaultExpressionWithExpectedType);
   }
   diagnostics.push(unsupportedNodeDiagnostic(patternNode, "Binding pattern is outside the current C# planning surface."));
   return [];

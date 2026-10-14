@@ -16,11 +16,13 @@ import type { CsharpSourceModuleConstructionIndex } from "../../../target-model/
 import type { CsharpStorageClassifications } from "../../../target-model/records/storage.js";
 import type { CsharpGenericProjectionIndex } from "../../../target-model/records/type-projections.js";
 import type { CsharpProgramRecords } from "../../../target-model/records/program.js";
+import type { CsharpBindingPatternClassifications } from "../../../target-model/records/value-projections.js";
 
 export interface CsharpProgramRecordInput {
   readonly sourceEvidence: CsharpSourceEvidenceIndex;
   readonly flowReads: CsharpFlowReadClassifications;
   readonly valueReads: CsharpValueReadClassifications;
+  readonly bindingPatterns: CsharpBindingPatternClassifications;
   readonly operations: CsharpTargetOperationClassifications;
   readonly expectedTypes: CsharpExpectedTypeClassifications;
   readonly declarations: CsharpDeclarationClassifications;
@@ -118,6 +120,7 @@ export function createCsharpProgramRecords(input: CsharpProgramRecordInput): Csh
     bindingProjection: input.sourceEvidence.bindingProjection,
     flowReadProjection: input.flowReads.flowReadProjection,
     valueRead: input.valueReads.valueRead,
+    bindingPatternProjection: input.bindingPatterns.bindingPatternProjection,
     compileTimeMetadata: input.sourceEvidence.compileTimeMetadata,
     nodeTargetType: input.sourceEvidence.nodeTargetType,
     classConstructorType: input.sourceEvidence.classConstructorType,
