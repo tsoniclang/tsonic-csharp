@@ -165,9 +165,11 @@ test("retained adapter planning rejects a stale activation or carrier and keeps 
       target: csharpDelegateTargetType("System.Action", [{ kind: "source-primitive", name: "int64" }]) }) } } } },
   ]) {
     const diagnostics = [];
-    assert.equal(planCsharpDelegateAdapter(node, {}, context, diagnostics, source, target, selection,
-      { kind: "IdentifierName", name: "callback" }, applyCsharpConversionSelection) === undefined, true);
-    assert.equal(diagnostics.length, 1);
+    assert.throws(() => planCsharpDelegateAdapter(node, {}, context, diagnostics, source, target, selection,
+      { kind: "IdentifierName", name: "callback" }, applyCsharpConversionSelection),
+    error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&
+      error.message === "A retained native delegate adapter requires its exact sealed conversion and lexical declaration.");
+    assert.equal(diagnostics.length, 0);
   }
   const diagnostics = [];
   const planned = planCsharpDelegateAdapter(node, {}, base, diagnostics, source, target, selection,
@@ -175,12 +177,18 @@ test("retained adapter planning rejects a stale activation or carrier and keeps 
   assert.equal(diagnostics.length, 0);
   assert.equal(planned.kind, "ObjectCreationExpression");
   assert.equal(planned.arguments[0].expression.name, "adapter");
-  for (const modes of [undefined, [], ["byref-readwrite"], ["move"]]) {
+  for (const [modes, message] of [
+    [undefined, "C# delegate adaptation requires exact renderable source and target signatures."],
+    [[], "C# delegate adaptation requires exact renderable source and target signatures."],
+    [["byref-readwrite"], "Delegate adaptation cannot change or wrap native by-reference passing."],
+    [["move"], "C# delegate adaptation requires exact renderable source and target signatures."],
+  ]) {
     const invalid = { ...source, csharpDelegateSignature: { ...source.csharpDelegateSignature, parameterPassingModes: modes } };
     const failures = [];
-    assert.equal(planCsharpDelegateAdaptationBody(node, {}, base, failures, invalid, target, selection,
-      { kind: "IdentifierName", name: "callback" }, applyCsharpConversionSelection) === undefined, true);
-    assert.equal(failures.length, 1);
+    assert.throws(() => planCsharpDelegateAdaptationBody(node, {}, base, failures, invalid, target, selection,
+      { kind: "IdentifierName", name: "callback" }, applyCsharpConversionSelection),
+    error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" && error.message === message);
+    assert.equal(failures.length, 0);
   }
 });
 

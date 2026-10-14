@@ -70,8 +70,8 @@ export function planCsharpDelegateAdapter(
     const name = input.scope.delegateAdapters?.get(identity);
     if (name === undefined ||
       !targetTypeRefEquals(identity.source, sourceType!) || !targetTypeRefEquals(identity.target, targetType!)) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "A retained native delegate adapter requires its exact sealed conversion and lexical declaration."));
-      return undefined;
+      return failTargetPlannerInvariant("tsonic-csharp",
+        "A retained native delegate adapter requires its exact sealed conversion and lexical declaration.", node);
     }
     return { kind: "ObjectCreationExpression", type: targetDelegateType,
       arguments: [{ kind: "Argument", expression: { kind: "IdentifierName", name } }] };
@@ -187,23 +187,22 @@ function readDelegateAdapterContract(node: Node, input: CsharpPlanningContext, d
   selection: Extract<CsharpConversionSelection, { readonly kind: "delegate-adapter" }>): CsharpDelegateAdapterContract | undefined {
   const sourceSignature = getCsharpDelegateSignature(sourceType);
   const targetSignature = getCsharpDelegateSignature(targetType);
-  const sourceDelegateType = sourceType === undefined ? undefined
-    : csharpTypeFromTargetTypeRef(sourceType, input.scope.typeParameterNames);
-  const targetDelegateType = targetType === undefined ? undefined
-    : csharpTypeFromTargetTypeRef(getCsharpNullableElementTargetType(targetType) ?? targetType, input.scope.typeParameterNames);
-  if (sourceSignature === undefined || targetSignature === undefined ||
+  if (sourceType === undefined || targetType === undefined || sourceSignature === undefined || targetSignature === undefined ||
     !csharpDelegateSignatureHasSupportedPassingModes(sourceSignature) ||
     !csharpDelegateSignatureHasSupportedPassingModes(targetSignature) ||
-    sourceDelegateType === undefined || targetDelegateType === undefined ||
     sourceSignature.parameters.length > targetSignature.parameters.length ||
     selection.parameterConversions.length !== sourceSignature.parameters.length) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "C# delegate adaptation requires exact renderable source and target signatures."));
-    return undefined;
+    return failTargetPlannerInvariant("tsonic-csharp", "C# delegate adaptation requires exact renderable source and target signatures.", node);
   }
   if (selection.strategy === "adaptation" && (sourceSignature.returnPassing !== undefined || targetSignature.returnPassing !== undefined ||
     sourceSignature.parameterPassingModes.some(mode => mode !== "by-value") ||
     targetSignature.parameterPassingModes.some(mode => mode !== "by-value"))) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Delegate adaptation cannot change or wrap native by-reference passing."));
+    return failTargetPlannerInvariant("tsonic-csharp", "Delegate adaptation cannot change or wrap native by-reference passing.", node);
+  }
+  const sourceDelegateType = csharpTypeFromTargetTypeRef(sourceType, input.scope.typeParameterNames);
+  const targetDelegateType = csharpTypeFromTargetTypeRef(getCsharpNullableElementTargetType(targetType) ?? targetType, input.scope.typeParameterNames);
+  if (sourceDelegateType === undefined || targetDelegateType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "C# delegate adaptation requires exact renderable source and target signatures."));
     return undefined;
   }
   return { sourceSignature, targetSignature, sourceDelegateType, targetDelegateType };

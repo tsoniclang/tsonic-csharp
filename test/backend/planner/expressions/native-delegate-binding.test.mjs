@@ -92,9 +92,11 @@ test("mutated native-binding selections and unsupported byref lambdas fail close
   for (const modes of [undefined, [], new Array(1), ["move"], ["by-value", "by-value"]]) {
     const from = { ...source, csharpDelegateSignature: { ...source.csharpDelegateSignature, parameterPassingModes: modes } };
     const diagnostics = [];
-    assert.equal(planCsharpDelegateAdapter({}, {}, context, diagnostics, from, target,
-      { ...selected, strategy: "adaptation" }, { kind: "IdentifierName", name: "original" }, applyCsharpConversionSelection) === undefined, true);
-    assert.equal(diagnostics.length, 1);
+    assert.throws(() => planCsharpDelegateAdapter({}, {}, context, diagnostics, from, target,
+      { ...selected, strategy: "adaptation" }, { kind: "IdentifierName", name: "original" }, applyCsharpConversionSelection),
+    error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&
+      error.message === "C# delegate adaptation requires exact renderable source and target signatures.");
+    assert.equal(diagnostics.length, 0);
   }
 });
 
