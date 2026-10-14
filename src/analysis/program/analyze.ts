@@ -15,7 +15,7 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { analyzeCsharpNumericRepresentations } from "../numeric/representations.js";
 import { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
 import { createCsharpTypeDefinitionRegistry } from "../project-types/type-definitions.js";
-import { createTsonicAttributeApplicationFactIndex, createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
+import { createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
 import {
   rejectedTargetStage,
   resolvedTargetStage,
@@ -38,7 +38,7 @@ import type {
   CsharpPlanningRepresentationQueries,
 } from "../../policy/types/index.js";
 import type { ResolvedSourceCallInfo } from "../../target-model/records/members.js";
-import { analyzeCsharpAttributeApplications } from "../attributes/application-index.js";
+import { analyzeCsharpAttributeApplications, createCsharpSourceAttributeApplicationIndex } from "../attributes/application-index.js";
 import {
   createCsharpSafetyApplicationFactIndex,
 } from "../safety/application-index.js";
@@ -136,9 +136,7 @@ export function analyzeCsharpTargetProgram(
   const nativeControlIssues = analyzeCsharpNativeControlFlow(source);
   if (nativeControlIssues.length !== 0) return rejectedTargetStage(nativeControlIssues);
   const memoryBindings = createTsonicMemoryBindingIndex(source);
-  const sourceAttributeApplications = createTsonicAttributeApplicationFactIndex({
-    ast: source.ast, sourceFiles: source.navigation.sourceFiles, sourceFacts: source.sourceFacts,
-  });
+  const sourceAttributeApplications = createCsharpSourceAttributeApplicationIndex(source, source.navigation.sourceFiles);
   const safetyApplications = createCsharpSafetyApplicationFactIndex({
     ast: source.ast,
     sourceFiles: source.navigation.sourceFiles,

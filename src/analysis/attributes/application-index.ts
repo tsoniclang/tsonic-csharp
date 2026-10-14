@@ -1,11 +1,18 @@
-import type { Node } from "@tsonic/tsts";
+import type { Node, SourceFile } from "@tsonic/tsts";
 import { isAstNode, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { TsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";
+import { createTsonicAttributeApplicationFactIndex, type TsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";
 import { admitCsharpAttributeArguments, diagnoseCsharpAttributeTypeValues, type CsharpAttributeArgumentEvidence } from "./type-validation.js";
 import type { CsharpAttributeApplication, CsharpAttributeApplicationIndex } from "../../target-model/records/attributes.js";
 
 const emptyApplications: readonly CsharpAttributeApplication[] = Object.freeze([]);
+
+export function createCsharpSourceAttributeApplicationIndex(
+  source: Pick<TargetSourceProgram, "ast" | "sourceFacts">,
+  sourceFiles: readonly SourceFile[],
+): TsonicAttributeApplicationFactIndex {
+  return createTsonicAttributeApplicationFactIndex({ ast: source.ast, sourceFiles, sourceFacts: source.sourceFacts });
+}
 
 export function analyzeCsharpAttributeApplications(
   source: TargetSourceProgram,
