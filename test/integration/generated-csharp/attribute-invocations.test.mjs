@@ -75,7 +75,68 @@ Require(new Tsonic.Generated.Subject("ok").read("ok") == "ok");
   assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
 });
 
-test("native C# still rejects nonattributes, nonconstants, duplicate and illegal placements", { timeout: 300_000 }, () => {
+test("native C# attribute constants preserve wrappers, source enums and exact numeric carriers", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    import { attribute } from "@tsonic/core/lang.js";
+    import type { int32, int64, uint64 } from "@tsonic/core/types.js";
+    import { Attribute, Int32, Int64, UInt64 } from "@tsonic/dotnet/System.js";
+    import { DescriptionAttribute } from "@tsonic/dotnet/System.ComponentModel.js";
+    enum Level { Low = 0, High = 1 }
+    export class LevelAttribute extends Attribute { constructor(value: Level) { super(); } }
+    export class NumericAttribute extends Attribute { constructor(value: int32) { super(); } }
+    export class NumberAttribute extends Attribute { constructor(value: number) { super(); } }
+    export class SignedAttribute extends Attribute { constructor(value: int64) { super(); } }
+    export class UnsignedAttribute extends Attribute { constructor(value: uint64) { super(); } }
+    export class NullableAttribute extends Attribute { constructor(value: string | null | undefined) { super(); } }
+    export class SatisfiesSubject {}
+    export class NonNullSubject {}
+    export class AssertionSubject {}
+    export class ConstSubject {}
+    export class EnumSubject {}
+    export class NumericSubject {}
+    export class PromotionSubject {}
+    export class SignedSubject {}
+    export class UnsignedSubject {}
+    export class NullSubject {}
+    export class UndefinedSubject {}
+    attribute<SatisfiesSubject>().add(() => new DescriptionAttribute("old" satisfies string));
+    attribute<NonNullSubject>().add(() => new DescriptionAttribute("old"!));
+    attribute<AssertionSubject>().add(() => new DescriptionAttribute(<string>"old"));
+    attribute<ConstSubject>().add(() => new DescriptionAttribute("old" as const));
+    attribute<EnumSubject>().add(() => new LevelAttribute(Level.High));
+    attribute<NumericSubject>().add(() => new NumericAttribute(1.9 as int32));
+    attribute<PromotionSubject>().add(() => new NumberAttribute(true ? Int32.MaxValue : 1.9));
+    attribute<SignedSubject>().add(() => new SignedAttribute(Int64.MaxValue));
+    attribute<UnsignedSubject>().add(() => new UnsignedAttribute(UInt64.MaxValue));
+    attribute<NullSubject>().add(() => new NullableAttribute(null));
+    attribute<UndefinedSubject>().add(() => new NullableAttribute(undefined));
+  ` });
+  const native = nativeAttributeProject(compiled, "attribute-constant-metadata-", `
+using System;
+using System.ComponentModel;
+using Tsonic.Generated;
+static void Require(bool value) { if (!value) throw new Exception("constant attribute metadata"); }
+static object? Argument(Type subject, Type attribute) {
+    foreach (var data in subject.GetCustomAttributesData()) {
+        if (data.AttributeType == attribute) return data.ConstructorArguments[0].Value;
+    }
+    throw new Exception("missing constant attribute metadata");
+}
+foreach (var subject in new[] { typeof(SatisfiesSubject), typeof(NonNullSubject), typeof(AssertionSubject), typeof(ConstSubject) }) {
+    Require((string)Argument(subject, typeof(DescriptionAttribute))! == "old");
+}
+Require((int)Argument(typeof(EnumSubject), typeof(LevelAttribute))! == 1);
+Require((int)Argument(typeof(NumericSubject), typeof(NumericAttribute))! == 1);
+Require((double)Argument(typeof(PromotionSubject), typeof(NumberAttribute))! == int.MaxValue);
+Require((long)Argument(typeof(SignedSubject), typeof(SignedAttribute))! == long.MaxValue);
+Require((ulong)Argument(typeof(UnsignedSubject), typeof(UnsignedAttribute))! == ulong.MaxValue);
+Require(Argument(typeof(NullSubject), typeof(NullableAttribute)) == null);
+Require(Argument(typeof(UndefinedSubject), typeof(NullableAttribute)) == null);
+`);
+  assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
+});
+
+test("native C# still rejects nonattributes, duplicate and illegal placements", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ sourceText: `
     import { attribute } from "@tsonic/core/lang.js";
     import { Exception, SerializableAttribute, ObsoleteAttribute } from "@tsonic/dotnet/System.js";

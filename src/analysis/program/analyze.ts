@@ -279,7 +279,10 @@ export function analyzeCsharpTargetProgram(
     request.binaryExecutionDriver,
     operationBinaryExecutionDriver,
   );
-  const attributes = analyzeCsharpAttributeApplications(source, source.navigation.sourceFiles, analysis.policy, analysis.operations);
+  const attributes = analyzeCsharpAttributeApplications(source, source.navigation.sourceFiles, {
+    operations: analysis.operations, conversions: analysis.conversions,
+    valueReads: analysis.valueReads, sourceEvidence: analysis.sourceEvidence,
+  });
   if (attributes.diagnostics.length > 0) return rejectedTargetStage(attributes.diagnostics);
   const attributeApplications = attributes.index;
   const safetyApplications = createCsharpSafetyApplicationFactIndex({

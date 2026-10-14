@@ -7,8 +7,8 @@ import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotne
 
 function reflectedType(provider, moduleSpecifier, metadataName) {
   const module = getCompleteDotnetModule(provider, moduleSpecifier, {});
-  assert.equal("exports" in module, true, JSON.stringify(module));
-  assert.equal(validateDotnetModuleModelContract(module), undefined);
+  assert.equal("exports" in module, true, metadataName);
+  assert.equal(validateDotnetModuleModelContract(module) === undefined, true, `${metadataName} raw contract`);
   const declaration = [...module.exports, ...(module.targetOnlyTypes ?? [])]
     .find(candidate => candidate.kind === "type" && candidate.metadataName === metadataName);
   assert.ok(declaration, metadataName);
