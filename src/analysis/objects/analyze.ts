@@ -59,14 +59,14 @@ export function analyzeCsharpObjectShapes(
         ? (selected.sourceType.typeArguments ?? []).flatMap(argument => argument.kind === "type-parameter" ? [argument.identity] : []) : []);
       const bindings = inferCsharpTargetTypeParameterBindings(selected.sourceType, type, parameters);
       if (bindings === undefined) throw new Error("A structural implementation lost its exact source generic instantiation.");
-      return { ...selected, sourceType: type, interfaceType: substituteTargetTypeParameters(selected.interfaceType, bindings),
-        properties: selected.properties.map(property => ({ ...property, member: { ...property.member,
+      return Object.freeze({ ...selected, sourceType: type, interfaceType: substituteTargetTypeParameters(selected.interfaceType, bindings),
+        properties: Object.freeze(selected.properties.map(property => Object.freeze({ ...property, member: Object.freeze({ ...property.member,
           type: substituteTargetTypeParameters(property.member.type, bindings),
-        } })),
-        methods: selected.methods.map(method => ({ ...method, member: { ...method.member,
+        }) }))),
+        methods: Object.freeze(selected.methods.map(method => Object.freeze({ ...method, member: Object.freeze({ ...method.member,
           type: substituteTargetTypeParameters(method.member.type, bindings),
-        } })),
-      };
+        }) }))),
+      });
     });
   };
   const withInterfaces = (shape: CsharpObjectShapeFact | undefined): CsharpObjectShapeFact | undefined => {
@@ -366,7 +366,7 @@ export function analyzeCsharpObjectShapes(
         const key = targetTypeRefKey(type);
         if (type.kind !== "target-named" || (structuralInterfaces.get(type.id)?.size ?? 0) === 0 || sealedStructuralImplementations.has(key)) continue;
         reserveClassification();
-        sealedStructuralImplementations.set(key, Object.freeze(structuralImplementations(type).map(implementation => Object.freeze(implementation))));
+        sealedStructuralImplementations.set(key, Object.freeze(structuralImplementations(type)));
       }
       knownShapes = Object.freeze([...byTarget.values()].map(completeShape));
       admittedShapes.clear();
