@@ -406,8 +406,6 @@ function visit(
       expression?.QuestionDotToken !== undefined,
     ));
     const typeTest = selectCsharpArrayTypeTest(policy, source, sourceFile);
-    const sourceFlow = selectCsharpSourceFlowCall(policy, node);
-    if (sourceFlow.kind === "rejected") issues.push(Object.freeze({ node, code: sourceFlow.code, message: sourceFlow.reason }));
     const selectedTarget = jsValue.kind === "not-js-value" && typeTest === undefined
       ? selectCsharpTargetCall(policy, node, sourceFile)
       : undefined;
@@ -444,7 +442,7 @@ function visit(
         sourceResult: policy.types.resolveSourceCallResult(source, sourceFile,
           target?.kind === "resolved" ? target.call.targetMember.returnType : undefined),
       }),
-      ...(sourceFlow.kind === "keep-alive" ? { sourceFlow } : {}),
+      sourceFlow: selectCsharpSourceFlowCall(policy, node),
       jsValue,
       ...(target === undefined ? {} : { target }),
       ...(selectedResultType === undefined ? {} : { selectedResultType }),

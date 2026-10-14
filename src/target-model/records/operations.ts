@@ -58,7 +58,7 @@ export interface CsharpCallClassification
   };
   readonly unionCall: import("./union-calls.js").CsharpUnionCallClassification;
   readonly source?: ResolvedSourceCallInfo;
-  readonly sourceFlow?: Extract<CsharpSourceFlowCallSelection, { readonly kind: "keep-alive" }>;
+  readonly sourceFlow: CsharpSourceFlowCallSelection;
   readonly jsValue: CsharpJsValueOperationSelection;
   readonly target?: CsharpTargetCallSelection;
   readonly selectedResultType?: TargetTypeRef;
