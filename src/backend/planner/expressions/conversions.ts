@@ -2,7 +2,7 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { failTargetPlannerInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpConversionMode,
   CsharpConversionSelection,
@@ -245,9 +245,8 @@ export function applyCsharpConversionSelection(
       if (sourceElement === undefined || targetElement === undefined ||
         !targetTypeRefEquals(sourceElement, selection.sourceElement) ||
         !targetTypeRefEquals(targetElement, selection.targetElement)) {
-        diagnostics.push(unsupportedNodeDiagnostic(node,
-          "Nullable conversion requires its exact sealed source and destination element carriers."));
-        return undefined;
+        return failTargetPlannerInvariant("tsonic-csharp",
+          "Nullable conversion requires its exact sealed source and destination element carriers.", node);
       }
       const presentType = renderRequiredTargetType(input.scope.typeParameterNames, node, sourceElement, diagnostics);
       const resultType = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
@@ -535,11 +534,11 @@ function applyRuntimeUnionArmConversion(
   const declaringType = unionType === undefined
     ? undefined
     : csharpTypeFromTargetTypeRef(optional?.operations ?? unionType, input.scope.typeParameterNames);
-  if (
-    selectedArm === undefined ||
-    !targetTypeRefEquals(selectedArm, selection.armType) ||
-    declaringType === undefined
-  ) {
+  if (selectedArm === undefined || !targetTypeRefEquals(selectedArm, selection.armType)) {
+    return failTargetPlannerInvariant("tsonic-csharp",
+      "C# runtime-union construction requires one exact source arm and a renderable closed union carrier.", node);
+  }
+  if (declaringType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
       "C# runtime-union construction requires one exact source arm and a renderable closed union carrier.",
