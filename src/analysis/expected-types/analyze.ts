@@ -55,6 +55,9 @@ import {
 } from "../../target-model/identities/identities.js";
 import { getCsharpMethodValue, rebindCsharpMethodValueTypeParameters } from "../../target-model/types/method-values.js";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
+import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
+import type { CsharpReturnContext } from "../../target-model/records/return-contexts.js";
+import { selectCsharpAccessorReturnContext, selectCsharpCallableReturnContext } from "../callables/return-contexts.js";
 
 const expectedBinaryKey = createTargetClassificationKey<
   ReturnType<typeof selectCsharpBinaryOperation>
@@ -72,6 +75,7 @@ export function analyzeCsharpExpectedTypes(
   objectShapes: CsharpObjectShapeClassifications,
   callables: CsharpCallableContractIndex,
   valueReadStages: CsharpValueReadStageIndex,
+  declarations: Pick<CsharpDeclarationClassifications, "returnContract">,
 ): CsharpExpectedTypeClassifications {
   type ExpectedTypeStrength = "contextual" | "required";
   interface ExpectedTypeUse {
@@ -92,14 +96,14 @@ export function analyzeCsharpExpectedTypes(
   const issues: CsharpExpectedTypeIssue[] = [];
   const binaryUses = createTargetUseClassificationBuilder();
   let expectedTargetUseCount = 0;
-  const callableReturnTargets = new WeakMap<Node, TargetTypeRef>();
+  const returnContexts = new WeakMap<Node, CsharpReturnContext>();
   const contextualCallables = new Set<Node>();
   const arrayCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
 
   for (const callable of callables.declarationContracts) {
-    const targetType = returnExpressionTarget(callable);
-    if (targetType !== undefined) {
-      callableReturnTargets.set(callable.sourceDeclaration, targetType);
+    const context = selectCsharpCallableReturnContext(policy, evidence, callable);
+    if (context !== undefined) {
+      returnContexts.set(callable.sourceDeclaration, context);
     }
   }
 
@@ -206,6 +210,7 @@ export function analyzeCsharpExpectedTypes(
       return expectedViews.get(expression)?.all ?? noExpectedTypes;
     } }),
     requiredExpectedType: Object.freeze({ get(expression) { return expectedViews.get(expression)?.required ?? noExpectedTypes; } }),
+    returnContext: Object.freeze({ get(callable) { return returnContexts.get(callable); } }),
     exactIntegerConversion: Object.freeze({ get(expression, targetType) {
       return byExpression.get(expression)?.get(targetTypeRefKey(targetType))?.exactInteger === true;
     } }),
@@ -223,33 +228,6 @@ export function analyzeCsharpExpectedTypes(
     } }),
   };
   return Object.freeze(classifications);
-
-  function returnExpressionTarget(
-    callable: CsharpCallableContractIndex["contracts"][number],
-    callableTarget?: TargetTypeRef,
-  ): TargetTypeRef | undefined {
-    const selectedReturnType = getCsharpLambdaSignature(callableTarget)
-      ?.returnType;
-    if (selectedReturnType !== undefined) {
-      return HasSyntacticModifier(
-          policy.ast,
-          callable.sourceDeclaration,
-          ModifierFlagsAsync,
-        )
-        ? getCsharpTaskResultTargetType(selectedReturnType)
-        : selectedReturnType;
-    }
-    if (evidence.generator.get(callable.sourceDeclaration) !== undefined) {
-      return getCsharpGeneratorProtocol(callable.returnType)?.returnType;
-    }
-    return HasSyntacticModifier(
-        policy.ast,
-        callable.sourceDeclaration,
-        ModifierFlagsAsync,
-      )
-      ? getCsharpTaskResultTargetType(callable.returnType)
-      : callable.returnType;
-  }
 
   function refreshCallableTargets(): boolean {
     let changed = false;
@@ -291,20 +269,20 @@ export function analyzeCsharpExpectedTypes(
     for (const callable of callables.declarationContracts) {
       const declaration = callable.sourceDeclaration;
       const targetType = callableTargets.get(declaration);
-      const returnTarget = returnExpressionTarget(callable, targetType);
-      const previousReturnTarget = callableReturnTargets.get(declaration);
+      const returnContext = selectCsharpCallableReturnContext(policy, evidence, callable, targetType);
+      const previousReturnContext = returnContexts.get(declaration);
       if (
-        previousReturnTarget === undefined
-          ? returnTarget !== undefined
-          : returnTarget === undefined ||
-            !targetTypeRefEquals(previousReturnTarget, returnTarget)
+        previousReturnContext === undefined
+          ? returnContext !== undefined
+          : returnContext === undefined ||
+            !targetTypeRefEquals(previousReturnContext.target, returnContext.target)
       ) {
         changed = true;
-        if (returnTarget === undefined) {
-          callableReturnTargets.delete(declaration);
+        if (returnContext === undefined) {
+          returnContexts.delete(declaration);
         } else {
-          callableReturnTargets.set(declaration, returnTarget);
-          targetTypes.set(targetTypeRefKey(returnTarget), returnTarget);
+          returnContexts.set(declaration, returnContext);
+          targetTypes.set(targetTypeRefKey(returnContext.target), returnContext.target);
         }
       }
     }
@@ -342,6 +320,7 @@ export function analyzeCsharpExpectedTypes(
   function visit(node: Node, sourceFile: SourceFile): void {
     if (evidence.compileTimeMetadata.get(node)) return;
     if (operations.nativeUnreachable.get(node)) return;
+    recordAccessorReturnContext(node);
     recordInitializer(node);
     recordReturnExpression(node);
     recordExpressionBodyReturn(node);
@@ -527,6 +506,14 @@ export function analyzeCsharpExpectedTypes(
     });
   }
 
+  function recordAccessorReturnContext(node: Node): void {
+    if (returnContexts.has(node)) return;
+    const context = selectCsharpAccessorReturnContext(policy, node, declarations.returnContract.get(node));
+    if (context === undefined) return;
+    returnContexts.set(node, context);
+    targetTypes.set(targetTypeRefKey(context.target), context.target);
+  }
+
   function recordReturnExpression(node: Node): void {
     if (!policy.ast.is.IsReturnStatement(node)) {
       return;
@@ -540,7 +527,7 @@ export function analyzeCsharpExpectedTypes(
       owner !== undefined;
       owner = policy.ast.parent(owner)
     ) {
-      const targetType = callableReturnTargets.get(owner);
+      const targetType = returnContexts.get(owner)?.target;
       if (targetType !== undefined) {
         record(expression, targetType, "required");
         return;
@@ -556,7 +543,7 @@ export function analyzeCsharpExpectedTypes(
       return;
     }
     const body = policy.ast.as.AsArrowFunction(node)?.Body;
-    const targetType = callableReturnTargets.get(node);
+    const targetType = returnContexts.get(node)?.target;
     if (
       body !== undefined &&
       targetType !== undefined &&
