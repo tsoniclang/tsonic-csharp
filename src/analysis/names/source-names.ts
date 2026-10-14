@@ -14,10 +14,10 @@ import {
 import type {
   CsharpSourceIdentityPolicy,
 } from "../../policy/identities/source-nodes.js";
-
-export type CsharpSourceNameResolution =
-  | { readonly kind: "resolved"; readonly name: string }
-  | { readonly kind: "rejected"; readonly reason: string };
+import type {
+  CsharpNamePlan,
+  CsharpSourceNameResolution,
+} from "../../target-model/names/model.js";
 
 export interface CsharpSourceNameResolver {
   temporaryName(preferred: string): string;
@@ -27,6 +27,10 @@ export interface CsharpSourceNameResolver {
   ): CsharpSourceNameResolution;
 }
 
+export interface CsharpSourceNameBuilder extends CsharpSourceNameResolver {
+  seal(): CsharpNamePlan;
+}
+
 export interface CsharpSourceNameResolverHost {
   readonly ast: AstReader;
   readonly navigation: SourceProgramNavigation;
@@ -34,9 +38,9 @@ export interface CsharpSourceNameResolverHost {
   readonly sourceIdentities: CsharpSourceIdentityPolicy;
 }
 
-export function createCsharpSourceNameResolver(
+export function createCsharpSourceNameBuilder(
   host: CsharpSourceNameResolverHost,
-): CsharpSourceNameResolver {
+): CsharpSourceNameBuilder {
   const privateNames = new WeakMap<Node, string>();
   const privateDeclarations = new WeakMap<Node, Node>();
   const privateNameNodes = new WeakSet<Node>();
@@ -94,13 +98,19 @@ export function createCsharpSourceNameResolver(
     );
   }
 
+  let sealed: CsharpNamePlan | undefined;
   return Object.freeze({
     resolve,
     temporaryName(preferred: string): string {
+      if (sealed !== undefined) throw new Error("C# source name analysis is sealed.");
       let name = preferred;
       while (sourceNames.has(name)) name = `_${name}`;
       sourceNames.add(name);
       return name;
+    },
+    seal(): CsharpNamePlan {
+      sealed ??= Object.freeze({ reservedNames: Object.freeze([...sourceNames]), resolve });
+      return sealed;
     },
   });
 

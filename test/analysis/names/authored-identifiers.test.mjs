@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { createCsharpSourceNameResolver } from "../../../dist/analysis/names/source-names.js";
+import { createCsharpSourceNameBuilder } from "../../../dist/analysis/names/source-names.js";
 
 test("C# source name resolution retains authored case across declarations and references", () => {
   const checked = createCompilerSessionFromFiles({
@@ -28,7 +28,7 @@ test("C# source name resolution retains authored case across declarations and re
   const source = createTargetSourceProgram(checked);
   const file = checked.getSourceFile("/project/index.ts");
   assert.ok(file);
-  const names = createCsharpSourceNameResolver({
+  const names = createCsharpSourceNameBuilder({
     ast: source.ast,
     navigation: source.navigation,
     sourceFiles: [file],

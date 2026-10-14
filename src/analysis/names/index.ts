@@ -1,8 +1,8 @@
 export {
-  createCsharpSourceNameResolver,
+  createCsharpSourceNameBuilder,
 } from "./source-names.js";
 export type {
-  CsharpSourceNameResolution,
+  CsharpSourceNameBuilder,
   CsharpSourceNameResolver,
   CsharpSourceNameResolverHost,
 } from "./source-names.js";

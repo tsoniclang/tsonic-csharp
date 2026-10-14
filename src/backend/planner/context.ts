@@ -14,9 +14,9 @@ import type {
 import {
   createCsharpArtifactGraph,
 } from "./artifacts/index.js";
-import type {
-  CsharpSourceNameResolver,
-} from "../../analysis/names/index.js";
+import type { CsharpNamePlan } from "../../target-model/names/model.js";
+import { createCsharpSyntheticNames } from "./names/synthetic.js";
+import type { CsharpSyntheticNames } from "./names/synthetic.js";
 import {
   createCsharpSourceOutputIdentityPlanner,
 } from "./names/source-output-identities.js";
@@ -79,6 +79,8 @@ export function createCsharpMemberPlanningContext(
   });
 }
 
+export type CsharpPlanningNames = Pick<CsharpNamePlan, "resolve"> & CsharpSyntheticNames;
+
 export interface CsharpPlanningContext {
   readonly storageExpression?: Node;
   readonly program: CsharpTargetProgram;
@@ -86,7 +88,7 @@ export interface CsharpPlanningContext {
   readonly types: CsharpPlanningTypeView;
   readonly artifacts: CsharpArtifactGraph;
   readonly outputIdentities: CsharpSourceOutputIdentityPlanner;
-  readonly names: CsharpSourceNameResolver;
+  readonly names: CsharpPlanningNames;
   readonly scope: CsharpPlanningScope;
 }
 
@@ -114,7 +116,10 @@ export function createCsharpPlanningContext(
       factory.instanceScope, factory.factoryName, ...(factory.identity === undefined ? [] : [factory.identity.name]),
     ])],
   });
-  const names = program.names;
+  const names: CsharpPlanningNames = Object.freeze({
+    resolve: program.names.resolve,
+    temporaryName: createCsharpSyntheticNames(program.names.reservedNames).temporaryName,
+  });
   return Object.freeze({
     program,
     host: program.host,
