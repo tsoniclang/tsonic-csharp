@@ -13,7 +13,6 @@ import type {
   CsharpTargetAnalysisRequest,
   CsharpTargetProgram,
 } from "../analysis/program/index.js";
-import type { CsharpOutputPlan } from "./artifact-model/output.js";
 import { planCsharpOutput } from "./planner/program/planning.js";
 import { createCsharpPlanningContext } from "./planner/context.js";
 import { materializeCsharpOutputPlan } from "./emission/materialize.js";
@@ -21,7 +20,10 @@ import { selectedPolicyDiagnostic } from "./planner/diagnostics.js";
 
 export function compileCsharpTarget(
   request: CsharpTargetAnalysisRequest,
-  observer?: TargetCompilationObserver<CsharpTargetProgram, CsharpOutputPlan>,
+  observer?: TargetCompilationObserver<
+    CsharpTargetProgram,
+    Extract<ReturnType<typeof planCsharpOutput>, { readonly kind: "resolved" }>["value"]
+  >,
 ): TargetCompileResult {
   const before = request.providers.validateReferences();
   if (before.length !== 0) {
