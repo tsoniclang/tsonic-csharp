@@ -38,18 +38,18 @@ export function planPrefixUnaryExpression(
   const sourceOperator = sourceOperatorFromKindName(
     input.program.source.ast.operatorKindName(node),
   );
-  if (
+  const form = input.program.records.operatorForm.get(node);
+  if (form === "js-value-object-shape-update") {
     rejectUnloweredJsValueObjectShapeUpdate(
       node,
       operandNode,
       sourceOperator,
       input,
       diagnostics,
-    )
-  ) {
+    );
     return undefined;
   }
-  if (sourceOperator !== undefined) {
+  if (form === "js-value-operation" && sourceOperator !== undefined) {
     const classification = input.program.records.unaryOperation.get(node);
     if (classification === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
@@ -136,18 +136,18 @@ export function planPostfixUnaryExpression(
   const sourceOperator = sourceOperatorFromKindName(
     input.program.source.ast.operatorKindName(node),
   );
-  if (
+  const form = input.program.records.operatorForm.get(node);
+  if (form === "js-value-object-shape-update") {
     rejectUnloweredJsValueObjectShapeUpdate(
       node,
       operandNode,
       sourceOperator,
       input,
       diagnostics,
-    )
-  ) {
+    );
     return undefined;
   }
-  if (sourceOperator !== undefined) {
+  if (form === "js-value-operation" && sourceOperator !== undefined) {
     const classification = input.program.records.unaryOperation.get(node);
     if (classification === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
@@ -221,38 +221,15 @@ function rejectUnloweredJsValueObjectShapeUpdate(
   sourceOperator: string | undefined,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-): boolean {
-  if (
-    (sourceOperator !== "++" && sourceOperator !== "--") ||
-    operand === undefined ||
-    !input.program.source.ast.is.IsPropertyAccessExpression(operand)
-  ) {
-    return false;
-  }
-  const classification = input.program.records.selectedProperty.get(operand);
-  if (classification === undefined) {
-    return false;
-  }
-  const selection = classification.selection;
-  if (selection.kind !== "source-owned") {
-    return false;
-  }
-  const jsValueProperty = classification.sourceOwned?.jsValueProperty;
-  if (jsValueProperty === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "A source-owned property update has no sealed C# property classification.",
-    ));
-    return true;
-  }
-  if (jsValueProperty.kind === "not-js-value-object-shape") {
-    return false;
-  }
+): void {
+  const jsValueProperty = operand === undefined ? undefined
+    : input.program.records.selectedProperty.get(operand)?.sourceOwned?.jsValueProperty;
   diagnostics.push(unsupportedNodeDiagnostic(
     node,
-    jsValueProperty.kind === "rejected"
+    jsValueProperty === undefined
+      ? "A source-owned property update has no sealed C# property classification."
+      : jsValueProperty.kind === "rejected"
       ? jsValueProperty.reason
       : `Closed JS-value object-shape update '${sourceOperator}' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden.`,
   ));
-  return true;
 }

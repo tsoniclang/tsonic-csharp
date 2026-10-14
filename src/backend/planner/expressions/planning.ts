@@ -434,8 +434,7 @@ function planExpressionCore(
         planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state, expectedArgumentPassingMode, selectedTargetParameter));
     case KindPrefixUnaryExpression:
     case KindPostfixUnaryExpression: {
-      const mutation = input.program.records.jsArrayMutation.get(node);
-      if (mutation?.kind !== "not-js-array-mutation") {
+      if (input.program.records.operatorForm.get(node) === "js-array-mutation") {
         return tryPlanJsArrayMutationExpression(node, sourceFile, input, diagnostics, scopedPlanExpression,
           (argument, file, context, errors, type, subject, target, passing, parameter) =>
             planCallArgument(argument, file, context, errors, type, subject, target, state, passing, parameter),
@@ -448,7 +447,7 @@ function planExpressionCore(
       return planPrefixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     }
     case KindBinaryExpression: {
-      const destructuringAssignment = tryPlanDestructuringAssignmentExpression(
+      if (input.program.records.operatorForm.get(node) === "destructuring-assignment") return tryPlanDestructuringAssignmentExpression(
         node,
         sourceFile,
         input,
@@ -459,12 +458,6 @@ function planExpressionCore(
         (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, nestedState) =>
           planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, nestedState ?? state),
       );
-      if (destructuringAssignment !== undefined) {
-        return destructuringAssignment;
-      }
-      if (diagnostics.length > sourceSyntaxDiagnosticsStart) {
-        return undefined;
-      }
       const binary = tryPlanBinaryExpression(node, sourceFile, input, diagnostics, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
         planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state), scopedPlanCallArgument, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, expectedTargetType) =>
         planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, state, expectedTargetType), state);

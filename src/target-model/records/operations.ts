@@ -146,6 +146,16 @@ export interface CsharpOperationIssue {
   readonly evidence?: import("@tsonic/target-api/artifacts").TargetDiagnostic["evidence"];
 }
 
+export type CsharpOperatorForm =
+  | "destructuring-assignment"
+  | "js-array-mutation"
+  | "type-test"
+  | "js-value-operation"
+  | "typeof-comparison"
+  | "js-value-write"
+  | "js-value-object-shape-update"
+  | "selected";
+
 export type CsharpNativeHandler =
   | "memory-binding"
   | "explicit-safety"
@@ -162,6 +172,7 @@ export interface CsharpTargetOperationClassifications {
   readonly nativeUnreachable: { readonly get: (node: Node) => boolean };
   readonly erasedStatement: { readonly get: (statement: Node) => boolean };
   readonly nativeHandler: { readonly get: (expression: Node) => CsharpNativeHandler | undefined };
+  readonly operatorForm: { readonly get: (expression: Node) => CsharpOperatorForm | undefined };
   readonly memoryBinding: { readonly get: (node: Node) => CsharpMemoryBindingSelection | undefined };
   binaryExecutionDriver(): CsharpTargetBinaryExecutionDriver | undefined;
   readonly operationResultType: { readonly get: (node: Node) => TargetTypeRef | undefined };

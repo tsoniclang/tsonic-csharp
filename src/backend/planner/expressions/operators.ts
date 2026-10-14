@@ -14,9 +14,6 @@ import type { CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue } from "./planned-value-composition.js";
 import { planCsharpJsValueLogical } from "./js-value-logical.js";
 import {
-  csharpAssignmentOperatorTokenFromText,
-} from "./csharp-operator-tokens.js";
-import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import type {
@@ -65,37 +62,35 @@ export function tryPlanBinaryExpression(
   if (!HasSourceKind(input.program.source.ast, node, KindBinaryExpression)) {
     return undefined;
   }
-  const mutationDiagnosticsStart = diagnostics.length;
-  const mutation = tryPlanJsArrayMutationExpression(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    planExpression,
-    planCallArgument,
-    planExpressionWithExpectedType,
-    state,
-  );
-  if (mutation !== undefined || diagnostics.length > mutationDiagnosticsStart) {
-    return mutation;
+  const form = input.program.records.operatorForm.get(node);
+  if (form === "js-array-mutation") {
+    return tryPlanJsArrayMutationExpression(
+      node,
+      sourceFile,
+      input,
+      diagnostics,
+      planExpression,
+      planCallArgument,
+      planExpressionWithExpectedType,
+      state,
+    );
   }
   const expression = input.program.source.ast.as.AsBinaryExpression(node);
   const sourceOperator = sourceOperatorFromKindName(
     input.program.source.ast.operatorKindName(node),
   );
-  const typeTestStart = diagnostics.length;
-  const typeTest = tryPlanTypeTestExpression(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    planExpression,
-    state,
-  );
-  if (typeTest !== undefined || diagnostics.length > typeTestStart) {
-    return typeTest;
+  if (form === "type-test") {
+    return tryPlanTypeTestExpression(
+      node,
+      sourceFile,
+      input,
+      diagnostics,
+      planExpression,
+      state,
+    );
   }
   if (
+    form === "js-value-operation" &&
     sourceOperator !== undefined &&
     sourceOperator !== "=" &&
     expression?.Left !== undefined &&
@@ -143,25 +138,23 @@ export function tryPlanBinaryExpression(
       ), jsValueOperation.resultType);
     }
   }
-  const typeofStart = diagnostics.length;
-  const typeofComparison = tryPlanTypeofComparisonExpression(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    planExpression,
-    state,
-  );
-  if (typeofComparison !== undefined || diagnostics.length > typeofStart) {
-    return typeofComparison;
+  if (form === "typeof-comparison") {
+    return tryPlanTypeofComparisonExpression(
+      node,
+      sourceFile,
+      input,
+      diagnostics,
+      planExpression,
+      state,
+    );
   }
   if (
+    form === "js-value-write" &&
     sourceOperator !== undefined &&
-    csharpAssignmentOperatorTokenFromText(sourceOperator) !== undefined &&
     expression?.Left !== undefined &&
     expression.Right !== undefined
   ) {
-    const jsValueAssignment = tryPlanJsValueAssignment(
+    return planJsValueAssignment(
       node,
       expression.Left,
       expression.Right,
@@ -172,9 +165,6 @@ export function tryPlanBinaryExpression(
       planExpression,
       planExpressionWithExpectedType,
     );
-    if (jsValueAssignment.handled) {
-      return jsValueAssignment.expression;
-    }
   }
   const classification = input.program.records.binaryOperation.get(node);
   if (classification === undefined) {
@@ -201,7 +191,7 @@ export function tryPlanBinaryExpression(
   );
 }
 
-function tryPlanJsValueAssignment(
+function planJsValueAssignment(
   node: Node,
   left: Node,
   right: Node,
@@ -211,16 +201,13 @@ function tryPlanJsValueAssignment(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
-): {
-  readonly handled: boolean;
-  readonly expression?: CsharpPlannedValue;
-} {
+): CsharpPlannedValue | undefined {
   if (input.program.source.ast.is.IsPropertyAccessExpression(left)) {
     const property = input.program.source.ast.as.AsPropertyAccessExpression(left);
     const receiverNode = property?.Expression;
     const propertyClassification = input.program.records.selectedProperty.get(left);
     if (propertyClassification === undefined) {
-      return { handled: false };
+      return undefined;
     }
     const targetProperty = propertyClassification.selection;
     if (
@@ -234,11 +221,11 @@ function tryPlanJsValueAssignment(
           left,
           "A source-owned property assignment has no sealed C# property classification.",
         ));
-        return { handled: true };
+        return undefined;
       }
       if (jsValueProperty.kind === "rejected") {
         diagnostics.push(unsupportedNodeDiagnostic(left, jsValueProperty.reason));
-        return { handled: true };
+        return undefined;
       }
       if (jsValueProperty.kind === "resolved") {
         if (sourceOperator !== "=") {
@@ -246,7 +233,7 @@ function tryPlanJsValueAssignment(
             node,
             `Closed JS-value object-shape assignment '${sourceOperator}' requires an exact read-modify-write runtime operation.`,
           ));
-          return { handled: true };
+          return undefined;
         }
         const selection = propertyClassification.sourceOwned!
           .jsValuePropertyWrite;
@@ -257,7 +244,7 @@ function tryPlanJsValueAssignment(
               ? selection.reason
               : "The exact JS-value object-shape property has no closed write operation.",
           ));
-          return { handled: true };
+          return undefined;
         }
         const receiver = planExpression(
           receiverNode,
@@ -284,11 +271,9 @@ function tryPlanJsValueAssignment(
             node,
             "A C# JS-value object-shape property write requires an exact receiver and closed value conversion.",
           ));
-          return { handled: true };
+          return undefined;
         }
-        return {
-          handled: true,
-          expression: buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, value], values => translateCsharpJsValueInvocation(
+        return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, value], values => translateCsharpJsValueInvocation(
             input.scope.typeParameterNames,
             selection,
             values[0],
@@ -299,12 +284,11 @@ function tryPlanJsValueAssignment(
               },
               values[1]!,
             ],
-          ), selection.resultType),
-        };
+          ), selection.resultType);
       }
     }
     if (sourceOperator !== "=") {
-      return { handled: false };
+      return undefined;
     }
     const selection = input.program.records.binaryOperation.get(node)?.propertyWrite;
     if (selection === undefined) {
@@ -312,14 +296,14 @@ function tryPlanJsValueAssignment(
         node,
         "A property assignment has no sealed C# write classification.",
       ));
-      return { handled: true };
+      return undefined;
     }
     if (selection.kind === "not-js-value") {
-      return { handled: false };
+      return undefined;
     }
     if (selection.kind === "rejected") {
       diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
-      return { handled: true };
+      return undefined;
     }
     const nameNode = property?.name;
     const receiver = receiverNode === undefined
@@ -331,11 +315,9 @@ function tryPlanJsValueAssignment(
         node,
         "A JS-value property write requires an exact receiver, property name, and value.",
       ));
-      return { handled: true };
+      return undefined;
     }
-    return {
-      handled: true,
-      expression: buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, value], values => translateCsharpJsValueInvocation(
+    return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, value], values => translateCsharpJsValueInvocation(
         input.scope.typeParameterNames,
         selection,
         values[0],
@@ -343,8 +325,7 @@ function tryPlanJsValueAssignment(
           { kind: "LiteralExpression", value: input.program.source.ast.text(nameNode) },
           values[1]!,
         ],
-      ), selection.resultType),
-    };
+      ), selection.resultType);
   }
   if (input.program.source.ast.is.IsElementAccessExpression(left)) {
     const element = input.program.source.ast.as.AsElementAccessExpression(left);
@@ -356,14 +337,14 @@ function tryPlanJsValueAssignment(
         node,
         "An element assignment has no sealed C# write classification.",
       ));
-      return { handled: true };
+      return undefined;
     }
     if (selection.kind === "not-js-value") {
-      return { handled: false };
+      return undefined;
     }
     if (selection.kind === "rejected") {
       diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
-      return { handled: true };
+      return undefined;
     }
     const receiver = receiverNode === undefined
       ? undefined
@@ -381,17 +362,14 @@ function tryPlanJsValueAssignment(
         node,
         "A JS-value element write requires an exact receiver, key, and value.",
       ));
-      return { handled: true };
+      return undefined;
     }
-    return {
-      handled: true,
-      expression: buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, argument, value], values => translateCsharpJsValueInvocation(
+    return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, argument, value], values => translateCsharpJsValueInvocation(
         input.scope.typeParameterNames,
         selection,
         values[0],
         [values[1]!, values[2]!],
-      ), selection.resultType),
-    };
+      ), selection.resultType);
   }
-  return { handled: false };
+  return undefined;
 }
