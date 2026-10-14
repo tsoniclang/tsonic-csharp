@@ -225,7 +225,7 @@ test("JS structural views retain one closed value carrier through assertions, fl
             Tsonic.CSharp.Runtime.TsValue raw = Tsonic.CSharp.Js.JSON.parse(json);
             Tsonic.CSharp.Runtime.TsValue left = raw;
             Tsonic.CSharp.Runtime.TsValue right = raw;
-            return Tsonic.CSharp.Runtime.TsValue.ApplyDynamicBinaryBoolean(left, "===", right);
+            return Tsonic.CSharp.Runtime.TsValue.StrictEqual(left, right);
         }
         public static string create()
         {

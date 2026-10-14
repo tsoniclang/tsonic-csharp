@@ -75,7 +75,6 @@ export function planPrefixUnaryExpression(
             undefined,
             [
               value,
-              { kind: "LiteralExpression", value: sourceOperator },
             ],
           ));
     }
@@ -174,7 +173,6 @@ export function planPostfixUnaryExpression(
             undefined,
             [
               value,
-              { kind: "LiteralExpression", value: sourceOperator },
             ],
           ));
     }

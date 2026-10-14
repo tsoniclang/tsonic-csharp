@@ -1,7 +1,20 @@
 import type { TargetTypeRef } from "../types/model.js";
 
+export type CsharpJsValueRuntimeMember =
+  | "CreateDynamicObject"
+  | "ReadDynamicSlot" | "ReadDynamicSlotOptional" | "WriteDynamicSlot"
+  | "ReadDynamicElement" | "ReadDynamicElementOptional" | "WriteDynamicElement"
+  | "InvokeDynamic" | "InvokeDynamicOptional" | "InvokeDynamicSlot" | "InvokeDynamicElement"
+  | "InvokeDynamicWithThis" | "ConstructDynamic"
+  | "Add" | "Subtract" | "Multiply" | "Divide" | "Remainder"
+  | "Equal" | "NotEqual" | "StrictEqual" | "StrictNotEqual"
+  | "LessThan" | "LessThanOrEqual" | "GreaterThan" | "GreaterThanOrEqual"
+  | "And" | "Or" | "Coalesce"
+  | "Positive" | "Negate" | "BitwiseNot" | "LogicalNot"
+  | "ApplyDynamicVoid" | "ApplyDynamicTypeof" | "ToDynamicBoolean" | "isUndefined";
+
 export interface CsharpJsValueInvocation {
-  readonly runtimeMember: string;
+  readonly runtimeMember: CsharpJsValueRuntimeMember;
   readonly dispatch: "instance" | "static";
   readonly resultType: TargetTypeRef;
 }
@@ -11,7 +24,7 @@ export type CsharpJsValueOperationSelection =
   | { readonly kind: "rejected"; readonly reason: string }
   | {
       readonly kind: "resolved";
-      readonly runtimeMember: string;
+      readonly runtimeMember: CsharpJsValueRuntimeMember;
       readonly dispatch: "instance" | "static";
       readonly resultType: TargetTypeRef;
       readonly shortCircuit?: {

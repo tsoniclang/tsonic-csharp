@@ -138,7 +138,6 @@ export function tryPlanBinaryExpression(
         undefined,
         [
           values[0]!,
-          { kind: "LiteralExpression", value: sourceOperator },
           values[1]!,
         ],
       ), jsValueOperation.resultType);

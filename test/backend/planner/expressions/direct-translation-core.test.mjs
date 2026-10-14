@@ -685,9 +685,9 @@ test("direct C# dynamic translation closes every supported any operation", () =>
             Tsonic.CSharp.Runtime.TsValue __tsonic_value_175 = value;
             __tsonic_value_175.ReadDynamicElement(key).InvokeDynamicWithThis(__tsonic_value_175, 5);
             value.ConstructDynamic(6);
-            Tsonic.CSharp.Runtime.TsValue.ApplyDynamicBinary(value, "+", 1);
+            Tsonic.CSharp.Runtime.TsValue.Add(value, 1);
             _ = value is var __tsonic_logical_233 && Tsonic.CSharp.Runtime.TsValue.ToDynamicBoolean(__tsonic_logical_233) ? value : __tsonic_logical_233;
-            Tsonic.CSharp.Runtime.TsValue.ApplyDynamicUnaryBoolean(value, "!");
+            Tsonic.CSharp.Runtime.TsValue.LogicalNot(value);
             Tsonic.CSharp.Runtime.TsValue.ApplyDynamicTypeof(value);
             _ = value;
             if (Tsonic.CSharp.Runtime.TsValue.ToDynamicBoolean(value))
