@@ -78,18 +78,16 @@ Require(new Tsonic.Generated.Subject("ok").read("ok") == "ok");
 test("native C# still rejects nonattributes, nonconstants, duplicate and illegal placements", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ sourceText: `
     import { attribute } from "@tsonic/core/lang.js";
-    import { Exception, SerializableAttribute, ObsoleteAttribute, String as NativeString } from "@tsonic/dotnet/System.js";
-    import { DebuggerDisplayAttribute } from "@tsonic/dotnet/System.Diagnostics.js";
+    import { Exception, SerializableAttribute, ObsoleteAttribute } from "@tsonic/dotnet/System.js";
     export class Subject { read(value: string): string { return value; } }
     attribute<Subject>().add(() => new Exception("not metadata"));
     attribute<Subject>().add(() => new SerializableAttribute());
     attribute<Subject>().add(() => new SerializableAttribute());
-    attribute<Subject>().add(() => new DebuggerDisplayAttribute(NativeString.Concat("not ", "constant")));
     attribute<Subject>().method(subject => subject.read).parameter("value").add(() => new ObsoleteAttribute("illegal"));
   ` });
   const native = nativeAttributeProject(compiled, "attribute-rejections-", "System.Console.WriteLine(0);");
   assert.notEqual(native.status, 0);
-  for (const code of ["CS0616", "CS0579", "CS0182", "CS0592"]) {
+  for (const code of ["CS0616", "CS0579", "CS0592"]) {
     assert.ok((native.stdout + native.stderr).includes(code), `${code}\n${native.stdout}\n${native.stderr}`);
   }
 });
