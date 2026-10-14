@@ -118,6 +118,8 @@ interface CsharpRepresentationContract {
   readonly storage: CsharpStorageClassifications;
 }
 
+type CsharpAnalysisRejection = Extract<TargetStageResult<never>, { readonly kind: "rejected" }>;
+
 export function analyzeCsharpTargetProgram(
   request: CsharpTargetAnalysisRequest,
 ): TargetStageResult<CsharpTargetProgram> {
@@ -166,8 +168,7 @@ export function analyzeCsharpTargetProgram(
     semanticsFor: source.semantics.forNode,
     hasSemantics: source.semantics.includes,
   };
-  let analysisRejection: TargetStageResult<never> | undefined;
-  const closure = resolveTargetContractFixedPoint<CsharpRepresentationContract>({
+  const closure = resolveTargetContractFixedPoint<CsharpRepresentationContract, CsharpAnalysisRejection>({
     roots: [csharpTargetRepresentationContractId],
     evaluate(_id, context) {
       const previous = context.get(csharpTargetRepresentationContractId);
@@ -182,8 +183,7 @@ export function analyzeCsharpTargetProgram(
         previous,
       );
       if (evaluated.kind === "rejected") {
-        analysisRejection = evaluated;
-        return { kind: "rejected", reason: evaluated.diagnostics[0]!.message };
+        return { kind: "rejected", reason: evaluated.diagnostics[0]!.message, cause: evaluated };
       }
       const iteration = evaluated.value;
       return {
@@ -203,8 +203,8 @@ export function analyzeCsharpTargetProgram(
     maximumRevisionsPerContract: 32,
     maximumEvaluations: 64,
   });
-  if (analysisRejection !== undefined) return analysisRejection;
   if (closure.kind === "rejected") {
+    if (closure.cause !== undefined) return closure.cause;
     return rejectedTargetStage([{
       code: "CSHARP_TARGET_CONTRACT_CLOSURE_REJECTED",
       category: "error",
