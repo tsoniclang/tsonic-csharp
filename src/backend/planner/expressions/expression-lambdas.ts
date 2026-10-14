@@ -392,12 +392,11 @@ function getLambdaReturnContext(
       return undefined;
     }
     const returnExpressionTypeSubject = getAuthoredLambdaReturnTypeNode(node, input.program.source.ast);
+    const returnExpressionTargetType = input.program.records.returnContext.get(node)?.target;
     return {
       returnExpressionType,
       ...(returnExpressionTypeSubject === undefined ? {} : { returnExpressionTypeSubject }),
-      ...(targetContext.signature.returnTargetType === undefined
-        ? {}
-        : { returnExpressionTargetType: targetContext.signature.returnTargetType }),
+      ...(returnExpressionTargetType === undefined ? {} : { returnExpressionTargetType }),
     };
   }
   const returnTargetType = targetContext.signature.returnTargetType;
@@ -418,10 +417,11 @@ function getLambdaReturnContext(
     return undefined;
   }
   const returnExpressionTypeSubject = getAsyncLambdaReturnExpressionSubject(node, input);
+  const returnExpressionTargetType = input.program.records.returnContext.get(node)?.target;
   return {
     returnExpressionType,
     ...(returnExpressionTypeSubject === undefined ? {} : { returnExpressionTypeSubject }),
-    returnExpressionTargetType: resultTargetType,
+    ...(returnExpressionTargetType === undefined ? {} : { returnExpressionTargetType }),
   };
 }
 
