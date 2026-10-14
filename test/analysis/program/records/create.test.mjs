@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
-import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
-import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/relations/resolver.js";
-import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { analyzeCsharpTargetProgram } from "../../../../dist/analysis/program/index.js";
+import { createCsharpTargetConfiguration } from "../../../../dist/options/csharp-target-options.js";
+import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/relations/resolver.js";
+import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 
 function fixture(surface) {
   const checked = checkCsharpSource({ surface, sourceText: `
