@@ -62,6 +62,7 @@ const expectedBinaryKey = createTargetClassificationKey<
   csharpBinarySelectionsEqual,
 );
 const maximumExpectedTargetUses = 1_048_576;
+const noExpectedTypes: readonly TargetTypeRef[] = Object.freeze([]);
 
 export function analyzeCsharpExpectedTypes(
   policy: CsharpPolicyContext,
@@ -78,6 +79,8 @@ export function analyzeCsharpExpectedTypes(
     readonly exactInteger: boolean;
   }
   const byExpression = new WeakMap<Node, Map<string, ExpectedTypeUse>>();
+  const expectedExpressions: Node[] = [];
+  const expectedBinaryUses: { readonly expression: Node; readonly targetType: TargetTypeRef }[] = [];
   const targetTypes = new Map<string, TargetTypeRef>();
   const pending: {
     readonly expression: Node;
@@ -116,6 +119,7 @@ export function analyzeCsharpExpectedTypes(
     if (types === undefined) {
       types = new Map();
       byExpression.set(expression, types);
+      expectedExpressions.push(expression);
     }
     const previous = types.get(key);
     if ((previous?.strength === "required" || previous?.strength === strength) &&
@@ -167,6 +171,30 @@ export function analyzeCsharpExpectedTypes(
     }
   }
   const binaryFacts = binaryUses.seal();
+  const expectedViews = new WeakMap<Node, {
+    readonly all: readonly TargetTypeRef[];
+    readonly required: readonly TargetTypeRef[];
+    readonly storage: readonly TargetTypeRef[];
+  }>();
+  for (const expression of expectedExpressions) {
+    const uses = [...(byExpression.get(expression)?.entries() ?? [])]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([, use]) => use);
+    const all = Object.freeze(uses.map(use => use.targetType));
+    const required = Object.freeze(uses.filter(use => use.strength === "required").map(use => use.targetType));
+    expectedViews.set(expression, Object.freeze({ all, required, storage: required.length > 0 ? required : all }));
+  }
+  const expectedBinaries = new WeakMap<Node, Map<string, NonNullable<ReturnType<typeof selectCsharpBinaryOperation>>>>();
+  for (const { expression, targetType } of expectedBinaryUses) {
+    const selection = binaryFacts.get(expectedBinaryUse(expression, targetType), expectedBinaryKey);
+    if (selection === undefined) continue;
+    let byTarget = expectedBinaries.get(expression);
+    if (byTarget === undefined) {
+      byTarget = new Map();
+      expectedBinaries.set(expression, byTarget);
+    }
+    byTarget.set(targetTypeRefKey(targetType), selection);
+  }
 
   const classifications: CsharpExpectedTypeClassifications = {
     issues: Object.freeze(issues),
@@ -174,19 +202,14 @@ export function analyzeCsharpExpectedTypes(
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([, type]) => type)),
     expectedType: Object.freeze({ get(expression) {
-      return expressionTypes(expression);
+      return expectedViews.get(expression)?.all ?? noExpectedTypes;
     } }),
-    requiredExpectedType: Object.freeze({ get(expression) { return expressionTypes(expression, "required"); } }),
+    requiredExpectedType: Object.freeze({ get(expression) { return expectedViews.get(expression)?.required ?? noExpectedTypes; } }),
     exactIntegerConversion: Object.freeze({ get(expression, targetType) {
       return byExpression.get(expression)?.get(targetTypeRefKey(targetType))?.exactInteger === true;
     } }),
     storageExpectedType: Object.freeze({ get(expression) {
-      const uses = [...(byExpression.get(expression)?.entries() ?? [])]
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([, use]) => use);
-      const required = uses.filter((use) => use.strength === "required");
-      return Object.freeze((required.length > 0 ? required : uses).map((use) =>
-        use.targetType));
+      return expectedViews.get(expression)?.storage ?? noExpectedTypes;
     } }),
     callableTarget: Object.freeze({ get(expression) {
       return callableTargets.get(expression);
@@ -195,20 +218,10 @@ export function analyzeCsharpExpectedTypes(
       return arrayCarriers.get(expression)?.get(targetTypeRefKey(targetType));
     } }),
     expectedBinary: Object.freeze({ get(expression, targetType) {
-      return binaryFacts.get(
-        expectedBinaryUse(expression, targetType),
-        expectedBinaryKey,
-      );
+      return expectedBinaries.get(expression)?.get(targetTypeRefKey(targetType));
     } }),
   };
   return Object.freeze(classifications);
-
-  function expressionTypes(expression: Node, strength?: ExpectedTypeStrength): readonly TargetTypeRef[] {
-    return Object.freeze([...(byExpression.get(expression)?.entries() ?? [])]
-      .sort(([left], [right]) => left.localeCompare(right))
-      .filter(([, use]) => strength === undefined || use.strength === strength)
-      .map(([, use]) => use.targetType));
-  }
 
   function returnExpressionTarget(
     callable: CsharpCallableContractIndex["contracts"][number],
@@ -638,6 +651,7 @@ export function analyzeCsharpExpectedTypes(
             `Conflicting target-use classification '${expectedBinaryKey.id}'.`,
           );
         }
+        expectedBinaryUses.push({ expression, targetType });
       }
       const selection = expectedSelection ?? operations.binaryOperation.get(expression)?.target;
       if (selection?.kind === "resolved") {

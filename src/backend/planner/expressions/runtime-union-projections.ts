@@ -20,7 +20,6 @@ import {
   getCsharpNullableElementTargetType,
 } from "../../../target-model/types/index.js";
 import { csharpUnionProjectionPath } from "../../../target-model/types/union-relations.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
 
 export function tryPlanRuntimeUnionTypeTest(
@@ -105,17 +104,6 @@ export function planCsharpRuntimeUnionProjection(
   diagnostics: TargetDiagnostic[],
   input: CsharpPlanningContext,
 ): CsharpExpression | undefined {
-  const sourceElement = getCsharpNullableElementTargetType(sourceType);
-  const targetElement = getCsharpNullableElementTargetType(targetType);
-  const selectedType = targetElement ?? targetType;
-  if (!input.program.conversions.matchesUnionProjection(sourceType, targetType, selection) ||
-    typeof selection.retainsAbsence !== "boolean" || selectedType === undefined ||
-    !targetTypeRefEquals(selection.refinement ?? selection.armType, selectedType) ||
-    selection.retainsAbsence && (sourceElement === undefined || targetElement === undefined)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node,
-      "Union projection requires exact sealed payload and absence correspondence."));
-    return undefined;
-  }
   const value = planCsharpUnionPattern(expression, selection.path, sourceType, selection.retainsAbsence).value;
   if (selection.refinement === undefined) return value;
   const type = targetType === undefined ? undefined

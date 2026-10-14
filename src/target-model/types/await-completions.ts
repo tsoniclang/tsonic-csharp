@@ -1,6 +1,7 @@
 import type { TargetTypeRef } from "./model.js";
 import type { CsharpTypeDefinitions } from "./source-union-definitions.js";
-import type { CsharpUnionArmMapping, CsharpUnionPathStep } from "./union-relations.js";
+import type { CsharpUnionPathStep } from "./union-relations.js";
+import type { CsharpConversionSelection } from "../conversions/selection.js";
 import { csharpUnionLeaves, csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "./union-relations.js";
 import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "./carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "./carriers/nullable.js";
@@ -14,7 +15,7 @@ export interface CsharpAwaitAlternative {
   readonly result: TargetTypeRef;
   readonly task: boolean;
   readonly resultPath: readonly CsharpUnionPathStep[];
-  readonly resultMapping?: readonly CsharpUnionArmMapping[];
+  readonly resultMapping?: Extract<CsharpConversionSelection, { readonly kind: "union-map" }>;
 }
 
 export interface CsharpAwaitCompletion {
@@ -56,10 +57,11 @@ export function selectCsharpAwaitCompletion(
       isCsharpVoidTargetType(alternative.result) || isCsharpAbsenceTargetType(alternative.result)
       ? [] : csharpUnionProjectionPath(resultElement, alternative.result, definitions);
     if (resultPath !== undefined) return Object.freeze({ ...alternative, resultPath });
-    const resultMapping = selectCsharpUnionArmMapping(
+    const arms = selectCsharpUnionArmMapping(
       getCsharpNullableElementTargetType(alternative.result) ?? alternative.result,
       resultElement, "source", definitions);
-    return resultMapping === undefined ? undefined : Object.freeze({ ...alternative, resultPath: [], resultMapping });
+    return arms === undefined ? undefined : Object.freeze({ ...alternative, resultPath: [],
+      resultMapping: Object.freeze({ kind: "union-map" as const, coverage: "source" as const, arms }) });
   });
   return selected.some(alternative => alternative === undefined) ? undefined : Object.freeze({
     result, alternatives: Object.freeze(selected as readonly CsharpAwaitAlternative[]),

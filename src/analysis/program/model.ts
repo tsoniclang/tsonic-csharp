@@ -23,7 +23,6 @@ import type {
 import type {
   CsharpObjectShapeClassifications,
 } from "../objects/index.js";
-import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
 import type {
   CsharpProjectClassifications,
 } from "../project/index.js";
@@ -56,7 +55,6 @@ export interface CsharpTargetProgram {
   readonly projectTypes: CsharpProjectTypeClassifications;
   readonly objectShapes: CsharpObjectShapeClassifications;
   readonly names: CsharpSourceNameResolver;
-  readonly conversions: Pick<CsharpConversionClassifications, "matchesUnionMapping" | "matchesUnionProjection">;
   readonly sourceModuleConstructions: Omit<CsharpSourceModuleConstructionIndex, "sourceModuleConstruction">;
   readonly moduleInitialization: Pick<CsharpModuleInitializationIndex, "entrypointInitializer">;
   readonly binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver;

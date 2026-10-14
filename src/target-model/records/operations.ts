@@ -132,7 +132,14 @@ export interface CsharpUnaryClassification {
   readonly target: CsharpOperationSelection<CsharpResolvedUnaryOperation>;
 }
 
+export interface CsharpOperationIssue {
+  readonly node: Node;
+  readonly code: string;
+  readonly message: string;
+}
+
 export interface CsharpTargetOperationClassifications {
+  readonly issues: readonly CsharpOperationIssue[];
   readonly awaitCompletion: { readonly get: (node: Node) => import("../types/await-completions.js").CsharpAwaitCompletion | undefined };
   readonly classPropertyStorage: { readonly get: (declaration: Node) => import("./class-property-storage.js").CsharpClassPropertyStorage | undefined };
   readonly borrowedSequence: { readonly get: (expression: Node) => CsharpBorrowedSequenceInput | undefined };

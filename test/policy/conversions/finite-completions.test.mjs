@@ -53,8 +53,8 @@ test("finite await joins multiple closed results and retains exact nested union 
   ]));
   assert.ok(completion);
   assert.equal(completion.alternatives.length, 2);
-  assert.equal(completion.alternatives[0].resultMapping.length, 2);
-  assert.equal(completion.alternatives[1].resultMapping.length, 2);
+  assert.equal(completion.alternatives[0].resultMapping.arms.length, 2);
+  assert.equal(completion.alternatives[1].resultMapping.arms.length, 2);
   assert.ok(Object.isFrozen(completion));
   assert.ok(Object.isFrozen(completion.alternatives));
 });

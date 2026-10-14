@@ -3,7 +3,8 @@ import { classifyCsharpUnionCall } from "./union-calls.js";
 import { classifyCsharpSourceCallee } from "../../policy/types/callables/source-callees.js";
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 import { classifyCsharpClassPropertyStorage } from "./class-property-storage.js";
-import { selectCsharpAwaitCompletion } from "../../target-model/types/await-completions.js";
+import { selectCsharpAwaitCompletion, type CsharpAwaitCompletion } from "../../target-model/types/await-completions.js";
+import { admitCsharpUnionSelection } from "../conversions/validation.js";
 import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";
 import { resolveCsharpInstanceType } from "../../policy/types/resolution/instance-tests.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
@@ -70,7 +71,7 @@ import {
   isCsharpThrowableType,
 } from "../../policy/types/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpCallClassification, CsharpBinaryClassification, CsharpConstructionClassification, CsharpElementClassification, CsharpPropertyClassification, CsharpUnaryClassification, CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpCallClassification, CsharpBinaryClassification, CsharpConstructionClassification, CsharpElementClassification, CsharpPropertyClassification, CsharpUnaryClassification, CsharpTargetOperationClassifications, CsharpOperationIssue } from "../../target-model/records/operations.js";
 import {
   composeCsharpBinaryExecutionDriver,
 } from "../../providers/model/provider-policy-contribution.js";
@@ -163,28 +164,47 @@ const nativeUnreachableKey = createTargetClassificationKey<boolean>("csharp.oper
 const borrowedSequenceKey = createTargetClassificationKey<ReturnType<typeof classifyCsharpBorrowedSequenceInput>>(
   "csharp.operation.borrowed-sequence",
 );
+const operationResultKeyIds: ReadonlySet<string> = new Set([memoryBindingKey.id, jsArrayMutationKey.id, callKey.id,
+  constructionKey.id, propertyKey.id, elementKey.id, binaryKey.id, unaryKey.id]);
+
 export function analyzeCsharpTargetOperations(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
 ): CsharpTargetOperationClassifications {
   const builder = createTargetClassificationBuilder();
+  const operationResultSubjects = new Set<Node>();
+  const producer: ReturnType<typeof createTargetClassificationBuilder> = Object.freeze({
+    ...builder,
+    set<Value>(subject: Node, key: TargetClassificationKey<Value>, value: Value) {
+      if (operationResultKeyIds.has(key.id)) operationResultSubjects.add(subject);
+      return builder.set(subject, key, value);
+    },
+  });
   const classPropertyStorage = classifyCsharpClassPropertyStorage(policy, evidence);
   const binaryExecutionDrivers:
     import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[] = [];
+  const issues: CsharpOperationIssue[] = [];
   for (const sourceFile of policy.sourceFiles) {
     visit(
       sourceFile,
       sourceFile,
       policy,
       evidence,
-      builder,
+      producer,
       binaryExecutionDrivers,
+      issues,
     );
   }
   const facts = builder.seal();
+  const operationResultTypes = new WeakMap<Node, import("../../target-model/types/model.js").TargetTypeRef>();
+  for (const subject of operationResultSubjects) {
+    const type = operationResultType(facts, subject);
+    if (type !== undefined) operationResultTypes.set(subject, type);
+  }
   const selectedBinaryExecutionDriver =
     composeCsharpBinaryExecutionDriver(...binaryExecutionDrivers);
   const classifications: CsharpTargetOperationClassifications = {
+    issues: Object.freeze(issues),
     awaitCompletion: Object.freeze({ get: node => facts.get(node, awaitKey) }),
     classPropertyStorage: Object.freeze({ get: classPropertyStorage }),
     borrowedSequence: Object.freeze({ get: node => facts.get(node, borrowedSequenceKey) }),
@@ -192,7 +212,7 @@ export function analyzeCsharpTargetOperations(
     nativeUnreachable: Object.freeze({ get: node => facts.get(node, nativeUnreachableKey) === true }),
     memoryBinding: Object.freeze({ get: node => facts.get(node, memoryBindingKey) }),
     binaryExecutionDriver: () => selectedBinaryExecutionDriver,
-    operationResultType: Object.freeze({ get: (node) => operationResultType(facts, node) }),
+    operationResultType: Object.freeze({ get: (node) => operationResultTypes.get(node) }),
     selectedCall: Object.freeze({ get: (node) => facts.get(node, callKey) }),
     selectedConstruction: Object.freeze({ get: (node) => facts.get(node, constructionKey) }),
     selectedProperty: Object.freeze({ get: (node) => facts.get(node, propertyKey) }),
@@ -231,6 +251,7 @@ function visit(
   builder: ReturnType<typeof createTargetClassificationBuilder>,
   binaryExecutionDrivers:
     import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[],
+  issues: CsharpOperationIssue[],
 ): void {
   if (evidence.compileTimeMetadata.get(node)) return;
   if (policy.types.nativeUnreachable(node)) {
@@ -240,9 +261,14 @@ function visit(
   const { ast } = policy;
   if (ast.is.IsAwaitExpression(node)) {
     const expression = ast.as.AsAwaitExpression(node)?.Expression;
-    setClassification(builder, node, awaitKey, selectCsharpAwaitCompletion(
+    const completion = selectCsharpAwaitCompletion(
       expression === undefined ? undefined : policy.types.resolveNode(expression, sourceFile),
-      policy.typeDefinitions));
+      policy.typeDefinitions);
+    const rejection = awaitResultMappingRejection(policy, completion);
+    if (rejection !== undefined) {
+      issues.push(Object.freeze({ node, code: "CSHARP_AWAIT_RESULT_MAPPING_NOT_PROVEN", message: rejection }));
+    }
+    setClassification(builder, node, awaitKey, rejection === undefined ? completion : undefined);
   }
   if (ast.is.IsSpreadElement(node)) {
     const expression = ast.as.AsSpreadElement(node)?.Expression;
@@ -708,6 +734,7 @@ function visit(
           evidence,
           builder,
           binaryExecutionDrivers,
+          issues,
         );
       }
     },
@@ -816,6 +843,19 @@ function operationResultType(
   return unary?.target.kind === "resolved"
     ? unary.target.resultType
     : undefined;
+}
+
+function awaitResultMappingRejection(
+  policy: CsharpPolicyContext,
+  completion: CsharpAwaitCompletion | undefined,
+): string | undefined {
+  if (completion === undefined) return undefined;
+  for (const alternative of completion.alternatives) {
+    if (alternative.resultMapping === undefined) continue;
+    const admitted = admitCsharpUnionSelection(policy, alternative.result, completion.result, alternative.resultMapping);
+    if (admitted.kind === "rejected") return admitted.reason;
+  }
+  return undefined;
 }
 
 function setClassification<Value>(

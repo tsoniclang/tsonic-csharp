@@ -50,7 +50,7 @@ import { substituteTargetTypeParameters } from "../../target-model/types/substit
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import { selectCsharpIntegerTruncationConversion } from "../../policy/conversions/integer-truncation.js";
 import { selectCsharpExactIntegerConversion } from "../../policy/conversions/exact-integer.js";
-import { csharpRuntimeUnionMappingMatches, csharpRuntimeUnionProjectionMatches } from "./validation.js";
+import { admitCsharpUnionSelection } from "./validation.js";
 import { selectCsharpPropertyProjections } from "./property-projections.js";
 
 const unavailableConversion: CsharpConversionSelection = Object.freeze({
@@ -83,8 +83,6 @@ export function analyzeCsharpConversions(
     delegateAdapters: Object.freeze({ get: scope => delegateAdapters.get(scope) ?? [] }),
     delegateAdapter: Object.freeze({ get: (expression, source, target) => expressionSelections.get(expression)?.get(pairKey(source, target, "implicit"))?.delegateIdentity }),
     directCallableReference: Object.freeze({ get: expression => directCallables.get(expression) }),
-    matchesUnionMapping: (source, target, selection) => csharpRuntimeUnionMappingMatches(policy, source, target, selection),
-    matchesUnionProjection: (source, target, selection) => csharpRuntimeUnionProjectionMatches(policy, source, target, selection),
     conversion: Object.freeze({ get(source, target, mode) {
       if (source === undefined || target === undefined) {
         return unavailableConversion;
@@ -130,8 +128,6 @@ export function analyzeCsharpConversions(
         delegateAdapters: Object.freeze({ get: openClassifications.delegateAdapters.get }),
         delegateAdapter: Object.freeze({ get: openClassifications.delegateAdapter.get }),
         directCallableReference: Object.freeze({ get: openClassifications.directCallableReference.get }),
-        matchesUnionMapping: openClassifications.matchesUnionMapping,
-        matchesUnionProjection: openClassifications.matchesUnionProjection,
         conversion: Object.freeze({ get(source, target, mode) {
           if (source === undefined || target === undefined) {
             return unavailableConversion;
@@ -653,7 +649,7 @@ export function analyzeCsharpConversions(
     if (!reserveClassification(node)) {
       return undefined;
     }
-    const selected = selectCsharpConversion(policy, source, target, mode);
+    const selected = admitCsharpUnionSelection(policy, source, target, selectCsharpConversion(policy, source, target, mode));
     pairSelections.set(key, selected);
     return selected;
   }
@@ -704,7 +700,7 @@ export function analyzeCsharpConversions(
       objectShapes.registerStructuralInterface(expression, source, target)) {
       candidate = { kind: "implicit", proof: "object-shape-interface" };
     }
-    const selected = candidate.kind === "delegate-adapter" && candidate.strategy === "adaptation" &&
+    const selected = admitCsharpUnionSelection(policy, source, target, candidate.kind === "delegate-adapter" && candidate.strategy === "adaptation" &&
         (
           sourceFile === undefined ||
           !isSourceOwnedCallableRuntimeCarrierSubject(
@@ -718,7 +714,7 @@ export function analyzeCsharpConversions(
           reason:
             "C# delegate adaptation requires a source-owned callable; provider-owned delegate conversion requires provider conversion metadata.",
         })
-      : candidate;
+      : candidate);
     if (selections === undefined) {
       selections = new Map();
       expressionSelections.set(expression, selections);
