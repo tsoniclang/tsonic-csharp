@@ -27,9 +27,7 @@ export const kindsCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTyp
     id: "kind:lifetime",
     kinds: ["lifetime"],
     declaration: { module: "src/target-model/types/model.ts", symbol: "TargetTypeRef" },
-    counterpart: { module: "src/target-model/types/model.ts", symbol: "TargetTypeRef" },
-    divergence: { register: "S11-03",
-      reason: "Rust preserves native reference qualifiers, anonymous callable types and explicit lifetimes; CLR references and delegates have no corresponding Rust lifetime parameter." },
+    counterpart: null,
     frozen: false,
   },
   {
@@ -50,9 +48,7 @@ export const kindsCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTyp
     id: "kind:source-global",
     kinds: ["source-global"],
     declaration: { module: "src/target-model/types/model.ts", symbol: "TargetTypeRef" },
-    counterpart: { module: "src/target-model/types/model.ts", symbol: "TargetTypeRef" },
-    divergence: { register: "S11-07",
-      reason: "This C# model slot preserves source-global CLR naming; Rust represents its selected source/native named declaration instead of a C# source-global slot." },
+    counterpart: null,
     frozen: false,
   },
   {
