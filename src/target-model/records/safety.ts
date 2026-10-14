@@ -1,4 +1,5 @@
 import type { TsonicSafetyApplicationFact, TsonicSafetyBuilderFact, TsonicUnsafeContextFact } from "@tsonic/source-core/facts";
+import type { TargetSafetyApplication, TargetSafetyOperation } from "@tsonic/target-api/analysis";
 import type { Node, SourceFile } from "@tsonic/tsts";
 
 export interface CsharpSafetyApplicationFactIndex {
@@ -8,14 +9,6 @@ export interface CsharpSafetyApplicationFactIndex {
   readonly safetyOperation: { readonly get: (subject: Node) => CsharpSafetyOperation | undefined };
 }
 
-export interface CsharpSafetyApplication extends TsonicSafetyApplicationFact {
-  readonly sourceSubject: Node;
-  readonly sourceFile: SourceFile;
-  readonly selectedMemberDeclarations: readonly Node[];
-  readonly resolvedRootDeclaration?: Node;
-  readonly targetDeclarations: readonly Node[];
-}
+export type CsharpSafetyApplication = TargetSafetyApplication<TsonicSafetyApplicationFact>;
 
-export type CsharpSafetyOperation =
-  | { readonly kind: "unsafe-context"; readonly fact: TsonicUnsafeContextFact }
-  | { readonly kind: "safety-builder"; readonly fact: TsonicSafetyBuilderFact };
+export type CsharpSafetyOperation = TargetSafetyOperation<TsonicUnsafeContextFact, TsonicSafetyBuilderFact>;
