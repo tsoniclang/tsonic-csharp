@@ -16,6 +16,7 @@ import type { CsharpSourceModuleConstructionIndex } from "./source-modules.js";
 import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications } from "./storage.js";
 import type { CsharpGenericProjectionIndex } from "./type-projections.js";
 import type { CsharpBindingPatternClassifications } from "./value-projections.js";
+import type { CsharpNativeParticipationClassifications } from "./native-participation.js";
 
 export interface CsharpProgramRecords {
   readonly attributeApplication: CsharpAttributeApplicationIndex["attributeApplication"];
@@ -97,6 +98,7 @@ export interface CsharpProgramRecords {
   readonly flowReadProjection: CsharpFlowReadClassifications["flowReadProjection"];
   readonly valueRead: CsharpValueReadClassifications["valueRead"];
   readonly bindingPatternProjection: CsharpBindingPatternClassifications["bindingPatternProjection"];
+  readonly nativeParticipation: CsharpNativeParticipationClassifications["participation"];
   readonly compileTimeMetadata: CsharpSourceEvidenceIndex["compileTimeMetadata"];
   readonly nodeTargetType: CsharpSourceEvidenceIndex["nodeTargetType"];
   readonly classConstructorType: CsharpSourceEvidenceIndex["classConstructorType"];

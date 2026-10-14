@@ -1,4 +1,4 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import {
   AsExpressionStatement,
   sourceClassFieldIsTypeOnly,
@@ -11,12 +11,14 @@ import type { CsharpSafetyApplicationFactIndex } from "../../target-model/record
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpLanguageDialect, CsharpMemorySafetyRules } from "../../target-model/configuration/model.js";
-import { isCsharpUnplannedSubtree, isCsharpUnusedTupleDefault } from "../control-flow/binding-patterns.js";
-import type { CsharpPlannedSubtreeInput } from "../control-flow/binding-patterns.js";
+import { isCsharpUnusedTupleDefault } from "../control-flow/binding-patterns.js";
+import type { CsharpNativeParticipationClassifications } from "../../target-model/records/native-participation.js";
 import type { CsharpBindingPatternClassifications } from "../../target-model/records/value-projections.js";
 
-export interface CsharpSafetyAdmissionInput extends CsharpPlannedSubtreeInput {
+export interface CsharpSafetyAdmissionInput {
+  readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];
+  readonly participation: CsharpNativeParticipationClassifications["participation"];
   readonly languageDialect: CsharpLanguageDialect;
   readonly memorySafetyRules: CsharpMemorySafetyRules;
   readonly safety: Pick<CsharpSafetyApplicationFactIndex, "safetyApplication" | "safetyOperation" | "findings">;
@@ -70,7 +72,8 @@ export function admitCsharpSafetyApplications(input: CsharpSafetyAdmissionInput)
   }
 
   function visit(node: Node): void {
-    if (isCsharpUnplannedSubtree(input, node) || isCsharpUnusedTupleDefault(ast, input.bindingPatternProjection, node) ||
+    if (input.evidence.compileTimeMetadata.get(node) || input.operations.nativeUnreachable.get(node) ||
+      input.participation.get(node) === "erased" || isCsharpUnusedTupleDefault(ast, input.bindingPatternProjection, node) ||
       isErasedStatement(node)) return;
     const operation = input.safety.safetyOperation.get(node);
     if (operation?.kind === "safety-builder") {

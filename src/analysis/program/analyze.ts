@@ -10,6 +10,7 @@ import { createCsharpProgramRecords } from "./records/create.js";
 import { analyzeCsharpNativeControlFlow } from "../control-flow/native-control-flow.js";
 import { analyzeCsharpBindingPatterns } from "../control-flow/binding-patterns.js";
 import { admitCsharpSafetyApplications } from "../safety/admission.js";
+import { analyzeCsharpNativeParticipation } from "../control-flow/native-demand/participation.js";
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
 import { type CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import { csharpCallableValueType } from "../callables/value-type.js";
@@ -324,15 +325,18 @@ export function analyzeCsharpTargetProgram(
   })));
   const flowReads = analyzeCsharpFlowReadProjections(analysis.policy, analysis.sourceEvidence, analysis.operations, analysis.valueReads);
   if (flowReads.issues.length > 0) return rejectCsharpAnalysisIssues(flowReads.issues);
-  const bindingPatterns = analyzeCsharpBindingPatterns({ ast: source.ast, sourceFiles, navigation: source.navigation,
-    captureClosure: captureStorage.captureClosure, lambdaCreation: captureStorage.lambdaCreation, evidence: analysis.sourceEvidence,
+  const participation = analyzeCsharpNativeParticipation({ ast: source.ast, sourceFiles, navigation: source.navigation,
+    captureClosure: captureStorage.captureClosure, lambdaCreation: captureStorage.lambdaCreation,
+    objectShapes: analysis.objectShapes, compileTimeMetadata: analysis.sourceEvidence.compileTimeMetadata });
+  const bindingPatterns = analyzeCsharpBindingPatterns({ ast: source.ast, sourceFiles,
+    participation: participation.participation, evidence: analysis.sourceEvidence,
     operations: analysis.operations, valueReads: analysis.valueReads, objectShapes: analysis.objectShapes });
   if (bindingPatterns.issues.length > 0) return rejectedTargetStage(bindingPatterns.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
     ...(issue.evidence.length === 0 ? {} : { evidence: issue.evidence }),
   })));
-  const safetyIssues = admitCsharpSafetyApplications({ ast: source.ast, sourceFiles, navigation: source.navigation,
-    captureClosure: captureStorage.captureClosure, lambdaCreation: captureStorage.lambdaCreation, evidence: analysis.sourceEvidence, operations: analysis.operations,
+  const safetyIssues = admitCsharpSafetyApplications({ ast: source.ast, sourceFiles,
+    participation: participation.participation, evidence: analysis.sourceEvidence, operations: analysis.operations,
     languageDialect: configuration.languageDialect, memorySafetyRules: configuration.memorySafetyRules,
     safety: safetyApplications, erasedAttribute: attributeApplications.erasedAttribute,
     bindingPatternProjection: bindingPatterns.bindingPatternProjection });
@@ -344,7 +348,7 @@ export function analyzeCsharpTargetProgram(
   const numericRepresentations = analyzeCsharpNumericRepresentations({ source, sourceFiles,
     evidence: analysis.sourceEvidence, operations: analysis.operations });
   const records = createCsharpProgramRecords({
-    flowReads, valueReads: analysis.valueReads, bindingPatterns,
+    flowReads, valueReads: analysis.valueReads, bindingPatterns, participation,
     callableAdapters, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
     numericRepresentations, attributeApplications, safetyApplications, operations: analysis.operations,
     sourceEvidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions: analysis.conversions,

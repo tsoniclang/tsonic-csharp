@@ -131,9 +131,7 @@ test("a no-argument unsafe-context fact in an expression position is rejected wi
   const input = (overrides = {}) => ({
     ast,
     sourceFiles: program.sourceNavigation.sourceFiles,
-    navigation: program.sourceNavigation,
-    captureClosure: program.records.captureClosure,
-    lambdaCreation: program.records.lambdaCreation,
+    participation: program.records.nativeParticipation,
     evidence: { compileTimeMetadata: program.records.compileTimeMetadata, sourceField: program.records.sourceField },
     operations: { nativeUnreachable: program.records.nativeUnreachable, classPropertyStorage: program.records.classPropertyStorage },
     languageDialect: "csharp15-preview",

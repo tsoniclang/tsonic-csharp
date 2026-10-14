@@ -284,9 +284,7 @@ function sealedInputs(sourceText, surface = "native") {
     input: (objectShapes = program.objectShapes, overrides = {}) => ({
       ast: value.ast,
       sourceFiles: value.source.navigation.sourceFiles,
-      navigation: value.source.navigation,
-      captureClosure: program.records.captureClosure,
-      lambdaCreation: program.records.lambdaCreation,
+      participation: program.records.nativeParticipation,
       evidence: {
         compileTimeMetadata: program.records.compileTimeMetadata,
         sourceOwnedProjectShape: overrides.sourceOwnedProjectShape ?? program.records.sourceOwnedProjectShape,

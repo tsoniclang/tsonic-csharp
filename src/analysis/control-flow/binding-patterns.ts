@@ -31,14 +31,12 @@ import {
   KindVariableDeclarationList,
   Node_Expression,
   Node_Text,
-  sourceLexicalFunctionIsUnused,
 } from "@tsonic/target-api/source";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeClassifications } from "../objects/model.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
+import type { CsharpNativeParticipationClassifications } from "../../target-model/records/native-participation.js";
 import type {
   CsharpBindingElementProjection,
   CsharpBindingPatternClassifications,
@@ -59,7 +57,6 @@ import {
   isCsharpNeverTargetType,
   isCsharpVoidTargetType,
   resolveCsharpArrayBindingCarrier,
-  resolveCsharpObjectShapeMemberBySelectedSubject,
   resolveCsharpObjectShapeMemberBySourceContract,
   resolveCsharpObjectShapeMemberBySourceKey,
   targetTypeRefEquals,
@@ -70,31 +67,11 @@ import { tryCsharpIdentifier } from "../../target-model/names/identifiers.js";
 export interface CsharpBindingPatternAnalysisInput {
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];
-  readonly navigation: Pick<SourceProgramNavigation, "declarationUseSummary">;
-  readonly captureClosure: CsharpCaptureStorage["captureClosure"];
-  readonly lambdaCreation: CsharpCaptureStorage["lambdaCreation"];
+  readonly participation: CsharpNativeParticipationClassifications["participation"];
   readonly evidence: CsharpSourceEvidenceIndex;
   readonly operations: CsharpTargetOperationClassifications;
   readonly valueReads: CsharpValueReadClassifications;
   readonly objectShapes: CsharpObjectShapeClassifications;
-}
-
-export interface CsharpPlannedSubtreeInput {
-  readonly ast: AstReader;
-  readonly navigation: Pick<SourceProgramNavigation, "declarationUseSummary">;
-  readonly captureClosure: CsharpCaptureStorage["captureClosure"];
-  readonly lambdaCreation: CsharpCaptureStorage["lambdaCreation"];
-  readonly evidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata">;
-  readonly operations: Pick<CsharpTargetOperationClassifications, "nativeUnreachable">;
-}
-
-export function isCsharpUnplannedSubtree(input: CsharpPlannedSubtreeInput, node: Node): boolean {
-  const { ast } = input;
-  return input.evidence.compileTimeMetadata.get(node) || input.operations.nativeUnreachable.get(node) ||
-    ast.is.IsModuleDeclaration(node) ||
-    ((ast.is.IsArrowFunction(node) || ast.is.IsFunctionExpression(node)) && input.lambdaCreation.get(node).kind === "discarded") ||
-    (ast.is.IsFunctionDeclaration(node) && ast.body(node) !== undefined && input.captureClosure.get(node) === undefined &&
-      sourceLexicalFunctionIsUnused(node, ast, input.navigation));
 }
 
 export function isCsharpUnusedTupleDefault(
@@ -127,7 +104,8 @@ export function analyzeCsharpBindingPatterns(
   });
 
   function visit(node: Node, sourceFile: SourceFile): void {
-    if (isCsharpUnplannedSubtree(input, node) || isCsharpUnusedTupleDefault(ast, lookup, node)) return;
+    if (input.evidence.compileTimeMetadata.get(node) || input.operations.nativeUnreachable.get(node) ||
+      input.participation.get(node) === "erased" || isCsharpUnusedTupleDefault(ast, lookup, node)) return;
     if (ast.is.IsVariableDeclaration(node)) {
       const variable = AsVariableDeclaration(ast, node);
       const name = variable?.name;
@@ -142,7 +120,8 @@ export function analyzeCsharpBindingPatterns(
     } else if (ast.is.IsParameterDeclaration(node)) {
       const name = AsParameterDeclaration(ast, node)?.name;
       const owner = ast.parent(node);
-      if (name !== undefined && isBindingPattern(name) && owner !== undefined && parameterOwnerIsPlanned(owner, sourceFile)) {
+      const ownerParticipation = owner === undefined ? undefined : input.participation.get(owner);
+      if (name !== undefined && isBindingPattern(name) && ownerParticipation !== undefined && ownerParticipation !== "erased") {
         analyzePattern(name, node, sourceFile, undefined);
       }
     } else if (ast.is.IsBinaryExpression(node) && !assignmentDefaults.has(node)) {
@@ -154,18 +133,6 @@ export function analyzeCsharpBindingPatterns(
   function completesWithValue(source: Node): boolean {
     const carrier = input.valueReads.valueRead.get(source)?.value;
     return !isCsharpNeverTargetType(carrier) && !isCsharpVoidTargetType(carrier);
-  }
-
-  function parameterOwnerIsPlanned(owner: Node, sourceFile: SourceFile): boolean {
-    if (ast.body(owner) !== undefined) return true;
-    if (ast.is.IsMethodDeclaration(owner)) return ast.hasModifierKind(owner, "abstract");
-    const declaringInterface = ast.parent(owner);
-    const interfaceOwner = declaringInterface === undefined ? undefined : ast.parent(declaringInterface);
-    if (!ast.is.IsMethodSignatureDeclaration(owner) || declaringInterface === undefined || !ast.is.IsInterfaceDeclaration(declaringInterface) ||
-      interfaceOwner === undefined || !ast.is.IsSourceFile(interfaceOwner)) return false;
-    const shape = input.objectShapes.resolveNode(declaringInterface, sourceFile);
-    const selected = shape === undefined ? undefined : resolveCsharpObjectShapeMemberBySelectedSubject(shape, [owner]);
-    return selected?.kind !== "resolved" || selected.member.optional !== true;
   }
 
   function tupleDefaultUse(elementCarrier: TargetTypeRef): CsharpTupleDefaultUse {

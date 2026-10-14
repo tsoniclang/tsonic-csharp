@@ -17,12 +17,14 @@ import type { CsharpStorageClassifications } from "../../../target-model/records
 import type { CsharpGenericProjectionIndex } from "../../../target-model/records/type-projections.js";
 import type { CsharpProgramRecords } from "../../../target-model/records/program.js";
 import type { CsharpBindingPatternClassifications } from "../../../target-model/records/value-projections.js";
+import type { CsharpNativeParticipationClassifications } from "../../../target-model/records/native-participation.js";
 
 export interface CsharpProgramRecordInput {
   readonly sourceEvidence: CsharpSourceEvidenceIndex;
   readonly flowReads: CsharpFlowReadClassifications;
   readonly valueReads: CsharpValueReadClassifications;
   readonly bindingPatterns: CsharpBindingPatternClassifications;
+  readonly participation: CsharpNativeParticipationClassifications;
   readonly operations: CsharpTargetOperationClassifications;
   readonly expectedTypes: CsharpExpectedTypeClassifications;
   readonly declarations: CsharpDeclarationClassifications;
@@ -121,6 +123,7 @@ export function createCsharpProgramRecords(input: CsharpProgramRecordInput): Csh
     flowReadProjection: input.flowReads.flowReadProjection,
     valueRead: input.valueReads.valueRead,
     bindingPatternProjection: input.bindingPatterns.bindingPatternProjection,
+    nativeParticipation: input.participation.participation,
     compileTimeMetadata: input.sourceEvidence.compileTimeMetadata,
     nodeTargetType: input.sourceEvidence.nodeTargetType,
     classConstructorType: input.sourceEvidence.classConstructorType,
