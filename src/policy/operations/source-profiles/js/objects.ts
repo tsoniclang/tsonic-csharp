@@ -24,7 +24,7 @@ import {
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../../../target-model/types/index.js";
-import { csharpJsArrayTargetType } from "../../../types/resolution/surface-types.js";
+import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers/js.js";
 import { csharpValueDomainHasTargetType } from "../../../types/objects/value-domain-carrier.js";
 import type {
   CsharpSourceProfileCallPolicy,

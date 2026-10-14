@@ -41,7 +41,7 @@ import {
   csharpJsPromiseRejectedResultTargetType,
   csharpJsIntlTargetType,
   type CsharpJsTypedArrayName,
-} from "./surface-types.js";
+} from "../../../target-model/types/carriers/js.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
 import { combineCsharpTargetUnionMembers } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../target-model/types/carriers/delegates.js";

@@ -11,7 +11,7 @@ import { csharpJsMapTargetType, csharpJsSetTargetType, csharpJsWeakMapTargetType
   csharpJsRegExpTargetType, csharpJsRegExpNamedGroupsTargetType, csharpJsRegExpNamedIndicesTargetType,
   csharpJsRegExpStringIteratorTargetType, csharpExactJsRegExpNamedGroupsTargetType,
   csharpExactJsRegExpNamedIndicesTargetType, csharpExactJsRegExpStringIteratorTargetType,
-} from "../../dist/policy/types/resolution/surface-types.js";
+} from "../../dist/target-model/types/carriers/js.js";
 
 test("optional runtime categories preserve their exact present kind and reject forged nested facts", () => {
   for (const [value, kind] of [[csharpStringTargetType(), "string"], [csharpSourcePrimitiveTargetType("uint64"), "bigint"]]) {

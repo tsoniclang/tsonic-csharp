@@ -1,19 +1,19 @@
 import type {
   CsharpTargetNamedTypeRef,
   TargetTypeRef,
-} from "../../../target-model/types/model.js";
+} from "../model.js";
 import {
   csharpQualifiedTypeRenderShape,
-} from "../../../target-model/types/render-shapes.js";
+} from "../render-shapes.js";
 import {
   csharpTargetNamedType,
-} from "../../../target-model/types/factories.js";
-import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
+} from "../factories.js";
+import { csharpNullableTargetType } from "./nullable.js";
 import {
   csharpSourcePrimitiveTargetType,
   csharpJsStringTargetType,
   csharpStringTargetType,
-} from "../../../target-model/types/carriers/scalar-types.js";
+} from "./scalar-types.js";
 
 export const csharpJsArrayCarrierId = "Tsonic.CSharp.Js.JSArray`1";
 

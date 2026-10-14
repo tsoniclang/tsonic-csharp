@@ -23,7 +23,7 @@ import {
   isCsharpJsValueTargetType,
   targetTypeRefEquals,
 } from "../../../../target-model/types/index.js";
-import { csharpJsArrayTargetType, getCsharpJsArrayMutationPolicy } from "../../../types/resolution/surface-types.js";
+import { csharpJsArrayTargetType, getCsharpJsArrayMutationPolicy } from "../../../../target-model/types/carriers/js.js";
 import type {
   CsharpSourceProfileCallPolicy,
   CsharpSourceProfileElementPolicy,

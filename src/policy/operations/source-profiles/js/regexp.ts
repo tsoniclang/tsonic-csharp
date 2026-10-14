@@ -21,7 +21,7 @@ import {
   csharpExactJsRegExpNamedGroupsTargetType,
   csharpExactJsRegExpNamedIndicesTargetType,
   csharpExactJsRegExpStringIteratorTargetType,
-} from "../../../types/resolution/surface-types.js";
+} from "../../../../target-model/types/carriers/js.js";
 import {
   csharpJsStringTargetType,
   csharpNullableTargetType,

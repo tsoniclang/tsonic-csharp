@@ -14,7 +14,7 @@ import { getCsharpMethodValue } from "../../../target-model/types/method-values.
 import { getCsharpClassFactory } from "../../../target-model/types/carriers/class-factories.js";
 import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
-import { csharpJsArrayTargetType } from "./surface-types.js";
+import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js.js";
 import { selectedCsharpSourceProfileOwner } from "./source-profile.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";

@@ -5,7 +5,7 @@ import type { CsharpProviderCallInstantiationHost } from "../members/instantiati
 import { csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { csharpJsArrayTargetType } from "../../types/resolution/surface-types.js";
+import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js.js";
 import { selectedCsharpSourceProfileOwner } from "../../types/resolution/source-profile.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 

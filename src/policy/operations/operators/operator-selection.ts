@@ -38,7 +38,7 @@ import {
 import {
   csharpLiteralIsRepresentableAs,
 } from "../../conversions/literals.js";
-import { csharpJsArrayCarrierId } from "../../types/resolution/surface-types.js";
+import { csharpJsArrayCarrierId } from "../../../target-model/types/carriers/js.js";
 import type {
   CsharpSourceOperator,
 } from "../../../target-model/syntax/operators.js";

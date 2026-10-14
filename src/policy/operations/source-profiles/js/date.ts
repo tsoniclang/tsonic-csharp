@@ -2,7 +2,7 @@ import type {
   CsharpTargetMember,
   TargetTypeRef,
 } from "../../../types/index.js";
-import { csharpJsDateTargetType } from "../../../types/resolution/surface-types.js";
+import { csharpJsDateTargetType } from "../../../../target-model/types/carriers/js.js";
 import {
   csharpNullableTargetType,
   csharpSourcePrimitiveTargetType,

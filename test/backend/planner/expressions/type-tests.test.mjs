@@ -7,7 +7,7 @@ import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpStringTar
   csharpTargetNamedType } from "../../../../dist/target-model/types/index.js";
 import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsRegExpTargetType,
   csharpJsMapTargetType, csharpJsSetTargetType, csharpJsArrayBufferTargetType, csharpJsDataViewTargetType,
-  csharpJsTypedArrayTargetType } from "../../../../dist/policy/types/resolution/surface-types.js";
+  csharpJsTypedArrayTargetType } from "../../../../dist/target-model/types/carriers/js.js";
 
 test("closed array tests distinguish generated structural carriers from open native references", () => {
   const structural = csharpTargetNamedType("tsonic.shape:fixture", [], { kind: "named", name: "Record" });

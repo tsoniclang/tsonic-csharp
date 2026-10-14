@@ -17,7 +17,7 @@ export * from "./project/project-types.js";
 export * from "./project/project-type-constructors.js";
 export * from "./resolution/source-ownership.js";
 export * from "./callables/source-callable-contract.js";
-export * from "./resolution/surface-types.js";
+export * from "../../target-model/types/carriers/js.js";
 export * from "./resolution/index.js";
 export * from "./objects/object-shape-policy.js";
 export * from "./objects/binding-projection-policy.js";

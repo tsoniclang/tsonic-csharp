@@ -7,7 +7,7 @@ import { selectCsharpClosedCallableContext } from "../../../dist/analysis/callab
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpSourceTypeParameter } from "../../../dist/target-model/names/type-parameters.js";
-import { csharpJsArrayTargetType } from "../../../dist/policy/types/resolution/surface-types.js";
+import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
 const boolean = Object.freeze({ kind: "source-primitive", name: "boolean" });

@@ -7,7 +7,7 @@ import {
   csharpJsSetTargetType,
   getCsharpJsMapTargetTypes,
   getCsharpJsSetElementTargetType,
-} from "../../../types/resolution/surface-types.js";
+} from "../../../../target-model/types/carriers/js.js";
 import {
   csharpDelegateTargetType,
   csharpEnumerableTargetType,
