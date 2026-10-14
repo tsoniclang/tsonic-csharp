@@ -28,9 +28,9 @@ for (const [name, body, markers] of rejectedForms) {
   test(`source-flow marker in ${name} position is rejected at analysis admission before planning`, () => {
     const compiled = compileCsharpSource({ sourceText: header + body });
     assert.equal(compiled.sourceDiagnosticsText, "");
-    assert.equal(compiled.result.program, undefined);
-    assert.equal(compiled.result.plan, undefined);
-    assert.deepEqual([...compiled.artifacts], []);
+    assert.equal(compiled.result.program === undefined, true, "program is not published");
+    assert.equal(compiled.result.plan === undefined, true, "plan is not published");
+    assert.equal(compiled.artifacts.size, 0, "no artifacts are published");
     assert.deepEqual(
       compiled.result.diagnostics.map(({ code, category, source, message }) => ({ code, category, source, message })),
       markers.map((marker) => ({
@@ -57,7 +57,7 @@ for (const [name, body, count] of acceptedForms) {
   test(`admitted keep-alive in ${name} position is published as sealed data and emitted`, () => {
     const compiled = compileCsharpSource({ sourceText: header + body });
     assert.equal(compiled.sourceDiagnosticsText, "");
-    assert.deepEqual(compiled.result.diagnostics, []);
+    assert.equal(compiled.result.diagnostics.length === 0, true, compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
     const output = compiled.artifacts.get("src/Index.cs");
     assert.equal(output.split("global::System.GC.KeepAlive(value)").length - 1, count);
     const records = compiled.result.program.records;
@@ -80,7 +80,7 @@ test("a local function named like a source-flow marker is an ordinary call with 
     export function f(value: int): int { return move2(value); }
   ` });
   assert.equal(compiled.sourceDiagnosticsText, "");
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.equal(compiled.result.diagnostics.length === 0, true, compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
   const records = compiled.result.program.records;
   const ast = compiled.result.program.source.ast;
   const calls = [];
@@ -90,5 +90,5 @@ test("a local function named like a source-flow marker is an ordinary call with 
   };
   for (const sourceFile of compiled.result.program.sourceFiles) visit(sourceFile);
   assert.ok(calls.length > 0);
-  for (const call of calls) assert.equal(call?.sourceFlow, undefined);
+  for (const call of calls) assert.equal(call?.sourceFlow === undefined, true, "no sealed source-flow selection");
 });
