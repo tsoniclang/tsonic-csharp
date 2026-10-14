@@ -29,6 +29,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { classifyCsharpBoundFieldWrite } from "./bound-field-writes.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { admitCsharpConversionSelection } from "../conversions/validation.js";
 
 export function classifyCsharpMemberReceiver(
   policy: CsharpPolicyContext,
@@ -39,13 +40,15 @@ export function classifyCsharpMemberReceiver(
   const selected = policy.types.resolveSelectedValue(source.receiver.expression, source.receiver.type, sourceFile);
   const target = optionalResultType(selected, source.optionalChain);
   if (raw === undefined || target === undefined || targetTypeRefEquals(raw, target)) return undefined;
-  return Object.freeze({ source: raw, target, conversion: selectCsharpFlowReadConversion(policy, raw, target) });
+  return Object.freeze({ source: raw, target,
+    conversion: admitCsharpConversionSelection(policy, raw, target, selectCsharpFlowReadConversion(policy, raw, target)) });
 }
 
 export function elementSelectedTypes(
   policy: CsharpPolicyContext,
   source: ResolvedSourceElementAccessInfo,
   sourceFile: SourceFile,
+  selection: CsharpTargetElementSelection | undefined,
 ): Pick<
   CsharpElementClassification,
   "receiverType" | "selectedResultType" | "flowReadConversion"
@@ -55,7 +58,9 @@ export function elementSelectedTypes(
     source.receiver.type,
     sourceFile,
   );
-  const selectedValueType = receiverType?.kind === "tuple" &&
+  const selectedValueType = selection?.kind === "project-indexer"
+    ? selection.selectedReadType ?? selection.valueType
+    : receiverType?.kind === "tuple" &&
       source.selectedElementIndex !== undefined
     ? receiverType.elements[source.selectedElementIndex]
     : receiverType?.kind === "array"
@@ -69,18 +74,10 @@ export function elementSelectedTypes(
     selectedValueType,
     source.optionalChain,
   );
-  const storageResultType = policy.types.resolveReadStorage(
-    source.expression,
-    sourceFile,
-  );
-  const flowReadConversion = selectedResultType === undefined ||
-      storageResultType === undefined
-    ? undefined
-    : selectCsharpFlowReadConversion(
-        policy,
-        storageResultType,
-        selectedResultType,
-      );
+  const flowReadConversion = selection?.kind === "project-indexer" && source.accessMode === "read" && selection.selectedReadType !== undefined
+    ? admitCsharpConversionSelection(policy, selection.valueType, selection.selectedReadType,
+        selectCsharpFlowReadConversion(policy, selection.valueType, selection.selectedReadType))
+    : undefined;
   return Object.freeze({
     ...(receiverType === undefined ? {} : { receiverType }),
     ...(selectedResultType === undefined ? {} : { selectedResultType }),

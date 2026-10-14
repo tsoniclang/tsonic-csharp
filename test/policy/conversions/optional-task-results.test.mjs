@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
+import { getCsharpAwaitResultTargetType } from "../../../dist/policy/operations/control-flow/await-completions.js";
 import { csharpAbsenceTargetType, csharpDelegateTargetType, csharpNullableTargetType,
   csharpTaskTargetType, csharpVoidTargetType, csharpSourcePrimitiveTargetType,
-  getCsharpAwaitResultTargetType, combineCsharpTargetUnionMembers, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
+  combineCsharpTargetUnionMembers, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
 test("optional Task lifting preserves arity, payload and non-null requirements", () => {
   const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() {} }, target: {} };

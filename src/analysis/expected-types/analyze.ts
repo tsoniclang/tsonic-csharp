@@ -642,7 +642,7 @@ export function analyzeCsharpExpectedTypes(
             `Conflicting target-use classification '${expectedBinaryKey.id}'.`,
           );
         }
-        expectedBinaryUses.push({ expression, targetType });
+        if (result.kind === "added") expectedBinaryUses.push({ expression, targetType });
       }
       const selection = expectedSelection ?? operations.binaryOperation.get(expression)?.target;
       if (selection?.kind === "resolved") {

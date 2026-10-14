@@ -3,8 +3,10 @@ import { classifyCsharpUnionCall } from "./union-calls.js";
 import { classifyCsharpSourceCallee } from "../../policy/types/callables/source-callees.js";
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 import { classifyCsharpClassPropertyStorage } from "./class-property-storage.js";
-import { selectCsharpAwaitCompletion, type CsharpAwaitCompletion } from "../../target-model/types/await-completions.js";
-import { admitCsharpUnionSelection } from "../conversions/validation.js";
+import type { CsharpAwaitCompletion } from "../../target-model/types/await-completions.js";
+import { selectCsharpAwaitCompletion } from "../../policy/operations/control-flow/await-completions.js";
+import { admitCsharpConversionSelection } from "../conversions/validation.js";
+import { csharpOperationConversionIssue, csharpSelectedCallConversionIssue } from "./conversion-admission.js";
 import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";
 import { resolveCsharpInstanceType } from "../../policy/types/resolution/instance-tests.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
@@ -404,9 +406,12 @@ function visit(
       expression?.QuestionDotToken !== undefined,
     ));
     const typeTest = selectCsharpArrayTypeTest(policy, source, sourceFile);
-    const target = jsValue.kind === "not-js-value" && typeTest === undefined
+    const selectedTarget = jsValue.kind === "not-js-value" && typeTest === undefined
       ? selectCsharpTargetCall(policy, node, sourceFile)
       : undefined;
+    const conversionIssue = csharpSelectedCallConversionIssue(policy, selectedTarget);
+    if (conversionIssue !== undefined) issues.push(conversionIssue);
+    const target = conversionIssue === undefined ? selectedTarget : undefined;
     if (target?.kind === "resolved") {
       const driver = target.call.targetMember.csharpBinaryExecutionDriver;
       if (driver !== undefined) binaryExecutionDrivers.push(driver);
@@ -414,7 +419,10 @@ function visit(
     const selectedResultType = jsValue.kind === "resolved"
       ? jsValue.resultType
       : policy.types.resolveNode(node, sourceFile);
-    const optionalReceiver = classifyCsharpOptionalCallReceiver(policy, source, target, sourceFile);
+    const selectedOptionalReceiver = classifyCsharpOptionalCallReceiver(policy, source, target, sourceFile);
+    const receiverIssue = csharpOperationConversionIssue(node, selectedOptionalReceiver?.conversion, "CSHARP_MEMBER_RECEIVER_CONVERSION_NOT_PROVEN");
+    if (receiverIssue !== undefined) issues.push(receiverIssue);
+    const optionalReceiver = receiverIssue === undefined ? selectedOptionalReceiver : undefined;
     const optionalCallee = classifyCsharpOptionalCallCallee(policy, source, sourceFile);
     const sourceCall = source === undefined || target?.kind !== "source-owned" ? undefined
       : classifyCsharpSourceCallee(policy, source, sourceFile);
@@ -481,9 +489,12 @@ function visit(
       sourceFile,
       "construct",
     );
-    const target = jsValue.kind === "not-js-value"
+    const selectedTarget = jsValue.kind === "not-js-value"
       ? selectCsharpTargetCall(policy, node, sourceFile)
       : undefined;
+    const conversionIssue = csharpSelectedCallConversionIssue(policy, selectedTarget);
+    if (conversionIssue !== undefined) issues.push(conversionIssue);
+    const target = conversionIssue === undefined ? selectedTarget : undefined;
     if (target?.kind === "resolved") {
       const driver = target.call.targetMember.csharpBinaryExecutionDriver;
       if (driver !== undefined) binaryExecutionDrivers.push(driver);
@@ -530,8 +541,11 @@ function visit(
     }));
   } else if (ast.is.IsPropertyAccessExpression(node)) {
     const selection = selectCsharpTargetProperty(policy, node, sourceFile);
-    const receiverProjection = selection.kind === "resolved" || selection.kind === "source-owned"
+    const selectedReceiver = selection.kind === "resolved" || selection.kind === "source-owned"
       ? classifyCsharpMemberReceiver(policy, selection.source, sourceFile) : undefined;
+    const receiverIssue = csharpOperationConversionIssue(node, selectedReceiver?.conversion, "CSHARP_MEMBER_RECEIVER_CONVERSION_NOT_PROVEN");
+    if (receiverIssue !== undefined) issues.push(receiverIssue);
+    const receiverProjection = receiverIssue === undefined ? selectedReceiver : undefined;
     setClassification(
       builder,
       node,
@@ -553,7 +567,10 @@ function visit(
   } else if (ast.is.IsElementAccessExpression(node)) {
     const expression = ast.as.AsElementAccessExpression(node);
     const source = policy.semantics(sourceFile).operations.elementAccess(node);
-    const receiverProjection = source === undefined ? undefined : classifyCsharpMemberReceiver(policy, source, sourceFile);
+    const selectedReceiver = source === undefined ? undefined : classifyCsharpMemberReceiver(policy, source, sourceFile);
+    const receiverIssue = csharpOperationConversionIssue(node, selectedReceiver?.conversion, "CSHARP_MEMBER_RECEIVER_CONVERSION_NOT_PROVEN");
+    if (receiverIssue !== undefined) issues.push(receiverIssue);
+    const receiverProjection = receiverIssue === undefined ? selectedReceiver : undefined;
     const jsValue = validateCsharpJsValueOperationSelection(selectCsharpJsValueReceiverExpressionOperation(
       policy,
       expression?.Expression,
@@ -563,12 +580,14 @@ function visit(
     ));
     const target = jsValue.kind === "not-js-value" ? selectCsharpTargetElement(policy, node, sourceFile) : undefined;
     const sourceOwned = classifySourceOwnedElementMember(policy, target, sourceFile);
+    const selectedTypes = source === undefined ? {} : elementSelectedTypes(policy, source, sourceFile, target);
+    const elementIssue = csharpOperationConversionIssue(node, selectedTypes.flowReadConversion, "CSHARP_ELEMENT_READ_CONVERSION_NOT_PROVEN");
+    if (elementIssue !== undefined) issues.push(elementIssue);
     setClassification(builder, node, elementKey, Object.freeze({
       jsValue,
       ...(receiverProjection === undefined ? {} : { receiverProjection }),
-      ...(source === undefined
-        ? {}
-        : elementSelectedTypes(policy, source, sourceFile)),
+      ...selectedTypes,
+      ...(elementIssue === undefined ? {} : { flowReadConversion: undefined }),
       ...(target === undefined ? {} : { target }),
       ...(sourceOwned === undefined ? {} : { sourceOwned }),
     }));
@@ -820,9 +839,6 @@ function operationResultType(
       element.target.source.optionalChain,
     );
   }
-  if (element?.target?.kind === "project-indexer") {
-    return element.target.selectedReadType ?? element.target.valueType;
-  }
   if (element?.selectedResultType !== undefined) {
     return element.selectedResultType;
   }
@@ -852,7 +868,7 @@ function awaitResultMappingRejection(
   if (completion === undefined) return undefined;
   for (const alternative of completion.alternatives) {
     if (alternative.resultMapping === undefined) continue;
-    const admitted = admitCsharpUnionSelection(policy, alternative.result, completion.result, alternative.resultMapping);
+    const admitted = admitCsharpConversionSelection(policy, alternative.result, completion.result, alternative.resultMapping);
     if (admitted.kind === "rejected") return admitted.reason;
   }
   return undefined;

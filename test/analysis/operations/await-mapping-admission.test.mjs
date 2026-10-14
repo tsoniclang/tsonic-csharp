@@ -5,7 +5,7 @@ import test from "node:test";
 registerHooks({
   load(url, context, nextLoad) {
     const loaded = nextLoad(url, context);
-    if (!url.endsWith("/dist/target-model/types/await-completions.js")) return loaded;
+    if (!url.endsWith("/dist/policy/operations/control-flow/await-completions.js")) return loaded;
     const marker = "export function selectCsharpAwaitCompletion(";
     const source = String(loaded.source);
     assert.equal(source.includes(marker), true, "the await completion selector is the injection point");

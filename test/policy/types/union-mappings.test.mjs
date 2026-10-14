@@ -5,7 +5,7 @@ import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpRuntimeU
 import { selectCsharpUnionArmMapping } from "../../../dist/target-model/types/union-relations.js";
 import { selectCsharpConversion, selectCsharpFlowReadConversion } from "../../../dist/policy/conversions/index.js";
 import { planCsharpUnionMapping } from "../../../dist/backend/planner/expressions/union-mappings.js";
-import { admitCsharpUnionSelection } from "../../../dist/analysis/conversions/validation.js";
+import { admitCsharpConversionSelection } from "../../../dist/analysis/conversions/validation.js";
 
 test("union mappings require complete exact coverage and reject forged or numeric-changing arms", () => {
   const integer = csharpSourcePrimitiveTargetType("int64");
@@ -44,9 +44,9 @@ test("union mappings require complete exact coverage and reject forged or numeri
   for (const arms of [narrowing.slice(1), [...narrowing, narrowing[0]], narrowing.toReversed(),
     narrowing.map((arm, index) => index === 0 ? { ...arm, target: [{ union: narrow, index: 19 }] } : arm),
     narrowing.map((arm, index) => index === 0 ? { ...arm, carrier: boolean } : arm)]) {
-    assert.deepEqual(admitCsharpUnionSelection(policy, wide, narrow, { ...selection, arms }), { kind: "rejected", reason: "Union conversion requires exact sealed arm coverage and native absence correspondence." });
+    assert.deepEqual(admitCsharpConversionSelection(policy, wide, narrow, { ...selection, arms }), { kind: "rejected", reason: "Union conversion requires exact sealed arm coverage and native absence correspondence." });
   }
-  assert.deepEqual(admitCsharpUnionSelection(policy, wide, csharpNullableTargetType(narrow), selection), { kind: "rejected", reason: "Union conversion requires exact sealed arm coverage and native absence correspondence." });
+  assert.deepEqual(admitCsharpConversionSelection(policy, wide, csharpNullableTargetType(narrow), selection), { kind: "rejected", reason: "Union conversion requires exact sealed arm coverage and native absence correspondence." });
 });
 
 test("nested union paths preserve each native grouping and reject stale intermediate carriers", () => {
@@ -70,7 +70,7 @@ test("nested union paths preserve each native grouping and reject stale intermed
   assert.equal(planned.arms[0].expression.arguments[0].expression.callee.name, "From2");
   for (const target of [arms[0].target.slice(1), arms[0].target.toReversed(),
     arms[0].target.map(step => ({ ...step, union: flat })), [arms[0].target[0], arms[0].target[0]]]) {
-    assert.deepEqual(admitCsharpUnionSelection(policy, flat, nested,
+    assert.deepEqual(admitCsharpConversionSelection(policy, flat, nested,
       { ...selection, arms: [{ ...arms[0], target }, ...arms.slice(1)] }), { kind: "rejected", reason: "Union conversion requires exact sealed arm coverage and native absence correspondence." });
   }
 });

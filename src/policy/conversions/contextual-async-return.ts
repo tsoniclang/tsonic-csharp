@@ -1,6 +1,6 @@
 import type { CsharpPolicyContext } from "../model/context.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { selectCsharpAwaitCompletion } from "../../target-model/types/await-completions.js";
+import { selectCsharpAwaitCompletion } from "../operations/control-flow/await-completions.js";
 import { csharpCarrierAdmitsSourceAbsence, getCsharpTaskResultTargetType, isCsharpVoidTargetType } from "../../target-model/types/index.js";
 import { selectCsharpConversion } from "./core.js";
 import { csharpConversionIsApplicable } from "../../target-model/conversions/selection.js";

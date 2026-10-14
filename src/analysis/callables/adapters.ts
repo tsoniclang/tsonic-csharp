@@ -6,6 +6,7 @@ import { getCsharpJsArrayElementTargetType } from "../../target-model/types/carr
 import { getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
 import { selectCsharpFlowReadConversion } from "../../policy/conversions/expression.js";
 import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
+import { admitCsharpConversionSelection } from "../conversions/validation.js";
 
 export function csharpCallableRestElement(type: TargetTypeRef): TargetTypeRef | undefined {
   return type.kind === "array" ? type.element : getCsharpJsArrayElementTargetType(type);
@@ -14,7 +15,7 @@ export function csharpCallableRestElement(type: TargetTypeRef): TargetTypeRef | 
 export function selectCsharpCallableValueAdapter(
   policy: CsharpPolicyContext, source: TargetTypeRef, target: TargetTypeRef,
 ): CsharpCallableValueAdapter | undefined {
-  const conversion = selectCsharpConversion(policy, source, target, "implicit");
+  const conversion = admitCsharpConversionSelection(policy, source, target, selectCsharpConversion(policy, source, target, "implicit"));
   return csharpConversionIsApplicable(conversion, "implicit")
     ? Object.freeze({ source, target, conversion }) : undefined;
 }
@@ -25,7 +26,8 @@ export function selectCsharpCallableResultAdapter(
   if (implementation.sourceReturnType === undefined) return selectCsharpCallableValueAdapter(policy, implementation.returnType, target);
   const sourceContract = selectCsharpCallableValueAdapter(policy, implementation.sourceReturnType, target);
   if (sourceContract === undefined) return undefined;
-  const conversion = selectCsharpFlowReadConversion(policy, implementation.returnType, target);
+  const conversion = admitCsharpConversionSelection(policy, implementation.returnType, target,
+    selectCsharpFlowReadConversion(policy, implementation.returnType, target));
   return csharpConversionIsApplicable(conversion, "explicit")
     ? Object.freeze({ source: implementation.returnType, target, conversion }) : undefined;
 }

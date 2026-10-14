@@ -4,7 +4,7 @@ import { selectCsharpFlowReadProjection } from "../../policy/types/objects/read-
 import type { CsharpFlowReadClassifications, CsharpFlowReadProjection, CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
-import { admitCsharpUnionSelection } from "./validation.js";
+import { admitCsharpConversionSelection } from "./validation.js";
 
 export function analyzeCsharpFlowReadProjections(
   policy: CsharpPolicyContext,
@@ -30,7 +30,7 @@ export function analyzeCsharpFlowReadProjections(
         policy, read?.flowReadStorage, read?.flowReadValue, evidence.valueRefinement.get(node), deferredConstructorFieldRead(policy.ast, node),
       );
       const projection = selected.kind === "conversion"
-        ? { ...selected, selection: admitCsharpUnionSelection(policy, selected.source, selected.target, selected.selection) }
+        ? { ...selected, selection: admitCsharpConversionSelection(policy, selected.source, selected.target, selected.selection) }
         : selected;
       const failure = projection.kind === "rejected" ? projection
         : projection.kind === "conversion" &&

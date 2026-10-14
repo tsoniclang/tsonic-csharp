@@ -5,7 +5,7 @@ import {
   csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTaskTargetType,
   csharpVoidTargetType, targetTypeRefEquals, csharpTsValueTargetType,
 } from "../../../dist/target-model/types/index.js";
-import { selectCsharpAwaitCompletion } from "../../../dist/target-model/types/await-completions.js";
+import { selectCsharpAwaitCompletion } from "../../../dist/policy/operations/control-flow/await-completions.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
 import { selectCsharpRuntimeUnionProjection } from "../../../dist/policy/conversions/carriers.js";
 

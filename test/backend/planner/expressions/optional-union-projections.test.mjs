@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpStringTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
 import { planCsharpRuntimeUnionProjection } from "../../../../dist/backend/planner/expressions/runtime-union-projections.js";
-import { admitCsharpUnionSelection } from "../../../../dist/analysis/conversions/validation.js";
+import { admitCsharpConversionSelection } from "../../../../dist/analysis/conversions/validation.js";
 
 test("nullable union projections require exact payload and absence facts", () => {
   const string = csharpStringTargetType();
@@ -25,7 +25,7 @@ test("nullable union projections require exact payload and absence facts", () =>
     [source, target, { ...selection, armType: integer }], [source, target, { ...selection, path: [{ union, index: "1" }] }],
     [source, target, { ...selection, path: [] }], [source, target, { ...selection, path: new Array(1) }],
   ]) {
-    assert.deepEqual(admitCsharpUnionSelection(policy, selectedSource, selectedTarget, selected),
+    assert.deepEqual(admitCsharpConversionSelection(policy, selectedSource, selectedTarget, selected),
       { kind: "rejected", reason: "Union projection requires exact sealed payload and absence correspondence." });
   }
 });

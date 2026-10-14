@@ -8,6 +8,7 @@ import { getCsharpMethodValue } from "../../target-model/types/method-values.js"
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpCallClassification } from "../../target-model/records/operations.js";
+import { admitCsharpConversionSelection } from "../conversions/validation.js";
 
 export function classifyCsharpOptionalCallCallee(
   policy: CsharpPolicyContext, source: ResolvedSourceCallInfo | undefined, sourceFile: SourceFile,
@@ -49,7 +50,8 @@ export function classifyCsharpOptionalCallReceiver(
     guard,
     ...(parameter === undefined ? {} : {
       parameterType: parameter.type,
-      conversion: selectCsharpConversion(policy, type, parameter.type, "implicit"),
+      conversion: admitCsharpConversionSelection(policy, type, parameter.type,
+        selectCsharpConversion(policy, type, parameter.type, "implicit")),
     }),
   });
 }

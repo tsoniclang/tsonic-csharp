@@ -4,6 +4,7 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetElementSelection } from "../../../../target-model/records/member-selections.js";
+import type { CsharpElementClassification } from "../../../../target-model/records/operations.js";
 import {
   csharpNullableTargetType,
   getCsharpNullableElementTargetType,
@@ -134,6 +135,7 @@ export function translateCsharpElementAccess(
       return translateProjectIndexerElement(
         node,
         selection,
+        classification,
         sourceFile,
         input,
         diagnostics,
@@ -178,6 +180,7 @@ function translateProjectIndexerElement(
     CsharpTargetElementSelection,
     { readonly kind: "project-indexer" }
   >,
+  classification: CsharpElementClassification,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
@@ -213,29 +216,15 @@ function translateProjectIndexerElement(
   if (receiver === undefined || !isValueArgument(argument)) {
     return undefined;
   }
-  const planned = planElementOperands(node, sourceFile, input, diagnostics, receiver, argument,
-    selection.source.optionalChain,
-    (target, key) => ({ kind: "ElementAccessExpression", receiver: target, arguments: [key] }),
-    selection.valueType);
-  if (
-    selection.source.accessMode !== "read" ||
-    selection.selectedReadType === undefined
-  ) {
-    return planned;
-  }
-  return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, planned, value => applyCsharpConversionSelection(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    selection.valueType,
-    selection.selectedReadType,
-    input.program.records.selectedElement.get(node)?.flowReadConversion ?? {
-      kind: "rejected",
-      reason: "The sealed C# element-read classification has no conversion.",
-    },
-    value,
-  ), selection.selectedReadType);
+  if (classification.selectedResultType === undefined) return undefined;
+  return planElementOperands(node, sourceFile, input, diagnostics, receiver, argument,
+    selection.source.optionalChain, (target, key) => {
+      const value: CsharpExpression = { kind: "ElementAccessExpression", receiver: target, arguments: [key] };
+      if (selection.source.accessMode !== "read" || selection.selectedReadType === undefined) return value;
+      const conversion = classification.flowReadConversion;
+      return conversion === undefined ? undefined : applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
+        selection.valueType, selection.selectedReadType, conversion, value);
+    }, classification.selectedResultType);
 }
 
 function translateSelectedElement(

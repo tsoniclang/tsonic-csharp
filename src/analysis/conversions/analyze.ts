@@ -50,7 +50,7 @@ import { substituteTargetTypeParameters } from "../../target-model/types/substit
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import { selectCsharpIntegerTruncationConversion } from "../../policy/conversions/integer-truncation.js";
 import { selectCsharpExactIntegerConversion } from "../../policy/conversions/exact-integer.js";
-import { admitCsharpUnionSelection } from "./validation.js";
+import { admitCsharpConversionSelection } from "./validation.js";
 import { selectCsharpPropertyProjections } from "./property-projections.js";
 
 const unavailableConversion: CsharpConversionSelection = Object.freeze({
@@ -649,7 +649,7 @@ export function analyzeCsharpConversions(
     if (!reserveClassification(node)) {
       return undefined;
     }
-    const selected = admitCsharpUnionSelection(policy, source, target, selectCsharpConversion(policy, source, target, mode));
+    const selected = admitCsharpConversionSelection(policy, source, target, selectCsharpConversion(policy, source, target, mode));
     pairSelections.set(key, selected);
     return selected;
   }
@@ -700,7 +700,7 @@ export function analyzeCsharpConversions(
       objectShapes.registerStructuralInterface(expression, source, target)) {
       candidate = { kind: "implicit", proof: "object-shape-interface" };
     }
-    const selected = admitCsharpUnionSelection(policy, source, target, candidate.kind === "delegate-adapter" && candidate.strategy === "adaptation" &&
+    const selected = admitCsharpConversionSelection(policy, source, target, candidate.kind === "delegate-adapter" && candidate.strategy === "adaptation" &&
         (
           sourceFile === undefined ||
           !isSourceOwnedCallableRuntimeCarrierSubject(
