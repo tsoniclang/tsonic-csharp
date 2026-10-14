@@ -27,12 +27,10 @@ import type {
 } from "@tsonic/target-api/analysis";
 import {
   AsForInOrOfStatement,
-  isAstNode,
   selectSourceNativeValueGuard,
 } from "@tsonic/target-api/source";
-import type { TsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";
-import { csharpDestructuringAssignmentSyntax, isCsharpAssignmentOperator } from "../../target-model/syntax/operators.js";
-import type { CsharpSafetyApplicationFactIndex } from "../../target-model/records/safety.js";
+import { createCsharpOperationErasure, csharpErasedExpressionStatement, selectCsharpCallForm, selectCsharpNativeHandler, selectCsharpOperatorForm,
+  type CsharpOperationErasure, type CsharpOperationErasureIndexes } from "./native-dispatch.js";
 import type {
   Node,
   SourceFile,
@@ -69,7 +67,6 @@ import {
   selectCsharpJsArrayMutation,
   selectCsharpJsStringConversion,
   selectCsharpRegularExpressionLiteral,
-  targetBinaryOperator,
 } from "../../policy/operations/index.js";
 import type {
   CsharpTypeofRuntimeKind,
@@ -177,17 +174,10 @@ const borrowedSequenceKey = createTargetClassificationKey<ReturnType<typeof clas
 const operationResultKeyIds: ReadonlySet<string> = new Set([memoryBindingKey.id, jsArrayMutationKey.id, callKey.id,
   constructionKey.id, propertyKey.id, elementKey.id, binaryKey.id, unaryKey.id]);
 
-interface CsharpOperationErasure {
-  readonly attributeApplications: TsonicAttributeApplicationFactIndex;
-  readonly safetyApplications: Pick<CsharpSafetyApplicationFactIndex, "safetyOperation">;
-  readonly demandedInvocations: ReadonlySet<Node>;
-  readonly issues: CsharpOperationIssue[];
-}
-
 export function analyzeCsharpTargetOperations(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
-  erasureIndexes: Pick<CsharpOperationErasure, "attributeApplications" | "safetyApplications">,
+  erasureIndexes: CsharpOperationErasureIndexes,
 ): CsharpTargetOperationClassifications {
   const builder = createTargetClassificationBuilder();
   const operationResultSubjects = new Set<Node>();
@@ -202,12 +192,7 @@ export function analyzeCsharpTargetOperations(
   const binaryExecutionDrivers:
     import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[] = [];
   const issues: CsharpOperationIssue[] = [];
-  const erasure: CsharpOperationErasure = Object.freeze({
-    ...erasureIndexes,
-    demandedInvocations: new Set(erasureIndexes.attributeApplications.all.flatMap(application =>
-      isAstNode(policy.ast, application.invocation) ? [application.invocation] : [])),
-    issues,
-  });
+  const erasure = createCsharpOperationErasure(policy.ast, erasureIndexes, issues);
   for (const sourceFile of policy.sourceFiles) {
     visit(
       sourceFile,
@@ -289,7 +274,7 @@ function visit(
   }
   const { ast } = policy;
   const issues = erasure.demandedInvocations.has(node) ? erasure.issues : scopeIssues;
-  const erased = ast.is.IsExpressionStatement(node) && erasedExpressionStatement(ast, node, erasure);
+  const erased = ast.is.IsExpressionStatement(node) && csharpErasedExpressionStatement(ast, node, erasure);
   if (erased) setClassification(builder, node, erasedStatementKey, true);
   if (ast.is.IsAwaitExpression(node)) {
     const expression = ast.as.AsAwaitExpression(node)?.Expression;
@@ -422,7 +407,8 @@ function visit(
       selectCsharpTypedLocationOperation(policy, node, sourceFile),
     );
   }
-  const nativeHandler = selectCsharpNativeHandler(builder, node, erasure.safetyApplications.safetyOperation.get(node));
+  const nativeHandler = selectCsharpNativeHandler(builder.get(node, memoryBindingKey), erasure.safetyApplications.safetyOperation.get(node),
+    builder.get(node, jsStringConversionKey), builder.get(node, nativePointerKey), builder.get(node, typedLocationKey));
   if (nativeHandler !== undefined) setClassification(builder, node, nativeHandlerKey, nativeHandler);
   if (ast.is.IsCallExpression(node)) {
     const expression = ast.as.AsCallExpression(node);
@@ -463,10 +449,7 @@ function visit(
     const sourceMethodValue = source === undefined || sourceCall?.kind !== "value" ? undefined
       : getCsharpMethodValue(policy.types.resolveNode(source.sourceCallee.expression, sourceFile));
     setClassification(builder, node, callKey, Object.freeze({
-      form: Object.freeze(typeTest !== undefined ? { kind: "type-test" as const, typeTest }
-        : sourceFlow.kind === "keep-alive" ? { kind: "keep-alive" as const, sourceFlow }
-        : jsValue.kind !== "not-js-value" ? { kind: "js-value" as const, operation: jsValue }
-        : { kind: "target" as const }),
+      form: selectCsharpCallForm(typeTest, sourceFlow, jsValue),
       ...(sourceMethodValue === undefined ? {} : { sourceMethodValue }),
       ...(optionalReceiver === undefined ? {} : { optionalReceiver }),
       ...(optionalCallee === undefined ? {} : { optionalCallee }),
@@ -797,87 +780,9 @@ function visit(
     },
   );
   if (ast.is.IsBinaryExpression(node) || ast.is.IsPrefixUnaryExpression(node) || ast.is.IsPostfixUnaryExpression(node)) {
-    setClassification(builder, node, operatorFormKey, selectCsharpOperatorForm(ast, builder, node));
+    setClassification(builder, node, operatorFormKey, selectCsharpOperatorForm(ast, node, builder.get(node, jsArrayMutationKey),
+      builder.get(node, binaryKey), builder.get(node, unaryKey), (subject) => builder.get(subject, propertyKey)));
   }
-}
-
-function selectCsharpOperatorForm(
-  ast: CsharpPolicyContext["ast"],
-  builder: ReturnType<typeof createTargetClassificationBuilder>,
-  node: Node,
-): CsharpOperatorForm {
-  const operator = sourceOperatorFromKindName(ast.operatorKindName(node));
-  const mutation = builder.get(node, jsArrayMutationKey);
-  if (!ast.is.IsBinaryExpression(node)) {
-    if (mutation === undefined || mutation.kind !== "not-js-array-mutation") return "js-array-mutation";
-    const operand = ast.is.IsPrefixUnaryExpression(node)
-      ? ast.as.AsPrefixUnaryExpression(node)?.Operand
-      : ast.as.AsPostfixUnaryExpression(node)?.Operand;
-    if ((operator === "++" || operator === "--") && operand !== undefined && ast.is.IsPropertyAccessExpression(operand)) {
-      const property = builder.get(operand, propertyKey);
-      const shapeProperty = property?.sourceOwned?.jsValueProperty;
-      if (property?.selection.kind === "source-owned" &&
-        (shapeProperty === undefined || shapeProperty.kind !== "not-js-value-object-shape")) return "js-value-object-shape-update";
-    }
-    const unary = builder.get(node, unaryKey);
-    return operator !== undefined && (unary === undefined || unary.jsValue.kind !== "not-js-value")
-      ? "js-value-operation" : "selected";
-  }
-  if (csharpDestructuringAssignmentSyntax(ast, node) !== undefined) return "destructuring-assignment";
-  if (mutation === undefined || mutation.kind !== "not-js-array-mutation") return "js-array-mutation";
-  if (operator === "instanceof") return "type-test";
-  const expression = ast.as.AsBinaryExpression(node);
-  const left = expression?.Left;
-  const binary = builder.get(node, binaryKey);
-  const operands = left !== undefined && expression?.Right !== undefined;
-  if (operands && operator !== undefined && operator !== "=" && (binary === undefined || binary.jsValue.kind !== "not-js-value")) {
-    return "js-value-operation";
-  }
-  if ((operator === "===" || operator === "==" || operator === "!==" || operator === "!=") &&
-    binary?.typeofComparison !== undefined) return "typeof-comparison";
-  if (left === undefined || !operands || operator === undefined || !isCsharpAssignmentOperator(operator) ||
-    targetBinaryOperator(operator) === undefined) return "selected";
-  if (ast.is.IsPropertyAccessExpression(left)) {
-    const property = builder.get(left, propertyKey);
-    if (property === undefined) return "selected";
-    const shapeProperty = property.sourceOwned?.jsValueProperty;
-    if (property.selection.kind === "source-owned" && ast.as.AsPropertyAccessExpression(left)?.Expression !== undefined &&
-      (shapeProperty === undefined || shapeProperty.kind !== "not-js-value-object-shape")) return "js-value-write";
-    if (operator !== "=") return "selected";
-    return binary?.propertyWrite === undefined || binary.propertyWrite.kind !== "not-js-value" ? "js-value-write" : "selected";
-  }
-  if (ast.is.IsElementAccessExpression(left)) {
-    return binary?.elementWrite === undefined || binary.elementWrite.kind !== "not-js-value" ? "js-value-write" : "selected";
-  }
-  return "selected";
-}
-
-function selectCsharpNativeHandler(
-  builder: ReturnType<typeof createTargetClassificationBuilder>,
-  node: Node,
-  safety: ReturnType<CsharpSafetyApplicationFactIndex["safetyOperation"]["get"]>,
-): CsharpNativeHandler | undefined {
-  if (builder.get(node, memoryBindingKey) !== undefined) return "memory-binding";
-  if (safety !== undefined) return "explicit-safety";
-  const conversion = builder.get(node, jsStringConversionKey);
-  if (conversion !== undefined && conversion.kind !== "not-js-string-conversion") return "js-string-conversion";
-  const pointer = builder.get(node, nativePointerKey);
-  if (pointer !== undefined && pointer.kind !== "not-native-pointer") return "native-pointer";
-  const location = builder.get(node, typedLocationKey);
-  return location !== undefined && location.kind !== "not-typed-location" ? "typed-location" : undefined;
-}
-
-function erasedExpressionStatement(
-  ast: CsharpPolicyContext["ast"],
-  statement: Node,
-  erasure: CsharpOperationErasure,
-): boolean {
-  const expression = ast.as.AsExpressionStatement(statement)?.Expression;
-  if (expression === undefined) return false;
-  if (erasure.attributeApplications.forSubject(expression) !== undefined) return true;
-  const safety = erasure.safetyApplications.safetyOperation.get(expression);
-  return safety?.kind === "safety-builder" ||
-    safety?.kind === "unsafe-context" && safety.fact.kind === "remaining-block";
 }
 
 function classifyTypeofComparison(
