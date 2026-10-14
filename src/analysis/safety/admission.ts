@@ -3,6 +3,7 @@ import {
   AsExpressionStatement,
   sourceClassFieldIsTypeOnly,
   sourceObjectMemberDeclarations,
+  sourceFileIdentity,
   sourceParameterIsProperty,
 } from "@tsonic/target-api/source";
 import type { CsharpAttributeApplicationIndex } from "../../target-model/records/attributes.js";
@@ -32,7 +33,9 @@ export function admitCsharpSafetyApplications(input: CsharpSafetyAdmissionInput)
   const { ast } = input;
   const issues: CsharpSafetyAdmissionIssue[] = [];
   const contractsEmitted = input.languageDialect === "csharp15-preview" && input.memorySafetyRules === "preview";
-  for (const sourceFile of input.sourceFiles) {
+  const sourceFiles = [...input.sourceFiles].sort((left, right) =>
+    (sourceFileIdentity(ast, left) ?? "").localeCompare(sourceFileIdentity(ast, right) ?? ""));
+  for (const sourceFile of sourceFiles) {
     visit(sourceFile);
     admitApplications(sourceFile);
   }

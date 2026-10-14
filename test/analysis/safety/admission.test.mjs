@@ -175,3 +175,10 @@ test("every application in every source file is admitted, including erased and u
   assert.equal(result.kind, "resolved");
   assertCsharpCompilationSucceeded(compiled);
 });
+
+test("safety diagnostics follow source-file identity order across files", () => {
+  const entry = (name) => `import { other } from "./${name}.js";\n${api}safety<Api>().property(a => a.value).setter().requiresunsafe();\nexport function use(): int32 { return other(1); }`;
+  const dependency = `${header}export function other(value: int32): int32 { return value; }\nsafety(other).safe();`;
+  rejectedBeforePublication(entry("zeta"), preview, [accessor("setter"), safeTarget], { "zeta.ts": dependency });
+  rejectedBeforePublication(entry("alpha"), preview, [safeTarget, accessor("setter")], { "alpha.ts": dependency });
+});
