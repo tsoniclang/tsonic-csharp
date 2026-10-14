@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { resolveCsharpContextualLiteralCarrier } from "../../../dist/policy/types/resolution/contextual-literals.js";
-import { csharpJsArrayTargetType } from "../../../dist/policy/types/resolution/surface-types.js";
+import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
 import { csharpReadOnlyListTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 
 const empty = {};

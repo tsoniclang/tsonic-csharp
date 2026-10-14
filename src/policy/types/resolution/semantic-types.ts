@@ -25,7 +25,7 @@ import {
   csharpNeverTargetType,
   csharpVoidTargetType,
 } from "../../../target-model/types/carriers/scalar-types.js";
-import { csharpJsSymbolTargetType } from "./surface-types.js";
+import { csharpJsSymbolTargetType } from "../../../target-model/types/carriers/js.js";
 import {
   csharpFixedArrayRepresentationRejection,
   readCsharpSourceDefaultValue,

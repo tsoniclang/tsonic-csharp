@@ -10,7 +10,7 @@ import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carrie
 import { csharpNullableValueTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
-import { typedArrayNames } from "../../../types/resolution/surface-types.js";
+import { typedArrayNames } from "../../../../target-model/types/carriers/js.js";
 import { jsRuntimeTargetType, staticMethod, targetParameter, targetProperty } from "./common.js";
 
 const owners: ReadonlySet<string> = new Set(["Array", "ReadonlyArray", "TypedArray", ...typedArrayNames]);

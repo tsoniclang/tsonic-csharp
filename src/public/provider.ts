@@ -27,9 +27,9 @@ export {
   csharpNullableValueTargetType,
   getCsharpNullableElementTargetType,
 } from "../target-model/types/carriers/nullable.js";
-export { csharpJsDateTargetType } from "../policy/types/resolution/surface-types.js";
-export { csharpJsArrayTargetType } from "../policy/types/resolution/surface-types.js";
-export { csharpJsTypedArrayTargetType } from "../policy/types/resolution/surface-types.js";
+export { csharpJsDateTargetType } from "../target-model/types/carriers/js.js";
+export { csharpJsArrayTargetType } from "../target-model/types/carriers/js.js";
+export { csharpJsTypedArrayTargetType } from "../target-model/types/carriers/js.js";
 export { csharpTsValueTargetType } from "../target-model/types/carriers/runtime-carriers.js";
 export {
   csharpRuntimeUnionTargetType,

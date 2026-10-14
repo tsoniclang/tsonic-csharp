@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpJsArrayElementPolicies } from "../../../dist/policy/operations/source-profiles/js/arrays.js";
-import { csharpJsArrayTargetType } from "../../../dist/policy/types/resolution/surface-types.js";
+import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
 
 const element = { kind: "source-primitive", name: "int32" };
 

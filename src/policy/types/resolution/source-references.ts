@@ -7,7 +7,7 @@ import type {
 } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType, selectedCsharpSourceProfileOwner } from "./source-profile.js";
-import { csharpJsArrayTargetType } from "./surface-types.js";
+import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js.js";
 import { csharpSourceTypeArgumentNodes } from "../../../target-model/syntax/type-arguments.js";
 import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";

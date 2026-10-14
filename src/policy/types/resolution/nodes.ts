@@ -5,7 +5,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { combineCsharpTargetUnionMembers } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { csharpJsArrayTargetType } from "./surface-types.js";
+import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { getCsharpNullableElementTargetType, csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { maximumTypeResolutionDepth } from "./model.js";

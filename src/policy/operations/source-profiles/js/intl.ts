@@ -6,7 +6,7 @@ import {
   csharpJsDateTargetType,
   csharpJsIntlTargetType,
   type CsharpJsIntlCarrierName,
-} from "../../../types/resolution/surface-types.js";
+} from "../../../../target-model/types/carriers/js.js";
 import {
   csharpBigIntegerTargetType,
   csharpNullableTargetType,

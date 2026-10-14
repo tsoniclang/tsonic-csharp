@@ -1,4 +1,4 @@
-import { csharpJsSymbolTargetType } from "../../../types/resolution/surface-types.js";
+import { csharpJsSymbolTargetType } from "../../../../target-model/types/carriers/js.js";
 import {
   csharpNullableTargetType,
   csharpSourcePrimitiveTargetType,

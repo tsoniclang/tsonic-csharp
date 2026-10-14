@@ -19,7 +19,7 @@ import {
   csharpJsTypedArrayElementTargetType,
   csharpJsTypedArrayTargetType,
   type CsharpJsTypedArrayName,
-} from "../../../types/resolution/surface-types.js";
+} from "../../../../target-model/types/carriers/js.js";
 import type {
   CsharpSourceProfileCallPolicy,
   CsharpSourceProfileCallPolicyContext,
