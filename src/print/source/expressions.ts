@@ -22,7 +22,7 @@ import {
   printLiteral,
   printNumericLiteral,
 } from "./format.js";
-import { isCsharpTypeSyntax } from "./types.js";
+import { isCsharpTypeSyntax, isCsharpTypeSyntaxAlsoAnExpression } from "./types.js";
 import { csharpExpressionPrecedence } from "./precedence.js";
 import { transformCsharpTargetAst } from "../../backend/target-ast/normalization/transformation.js";
 
@@ -71,7 +71,7 @@ export function printCsharpExpression(
         : printCsharpObjectInitializer(expression.type, expression.arguments ?? [], expression.assignments, context);
     case "CastExpression": {
       const printedExpression = context.printExpression(expression.expression);
-      return castOperandRequiresParentheses(expression.expression)
+      return castOperandRequiresParentheses(expression.type, expression.expression, printedExpression)
         ? `(${context.printType(expression.type)})(${printedExpression})`
         : `(${context.printType(expression.type)})${printedExpression}`;
     }
@@ -128,8 +128,9 @@ function printOperand(expression: CsharpExpression, precedence: number, equal: b
   return selected < precedence || equal && selected === precedence ? `(${printed})` : printed;
 }
 
-function castOperandRequiresParentheses(expression: CsharpExpression): boolean {
-  return csharpExpressionPrecedence(expression) < 14 || expression.kind === "SwitchExpression";
+function castOperandRequiresParentheses(type: CsharpTypeNode, expression: CsharpExpression, printedExpression: string): boolean {
+  return csharpExpressionPrecedence(expression) < 14 || expression.kind === "SwitchExpression" ||
+    isCsharpTypeSyntaxAlsoAnExpression(type) && /^[-+*]/u.test(printedExpression);
 }
 
 function printPostfixOperand(

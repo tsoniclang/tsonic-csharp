@@ -45,6 +45,23 @@ function printFunctionPointerCallingConvention(
     : ` ${type.callingConvention}`;
 }
 
+const csharpPredefinedTypeKeywords = new Set([
+  "bool", "byte", "char", "decimal", "double", "float", "int", "long", "object", "sbyte", "short", "string", "uint", "ulong", "ushort",
+]);
+
+export function isCsharpTypeSyntaxAlsoAnExpression(type: CsharpTypeNode): boolean {
+  switch (type.kind) {
+    case "IdentifierName":
+    case "QualifiedName":
+    case "AliasQualifiedName":
+      return true;
+    case "PredefinedType":
+      return !csharpPredefinedTypeKeywords.has(type.name);
+    default:
+      return false;
+  }
+}
+
 export function isCsharpTypeSyntax(expression: CsharpExpression): expression is CsharpTypeNode {
   switch (expression.kind) {
     case "AliasQualifiedName":

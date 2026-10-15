@@ -54,7 +54,7 @@ function renderRecipe(
       return halfType === undefined
         ? { kind: "rejected", reason: "C# Half signed-zero conversion requires an exact renderable target type." }
         : { kind: "resolved", expression: {
-            kind: "CastExpression", type: halfType, expression: { kind: "ParenthesizedExpression", expression: zero },
+            kind: "CastExpression", type: halfType, expression: zero,
           } };
     }
     case "zero":
