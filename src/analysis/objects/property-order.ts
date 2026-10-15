@@ -21,9 +21,13 @@ const resolved = (propertyOrder: readonly string[]): CsharpObjectShapePropertyOr
 const missingProjectionOrder = rejected("Object-shape projection has no exact completed own-property order proof.");
 const missingAssignmentSourceOrder = rejected("Object-shape assignment source has no exact completed own-property order proof.");
 const missingEmptyOccurrence: Readonly<Record<CsharpObjectShapeProjectionKind, CsharpObjectShapePropertyOrderSelection>> =
-  Object.freeze(Object.fromEntries((["keys", "values", "entries", "has-own", "assign"] as const).map(projection =>
-    [projection, rejected(`Selected '${projection}' operation has no exact authored empty-object occurrence.`)])) as
-    Record<CsharpObjectShapeProjectionKind, CsharpObjectShapePropertyOrderSelection>);
+  Object.freeze({
+    keys: rejected("Selected 'keys' operation has no exact authored empty-object occurrence."),
+    values: rejected("Selected 'values' operation has no exact authored empty-object occurrence."),
+    entries: rejected("Selected 'entries' operation has no exact authored empty-object occurrence."),
+    "has-own": rejected("Selected 'has-own' operation has no exact authored empty-object occurrence."),
+    assign: rejected("Selected 'assign' operation has no exact authored empty-object occurrence."),
+  });
 
 export function createCsharpObjectShapePropertyOrderIndex(
   ast: AstReader,
