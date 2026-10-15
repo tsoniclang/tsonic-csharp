@@ -87,7 +87,7 @@ export function planMethodDeclaration(
     input,
     diagnostics,
   );
-  if (input.program.source.ast.hasModifierKind(node, "abstract")) {
+  if (input.program.records.nativeParticipation.get(node) === "signature") {
     return {
       kind: "MethodDeclaration", name, modifiers,
       attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),

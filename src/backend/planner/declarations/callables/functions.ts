@@ -1,5 +1,5 @@
 import type { CsharpPlanningContext } from "../../context.js";
-import { AsFunctionDeclaration, sourceLexicalFunctionIsUnused } from "@tsonic/target-api/source";
+import { AsFunctionDeclaration } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpMethodDeclaration, CsharpStatement } from "../../../target-ast/syntax/index.js";
@@ -34,8 +34,7 @@ export function planLocalFunctionDeclaration(
   node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], parent: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  if (input.program.source.ast.body(node) === undefined || input.program.records.captureClosure.get(node) !== undefined) return [];
-  if (sourceLexicalFunctionIsUnused(node, input.program.source.ast, input.program.sourceNavigation)) return [];
+  if (input.program.records.nativeParticipation.get(node) !== "body") return [];
   const planned = planSourceFunctionDeclaration(node, sourceFile, input, diagnostics, parent);
   return [{ ...planned.declaration, kind: "LocalFunctionStatement",
     modifiers: withCsharpSafetyModifiers(planned.async ? ["async"] : [], node, "declaration", input) }];

@@ -6,8 +6,6 @@ import type {
   CsharpTypeMember,
 } from "../../../target-ast/syntax/index.js";
 import {
-  AsConstructorDeclaration,
-  AsMethodDeclaration,
   KindClassStaticBlockDeclaration,
   KindConstructor,
   KindGetAccessor,
@@ -56,22 +54,23 @@ export function planClassMembers(
         : { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: factory.environmentName }, input, diagnostics, "instance");
     switch (SourceKind(input.program.source.ast, member)) {
       case KindConstructor:
-        if (AsConstructorDeclaration(input.program.source.ast, member)?.Body !== undefined) {
+        if (input.program.records.nativeParticipation.get(member) === "body") {
           planned.push(...planConstructorDeclarations(member, className, sourceFile, memberInput, diagnostics,
             initialization[0]?.statements ?? []));
         }
         break;
       case KindClassStaticBlockDeclaration:
         break;
-      case KindMethodDeclaration:
-        if (AsMethodDeclaration(input.program.source.ast, member)?.Body !== undefined ||
-          input.program.source.ast.hasModifierKind(member, "abstract")) {
+      case KindMethodDeclaration: {
+        const participation = input.program.records.nativeParticipation.get(member);
+        if (participation === "body" || participation === "signature") {
           const method = planMethodDeclaration(member, sourceFile, memberInput, diagnostics);
           const write = input.program.records.methodWrite.get(member);
           planned.push(...(write === undefined ? [method] : planCsharpMutableMethod(member, method, write, input, diagnostics)));
           planned.push(...planCsharpProjectCallableAdapters(member, method, sourceFile, memberInput, diagnostics));
         }
         break;
+      }
       case KindPropertyDeclaration:
       case KindParameter:
         planned.push(planPropertyDeclaration(member, sourceFile, input, diagnostics,

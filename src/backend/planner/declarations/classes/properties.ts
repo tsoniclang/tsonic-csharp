@@ -224,7 +224,7 @@ function mergeGetterAccessor(
     ),
     attributes: existing?.attributes ?? planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
-    ...(input.program.source.ast.hasModifierKind(node, "abstract") ? { autoGetter: true } : { getter: {
+    ...(input.program.records.nativeParticipation.get(node) === "signature" ? { autoGetter: true } : { getter: {
       kind: "Block",
       statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
     } as const }),
@@ -299,7 +299,7 @@ function mergeSetterAccessor(
     ...(existing?.getterModifiers === undefined
       ? {}
       : { getterModifiers: existing.getterModifiers }),
-    ...(input.program.source.ast.hasModifierKind(node, "abstract") ? { autoSetter: true } : { setter: {
+    ...(input.program.records.nativeParticipation.get(node) === "signature" ? { autoSetter: true } : { setter: {
       kind: "Block",
       statements: planSetAccessorStatements(declaration.Body, parameterAlias, parameterPrelude, sourceFile, input, diagnostics, state),
     } as const }),

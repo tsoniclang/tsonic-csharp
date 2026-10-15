@@ -7,6 +7,7 @@ import type { CsharpConversionClassifications, CsharpValueReadClassifications } 
 import type { CsharpDeclarationClassifications } from "../../../target-model/records/declarations.js";
 import type { CsharpExpectedTypeClassifications } from "../../../target-model/records/expected-types.js";
 import type { CsharpModuleInitializationIndex } from "../../../target-model/records/module-initialization.js";
+import type { CsharpNativeParticipationInput } from "../../../target-model/records/native-demand.js";
 import type { CsharpNumericRepresentations } from "../../../target-model/records/numeric.js";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations.js";
 import type { CsharpSafetyApplicationFactIndex } from "../../../target-model/records/safety.js";
@@ -19,6 +20,7 @@ import type { CsharpProgramRecords } from "../../../target-model/records/program
 
 export interface CsharpProgramRecordInput {
   readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
+  readonly nativeParticipation: CsharpNativeParticipationInput;
   readonly sourceEvidence: CsharpSourceEvidenceIndex;
   readonly flowReads: CsharpFlowReadClassifications;
   readonly valueReads: CsharpValueReadClassifications;
@@ -42,6 +44,7 @@ export interface CsharpProgramRecordInput {
 export function createCsharpProgramRecords(input: CsharpProgramRecordInput): CsharpProgramRecords {
   return Object.freeze({
     literalValue: input.literalValues.literalValue,
+    nativeParticipation: input.nativeParticipation.participation,
     attributeApplication: input.attributeApplications.attributeApplication,
     erasedAttribute: input.attributeApplications.erasedAttribute,
     callableDispatch: input.callableAdapters.callableDispatch,

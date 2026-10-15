@@ -44,7 +44,6 @@ import {
 } from "../../objects/index.js";
 import { csharpInheritedStructuralInterfaces, renderCsharpStructuralInterfaceMembers, shadowCsharpInheritedInterfaceMembers } from "../../objects/declarations/structural-interfaces.js";
 import { objectShapeStorageMemberName } from "../../objects/object-shape-storage.js";
-import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../../target-model/types/object-shape-members.js";
 import { renderObjectShapeProjectionMethods } from "../../objects/closed-object-shapes.js";
 import {
   csharpSafetyAccessorModifiersForDeclaration,
@@ -76,9 +75,8 @@ export function planInterfaceDeclaration(
     }
     switch (input.program.source.ast.kindName(member)) {
       case KindMethodSignature: {
-        const selected = objectShape === undefined ? undefined : resolveCsharpObjectShapeMemberBySelectedSubject(objectShape, [member]);
-        return selected?.kind === "resolved" && selected.member.optional === true
-          ? [] : [planInterfaceMethodDeclaration(member, sourceFile, input, diagnostics)];
+        return input.program.records.nativeParticipation.get(member) === "signature"
+          ? [planInterfaceMethodDeclaration(member, sourceFile, input, diagnostics)] : [];
       }
       case KindPropertySignature:
         return [planInterfacePropertyDeclaration(member, sourceFile, input, diagnostics)];

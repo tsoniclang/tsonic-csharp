@@ -3,6 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import { analyzeCsharpCaptureStorage } from "../callables/capture-storage.js";
+import { analyzeCsharpNativeParticipation } from "../callables/participation.js";
 import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-adapters.js";
 import { analyzeCsharpClassFactories } from "../project-types/class-factories.js";
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
@@ -325,12 +326,17 @@ export function analyzeCsharpTargetProgram(
   })));
   const flowReads = analyzeCsharpFlowReadProjections(analysis.policy, analysis.sourceEvidence, analysis.operations, analysis.valueReads);
   if (flowReads.issues.length > 0) return rejectCsharpAnalysisIssues(flowReads.issues);
+  const nativeParticipation = analyzeCsharpNativeParticipation({
+    ast: source.ast, nodes: sourceStorage.nodes, navigation: source.navigation,
+    captureClosure: captureStorage.captureClosure, lambdaCreation: captureStorage.lambdaCreation,
+    objectShapes: analysis.objectShapes, compileTimeMetadata: analysis.sourceEvidence.compileTimeMetadata,
+  });
   const typeDefinitions = analysis.typeDefinitions.seal();
   const classInitialization = analyzeCsharpClassInitialization(source, classFactories);
   const numericRepresentations = analyzeCsharpNumericRepresentations({ source, sourceFiles,
     evidence: analysis.sourceEvidence, operations: analysis.operations });
   const records = createCsharpProgramRecords({
-    literalValues,
+    literalValues, nativeParticipation,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
     numericRepresentations, attributeApplications, safetyApplications, operations: analysis.operations,

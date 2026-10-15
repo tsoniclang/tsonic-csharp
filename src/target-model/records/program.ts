@@ -7,6 +7,7 @@ import type { CsharpConversionClassifications, CsharpValueReadClassifications } 
 import type { CsharpDeclarationClassifications } from "./declarations.js";
 import type { CsharpExpectedTypeClassifications } from "./expected-types.js";
 import type { CsharpModuleInitializationIndex } from "./module-initialization.js";
+import type { CsharpNativeParticipationInput } from "./native-demand.js";
 import type { CsharpNumericRepresentations } from "./numeric.js";
 import type { CsharpTargetOperationClassifications } from "./operations.js";
 import type { CsharpSafetyApplicationFactIndex } from "./safety.js";
@@ -18,6 +19,7 @@ import type { CsharpGenericProjectionIndex } from "./type-projections.js";
 
 export interface CsharpProgramRecords {
   readonly literalValue: import("@tsonic/target-api/source").SourceLiteralIndex["literalValue"];
+  readonly nativeParticipation: CsharpNativeParticipationInput["participation"];
   readonly attributeApplication: CsharpAttributeApplicationIndex["attributeApplication"];
   readonly erasedAttribute: CsharpAttributeApplicationIndex["erasedAttribute"];
   readonly callableDispatch: CsharpProjectCallableAdapters["callableDispatch"];
