@@ -82,7 +82,7 @@ for (const surface of ["native", "js"]) {
       "without the owning rejection the missing factory fails the seal at its definition");
   });
 
-  test(`${surface}: the participation owner registers each selected callable declaration`, () => {
+  test(`${surface}: the participation owner registers each native participation decision`, () => {
     const storage = createSourceStorageQuery(source, program.sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source));
     assert.equal(storage.failureReason() === undefined, true, "bounded owned source domain");
     const rows = [];
@@ -94,12 +94,12 @@ for (const surface of ["native", "js"]) {
     assert.equal(storage.nodes.every(node => participation.get(node) === records.nativeParticipation.get(node)), true,
       "the owner selects the published participation again");
     const selected = storage.nodes.filter(node => participation.get(node) !== undefined);
-    assert.equal(sameRows(rows, selected, "nativeParticipation", "callable declaration", "analyzeCsharpNativeParticipation"), true,
-      "one row per selected callable declaration, in source order");
+    assert.equal(sameRows(rows, selected, "nativeParticipation", "native participation decision", "analyzeCsharpNativeParticipation"), true,
+      "one row per participation decision, in source order");
     assert.equal(["KindFunctionDeclaration", "KindConstructor", "KindArrowFunction", "KindFunctionType"].every(kind =>
       rows.some(row => ast.kindName(row.subject) === kind)), true, "body, lambda and erased signature decisions all register");
     assert.equal(rows.every(row => !ast.is.IsClassDeclaration(row.subject) && !ast.is.IsParameterDeclaration(row.subject)), true,
-      "non-callable nodes register nothing");
+      "undecided nodes register nothing");
     assertCsharpRequiredRecords(records, rows);
   });
 

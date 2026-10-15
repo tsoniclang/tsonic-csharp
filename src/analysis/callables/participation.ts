@@ -32,7 +32,7 @@ export function analyzeCsharpNativeParticipation(input: CsharpNativeParticipatio
     const selected = select(node);
     if (selected === undefined) continue;
     requireCsharpRecord(input.requiredRecords, { family: "nativeParticipation", subject: node,
-      construct: "callable declaration", producer: "analyzeCsharpNativeParticipation" });
+      construct: "native participation decision", producer: "analyzeCsharpNativeParticipation" });
     participation.set(node, selected);
     if (selected === "erased") excluded.add(node);
   }
