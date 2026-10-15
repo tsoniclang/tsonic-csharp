@@ -230,6 +230,42 @@ test("array binding policy states the concrete rest carrier for read-only lists"
   assert.equal(carrier?.restCarrier.id, "System.Collections.Generic.List`1");
 });
 
+test("array binding policy publishes the dense native list rest frozen around the canonical element", () => {
+  for (const [label, element] of [
+    ["int32", int32],
+    ["nullable int32", csharpNullableTargetType(int32)],
+    ["JS array of string", csharpJsArrayTargetType(string)],
+  ]) {
+    const elementWasFrozen = Object.isFrozen(element);
+    const carrier = resolveCsharpArrayBindingCarrier(csharpReadOnlyListTargetType(element));
+    const rest = csharpArrayBindingProjectionTarget(carrier, 1, true);
+    assert.equal(carrier?.restSlice === "js-array-helper" && rest === carrier.restCarrier, true,
+      `${label}: the non-empty rest reads the descriptor's one dense list carrier`);
+    assert.equal(rest.id === "System.Collections.Generic.List`1" && rest.csharpCollectionSemantics === "dense", true,
+      `${label}: the rest carrier is the native List`);
+    const construction = rest.csharpArrayLiteralConstructionType;
+    assert.deepEqual([carrier, rest, rest.typeArguments, rest.csharpRender, rest.csharpRender.namespace,
+      rest.csharpArrayLiteralBuilder, construction, construction.typeArguments].map(Object.isFrozen),
+    [true, true, true, true, true, true, true, true], `${label}: every newly owned list container is frozen`);
+    assert.equal(
+      Reflect.set(rest.typeArguments, 0, string) ||
+        Reflect.set(rest, "csharpCollectionSemantics", "js-array") ||
+        Reflect.set(rest.csharpRender.namespace, "length", 0) ||
+        Reflect.set(rest.csharpArrayLiteralBuilder, "appendElementMethod", "Push") ||
+        Reflect.set(construction, "csharpIndexableLengthMemberName", "length"),
+      false,
+      `${label}: mutation of the published list carrier is refused`,
+    );
+    assert.equal(rest.typeArguments.length === 1 && rest.csharpRender.namespace.join(".") === "System.Collections.Generic" &&
+      rest.csharpArrayLiteralBuilder.appendElementMethod === "Add" && rest.csharpIndexableLengthMemberName === "Count", true,
+    `${label}: the refused writes left the carrier unchanged`);
+    assert.equal([rest.typeArguments[0], rest.csharpArrayLiteralElementType, rest.csharpEnumerableElementType,
+      rest.csharpReadOnlyIndexableElementType, rest.csharpDenseMutableElementType, construction.typeArguments[0]]
+      .every(type => type === element), true, `${label}: every element slot is the canonical source element`);
+    assert.equal(Object.isFrozen(element), elementWasFrozen, `${label}: the source element is not copied or frozen`);
+  }
+});
+
 test("selected type reconciliation preserves closed authored aliases only for the same source declaration", () => {
   const authored = {
     kind: "target-named",

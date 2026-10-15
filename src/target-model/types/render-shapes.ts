@@ -13,9 +13,9 @@ export function csharpRenderShapeForTargetNamedType(
 }
 
 export function csharpQualifiedTypeRenderShape(namespaceName: string, name: string): CsharpTargetTypeRenderShape {
-  return {
+  return Object.freeze({
     kind: "named",
-    namespace: namespaceName.split(".").filter((part) => part.length > 0),
+    namespace: Object.freeze(namespaceName.split(".").filter((part) => part.length > 0)),
     name,
-  };
+  });
 }
