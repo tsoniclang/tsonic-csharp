@@ -40,6 +40,7 @@ registerHooks({
         "  const completion = selectedCsharpAwaitCompletion(carrier, definitions);\n" +
         "  const forced = globalThis.forcedOperationIssue;\n" +
         "  if (completion === undefined || forced?.code !== \"CSHARP_AWAIT_RESULT_MAPPING_NOT_PROVEN\") return completion;\n" +
+        "  forced.awaitCompletions += 1;\n" +
         "  return { ...completion, alternatives: completion.alternatives.map(alternative => alternative.resultMapping === undefined\n" +
         "    ? alternative\n" +
         "    : { ...alternative, resultMapping: { ...alternative.resultMapping, arms: [...alternative.resultMapping.arms].reverse() } }) };\n" +
@@ -51,29 +52,53 @@ registerHooks({
 
 const { compileCsharpSource } = await import("../../helpers/direct-csharp-session.mjs");
 
+function compile(options) {
+  return { ...compileCsharpSource(options), text: options.sourceText };
+}
+
 function compileWithForcedIssue(code, options) {
-  const forced = { code, subjects: [] };
+  const forced = { code, subjects: [], awaitCompletions: 0 };
   globalThis.forcedOperationIssue = forced;
   try {
-    return { compiled: compileCsharpSource(options), forced };
+    return { compiled: compile(options), forced };
   } finally {
     globalThis.forcedOperationIssue = undefined;
   }
 }
 
-function expressionStatements(program) {
+function sourceText(compiled, node) {
+  const ast = compiled.source.ast;
+  return compiled.text.slice(ast.pos(node), ast.end(node)).trim();
+}
+
+function erasureOutcomes(compiled) {
+  const program = compiled.result.program;
+  assert.equal(typeof program?.records.erasedStatement?.get === "function", true,
+    "the published program carries the erasedStatement reader");
   const ast = program.source.ast;
-  const statements = [];
+  const outcomes = [];
   const visit = (node) => {
-    if (ast.is.IsExpressionStatement(node)) statements.push(node);
+    if (ast.is.IsExpressionStatement(node)) {
+      outcomes.push({ node, text: sourceText(compiled, node), erased: program.records.erasedStatement.get(node) });
+    }
     ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
   };
   for (const sourceFile of program.sourceFiles) visit(sourceFile);
-  return statements;
+  return outcomes;
 }
 
 function diagnosticsText(compiled) {
   return compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; ");
+}
+
+function assertOneErased(outcomes, erasedPrefix, ordinaryText) {
+  const erased = outcomes.filter((outcome) => outcome.erased === true);
+  assert.equal(erased.length === 1 && erased[0].text.startsWith(erasedPrefix), true,
+    `exactly the statement starting '${erasedPrefix}' is erased: ${JSON.stringify(outcomes.map(({ text, erased }) => [text, erased]))}`);
+  const ordinary = outcomes.filter((outcome) => outcome.text === ordinaryText);
+  assert.equal(ordinary.length === 1 && ordinary[0].erased === false, true,
+    `the ordinary statement '${ordinaryText}' is not erased`);
+  return erased[0];
 }
 
 const safetyOptions = { targetOptions: { languageDialect: "csharp15-preview", memorySafetyRules: "preview" } };
@@ -83,58 +108,62 @@ const erasureHeader = `
   import { ObsoleteAttribute } from "@tsonic/dotnet/System.js";
   function use(value: int): int { return value; }
 `;
+const jsHeader = `
+  import { safety } from "@tsonic/core/lang.js";
+  function use(value: number): number { return value; }
+`;
 
 const erasedForms = [
-  ["source-flow marker in a top-level safety value root", "", "const value: int = 1 as int; safety(move(value)).requiresunsafe(); export const k = 1;"],
-  ["source-flow marker in a safety value root inside a function", "", "export function f(value: int): int { safety(move(value)).requiresunsafe(); return value; }"],
-  ["source-flow marker inside an arrow in a safety value root", "", "const value: int = 1 as int; safety(() => move(value)).requiresunsafe(); export const k = 1;"],
-  ["keep-alive in a safety value root", "", "const value: int = 1 as int; safety(keepalive(value)).requiresunsafe(); export const k = 1;"],
-  ["ordinary call in a safety value root", "", "safety(use(1 as int)).requiresunsafe(); export const k = 1;"],
-  ["rejected JS construction in a safety value root", "js", "safety(new Proxy({}, {})).requiresunsafe(); export const k = 1;"],
-  ["rejected JS-value property write in a safety value root", "js",
-    "type T = { a: unknown }; const x: T = { a: 1 as unknown }; safety((x.toString = () => \"y\")).requiresunsafe(); export const k = 1;"],
+  ["a source-flow marker statement in an uncalled block arrow root at top level", "", "use(1 as int);",
+    "const value: int = 1 as int; use(1 as int); safety(() => { move(value); }).requiresunsafe(); export const k = 1;"],
+  ["a source-flow marker in an uncalled arrow root inside a function", "", "use(value);",
+    "export function f(value: int): int { use(value); safety(() => move(value)).requiresunsafe(); return value; }"],
+  ["a source-flow marker in an uncalled arrow root at top level", "", "use(1 as int);",
+    "const value: int = 1 as int; use(1 as int); safety(() => move(value)).requiresunsafe(); export const k = 1;"],
+  ["a keep-alive in an uncalled arrow root", "", "use(1 as int);",
+    "const value: int = 1 as int; use(1 as int); safety(() => keepalive(value)).requiresunsafe(); export const k = 1;"],
+  ["an ordinary call in an uncalled arrow root", "", "use(2 as int);",
+    "use(2 as int); safety(() => use(1 as int)).requiresunsafe(); export const k = 1;"],
+  ["a rejected JS construction in an uncalled arrow root", "js", "use(1);",
+    "use(1); safety(() => new Proxy({}, {})).requiresunsafe(); export const k = 1;"],
+  ["a rejected JS-value property write in an uncalled arrow root", "js", "use(1);",
+    "type T = { a: unknown }; const x: T = { a: 1 as unknown }; use(1); safety(() => (x.toString = () => \"y\")).requiresunsafe(); export const k = 1;"],
 ];
 
-for (const [name, surface, body] of erasedForms) {
+for (const [name, surface, ordinaryText, body] of erasedForms) {
   test(`${name} is an erased statement whose outcomes are not reported`, () => {
-    const sourceText = surface === "js"
-      ? `import { safety } from "@tsonic/core/lang.js";\n${body}`
-      : erasureHeader + body;
-    const compiled = compileCsharpSource({ ...safetyOptions, ...(surface === "js" ? { surface } : {}), sourceText });
-    assert.equal(compiled.sourceDiagnosticsText, "");
+    const compiled = compile({ ...safetyOptions, ...(surface === "js" ? { surface } : {}),
+      sourceText: (surface === "js" ? jsHeader : erasureHeader) + body });
+    assert.equal(compiled.sourceDiagnosticsText === "", true, `the source checks: ${compiled.sourceDiagnosticsText}`);
     assert.equal(compiled.result.diagnostics.length === 0, true, diagnosticsText(compiled));
     assert.equal(compiled.artifacts.has("src/Index.cs"), true, "the program publishes its C# source");
-    const program = compiled.result.program;
-    const erased = expressionStatements(program).map((statement) => program.records.erasedStatement.get(statement));
-    assert.equal(erased.filter((value) => value === true).length, 1, "exactly the safety statement is erased");
+    assertOneErased(erasureOutcomes(compiled), "safety(", ordinaryText);
     assert.equal(compiled.artifacts.get("src/Index.cs").includes("requiresunsafe"), false, "the erased statement emits no C#");
   });
 }
 
 test("an attribute statement is erased while its admitted invocation is emitted", () => {
-  const compiled = compileCsharpSource({ sourceText: `${erasureHeader}
+  const compiled = compile({ sourceText: `${erasureHeader}
     export class Subject { run(): void {} }
+    use(1 as int);
     annotate<Subject>().add(() => new ObsoleteAttribute("old", true));
   ` });
-  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.equal(compiled.sourceDiagnosticsText === "", true, `the source checks: ${compiled.sourceDiagnosticsText}`);
   assert.equal(compiled.result.diagnostics.length === 0, true, diagnosticsText(compiled));
   const output = compiled.artifacts.get("src/Index.cs");
   assert.equal(output.includes('[System.ObsoleteAttribute("old", true)]'), true, "the attribute is emitted on its subject");
   assert.equal(output.includes("annotate"), false, "the builder statement emits no C#");
-  const program = compiled.result.program;
-  const statements = expressionStatements(program).map((statement) => program.records.erasedStatement.get(statement));
-  assert.equal(statements.length === 1 && statements[0] === true, true, "the one attribute statement is erased");
+  assertOneErased(erasureOutcomes(compiled), "annotate<Subject>()", "use(1 as int);");
 });
 
 test("an ordinary expression statement is consumed, not erased", () => {
-  const compiled = compileCsharpSource({ sourceText: `${erasureHeader}
+  const compiled = compile({ sourceText: `${erasureHeader}
     export function f(value: int): int { use(value); return value; }
   ` });
-  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.equal(compiled.sourceDiagnosticsText === "", true, `the source checks: ${compiled.sourceDiagnosticsText}`);
   assert.equal(compiled.result.diagnostics.length === 0, true, diagnosticsText(compiled));
-  const program = compiled.result.program;
-  const statements = expressionStatements(program).map((statement) => program.records.erasedStatement.get(statement));
-  assert.equal(statements.length === 1 && statements[0] === false, true, "the call statement is not erased");
+  const outcomes = erasureOutcomes(compiled);
+  assert.equal(outcomes.length === 1 && outcomes[0].erased === false, true, "the call statement is not erased");
 });
 
 const forcedHeader = `
@@ -149,31 +178,60 @@ const memberIssue = "CSHARP_MEMBER_RECEIVER_CONVERSION_NOT_PROVEN";
 const elementIssue = "CSHARP_ELEMENT_READ_CONVERSION_NOT_PROVEN";
 const awaitIssue = "CSHARP_AWAIT_RESULT_MAPPING_NOT_PROVEN";
 const awaitMappingMessage = "Union conversion requires exact sealed arm coverage and native absence correspondence.";
-const settle = "export async function settle(pending: Promise<string | number> | Promise<boolean>): Promise<int>";
+const counter = "let counter: int = 0 as int; counter++;";
 
 const erasedIssueForms = [
-  [callIssue, "a safety value root", `export function f(v: int): int { safety(NetMath.Abs(v)).requiresunsafe(); return v; }`, "requiresunsafe"],
-  [elementIssue, "a safety value root", `export function f(values: int[]): int { safety(values[0]).requiresunsafe(); return 1 as int; }`, "requiresunsafe"],
-  [memberIssue, "a safety value root", `export function f(holder: Holder): int { safety(holder.value).requiresunsafe(); return 1 as int; }`, "requiresunsafe"],
-  [memberIssue, "a remaining-block unsafe-context marker", `export function f(): int { unsafecontext(); return 1 as int; }`, "unsafecontext"],
-  [memberIssue, "an attribute statement outside its invocation",
-    `annotate<Subject>().method(subject => subject.run).add(() => new ObsoleteAttribute("run"));`, "annotate"],
-  [awaitIssue, "a safety value root", `${settle} { safety(await pending).requiresunsafe(); return 1 as int; }`, "requiresunsafe"],
+  [callIssue, "the call argument site, in an uncalled arrow root", "safety(", "requiresunsafe",
+    `export function f(v: int): int { ${counter} safety(() => NetMath.Abs(v)).requiresunsafe(); return v; }`,
+    "KindCallExpression:NetMath.Abs(v)"],
+  [callIssue, "the construction argument site, in an uncalled arrow root", "safety(", "requiresunsafe",
+    `export function f(): int { ${counter} safety(() => new ObsoleteAttribute("x")).requiresunsafe(); return 1 as int; }`,
+    "KindNewExpression:new ObsoleteAttribute(\"x\")"],
+  [elementIssue, "the element read site, in an element read root", "safety(", "requiresunsafe",
+    `export function f(values: int[]): int { ${counter} safety(values[0]).requiresunsafe(); return 1 as int; }`,
+    "KindElementAccessExpression:values[0]"],
+  [memberIssue, "the element receiver site, in an uncalled arrow root", "safety(", "requiresunsafe",
+    `export function f(values: int[]): int { ${counter} safety(() => values[0]).requiresunsafe(); return 1 as int; }`,
+    "KindElementAccessExpression:values[0]"],
+  [memberIssue, "the property receiver site, in a declaration reference root", "safety(", "requiresunsafe",
+    `export function f(holder: Holder): int { ${counter} safety(holder.value).requiresunsafe(); return 1 as int; }`,
+    "KindPropertyAccessExpression:holder.value"],
+  [memberIssue, "a remaining-block unsafe-context marker", "unsafecontext()", "unsafecontext",
+    `export function f(): int { unsafecontext(); ${counter} return 1 as int; }`,
+    "KindCallExpression:unsafecontext()"],
+  [memberIssue, "an attribute statement outside its invocation", "annotate<Subject>()", "annotate",
+    `${counter} annotate<Subject>().method(subject => subject.run).add(() => new ObsoleteAttribute("run"));`,
+    "KindCallExpression:annotate<Subject>()"],
+  [awaitIssue, "the await site, in an uncalled arrow root", "safety(", "requiresunsafe",
+    `export async function settle(pending: Promise<string | number> | Promise<boolean>): Promise<int> { ${counter} safety(async () => await pending).requiresunsafe(); return 1 as int; }`,
+    undefined],
 ];
 
-for (const [code, placement, body, erasedText] of erasedIssueForms) {
-  test(`${code} inside ${placement} is not reported because the statement is erased`, () => {
+for (const [code, placement, erasedPrefix, emittedMarker, body, forcedSubject] of erasedIssueForms) {
+  test(`${code} at ${placement} is not reported because the statement is erased`, () => {
     const { compiled, forced } = compileWithForcedIssue(code, { ...safetyOptions, sourceText: forcedHeader + body });
-    assert.equal(compiled.sourceDiagnosticsText, "");
+    assert.equal(compiled.sourceDiagnosticsText === "", true, `the source checks: ${compiled.sourceDiagnosticsText}`);
     assert.equal(compiled.result.diagnostics.length === 0, true, diagnosticsText(compiled));
-    const program = compiled.result.program;
-    assert.equal(program !== undefined, true, "the program is published");
-    const ast = program.source.ast;
-    const erased = expressionStatements(program).filter((statement) => program.records.erasedStatement.get(statement));
-    assert.equal(erased.length === 1, true, "exactly the statement carrying the issue is erased");
-    const insideErased = forced.subjects.filter((node) => ast.pos(node) >= ast.pos(erased[0]) && ast.end(node) <= ast.end(erased[0]));
-    assert.equal(code === awaitIssue || insideErased.length > 0, true, "the forced issue had a subject inside the erased statement");
-    assert.equal(compiled.artifacts.get("src/Index.cs").includes(erasedText), false, "the erased statement emits no C#");
+    assert.equal(compiled.result.program !== undefined, true, "the program is published");
+    const erased = assertOneErased(erasureOutcomes(compiled), erasedPrefix, "counter++;");
+    const ast = compiled.source.ast;
+    const inside = (node) => ast.pos(node) >= ast.pos(erased.node) && ast.end(node) <= ast.end(erased.node);
+    if (code === awaitIssue) {
+      assert.equal(forced.awaitCompletions > 0, true, "the forced await result mapping was selected");
+      const awaits = [];
+      const visit = (node) => {
+        if (ast.is.IsAwaitExpression(node)) awaits.push(node);
+        ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
+      };
+      for (const sourceFile of compiled.result.program.sourceFiles) visit(sourceFile);
+      assert.equal(awaits.length === 1 && inside(awaits[0]), true, "the program's only await is inside the erased statement");
+    } else {
+      const subjects = forced.subjects.filter(inside).map((node) => `${ast.kindName(node)}:${sourceText(compiled, node)}`);
+      assert.equal(subjects.includes(forcedSubject), true,
+        `the forced issue had the subject ${forcedSubject} inside the erased statement: ${JSON.stringify(subjects)}`);
+    }
+    assert.equal(compiled.artifacts.get("src/Index.cs").includes(emittedMarker), false,
+      `the erased statement emits no C# (no '${emittedMarker}')`);
   });
 }
 
@@ -194,12 +252,12 @@ const reportedIssueForms = [
 
 for (const [code, placement, body, expected] of reportedIssueForms) {
   test(`${code} inside ${placement} is still reported at operation admission`, () => {
-    const sourceText = forcedHeader + body;
-    const { compiled } = compileWithForcedIssue(code, { ...safetyOptions, sourceText });
-    assert.equal(compiled.sourceDiagnosticsText, "");
+    const { compiled, forced } = compileWithForcedIssue(code, { ...safetyOptions, sourceText: forcedHeader + body });
+    assert.equal(compiled.sourceDiagnosticsText === "", true, `the source checks: ${compiled.sourceDiagnosticsText}`);
+    assert.equal(code !== awaitIssue || forced.awaitCompletions > 0, true, "the forced await result mapping was selected");
     const ast = compiled.source.ast;
     const reported = compiled.result.diagnostics.map((diagnostic) =>
-      `${ast.kindName(diagnostic.sourceNode)}:${sourceText.slice(ast.pos(diagnostic.sourceNode), ast.end(diagnostic.sourceNode)).trim()}`);
+      `${ast.kindName(diagnostic.sourceNode)}:${sourceText(compiled, diagnostic.sourceNode)}`);
     assert.equal(JSON.stringify(reported) === JSON.stringify(expected), true,
       `only the issues outside erased statements and inside demanded invocations are reported: ${JSON.stringify(reported)}`);
     const message = code === awaitIssue ? awaitMappingMessage : forcedMessage;
@@ -210,13 +268,13 @@ for (const [code, placement, body, expected] of reportedIssueForms) {
 }
 
 test("a source-flow marker inside a demanded attribute invocation is still rejected at admission", () => {
-  const sourceText = `${erasureHeader}
+  const text = `${erasureHeader}
     export class Subject { run(): void {} }
     const value: int = 1 as int;
     annotate<Subject>().add(() => new ObsoleteAttribute(move(value) === (1 as int) ? "a" : "b"));
   `;
-  const compiled = compileCsharpSource({ sourceText });
-  assert.equal(compiled.sourceDiagnosticsText, "");
+  const compiled = compile({ sourceText: text });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, `the source checks: ${compiled.sourceDiagnosticsText}`);
   assert.equal(compiled.result.program === undefined, true, "program is not published");
   assert.equal(compiled.artifacts.size, 0, "no artifacts are published");
   const captured = compiled.result.diagnostics.map(({ code, category, source, message, sourceNode }) =>
@@ -225,9 +283,9 @@ test("a source-flow marker inside a demanded attribute invocation is still rejec
     category: "error", source: "tsonic-csharp",
     message: "C# attribute application argument 1 is not a C# attribute constant; attribute arguments must be literals, .NET literal fields, native operators over constants, or one-dimensional arrays of them.",
     node: "KindConditionalExpression" }]), true, `attribute admission rejects the demanded invocation's argument: ${JSON.stringify(captured)}`);
-  const { compiled: forcedCompiled, forced } = compileWithForcedIssue(memberIssue, { sourceText });
+  const { compiled: forcedCompiled, forced } = compileWithForcedIssue(memberIssue, { sourceText: text });
   const ast = forcedCompiled.source.ast;
-  const describe = (node) => `${ast.kindName(node)}:${sourceText.slice(ast.pos(node), ast.end(node)).trim()}`;
+  const describe = (node) => `${ast.kindName(node)}:${sourceText(forcedCompiled, node)}`;
   const subjects = [...new Set(forced.subjects)].map(describe);
   assert.equal(subjects.includes("KindCallExpression:move(value)") && subjects.length > 1, true,
     `the forced issue reaches the invocation's marker call and the statement's builder chain: ${JSON.stringify(subjects)}`);
