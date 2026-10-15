@@ -162,7 +162,7 @@ function planObjectLiteralMethodAsLambda(
   const parameterPlan = planLambdaParameterStorage(
     parameterNodes,
     planLambdaParameters(parameterNodes, sourceFile, scopedInput, diagnostics, state, targetContext),
-    sourceFile, scopedInput, diagnostics, state,
+    sourceFile, scopedInput, diagnostics, state, targetContext?.signature.parameterTargetTypes,
   );
   if (parameterPlan === undefined) return undefined;
   const body = planLambdaBlockBody(
