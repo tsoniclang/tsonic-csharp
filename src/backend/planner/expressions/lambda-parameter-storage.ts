@@ -58,19 +58,18 @@ function planParameterValue(
   state: DestructuringPlannerState,
 ): { readonly parameter: CsharpLambdaParameter; readonly prelude: readonly CsharpStatement[] } | undefined {
   const nativeType = input.program.records.lambdaParameterType.get(node);
-  if (nativeType === undefined) return { parameter, prelude: [] };
+  if (nativeType === undefined) {
+    return input.program.records.runtimeDefault.get(node) === undefined
+      ? { parameter, prelude: [] }
+      : planLambdaParameterDefault(node, parameter, sourceFile, input, diagnostics, state, true);
+  }
   const valueType = input.program.records.requiredStorageType.get(node);
   if (valueType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# lambda parameter storage requires its sealed native and source representations."));
     return undefined;
   }
   if (input.program.records.runtimeDefault.get(node) !== undefined) {
-    const name = allocateSyntheticParameter(state);
-    const selected = planCsharpRuntimeParameterDefault(node, name, sourceFile, input, diagnostics, state);
-    if (selected === undefined) return undefined;
-    if (selected.passthrough) return { parameter, prelude: [] };
-    return { parameter: { ...parameter, name }, prelude: consumeCsharpPlannedValue(selected.value, initializer => [
-      { kind: "LocalDeclarationStatement", name: parameter.name, type: selected.valueType, initializer }]) };
+    return planLambdaParameterDefault(node, parameter, sourceFile, input, diagnostics, state, false);
   }
   if (targetTypeRefEquals(nativeType, valueType)) return { parameter, prelude: [] };
   const type = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, valueType, diagnostics, node);
@@ -85,4 +84,22 @@ function planParameterValue(
     nativeType, valueType, selection, { kind: "IdentifierName", name });
   if (initializer === undefined) return undefined;
   return { parameter: { ...parameter, name }, prelude: [{ kind: "LocalDeclarationStatement", name: parameter.name, type, initializer }] };
+}
+
+function planLambdaParameterDefault(
+  node: Node,
+  parameter: CsharpLambdaParameter,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+  contractStorage: boolean,
+): { readonly parameter: CsharpLambdaParameter; readonly prelude: readonly CsharpStatement[] } | undefined {
+  const name = allocateSyntheticParameter(state);
+  const selected = planCsharpRuntimeParameterDefault(node, name, sourceFile, input, diagnostics, state);
+  if (selected === undefined) return undefined;
+  const incoming = contractStorage ? { ...parameter, type: selected.parameterType } : parameter;
+  if (selected.passthrough) return { parameter: incoming, prelude: [] };
+  return { parameter: { ...incoming, name }, prelude: consumeCsharpPlannedValue(selected.value, initializer => [
+    { kind: "LocalDeclarationStatement", name: parameter.name, type: selected.valueType, initializer }]) };
 }
