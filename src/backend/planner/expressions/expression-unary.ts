@@ -2,7 +2,8 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { failTargetPlannerInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { CsharpResolvedUnaryOperation } from "../../../target-model/records/operator-selection.js";
 import {
   sourceOperatorFromKindName,
 } from "../../../target-model/syntax/operators.js";
@@ -109,11 +110,12 @@ export function planPrefixUnaryExpression(
     ));
     return undefined;
   }
-  const operand = planExpression(
-    selection.operand,
+  const operand = planUnaryOperand(
+    selection,
     sourceFile,
     input,
     diagnostics,
+    planExpression,
   );
   return operand === undefined
     ? undefined
@@ -199,11 +201,12 @@ export function planPostfixUnaryExpression(
     ));
     return undefined;
   }
-  const operand = planExpression(
-    selection.operand,
+  const operand = planUnaryOperand(
+    selection,
     sourceFile,
     input,
     diagnostics,
+    planExpression,
   );
   return operand === undefined
     ? undefined
@@ -212,6 +215,27 @@ export function planPostfixUnaryExpression(
         operand: value,
         operatorToken,
       }));
+}
+
+function planUnaryOperand(
+  selection: CsharpResolvedUnaryOperation,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpPlannedValue | undefined {
+  if (selection.sourceOperator !== "++" && selection.sourceOperator !== "--") {
+    return planExpression(selection.operand, sourceFile, input, diagnostics);
+  }
+  let storageExpression = selection.operand;
+  while (input.program.source.ast.is.IsParenthesizedExpression(storageExpression)) {
+    const inner = input.program.source.ast.as.AsParenthesizedExpression(storageExpression)?.Expression;
+    if (inner === undefined) {
+      failTargetPlannerInvariant("tsonic-csharp", "A selected parenthesized native update location has no operand.", storageExpression);
+    }
+    storageExpression = inner;
+  }
+  return planExpression(selection.operand, sourceFile, { ...input, storageExpression }, diagnostics);
 }
 
 function rejectUnloweredJsValueObjectShapeUpdate(
