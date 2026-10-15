@@ -1,0 +1,77 @@
+import type { CsharpRuntimeUnionObjectShapeMember, CsharpRuntimeUnionObjectShapePropertyResolution } from "../../../target-model/records/runtime-union-object-shapes.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type {
+  CsharpObjectShapePolicy,
+} from "./object-shape-policy.js";
+import {
+  resolveCsharpObjectShapeMemberBySelectedSubject,
+} from "../../../target-model/types/object-shape-members.js";
+import {
+  getCsharpRuntimeUnionArms,
+} from "../../../target-model/types/carriers/runtime-carriers.js";
+import {
+  targetTypeRefEquals,
+} from "../../../target-model/types/equality.js";
+
+export function resolveCsharpRuntimeUnionObjectShapeProperty(
+  objectShapes: CsharpObjectShapePolicy,
+  receiverType: TargetTypeRef | undefined,
+  selectedSubjects: readonly unknown[],
+  definitions?: import("../../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions,
+): CsharpRuntimeUnionObjectShapePropertyResolution {
+  const arms = getCsharpRuntimeUnionArms(receiverType, definitions);
+  if (arms === undefined) {
+    return { kind: "not-runtime-union" };
+  }
+  const members: CsharpRuntimeUnionObjectShapeMember[] = [];
+  for (const [armIndex, armType] of arms.entries()) {
+    const shape = objectShapes.resolveTarget(armType);
+    if (shape === undefined) {
+      return {
+        kind: "rejected",
+        reason:
+          `Runtime-union arm ${armIndex + 1} has no finalized object-shape contract for the checker-selected property.`,
+      };
+    }
+    const selected = resolveCsharpObjectShapeMemberBySelectedSubject(
+      shape,
+      selectedSubjects,
+    );
+    if (selected.kind !== "resolved") {
+      return {
+        kind: "rejected",
+        reason:
+          `Runtime-union arm ${armIndex + 1} does not relate the checker-selected property to one exact object-shape member.`,
+      };
+    }
+    if (selected.member.memberKind !== "property") {
+      return {
+        kind: "rejected",
+        reason:
+          `Runtime-union arm ${armIndex + 1} relates the checker-selected property to a non-property object-shape member.`,
+      };
+    }
+    members.push({
+      armIndex,
+      armType,
+      shape,
+      member: selected.member,
+    });
+  }
+  const resultType = members[0]?.member.type;
+  if (
+    resultType === undefined ||
+    members.some((entry) => !targetTypeRefEquals(entry.member.type, resultType))
+  ) {
+    return {
+      kind: "rejected",
+      reason:
+        "Runtime-union object-shape property projection requires one exact common target result representation across every arm.",
+    };
+  }
+  return {
+    kind: "resolved",
+    members: Object.freeze(members),
+    resultType,
+  };
+}

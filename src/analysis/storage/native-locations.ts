@@ -1,0 +1,137 @@
+import type { CsharpNativeCellIdentity, CsharpNativeLocationReceiver, CsharpNativeLocationSelection, CsharpNativeManagedAddress } from "../../target-model/records/native-locations.js";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import { readCsharpSourceField } from "../../policy/types/resolution/source-markers.js";
+import { sourceDeclarationIsModuleScoped, sourceParameterIsProperty } from "@tsonic/target-api/source";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
+import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { selectCsharpAssignmentLocation } from "../../policy/operations/operators/assignment-location.js";
+import { type CsharpAssignmentLocation } from "../../target-model/operations/assignment-locations.js";
+import { selectCsharpNativeRefReturn } from "../../policy/operations/typed-locations/typed-locations.js";
+import { selectCsharpTargetElement, selectCsharpTargetProperty } from "../../policy/operations/members/index.js";
+import { isCsharpValueTypeTargetType } from "../../policy/types/index.js";
+import type { CsharpClassPropertyStorage } from "../../target-model/records/class-property-storage.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+
+export function classifyCsharpNativeLocation(
+  policy: CsharpPolicyContext,
+  expression: Node,
+  sourceFile: SourceFile,
+  classProperty: (declaration: Node) => CsharpClassPropertyStorage | undefined,
+  physical: Pick<CsharpStorageClassifications, "nativeBacking" | "nativeField" | "nativeArray" | "nativeModuleField" | "storageType">,
+  active = new WeakSet<Node>(),
+): CsharpNativeLocationSelection {
+  if (active.has(expression)) return rejected("The selected native storage contains a receiver cycle.");
+  active.add(expression);
+  try {
+    if (policy.ast.is.IsParenthesizedExpression(expression)) {
+      const nested = policy.ast.as.AsParenthesizedExpression(expression)?.Expression;
+      return nested === undefined ? rejected("The parenthesized native storage has no operand.")
+        : classifyCsharpNativeLocation(policy, nested, sourceFile, classProperty, physical, active);
+    }
+    const reference = selectCsharpNativeRefReturn(policy, expression, sourceFile);
+    if (reference.kind === "rejected") return reference;
+    if (reference.kind === "resolved") return reference.returnType === undefined
+      ? rejected("The selected native ref return has no exact physical storage type.")
+      : resolved(expression, reference.returnType, "direct", reference.returnPassing === "byref-readwrite", reference.returnPassing);
+    const storage = policy.semantics(sourceFile).operations.storage(expression);
+    const storageType = physical.storageType.get(expression) ??
+      (policy.ast.is.IsIdentifier(expression) && storage?.declaration !== undefined
+        ? physical.storageType.get(storage.declaration) : undefined) ?? policy.types.resolveReadStorage(expression, sourceFile);
+    if (storage === undefined || storageType === undefined) return rejected("The expression has no exact native storage and carrier evidence.");
+    const assignment = selectCsharpAssignmentLocation(policy, expression, node => policy.types.resolveNode(node, sourceFile));
+    const localBacking = storage.declaration === undefined ? undefined : physical.nativeBacking.get(storage.declaration);
+    if (localBacking !== undefined) return targetTypeRefEquals(localBacking.pointeeType, storageType)
+      ? resolved(expression, storageType, assignment, storage.writable, undefined, undefined,
+        Object.freeze({ kind: "local", layout: localBacking }))
+      : rejected("Native backing must retain the finalized physical pointee carrier.");
+    const arrayBacking = physical.nativeArray.get(expression);
+    if (arrayBacking !== undefined) return arrayBacking.kind === "element"
+      ? targetTypeRefEquals(arrayBacking.layout.pointeeType, storageType)
+        ? resolved(expression, storageType, assignment, storage.writable, undefined, undefined,
+          Object.freeze({ kind: "element", backing: arrayBacking }))
+        : rejected("A native array cell must retain its finalized physical pointee carrier.")
+      : resolved(expression, storageType, assignment, storage.writable);
+    if (policy.ast.is.IsIdentifier(expression)) {
+      const declaration = storage.declaration;
+      const local = declaration !== undefined &&
+        (policy.ast.is.IsParameterDeclaration(declaration) ||
+          (policy.ast.is.IsBindingElement(declaration) || policy.ast.is.IsVariableDeclaration(declaration)) &&
+          (!sourceDeclarationIsModuleScoped(declaration, policy.ast) || physical.nativeModuleField.get(declaration)));
+      return resolved(expression, storageType, assignment, storage.writable,
+        local ? "byref-readwrite" : undefined);
+    }
+    const property = policy.ast.is.IsPropertyAccessExpression(expression);
+    const element = policy.ast.is.IsElementAccessExpression(expression);
+    const memberSelection = property ? selectCsharpTargetProperty(policy, expression, sourceFile)
+      : element ? selectCsharpTargetElement(policy, expression, sourceFile) : undefined;
+    const memberDeclaration = memberSelection?.kind === "resolved" || memberSelection?.kind === "source-owned"
+      ? memberSelection.source.selectedDeclaration : undefined;
+    const namedElement = element && memberDeclaration !== undefined && (
+      policy.ast.is.IsPropertyDeclaration(memberDeclaration) || policy.ast.is.IsPropertySignatureDeclaration(memberDeclaration) ||
+      policy.ast.is.IsGetAccessorDeclaration(memberDeclaration) || policy.ast.is.IsSetAccessorDeclaration(memberDeclaration) ||
+      sourceParameterIsProperty(policy.ast, memberDeclaration) || readCsharpSourceField(policy.sourceFacts, [memberDeclaration]) !== undefined);
+    if (property || namedElement) {
+      const selection = memberSelection;
+      if (selection?.kind !== "resolved" && selection?.kind !== "source-owned") return rejected("The property has no exact selected native member.");
+      if (selection.source.optionalChain) return rejected("An optional property access is not a native storage address.");
+      const declaration = selection.source.selectedDeclaration;
+      const classStorage = declaration === undefined ? undefined : classProperty(declaration);
+      const sourceField = declaration === undefined ? undefined : readCsharpSourceField(policy.sourceFacts, [declaration]);
+      const moduleField = declaration !== undefined && physical.nativeModuleField.get(declaration);
+      const field = selection.kind === "resolved" ? selection.targetMember.kind === "field"
+        : classStorage?.kind === "field" || sourceField !== undefined || moduleField;
+      const nativeReadonly = selection.kind === "resolved" || sourceField !== undefined
+        ? !storage.writable : !moduleField && classStorage?.readonly !== false;
+      const receiverExpression = selection.source.receiver.expression;
+      const receiverType = physical.storageType.get(receiverExpression) ??
+        policy.types.resolveSelectedValue(receiverExpression, selection.source.receiver.type, sourceFile);
+      const shape = receiverType === undefined ? undefined : policy.objectShapes.resolveTarget(receiverType);
+      const member = shape?.members.find(candidate => candidate.sourceDeclarations?.includes(declaration!) === true ||
+        candidate.sourceSubjects?.includes(declaration!) === true);
+      const fieldBacking = shape === undefined || member === undefined ? undefined : physical.nativeField.get(shape.targetType, member.targetName);
+      if (fieldBacking !== undefined) {
+        return targetTypeRefEquals(fieldBacking.layout.pointeeType, storageType)
+          ? resolved(expression, storageType, assignment, storage.writable, undefined, undefined,
+            Object.freeze({ kind: "field", backing: fieldBacking }))
+          : rejected("A native field cell must retain its finalized physical pointee carrier.");
+      }
+      const isStatic = selection.kind === "resolved" ? selection.receiver.kind === "none"
+        : moduleField || declaration !== undefined && policy.ast.hasModifierKind(declaration, "static");
+      if (!isStatic && receiverType === undefined) return resolved(expression, storageType, assignment, storage.writable);
+      if (!isStatic && receiverType !== undefined && isCsharpValueTypeTargetType(receiverType)) {
+        const receiver = classifyCsharpNativeLocation(policy, receiverExpression, sourceFile, classProperty, physical, active);
+        if (receiver.kind !== "resolved" || receiver.address === undefined ||
+          !targetTypeRefEquals(receiver.storageType, receiverType)) return resolved(expression, storageType, assignment, storage.writable);
+        return resolved(expression, storageType, assignment, storage.writable,
+          field ? !nativeReadonly && receiver.address.passing === "byref-readwrite" ? "byref-readwrite" : "byref-readonly" : undefined,
+          Object.freeze({ expression: receiverExpression, storageType: receiver.storageType, address: receiver.address }));
+      }
+      return resolved(expression, storageType, assignment, storage.writable,
+        field ? nativeReadonly ? "byref-readonly" : "byref-readwrite" : undefined);
+    }
+    if (element) {
+      const selection = memberSelection;
+      if (selection?.kind !== "resolved" && selection?.kind !== "source-owned" && selection?.kind !== "project-indexer") return rejected("The element has no exact selected native index relation.");
+      if (selection.source.optionalChain) return rejected("An optional element access is not a native storage address.");
+      const receiverType = policy.types.resolveSelectedValue(selection.source.receiver.expression, selection.source.receiver.type, sourceFile);
+      return resolved(expression, storageType, assignment, storage.writable,
+        receiverType?.kind === "array" && targetTypeRefEquals(receiverType.element, storageType)
+          ? storage.writable ? "byref-readwrite" : "byref-readonly" : undefined);
+    }
+    return rejected("The expression is neither native binding storage, a selected member, an array element nor a proven ref return.");
+  } finally {
+    active.delete(expression);
+  }
+}
+
+function resolved(expression: Node, storageType: TargetTypeRef, assignment: CsharpAssignmentLocation,
+  writable: boolean, passing?: CsharpNativeManagedAddress["passing"], receiver?: CsharpNativeLocationReceiver,
+  nativeCell?: CsharpNativeCellIdentity): CsharpNativeLocationSelection {
+  return Object.freeze({ kind: "resolved", expression, storageType, assignment, writable,
+    ...(receiver === undefined ? {} : { receiver }),
+    ...(nativeCell === undefined ? {} : { nativeCell }),
+    ...(passing === undefined ? {} : { address: Object.freeze({ passing, capturedReferenceCrossesSuspension: false as const }) }) });
+}
+
+function rejected(reason: string): CsharpNativeLocationSelection { return { kind: "rejected", reason }; }

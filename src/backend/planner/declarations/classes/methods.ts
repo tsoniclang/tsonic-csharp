@@ -1,0 +1,191 @@
+import type { CsharpPlanningContext } from "../../context.js";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type {
+  CsharpMethodDeclaration,
+} from "../../../target-ast/syntax/index.js";
+import { AsMethodDeclaration } from "@tsonic/target-api/source";
+import { planCsharpAbsenceReturn } from "../../statements/statement-output.js";
+import {
+  createDestructuringPlannerState,
+} from "../../bindings/index.js";
+import {
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers,
+} from "../modifiers.js";
+import {
+  planIdentifierName,
+} from "../../names/source-identifiers.js";
+import {
+  planParametersWithPrelude,
+} from "../callables/parameters.js";
+import {
+  planBlockStatements,
+} from "../../statements/index.js";
+import {
+  planTypeParameters,
+} from "../../types/type-parameters.js";
+import {
+  getAsyncReturnExpressionExpectedType,
+  getDeclarationReturnTargetType,
+  getExplicitReturnType,
+} from "../callables/return-types.js";
+import {
+  planAttributesForSubject,
+} from "../attributes.js";
+import {
+  planMethodModifiers,
+} from "./modifiers.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "../../types/target-types.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "../../diagnostics.js";
+import {
+  csharpWellKnownSymbolTargetMemberName,
+} from "../../../../target-model/types/index.js";
+import {
+  hasCsharpGeneratorSyntax,
+  planCsharpGeneratorFunction,
+} from "../../statements/generators.js";
+import {
+  withCsharpSafetyModifiers,
+} from "../../safety/explicit-safety.js";
+
+export function planMethodDeclaration(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+): CsharpMethodDeclaration {
+  const declaration = AsMethodDeclaration(input.program.source.ast, node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "method declaration", diagnostics, ["public", "private", "protected", "abstract", "override"]);
+  const state = createDestructuringPlannerState(node, input.program.source.ast);
+  const callable = input.program.records.callableDispatch.get(node)?.implementation;
+  const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
+  const declaredReturnTargetType = callable?.returnType ?? getDeclarationReturnTargetType(
+    declaration.Type,
+    node,
+    sourceFile,
+    input,
+  );
+  const declaredReturnType = declaredReturnTargetType === undefined
+    ? getExplicitReturnType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics)
+    : csharpTypeFromTargetTypeRef(declaredReturnTargetType, input.scope.typeParameterNames) ??
+      getExplicitReturnType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics);
+  if (callable !== undefined && csharpTypeFromTargetTypeRef(callable.returnType, input.scope.typeParameterNames) === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "A method's sealed native return contract is not renderable."));
+  }
+  const modifiers = withCsharpSafetyModifiers(
+    planMethodModifiers(node, declaration.name, sourceFile, input, diagnostics),
+    node,
+    "declaration",
+    input,
+  );
+  const name = planMethodDeclarationName(
+    declaration.name,
+    input,
+    diagnostics,
+  );
+  if (input.program.source.ast.hasModifierKind(node, "abstract")) {
+    return {
+      kind: "MethodDeclaration", name, modifiers,
+      attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+      typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
+      returnType: declaredReturnType, parameters: parameters.parameters,
+    };
+  }
+  if (hasCsharpGeneratorSyntax(node, input)) {
+    const generator = planCsharpGeneratorFunction(
+      node,
+      declaration.Body,
+      sourceFile,
+      input,
+      diagnostics,
+      state,
+      parameters.prelude,
+      planBlockStatements,
+    );
+    return {
+      kind: "MethodDeclaration",
+      name,
+      modifiers: modifiers.filter((modifier) => modifier !== "async"),
+      attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+      typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
+      returnType: generator?.generatorTypeNode ?? declaredReturnType,
+      parameters: parameters.parameters,
+      body: generator?.body ?? { kind: "Block", statements: [] },
+    };
+  }
+  state.currentReturnType = declaredReturnType;
+  state.currentReturnTypeSubject = declaration.Type;
+  state.currentReturnExpressionTargetType = input.program.records.returnContext.get(node)?.target;
+  if (modifiers.includes("async")) {
+    const returnExpressionType = getAsyncReturnExpressionExpectedType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics);
+    state.currentReturnExpressionType = returnExpressionType?.type;
+    state.currentReturnExpressionTypeSubject = returnExpressionType?.subject;
+  }
+  const returnContract = input.program.records.returnContract.get(node);
+  state.currentUndefinedReturn = returnContract?.kind === "resolved" && returnContract.undefinedReturn === true;
+  const bodyStatements = planBlockStatements(
+    declaration.Body,
+    sourceFile,
+    input,
+    diagnostics,
+    state,
+    parameters.prelude,
+  );
+  if (returnContract?.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      returnContract.reason,
+    ));
+  }
+  const effectiveReturnTargetType = callable?.returnType ?? (returnContract?.kind === "resolved"
+    ? returnContract.type
+    : declaredReturnTargetType);
+  const returnType = effectiveReturnTargetType === undefined
+    ? declaredReturnType
+    : csharpTypeFromTargetTypeRef(effectiveReturnTargetType, input.scope.typeParameterNames) ??
+      declaredReturnType;
+  return {
+    kind: "MethodDeclaration",
+    name,
+    modifiers,
+    attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
+    returnType,
+    parameters: parameters.parameters,
+    body: {
+      kind: "Block",
+      statements: [
+        ...bodyStatements,
+        ...(returnContract?.kind === "resolved" && returnContract.fallthroughUndefined
+          ? [planCsharpAbsenceReturn(state.currentReturnExpressionTargetType, input.scope.typeParameterNames)] : []),
+      ],
+    },
+  };
+}
+
+function planMethodDeclarationName(
+  nameNode: Node | undefined,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+): string {
+  if (nameNode !== undefined && input.program.source.ast.is.IsComputedPropertyName(nameNode)) {
+    const selected = input.program.records.wellKnownSymbol.get(nameNode);
+    if (selected !== undefined) {
+      const targetName = csharpWellKnownSymbolTargetMemberName(selected.kind);
+      if (targetName !== undefined) {
+        return targetName;
+      }
+    }
+  }
+  return planIdentifierName(
+    nameNode,
+    "MethodDeclaration",
+    input,
+    diagnostics,
+    "Method name",
+  );
+}

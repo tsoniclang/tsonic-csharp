@@ -1,0 +1,165 @@
+import type { CsharpPlanningContext } from "../context.js";
+import { AsForInOrOfStatement } from "@tsonic/target-api/source";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type {
+  CsharpExpression,
+  CsharpStatement,
+} from "../../target-ast/syntax/index.js";
+import {
+  predefined,
+  sameCsharpType,
+} from "../types/index.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "../diagnostics.js";
+import {
+  allocateForInNames,
+} from "../bindings/index.js";
+import type {
+  DestructuringPlannerState,
+} from "../bindings/index.js";
+import {
+  planExpression,
+} from "../expressions/index.js";
+import { consumeCsharpPlannedValue } from "./statement-output.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "../types/target-types.js";
+import type { CsharpResolvedIteration } from "../../../target-model/records/selection.js";
+import type {
+  NestedStatementPlanner,
+} from "./statement-nested-planner.js";
+import type {
+  PlannedForInBinding,
+} from "./statement-for-in-binding.js";
+import {
+  getForInKeyType,
+  planForInBindingActivation,
+} from "./statement-for-in-binding.js";
+import { csharpEnumerableKeysMethodName, csharpEnumerableKeysType } from "../objects/declarations/enumerable-keys.js";
+
+export function planObjectShapeForInStatement(
+  statementNode: Node,
+  statement: NonNullable<ReturnType<typeof AsForInOrOfStatement>>,
+  binding: PlannedForInBinding,
+  selectedIteration: Extract<
+    CsharpResolvedIteration,
+    {
+      readonly iterationKind: "for-in";
+      readonly lowering: { readonly kind: "object-shape-keys" };
+    }
+  >,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+  planNestedStatementBody: NestedStatementPlanner,
+): readonly CsharpStatement[] {
+  const keyType = getForInKeyType(input.scope.typeParameterNames, selectedIteration, statementNode, diagnostics);
+  if (keyType === undefined) {
+    return [];
+  }
+  if (binding.currentType !== undefined && !sameCsharpType(binding.currentType, keyType)) {
+    diagnostics.push(unsupportedNodeDiagnostic(binding.node, "For-in key binding must have the finalized provider key type."));
+    return [];
+  }
+  if (statement.Expression === undefined) {
+    diagnostics.push({
+      code: "CSHARP_UNSUPPORTED_FOR_IN_COLLECTION",
+      category: "error",
+      source: "tsonic-csharp",
+      message: "For-in requires a collection expression.",
+    });
+    return [];
+  }
+  const objectShape = selectedIteration.lowering.objectShape;
+  const requirement = input.artifacts.requireObjectShapeCapability(
+    statement.Expression, objectShape.targetType, sourceFile, "enumerable-keys", "object-shape",
+  );
+  if (requirement.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, requirement.reason));
+    return [];
+  }
+  const collectionType = csharpTypeFromTargetTypeRef(objectShape.targetType, input.scope.typeParameterNames);
+  if (collectionType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Object-shape for-in requires a renderable object-shape target type before C# emission."));
+    return [];
+  }
+  const { indexName, collectionName, keysName } = allocateForInNames(state);
+  const keyExpression: CsharpExpression = {
+    kind: "ElementAccessExpression",
+    receiver: { kind: "IdentifierName", name: keysName },
+    arguments: [{ kind: "IdentifierName", name: indexName }],
+  };
+  const bindingActivation = planForInBindingActivation(
+    binding,
+    keyType,
+    keyExpression,
+    input,
+    state,
+    diagnostics,
+  );
+  const plannedLoop: CsharpStatement = {
+    kind: "ForStatement",
+    initializer: {
+      kind: "VariableDeclaration",
+      locals: [{
+        kind: "VariableDeclarator",
+        name: indexName,
+        type: predefined("int"),
+        initializer: { kind: "LiteralExpression", value: 0 },
+      }],
+    },
+    condition: {
+      kind: "BinaryExpression",
+      left: { kind: "IdentifierName", name: indexName },
+      operatorToken: { kind: "LessThanToken" },
+      right: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: keysName },
+        name: "Length",
+      },
+    },
+    incrementors: [{
+      kind: "PostfixUnaryExpression",
+      operand: { kind: "IdentifierName", name: indexName },
+      operatorToken: { kind: "PlusPlusToken" },
+    }],
+    body: {
+      kind: "Block",
+      statements: [
+        ...bindingActivation.iterationPrelude,
+        ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
+      ],
+    },
+  };
+  const collection = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
+  if (collection === undefined) return [];
+  return consumeCsharpPlannedValue(collection, value => [...bindingActivation.outerPrelude, {
+    kind: "Block",
+    body: {
+      kind: "Block",
+      statements: [
+        {
+          kind: "LocalDeclarationStatement",
+          name: collectionName,
+          type: collectionType,
+          initializer: value,
+        },
+        {
+          kind: "LocalDeclarationStatement",
+          name: keysName,
+          type: csharpEnumerableKeysType,
+          initializer: {
+            kind: "InvocationExpression",
+            callee: { kind: "SimpleMemberAccessExpression",
+              receiver: { kind: "IdentifierName", name: collectionName }, name: csharpEnumerableKeysMethodName },
+            arguments: [],
+          },
+        },
+        plannedLoop,
+      ],
+    },
+  }]);
+}

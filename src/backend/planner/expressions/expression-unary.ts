@@ -1,0 +1,258 @@
+import type {
+  Node,
+  SourceFile,
+} from "@tsonic/tsts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import {
+  sourceOperatorFromKindName,
+} from "../../../target-model/syntax/operators.js";
+import type {
+  CsharpPlanningContext,
+} from "../context.js";
+import {
+  csharpPostfixUnaryOperatorTokenFromText,
+  csharpPrefixUnaryOperatorTokenFromText,
+} from "./csharp-operator-tokens.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "../diagnostics.js";
+import type {
+  ExpressionPlanner,
+} from "./expression-planner-types.js";
+import {
+  translateCsharpJsValueInvocation,
+} from "./js-value-operations.js";
+import { planCsharpExactLiteralConversion } from "./literal-conversions.js";
+import { csharpNumericLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
+import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
+import { planCsharpExpressionCompletion, projectCsharpPlannedValue } from "./planned-value-composition.js";
+
+export function planPrefixUnaryExpression(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpPlannedValue | undefined {
+  const operandNode = input.program.source.ast.as.AsPrefixUnaryExpression(node)?.Operand;
+  const sourceOperator = sourceOperatorFromKindName(
+    input.program.source.ast.operatorKindName(node),
+  );
+  if (
+    rejectUnloweredJsValueObjectShapeUpdate(
+      node,
+      operandNode,
+      sourceOperator,
+      input,
+      diagnostics,
+    )
+  ) {
+    return undefined;
+  }
+  if (sourceOperator !== undefined) {
+    const classification = input.program.records.unaryOperation.get(node);
+    if (classification === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "C# planning received a unary expression without a sealed target classification.",
+      ));
+      return undefined;
+    }
+    const jsValueOperation = classification.jsValue;
+    if (jsValueOperation.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
+      return undefined;
+    }
+    if (jsValueOperation.kind === "resolved") {
+      const operand = operandNode === undefined
+        ? undefined
+        : planExpression(operandNode, sourceFile, input, diagnostics);
+      return operand === undefined
+        ? undefined
+        : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, operand, value => translateCsharpJsValueInvocation(
+            input.scope.typeParameterNames,
+            jsValueOperation,
+            undefined,
+            [
+              value,
+            ],
+          ));
+    }
+  }
+  const classification = input.program.records.unaryOperation.get(node);
+  if (classification === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# planning received a unary expression without a sealed target classification.",
+    ));
+    return undefined;
+  }
+  const selection = classification.target;
+  if (selection.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
+    return undefined;
+  }
+  if (Object.is(csharpNumericLiteralValue(input.program.source.ast, node), -0)) {
+    const literal = planCsharpExactLiteralConversion(input, node, selection.resultType);
+    if (literal.kind === "resolved") return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, literal.expression, selection.resultType);
+    if (literal.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, literal.reason));
+      return undefined;
+    }
+  }
+  const operatorToken = csharpPrefixUnaryOperatorTokenFromText(
+    selection.targetOperator,
+  );
+  if (operatorToken === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      `Selected prefix operator '${selection.targetOperator}' has no C# AST token.`,
+    ));
+    return undefined;
+  }
+  const operand = planExpression(
+    selection.operand,
+    sourceFile,
+    input,
+    diagnostics,
+  );
+  return operand === undefined
+    ? undefined
+    : mapCsharpPlannedValue(operand, selection.resultType, value => ({
+        kind: "PrefixUnaryExpression",
+        operatorToken,
+        operand: value,
+      }));
+}
+
+export function planPostfixUnaryExpression(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpPlannedValue | undefined {
+  const operandNode = input.program.source.ast.as.AsPostfixUnaryExpression(node)?.Operand;
+  const sourceOperator = sourceOperatorFromKindName(
+    input.program.source.ast.operatorKindName(node),
+  );
+  if (
+    rejectUnloweredJsValueObjectShapeUpdate(
+      node,
+      operandNode,
+      sourceOperator,
+      input,
+      diagnostics,
+    )
+  ) {
+    return undefined;
+  }
+  if (sourceOperator !== undefined) {
+    const classification = input.program.records.unaryOperation.get(node);
+    if (classification === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "C# planning received a unary expression without a sealed target classification.",
+      ));
+      return undefined;
+    }
+    const jsValueOperation = classification.jsValue;
+    if (jsValueOperation.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
+      return undefined;
+    }
+    if (jsValueOperation.kind === "resolved") {
+      const operand = operandNode === undefined
+        ? undefined
+        : planExpression(operandNode, sourceFile, input, diagnostics);
+      return operand === undefined
+        ? undefined
+        : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, operand, value => translateCsharpJsValueInvocation(
+            input.scope.typeParameterNames,
+            jsValueOperation,
+            undefined,
+            [
+              value,
+            ],
+          ));
+    }
+  }
+  const classification = input.program.records.unaryOperation.get(node);
+  if (classification === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# planning received a unary expression without a sealed target classification.",
+    ));
+    return undefined;
+  }
+  const selection = classification.target;
+  if (selection.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
+    return undefined;
+  }
+  const operatorToken = csharpPostfixUnaryOperatorTokenFromText(
+    selection.targetOperator,
+  );
+  if (operatorToken === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      `Selected postfix operator '${selection.targetOperator}' has no C# AST token.`,
+    ));
+    return undefined;
+  }
+  const operand = planExpression(
+    selection.operand,
+    sourceFile,
+    input,
+    diagnostics,
+  );
+  return operand === undefined
+    ? undefined
+    : mapCsharpPlannedValue(operand, selection.resultType, value => ({
+        kind: "PostfixUnaryExpression",
+        operand: value,
+        operatorToken,
+      }));
+}
+
+function rejectUnloweredJsValueObjectShapeUpdate(
+  node: Node,
+  operand: Node | undefined,
+  sourceOperator: string | undefined,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+): boolean {
+  if (
+    (sourceOperator !== "++" && sourceOperator !== "--") ||
+    operand === undefined ||
+    !input.program.source.ast.is.IsPropertyAccessExpression(operand)
+  ) {
+    return false;
+  }
+  const classification = input.program.records.selectedProperty.get(operand);
+  if (classification === undefined) {
+    return false;
+  }
+  const selection = classification.selection;
+  if (selection.kind !== "source-owned") {
+    return false;
+  }
+  const jsValueProperty = classification.sourceOwned?.jsValueProperty;
+  if (jsValueProperty === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "A source-owned property update has no sealed C# property classification.",
+    ));
+    return true;
+  }
+  if (jsValueProperty.kind === "not-js-value-object-shape") {
+    return false;
+  }
+  diagnostics.push(unsupportedNodeDiagnostic(
+    node,
+    jsValueProperty.kind === "rejected"
+      ? jsValueProperty.reason
+      : `Closed JS-value object-shape update '${sourceOperator}' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden.`,
+  ));
+  return true;
+}

@@ -1,0 +1,292 @@
+import type {
+  AstReader,
+  Type,
+} from "@tsonic/tsts";
+import type { TargetSelection } from "@tsonic/target-api";
+import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { isTsonicSourceProfileDeclarationPath } from "@tsonic/target-api/provider";
+import {
+  csharpTargetId,
+} from "../../../target-model/identities/source.js";
+import { jsRegExpSourceProfileIdentity } from "@tsonic/js-source-profile";
+import { csharpSourceBaseErrorIdentity, csharpSourceErrorIdentities, type CsharpSourceErrorName } from "../../../target-model/identities/source-errors.js";
+
+export type CsharpSourceProfileTypeKind =
+  | "boolean"
+  | "number"
+  | "string"
+  | "error"
+  | "array"
+  | "readonly-array"
+  | "promise"
+  | "promise-fulfilled-result"
+  | "promise-rejected-result"
+  | "iterator-result"
+  | "generator"
+  | "async-generator"
+  | "record"
+  | "date"
+  | "regexp"
+  | "regexp-exec-array"
+  | "regexp-match-array"
+  | "regexp-indices-array"
+  | "regexp-named-groups"
+  | "regexp-named-indices"
+  | "regexp-string-iterator"
+  | "js-regexp-exec-array"
+  | "js-regexp-match-array"
+  | "js-regexp-indices-array"
+  | "js-regexp-named-groups"
+  | "js-regexp-named-indices"
+  | "js-regexp-string-iterator"
+  | "map"
+  | "readonly-map"
+  | "set"
+  | "readonly-set"
+  | "weak-map"
+  | "weak-set"
+  | "array-buffer"
+  | "data-view"
+  | "typed-array"
+  | "intl-date-time-format"
+  | "intl-number-format"
+  | "intl-collator"
+  | "intl-date-time-part"
+  | "intl-number-part"
+  | "intl-date-time-options"
+  | "intl-number-options"
+  | "intl-collator-options"
+  | "iterable";
+
+export type CsharpSourceProfileTypeIdentity = {
+  readonly ownerId: typeof csharpTargetId | "js";
+  readonly sourceName: string;
+} & ({ readonly kind: Exclude<CsharpSourceProfileTypeKind, "error"> }
+  | { readonly kind: "error"; readonly errorName: CsharpSourceErrorName; readonly baseException: boolean });
+
+export function selectedCsharpSourceProfileOwner(
+  target: TargetSelection,
+): CsharpSourceProfileTypeIdentity["ownerId"] {
+  return target.surfaces?.includes("js") === true
+    ? "js"
+    : csharpTargetId;
+}
+
+const sourceProfileTypePolicies = Object.freeze([
+  sourceProfileTypePolicy(csharpTargetId, "Boolean", "boolean"),
+  sourceProfileTypePolicy(csharpTargetId, "Number", "number"),
+  sourceProfileTypePolicy(csharpTargetId, "String", "string"),
+  sourceProfileErrorTypePolicy(csharpTargetId, csharpSourceBaseErrorIdentity),
+  sourceProfileTypePolicy(csharpTargetId, "Array", "array"),
+  sourceProfileTypePolicy(csharpTargetId, "ReadonlyArray", "readonly-array"),
+  sourceProfileTypePolicy(csharpTargetId, "Promise", "promise"),
+  sourceProfileTypePolicy(csharpTargetId, "PromiseLike", "promise"),
+  sourceProfileTypePolicy(csharpTargetId, "IteratorResult", "iterator-result"),
+  sourceProfileTypePolicy(csharpTargetId, "Generator", "generator"),
+  sourceProfileTypePolicy(csharpTargetId, "AsyncGenerator", "async-generator"),
+  sourceProfileTypePolicy(csharpTargetId, "Record", "record"),
+  sourceProfileTypePolicy(csharpTargetId, "Iterable", "iterable"),
+  sourceProfileTypePolicy(
+    csharpTargetId,
+    "IterableIterator",
+    "iterable",
+  ),
+  sourceProfileTypePolicy("js", "Boolean", "boolean"),
+  sourceProfileTypePolicy("js", "Number", "number"),
+  sourceProfileTypePolicy("js", "String", "string"),
+  ...csharpSourceErrorIdentities.map(identity => sourceProfileErrorTypePolicy("js", identity)),
+  sourceProfileTypePolicy("js", "Array", "array"),
+  sourceProfileTypePolicy("js", "ReadonlyArray", "readonly-array"),
+  sourceProfileTypePolicy("js", "Promise", "promise"),
+  sourceProfileTypePolicy("js", "PromiseLike", "promise"),
+  sourceProfileTypePolicy("js", "PromiseFulfilledResult", "promise-fulfilled-result"),
+  sourceProfileTypePolicy("js", "PromiseRejectedResult", "promise-rejected-result"),
+  sourceProfileTypePolicy("js", "IteratorResult", "iterator-result"),
+  sourceProfileTypePolicy("js", "Generator", "generator"),
+  sourceProfileTypePolicy("js", "AsyncGenerator", "async-generator"),
+  sourceProfileTypePolicy("js", "Record", "record"),
+  sourceProfileTypePolicy("js", "Date", "date"),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.regExp,
+    "regexp",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.regExpExecArray,
+    "regexp-exec-array",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.regExpMatchArray,
+    "regexp-match-array",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.regExpIndicesArray,
+    "regexp-indices-array",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.regExpNamedGroups,
+    "regexp-named-groups",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.regExpNamedIndices,
+    "regexp-named-indices",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.regExpStringIterator,
+    "regexp-string-iterator",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.jsRegExpExecArray,
+    "js-regexp-exec-array",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.jsRegExpMatchArray,
+    "js-regexp-match-array",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.jsRegExpIndicesArray,
+    "js-regexp-indices-array",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.jsRegExpNamedGroups,
+    "js-regexp-named-groups",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.jsRegExpNamedIndices,
+    "js-regexp-named-indices",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.jsRegExpStringIterator,
+    "js-regexp-string-iterator",
+  ),
+  sourceProfileTypePolicy("js", "Map", "map"),
+  sourceProfileTypePolicy("js", "ReadonlyMap", "readonly-map"),
+  sourceProfileTypePolicy("js", "Set", "set"),
+  sourceProfileTypePolicy("js", "ReadonlySet", "readonly-set"),
+  sourceProfileTypePolicy("js", "WeakMap", "weak-map"),
+  sourceProfileTypePolicy("js", "WeakSet", "weak-set"),
+  sourceProfileTypePolicy("js", "ArrayBuffer", "array-buffer"),
+  sourceProfileTypePolicy("js", "DataView", "data-view"),
+  ...[
+    "Int8Array",
+    "Uint8Array",
+    "Uint8ClampedArray",
+    "Int16Array",
+    "Uint16Array",
+    "Int32Array",
+    "Uint32Array",
+    "Float32Array",
+    "Float64Array",
+  ].map((name) => sourceProfileTypePolicy("js", name, "typed-array")),
+  sourceProfileTypePolicy("js", "IntlDateTimeFormat", "intl-date-time-format"),
+  sourceProfileTypePolicy("js", "IntlNumberFormat", "intl-number-format"),
+  sourceProfileTypePolicy("js", "IntlCollator", "intl-collator"),
+  sourceProfileTypePolicy("js", "IntlDateTimeFormatPart", "intl-date-time-part"),
+  sourceProfileTypePolicy("js", "IntlNumberFormatPart", "intl-number-part"),
+  sourceProfileTypePolicy("js", "IntlResolvedDateTimeFormatOptions", "intl-date-time-options"),
+  sourceProfileTypePolicy("js", "IntlResolvedNumberFormatOptions", "intl-number-options"),
+  sourceProfileTypePolicy("js", "IntlResolvedCollatorOptions", "intl-collator-options"),
+  sourceProfileTypePolicy("js", "Iterable", "iterable"),
+  sourceProfileTypePolicy("js", "IterableIterator", "iterable"),
+]);
+
+export function classifyCsharpSourceProfileType(
+  type: Type,
+  semantics: SourceFileSemantics,
+  ast: AstReader,
+): CsharpSourceProfileTypeIdentity | undefined {
+  const symbols = [
+    semantics.declarations.typeAliasSymbol(type),
+    semantics.declarations.typeSymbol(type),
+    ...(semantics.types.isTypeReference(type)
+      ? (() => {
+          const target = semantics.types.typeReferenceTarget(type);
+          return target === undefined
+            ? []
+            : [semantics.declarations.typeSymbol(target)];
+        })()
+      : []),
+  ];
+  for (const symbol of symbols) {
+    if (symbol === undefined) {
+      continue;
+    }
+    for (const declaration of semantics.declarations.symbolDeclarations(symbol)) {
+      const identity = classifyCsharpSourceProfileDeclaration(declaration, ast);
+      if (identity !== undefined) {
+        return identity;
+      }
+    }
+  }
+  return undefined;
+}
+
+export function classifyCsharpSourceProfileDeclaration(
+  declaration: Parameters<AstReader["name"]>[0],
+  ast: AstReader,
+): CsharpSourceProfileTypeIdentity | undefined {
+  if (
+    !ast.is.IsClassDeclaration(declaration) &&
+    !ast.is.IsInterfaceDeclaration(declaration) &&
+    !ast.is.IsTypeAliasDeclaration(declaration)
+  ) {
+    return undefined;
+  }
+  const sourceFile = ast.getSourceFile(declaration);
+  if (sourceFile === undefined) {
+    return undefined;
+  }
+  const fileName = ast.getFileName(sourceFile);
+  const ownerId = sourceProfileOwner(fileName);
+  const nameNode = ast.name(declaration);
+  if (
+    ownerId === undefined ||
+    nameNode === undefined ||
+    !ast.is.IsIdentifier(nameNode)
+  ) {
+    return undefined;
+  }
+  const sourceName = ast.text(nameNode);
+  return sourceProfileTypePolicies.find(
+    (policy) => policy.ownerId === ownerId && policy.sourceName === sourceName,
+  );
+}
+
+function sourceProfileOwner(
+  fileName: string,
+): CsharpSourceProfileTypeIdentity["ownerId"] | undefined {
+  if (isTsonicSourceProfileDeclarationPath(fileName, csharpTargetId)) {
+    return csharpTargetId;
+  }
+  return isTsonicSourceProfileDeclarationPath(fileName, "js")
+    ? "js"
+    : undefined;
+}
+
+function sourceProfileTypePolicy(
+  ownerId: CsharpSourceProfileTypeIdentity["ownerId"],
+  sourceName: string,
+  kind: Exclude<CsharpSourceProfileTypeKind, "error">,
+): CsharpSourceProfileTypeIdentity {
+  return Object.freeze({ ownerId, sourceName, kind });
+}
+
+function sourceProfileErrorTypePolicy(
+  ownerId: CsharpSourceProfileTypeIdentity["ownerId"],
+  identity: typeof csharpSourceErrorIdentities[number],
+): CsharpSourceProfileTypeIdentity {
+  return Object.freeze({ ownerId, sourceName: identity.name, kind: "error",
+    errorName: identity.name, baseException: identity.baseException });
+}

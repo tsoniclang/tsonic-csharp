@@ -1,0 +1,44 @@
+import type {
+  ExtensionDiagnostic,
+  ProviderVirtualDeclarationFact,
+} from "@tsonic/tsts";
+import type {
+  TargetBindingFact,
+} from "../../target-model/types/model.js";
+import type { CsharpProviderTargetRelation } from "../../target-model/identities/provider-relations.js";
+
+export type CsharpProviderRelationResolution =
+  | {
+      readonly kind: "resolved";
+      readonly relations: readonly CsharpProviderTargetRelation[];
+    }
+  | {
+      readonly kind: "missing";
+      readonly reason: string;
+    }
+  | {
+      readonly kind: "rejected";
+      readonly diagnostic: ExtensionDiagnostic;
+    };
+
+export interface CsharpProviderRelationResolver {
+  validateReferences(): readonly ExtensionDiagnostic[];
+  resolveType(
+    declaration: ProviderVirtualDeclarationFact | undefined,
+  ): CsharpProviderRelationResolution;
+  resolveValue(
+    declaration: ProviderVirtualDeclarationFact | undefined,
+  ): CsharpProviderRelationResolution;
+  resolveMember(
+    declaration: ProviderVirtualDeclarationFact | undefined,
+  ): CsharpProviderRelationResolution;
+  resolveSignature(
+    declaration: ProviderVirtualDeclarationFact | undefined,
+  ): CsharpProviderRelationResolution;
+  findTargetBindingByTargetId(
+    targetId: string,
+  ): TargetBindingFact | undefined;
+  findTargetBindingByMetadataName(
+    metadataName: string,
+  ): TargetBindingFact | undefined;
+}

@@ -1,0 +1,64 @@
+import type { CsharpPlanningContext } from "../../context.js";
+import type {
+  CsharpModifier,
+  CsharpMethodDeclaration,
+  CsharpPropertyDeclaration,
+} from "../../../target-ast/syntax/index.js";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+
+import {
+  HasSourceKind,
+  HasSyntacticModifier,
+  KindPrivateIdentifier,
+  ModifierFlagsStatic,
+} from "@tsonic/target-api/source";
+import {
+  isAsyncNode,
+} from "../modifiers.js";
+
+export function planClassMemberModifiers(node: Node, name: Node | undefined, input: CsharpPlanningContext): readonly ("public" | "private" | "protected" | "internal" | "static")[] {
+  const ast = input.program.source.ast;
+  const access = HasSourceKind(ast, name, KindPrivateIdentifier) || ast.hasModifierKind(node, "private") ? "private"
+    : ast.hasModifierKind(node, "protected") ? "protected" : "public";
+  const visibility: readonly ("public" | "private" | "protected" | "internal")[] = input.program.records.helperAccess.get(node)
+    ? access === "private" ? ["internal" as const] : access === "protected" ? ["protected" as const, "internal" as const] : [access]
+    : [access];
+  return HasSyntacticModifier(input.program.source.ast, node, ModifierFlagsStatic)
+    ? [...visibility, "static"]
+    : visibility;
+}
+
+export function planMethodModifiers(node: Node, name: Node | undefined, _sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[]): CsharpMethodDeclaration["modifiers"] {
+  const modifiers: CsharpMethodDeclaration["modifiers"][number][] = [...planClassMemberModifiers(node, name, input)];
+  if (!modifiers.includes("static")) {
+    const dispatch = input.program.records.callableDispatch.get(node);
+    if (dispatch === undefined) diagnostics.push(unsupportedNodeDiagnostic(node, "A method has no sealed native dispatch contract."));
+    else addDispatchModifiers(modifiers, dispatch, input.program.source.ast.hasModifierKind(node, "abstract"));
+  }
+  if (isAsyncNode(input.program.source.ast, node)) {
+    modifiers.push("async");
+  }
+  return modifiers;
+}
+
+export function planPropertyModifiers(node: Node, name: Node | undefined, _sourceFile: SourceFile, input: CsharpPlanningContext): CsharpPropertyDeclaration["modifiers"] {
+  const modifiers: CsharpPropertyDeclaration["modifiers"][number][] = [...planClassMemberModifiers(node, name, input)];
+  addDispatchModifiers(modifiers, input.program.sourceNavigation.memberDispatch(node),
+    input.program.source.ast.hasModifierKind(node, "abstract"));
+  return modifiers;
+}
+
+function addDispatchModifiers(
+  modifiers: CsharpModifier[],
+  dispatch: ReturnType<CsharpPlanningContext["program"]["sourceNavigation"]["memberDispatch"]>,
+  abstract: boolean,
+): void {
+  if (dispatch?.overridesBase === true) {
+    modifiers.push("override");
+  } else if (dispatch?.hasDerivedOverride === true && !abstract) {
+    modifiers.push("virtual");
+  }
+  if (abstract) modifiers.push("abstract");
+}

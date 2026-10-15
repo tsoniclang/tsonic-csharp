@@ -1,0 +1,379 @@
+import type {
+  Node,
+  ResolvedSourceYieldInfo,
+  SourceFile,
+} from "@tsonic/tsts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type {
+  CsharpExpression,
+  CsharpStatement,
+} from "../../target-ast/syntax/index.js";
+import type {
+  CsharpPlanningContext,
+} from "../context.js";
+import type {
+  DestructuringPlannerState,
+} from "../bindings/index.js";
+import {
+  csharpIteratorResultTargetType,
+  getCsharpGeneratorProtocol,
+  targetTypeRefEquals,
+} from "../../../target-model/types/index.js";
+import {
+  applyCsharpConversionSelection,
+  readCsharpConversionClassification,
+} from "../expressions/conversions.js";
+import {
+  allocateGeneratorDelegationNames,
+} from "../bindings/index.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "../types/target-types.js";
+import {
+  planExpressionWithExpectedType,
+} from "../expressions/index.js";
+import { csharpPlannedValue } from "../expressions/planned-values.js";
+import { consumeCsharpPlannedValue } from "./statement-output.js";
+export interface CsharpYieldValuePlan {
+  readonly statements: readonly CsharpStatement[];
+  readonly resumeExpression: CsharpExpression;
+  readonly resumeType: import("../../../target-model/types/index.js").TargetTypeRef;
+}
+
+export function planCsharpYieldValue(
+  yieldExpression: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+): CsharpYieldValuePlan | undefined {
+  const generator = state.generator;
+  const source = input.program.records.yield.get(yieldExpression);
+  if (
+    generator === undefined ||
+    source === undefined ||
+    source.generator.declaration !== generator.declaration
+  ) {
+    diagnostics.push(yieldDiagnostic(
+      "CSHARP_YIELD_EVIDENCE_NOT_PROVEN",
+      "Yield emission requires exact TSTS evidence owned by the active generator declaration.",
+    ));
+    return undefined;
+  }
+  if (source.yieldKind === "delegate") {
+    return planCsharpDelegatedYield(
+      source,
+      sourceFile,
+      input,
+      diagnostics,
+      state,
+    );
+  }
+  const yieldType = csharpTypeFromTargetTypeRef(generator.protocol.yieldType, input.scope.typeParameterNames);
+  if (yieldType === undefined) {
+    diagnostics.push(yieldDiagnostic(
+      "CSHARP_YIELD_TYPE_NOT_RENDERABLE",
+      "The exact checked yield type has no closed C# source representation.",
+    ));
+    return undefined;
+  }
+  const yieldedExpression = source.operand === undefined
+    ? csharpPlannedValue(generator.protocol.yieldType, {
+        kind: "DefaultExpression" as const,
+        type: yieldType,
+        nullForgiving: true,
+      })
+    : planExpressionWithExpectedType(
+        source.operand.expression,
+        sourceFile,
+        input,
+        diagnostics,
+        yieldType,
+        source.operand.expression,
+        state,
+        generator.protocol.yieldType,
+      );
+  if (yieldedExpression === undefined) {
+    return undefined;
+  }
+  return {
+    statements: consumeCsharpPlannedValue(yieldedExpression, value => [{ kind: "YieldReturnStatement", expression: value }]),
+    resumeExpression: invokeGeneratorController(
+      generator.controllerName,
+      "ConsumeNext",
+      [],
+    ),
+    resumeType: generator.protocol.nextType,
+  };
+}
+
+function planCsharpDelegatedYield(
+  source: ResolvedSourceYieldInfo,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+): CsharpYieldValuePlan | undefined {
+  const outer = state.generator;
+  const operand = source.operand;
+  const delegation = source.delegation;
+  if (outer === undefined || operand === undefined || delegation === undefined) {
+    diagnostics.push(yieldDiagnostic(
+      "CSHARP_YIELD_DELEGATION_EVIDENCE_NOT_PROVEN",
+      "Delegated yield requires exact TSTS operand and iterator-selection evidence.",
+    ));
+    return undefined;
+  }
+  const delegatedType = input.program.records.yieldTargetType.get(
+    source.yieldExpression,
+  );
+  const inner = getCsharpGeneratorProtocol(delegatedType);
+  if (
+    delegatedType === undefined ||
+    inner === undefined ||
+    !targetTypeRefEquals(outer.protocol.yieldType, inner.yieldType) ||
+    !targetTypeRefEquals(outer.protocol.nextType, inner.nextType) ||
+    (outer.protocol.kind === "sync" && inner.kind !== "sync")
+  ) {
+    diagnostics.push(yieldDiagnostic(
+      "CSHARP_YIELD_DELEGATION_PROTOCOL_NOT_CLOSED",
+      "The exact delegated iterator evidence does not reconcile with one closed native generator protocol.",
+    ));
+    return undefined;
+  }
+  if (
+    delegation.kind !== "synchronous-iterator-protocol" &&
+    delegation.kind !== "asynchronous-iterator-protocol" &&
+    delegation.kind !== "synchronous-iterator-adapted-to-async"
+  ) {
+    diagnostics.push(yieldDiagnostic(
+      "CSHARP_YIELD_DELEGATION_MECHANISM_UNSUPPORTED",
+      "The exact delegated iteration mechanism is not a selected generator protocol.",
+    ));
+    return undefined;
+  }
+  const delegatedTypeNode = csharpTypeFromTargetTypeRef(delegatedType, input.scope.typeParameterNames);
+  const iteratorResultType = csharpTypeFromTargetTypeRef(
+    csharpIteratorResultTargetType(inner), input.scope.typeParameterNames,
+  );
+  if (
+    delegatedTypeNode === undefined ||
+    iteratorResultType === undefined
+  ) {
+    diagnostics.push(yieldDiagnostic(
+      "CSHARP_YIELD_DELEGATION_PROTOCOL_NOT_RENDERABLE",
+      "The exact delegated generator protocol has no closed C# source representation.",
+    ));
+    return undefined;
+  }
+  const delegatedExpression = planExpressionWithExpectedType(
+    operand.expression,
+    sourceFile,
+    input,
+    diagnostics,
+    delegatedTypeNode,
+    operand.expression,
+    state,
+    delegatedType,
+  );
+  if (delegatedExpression === undefined) {
+    return undefined;
+  }
+  const names = allocateGeneratorDelegationNames(state);
+  const generatorExpression = identifier(names.generatorName);
+  const resultExpression = identifier(names.resultName);
+  const firstResult = invokeDelegatedGenerator(inner.kind, generatorExpression, []);
+  const nextValue = invokeGeneratorController(
+    outer.controllerName,
+    "ConsumeNext",
+    [],
+  );
+  const nextResult = invokeDelegatedGenerator(
+    inner.kind,
+    generatorExpression,
+    [nextValue],
+  );
+  const disposal = invokeDelegatedGeneratorDisposal(
+    inner.kind,
+    generatorExpression,
+  );
+  return {
+    statements: consumeCsharpPlannedValue(delegatedExpression, value => [
+      {
+        kind: "LocalDeclarationStatement",
+        name: names.generatorName,
+        type: delegatedTypeNode,
+        initializer: value,
+      },
+      {
+        kind: "LocalDeclarationStatement",
+        name: names.resultName,
+        type: iteratorResultType,
+        initializer: firstResult,
+      },
+      {
+        kind: "TryStatement",
+        tryBody: {
+          kind: "Block",
+          statements: [{
+            kind: "WhileStatement",
+            condition: {
+              kind: "PrefixUnaryExpression",
+              operatorToken: { kind: "ExclamationToken" },
+              operand: member(resultExpression, "Done"),
+            },
+            body: {
+              kind: "Block",
+              statements: [
+                {
+                  kind: "YieldReturnStatement",
+                  expression: member(resultExpression, "YieldValue"),
+                },
+                {
+                  kind: "ExpressionStatement",
+                  expression: {
+                    kind: "AssignmentExpression",
+                    left: resultExpression,
+                    operatorToken: { kind: "EqualsToken" },
+                    right: nextResult,
+                  },
+                },
+              ],
+            },
+          }],
+        },
+        finallyBody: {
+          kind: "Block",
+          statements: [{
+            kind: "ExpressionStatement",
+            expression: disposal,
+          }],
+        },
+      },
+    ]),
+    resumeExpression: member(resultExpression, "ReturnValue"),
+    resumeType: inner.returnType,
+  };
+}
+
+export function convertCsharpYieldResumeExpression(
+  yieldExpression: Node,
+  plan: CsharpYieldValuePlan,
+  targetType: import("../../../target-model/types/index.js").TargetTypeRef,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression | undefined {
+  const selection = readCsharpConversionClassification(
+    yieldExpression,
+    input,
+    diagnostics,
+    plan.resumeType,
+    targetType,
+    "implicit",
+  );
+  if (selection === undefined) {
+    return undefined;
+  }
+  return applyCsharpConversionSelection(
+    yieldExpression,
+    sourceFile,
+    input,
+    diagnostics,
+    plan.resumeType,
+    targetType,
+    selection,
+    plan.resumeExpression,
+  );
+}
+
+function invokeDelegatedGenerator(
+  kind: "sync" | "async",
+  generator: CsharpExpression,
+  arguments_: readonly CsharpExpression[],
+): CsharpExpression {
+  const invocation: CsharpExpression = {
+    kind: "InvocationExpression",
+    callee: member(generator, kind === "sync" ? "Next" : "NextAsync"),
+    arguments: arguments_.map((expression) => ({
+      kind: "Argument" as const,
+      expression,
+    })),
+  };
+  return kind === "sync"
+    ? invocation
+    : { kind: "AwaitExpression", expression: invocation };
+}
+
+function invokeDelegatedGeneratorDisposal(
+  kind: "sync" | "async",
+  generator: CsharpExpression,
+): CsharpExpression {
+  const invocation: CsharpExpression = {
+    kind: "InvocationExpression",
+    callee: member(generator, kind === "sync" ? "Dispose" : "DisposeAsync"),
+    arguments: [],
+  };
+  return kind === "sync"
+    ? invocation
+    : { kind: "AwaitExpression", expression: invocation };
+}
+
+function identifier(name: string): CsharpExpression {
+  return { kind: "IdentifierName", name };
+}
+
+function member(
+  receiver: CsharpExpression,
+  name: string,
+): CsharpExpression {
+  return { kind: "SimpleMemberAccessExpression", receiver, name };
+}
+
+export function planDiscardedCsharpYield(
+  yieldExpression: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+): readonly CsharpStatement[] {
+  const plan = planCsharpYieldValue(
+    yieldExpression,
+    sourceFile,
+    input,
+    diagnostics,
+    state,
+  );
+  return plan === undefined
+    ? []
+    : [
+        ...plan.statements,
+        { kind: "ExpressionStatement", expression: plan.resumeExpression },
+      ];
+}
+
+export function invokeGeneratorController(
+  controllerName: string,
+  memberName: string,
+  arguments_: readonly CsharpExpression[],
+): CsharpExpression {
+  return {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: controllerName },
+      name: memberName,
+    },
+    arguments: arguments_.map((expression) => ({
+      kind: "Argument" as const,
+      expression,
+    })),
+  };
+}
+
+function yieldDiagnostic(
+  code: string,
+  message: string,
+): TargetDiagnostic {
+  return { code, category: "error", source: "tsonic-csharp", message };
+}

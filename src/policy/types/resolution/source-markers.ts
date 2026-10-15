@@ -1,0 +1,176 @@
+import type { CsharpSourceDefaultValue, CsharpSourceField, CsharpSourceStruct } from "../../../target-model/records/source-markers.js";
+import {
+  defaultValueFactKey,
+  fieldFactKey,
+  functionPointerFactKey,
+  pointerFactKey,
+  rawPointerFactKey,
+  sourceMarkerFactKey,
+  structFactKey,
+} from "@tsonic/tsts";
+import { selectTsonicFixedArrayFromSource, tsonicFixedArrayFactKey } from "@tsonic/source-core/facts";
+import type { TsonicFixedArrayFact, TsonicFixedArraySelection } from "@tsonic/source-core/facts";
+import type { CsharpTypePolicyBaseHost } from "./model.js";
+import type {
+  ExtensionFactSubject,
+  Node,
+  ReadonlySourceFactResolver,
+  SourceFile,
+  Type,
+} from "@tsonic/tsts";
+
+export interface CsharpSourcePointerType {
+  readonly kind: "csharp-typed-location";
+  readonly sourcePointee: Node;
+  readonly mutability: "readonly" | "readwrite" | "unspecified";
+}
+
+export interface CsharpSourceFunctionPointerType {
+  readonly kind: "csharp-function-pointer";
+  readonly sourceParameters: readonly Node[];
+  readonly sourceResult: Node;
+  readonly abi: readonly string[];
+}
+
+export interface CsharpSourceFixedArrayType extends TsonicFixedArrayFact {
+  readonly kind: "csharp-fixed-array";
+}
+
+export function readCsharpSourceJsStringMarker(
+  sourceFacts: ReadonlySourceFactResolver | undefined,
+  subject: ExtensionFactSubject | undefined,
+): boolean {
+  const fact = sourceFacts?.getFact(subject, sourceMarkerFactKey);
+  return fact?.marker === "js-string";
+}
+
+export function readCsharpSourceDefaultValue(
+  sourceFacts: ReadonlySourceFactResolver | undefined,
+  subject: ExtensionFactSubject | undefined,
+): CsharpSourceDefaultValue | undefined {
+  const fact = sourceFacts?.getFact(subject, defaultValueFactKey);
+  return fact === undefined
+    ? undefined
+    : Object.freeze({
+        kind: "csharp-default-value",
+        sourceType: fact.type,
+      });
+}
+
+export function readCsharpSourceField(
+  sourceFacts: ReadonlySourceFactResolver | undefined,
+  subjects: readonly (ExtensionFactSubject | undefined)[],
+): CsharpSourceField | undefined {
+  for (const subject of subjects) {
+    const fact = sourceFacts?.getFact(subject, fieldFactKey);
+    if (fact !== undefined) {
+      return csharpSourceField(fact.name, fact.type, fact.readonly === true);
+    }
+  }
+  return undefined;
+}
+
+export function readCsharpSourceStruct(
+  sourceFacts: ReadonlySourceFactResolver | undefined,
+  subject: ExtensionFactSubject | undefined,
+): CsharpSourceStruct | undefined {
+  const fact = sourceFacts?.getFact(subject, structFactKey);
+  return fact === undefined
+    ? undefined
+    : Object.freeze({
+        kind: "csharp-struct",
+        valueType: fact.valueType,
+        fields: Object.freeze(
+          (fact.fields ?? []).map((field) =>
+            csharpSourceField(
+              field.name,
+              field.type,
+              field.readonly === true,
+            )
+          ),
+        ),
+      });
+}
+
+export function readCsharpSourcePointerType(
+  sourceFacts: ReadonlySourceFactResolver | undefined,
+  subject: ExtensionFactSubject | undefined,
+): CsharpSourcePointerType | undefined {
+  const fact = sourceFacts?.getFact(subject, pointerFactKey);
+  return fact === undefined
+    ? undefined
+    : Object.freeze({
+        kind: "csharp-typed-location",
+        sourcePointee: fact.pointee,
+        mutability: fact.mutability,
+      });
+}
+
+export function isCsharpSourceRawPointer(
+  sourceFacts: ReadonlySourceFactResolver | undefined,
+  subject: ExtensionFactSubject | undefined,
+): boolean {
+  const marker = sourceFacts?.getFact(subject, sourceMarkerFactKey);
+  return marker?.kind === "type-marker" ? marker.marker === "raw-pointer"
+    : sourceFacts?.getFact(subject, rawPointerFactKey)?.representation === "opaque-identity";
+}
+
+export function readCsharpSourceFunctionPointerType(
+  sourceFacts: ReadonlySourceFactResolver | undefined,
+  subject: ExtensionFactSubject | undefined,
+): CsharpSourceFunctionPointerType | undefined {
+  const fact = sourceFacts?.getFact(subject, functionPointerFactKey);
+  return fact === undefined
+    ? undefined
+    : Object.freeze({
+        kind: "csharp-function-pointer",
+        sourceParameters: Object.freeze([...fact.parameters]),
+        sourceResult: fact.result,
+        abi: Object.freeze([...fact.abi]),
+      });
+}
+
+export function readCsharpSourceFixedArrayType(
+  sourceFacts: ReadonlySourceFactResolver | undefined,
+  subject: ExtensionFactSubject | undefined,
+): CsharpSourceFixedArrayType | undefined {
+  const fact = sourceFacts?.getFact(subject, tsonicFixedArrayFactKey);
+  return fact === undefined
+    ? undefined
+    : Object.freeze({
+        kind: "csharp-fixed-array",
+        ...fact,
+      });
+}
+
+export function csharpFixedArrayRepresentationRejection(fact: TsonicFixedArrayFact): string | undefined {
+  if (fact.length > 2_147_483_647n) {
+    return `C# FixedArray extent ${fact.length} exceeds the implemented signed 32-bit T[].Length range (0..2147483647).`;
+  }
+  return undefined;
+}
+
+export function createCsharpFixedArrayTypeQuery(
+  host: Pick<CsharpTypePolicyBaseHost, "sourceFacts" | "semantics">,
+): (type: Type, sourceFile: SourceFile) => TsonicFixedArraySelection | undefined {
+  const selections = new WeakMap<Type, WeakMap<SourceFile, TsonicFixedArraySelection | null>>();
+  return (type, sourceFile) => {
+    if (host.sourceFacts === undefined) return undefined;
+    let byFile = selections.get(type);
+    const cached = byFile?.get(sourceFile);
+    if (cached !== undefined) return cached ?? undefined;
+    const selected = selectTsonicFixedArrayFromSource(type, host.semantics(sourceFile), host.sourceFacts);
+    byFile ??= new WeakMap();
+    byFile.set(sourceFile, selected ?? null);
+    selections.set(type, byFile);
+    return selected;
+  };
+}
+
+function csharpSourceField(
+  sourceName: string,
+  sourceType: Node,
+  readonly: boolean,
+): CsharpSourceField {
+  return Object.freeze({ sourceName, sourceType, readonly });
+}

@@ -1,0 +1,191 @@
+import {
+  createCsharpThisBindingPlanningContext,
+} from "../../context.js";
+import type { CsharpPlanningContext } from "../../context.js";
+import { AsMethodDeclaration } from "@tsonic/target-api/source";
+import type {
+  Node,
+  SourceFile,
+} from "@tsonic/tsts";
+import { sourceCallableUsesLexicalThis } from "@tsonic/target-api/source";
+import { type TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type {
+  CsharpExpression,
+} from "../../../target-ast/syntax/index.js";
+import type {
+  CsharpObjectShapeFact,
+} from "../../../../target-model/types/index.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "../../diagnostics.js";
+import {
+  objectShapeStorageMemberName,
+  objectShapeMethodStorageTargetType,
+} from "../index.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "../../types/target-types.js";
+import {
+  allocateSyntheticParameter,
+  createDestructuringPlannerState,
+} from "../../bindings/index.js";
+import {
+  isAsyncExpression,
+  csharpDelegateSignatureFromTargetTypeRef,
+  lambdaTargetContextFromTargetRef,
+  planLambdaBlockBody,
+  planLambdaParameters,
+} from "../../expressions/expression-lambdas.js";
+import {
+  findObjectShapeMemberForProperty,
+} from "./support.js";
+import { planLambdaParameterStorage } from "../../expressions/lambda-parameter-storage.js";
+import { csharpPlannedValue } from "../../expressions/planned-values.js";
+import type { CsharpPlannedObjectInitializer } from "../../expressions/planned-initializers.js";
+
+export function planObjectShapeMethodMemberAssignment(
+  methodNode: Node,
+  objectShape: CsharpObjectShapeFact,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+): CsharpPlannedObjectInitializer | undefined {
+  const member = findObjectShapeMemberForProperty(
+    objectShape,
+    methodNode,
+    input,
+    diagnostics,
+  );
+  if (member === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method must match a finalized provider object-shape member."));
+    return undefined;
+  }
+  const usesLexicalThis = sourceCallableUsesLexicalThis(input.program.source.ast, methodNode);
+  if (usesLexicalThis && member.memberKind !== "method") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      methodNode,
+      `Object literal callable property '${member.sourceName}' cannot bind lexical 'this' without an exact receiver-bearing method contract.`,
+    ));
+    return undefined;
+  }
+  if (usesLexicalThis) {
+    const required = input.artifacts.requireObjectShapeMethodReceiver(
+      objectShape,
+      member,
+    );
+    if (required.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(methodNode, required.reason));
+      return undefined;
+    }
+  }
+  const receiverBound = member.memberKind === "method" &&
+    input.artifacts.objectShapeMethodUsesReceiver(objectShape, member);
+  const storageTargetType = member.memberKind === "method"
+    ? objectShapeMethodStorageTargetType(
+        objectShape,
+        member,
+        receiverBound,
+      )
+    : member.type;
+  const storageType = storageTargetType === undefined
+    ? undefined
+    : csharpTypeFromTargetTypeRef(storageTargetType, input.scope.typeParameterNames);
+  const selfType = receiverBound
+    ? csharpTypeFromTargetTypeRef(objectShape.targetType, input.scope.typeParameterNames)
+    : undefined;
+  if (
+    storageTargetType === undefined ||
+    storageType === undefined ||
+    (receiverBound && selfType === undefined)
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, `Object-shape method '${member.sourceName}' must carry a renderable delegate target type before C# emission.`));
+    return undefined;
+  }
+  if (csharpDelegateSignatureFromTargetTypeRef(member.type) === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, `Object-shape method '${member.sourceName}' must carry a finalized delegate target type with explicit return facts before C# emission.`));
+    return undefined;
+  }
+  const expression = planObjectLiteralMethodAsLambda(
+    methodNode,
+    sourceFile,
+    input,
+    diagnostics,
+    objectShape,
+    member.type,
+    selfType,
+  );
+  if (expression === undefined) {
+    return undefined;
+  }
+  return {
+    value: csharpPlannedValue(storageTargetType, expression),
+    presence: { kind: "required" },
+    assignments: value => [{ kind: "AssignmentExpression", name: objectShapeStorageMemberName(objectShape, member), carrier: storageTargetType, expression: value }],
+  };
+}
+
+function planObjectLiteralMethodAsLambda(
+  methodNode: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  objectShape: CsharpObjectShapeFact,
+  expectedTargetType: Parameters<typeof csharpDelegateSignatureFromTargetTypeRef>[0],
+  selfType: ReturnType<typeof csharpTypeFromTargetTypeRef>,
+): CsharpExpression | undefined {
+  const method = AsMethodDeclaration(input.program.source.ast, methodNode);
+  if (method === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method emission requires a method-declaration AST node."));
+    return undefined;
+  }
+  if ((method.TypeParameters?.Nodes ?? []).some((typeParameter) => typeParameter !== undefined)) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal generic methods require finalized target delegate facts before C# emission."));
+    return undefined;
+  }
+  if (method.Body === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method emission requires a method body."));
+    return undefined;
+  }
+  const state = createDestructuringPlannerState(methodNode, input.program.source.ast);
+  const selfName = selfType === undefined
+    ? undefined
+    : allocateSyntheticParameter(state);
+  const scopedInput = selfName === undefined
+    ? input
+    : createCsharpThisBindingPlanningContext(
+        input,
+        selfName,
+        objectShape.targetType,
+      );
+  const targetContext = lambdaTargetContextFromTargetRef(input.scope.typeParameterNames, expectedTargetType);
+  const parameterNodes = method.Parameters?.Nodes ?? [];
+  const parameterPlan = planLambdaParameterStorage(
+    parameterNodes,
+    planLambdaParameters(parameterNodes, sourceFile, scopedInput, diagnostics, state, targetContext),
+    sourceFile, scopedInput, diagnostics, state,
+  );
+  if (parameterPlan === undefined) return undefined;
+  const body = planLambdaBlockBody(
+    methodNode,
+    method.Body,
+    sourceFile,
+    scopedInput,
+    diagnostics,
+    state,
+    targetContext,
+  );
+  if (body === undefined) {
+    return undefined;
+  }
+  return {
+    kind: "LambdaExpression",
+    ...(isAsyncExpression(input.program.source.ast, methodNode) ? { async: true } : {}),
+    parameters: [
+      ...(selfName === undefined || selfType === undefined
+        ? []
+        : [{ kind: "Parameter" as const, name: selfName, type: selfType }]),
+      ...parameterPlan.parameters,
+    ],
+    body: { ...body, statements: [...parameterPlan.prelude, ...body.statements] },
+  };
+}

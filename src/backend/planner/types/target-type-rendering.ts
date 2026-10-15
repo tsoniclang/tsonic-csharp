@@ -1,0 +1,244 @@
+import type {
+  SourcePrimitiveKind,
+} from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../../target-model/types/index.js";
+import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
+import { csharpTupleType } from "./csharp-tuples.js";
+import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
+import { sanitizeIdentifier, tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
+import type {
+  CsharpTargetTypeRenderShape,
+} from "../../../target-model/types/index.js";
+import {
+  csharpRenderShapeForTargetNamedType,
+  csharpSourcePrimitiveCsharpRender,
+  csharpStructuralObjectShapeIdentity,
+  isCsharpNullableReferenceTargetType,
+  isCsharpNeverTargetType,
+} from "../../../target-model/types/index.js";
+
+export function csharpTypeFromTargetTypeRef(
+  type: TargetTypeRef,
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
+): CsharpTypeNode | undefined {
+  if (isCsharpNeverTargetType(type)) {
+    return { kind: "IdentifierName", name: "Never", requiredUsingNamespace: "Tsonic.CSharp.Runtime" };
+  }
+  const method = getCsharpMethodValue(type);
+  const rendered = method === undefined
+    ? csharpTypeFromEnrichedTargetTypeRef(type, typeParameterNames)
+    : csharpTypeFromTargetTypeRef(method.owner, typeParameterNames);
+  return rendered === undefined
+    ? undefined
+    : isCsharpNullableReferenceTargetType(type) && rendered.kind !== "NullableType"
+      ? { kind: "NullableType", inner: rendered }
+      : rendered;
+}
+
+function csharpTypeFromEnrichedTargetTypeRef(
+  type: TargetTypeRef,
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
+): CsharpTypeNode | undefined {
+  switch (type.kind) {
+    case "source-primitive":
+      return csharpTypeFromSourcePrimitiveKind(type.name);
+    case "source-global":
+      return undefined;
+    case "target-named":
+      return csharpTypeFromTargetNamedType(type, typeParameterNames);
+    case "type-parameter":
+      return csharpTypeParameterName(typeParameterNames?.get(type.identity) ?? type.name);
+    case "array": {
+      const elementType = csharpTypeFromTargetTypeRef(type.element, typeParameterNames);
+      return elementType === undefined
+        ? undefined
+        : { kind: "ArrayType", elementType, ...(type.rank !== undefined ? { rank: type.rank } : {}) };
+    }
+    case "tuple": {
+      const elements = type.elements.map(type => csharpTypeFromTargetTypeRef(type, typeParameterNames));
+      return elements.some((element) => element === undefined)
+        ? undefined
+        : csharpTupleType(elements as readonly CsharpTypeNode[]);
+    }
+    case "pointer": {
+      const pointee = csharpTypeFromTargetTypeRef(type.pointee, typeParameterNames);
+      return pointee === undefined
+        ? undefined
+        : { kind: "PointerType", pointee };
+    }
+    case "function-pointer": {
+      const parameters = type.args.map(type => csharpTypeFromTargetTypeRef(type, typeParameterNames));
+      const returnType = csharpTypeFromTargetTypeRef(type.result, typeParameterNames);
+      const convention = csharpFunctionPointerCallingConvention(type.abi);
+      return returnType === undefined || parameters.some((parameter) => parameter === undefined) || convention === undefined
+        ? undefined
+        : {
+            kind: "FunctionPointerType",
+            parameters: parameters as readonly CsharpTypeNode[],
+            returnType,
+            ...convention,
+          };
+    }
+    case "target-specific":
+    case "opaque":
+    case "associated-type":
+    case "lifetime":
+      return undefined;
+  }
+}
+
+function csharpFunctionPointerCallingConvention(
+  abi: readonly string[] | undefined,
+): {
+  readonly callingConvention?: "managed" | "unmanaged";
+  readonly callingConventionModifiers?: readonly string[];
+} | undefined {
+  if (abi === undefined || abi.length === 0) {
+    return {};
+  }
+  if (abi.length === 1 && abi[0] === "target-default") {
+    return {};
+  }
+  const [kind, ...modifiers] = abi;
+  if (kind === "managed") {
+    return modifiers.length === 0 ? { callingConvention: "managed" } : undefined;
+  }
+  if (kind !== "unmanaged" || modifiers.some((modifier) =>
+    ![
+      "Cdecl",
+      "Fastcall",
+      "MemberFunction",
+      "Stdcall",
+      "SuppressGCTransition",
+      "Swift",
+      "Thiscall",
+    ].includes(modifier))) {
+    return undefined;
+  }
+  return {
+    callingConvention: "unmanaged",
+    ...(modifiers.length === 0 ? {} : { callingConventionModifiers: modifiers }),
+  };
+}
+
+function csharpTypeParameterName(name: string): CsharpTypeNode | undefined {
+  const identifier = tryCsharpIdentifier(name);
+  return identifier === undefined ? undefined : { kind: "IdentifierName", name: identifier };
+}
+
+export function csharpTypeFromSourcePrimitiveKind(kind: SourcePrimitiveKind): CsharpTypeNode {
+  const render = csharpSourcePrimitiveCsharpRender(kind);
+  return render.kind === "predefined"
+    ? { kind: "PredefinedType", name: render.name }
+    : {
+        kind: "IdentifierName",
+        name: render.name,
+        requiredUsingNamespace: render.usingNamespace,
+      };
+}
+
+function csharpTypeFromTargetNamedType(
+  type: Extract<TargetTypeRef, { readonly kind: "target-named" }>,
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
+): CsharpTypeNode | undefined {
+  const typeArguments = (type.typeArguments ?? []).map(type => csharpTypeFromTargetTypeRef(type, typeParameterNames));
+  if (typeArguments.some((argument) => argument === undefined)) {
+    return undefined;
+  }
+  const shape = csharpRenderShapeForTargetNamedType(type);
+  if (shape === undefined) {
+    return undefined;
+  }
+  switch (shape.kind) {
+    case "predefined":
+      return typeArguments.length === 0 ? { kind: "PredefinedType", name: shape.name } : undefined;
+    case "nullable":
+      return typeArguments.length === 1 ? { kind: "NullableType", inner: typeArguments[0]! } : undefined;
+    case "named":
+      return csharpNamedTypeFromRenderShape(
+        shape,
+        typeArguments as readonly CsharpTypeNode[],
+        csharpStructuralObjectShapeIdentity(type),
+      );
+  }
+}
+
+function csharpNamedTypeFromRenderShape(
+  shape: Extract<CsharpTargetTypeRenderShape, { readonly kind: "named" }>,
+  typeArguments: readonly CsharpTypeNode[],
+  objectShapeIdentity: string | undefined,
+): CsharpTypeNode | undefined {
+  const namespaceParts = (shape.namespace ?? []).map(sanitizeIdentifier);
+  const usingNamespaceParts = shape.usingNamespace?.map(sanitizeIdentifier);
+  if (
+    shape.usingNamespace !== undefined &&
+    (
+      shape.usingNamespace.length === 0 ||
+      namespaceParts.length > 0 ||
+      shape.externAlias !== undefined
+    )
+  ) {
+    return undefined;
+  }
+  const segments = [
+    { name: shape.name, genericArity: shape.genericArity },
+    ...(shape.nested ?? []),
+  ];
+  let current: CsharpTypeNode | undefined;
+  for (const namespacePart of namespaceParts) {
+    current = current === undefined
+      ? { kind: "IdentifierName", name: namespacePart }
+      : { kind: "QualifiedName", left: current, name: namespacePart };
+  }
+  let argumentOffset = 0;
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index]!;
+    const arity = segment.genericArity ?? (shape.nested === undefined && index === segments.length - 1
+      ? typeArguments.length - argumentOffset
+      : 0);
+    const segmentTypeArguments = arity === 0 ? [] : typeArguments.slice(argumentOffset, argumentOffset + arity);
+    if (segmentTypeArguments.length !== arity) {
+      return undefined;
+    }
+    argumentOffset += arity;
+    const name = sanitizeIdentifier(segment.name);
+    if (current === undefined) {
+      current = {
+        kind: "IdentifierName",
+        name,
+        ...(segmentTypeArguments.length > 0 ? { typeArguments: segmentTypeArguments } : {}),
+        ...(usingNamespaceParts === undefined
+          ? {}
+          : { requiredUsingNamespace: usingNamespaceParts.join(".") }),
+        ...(objectShapeIdentity === undefined
+          ? {}
+          : { objectShapeIdentity }),
+      };
+      continue;
+    }
+    current = {
+      kind: "QualifiedName",
+      left: current,
+      name,
+      ...(segmentTypeArguments.length > 0 ? { typeArguments: segmentTypeArguments } : {}),
+    };
+  }
+  if (argumentOffset !== typeArguments.length) {
+    return undefined;
+  }
+  if (current === undefined) {
+    return undefined;
+  }
+  if (shape.externAlias !== undefined) {
+    const alias = tryCsharpIdentifier(shape.externAlias);
+    if (alias === undefined) {
+      return undefined;
+    }
+    return {
+      kind: "AliasQualifiedName",
+      alias,
+      name: current,
+    };
+  }
+  return current;
+}

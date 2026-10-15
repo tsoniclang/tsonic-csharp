@@ -1,0 +1,856 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "../../../dist/backend/planner/types/target-types.js";
+import { renderObjectShapeMembers } from "../../../dist/backend/planner/objects/declarations.js";
+import {
+  printCsharpCompilationUnit,
+  printCsharpExpression,
+  printCsharpStatement,
+  printCsharpType,
+} from "../../../dist/print/source/index.js";
+import {
+  finalizeCsharpCompilationUnit,
+} from "../../../dist/backend/planner/program/compilation-unit.js";
+import {
+  applyCsharpObjectShapeDisplayNames,
+  selectCsharpObjectShapeDisplayNames,
+} from "../../../dist/backend/target-ast/normalization/object-shape-names.js";
+import {
+  csharpDelegateTargetType,
+  csharpPropertySourceMemberKey,
+  csharpTargetTypeFromBinding,
+  targetTypeRefEquals,
+} from "../../../dist/policy/types/index.js";
+
+const unbackedObjectStorage = Object.freeze({ nativeField: { get: () => undefined } });
+
+test("generated native expressions retain precedence and exact association at printing", () => {
+  const name = value => ({ kind: "IdentifierName", name: value });
+  const binary = (left, operator, right) => ({ kind: "BinaryExpression", left, operatorToken: { kind: operator }, right });
+  const conditional = { kind: "ConditionalExpression", condition: name("ready"), whenTrue: name("first"), whenFalse: name("second") };
+  assert.equal(printCsharpExpression(binary(conditional, "EqualsEqualsToken", name("value"))), "(ready ? first : second) == value");
+  assert.equal(printCsharpExpression(binary(name("value"), "EqualsEqualsToken", conditional)), "value == (ready ? first : second)");
+  assert.equal(printCsharpExpression({ kind: "NullPatternExpression", expression: conditional, negated: false }), "(ready ? first : second) is null");
+  assert.equal(printCsharpExpression(binary(binary(name("left"), "PlusToken", name("middle")), "AsteriskToken", name("right"))), "(left + middle) * right");
+  assert.equal(printCsharpExpression(binary(name("left"), "MinusToken", binary(name("middle"), "MinusToken", name("right")))), "left - (middle - right)");
+  assert.equal(printCsharpExpression(binary(name("left"), "PlusToken", binary(name("middle"), "PlusToken", name("right")))), "left + (middle + right)");
+  assert.equal(printCsharpExpression(binary(binary(name("left"), "QuestionQuestionToken", name("middle")), "QuestionQuestionToken", name("right"))), "(left ?? middle) ?? right");
+  assert.equal(printCsharpExpression(binary(name("left"), "QuestionQuestionToken", binary(name("middle"), "QuestionQuestionToken", name("right")))), "left ?? middle ?? right");
+  assert.equal(printCsharpExpression({ ...conditional, condition: conditional }), "(ready ? first : second) ? first : second");
+});
+
+test("null-forgiving expressions retain precedence and compose with member reads", () => {
+  const assertion = operand => ({ kind: "PostfixUnaryExpression", operand, operatorToken: { kind: "ExclamationToken" } });
+  const value = { kind: "IdentifierName", name: "value" };
+  assert.equal(printCsharpExpression(assertion(value)), "value!");
+  assert.equal(printCsharpExpression({ kind: "SimpleMemberAccessExpression", receiver: assertion(value), name: "Value" }), "value!.Value");
+  assert.equal(printCsharpExpression(assertion({ kind: "ConditionalExpression", condition: value,
+    whenTrue: { kind: "IdentifierName", name: "first" }, whenFalse: { kind: "IdentifierName", name: "second" } })),
+  "(value ? first : second)!");
+});
+
+test("unreachable authored incrementor diagnostics are scoped to the for header", () => {
+  const loop = {
+    kind: "ForStatement",
+    incrementors: [{ kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "advance" }, arguments: [] }],
+    body: { kind: "Block", statements: [{ kind: "BreakStatement" }] },
+  };
+  assert.equal(printCsharpStatement(loop), "for (; ; advance())\n{\n    break;\n}");
+  assert.equal(printCsharpStatement({ ...loop, unreachableIncrementor: true }),
+    "#pragma warning disable CS0162\nfor (; ; advance())\n#pragma warning restore CS0162\n{\n    break;\n}");
+});
+
+test("printer preserves ordered collection elements and native spreads", () => {
+  assert.equal(printCsharpExpression({ kind: "CollectionExpression", elements: [
+    { kind: "ExpressionElement", expression: { kind: "LiteralExpression", value: 1 } },
+    { kind: "SpreadElement", expression: { kind: "IdentifierName", name: "items" } },
+    { kind: "ExpressionElement", expression: { kind: "LiteralExpression", value: 2 } },
+  ] }), "[1, .. items, 2]");
+});
+
+test("printer preserves C# array rank", () => {
+  assert.equal(printCsharpType({ kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } }), "int[]");
+  assert.equal(printCsharpType({ kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" }, rank: 2 }), "int[,]");
+  assert.equal(printCsharpType({ kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" }, rank: 3 }), "int[,,]");
+});
+
+test("array allocations place the allocated dimension before nested element ranks", () => {
+  const scalar = { kind: "PredefinedType", name: "uint" };
+  const array = { kind: "ArrayType", elementType: scalar };
+  const size = { kind: "NumericLiteralExpression", value: 2 };
+  assert.equal(printCsharpExpression({ kind: "ArrayCreationExpression", elementType: array, size, elements: [] }), "new uint[2][]");
+  assert.equal(printCsharpExpression({ kind: "ArrayCreationExpression", elementType: array, elements: [] }), "new uint[][] { }");
+  assert.equal(printCsharpExpression({ kind: "ArrayCreationExpression", elementType: { ...array, rank: 2 }, size, elements: [] }), "new uint[2][,]");
+});
+
+test("printer renders pointer and function-pointer type nodes", () => {
+  assert.equal(printCsharpType({ kind: "PointerType", pointee: { kind: "PredefinedType", name: "int" } }), "int*");
+  assert.equal(
+    printCsharpType({
+      kind: "FunctionPointerType",
+      parameters: [{ kind: "PredefinedType", name: "int" }],
+      returnType: { kind: "PredefinedType", name: "int" },
+    }),
+    "delegate*<int, int>",
+  );
+});
+
+test("printer renders cast expression nodes", () => {
+  assert.equal(
+    printCsharpExpression({
+      kind: "CastExpression",
+      type: { kind: "IdentifierName", name: "Animal" },
+      expression: { kind: "IdentifierName", name: "value" },
+    }),
+    "(Animal)value",
+  );
+});
+
+test("casts retain the complete lower-precedence operand inside checked expressions", () => {
+  const operand = { kind: "BinaryExpression", operatorToken: { kind: "MinusToken" },
+    left: { kind: "IdentifierName", name: "size" },
+    right: { kind: "IntegerLiteralExpression", digits: "8", suffix: "L" } };
+  const cast = { kind: "CastExpression", type: { kind: "PredefinedType", name: "int" }, expression: operand };
+  assert.equal(printCsharpExpression({ kind: "CheckedExpression", expression: cast }), "checked((int)(size - 8L))");
+  assert.equal(printCsharpExpression({ ...cast, expression: {
+    kind: "ConditionalExpression", condition: { kind: "IdentifierName", name: "ready" },
+    whenTrue: operand, whenFalse: { kind: "LiteralExpression", value: 0 },
+  } }), "(int)(ready ? size - 8L : 0)");
+  assert.equal(printCsharpExpression({ ...cast, expression: {
+    kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" },
+    left: { kind: "IdentifierName", name: "offset" }, right: operand,
+  } }), "(int)(offset = size - 8L)");
+});
+
+test("numeric tokens retain floating values beyond the native integer literal range", () => {
+  for (const kind of ["LiteralExpression", "NumericLiteralExpression"]) {
+    for (const [value, expected] of [
+      [18446744073709551616, "18446744073709552000D"],
+      [-18446744073709551616, "-18446744073709552000D"],
+      [1e20, "100000000000000000000D"],
+      [1e21, "1e+21"],
+      [42, "42"],
+      [1.5, "1.5"],
+      [-0, "-0D"],
+    ]) assert.equal(printCsharpExpression({ kind, value }), expected);
+    for (const value of [NaN, Infinity, -Infinity]) {
+      assert.throws(() => printCsharpExpression({ kind, value }), /finite values/u);
+    }
+  }
+  assert.equal(printCsharpExpression({ kind: "NumericLiteralExpression", value: 1e20, suffix: "M" }), "100000000000000000000M");
+});
+
+test("printer preserves exact 64-bit integer literal digits", () => {
+  assert.equal(
+    printCsharpExpression({
+      kind: "IntegerLiteralExpression",
+      digits: "18446744073709551615",
+      suffix: "UL",
+    }),
+    "18446744073709551615UL",
+  );
+  assert.throws(
+    () => printCsharpExpression({
+      kind: "IntegerLiteralExpression",
+      digits: "1; Console.WriteLine(2)",
+      suffix: "L",
+    }),
+    /integer literal digits must be canonical unsigned decimal text/u,
+  );
+});
+
+test("compilation-unit normalization selects exact readable multiline strings", () => {
+  const value = 'first """ line\n  ${value} 😀\n';
+  const finalized = finalizeCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [],
+    members: [{
+      kind: "ClassDeclaration",
+      name: "Strings",
+      modifiers: ["public", "static"],
+      members: [{
+        kind: "MethodDeclaration",
+        name: "read",
+        modifiers: ["public", "static"],
+        returnType: { kind: "PredefinedType", name: "string" },
+        parameters: [],
+        body: {
+          kind: "Block",
+          statements: [{
+            kind: "ReturnStatement",
+            expression: { kind: "LiteralExpression", value },
+          }],
+        },
+      }],
+    }],
+  }, "csharp14");
+  const source = printCsharpCompilationUnit(finalized.unit);
+  assert.match(source, /return """"\n        first """ line\n          \$\{value\} 😀\n\n        """";/u);
+  assert.doesNotMatch(source, /\\n/u);
+
+  const escaped = finalizeCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [],
+    members: [{
+      kind: "ClassDeclaration",
+      name: "Strings",
+      modifiers: ["public"],
+      members: [{
+        kind: "FieldDeclaration",
+        name: "windows",
+        modifiers: ["public"],
+        type: { kind: "PredefinedType", name: "string" },
+        initializer: { kind: "LiteralExpression", value: "left\r\nright" },
+      }],
+    }],
+  }, "csharp14");
+  assert.match(
+    printCsharpCompilationUnit(escaped.unit),
+    /"left\\r\\nright"/u,
+  );
+
+  const shortNewline = finalizeCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [],
+    members: [{
+      kind: "ClassDeclaration",
+      name: "ShortNewline",
+      modifiers: ["public"],
+      members: [{
+        kind: "FieldDeclaration",
+        name: "value",
+        modifiers: ["public"],
+        type: { kind: "PredefinedType", name: "string" },
+        initializer: { kind: "LiteralExpression", value: "\n" },
+      }],
+    }],
+  }, "csharp14");
+  assert.match(
+    printCsharpCompilationUnit(shortNewline.unit),
+    /"\\n"/u,
+  );
+});
+
+test("compilation-unit normalization retains only exact required using directives", () => {
+  const qualifiedOnly = finalizeCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [{ kind: "UsingDirective", namespace: "System" }],
+    members: [{
+      kind: "ClassDeclaration",
+      name: "QualifiedOnly",
+      modifiers: ["public"],
+      members: [{
+        kind: "FieldDeclaration",
+        name: "value",
+        modifiers: ["public"],
+        type: {
+          kind: "QualifiedName",
+          left: { kind: "IdentifierName", name: "System" },
+          name: "String",
+        },
+      }],
+    }],
+  }, "csharp14");
+  assert.equal(qualifiedOnly.unit.usings.length, 0);
+
+  const required = finalizeCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [],
+    members: [{
+      kind: "ClassDeclaration",
+      name: "Delegates",
+      modifiers: ["public"],
+      members: [{
+        kind: "FieldDeclaration",
+        name: "callback",
+        modifiers: ["public"],
+        type: {
+          kind: "IdentifierName",
+          name: "Func",
+          requiredUsingNamespace: "System",
+          typeArguments: [{ kind: "PredefinedType", name: "int" }],
+        },
+      }],
+    }],
+  }, "csharp14");
+  assert.deepEqual(required.unit.usings, [{
+    kind: "UsingDirective",
+    namespace: "System",
+  }]);
+
+  const collision = finalizeCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [],
+    members: [{
+      kind: "ClassDeclaration",
+      name: "Func",
+      modifiers: ["public"],
+      members: [],
+    }, {
+      kind: "ClassDeclaration",
+      name: "Delegates",
+      modifiers: ["public"],
+      members: [{
+        kind: "FieldDeclaration",
+        name: "callback",
+        modifiers: ["public"],
+        type: {
+          kind: "IdentifierName",
+          name: "Func",
+          requiredUsingNamespace: "System",
+          typeArguments: [{ kind: "PredefinedType", name: "int" }],
+        },
+      }],
+    }],
+  }, "csharp14");
+  assert.deepEqual(collision.unit.usings, []);
+  assert.match(
+    printCsharpCompilationUnit(collision.unit),
+    /global::System\.Func<int> callback/u,
+  );
+  assert.doesNotMatch(
+    printCsharpCompilationUnit(collision.unit),
+    /extern alias global/u,
+  );
+});
+
+test("object-shape display names are readable, unique, and build-order invariant", () => {
+  const candidates = [{
+    canonicalName: "__TsonicShape_first",
+    identity: "aaaaaaaaaaaa1fffffffffffffffffffffffffffffffffffffffffffffffffff",
+    preferredStem: "Todo-Input",
+  }, {
+    canonicalName: "__TsonicShape_second",
+    identity: "aaaaaaaaaaaa2fffffffffffffffffffffffffffffffffffffffffffffffffff",
+    preferredStem: "Todo-Input",
+  }, {
+    canonicalName: "__TsonicShape_reserved",
+    identity: "bbbbbbbbbbbb3fffffffffffffffffffffffffffffffffffffffffffffffffff",
+    preferredStem: "User",
+  }];
+  const reserved = new Set(["UserShape_bbbbbbbbbbbb"]);
+  const forward = selectCsharpObjectShapeDisplayNames(candidates, reserved);
+  const reverse = selectCsharpObjectShapeDisplayNames(
+    [...candidates].reverse(),
+    reserved,
+  );
+  assert.deepEqual([...forward], [...reverse]);
+  assert.equal(
+    forward.get("__TsonicShape_first"),
+    "Todo_InputShape_aaaaaaaaaaaa1",
+  );
+  assert.equal(
+    forward.get("__TsonicShape_second"),
+    "Todo_InputShape_aaaaaaaaaaaa2",
+  );
+  assert.equal(
+    forward.get("__TsonicShape_reserved"),
+    "UserShape_bbbbbbbbbbbb3",
+  );
+
+  const canonicalName = "__TsonicShape_first";
+  const [normalized] = applyCsharpObjectShapeDisplayNames([{
+    kind: "CompilationUnit",
+    usings: [],
+    members: [{
+      kind: "NamespaceDeclaration",
+      name: "Generated",
+      members: [{
+        kind: "ClassDeclaration",
+        name: canonicalName,
+        objectShapeIdentity: candidates[0].identity,
+        modifiers: ["public"],
+        members: [{
+          kind: "FieldDeclaration",
+          name: "next",
+          modifiers: ["public"],
+          type: {
+            kind: "IdentifierName",
+            name: canonicalName,
+            objectShapeIdentity: candidates[0].identity,
+          },
+        }],
+      }, {
+        kind: "ClassDeclaration",
+        name: canonicalName,
+        modifiers: ["public"],
+        members: [{
+          kind: "FieldDeclaration",
+          name: "unchanged",
+          modifiers: ["public"],
+          type: { kind: "IdentifierName", name: canonicalName },
+        }],
+      }],
+    }],
+  }], [candidates[0]]);
+  const normalizedSource = printCsharpCompilationUnit(normalized);
+  assert.match(normalizedSource, /class Todo_InputShape_aaaaaaaaaaaa/u);
+  assert.match(normalizedSource, /Todo_InputShape_aaaaaaaaaaaa next/u);
+  assert.match(normalizedSource, /class __TsonicShape_first/u);
+  assert.match(normalizedSource, /__TsonicShape_first unchanged/u);
+});
+
+test("printer renders explicit unsafe statement and expression nodes", () => {
+  assert.equal(
+    printCsharpStatement({
+      kind: "UnsafeStatement",
+      body: {
+        kind: "Block",
+        statements: [{
+          kind: "ReturnStatement",
+          expression: {
+            kind: "PrefixUnaryExpression",
+            operatorToken: { kind: "AsteriskToken" },
+            operand: { kind: "IdentifierName", name: "pointer" },
+          },
+        }],
+      },
+    }),
+    "unsafe\n{\n    return *pointer;\n}",
+  );
+  assert.equal(
+    printCsharpExpression({
+      kind: "UnsafeExpression",
+      expression: {
+        kind: "PrefixUnaryExpression",
+        operatorToken: { kind: "AsteriskToken" },
+        operand: { kind: "IdentifierName", name: "pointer" },
+      },
+    }),
+    "unsafe(*pointer)",
+  );
+});
+
+test("printer keeps declaration and accessor safety controls independent", () => {
+  assert.equal(
+    printCsharpCompilationUnit({
+      kind: "CompilationUnit",
+      usings: [],
+      members: [{
+        kind: "ClassDeclaration",
+        name: "NativeApi",
+        modifiers: ["public"],
+        members: [{
+          kind: "MethodDeclaration",
+          name: "Read",
+          modifiers: ["public", "unsafe"],
+          returnType: { kind: "PredefinedType", name: "int" },
+          parameters: [],
+          body: { kind: "Block", statements: [] },
+        }, {
+          kind: "PropertyDeclaration",
+          name: "Value",
+          modifiers: ["public"],
+          type: { kind: "PredefinedType", name: "int" },
+          getter: { kind: "Block", statements: [] },
+          getterModifiers: ["safe"],
+          setter: { kind: "Block", statements: [] },
+          setterModifiers: ["unsafe"],
+        }],
+      }],
+    }),
+    `public class NativeApi
+{
+    public unsafe int Read()
+    {
+    }
+    public int Value
+    {
+        safe get
+        {
+        }
+        unsafe set
+        {
+        }
+    }
+}
+`,
+  );
+});
+
+test("printer preserves a cast as the receiver of every postfix operation", () => {
+  const cast = {
+    kind: "CastExpression",
+    type: { kind: "IdentifierName", name: "Derived" },
+    expression: { kind: "IdentifierName", name: "value" },
+  };
+  assert.equal(
+    printCsharpExpression({
+      kind: "SimpleMemberAccessExpression",
+      receiver: cast,
+      name: "score",
+    }),
+    "((Derived)value).score",
+  );
+  assert.equal(
+    printCsharpExpression({
+      kind: "ElementAccessExpression",
+      receiver: cast,
+      arguments: [{ kind: "LiteralExpression", value: 0 }],
+    }),
+    "((Derived)value)[0]",
+  );
+  assert.equal(
+    printCsharpExpression({
+      kind: "InvocationExpression",
+      callee: cast,
+      arguments: [],
+    }),
+    "((Derived)value)()",
+  );
+});
+
+test("printer parenthesizes casted lambda expressions", () => {
+  assert.equal(
+    printCsharpExpression({
+      kind: "CastExpression",
+      type: {
+        kind: "QualifiedName",
+        left: { kind: "IdentifierName", name: "System" },
+        name: "Func",
+        typeArguments: [{ kind: "PredefinedType", name: "int" }],
+      },
+      expression: {
+        kind: "LambdaExpression",
+        parameters: [],
+        body: {
+          kind: "Block",
+          statements: [{ kind: "ReturnStatement", expression: { kind: "LiteralExpression", value: 1 } }],
+        },
+      },
+    }),
+    "(System.Func<int>)(() =>\n{\n    return 1;\n})",
+  );
+});
+
+test("printer renders generic member invocation from Roslyn AST nodes", () => {
+  assert.equal(
+    printCsharpExpression({
+      kind: "InvocationExpression",
+      callee: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "Helpers" },
+        name: "apply",
+        typeArguments: [
+          { kind: "PredefinedType", name: "int" },
+          { kind: "PredefinedType", name: "string" },
+        ],
+      },
+      arguments: [{ kind: "Argument", expression: { kind: "IdentifierName", name: "value" } }],
+    }),
+    "Helpers.apply<int, string>(value)",
+  );
+});
+
+test("printer parenthesizes conditional expressions inside interpolation holes", () => {
+  assert.equal(
+    printCsharpExpression({
+      kind: "InterpolatedStringExpression",
+      parts: [
+        { kind: "InterpolatedStringText", text: "value:" },
+        {
+          kind: "Interpolation",
+          expression: {
+            kind: "ConditionalExpression",
+            condition: { kind: "IdentifierName", name: "ok" },
+            whenTrue: { kind: "LiteralExpression", value: "yes" },
+            whenFalse: { kind: "LiteralExpression", value: "no" },
+          },
+        },
+      ],
+    }),
+    '$"value:{(ok ? "yes" : "no")}"',
+  );
+});
+
+test("printer protects alias-qualified AST expressions without treating literal text as syntax", () => {
+  const name = value => ({ kind: "IdentifierName", name: value });
+  const rooted = { kind: "AliasQualifiedName", alias: "global", name: {
+    kind: "QualifiedName", left: name("Example"), name: "Owner",
+  } };
+  const member = { kind: "SimpleMemberAccessExpression", receiver: rooted, name: "value" };
+  const call = { kind: "InvocationExpression", callee: member, arguments: [] };
+  const cases = [
+    [member, "(global::Example.Owner.value)"],
+    [call, "(global::Example.Owner.value())"],
+    [{ kind: "ElementAccessExpression", receiver: member, arguments: [name("index")] }, "(global::Example.Owner.value[index])"],
+    [{ kind: "BinaryExpression", left: member, operatorToken: { kind: "PlusToken" }, right: name("offset") }, "(global::Example.Owner.value + offset)"],
+    [{ kind: "CastExpression", type: rooted, expression: name("value") }, "((global::Example.Owner)value)"],
+    [{ kind: "ObjectCreationExpression", type: rooted, arguments: [] }, "(new global::Example.Owner())"],
+    [{ kind: "InvocationExpression", callee: name("read"), arguments: [{ kind: "Argument", expression: member }] }, "(read(global::Example.Owner.value))"],
+    [{ kind: "ParenthesizedExpression", expression: call }, "(global::Example.Owner.value())"],
+    [name("value"), "value"],
+    [{ ...member, receiver: name("owner") }, "owner.value"],
+    [{ kind: "LiteralExpression", value: "literal::text" }, '"literal::text"'],
+  ];
+  for (const [expression, expected] of cases) {
+    assert.equal(printCsharpExpression({ kind: "InterpolatedStringExpression", parts: [
+      { kind: "Interpolation", expression },
+    ] }), `$"{${expected}}"`);
+  }
+});
+
+test("printer emits ordinary and interpolated strings as textual C# source", () => {
+  const controls = "\0\b\f\n\r\t\v\u0001\u007f\u0085\u009f\u2028\u2029\ud800😀";
+  const ordinary = printCsharpExpression({
+    kind: "LiteralExpression",
+    value: `before:${controls}:after`,
+  });
+  assert.equal(
+    ordinary,
+    '"before:\\0\\b\\f\\n\\r\\t\\v\\u0001\\u007f\\u0085\\u009f\\u2028\\u2029\\ud800😀:after"',
+  );
+  assert.equal(ordinary.includes("\0"), false);
+
+  const interpolated = printCsharpExpression({
+    kind: "InterpolatedStringExpression",
+    parts: [{ kind: "InterpolatedStringText", text: `before:{${controls}}:after` }],
+  });
+  assert.equal(
+    interpolated,
+    '$"before:{{\\0\\b\\f\\n\\r\\t\\v\\u0001\\u007f\\u0085\\u009f\\u2028\\u2029\\ud800😀}}:after"',
+  );
+  assert.equal(interpolated.includes("\0"), false);
+});
+
+test("printer fails closed for invalid or foreign raw syntax nodes", () => {
+  assert.throws(
+    () => printCsharpExpression({ kind: "RawExpression", code: "Console.WriteLine(1)" }),
+    /Unsupported C# expression syntax reached printer: RawExpression/,
+  );
+  assert.throws(
+    () => printCsharpStatement({ kind: "RawStatement", code: "Console.WriteLine(1);" }),
+    /Unsupported C# statement syntax reached printer: RawStatement/,
+  );
+  assert.throws(
+    () => printCsharpType({ kind: "RawType", text: "dynamic" }),
+    /Unsupported C# type syntax reached printer: RawType/,
+  );
+  assert.throws(
+    () => printCsharpType({ kind: "InvalidType", reason: "missing fact" }),
+    /Invalid C# type reached printer: missing fact/,
+  );
+  assert.throws(
+    () => printCsharpCompilationUnit({
+      kind: "CompilationUnit",
+      usings: [],
+      members: [{ kind: "RawMember", code: "class C {}" }],
+    }),
+    /Unsupported C# compilation-unit member syntax reached printer: RawMember/,
+  );
+});
+
+test("target type rendering requires explicit C# render shape for non-predefined target IDs", () => {
+  assert.equal(
+    csharpTypeFromTargetTypeRef({
+      kind: "target-named",
+      id: "System.Collections.Generic.List`1",
+      typeArguments: [{ kind: "target-named", id: "System.Int32" }],
+    }),
+    undefined,
+  );
+
+  const rendered = csharpTypeFromTargetTypeRef({
+    kind: "target-named",
+    id: "System.Collections.Generic.List`1",
+    csharpRender: {
+      kind: "named",
+      namespace: ["System", "Collections", "Generic"],
+      name: "List",
+    },
+    typeArguments: [{ kind: "source-primitive", name: "int32" }],
+  });
+
+  assert.ok(rendered);
+  assert.equal(printCsharpType(rendered), "System.Collections.Generic.List<int>");
+});
+
+test("source-global target refs remain source evidence until wrapped by a C# target carrier", () => {
+  const promiseOfString = {
+    kind: "source-global",
+    name: "Promise",
+    typeArguments: [{ kind: "target-named", id: "System.String" }],
+  };
+  const promiseOfNumber = {
+    kind: "source-global",
+    name: "Promise",
+    typeArguments: [{ kind: "target-named", id: "System.Double" }],
+  };
+
+  assert.equal(csharpTypeFromTargetTypeRef(promiseOfString), undefined);
+  assert.equal(targetTypeRefEquals(promiseOfString, { ...promiseOfString }), true);
+  assert.equal(targetTypeRefEquals(promiseOfString, promiseOfNumber), false);
+
+  const rendered = csharpTypeFromTargetTypeRef({
+    kind: "target-named",
+    id: "System.Threading.Tasks.Task`1",
+    typeArguments: [{ kind: "source-primitive", name: "int32" }],
+    csharpRender: {
+      kind: "named",
+      namespace: ["System", "Threading", "Tasks"],
+      name: "Task",
+    },
+  });
+  assert.ok(rendered);
+  assert.equal(printCsharpType(rendered), "System.Threading.Tasks.Task<int>");
+});
+
+test("target bindings require explicit C# render shape", () => {
+  assert.equal(csharpTargetTypeFromBinding({
+    id: "Example.Widget",
+    sourceName: "Widget",
+    targetName: "Example.Widget",
+    target: "csharp",
+    kind: "class",
+  }), undefined);
+
+  assert.deepEqual(csharpTargetTypeFromBinding({
+    id: "Example.Widget",
+    sourceName: "Widget",
+    targetName: "Example.Widget",
+    target: "csharp",
+    kind: "class",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Widget" },
+  }), {
+    kind: "target-named",
+    id: "Example.Widget",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Widget" },
+  });
+});
+
+test("object shape methods require explicit delegate signature metadata", () => {
+  const rawDelegateShape = {
+    targetType: { kind: "target-named", id: "__Shape" },
+    members: [{
+      sourceKey: csharpPropertySourceMemberKey("visit"),
+      sourceName: "visit",
+      targetName: "Visit",
+      memberKind: "method",
+      type: {
+        kind: "target-named",
+        id: "System.Action`1",
+        csharpRender: { kind: "named", namespace: ["System"], name: "Action" },
+        typeArguments: [{ kind: "source-primitive", name: "int32" }],
+      },
+    }],
+  };
+  assert.equal(
+    renderObjectShapeMembers(
+      undefined,
+      rawDelegateShape,
+      false,
+      new Set(),
+      undefined,
+      undefined,
+      unbackedObjectStorage,
+    ),
+    undefined,
+  );
+
+  const metadataBackedShape = {
+    ...rawDelegateShape,
+    members: [{
+      ...rawDelegateShape.members[0],
+      type: csharpDelegateTargetType("System.Action", [{ kind: "source-primitive", name: "int32" }]),
+    }],
+  };
+  const members = renderObjectShapeMembers(
+    undefined,
+    metadataBackedShape,
+    false,
+    new Set(),
+    undefined,
+    undefined,
+    unbackedObjectStorage,
+  );
+  assert.ok(members);
+  assert.equal(members.length, 2);
+  assert.deepEqual(members[0].modifiers, ["public", "required"]);
+  assert.equal(members[1].kind, "MethodDeclaration");
+  assert.equal(members[1].parameters[0].name, "arg0");
+  assert.deepEqual(members[1].parameters[0].type, { kind: "PredefinedType", name: "int" });
+  assert.deepEqual(members[1].returnType, { kind: "PredefinedType", name: "void" });
+  assert.equal(members[1].body.statements[0].kind, "ExpressionStatement");
+
+  const missingReturnFactShape = {
+    ...rawDelegateShape,
+    members: [{
+      ...rawDelegateShape.members[0],
+      type: {
+        ...rawDelegateShape.members[0].type,
+        csharpDelegateSignature: {
+          parameters: [{ kind: "source-primitive", name: "int32" }],
+          parameterPassingModes: ["by-value"],
+        },
+      },
+    }],
+  };
+  const diagnostics = [];
+  assert.equal(
+    renderObjectShapeMembers(
+      undefined,
+      missingReturnFactShape,
+      false,
+      new Set(),
+      diagnostics,
+      { Kind: "KindTypeLiteral" },
+      unbackedObjectStorage,
+    ),
+    undefined,
+  );
+  assert.match(diagnostics[0].message, /explicit return facts/);
+});
+
+test("object shape declarations enforce required members while leaving optional members optional", () => {
+  const shape = {
+    targetType: { kind: "target-named", id: "__Shape" },
+    members: [{
+      sourceKey: csharpPropertySourceMemberKey("requiredValue"),
+      sourceName: "requiredValue",
+      targetName: "requiredValue",
+      memberKind: "property",
+      type: { kind: "target-named", id: "System.String", csharpRender: { kind: "predefined", name: "string" } },
+    }, {
+      sourceKey: csharpPropertySourceMemberKey("optionalValue"),
+      sourceName: "optionalValue",
+      targetName: "optionalValue",
+      memberKind: "property",
+      type: {
+        kind: "target-named",
+        id: "System.String",
+        csharpRender: { kind: "predefined", name: "string" },
+        csharpNullableReference: true,
+      },
+      optional: true,
+    }],
+  };
+
+  const fields = renderObjectShapeMembers(
+    undefined,
+    shape,
+    false,
+    new Set(),
+    undefined,
+    undefined,
+    unbackedObjectStorage,
+  );
+  assert.deepEqual(Object.fromEntries(fields?.map((member) => [member.name, member.modifiers]) ?? []), {
+    optionalValue: ["public"],
+    requiredValue: ["public", "required"],
+  });
+  const properties = renderObjectShapeMembers(
+    undefined,
+    shape,
+    true,
+    new Set(),
+    undefined,
+    undefined,
+    unbackedObjectStorage,
+  );
+  assert.deepEqual(Object.fromEntries(properties?.map((member) => [member.name, member.modifiers]) ?? []), {
+    optionalValue: ["public"],
+    requiredValue: ["public", "required"],
+  });
+});
