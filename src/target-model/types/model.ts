@@ -1,0 +1,572 @@
+import type {
+  ArgumentPassingMode,
+  ExtensionFactSubject,
+  Node,
+  ResolvedSourceWellKnownSymbolInfo,
+  SourcePrimitiveKind,
+  Type,
+} from "@tsonic/tsts";
+
+export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint" | "symbol" | "object" | "function" | "undefined";
+
+export type CsharpSourceMemberKey =
+  | { readonly kind: "property"; readonly name: string }
+  | {
+      readonly kind: "well-known-symbol";
+      readonly symbol: ResolvedSourceWellKnownSymbolInfo["kind"];
+    };
+
+export interface CsharpObjectShapeMemberFact {
+  readonly sourceKey: CsharpSourceMemberKey;
+  readonly sourceName: string;
+  readonly sourceSubjects?: readonly ExtensionFactSubject[];
+  readonly sourceDeclarations?: readonly Node[];
+  readonly sourceTypes?: readonly Type[];
+  readonly targetName: string;
+  readonly memberKind: "property" | "method";
+  readonly type: TargetTypeRef;
+  readonly exactNumericStorage?: true;
+  readonly methodValueContract?: TargetTypeRef;
+  readonly methodStorageType?: TargetTypeRef;
+  readonly typeParameters?: readonly {
+    readonly declaration: Node;
+    readonly identity: string;
+    readonly name: string;
+    readonly constraints: readonly import("./generic-constraints.js").CsharpTypeParameterConstraint[];
+  }[];
+  readonly optional?: boolean;
+  readonly readonly?: boolean;
+  readonly accessor?: {
+    readonly getter: true;
+    readonly setter: boolean;
+  };
+  readonly bound?: true;
+}
+
+export interface CsharpObjectShapeFact {
+  readonly targetType: TargetTypeRef;
+  readonly sourceType?: Type;
+  readonly declarationTemplate?: CsharpObjectShapeFact;
+  readonly covariantTypeParameterIdentities?: readonly string[];
+  readonly members: readonly CsharpObjectShapeMemberFact[];
+  readonly implements?: readonly TargetTypeRef[];
+  readonly constructible?: boolean;
+  readonly methodImplementation?: {
+    readonly declaration: Node;
+    readonly identity: string;
+    readonly methods: readonly Node[];
+    readonly captures: readonly {
+      readonly declaration: Node;
+      readonly reference: Node;
+      readonly fieldName: string;
+      readonly type: TargetTypeRef;
+      readonly mutable: boolean;
+    }[];
+  };
+}
+
+export interface CsharpSourceTargetTypeBinding {
+  readonly declaration: Node;
+  readonly targetType: TargetTypeRef;
+}
+
+export interface CsharpStructuralInterfaceImplementation {
+  readonly sourceType: TargetTypeRef;
+  readonly interfaceType: TargetTypeRef;
+  readonly properties: readonly {
+    readonly sourceName: string;
+    readonly member: CsharpObjectShapeMemberFact;
+  }[];
+  readonly methods: readonly {
+    readonly sourceName: string;
+    readonly declaration: Node;
+    readonly member: CsharpObjectShapeMemberFact;
+    readonly defaultArguments: readonly number[];
+  }[];
+}
+
+export type TargetTypeRef =
+  | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind }
+  | { readonly kind: "source-global"; readonly name: string; readonly typeArguments?: readonly TargetTypeRef[] }
+  | { readonly kind: "target-named"; readonly id: string; readonly typeArguments?: readonly TargetTypeRef[] }
+  | { readonly kind: "type-parameter"; readonly identity: string; readonly name: string;
+      readonly csharpDeclaration?: Node;
+      readonly csharpConstraints?: import("./generic-constraints.js").CsharpTypeParameterConstraintResolution;
+      readonly csharpProjection?: import("./projections.js").CsharpTypeProjection }
+  | { readonly kind: "array"; readonly element: TargetTypeRef; readonly rank?: number }
+  | { readonly kind: "tuple"; readonly elements: readonly TargetTypeRef[] }
+  | { readonly kind: "pointer"; readonly pointee: TargetTypeRef; readonly mutability?: "const" | "mut" | "target-defined" }
+  | { readonly kind: "function-pointer"; readonly args: readonly TargetTypeRef[]; readonly result: TargetTypeRef; readonly abi?: readonly string[] }
+  | { readonly kind: "opaque"; readonly id: string }
+  | { readonly kind: "associated-type"; readonly owner: TargetTypeRef; readonly name: string }
+  | { readonly kind: "lifetime"; readonly name: string }
+  | { readonly kind: "target-specific"; readonly target: string; readonly name: string; readonly payloadId?: string };
+
+export type TargetConstraint =
+  | { readonly kind: "implements"; readonly contract: string; readonly typeArguments?: readonly TargetTypeRef[] }
+  | { readonly kind: "value-type" }
+  | { readonly kind: "reference-type" }
+  | { readonly kind: "constructible" }
+  | { readonly kind: "unmanaged" }
+  | { readonly kind: "copy" }
+  | { readonly kind: "clone" }
+  | { readonly kind: "default" }
+  | { readonly kind: "sized" }
+  | { readonly kind: "lifetime"; readonly name: string }
+  | { readonly kind: "target-specific"; readonly target: string; readonly name: string; readonly payloadId?: string };
+
+export interface TargetTypeParameter {
+  readonly identity: string;
+  readonly name: string;
+  readonly constraints?: readonly TargetConstraint[];
+  readonly variance?: "in" | "out" | "invariant" | "target-defined";
+}
+
+export interface TargetParameter {
+  readonly name: string;
+  readonly type: TargetTypeRef;
+  readonly passingMode: ArgumentPassingMode;
+  readonly optional?: boolean;
+  readonly paramsArray?: boolean;
+}
+
+export interface TargetMember {
+  readonly id: string;
+  readonly sourceName: string;
+  readonly targetName: string;
+  readonly kind: "method" | "constructor" | "property" | "field" | "indexer" | "event" | "operator";
+  readonly static?: boolean;
+  readonly parameters: readonly TargetParameter[];
+  readonly returnType?: TargetTypeRef;
+  readonly typeParameters?: readonly TargetTypeParameter[];
+}
+
+export interface TargetBindingFact {
+  readonly id: string;
+  readonly sourceName: string;
+  readonly targetName: string;
+  readonly target: "csharp";
+  readonly kind: "class" | "struct" | "interface" | "trait" | "enum" | "delegate" | "function" | "opaque";
+  readonly typeParameters?: readonly TargetTypeParameter[];
+  readonly members?: readonly TargetMember[];
+  readonly implementedContracts?: readonly TargetConstraint[];
+}
+
+export type CsharpTargetTypeRenderShape =
+  | { readonly kind: "predefined"; readonly name: string }
+  | {
+      readonly kind: "named";
+      readonly externAlias?: string;
+      readonly namespace?: readonly string[];
+      readonly name: string;
+      readonly genericArity?: number;
+      readonly nested?: readonly CsharpTargetNestedTypeRenderShape[];
+      readonly usingNamespace?: readonly string[];
+    }
+  | { readonly kind: "nullable" };
+
+export interface CsharpTargetNestedTypeRenderShape {
+  readonly name: string;
+  readonly genericArity?: number;
+}
+
+export interface CsharpStaticTargetMethod {
+  readonly declaringType: TargetTypeRef;
+  readonly memberName: string;
+}
+
+export interface CsharpStringIterationPolicy {
+  readonly lengthMemberName: string;
+  readonly substringMemberName: string;
+  readonly highSurrogateMethod: CsharpStaticTargetMethod;
+  readonly lowSurrogateMethod: CsharpStaticTargetMethod;
+}
+
+export type CsharpPropertyKeyIterationPolicy =
+  | {
+      readonly kind: "index";
+      readonly lengthMemberName: string;
+      readonly keyConversion: "invariant-string";
+    }
+  | {
+      readonly kind: "key-collection";
+      readonly memberName: string;
+    };
+
+export type CsharpTargetTypeRef =
+  | (Exclude<TargetTypeRef, { readonly kind: "target-named" }> & {
+      readonly csharpNullableReference?: true;
+    })
+  | CsharpTargetNamedTypeRef;
+
+export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "target-named" }> & {
+  readonly csharpNullableReference?: true;
+  readonly csharpRender?: CsharpTargetTypeRenderShape;
+  readonly csharpThrowable?: true;
+  readonly csharpTypeofRuntimeKind?: CsharpTypeofRuntimeKind;
+  readonly csharpSpecialType?: "string" | "void" | "nullable";
+  readonly csharpSourceDeclarationKind?: "class" | "interface" | "enum" | "struct";
+  readonly csharpBaseType?: TargetTypeRef;
+  readonly csharpValueType?: true;
+  readonly csharpAbsorbsNullish?: true;
+  readonly csharpJsValueCarrier?: true;
+  readonly csharpJsStringCarrier?: true;
+  readonly csharpJsObjectShape?: true;
+  readonly csharpStructuralContract?: true;
+  readonly csharpArrayLiteralElementType?: TargetTypeRef;
+  readonly csharpArrayLiteralConstructionType?: TargetTypeRef;
+  readonly csharpArrayLiteralBuilder?: { readonly appendElementMethod: string; readonly capacityConstructor: boolean };
+  readonly csharpImplicitArrayInputElementType?: TargetTypeRef;
+  readonly csharpEnumerableElementType?: TargetTypeRef;
+  readonly csharpArrayLikeElementType?: TargetTypeRef;
+  readonly csharpReadOnlyIndexableElementType?: TargetTypeRef;
+  readonly csharpDenseMutableElementType?: TargetTypeRef;
+  readonly csharpIndexableLengthMemberName?: string;
+  readonly csharpIndexableReadMember?: CsharpTargetMember;
+  readonly csharpCollectionSemantics?: "dense" | "js-array";
+  readonly csharpJsArrayMutation?: {
+    readonly deleteAtMemberName: string;
+    readonly setLengthMemberName: string;
+  };
+  readonly csharpStringIteration?: CsharpStringIterationPolicy;
+  readonly csharpPropertyKeyIteration?: CsharpPropertyKeyIterationPolicy;
+  readonly csharpDelegateSignature?: CsharpDelegateSignatureShape;
+  readonly csharpExpressionTreeDelegateType?: TargetTypeRef;
+  readonly csharpClassFactory?: import("./carriers/class-factories.js").CsharpClassFactoryType;
+  readonly csharpMethodValue?: {
+    readonly owner: TargetTypeRef;
+    readonly method: string;
+    readonly identity: string;
+    readonly contract: TargetTypeRef;
+    readonly typeParameters: readonly string[];
+  };
+  readonly csharpTaskResultType?: TargetTypeRef;
+  readonly csharpGeneratorProtocol?: CsharpGeneratorProtocol;
+  readonly csharpIteratorResultProtocol?: CsharpIteratorResultProtocol;
+  readonly csharpFlowRefinementRepresentation?: "identity";
+  readonly csharpRuntimeUnionArms?: readonly TargetTypeRef[];
+  readonly csharpSourceUnionIdentity?: string;
+  readonly csharpRuntimeUnionObjectShapes?: readonly (CsharpObjectShapeFact | undefined)[];
+  readonly csharpJsSurfaceKind?:
+    | "map"
+    | "set"
+    | "weak-map"
+    | "weak-set"
+    | "symbol"
+    | "array-buffer"
+    | "data-view"
+    | "typed-array"
+    | "intl-date-time-format"
+    | "intl-number-format"
+    | "intl-collator"
+    | "date"
+    | "regexp";
+  readonly csharpCollectionSurface?: "record";
+};
+
+export interface CsharpGeneratorProtocol {
+  readonly kind: "sync" | "async";
+  readonly yieldType: TargetTypeRef;
+  readonly returnType: TargetTypeRef;
+  readonly nextType: TargetTypeRef;
+}
+
+export interface CsharpIteratorResultProtocol {
+  readonly yieldType: TargetTypeRef;
+  readonly returnType: TargetTypeRef;
+}
+
+export type CsharpNullableReferenceTargetTypeRef = TargetTypeRef & {
+  readonly csharpNullableReference?: true;
+};
+
+export type CsharpTargetAttributeValue =
+  | { readonly kind: "null" }
+  | { readonly kind: "string"; readonly value: string }
+  | { readonly kind: "source-primitive"; readonly name: string; readonly value: string | boolean }
+  | { readonly kind: "type"; readonly type: TargetTypeRef }
+  | { readonly kind: "enum"; readonly type: TargetTypeRef; readonly value: string; readonly fieldName?: string }
+  | { readonly kind: "array"; readonly elements: readonly CsharpTargetAttributeValue[] };
+
+export type CsharpTargetAttributeArgument =
+  | { readonly kind: "constructor"; readonly value: CsharpTargetAttributeValue }
+  | { readonly kind: "named"; readonly name: string; readonly memberKind: "field" | "property"; readonly value: CsharpTargetAttributeValue };
+
+export interface CsharpTargetAttributeFact {
+  readonly id: string;
+  readonly target: "type" | "constructor" | "method" | "property" | "field" | "event" | "parameter" | "return";
+  readonly attributeType: TargetTypeRef;
+  readonly constructorId: string;
+  readonly arguments?: readonly CsharpTargetAttributeArgument[];
+  readonly evidence?: readonly { readonly message: string }[];
+}
+
+export interface CsharpTargetUnsupportedAttributeFact {
+  readonly id: string;
+  readonly target: CsharpTargetAttributeFact["target"];
+  readonly attributeType?: TargetTypeRef;
+  readonly constructorId?: string;
+  readonly reason: string;
+  readonly evidence?: readonly { readonly message: string }[];
+}
+
+export interface CsharpTargetUnsupportedDefaultValueFact {
+  readonly kind: "unsupported-default-value";
+  readonly id: string;
+  readonly parameterName: string;
+  readonly reason: string;
+  readonly evidence?: readonly { readonly message: string }[];
+}
+
+export interface CsharpTargetParameter extends TargetParameter {
+  readonly csharpSequenceHolePolicy?: "number-nan";
+  readonly defaultValue?: unknown;
+  readonly unsupportedDefaultValue?: CsharpTargetUnsupportedDefaultValueFact;
+  readonly attributes?: readonly CsharpTargetAttributeFact[];
+  readonly unsupportedAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
+  readonly csharpOutputMayBeNull?: true;
+  readonly csharpAcceptsCheckedSourceArgument?: true;
+  readonly csharpAcceptsClosedSourceArgument?: true;
+  readonly csharpValueProjection?: "properties";
+  readonly csharpOmittableOptionalArgument?: true;
+  readonly csharpSourceArgumentAdapter?: CsharpSourceArgumentAdapter;
+}
+
+export interface CsharpSourceArgumentAdapter {
+  readonly kind: "ecmascript-argument-vector-callback";
+  readonly sourceCallableType: TargetTypeRef;
+}
+
+export type CsharpObjectShapeCapability =
+  | "json-serialization"
+  | "reference-identity"
+  | "method-values"
+  | "enumerable-keys"
+  | "js-freeze";
+
+export type CsharpObjectShapeProjectionKind =
+  | "keys"
+  | "values"
+  | "entries"
+  | "has-own"
+  | "assign";
+
+export type CsharpObjectShapeProjection =
+  | {
+      readonly kind: Exclude<CsharpObjectShapeProjectionKind, "assign">;
+      readonly resultType: TargetTypeRef;
+      readonly propertyOrder: readonly string[];
+    }
+  | {
+      readonly kind: "assign";
+      readonly resultType: TargetTypeRef;
+      readonly sourceShape: CsharpObjectShapeFact;
+      readonly propertyOrder: readonly string[];
+      readonly assignments: readonly {
+        readonly sourceName: string;
+        readonly targetName: string;
+      }[];
+    };
+
+interface CsharpCallArtifactRequirementBase {
+  readonly source:
+    | { readonly kind: "receiver" }
+    | { readonly kind: "argument"; readonly index: number };
+  readonly rootKind: "value" | "object-shape";
+}
+
+export type CsharpCallArtifactRequirement =
+  | CsharpCallArtifactRequirementBase & {
+      readonly kind: "object-shape-capability";
+      readonly capability: CsharpObjectShapeCapability;
+    }
+  | CsharpCallArtifactRequirementBase & {
+      readonly kind: "object-shape-projection";
+      readonly projection: Exclude<CsharpObjectShapeProjectionKind, "assign">;
+    }
+  | CsharpCallArtifactRequirementBase & {
+      readonly kind: "object-shape-projection";
+      readonly projection: "assign";
+      readonly assignmentSource: {
+        readonly kind: "argument";
+        readonly index: number;
+      };
+    };
+
+export interface CsharpTargetBinaryExecutionDriver {
+  readonly id: string;
+  readonly declaringType: TargetTypeRef;
+  readonly runMethodName: string;
+  readonly runWithEntrypointMethodName: string;
+}
+
+export interface CsharpMethodTypeArgumentProjection {
+  readonly kind: "project-constructible-object-shape";
+  readonly targetTypeParameterIndex: number;
+}
+
+export interface CsharpTargetTypeParameter extends TargetTypeParameter {
+  readonly unsupportedConstraints?: readonly unknown[];
+}
+
+export interface CsharpTargetMember extends Omit<TargetMember, "parameters" | "typeParameters"> {
+  readonly parameters: readonly CsharpTargetParameter[];
+  readonly typeParameters?: readonly CsharpTargetTypeParameter[];
+  readonly declaringType?: TargetTypeRef;
+  readonly receiverPassing?: "instance" | "target-parameter";
+  readonly readonly?: boolean;
+  readonly csharpLiteral?: true;
+  readonly attributes?: readonly CsharpTargetAttributeFact[];
+  readonly unsupportedAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
+  readonly returnAttributes?: readonly CsharpTargetAttributeFact[];
+  readonly unsupportedReturnAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
+  readonly csharpReturnPassing?: "byref-readwrite" | "byref-readonly";
+  readonly csharpArtifactRequirements?: readonly CsharpCallArtifactRequirement[];
+  readonly csharpBinaryExecutionDriver?: CsharpTargetBinaryExecutionDriver;
+  readonly csharpMethodTypeArgumentProjections?: readonly CsharpMethodTypeArgumentProjection[];
+  readonly csharpInvocation?: CsharpTargetInvocation;
+}
+
+export type CsharpTargetInvocation =
+  | { readonly kind: "numeric-conversion" }
+  | {
+      readonly kind: "static-factory-construction";
+      readonly factoryType: TargetTypeRef;
+    }
+  | {
+      readonly kind: "source-module-construction";
+      readonly sourceArgumentIndex: number;
+      readonly targetParameterIndex: number;
+      readonly bootstrap: {
+        readonly id: string;
+        readonly declaringType: TargetTypeRef;
+        readonly methodName: string;
+      };
+    }
+  | {
+      readonly kind: "array-creation";
+      readonly lengthParameterIndex: number;
+    }
+  | {
+      readonly kind: "object-shape-projection";
+      readonly targetParameterIndex: number;
+      readonly projection: CsharpObjectShapeProjectionKind;
+    }
+  | {
+      readonly kind: "ecmascript-protocol-dispatch";
+      readonly protocolTargetParameterIndex: number;
+      readonly protocolMemberName: string;
+    }
+  | {
+      readonly kind: "native-indexer-get";
+      readonly indexParameterIndexes: readonly number[];
+    }
+  | {
+      readonly kind: "native-indexer-set";
+      readonly indexParameterIndexes: readonly number[];
+      readonly valueParameterIndex: number;
+    }
+  | {
+      readonly kind: "native-event-add" | "native-event-remove";
+      readonly handlerParameterIndex: number;
+    }
+  | {
+      readonly kind: "native-operator";
+      readonly form: "prefix" | "binary";
+      readonly operator:
+        | "unary-plus"
+        | "unary-negation"
+        | "logical-not"
+        | "ones-complement"
+        | "addition"
+        | "subtraction"
+        | "multiplication"
+        | "division"
+        | "modulus"
+        | "bitwise-and"
+        | "bitwise-or"
+        | "exclusive-or"
+        | "left-shift"
+        | "right-shift"
+        | "unsigned-right-shift"
+        | "equality"
+        | "inequality"
+        | "less-than"
+        | "less-than-or-equal"
+        | "greater-than"
+        | "greater-than-or-equal";
+      readonly operandParameterIndexes: readonly number[];
+      readonly checked?: true;
+    }
+  | {
+      readonly kind: "static-member";
+      readonly operation:
+        | "call"
+        | "property-get"
+        | "property-set"
+        | "event-add"
+        | "event-remove";
+      readonly receiver:
+        | { readonly kind: "declaring-type" }
+        | {
+            readonly kind: "invocation-type-argument";
+            readonly index: number;
+          };
+      readonly valueParameterIndex?: number;
+    };
+
+export interface CsharpTargetConversionOperatorFact {
+  readonly id: string;
+  readonly conversionKind: "implicit" | "explicit";
+  readonly declaringType: TargetTypeRef;
+  readonly sourceType: TargetTypeRef;
+  readonly targetType: TargetTypeRef;
+}
+
+export interface CsharpTargetBindingFact extends Omit<TargetBindingFact, "members" | "typeParameters"> {
+  readonly csharpNativeMemoryFieldIds?: readonly string[];
+  readonly csharpType?: TargetTypeRef;
+  readonly csharpBaseType?: TargetTypeRef;
+  readonly csharpRender?: CsharpTargetTypeRenderShape;
+  readonly typeParameters?: readonly CsharpTargetTypeParameter[];
+  readonly members?: readonly CsharpTargetMember[];
+  readonly attributes?: readonly CsharpTargetAttributeFact[];
+  readonly unsupportedAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
+  readonly conversionOperators?: readonly CsharpTargetConversionOperatorFact[];
+  readonly csharpAbstract?: true;
+  readonly csharpUnmanagedTypeParameterIndexes?: readonly number[];
+}
+
+export function csharpTargetBindingFact(binding: TargetBindingFact | undefined): CsharpTargetBindingFact | undefined {
+  return binding as CsharpTargetBindingFact | undefined;
+}
+
+export function csharpTargetMemberFact(member: TargetMember | undefined): CsharpTargetMember | undefined {
+  return member as CsharpTargetMember | undefined;
+}
+
+export function csharpTargetMemberFacts(members: readonly TargetMember[] | undefined): readonly CsharpTargetMember[] {
+  return (members ?? []) as readonly CsharpTargetMember[];
+}
+
+export interface CsharpDelegateSignatureShape {
+  readonly parameters: readonly TargetTypeRef[];
+  readonly parameterPassingModes: readonly ArgumentPassingMode[];
+  readonly returnType: TargetTypeRef;
+  readonly returnPassing?: "byref-readwrite" | "byref-readonly";
+  readonly optionalParameterIndexes?: readonly number[];
+  readonly restParameterIndex?: number;
+}
+
+export type CsharpDelegateTargetTypeRef = CsharpTargetNamedTypeRef & {
+  readonly csharpDelegateSignature: CsharpDelegateSignatureShape;
+};
+
+export type CsharpTaskTargetTypeRef = CsharpTargetNamedTypeRef & {
+  readonly csharpTaskResultType: TargetTypeRef;
+};
+
+export type CsharpRuntimeUnionTargetTypeRef = CsharpTargetNamedTypeRef & {
+  readonly csharpRuntimeUnionArms: readonly TargetTypeRef[];
+  readonly csharpRuntimeUnionObjectShapes?: readonly (CsharpObjectShapeFact | undefined)[];
+};

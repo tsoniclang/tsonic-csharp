@@ -1,0 +1,43 @@
+import type { Node } from "@tsonic/tsts";
+import { HasSyntacticModifier, ModifierFlagsAsync } from "@tsonic/target-api/source";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
+import {
+  getCsharpGeneratorProtocol,
+  getCsharpLambdaSignature,
+  getCsharpTaskResultTargetType,
+} from "../../policy/types/index.js";
+import type { CsharpReturnTargetContract } from "../../target-model/records/declarations.js";
+import type { CsharpReturnContext } from "../../target-model/records/return-contexts.js";
+import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
+
+export function selectCsharpCallableReturnContext(
+  policy: Pick<CsharpPolicyContext, "ast">,
+  evidence: Pick<CsharpSourceEvidenceIndex, "generator">,
+  callable: CsharpSourceCallableContract,
+  contextualTarget?: TargetTypeRef,
+): CsharpReturnContext | undefined {
+  const async = HasSyntacticModifier(policy.ast, callable.sourceDeclaration, ModifierFlagsAsync);
+  const selectedReturnType = getCsharpLambdaSignature(contextualTarget)?.returnType;
+  if (selectedReturnType !== undefined) {
+    return returnContext(async ? getCsharpTaskResultTargetType(selectedReturnType) : selectedReturnType);
+  }
+  if (evidence.generator.get(callable.sourceDeclaration) !== undefined) {
+    return returnContext(getCsharpGeneratorProtocol(callable.returnType)?.returnType);
+  }
+  return returnContext(async ? getCsharpTaskResultTargetType(callable.returnType) : callable.returnType);
+}
+
+export function selectCsharpAccessorReturnContext(
+  policy: Pick<CsharpPolicyContext, "ast">,
+  declaration: Node,
+  returnContract: CsharpReturnTargetContract | undefined,
+): CsharpReturnContext | undefined {
+  return policy.ast.is.IsGetAccessorDeclaration(declaration) && returnContract?.kind === "resolved"
+    ? returnContext(returnContract.type) : undefined;
+}
+
+function returnContext(target: TargetTypeRef | undefined): CsharpReturnContext | undefined {
+  return target === undefined ? undefined : Object.freeze({ target });
+}

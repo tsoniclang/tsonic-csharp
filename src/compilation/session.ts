@@ -1,0 +1,158 @@
+import type {
+  TargetCompilationSession,
+  TargetCompilationSessionContext,
+  TargetCompileInput,
+  TargetSourceCompilerContributions,
+  TargetSourceProfileContributions,
+} from "@tsonic/target-api";
+import type {
+  TargetCompileResult,
+  TargetRuntimeContributions,
+} from "@tsonic/target-api/artifacts";
+import { resolve } from "node:path";
+import {
+  createDotnetReflectionTypeDataProvider,
+  createDotnetSourceDeclarationProviderSet,
+  dotnetModuleSpecifierPolicy,
+} from "../providers/native/index.js";
+import {
+  collectCsharpCapabilityContributions,
+  createCapabilityDotnetProviders,
+} from "../providers/native/contributions.js";
+import {
+  createCsharpProviderRelationResolver,
+} from "../providers/native/relations/resolver.js";
+import { compileCsharpTarget } from "../backend/compile.js";
+import {
+  createCsharpTargetConfiguration,
+} from "../options/csharp-target-options.js";
+import {
+  createCsharpSourceSemanticsExtension,
+} from "../source/extension/csharp-source-semantics-extension.js";
+import {
+  csharpSourceSemanticsModules,
+} from "../source/profiles/source-modules.js";
+import {
+  csharpSourceProfileContributions,
+} from "../source/profiles/source-profile-declarations.js";
+import { csharpCoreRuntimeSource, csharpRuntimeSourceContributions } from "../providers/runtime/source-projects.js";
+import { resolveDotnetProviderToolchain } from "../providers/native/acquisition/toolchain.js";
+
+type CsharpCompilationSessionState =
+  | "created"
+  | "profile-contributed"
+  | "compiler-contributed"
+  | "runtime-contributed"
+  | "compiled"
+  | "closed";
+
+export function createCsharpCompilationSession(
+  context: TargetCompilationSessionContext,
+  compileRequest: typeof compileCsharpTarget = compileCsharpTarget,
+): TargetCompilationSession {
+  const configuration = createCsharpTargetConfiguration(
+    context.target,
+    context.projectDirectory,
+    context.paths.targetOutputRoot,
+  );
+  const capabilityContributions = collectCsharpCapabilityContributions(
+    context.capabilities,
+  );
+  const binaryExecutionDriver =
+    capabilityContributions.binaryExecutionDriver;
+  const toolchain = resolveDotnetProviderToolchain(context.projectDirectory, configuration.targetFramework);
+  const providerStorage = Object.freeze({
+    toolBuildRoot: resolve(
+      context.paths.cacheRoot,
+      "csharp/dotnet-type-provider-tool",
+    ),
+    cacheRoot: resolve(
+      context.paths.cacheRoot,
+      "csharp/dotnet-reflection",
+    ),
+  });
+  const builtInProvider = createDotnetReflectionTypeDataProvider({
+    references: configuration.reflectionReferencePaths,
+    targetFramework: configuration.targetFramework,
+    toolchain,
+    storage: providerStorage,
+  });
+  const capabilityProviders = createCapabilityDotnetProviders(
+    capabilityContributions,
+    providerStorage,
+    toolchain,
+  );
+  const providers = Object.freeze([
+    builtInProvider,
+    ...capabilityProviders.map((entry) => entry.provider),
+  ]);
+  const sourceDeclarationProviders = createDotnetSourceDeclarationProviderSet([
+    {
+      provider: builtInProvider,
+      moduleSpecifierPolicy: dotnetModuleSpecifierPolicy,
+      targetFramework: configuration.targetFramework,
+    },
+    ...capabilityProviders.map((entry) => ({
+      provider: entry.provider,
+      moduleSpecifierPolicy: entry.moduleSpecifierPolicy,
+      ...(entry.targetFramework === undefined
+        ? {}
+        : { targetFramework: entry.targetFramework }),
+    })),
+  ]);
+  const relationResolver = createCsharpProviderRelationResolver({
+    providers,
+    providerPolicies: capabilityContributions.providerPolicies,
+  });
+  let state: CsharpCompilationSessionState = "created";
+  return Object.freeze({
+    sourceProfileContributions(): TargetSourceProfileContributions {
+      requireState(state, "created", "sourceProfileContributions");
+      state = "profile-contributed";
+      return csharpSourceProfileContributions(context);
+    },
+    sourceCompilerContributions(): TargetSourceCompilerContributions {
+      requireState(state, "profile-contributed", "sourceCompilerContributions");
+      state = "compiler-contributed";
+      return Object.freeze({
+        semanticsModules: csharpSourceSemanticsModules(),
+        extensions: Object.freeze([
+          createCsharpSourceSemanticsExtension(sourceDeclarationProviders),
+        ]),
+      });
+    },
+    runtimeContributions(): TargetRuntimeContributions {
+      requireState(state, "compiler-contributed", "runtimeContributions");
+      state = "runtime-contributed";
+      return csharpRuntimeSourceContributions(csharpCoreRuntimeSource);
+    },
+    compile(input: TargetCompileInput): TargetCompileResult {
+      requireState(state, "runtime-contributed", "compile");
+      state = "compiled";
+      return compileRequest(Object.freeze({
+        input,
+        configuration,
+        providers: relationResolver,
+        ...(binaryExecutionDriver === undefined
+          ? {}
+          : { binaryExecutionDriver }),
+      }));
+    },
+    close(): void {
+      if (state === "closed") {
+        return;
+      }
+      state = "closed";
+    },
+  });
+}
+
+function requireState(
+  actual: CsharpCompilationSessionState,
+  expected: CsharpCompilationSessionState,
+  operation: string,
+): void {
+  if (actual !== expected) {
+    throw new Error(`C# compilation session cannot call '${operation}' while in '${actual}' state; expected '${expected}'.`);
+  }
+}

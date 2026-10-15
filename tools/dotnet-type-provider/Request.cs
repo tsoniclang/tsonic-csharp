@@ -1,0 +1,117 @@
+using System.Collections.Concurrent;
+using System.Reflection;
+using System.Runtime.Loader;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+sealed record Request(string NamespaceName, string ModuleSpecifier, string ModuleSpecifierPrefix, string SourcePackage, IReadOnlyList<AssemblySourcePackage> AssemblySourcePackages, bool AllModules, IReadOnlyList<string> Exports, IReadOnlyList<string> TargetIds, IReadOnlyList<string> MetadataNames, bool CompleteAllExports, IReadOnlyList<string> CompleteExports, IReadOnlyList<string> CompleteExportIds, string PlatformDirectory, string? ReferenceDirectory, IReadOnlyList<string> References, string? AssemblyName)
+{
+    public static Request Parse(string[] args)
+    {
+        var namespaceName = "";
+        var moduleSpecifier = "";
+        var moduleSpecifierPrefix = "";
+        var sourcePackage = "@tsonic/dotnet";
+        var assemblySourcePackages = new List<AssemblySourcePackage>();
+        var allModules = false;
+        var exports = new List<string>();
+        var targetIds = new List<string>();
+        var metadataNames = new List<string>();
+        var completeAllExports = false;
+        var completeExports = new List<string>();
+        var completeExportIds = new List<string>();
+        string? referenceDirectory = null;
+        string? platformDirectory = null;
+        var references = new List<string>();
+        string? assemblyName = null;
+        for (var index = 0; index < args.Length; index++)
+        {
+            var arg = args[index];
+            switch (arg)
+            {
+                case "--namespace":
+                    namespaceName = RequiredValue(args, ref index, arg);
+                    break;
+                case "--module-specifier":
+                    moduleSpecifier = RequiredValue(args, ref index, arg);
+                    break;
+                case "--module-specifier-prefix":
+                    moduleSpecifierPrefix = RequiredValue(args, ref index, arg);
+                    break;
+                case "--source-package":
+                    sourcePackage = RequiredValue(args, ref index, arg);
+                    break;
+                case "--assembly-source-package":
+                    assemblySourcePackages.Add(ParseAssemblySourcePackage(RequiredValue(args, ref index, arg)));
+                    break;
+                case "--all-modules":
+                    allModules = true;
+                    break;
+                case "--export":
+                    exports.Add(RequiredValue(args, ref index, arg));
+                    break;
+                case "--target-id":
+                    targetIds.Add(RequiredValue(args, ref index, arg));
+                    break;
+                case "--metadata-name":
+                    metadataNames.Add(RequiredValue(args, ref index, arg));
+                    break;
+                case "--complete-all-exports":
+                    completeAllExports = true;
+                    break;
+                case "--complete-export":
+                    completeExports.Add(RequiredValue(args, ref index, arg));
+                    break;
+                case "--complete-export-id":
+                    completeExportIds.Add(RequiredValue(args, ref index, arg));
+                    break;
+                case "--reference-dir":
+                    referenceDirectory = RequiredValue(args, ref index, arg);
+                    break;
+                case "--platform-dir":
+                    if (platformDirectory is not null)
+                    {
+                        throw new InvalidOperationException("Argument '--platform-dir' must be specified exactly once.");
+                    }
+                    platformDirectory = RequiredValue(args, ref index, arg);
+                    break;
+                case "--reference":
+                    references.Add(RequiredValue(args, ref index, arg));
+                    break;
+                case "--assembly-name":
+                    assemblyName = RequiredValue(args, ref index, arg);
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unknown argument '{arg}'.");
+            }
+        }
+        if (platformDirectory is null || !Path.IsPathFullyQualified(platformDirectory) ||
+            !File.Exists(Path.Combine(platformDirectory, "System.Private.CoreLib.dll")))
+        {
+            throw new InvalidOperationException("Argument '--platform-dir' must select an installed .NET runtime directory.");
+        }
+        return new Request(namespaceName, moduleSpecifier, moduleSpecifierPrefix, sourcePackage, assemblySourcePackages, allModules, exports, targetIds, metadataNames, completeAllExports, completeExports, completeExportIds, platformDirectory, referenceDirectory, references, assemblyName);
+    }
+
+    static string RequiredValue(string[] args, ref int index, string name)
+    {
+        if (index + 1 >= args.Length)
+        {
+            throw new InvalidOperationException($"Argument '{name}' requires a value.");
+        }
+        index++;
+        return args[index];
+    }
+
+    static AssemblySourcePackage ParseAssemblySourcePackage(string value)
+    {
+        var separator = value.IndexOf('=');
+        if (separator <= 0 || separator == value.Length - 1 || value.IndexOf('=', separator + 1) >= 0)
+        {
+            throw new InvalidOperationException($"Invalid assembly source package '{value}'. Expected '<assembly-name>=<package-name>'.");
+        }
+        return new AssemblySourcePackage(value[..separator], value[(separator + 1)..]);
+    }
+}
+
+sealed record AssemblySourcePackage(string AssemblyName, string PackageName);

@@ -1,0 +1,90 @@
+import type { CsharpPlanningContext } from "../../context.js";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type {
+  CsharpPropertyDeclaration,
+  CsharpTypeMember,
+} from "../../../target-ast/syntax/index.js";
+import {
+  AsConstructorDeclaration,
+  AsMethodDeclaration,
+  KindClassStaticBlockDeclaration,
+  KindConstructor,
+  KindGetAccessor,
+  KindMethodDeclaration,
+  KindPropertyDeclaration,
+  KindParameter,
+  KindSetAccessor,
+  SourceKind,
+  sourceClassFieldIsTypeOnly,
+} from "@tsonic/target-api/source";
+import {
+  unsupportedNodeDiagnostic,
+} from "../../diagnostics.js";
+import { planConstructorDeclarations } from "./constructors.js";
+import {
+  planMethodDeclaration,
+} from "./methods.js";
+import {
+  mergeAccessorProperty,
+  planPropertyDeclaration,
+} from "./properties.js";
+import { planCsharpMutableMethod } from "./mutable-methods.js";
+import { classFactoryContext } from "./factories.js";
+import { planCsharpProjectCallableAdapters } from "./callable-adapters.js";
+import type { CsharpClassInitializationRegion } from "./initializers.js";
+
+export function planClassMembers(
+  members: readonly (Node | undefined)[],
+  className: string,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  initialization: readonly CsharpClassInitializationRegion[],
+): readonly CsharpTypeMember[] {
+  const planned: CsharpTypeMember[] = [];
+  const accessorProperties = new Map<string, CsharpPropertyDeclaration>();
+  for (const member of members) {
+    if (member === undefined || sourceClassFieldIsTypeOnly(input.program.source.ast, member)) {
+      continue;
+    }
+    const owner = input.program.source.ast.parent(member);
+    const factory = owner === undefined ? undefined : input.program.records.classFactory.get(owner);
+    const memberInput = factory === undefined || input.program.source.ast.hasModifierKind(member, "static") ? input
+      : classFactoryContext(factory, input.program.source.ast.is.IsConstructorDeclaration(member) || input.program.source.ast.is.IsPropertyDeclaration(member)
+        ? { kind: "IdentifierName", name: factory.environmentName }
+        : { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: factory.environmentName }, input, diagnostics, "instance");
+    switch (SourceKind(input.program.source.ast, member)) {
+      case KindConstructor:
+        if (AsConstructorDeclaration(input.program.source.ast, member)?.Body !== undefined) {
+          planned.push(...planConstructorDeclarations(member, className, sourceFile, memberInput, diagnostics,
+            initialization[0]?.statements ?? []));
+        }
+        break;
+      case KindClassStaticBlockDeclaration:
+        break;
+      case KindMethodDeclaration:
+        if (AsMethodDeclaration(input.program.source.ast, member)?.Body !== undefined ||
+          input.program.source.ast.hasModifierKind(member, "abstract")) {
+          const method = planMethodDeclaration(member, sourceFile, memberInput, diagnostics);
+          const write = input.program.records.methodWrite.get(member);
+          planned.push(...(write === undefined ? [method] : planCsharpMutableMethod(member, method, write, input, diagnostics)));
+          planned.push(...planCsharpProjectCallableAdapters(member, method, sourceFile, memberInput, diagnostics));
+        }
+        break;
+      case KindPropertyDeclaration:
+      case KindParameter:
+        planned.push(planPropertyDeclaration(member, sourceFile, input, diagnostics,
+          initialization.map(region => region.inline.get(member)).find(value => value !== undefined)));
+        break;
+      case KindGetAccessor:
+      case KindSetAccessor:
+        mergeAccessorProperty(member, planned, accessorProperties, sourceFile, memberInput, diagnostics);
+        break;
+      default:
+        diagnostics.push(unsupportedNodeDiagnostic(member, "Class member is outside the current C# planning surface."));
+        break;
+    }
+  }
+  return planned;
+}

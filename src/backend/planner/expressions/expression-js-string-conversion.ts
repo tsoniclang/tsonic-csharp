@@ -1,0 +1,51 @@
+import type {
+  Node,
+  SourceFile,
+} from "@tsonic/tsts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { CsharpPlanningContext } from "../context.js";
+import { targetPolicyDiagnostic } from "../diagnostics.js";
+import type { ExpressionPlanner } from "./expression-planner-types.js";
+import type { CsharpPlannedValue } from "./planned-values.js";
+import { mapCsharpPlannedValue } from "./planned-values.js";
+
+export type CsharpJsStringConversionPlan =
+  | { readonly handled: false }
+  | { readonly handled: true; readonly expression?: CsharpPlannedValue };
+
+export function tryPlanCsharpJsStringConversion(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpJsStringConversionPlan {
+  const selection = input.program.records.jsStringConversion.get(node);
+  if (
+    selection === undefined ||
+    selection.kind === "not-js-string-conversion"
+  ) {
+    return { handled: false };
+  }
+  if (selection.kind === "rejected") {
+    diagnostics.push(targetPolicyDiagnostic(
+      node,
+      "CSHARP_JS_STRING_CONVERSION_REJECTED",
+      selection.reason,
+    ));
+    return { handled: true };
+  }
+  return {
+    handled: true,
+    expression: mapCsharpPlannedValue(
+      planExpression(
+        selection.sourceValue,
+        sourceFile,
+        input,
+        diagnostics,
+      ),
+      selection.resultType,
+      (expression) => expression,
+    ),
+  };
+}

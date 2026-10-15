@@ -1,0 +1,142 @@
+import type { CsharpPlanningContext } from "../../context.js";
+import { AsClassDeclaration, sourceObjectMemberDeclarations } from "@tsonic/target-api/source";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { CsharpClassDeclaration, CsharpConstructorDeclaration, CsharpStatement } from "../../../target-ast/syntax/index.js";
+import { planAttributesForSubject } from "../attributes.js";
+import { planClassHeritage } from "./heritage.js";
+import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../modifiers.js";
+import { csharpClosedValueCarrierInterfaceType } from "../../objects/declarations/interfaces.js";
+import { planCsharpStructuralInterfaceMembers } from "../interfaces/structural.js";
+import { planIdentifierName } from "../../names/source-identifiers.js";
+import { createCsharpTypeParameterPlanningContext } from "../../names/type-parameters.js";
+import { planOuterTypeParameters, planTypeParameters } from "../../types/type-parameters.js";
+import { planClassMembers } from "./members.js";
+import { csharpJsonValueInterfaceType, objectShapeRequiresJsonSerialization, renderJsonSerializableObjectShapeMethod } from "../../objects/json-object-shapes.js";
+import { getCsharpObjectShapeFactForNode } from "../../objects/fact-queries.js";
+import { registerSourceObjectShape } from "../../objects/index.js";
+import { planImplicitForwardingConstructors } from "../../project/type-constructors.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import { csharpSafetyModifiersForDeclaration } from "../../safety/explicit-safety.js";
+import { guardCsharpFrozenDataProperties } from "../../objects/frozen-data-properties.js";
+import { createCsharpMemberPlanningContext } from "../../context.js";
+import { classFactoryContext, completeLocalClassConstructor } from "./factories.js";
+import { planClassInitializationRegion } from "./initializers.js";
+import { renderObjectShapeProjectionMethods } from "../../objects/closed-object-shapes.js";
+
+export function planClassDeclaration(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+): CsharpClassDeclaration {
+  input = createCsharpTypeParameterPlanningContext(node, createCsharpMemberPlanningContext(input));
+  const declaration = input.program.source.ast.is.IsClassExpression(node)
+    ? input.program.source.ast.as.AsClassExpression(node)! : AsClassDeclaration(input.program.source.ast, node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "class declaration", diagnostics, ["abstract"]);
+  const factory = input.program.records.classFactory.get(node);
+  const staticCompanion = input.types.projectTypes.definitionContainingDeclaration(node)?.staticCompanion === true;
+  const className = declaration.name === undefined && factory !== undefined ? factory.instanceName
+    : planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
+  const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
+  const heritage = planClassHeritage(node, objectShape, input, diagnostics);
+  const interfaces = [...heritage.interfaces, csharpClosedValueCarrierInterfaceType()];
+  if (factory?.identity !== undefined) interfaces.push(csharpTypeFromTargetTypeRef(factory.identity.type, input.scope.typeParameterNames)!);
+  if (objectShape !== undefined) {
+    registerSourceObjectShape(input, objectShape, diagnostics, node);
+  }
+  const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
+  const memberNodes = sourceObjectMemberDeclarations(input.program.source.ast, node).filter(member => factory === undefined && !staticCompanion ||
+    member === undefined || !input.program.source.ast.hasModifierKind(member, "static") && !input.program.source.ast.is.IsClassStaticBlockDeclaration(member));
+  const initializerInput = factory === undefined ? input : classFactoryContext(factory,
+    { kind: "IdentifierName", name: factory.environmentName }, input, diagnostics, "instance");
+  const instanceRegion = planClassInitializationRegion(node, sourceFile, className, false, initializerInput, diagnostics, factory !== undefined);
+  const staticRegion = factory !== undefined || staticCompanion ? undefined
+    : planClassInitializationRegion(node, sourceFile, className, true, input, diagnostics);
+  const members = planClassMembers(memberNodes, className, sourceFile, input, diagnostics,
+    staticRegion === undefined ? [instanceRegion] : [instanceRegion, staticRegion]);
+  const implicitConstructors = planImplicitForwardingConstructors(
+    node,
+    className,
+    input,
+    diagnostics,
+  );
+  const safetyDefaultConstructors = members.some((member) =>
+      member.kind === "ConstructorDeclaration") ||
+      implicitConstructors.length > 0
+    ? []
+    : defaultSafetyConstructors(node, className, input);
+  const requiresConstructor = instanceRegion.relocates;
+  const completeConstructor = (constructor: CsharpConstructorDeclaration, initializers: readonly CsharpStatement[]): CsharpConstructorDeclaration => factory !== undefined
+    ? completeLocalClassConstructor(constructor, factory, input, initializers)
+    : constructor.initializer?.kind === "this" ? constructor
+    : { ...constructor, body: { kind: "Block", statements: [...initializers, ...constructor.body.statements] } };
+  const defaultInitializationConstructor = !requiresConstructor || members.some(member => member.kind === "ConstructorDeclaration") ||
+    implicitConstructors.length !== 0 || safetyDefaultConstructors.length !== 0 ? [] : [{
+      kind: "ConstructorDeclaration" as const, name: className, modifiers: ["public" as const],
+      parameters: [], body: { kind: "Block" as const, statements: [] },
+    }];
+  return {
+    kind: "ClassDeclaration",
+    name: className,
+    modifiers: input.program.source.ast.hasModifierKind(node, "abstract") ? ["public", "abstract"] : ["public"],
+    attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+    typeParameters: [
+      ...planOuterTypeParameters(node, input, diagnostics),
+      ...planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics, node),
+    ],
+    ...(heritage.baseType === undefined ? {} : { baseType: heritage.baseType }),
+    interfaces: [
+      ...interfaces,
+      ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
+    ],
+    members: [
+      ...(staticRegion?.relocates ? [{ kind: "ConstructorDeclaration" as const, name: className,
+        modifiers: ["static" as const], parameters: [], body: { kind: "Block" as const, statements: staticRegion.statements } }] : []),
+      ...implicitConstructors.map(constructor => completeConstructor(constructor, instanceRegion.statements)),
+      ...[...safetyDefaultConstructors, ...defaultInitializationConstructor].map(member => member.kind === "ConstructorDeclaration"
+        ? completeConstructor(member, instanceRegion.statements) : member),
+      ...(factory?.retainsEnvironment ? [{ kind: "FieldDeclaration" as const, name: factory.environmentName,
+        type: csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames)!,
+        modifiers: [factory.requiresInstanceTest ? "internal" as const : "private" as const, "readonly" as const] }] : []),
+      ...(factory?.identity === undefined ? [] : [{ kind: "PropertyDeclaration" as const,
+        name: factory.environmentName, explicitInterface: csharpTypeFromTargetTypeRef(factory.identity.type, input.scope.typeParameterNames)!, modifiers: [],
+        type: csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames)!,
+        getter: { kind: "Block" as const, statements: [{ kind: "ReturnStatement" as const, expression: {
+          kind: "SimpleMemberAccessExpression" as const, receiver: { kind: "IdentifierName" as const, name: "this" }, name: factory.environmentName,
+        } }] },
+      }]),
+      ...(objectShape === undefined ? [] : planCsharpStructuralInterfaceMembers(objectShape, node, input, diagnostics)),
+      ...(objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "js-freeze")
+        ? guardCsharpFrozenDataProperties(objectShape, members, input, diagnostics) : members).map(member =>
+          member.kind === "ConstructorDeclaration" ? completeConstructor(member, []) : member),
+      ...(jsonSerializable && objectShape !== undefined
+        ? renderJsonSerializableObjectShapeMethod(objectShape)
+        : []),
+      ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input, objectShape,
+        input.artifacts.objectShapeProjections(objectShape), diagnostics)),
+      ...input.scope.generatedMethods!.values(),
+    ],
+  };
+}
+
+function defaultSafetyConstructors(
+  declaration: Node,
+  className: string,
+  input: CsharpPlanningContext,
+): CsharpClassDeclaration["members"] {
+  const safetyModifiers = csharpSafetyModifiersForDeclaration(
+    declaration,
+    "constructor",
+    input,
+  );
+  return safetyModifiers.length === 0
+    ? []
+    : [{
+        kind: "ConstructorDeclaration",
+        name: className,
+        modifiers: ["public", ...safetyModifiers],
+        parameters: [],
+        body: { kind: "Block", statements: [] },
+      }];
+}

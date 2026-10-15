@@ -1,0 +1,111 @@
+import {
+  nonEmptyContributionString,
+} from "../model/contribution-values.js";
+import { snapshotCsharpMetadata } from "../../target-model/metadata/immutable.js";
+import {
+  csharpProviderPolicyContributionKind,
+  validateCsharpProviderPolicyContribution,
+} from "../model/provider-policy-contribution.js";
+import type { CsharpProviderPolicyContribution } from "../model/provider-policy-contribution.js";
+import type { CsharpProviderPackageDefinition } from "./model.js";
+
+export function snapshotCsharpProviderPackage(
+  definition: CsharpProviderPackageDefinition,
+): CsharpProviderPackageDefinition {
+  const fail = (message: string): never => {
+    throw new Error(`C# provider package '${definition.id}': ${message}`);
+  };
+  const modules = Object.freeze(definition.modules.map((module) => Object.freeze({
+    moduleSpecifier: module.moduleSpecifier,
+    providerModuleId: module.providerModuleId,
+    getExports: module.getExports,
+  })));
+  const moduleSpecifiers = snapshotCsharpMetadata(definition.moduleSpecifiers);
+  const modulesBySpecifier = new Map(modules.map((module) => [module.moduleSpecifier, module]));
+  const moduleIds = new Set(modules.map((module) => module.providerModuleId));
+  if (modulesBySpecifier.size !== modules.length || moduleIds.size !== modules.length) {
+    fail("duplicate canonical module specifier or provider module identity.");
+  }
+  for (const module of modules) {
+    if (
+      !nonEmptyContributionString(module.moduleSpecifier) ||
+      !nonEmptyContributionString(module.providerModuleId) ||
+      typeof module.getExports !== "function"
+    ) {
+      fail("modules require a specifier, provider module identity and export callback.");
+    }
+  }
+  const canonicalBySpecifier = new Map<string, string>();
+  for (const entry of moduleSpecifiers) {
+    if (!nonEmptyContributionString(entry.moduleSpecifier)) {
+      fail("public module specifiers must be nonempty.");
+    }
+    if (canonicalBySpecifier.has(entry.moduleSpecifier)) {
+      fail(`duplicate public module specifier '${entry.moduleSpecifier}'.`);
+    }
+    if (!modulesBySpecifier.has(entry.canonicalModuleSpecifier)) {
+      fail(`public module '${entry.moduleSpecifier}' names an unregistered canonical module.`);
+    }
+    canonicalBySpecifier.set(entry.moduleSpecifier, entry.canonicalModuleSpecifier);
+  }
+  for (const module of modules) {
+    if (canonicalBySpecifier.get(module.moduleSpecifier) !== module.moduleSpecifier) {
+      fail(`canonical module '${module.moduleSpecifier}' requires its own public specifier.`);
+    }
+  }
+  if (
+    typeof definition.virtualDeclarationFileName !== "function" ||
+    typeof definition.moduleDiagnostic !== "function" ||
+    typeof definition.createPolicy !== "function"
+  ) {
+    fail("virtual declaration filename, module diagnostic and policy callbacks are required.");
+  }
+  const providerIdentity = snapshotCsharpMetadata(definition.providerIdentity);
+  const createPolicy = definition.createPolicy;
+  const packageId = definition.id;
+  const policies = new Map<string, CsharpProviderPolicyContribution>();
+  function selectedPolicy(selectedSurfaceIds: readonly string[]): CsharpProviderPolicyContribution {
+    const surfaces = Object.freeze([...selectedSurfaceIds]);
+    const key = JSON.stringify(surfaces);
+    const existing = policies.get(key);
+    if (existing !== undefined) return existing;
+    const contribution = createPolicy(surfaces);
+    if (contribution.kind !== csharpProviderPolicyContributionKind ||
+      contribution.providerId !== providerIdentity.id || contribution.providerVersion !== providerIdentity.version) {
+      fail("policy contribution must match the source provider identity and version.");
+    }
+    const policy = validateCsharpProviderPolicyContribution(
+      packageId,
+      moduleSpecifiers.map(entry => ({ specifierPrefix: entry.moduleSpecifier })),
+      contribution,
+    );
+    for (const entries of [policy.relations, policy.rejections]) {
+      for (const { source } of entries) {
+        const canonicalSpecifier = canonicalBySpecifier.get(source.moduleSpecifier);
+        const module = canonicalSpecifier === undefined ? undefined : modulesBySpecifier.get(canonicalSpecifier);
+        if (module?.providerModuleId !== source.providerModuleId) {
+          fail(`policy source '${source.moduleSpecifier}' does not match a registered provider module identity.`);
+        }
+      }
+    }
+    policies.set(key, policy);
+    return policy;
+  }
+  return Object.freeze({
+    id: definition.id,
+    displayName: definition.displayName,
+    providerIdentity,
+    modules,
+    moduleSpecifiers,
+    virtualDeclarationFileName: definition.virtualDeclarationFileName,
+    moduleDiagnostic: definition.moduleDiagnostic,
+    ...(definition.resolutionEvidence === undefined
+      ? {}
+      : { resolutionEvidence: snapshotCsharpMetadata(definition.resolutionEvidence) }),
+    ...(definition.declarationEvidence === undefined
+      ? {}
+      : { declarationEvidence: snapshotCsharpMetadata(definition.declarationEvidence) }),
+    createPolicy: selectedPolicy,
+    runtime: snapshotCsharpMetadata(definition.runtime),
+  });
+}

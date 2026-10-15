@@ -1,0 +1,70 @@
+{
+  "name": "@tsonic/target-csharp",
+  "version": "0.1.2",
+  "description": "C# target pack for Tsonic",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tsoniclang/tsonic-csharp.git"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "!dist/**/*.tsbuildinfo",
+    "tools/dotnet-type-provider/**/*.cs",
+    "tools/dotnet-type-provider/**/*.csproj",
+    "!tools/dotnet-type-provider/**/bin/**",
+    "!tools/dotnet-type-provider/**/obj/**",
+    "!tools/dotnet-type-provider/**/.temp/**",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./provider": {
+      "types": "./dist/public/provider.d.ts",
+      "default": "./dist/public/provider.js"
+    },
+    "./provider/dotnet": {
+      "types": "./dist/public/provider-dotnet.d.ts",
+      "default": "./dist/public/provider-dotnet.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "tsonic": {
+    "kind": "plugin",
+    "contractVersion": 1,
+    "entry": "."
+  },
+  "scripts": {
+    "build": "bash scripts/build.sh",
+    "test": "bash \"${TSONIC_ROOT:-../tsonic}/test/scripts/run-all.sh\" --scope tsonic-csharp",
+    "test:parallel": "bash \"${TSONIC_ROOT:-../tsonic}/test/scripts/run-parallel.sh\" --scope tsonic-csharp"
+  },
+  "peerDependencies": {
+    "@tsonic/source-core": "0.1.2",
+    "@tsonic/target-api": "0.1.2",
+    "@tsonic/tsts": "0.1.2"
+  },
+  "dependencies": {
+    "@tsonic/csharp-runtime": "0.1.2",
+    "@tsonic/csharp-js": "0.1.2",
+    "@tsonic/js-source-profile": "0.1.2"
+  },
+  "devDependencies": {
+    "@tsonic/csharp-runtime": "file:../csharp-runtime",
+    "@tsonic/csharp-js": "file:../csharp-js",
+    "@tsonic/js-source-profile": "file:../tsonic/packages/js-source-profile",
+    "@tsonic/source-core": "file:../tsonic/packages/source-core",
+    "@tsonic/target-api": "file:../tsonic/packages/target-api",
+    "@tsonic/tsts": "file:../tsonic/packages/tsts"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

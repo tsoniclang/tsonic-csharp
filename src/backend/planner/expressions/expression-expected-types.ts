@@ -1,0 +1,391 @@
+import type { CsharpPlanningContext } from "../context.js";
+import {
+  AsConditionalExpression,
+  AsParenthesizedExpression,
+  AsSatisfiesExpression,
+  HasSourceKind,
+  KindArrayLiteralExpression,
+  KindArrowFunction,
+  KindAsExpression,
+  KindBinaryExpression,
+  KindConditionalExpression,
+  KindFunctionExpression,
+  KindIdentifier,
+  KindNonNullExpression,
+  KindObjectLiteralExpression,
+  KindParenthesizedExpression,
+  KindSatisfiesExpression,
+  KindTypeAssertionExpression,
+  Node_Text,
+  SourceKind,
+  KindNullKeyword,
+} from "@tsonic/target-api/source";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../../target-model/types/index.js";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/syntax/index.js";
+import type { ExpressionPlanner, ExpectedExpressionPlanner } from "./expression-planner-types.js";
+import {
+  planArrayLiteralExpression,
+  planArrayLiteralExpressionWithCarrier,
+  planTupleLiteralExpression,
+} from "./array-literals/index.js";
+import {
+  getTargetTypeRefForNode,
+} from "../types/runtime-carriers.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "../types/target-types.js";
+import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import {
+  planArrowFunctionExpression,
+  planFunctionExpression,
+} from "./expression-lambdas.js";
+import { planObjectLiteralExpressionWithExpectedType } from "../objects/object-literals/planning.js";
+import { planCsharpAbsentValue } from "./optional-storage.js";
+import {
+  tryPlanRecordDictionaryLiteralWithExpectedType,
+} from "./expression-dictionary-literals.js";
+import {
+  tryPlanBinaryExpressionWithExpectedType,
+} from "./operators.js";
+import {
+  planCsharpConditionExpression,
+} from "./expression-bool-carriers.js";
+import {
+  csharpAbsenceTargetType,
+  getCsharpDelegateSignature,
+  isCsharpVoidTargetType,
+  targetTypeRefEquals,
+} from "../../../target-model/types/index.js";
+import {
+  csharpConversionIsApplicable,
+} from "../../../analysis/conversions/index.js";
+import {
+  applyCsharpConversionSelection,
+  readCsharpConversionClassification,
+  readCsharpExpressionConversionClassification,
+} from "./conversions.js";
+import type {
+  DestructuringPlannerState,
+} from "../bindings/index.js";
+import {
+  planCsharpExactLiteralConversion,
+} from "./literal-conversions.js";
+import { planVoidExpression } from "./expression-void.js";
+import { planCsharpSourceUndefinedValue } from "./undefined-values.js";
+import { csharpPlannedEffect, mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
+import { planCsharpExpressionCompletion, planCsharpValueBranch } from "./planned-value-composition.js";
+
+export interface ExpectedTypeExpressionPlanners {
+  readonly planExpression: ExpressionPlanner;
+  readonly planExpressionWithExpectedType: ExpectedExpressionPlanner;
+}
+
+export interface ExpectedTypeExpressionPlan {
+  readonly expression: CsharpPlannedValue;
+  readonly representation: "source" | "expected";
+}
+
+export function planExpressionWithExpectedTypeCore(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  expectedType: CsharpTypeNode,
+  expectedTypeSubject: Node | undefined,
+  planners: ExpectedTypeExpressionPlanners,
+  state?: DestructuringPlannerState,
+  expectedTargetType?: TargetTypeRef,
+): ExpectedTypeExpressionPlan | undefined {
+  const effectiveExpectedTargetType = expectedTargetType ??
+    (expectedTypeSubject === undefined ? undefined : getTargetTypeRefForNode(input, expectedTypeSubject, sourceFile));
+  const complete = (expression: CsharpExpression | undefined): CsharpPlannedValue | undefined =>
+    planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression, effectiveExpectedTargetType);
+  const expectedRuntimeNullishLiteral = planExpectedRuntimeNullishLiteral(node, sourceFile, input, diagnostics, effectiveExpectedTargetType, expectedTypeSubject);
+  if (expectedRuntimeNullishLiteral !== undefined) {
+    return expectedRepresentation(expectedRuntimeNullishLiteral);
+  }
+  if (effectiveExpectedTargetType !== undefined && isGlobalUndefinedLiteral(node, sourceFile, input)) {
+    const selected = planCsharpSourceUndefinedValue(node, effectiveExpectedTargetType, sourceFile, input, diagnostics);
+    return selected.kind === "resolved" ? expectedRepresentation(complete(selected.expression)) : undefined;
+  }
+  if (input.program.source.ast.is.IsVoidExpression(node)) {
+    return expectedRepresentation(planVoidExpression(
+      node, sourceFile, input, diagnostics,
+      (operand, file, context, errors) => planners.planExpression(operand, file, context, errors, state),
+      effectiveExpectedTargetType,
+    ));
+  }
+  const expectedTypeLiteral = planCsharpExactLiteralConversion(
+    input,
+    node,
+    effectiveExpectedTargetType,
+  );
+  if (expectedTypeLiteral.kind === "resolved") {
+    return expectedRepresentation(complete(expectedTypeLiteral.expression));
+  }
+  if (expectedTypeLiteral.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, expectedTypeLiteral.reason));
+    return undefined;
+  }
+  if (HasSourceKind(input.program.source.ast, node, KindAsExpression)) {
+    if (input.program.source.ast.isConstAssertion(node)) {
+      const inner = input.program.source.ast.as.AsAsExpression(node)?.Expression;
+      return inner === undefined ? undefined : expectedRepresentation(
+        planners.planExpressionWithExpectedType(inner, sourceFile, input, diagnostics, expectedType,
+          expectedTypeSubject, effectiveExpectedTargetType, state));
+    }
+    return sourceRepresentation(
+      planners.planExpression(node, sourceFile, input, diagnostics),
+    );
+  }
+  if (HasSourceKind(input.program.source.ast, node, KindSatisfiesExpression)) {
+    return expectedRepresentation(
+      planners.planExpressionWithExpectedType(AsSatisfiesExpression(input.program.source.ast, node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, effectiveExpectedTargetType),
+    );
+  }
+  if (HasSourceKind(input.program.source.ast, node, KindNonNullExpression)) {
+    return sourceRepresentation(
+      planners.planExpression(node, sourceFile, input, diagnostics),
+    );
+  }
+  if (HasSourceKind(input.program.source.ast, node, KindTypeAssertionExpression)) {
+    if (input.program.source.ast.isConstAssertion(node)) {
+      const inner = input.program.source.ast.as.AsTypeAssertion(node)?.Expression;
+      return inner === undefined ? undefined : expectedRepresentation(
+        planners.planExpressionWithExpectedType(inner, sourceFile, input, diagnostics, expectedType,
+          expectedTypeSubject, effectiveExpectedTargetType, state));
+    }
+    return sourceRepresentation(
+      planners.planExpression(node, sourceFile, input, diagnostics),
+    );
+  }
+  if (HasSourceKind(input.program.source.ast, node, KindParenthesizedExpression)) {
+    const expression = AsParenthesizedExpression(input.program.source.ast, node)!;
+    const inner = planners.planExpressionWithExpectedType(expression.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, effectiveExpectedTargetType);
+    if (inner === undefined) {
+      return undefined;
+    }
+    return expectedRepresentation(mapCsharpPlannedValue(inner, inner.completion.carrier, value => ({
+      kind: "ParenthesizedExpression",
+      expression: value,
+    })));
+  }
+  const isArrowFunction = HasSourceKind(input.program.source.ast, node, KindArrowFunction);
+  if (isArrowFunction || HasSourceKind(input.program.source.ast, node, KindFunctionExpression)) {
+    const expression = isArrowFunction
+      ? planArrowFunctionExpression(node, sourceFile, input, diagnostics, planners.planExpression, expectedType, state, effectiveExpectedTargetType, planners.planExpressionWithExpectedType)
+      : planFunctionExpression(node, sourceFile, input, diagnostics, expectedType, state, effectiveExpectedTargetType);
+    return getCsharpDelegateSignature(effectiveExpectedTargetType) === undefined ||
+      expression !== undefined && effectiveExpectedTargetType !== undefined &&
+        !targetTypeRefEquals(expression.completion.carrier, effectiveExpectedTargetType)
+      ? sourceRepresentation(expression) : expectedRepresentation(expression);
+  }
+  if (HasSourceKind(input.program.source.ast, node, KindObjectLiteralExpression)) {
+    const unionCarrier = effectiveExpectedTargetType === undefined ? undefined
+      : input.types.objectShapes.resolveObjectLiteralUnionCarrier(node, effectiveExpectedTargetType);
+    const constructionTarget = unionCarrier ?? effectiveExpectedTargetType;
+    const constructionType = unionCarrier === undefined ? expectedType
+      : csharpTypeFromTargetTypeRef(unionCarrier, input.scope.typeParameterNames);
+    if (constructionType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal requires a renderable sealed construction carrier."));
+      return undefined;
+    }
+    const dictionaryDiagnosticsStart = diagnostics.length;
+    const dictionaryLiteral = tryPlanRecordDictionaryLiteralWithExpectedType(node, sourceFile, input, diagnostics,
+      expectedTypeSubject, planners.planExpressionWithExpectedType, constructionTarget);
+    if (dictionaryLiteral === undefined && diagnostics.length > dictionaryDiagnosticsStart) {
+      return undefined;
+    }
+    const literal = dictionaryLiteral ?? planObjectLiteralExpressionWithExpectedType(
+      node,
+      sourceFile,
+      input,
+      diagnostics,
+      constructionType,
+      expectedTypeSubject,
+      planners.planExpression,
+      planners.planExpressionWithExpectedType,
+      constructionTarget,
+      state,
+    );
+    const constructedCarrier = literal?.completion.carrier;
+    if (effectiveExpectedTargetType === undefined || constructedCarrier === undefined ||
+      targetTypeRefEquals(constructedCarrier, effectiveExpectedTargetType)) return expectedRepresentation(literal);
+    const conversion = readCsharpExpressionConversionClassification(node, input, diagnostics, constructedCarrier, effectiveExpectedTargetType, "implicit");
+    return conversion === undefined ? undefined : expectedRepresentation(mapCsharpPlannedValue(literal, effectiveExpectedTargetType,
+      expression => applyCsharpConversionSelection(node, sourceFile, input, diagnostics, constructedCarrier,
+        effectiveExpectedTargetType, conversion, expression)));
+  }
+  if (HasSourceKind(input.program.source.ast, node, KindBinaryExpression)) {
+    const binaryDiagnosticsStart = diagnostics.length;
+    const binaryExpression = tryPlanBinaryExpressionWithExpectedType(
+      node,
+      sourceFile,
+      input,
+      diagnostics,
+      effectiveExpectedTargetType,
+      planners.planExpression,
+      planners.planExpressionWithExpectedType,
+      state,
+    );
+    if (binaryExpression !== undefined) {
+      return expectedRepresentation(binaryExpression);
+    }
+    if (diagnostics.length > binaryDiagnosticsStart) {
+      return undefined;
+    }
+  }
+  if (HasSourceKind(input.program.source.ast, node, KindArrayLiteralExpression) && expectedTargetType?.kind === "tuple") {
+    return expectedRepresentation(
+      planTupleLiteralExpression(
+        node,
+        sourceFile,
+        input,
+        diagnostics,
+        planners,
+        csharpTypeFromTargetTypeRef(expectedTargetType, input.scope.typeParameterNames),
+        expectedTargetType,
+      ),
+    );
+  }
+  if (HasSourceKind(input.program.source.ast, node, KindArrayLiteralExpression) && expectedType.kind === "TupleType") {
+    const resolvedTupleTarget = input.types.classifications.resolveNode(node, sourceFile);
+    return expectedRepresentation(
+      planTupleLiteralExpression(
+        node,
+        sourceFile,
+        input,
+        diagnostics,
+        planners,
+        expectedType,
+        resolvedTupleTarget?.kind === "tuple"
+          ? resolvedTupleTarget
+          : undefined,
+      ),
+    );
+  }
+  if (
+    HasSourceKind(input.program.source.ast, node, KindArrayLiteralExpression) &&
+    effectiveExpectedTargetType !== undefined
+  ) {
+    const sourceCarrier = input.program.records.arrayLiteralCarrier.get(node, effectiveExpectedTargetType);
+    const conversion = readCsharpConversionClassification(
+      node,
+      input,
+      diagnostics,
+      sourceCarrier,
+      effectiveExpectedTargetType,
+      "implicit",
+    );
+    if (
+      conversion !== undefined &&
+      csharpConversionIsApplicable(conversion, "implicit")
+    ) {
+      return expectedRepresentation(
+        mapCsharpPlannedValue(
+          sourceCarrier?.kind === "tuple" ? planTupleLiteralExpression(
+            node, sourceFile, input, diagnostics, planners,
+            csharpTypeFromTargetTypeRef(sourceCarrier, input.scope.typeParameterNames), sourceCarrier,
+          ) : planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, sourceCarrier, planners),
+          effectiveExpectedTargetType,
+          expression => applyCsharpConversionSelection(
+          node,
+          sourceFile,
+          input,
+          diagnostics,
+          sourceCarrier,
+          effectiveExpectedTargetType,
+          conversion,
+          expression,
+        )),
+      );
+    }
+    return undefined;
+  }
+  if (HasSourceKind(input.program.source.ast, node, KindArrayLiteralExpression) && expectedType.kind === "ArrayType") {
+    return expectedRepresentation(
+      planArrayLiteralExpression(node, sourceFile, input, diagnostics, expectedType.elementType, planners, expectedTargetType?.kind === "array" ? expectedTargetType.element : undefined),
+    );
+  }
+  if (HasSourceKind(input.program.source.ast, node, KindConditionalExpression)) {
+    const expression = AsConditionalExpression(input.program.source.ast, node)!;
+    if (expression.Condition === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "Conditional expression requires a condition expression."));
+      return undefined;
+    }
+    const condition = planCsharpConditionExpression(
+      expression.Condition,
+      "Conditional expression condition",
+      sourceFile,
+      input,
+      diagnostics,
+      planners.planExpression,
+    );
+    const whenTrue = planners.planExpressionWithExpectedType(expression.WhenTrue!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);
+    const whenFalse = planners.planExpressionWithExpectedType(expression.WhenFalse!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);
+    if (condition === undefined || whenTrue === undefined || whenFalse === undefined) {
+      return undefined;
+    }
+    return expectedRepresentation(planCsharpValueBranch(node, sourceFile, input, diagnostics,
+      condition, whenTrue, whenFalse, effectiveExpectedTargetType));
+  }
+  const expression = planners.planExpression(node, sourceFile, input, diagnostics);
+  return sourceRepresentation(expression);
+}
+
+function sourceRepresentation(
+  expression: CsharpPlannedValue | undefined,
+): ExpectedTypeExpressionPlan | undefined {
+  return expression === undefined
+    ? undefined
+    : { expression, representation: "source" };
+}
+
+function expectedRepresentation(
+  expression: CsharpPlannedValue | undefined,
+): ExpectedTypeExpressionPlan | undefined {
+  return expression === undefined
+    ? undefined
+    : { expression, representation: "expected" };
+}
+
+function planExpectedRuntimeNullishLiteral(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  expectedTargetType: TargetTypeRef | undefined,
+  expectedTypeSubject: Node | undefined,
+): CsharpPlannedValue | undefined {
+  const effectiveExpectedTargetType = expectedTargetType ??
+    (expectedTypeSubject === undefined ? undefined : getTargetTypeRefForNode(input, expectedTypeSubject, sourceFile));
+  if (effectiveExpectedTargetType === undefined) {
+    return undefined;
+  }
+  if (HasSourceKind(input.program.source.ast, node, KindNullKeyword) || isGlobalUndefinedLiteral(node, sourceFile, input)) {
+    return isCsharpVoidTargetType(effectiveExpectedTargetType) ? csharpPlannedEffect(effectiveExpectedTargetType, [])
+      : planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
+        planCsharpAbsentValue(effectiveExpectedTargetType, input.scope.typeParameterNames), effectiveExpectedTargetType);
+  }
+  return undefined;
+}
+
+function isGlobalUndefinedLiteral(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+): boolean {
+  if (SourceKind(input.program.source.ast, node) !== KindIdentifier || Node_Text(input.program.source.ast, node) !== "undefined") {
+    return false;
+  }
+  if (
+    input.program.sourceNavigation.referenceFor(node) !== undefined
+  ) {
+    return false;
+  }
+  const targetType = input.types.classifications.resolveNode(node, sourceFile);
+  return targetType !== undefined &&
+    targetTypeRefEquals(targetType, csharpAbsenceTargetType());
+}

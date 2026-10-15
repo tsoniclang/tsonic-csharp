@@ -1,0 +1,30 @@
+import type { AstReader, Node } from "@tsonic/tsts";
+import { sourceSequenceInputChoice, sourceSequenceInputIsEmpty } from "@tsonic/target-api/source";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
+import { combineCsharpTargetUnionMembers } from "../../../target-model/types/carriers/runtime-carriers.js";
+
+export function resolveCsharpBorrowedSequenceElement(
+  ast: AstReader,
+  expression: Node,
+  resolve: (node: Node) => TargetTypeRef | undefined,
+): TargetTypeRef | undefined {
+  const choice = sourceSequenceInputChoice(ast, expression);
+  if (choice === undefined) return undefined;
+  const elements: TargetTypeRef[] = [];
+  for (const input of choice.inputs) {
+    if (sourceSequenceInputIsEmpty(ast, input)) continue;
+    const carrier = resolve(input);
+    const present = getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier) ?? carrier;
+    if (present?.kind === "tuple") {
+      elements.push(...present.elements);
+    } else {
+      const element = getCsharpCollectionElementTargetType(present);
+      if (element === undefined) return undefined;
+      elements.push(element);
+    }
+  }
+  return elements.length === 0 ? undefined : combineCsharpTargetUnionMembers(elements);
+}

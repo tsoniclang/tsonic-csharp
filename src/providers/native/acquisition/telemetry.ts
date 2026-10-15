@@ -1,0 +1,320 @@
+import type {
+  ProviderDeclarationMaterialization,
+} from "@tsonic/tsts";
+
+export interface DotnetProviderTelemetrySnapshot {
+  readonly providerInstances: number;
+  readonly requestsTotal: number;
+  readonly requestsByKind: Readonly<Record<string, number>>;
+  readonly moduleBroadRequests: number;
+  readonly moduleSlicedRequests: number;
+  readonly moduleRequestedExports: number;
+  readonly moduleRequestedTargetIds: number;
+  readonly moduleRequestedMetadataNames: number;
+  readonly moduleCompleteMaterializationRequests: number;
+  readonly moduleIncrementalMaterializationRequests: number;
+  readonly moduleMaterializedExports: number;
+  readonly memoryCacheHits: number;
+  readonly memoryCacheMisses: number;
+  readonly diskCacheHits: number;
+  readonly diskCacheMisses: number;
+  readonly diskCacheFailures: number;
+  readonly diskCacheDisables: number;
+  readonly providerToolBuilds: number;
+  readonly providerToolBuildElapsedMs: number;
+  readonly toolProcessStarts: number;
+  readonly toolCliProcessStarts: number;
+  readonly toolServerProcessStarts: number;
+  readonly toolInvocations: number;
+  readonly toolCliInvocations: number;
+  readonly toolServerInvocations: number;
+  readonly toolElapsedMs: number;
+  readonly modelBytes: number;
+  readonly virtualDeclarationBytes: number;
+  readonly virtualDeclarationCount: number;
+  readonly virtualDeclarationRenderMs: number;
+  readonly tstsProviderVirtualParseMs: number;
+  readonly tstsProviderVirtualCheckMs: number;
+  readonly generatedDotnetBuildElapsedMs: number;
+  readonly referenceSnapshotComputations: number;
+  readonly referenceSnapshotUniqueFiles: number;
+  readonly referenceSnapshotHashedBytes: number;
+  readonly referenceSnapshotElapsedMs: number;
+  readonly referenceSnapshotVerifications: number;
+}
+
+export interface DotnetProviderModuleRequestTelemetry {
+  readonly materialization: ProviderDeclarationMaterialization;
+  readonly broadImport?: boolean;
+  readonly requestedExports?: readonly string[];
+  readonly requestedTargetIds?: readonly string[];
+  readonly requestedMetadataNames?: readonly string[];
+}
+
+export interface DotnetProviderTelemetry {
+  providerInstance(): void;
+  request(kind: string): void;
+  moduleRequest(request: DotnetProviderModuleRequestTelemetry): void;
+  memoryCacheHit(): void;
+  memoryCacheMiss(): void;
+  diskCacheHit(): void;
+  diskCacheMiss(): void;
+  diskCacheFailure(): void;
+  diskCacheDisable(): void;
+  toolBuild(elapsedMs: number): void;
+  toolProcessStart(mode: "cli" | "server"): void;
+  toolInvocation(mode: "cli" | "server", elapsedMs: number): void;
+  modelBytes(bytes: number): void;
+  virtualDeclarations(count: number, bytes: number, renderElapsedMs?: number): void;
+  tstsProviderVirtualParse(elapsedMs: number): void;
+  tstsProviderVirtualCheck(elapsedMs: number): void;
+  generatedDotnetBuild(elapsedMs: number): void;
+  referenceSnapshot(uniqueFiles: number, hashedBytes: number, elapsedMs: number): void;
+  referenceSnapshotVerification(): void;
+  snapshot(): DotnetProviderTelemetrySnapshot;
+}
+
+export type DotnetProviderTelemetryCounters = Readonly<Record<string, number>>;
+
+export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
+  let providerInstances = 0;
+  let requestsTotal = 0;
+  const requestsByKind = new Map<string, number>();
+  let moduleBroadRequests = 0;
+  let moduleSlicedRequests = 0;
+  let moduleRequestedExports = 0;
+  let moduleRequestedTargetIds = 0;
+  let moduleRequestedMetadataNames = 0;
+  let moduleCompleteMaterializationRequests = 0;
+  let moduleIncrementalMaterializationRequests = 0;
+  let moduleMaterializedExports = 0;
+  let memoryCacheHits = 0;
+  let memoryCacheMisses = 0;
+  let diskCacheHits = 0;
+  let diskCacheMisses = 0;
+  let diskCacheFailures = 0;
+  let diskCacheDisables = 0;
+  let providerToolBuilds = 0;
+  let providerToolBuildElapsedMs = 0;
+  let toolProcessStarts = 0;
+  let toolCliProcessStarts = 0;
+  let toolServerProcessStarts = 0;
+  let toolInvocations = 0;
+  let toolCliInvocations = 0;
+  let toolServerInvocations = 0;
+  let toolElapsedMs = 0;
+  let modelBytes = 0;
+  let virtualDeclarationBytes = 0;
+  let virtualDeclarationCount = 0;
+  let virtualDeclarationRenderMs = 0;
+  let tstsProviderVirtualParseMs = 0;
+  let tstsProviderVirtualCheckMs = 0;
+  let generatedDotnetBuildElapsedMs = 0;
+  let referenceSnapshotComputations = 0;
+  let referenceSnapshotUniqueFiles = 0;
+  let referenceSnapshotHashedBytes = 0;
+  let referenceSnapshotElapsedMs = 0;
+  let referenceSnapshotVerifications = 0;
+  return {
+    providerInstance(): void {
+      providerInstances += 1;
+    },
+    request(kind: string): void {
+      requestsTotal += 1;
+      requestsByKind.set(kind, (requestsByKind.get(kind) ?? 0) + 1);
+    },
+    moduleRequest(request: DotnetProviderModuleRequestTelemetry): void {
+      if (request.materialization.kind === "complete") {
+        moduleCompleteMaterializationRequests += 1;
+      } else {
+        moduleIncrementalMaterializationRequests += 1;
+        moduleMaterializedExports += request.materialization.completeExports.length;
+      }
+      if (request.broadImport === true) {
+        moduleBroadRequests += 1;
+        return;
+      }
+      const requestedExports = request.requestedExports?.length ?? 0;
+      const requestedTargetIds = request.requestedTargetIds?.length ?? 0;
+      const requestedMetadataNames = request.requestedMetadataNames?.length ?? 0;
+      if (requestedExports > 0 || requestedTargetIds > 0 || requestedMetadataNames > 0) {
+        moduleSlicedRequests += 1;
+        moduleRequestedExports += requestedExports;
+        moduleRequestedTargetIds += requestedTargetIds;
+        moduleRequestedMetadataNames += requestedMetadataNames;
+        return;
+      }
+      moduleBroadRequests += 1;
+    },
+    memoryCacheHit(): void {
+      memoryCacheHits += 1;
+    },
+    memoryCacheMiss(): void {
+      memoryCacheMisses += 1;
+    },
+    diskCacheHit(): void {
+      diskCacheHits += 1;
+    },
+    diskCacheMiss(): void {
+      diskCacheMisses += 1;
+    },
+    diskCacheFailure(): void {
+      diskCacheFailures += 1;
+    },
+    diskCacheDisable(): void {
+      diskCacheDisables += 1;
+    },
+    toolBuild(elapsedMs: number): void {
+      providerToolBuilds += 1;
+      providerToolBuildElapsedMs += elapsedMs;
+    },
+    toolProcessStart(mode: "cli" | "server"): void {
+      toolProcessStarts += 1;
+      if (mode === "cli") {
+        toolCliProcessStarts += 1;
+      } else {
+        toolServerProcessStarts += 1;
+      }
+    },
+    toolInvocation(mode: "cli" | "server", elapsedMs: number): void {
+      toolInvocations += 1;
+      toolElapsedMs += elapsedMs;
+      if (mode === "cli") {
+        toolCliInvocations += 1;
+      } else {
+        toolServerInvocations += 1;
+      }
+    },
+    modelBytes(bytes: number): void {
+      modelBytes += bytes;
+    },
+    virtualDeclarations(count: number, bytes: number, renderElapsedMs = 0): void {
+      virtualDeclarationCount += count;
+      virtualDeclarationBytes += bytes;
+      virtualDeclarationRenderMs += renderElapsedMs;
+    },
+    tstsProviderVirtualParse(elapsedMs: number): void {
+      tstsProviderVirtualParseMs += elapsedMs;
+    },
+    tstsProviderVirtualCheck(elapsedMs: number): void {
+      tstsProviderVirtualCheckMs += elapsedMs;
+    },
+    generatedDotnetBuild(elapsedMs: number): void {
+      generatedDotnetBuildElapsedMs += elapsedMs;
+    },
+    referenceSnapshot(uniqueFiles: number, hashedBytes: number, elapsedMs: number): void {
+      referenceSnapshotComputations += 1;
+      referenceSnapshotUniqueFiles += uniqueFiles;
+      referenceSnapshotHashedBytes += hashedBytes;
+      referenceSnapshotElapsedMs += elapsedMs;
+    },
+    referenceSnapshotVerification(): void {
+      referenceSnapshotVerifications += 1;
+    },
+    snapshot(): DotnetProviderTelemetrySnapshot {
+      return {
+        providerInstances,
+        requestsTotal,
+        requestsByKind: Object.fromEntries(requestsByKind),
+        moduleBroadRequests,
+        moduleSlicedRequests,
+        moduleRequestedExports,
+        moduleRequestedTargetIds,
+        moduleRequestedMetadataNames,
+        moduleCompleteMaterializationRequests,
+        moduleIncrementalMaterializationRequests,
+        moduleMaterializedExports,
+        memoryCacheHits,
+        memoryCacheMisses,
+        diskCacheHits,
+        diskCacheMisses,
+        diskCacheFailures,
+        diskCacheDisables,
+        providerToolBuilds,
+        providerToolBuildElapsedMs,
+        toolProcessStarts,
+        toolCliProcessStarts,
+        toolServerProcessStarts,
+        toolInvocations,
+        toolCliInvocations,
+        toolServerInvocations,
+        toolElapsedMs,
+        modelBytes,
+        virtualDeclarationBytes,
+        virtualDeclarationCount,
+        virtualDeclarationRenderMs,
+        tstsProviderVirtualParseMs,
+        tstsProviderVirtualCheckMs,
+        generatedDotnetBuildElapsedMs,
+        referenceSnapshotComputations,
+        referenceSnapshotUniqueFiles,
+        referenceSnapshotHashedBytes,
+        referenceSnapshotElapsedMs,
+        referenceSnapshotVerifications,
+      };
+    },
+  };
+}
+
+export const dotnetProviderGlobalTelemetry = createDotnetProviderTelemetry();
+
+export function dotnetProviderTelemetryCounters(
+  snapshot: DotnetProviderTelemetrySnapshot,
+): DotnetProviderTelemetryCounters {
+  return {
+    "provider.instances": snapshot.providerInstances,
+    "provider.requests.total": snapshot.requestsTotal,
+    "provider.requests.module.broad": snapshot.moduleBroadRequests,
+    "provider.requests.module.sliced": snapshot.moduleSlicedRequests,
+    "provider.requests.module.requestedExports": snapshot.moduleRequestedExports,
+    "provider.requests.module.requestedTargetIds": snapshot.moduleRequestedTargetIds,
+    "provider.requests.module.requestedMetadataNames": snapshot.moduleRequestedMetadataNames,
+    "provider.requests.module.materialization.complete": snapshot.moduleCompleteMaterializationRequests,
+    "provider.requests.module.materialization.incremental": snapshot.moduleIncrementalMaterializationRequests,
+    "provider.requests.module.materializedExports": snapshot.moduleMaterializedExports,
+    "provider.cache.memory.hit": snapshot.memoryCacheHits,
+    "provider.cache.memory.miss": snapshot.memoryCacheMisses,
+    "provider.cache.disk.hit": snapshot.diskCacheHits,
+    "provider.cache.disk.miss": snapshot.diskCacheMisses,
+    "provider.cache.disk.failures": snapshot.diskCacheFailures,
+    "provider.cache.disk.disables": snapshot.diskCacheDisables,
+    "provider.tool.builds": snapshot.providerToolBuilds,
+    "provider.tool.build.elapsedMs": snapshot.providerToolBuildElapsedMs,
+    "provider.tool.processStarts": snapshot.toolProcessStarts,
+    "provider.tool.processStarts.cli": snapshot.toolCliProcessStarts,
+    "provider.tool.processStarts.server": snapshot.toolServerProcessStarts,
+    "provider.tool.invocations": snapshot.toolInvocations,
+    "provider.tool.mode.cli": snapshot.toolCliInvocations,
+    "provider.tool.mode.server": snapshot.toolServerInvocations,
+    "provider.tool.elapsedMs": snapshot.toolElapsedMs,
+    "provider.model.bytes": snapshot.modelBytes,
+    "provider.virtualSource.bytes": snapshot.virtualDeclarationBytes,
+    "provider.virtualDeclarations.count": snapshot.virtualDeclarationCount,
+    "provider.virtualDeclarations.renderMs": snapshot.virtualDeclarationRenderMs,
+    "tsts.providerVirtual.parseMs": snapshot.tstsProviderVirtualParseMs,
+    "tsts.providerVirtual.checkMs": snapshot.tstsProviderVirtualCheckMs,
+    "generatedProject.dotnetBuild.elapsedMs": snapshot.generatedDotnetBuildElapsedMs,
+    "provider.referenceSnapshot.computations": snapshot.referenceSnapshotComputations,
+    "provider.referenceSnapshot.uniqueFiles": snapshot.referenceSnapshotUniqueFiles,
+    "provider.referenceSnapshot.hashedBytes": snapshot.referenceSnapshotHashedBytes,
+    "provider.referenceSnapshot.elapsedMs": snapshot.referenceSnapshotElapsedMs,
+    "provider.referenceSnapshot.verifications": snapshot.referenceSnapshotVerifications,
+  };
+}
+
+export function formatDotnetProviderTelemetrySnapshot(
+  snapshot: DotnetProviderTelemetrySnapshot,
+): string {
+  const counters = dotnetProviderTelemetryCounters(snapshot);
+  const requestCounters = Object.entries(snapshot.requestsByKind)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([kind, count]) => `provider.requests.byKind.${kind}=${count}`);
+  return [
+    ...Object.entries(counters).map(([name, value]) => `${name}=${formatTelemetryNumber(value)}`),
+    ...requestCounters,
+  ].join("\n");
+}
+
+function formatTelemetryNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(3);
+}

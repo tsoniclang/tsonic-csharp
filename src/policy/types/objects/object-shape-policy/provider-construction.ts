@@ -1,0 +1,378 @@
+import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
+import type {
+  Node,
+  Type,
+  TypePropertyInfo,
+} from "@tsonic/tsts";
+import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { sourcePropertyTypeEvidenceNodes } from "@tsonic/target-api/source";
+import type { CsharpProviderTargetRelation } from "../../../../target-model/identities/provider-relations.js";
+import { canonicalProviderValue } from "../../../../providers/model/canonical-value.js";
+import {
+  csharpTargetTypeFromBinding,
+} from "../../storage/bindings.js";
+import {
+  substituteTargetTypeParameters,
+} from "../../../../target-model/types/substitution.js";
+import type {
+  CsharpRecursiveTypeResolver,
+  CsharpTypePolicyBaseHost,
+  CsharpTypeResolutionState,
+} from "../../resolution/model.js";
+import {
+  csharpNullableTargetType,
+  getCsharpNullableElementTargetType,
+} from "../../../../target-model/types/carriers/nullable.js";
+import {
+  targetTypeRefEquals,
+} from "../../../../target-model/types/equality.js";
+import type {
+  CsharpObjectShapeFact,
+  CsharpObjectShapeMemberFact,
+  TargetTypeRef,
+} from "../../../../target-model/types/model.js";
+import {
+  csharpSourceMemberDisplayName,
+} from "../../../../target-model/types/source-member-keys.js";
+import { resolveObjectShapeSourceMemberKey } from "./source-member-identity.js";
+import { typeIncludesNullish } from "./source-evidence.js";
+
+type CsharpProviderTypeRelation = Extract<
+  CsharpProviderTargetRelation,
+  { readonly kind: "type" }
+>;
+
+type CsharpProviderMemberRelation = Extract<
+  CsharpProviderTargetRelation,
+  { readonly kind: "member" }
+>;
+
+interface CsharpProviderObjectLiteralHost extends CsharpTypePolicyBaseHost {
+  readonly typeResolver: CsharpRecursiveTypeResolver;
+}
+
+interface CsharpProviderObjectLiteralInput {
+  readonly type: Type;
+  readonly queries: SourceFileSemantics;
+  readonly state: CsharpTypeResolutionState;
+  readonly selectedTarget: TargetTypeRef | undefined;
+  readonly authoredTypeRoot: Node | undefined;
+  readonly host: CsharpProviderObjectLiteralHost;
+  resolvePropertyType(
+    property: TypePropertyInfo,
+    sourceType: Type,
+    queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
+    authoredTypeRoot?: Node,
+  ): TargetTypeRef | undefined;
+}
+
+export function resolveProviderObjectLiteralShape(
+  input: CsharpProviderObjectLiteralInput,
+): CsharpObjectShapeFact | undefined {
+  if (input.selectedTarget?.kind !== "target-named") {
+    return undefined;
+  }
+  const typeRelation = resolveProviderTypeRelation(input);
+  if (typeRelation === undefined) {
+    return undefined;
+  }
+  const typeParameters = typeRelation.targetBinding.typeParameters ?? [];
+  const targetArguments = typeParameters.length === 0 ? [] : input.selectedTarget.typeArguments ?? [];
+  const relatedTarget = csharpTargetTypeFromBinding(
+    typeRelation.targetBinding,
+    targetArguments,
+  );
+  if (
+    relatedTarget === undefined ||
+    !targetTypeRefEquals(relatedTarget, input.selectedTarget)
+  ) {
+    return undefined;
+  }
+  if (typeParameters.length !== targetArguments.length) {
+    return undefined;
+  }
+  const substitutions = new Map(
+    typeParameters.map((parameter, index) => [
+      parameter.identity,
+      targetArguments[index]!,
+    ]),
+  );
+  const members = input.queries.types.propertyInfos(input.type).map((property) =>
+    deriveProviderObjectLiteralMember(
+      property,
+      typeRelation,
+      substitutions,
+      input,
+    )
+  );
+  if (members.some((member) => member === undefined)) {
+    return undefined;
+  }
+  return {
+    targetType: input.selectedTarget,
+    sourceType: input.type,
+    members: members as readonly CsharpObjectShapeMemberFact[],
+    constructible: true,
+  };
+}
+
+function resolveProviderTypeRelation(
+  input: CsharpProviderObjectLiteralInput,
+): CsharpProviderTypeRelation | undefined {
+  const targetArguments = input.selectedTarget?.kind === "target-named"
+    ? input.selectedTarget.typeArguments ?? []
+    : [];
+  let selected: CsharpProviderTypeRelation | undefined;
+  for (const subject of input.queries.facts.typeSubjects(input.type)) {
+    const declaration = input.host.sourceFacts?.getFact(
+      subject,
+      providerVirtualDeclarationFactKey,
+    );
+    if (declaration === undefined) {
+      continue;
+    }
+    const resolution = input.host.providers.resolveType(declaration);
+    if (resolution.kind !== "resolved") {
+      return undefined;
+    }
+    for (const relation of resolution.relations) {
+      if (
+        relation.kind === "type" &&
+        relation.objectLiteralConstruction?.kind === "object-initializer"
+      ) {
+        const typeParameters = relation.targetBinding.typeParameters ?? [];
+        const sourceArguments = typeParameters.length === 0 ? [] : targetArguments;
+        const relatedTarget = typeParameters.length === sourceArguments.length
+          ? csharpTargetTypeFromBinding(relation.targetBinding, sourceArguments)
+          : undefined;
+        if (
+          relatedTarget === undefined ||
+          input.selectedTarget === undefined ||
+          !targetTypeRefEquals(relatedTarget, input.selectedTarget)
+        ) {
+          continue;
+        }
+        if (
+          selected !== undefined &&
+          !providerTypeConstructionRelationsEqual(selected, relation)
+        ) {
+          return undefined;
+        }
+        selected = relation;
+      }
+    }
+  }
+  return selected;
+}
+
+function providerTypeConstructionRelationsEqual(
+  left: CsharpProviderTypeRelation,
+  right: CsharpProviderTypeRelation,
+): boolean {
+  return canonicalProviderValue({
+    targetBinding: left.targetBinding,
+    bindingTypeParameters: left.bindingTypeParameters,
+    objectLiteralConstruction: left.objectLiteralConstruction,
+  }) === canonicalProviderValue({
+    targetBinding: right.targetBinding,
+    bindingTypeParameters: right.bindingTypeParameters,
+    objectLiteralConstruction: right.objectLiteralConstruction,
+  });
+}
+
+function deriveProviderObjectLiteralMember(
+  property: TypePropertyInfo,
+  typeRelation: CsharpProviderTypeRelation,
+  substitutions: ReadonlyMap<string, TargetTypeRef>,
+  input: CsharpProviderObjectLiteralInput,
+): CsharpObjectShapeMemberFact | undefined {
+  const selectedTarget = input.selectedTarget;
+  if (selectedTarget === undefined) {
+    return undefined;
+  }
+  const declarations = [...new Set([
+    ...input.queries.declarations.symbolDeclarations(property.symbol),
+    ...property.rootSymbols.flatMap((symbol) =>
+      input.queries.declarations.symbolDeclarations(symbol)
+    ),
+  ])].filter((declaration): declaration is Node => declaration !== undefined);
+  const sourceKey = resolveObjectShapeSourceMemberKey(
+    declarations,
+    property.name,
+    input.host.ast,
+    input.queries,
+  );
+  if (sourceKey === undefined) {
+    return undefined;
+  }
+  const relation = resolveProviderMemberRelation(
+    property,
+    declarations,
+    typeRelation,
+    input,
+  );
+  if (
+    relation === undefined ||
+    (
+      relation.targetMember.kind !== "property" &&
+      relation.targetMember.kind !== "field"
+    ) ||
+    relation.source.memberStatic ||
+    relation.targetMember.static === true ||
+    relation.receiver.kind !== "instance" ||
+    relation.targetMember.parameters.length !== 0
+  ) {
+    return undefined;
+  }
+  const sourceMemberKey = relation.source.memberKey;
+  const sourceMemberMatches = sourceMemberKey.kind === "property-key"
+    ? sourceKey.kind === "property" && sourceKey.name === sourceMemberKey.name
+    : sourceKey.kind === "well-known-symbol" &&
+      sourceKey.symbol === sourceMemberKey.name;
+  if (!sourceMemberMatches) {
+    return undefined;
+  }
+  const rawSourceTarget = input.resolvePropertyType(
+    property,
+    property.type,
+    input.queries,
+    input.state,
+    input.authoredTypeRoot,
+  );
+  const optional = property.optional ||
+    typeIncludesNullish(property.type, input.queries);
+  const sourceTarget = rawSourceTarget === undefined
+    ? undefined
+    : optional
+      ? csharpNullableTargetType(rawSourceTarget)
+      : rawSourceTarget;
+  const memberTarget = relation.targetMember.returnType === undefined
+    ? undefined
+    : substituteTargetTypeParameters(
+        relation.targetMember.returnType,
+        substitutions,
+      );
+  const declaringTarget = relation.targetMember.declaringType === undefined
+    ? undefined
+    : substituteTargetTypeParameters(
+        relation.targetMember.declaringType,
+        substitutions,
+      );
+  const targetReadonly = relation.targetMember.readonly === true;
+  const exactNumericStorage = sourceTarget !== undefined && memberTarget !== undefined &&
+    csharpProviderSelectsNumericStorage(property, sourceTarget, memberTarget, input);
+  if (
+    sourceTarget === undefined ||
+    memberTarget === undefined ||
+    declaringTarget === undefined ||
+    (!targetTypeRefEquals(sourceTarget, memberTarget) &&
+      !exactNumericStorage) ||
+    !targetTypeRefEquals(declaringTarget, selectedTarget) ||
+    targetReadonly !== property.readonly
+  ) {
+    return undefined;
+  }
+  return {
+    sourceKey,
+    sourceName: csharpSourceMemberDisplayName(sourceKey),
+    sourceSubjects: Object.freeze([...new Set([
+      property.symbol,
+      ...property.rootSymbols,
+      ...declarations,
+    ])]),
+    ...(declarations.length === 0
+      ? {}
+      : { sourceDeclarations: Object.freeze([...declarations]) }),
+    sourceTypes: [property.type],
+    targetName: relation.targetMember.targetName,
+    memberKind: "property",
+    type: memberTarget,
+    ...(exactNumericStorage ? { exactNumericStorage: true as const } : {}),
+    ...(optional ? { optional: true } : {}),
+    ...(property.readonly ? { readonly: true } : {}),
+  };
+}
+
+export function csharpProviderSelectsNumericStorage(
+  property: TypePropertyInfo,
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+  input: {
+    readonly queries: SourceFileSemantics;
+    readonly host: Pick<CsharpTypePolicyBaseHost, "ast" | "sourceFacts">;
+  },
+): boolean {
+  const sourceElement = getCsharpNullableElementTargetType(source);
+  const targetElement = getCsharpNullableElementTargetType(target);
+  if ((sourceElement === undefined) !== (targetElement === undefined)) return false;
+  const selected = targetElement ?? target;
+  const defaultType = sourceElement ?? source;
+  if (defaultType.kind !== "source-primitive" || defaultType.name !== "float64" ||
+    selected.kind !== "source-primitive" || selected.name === "bool" || selected.name === "char") return false;
+  const members = input.queries.types.isUnion(property.type)
+    ? input.queries.types.unionOrIntersectionTypes(property.type).filter(type => !input.queries.types.isNullish(type))
+    : [property.type];
+  if (members.length === 0 || !members.every(type => input.queries.types.isNumberLike(type))) return false;
+  const subjects = [...members.flatMap(type => input.queries.facts.typeSubjects(type)),
+    ...sourcePropertyTypeEvidenceNodes(input.host.ast, input.queries, property)];
+  return subjects.every(subject => input.host.sourceFacts?.getFact(subject, sourcePrimitiveFactKey) === undefined);
+}
+
+function resolveProviderMemberRelation(
+  property: TypePropertyInfo,
+  declarations: readonly Node[],
+  typeRelation: CsharpProviderTypeRelation,
+  input: CsharpProviderObjectLiteralInput,
+): CsharpProviderMemberRelation | undefined {
+  let selected: CsharpProviderMemberRelation | undefined;
+  for (const subject of [property.symbol, ...property.rootSymbols, ...declarations]) {
+    const declaration = input.host.sourceFacts?.getFact(
+      subject,
+      providerVirtualDeclarationFactKey,
+    );
+    if (declaration === undefined) {
+      continue;
+    }
+    const resolution = input.host.providers.resolveMember(declaration);
+    if (resolution.kind !== "resolved") {
+      return undefined;
+    }
+    for (const relation of resolution.relations) {
+      if (
+        relation.kind === "member" &&
+        relation.targetBinding.id === typeRelation.targetBinding.id
+      ) {
+        if (
+          selected !== undefined &&
+          !providerMemberConstructionRelationsEqual(selected, relation)
+        ) {
+          return undefined;
+        }
+        selected = relation;
+      }
+    }
+  }
+  return selected;
+}
+
+function providerMemberConstructionRelationsEqual(
+  left: CsharpProviderMemberRelation,
+  right: CsharpProviderMemberRelation,
+): boolean {
+  return canonicalProviderValue({
+    sourceMemberKey: left.source.memberKey,
+    targetBinding: left.targetBinding,
+    targetMember: left.targetMember,
+    receiver: left.receiver,
+    bindingTypeParameters: left.bindingTypeParameters,
+    bindingTypeArgumentSource: left.bindingTypeArgumentSource,
+  }) === canonicalProviderValue({
+    sourceMemberKey: right.source.memberKey,
+    targetBinding: right.targetBinding,
+    targetMember: right.targetMember,
+    receiver: right.receiver,
+    bindingTypeParameters: right.bindingTypeParameters,
+    bindingTypeArgumentSource: right.bindingTypeArgumentSource,
+  });
+}

@@ -1,0 +1,153 @@
+import type { AstReader, Node } from "@tsonic/tsts";
+import { createHash } from "node:crypto";
+import { sourceFileIdentity } from "@tsonic/target-api/source";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpProjectTypeCatalog, CsharpProjectTypeCatalogHost } from "../../policy/types/project/project-types.js";
+import type { CsharpProjectTypeDefinition, CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
+import {
+  projectDefinitionTargetType,
+  projectTypeDefinition,
+} from "../../policy/types/project/project-types.js";
+
+export function createCsharpProjectTypeCatalog(
+  host: CsharpProjectTypeCatalogHost,
+  projections?: import("../../target-model/records/type-projections.js").CsharpGenericProjectionIndex,
+): CsharpProjectTypeCatalog {
+  const definitions: CsharpProjectTypeDefinition[] = [];
+  const issues: CsharpProjectTypeIssue[] = [];
+  const byDeclaration = new WeakMap<Node, CsharpProjectTypeDefinition>();
+  const byId = new Map<string, CsharpProjectTypeDefinition>();
+
+  for (const sourceFile of host.navigation.sourceFiles) {
+    visitSourceTree(host.ast, sourceFile, (declaration) => {
+      const sourceDefinition = projectTypeDefinition(host, declaration);
+      if (sourceDefinition === undefined) {
+        return;
+      }
+      const selectedProjections = projections?.genericProjection.get(declaration) ?? [];
+      const outerProjections = projections?.outerGenericProjection.get(declaration) ?? [];
+      const outerCount = sourceDefinition.outerTypeParameters.length;
+      const definition = Object.freeze({ ...sourceDefinition, typeProjections: selectedProjections, outerTypeProjections: outerProjections,
+        typeParameterBindings: Object.freeze([
+        ...sourceDefinition.typeParameterBindings.slice(0, outerCount), ...outerProjections,
+        ...sourceDefinition.typeParameterBindings.slice(outerCount), ...selectedProjections,
+      ]) });
+      const existing = byId.get(definition.id);
+      if (existing !== undefined && existing.declaration !== declaration) {
+        issues.push({
+          node: declaration,
+          code: "CSHARP_PROJECT_TYPE_IDENTITY_CONFLICT",
+          message:
+            `Project declarations '${existing.sourceName}' and '${definition.sourceName}' produced the same canonical source identity '${definition.id}'.`,
+        });
+        return;
+      }
+      definitions.push(definition);
+      byDeclaration.set(declaration, definition);
+      byId.set(definition.id, definition);
+    });
+  }
+
+  const occupiedNames = new Set(definitions.filter(definition => !definition.local).map(definition => definition.sourceName));
+  const allocate = (preferred: string): string => {
+    let name = preferred;
+    for (let suffix = 2; occupiedNames.has(name); suffix += 1) name = `${preferred}_${suffix}`;
+    occupiedNames.add(name);
+    return name;
+  };
+  const filesByName = new Map<string, Set<CsharpProjectTypeDefinition["sourceFile"]>>();
+  for (const definition of definitions) {
+    if (definition.local) continue;
+    const files = filesByName.get(definition.sourceName) ?? new Set<CsharpProjectTypeDefinition["sourceFile"]>();
+    files.add(definition.sourceFile);
+    filesByName.set(definition.sourceName, files);
+  }
+  const moduleScopes = new Map<CsharpProjectTypeDefinition["sourceFile"], string>();
+  const colliding = definitions.filter(definition => !definition.local &&
+    (filesByName.get(definition.sourceName)?.size ?? 0) > 1).sort((left, right) => left.id.localeCompare(right.id));
+  for (const definition of colliding) {
+    let scopeName = moduleScopes.get(definition.sourceFile);
+    if (scopeName === undefined) {
+      const identity = sourceFileIdentity(host.ast, definition.sourceFile);
+      if (identity === undefined) {
+        issues.push({ node: definition.declaration, code: "CSHARP_PROJECT_TYPE_SCOPE_NOT_PROVEN",
+          message: `Project type '${definition.sourceName}' requires an exact source module identity to preserve its authored name.` });
+        continue;
+      }
+      scopeName = allocate(`__TsonicModule_${createHash("sha256").update(identity).digest("hex")}`);
+      moduleScopes.set(definition.sourceFile, scopeName);
+    }
+    replaceDefinition(Object.freeze({ ...definition, scopeName }));
+  }
+  for (const definition of definitions.filter(definition => definition.local).sort((left, right) => left.id.localeCompare(right.id))) {
+    const scopeName = allocate(`${definition.sourceName}Scope`);
+    const selected = Object.freeze({ ...definition, scopeName, factoryName: allocate(`${scopeName}Factory`),
+      factoryIdentityName: allocate(`I${scopeName}Instance`) });
+    replaceDefinition(selected);
+  }
+  const frozenDefinitions = Object.freeze(definitions.map(definition => byDeclaration.get(definition.declaration)!));
+  const frozenIssues = Object.freeze(issues);
+  return Object.freeze({
+    definitions: frozenDefinitions,
+    issues: frozenIssues,
+    definitionForDeclaration(declaration: Node | undefined) {
+      return declaration === undefined ? undefined : byDeclaration.get(declaration);
+    },
+    definitionContainingDeclaration(declaration: Node | undefined) {
+      let current = declaration;
+      while (current !== undefined) {
+        const definition = byDeclaration.get(current);
+        if (definition !== undefined) {
+          return definition;
+        }
+        current = host.ast.parent(current);
+      }
+      return undefined;
+    },
+    definitionForTarget(type: TargetTypeRef | undefined) {
+      return type?.kind === "target-named" ? byId.get(type.id) : undefined;
+    },
+    targetTypeForDeclaration(
+      declaration: Node | undefined,
+      typeArguments: readonly TargetTypeRef[],
+    ) {
+      const definition = declaration === undefined
+        ? undefined
+        : byDeclaration.get(declaration);
+      return definition === undefined ||
+          typeArguments.length !== definition.typeParameterBindings.length
+        ? undefined
+        : projectDefinitionTargetType(definition, typeArguments.map((argument, index) =>
+          argument.kind === "type-parameter" && argument.identity === definition.typeParameterBindings[index]?.identity
+            ? [...definition.outerTypeProjections, ...definition.typeProjections].find(projection => projection.identity === argument.identity) ?? argument
+            : argument));
+    },
+  });
+
+  function replaceDefinition(selected: CsharpProjectTypeDefinition): void {
+    byDeclaration.set(selected.declaration, selected);
+    byId.set(selected.id, selected);
+  }
+}
+
+function visitSourceTree(
+  ast: AstReader,
+  root: Node,
+  visit: (node: Node) => void,
+): void {
+  const pending = [root];
+  const seen = new Set<Node>();
+  while (pending.length > 0) {
+    const node = pending.pop();
+    if (node === undefined || seen.has(node)) {
+      continue;
+    }
+    seen.add(node);
+    visit(node);
+    ast.forEachChild(node, (child) => {
+      if (child !== undefined) {
+        pending.push(child);
+      }
+    });
+  }
+}

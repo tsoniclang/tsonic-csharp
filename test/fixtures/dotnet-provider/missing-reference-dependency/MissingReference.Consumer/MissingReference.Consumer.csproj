@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../MissingReference.Dependency/MissingReference.Dependency.csproj" />
+  </ItemGroup>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <BaseIntermediateOutputPath>$(MSBuildProjectDirectory)/../../../../../.temp/dotnet-provider-fixtures/missing-reference-dependency/msbuild-obj/MissingReference.Consumer/</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>

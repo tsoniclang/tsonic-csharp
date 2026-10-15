@@ -1,0 +1,58 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { planCsharpPropertyValueProjection } from "../../../../dist/backend/planner/expressions/property-value-projection.js";
+import { createCsharpObjectShapePropertyOrderIndex } from "../../../../dist/analysis/objects/property-order.js";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType } from "../../../../dist/target-model/types/index.js";
+import { requireObjectShapeProjection } from "../../../../dist/backend/planner/artifacts/graph/object-shapes/requests.js";
+
+function fixture() {
+  const source = { kind: "target-named", id: "Options", csharpSourceDeclarationKind: "class" };
+  const count = { sourceKey: { kind: "property", name: "count" }, sourceName: "count", targetName: "storedCount",
+    memberKind: "property", type: csharpSourcePrimitiveTargetType("uint64"), optional: true };
+  const grouping = { sourceKey: { kind: "property", name: "useGrouping" }, sourceName: "useGrouping", targetName: "grouping",
+    memberKind: "property", type: csharpSourcePrimitiveTargetType("bool"), accessor: { getter: true, setter: false } };
+  const method = { sourceKey: { kind: "property", name: "toJSON" }, sourceName: "toJSON", targetName: "jsonMethod",
+    memberKind: "method", type: csharpStringTargetType() };
+  const shape = { targetType: source, members: [count, method, grouping] };
+  const members = Object.freeze([count, grouping]);
+  const conversions = [];
+  const input = { program: { source: { ast: { pos: () => 1 } },
+    records: { propertyProjection: { get: () => members },
+      conversion: { get(type) { conversions.push(type); return { kind: "js-value-box" }; } } } }, types: { objectShapes: { resolveTarget: () => shape } }, scope: {},
+    names: { temporaryName: value => value },
+    artifacts: { requireObjectShapeProjection() { assert.fail("native options are not a generic class capability"); } },
+  };
+  const orders = createCsharpObjectShapePropertyOrderIndex({}, () => {});
+  orders.record(shape);
+  orders.seal();
+  return { source, shape, members, input, conversions, orders };
+}
+
+test("native selected properties use exact instantiated fields at the call site, not generic type helpers", () => {
+  const current = fixture();
+  const expression = { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "supply" }, arguments: [] };
+  const diagnostics = [];
+  const selected = planCsharpPropertyValueProjection({}, {}, current.input, diagnostics, current.source, expression);
+  assert.equal(diagnostics.length, 0);
+  assert.equal(selected?.kind, "SwitchExpression");
+  assert.equal(selected.expression === expression, true, "the supplier is evaluated exactly once");
+  assert.equal(selected.arms.length, 1);
+  assert.equal(current.conversions.length, 2);
+  assert.equal(current.conversions[0] === current.members[0].type && current.conversions[1] === current.members[1].type, true,
+    "exact integer and selected getter carriers are not replaced");
+  assert.deepEqual(selected.arms[0].expression.arguments.filter((_, index) => index % 2 === 0).map(value => value.expression.value),
+    ["count", "useGrouping"]);
+  assert.equal(current.orders.propertyOrder(current.shape, undefined, "keys").kind, "rejected",
+    "selected consumption does not weaken enumerable own-set proof");
+});
+
+test("native property projection rejects missing sealed demand and the removed generic helper path", () => {
+  const current = fixture();
+  current.input.program.records.propertyProjection.get = () => undefined;
+  const diagnostics = [];
+  assert.equal(planCsharpPropertyValueProjection({}, {}, current.input, diagnostics, current.source,
+    { kind: "IdentifierName", name: "value" }) === undefined, true, "missing evidence rejects");
+  assert.equal(diagnostics.length, 1);
+  assert.equal(requireObjectShapeProjection({}, undefined, current.source, {}, "properties", csharpStringTargetType(),
+    "object-shape").kind, "rejected", "the superseded generic class helper is not retained");
+});

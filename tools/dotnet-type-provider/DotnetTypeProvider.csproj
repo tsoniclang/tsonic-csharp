@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TsonicProviderTargetFramework Condition="'$(TsonicProviderTargetFramework)' == ''">net10.0</TsonicProviderTargetFramework>
+    <TargetFramework>$(TsonicProviderTargetFramework)</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj/**;bin/**;.temp/**</DefaultItemExcludes>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System.Reflection.MetadataLoadContext" HintPath="$(MSBuildSDKsPath)/../System.Reflection.MetadataLoadContext.dll" />
+  </ItemGroup>
+</Project>
