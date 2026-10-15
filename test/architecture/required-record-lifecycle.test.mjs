@@ -52,10 +52,24 @@ function callsTo(root, callee) {
   return descendants(root).filter(node => ast.is.IsCallExpression(node) && text(ast.as.AsCallExpression(node).Expression) === callee);
 }
 
-function onlyCall(root, callee, label) {
-  const calls = callsTo(root, callee);
-  assert.equal(calls.length === 1, true, `${label}: exactly one ${callee} call`);
+function composedCall(callee, composer, label) {
+  const calls = callsTo(file(paths.analyze), callee);
+  assert.equal(calls.length === 1, true, `${label}: exactly one ${callee} call in analyze.ts`);
+  assert.equal(descendants(composer).includes(calls[0]), true, `${label}: the ${callee} call is inside its composing function`);
   return calls[0];
+}
+
+function encloses(ancestor, node) {
+  let current = node;
+  while (current !== undefined && current !== ancestor) current = ast.parent(current);
+  return current === ancestor;
+}
+
+function sourceFiles(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+    const path = join(directory, entry.name);
+    return entry.isDirectory() ? sourceFiles(path) : entry.isFile() && path.endsWith(".ts") ? [path] : [];
+  });
 }
 
 function identifiers(root, name) {
@@ -98,7 +112,7 @@ test("the requirement list is declared once, as the first statement of analyzeIt
 });
 
 test("analyzeIteration passes its list to storage and returns it as iteration state", () => {
-  const storage = onlyCall(iteration, "analyzeCsharpStorage", "storage");
+  const storage = composedCall("analyzeCsharpStorage", iteration, "storage");
   const storageArguments = ast.arguments(storage);
   assert.equal(text(storageArguments.at(-1)) === "requiredRecords" && ast.is.IsIdentifier(storageArguments.at(-1)), true,
     "storage: the list is the last argument of analyzeCsharpStorage");
@@ -135,17 +149,17 @@ test("the late producers and the assembly receive the stable attempt's list", ()
     text(ast.as.AsCallExpression(evaluated).Expression) === "analyzeIteration" &&
     text(ast.arguments(evaluated).at(-1)) === "stable", true, "stable attempt: evaluated is analyzeIteration over stable");
   assert.equal(text(analysis) === "evaluated.value", true, "stable attempt: analysis is the evaluated result");
-  const factories = onlyCall(program, "analyzeCsharpClassFactories", "stable attempt");
+  const factories = composedCall("analyzeCsharpClassFactories", program, "stable attempt");
   assert.equal(text(ast.arguments(factories).at(-1)) === "analysis.requiredRecords", true,
     "stable attempt: analyzeCsharpClassFactories receives analysis.requiredRecords");
-  const participation = onlyCall(program, "analyzeCsharpNativeParticipation", "stable attempt");
+  const participation = composedCall("analyzeCsharpNativeParticipation", program, "stable attempt");
   const participationInput = ast.arguments(participation)[0];
   const participationList = participationInput === undefined || !ast.is.IsObjectLiteralExpression(participationInput)
     ? undefined : property(participationInput, "requiredRecords");
   assert.equal(participationList !== undefined && ast.is.IsPropertyAssignment(participationList) &&
     text(ast.as.AsPropertyAssignment(participationList).Initializer) === "analysis.requiredRecords", true,
     "stable attempt: analyzeCsharpNativeParticipation receives analysis.requiredRecords");
-  const assembly = onlyCall(program, "createCsharpProgramRecords", "stable attempt");
+  const assembly = composedCall("createCsharpProgramRecords", program, "stable attempt");
   assert.equal(ast.arguments(assembly).length === 2 && text(ast.arguments(assembly)[1]) === "analysis.requiredRecords", true,
     "stable attempt: createCsharpProgramRecords receives analysis.requiredRecords");
   const reads = descendants(program).filter(node => ast.is.IsPropertyAccessExpression(node) && text(node) === "analysis.requiredRecords");
@@ -211,7 +225,7 @@ for (const [label, path, producer, list, family, guard, publications] of [
   ["participation", paths.participation, "analyzeCsharpNativeParticipation", "input.requiredRecords", "nativeParticipation",
     "selected === undefined", ["participation.set"]],
 ]) {
-  test(`${label}: one registration into the producer's own list precedes its publication`, () => {
+  test(`${label}: one registration into the producer's own list precedes its publication under the same conditions`, () => {
     const owner = functionNamed(path, producer);
     const registrations = callsTo(owner, "requireCsharpRecord");
     assert.equal(registrations.length === 1, true, `${label} registration: exactly one requireCsharpRecord call`);
@@ -235,6 +249,8 @@ for (const [label, path, producer, list, family, guard, publications] of [
           text(ast.as.AsBinaryExpression(node).Left) === publication));
       assert.equal(sites.length === 1 && position(registration) < position(sites[0]), true,
         `${label} registration: precedes its one publication ${publication}`);
+      assert.equal(encloses(ast.parent(statement), sites[0]), true,
+        `${label} registration: no condition separates it from ${publication}`);
     }
   });
 }
@@ -243,6 +259,7 @@ test("storage and class factories take the list as a mandatory parameter and par
   for (const [path, producer] of [[paths.storage, "analyzeCsharpStorage"], [paths.classFactories, "analyzeCsharpClassFactories"]]) {
     const last = ast.parameters(functionNamed(path, producer)).at(-1);
     assert.equal(named(last, "requiredRecords") && ast.as.AsParameterDeclaration(last).QuestionToken === undefined &&
+      ast.as.AsParameterDeclaration(last).Initializer === undefined &&
       text(ast.as.AsParameterDeclaration(last).Type) === "CsharpRequiredRecord[]", true,
       `${producer} parameter: a mandatory CsharpRequiredRecord[] list`);
   }
@@ -254,10 +271,6 @@ test("storage and class factories take the list as a mandatory parameter and par
 });
 
 test("requirement state stays inside analysis, in exactly six files", () => {
-  const sourceFiles = directory => readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
-    const path = join(directory, entry.name);
-    return entry.isDirectory() ? sourceFiles(path) : entry.isFile() && path.endsWith(".ts") ? [path] : [];
-  });
   const users = sourceFiles(sourceRoot)
     .filter(path => /requiredRecords|CsharpRequiredRecord|requireCsharpRecord|assertCsharpRequiredRecords/u.test(readFileSync(path, "utf8")))
     .map(path => path.slice(repositoryRoot.length + 1)).sort();
@@ -269,4 +282,25 @@ test("requirement state stays inside analysis, in exactly six files", () => {
     paths.classFactories,
     paths.storage,
   ].join(), true, `requirement users: exactly the six analysis files, found ${users.join(", ")}`);
+});
+
+test("each seal name and producer is mentioned only by its owner and the composition", () => {
+  const requiredRecordsModule = "src/analysis/program/records/required-records.ts";
+  const inventory = [
+    ["requiredRecords", [paths.participation, paths.analyze, paths.classFactories, paths.storage]],
+    ["CsharpRequiredRecord", [paths.participation, paths.analyze, paths.create, requiredRecordsModule, paths.classFactories, paths.storage]],
+    ["requireCsharpRecord", [paths.participation, requiredRecordsModule, paths.classFactories, paths.storage]],
+    ["assertCsharpRequiredRecords", [paths.create, requiredRecordsModule]],
+    ["createCsharpProgramRecords", [paths.analyze, paths.create]],
+    ["analyzeCsharpClassFactories", [paths.analyze, paths.classFactories]],
+    ["analyzeCsharpNativeParticipation", [paths.participation, paths.analyze]],
+    ["analyzeCsharpStorage", [paths.analyze, paths.storage, "src/analysis/storage/index.ts"]],
+  ];
+  const files = sourceFiles(sourceRoot).map(path => [path.slice(repositoryRoot.length + 1), readFileSync(path, "utf8")]);
+  for (const [name, expected] of inventory) {
+    const pattern = new RegExp(`\\b${name}\\b`, "u");
+    const found = files.filter(([, source]) => pattern.test(source)).map(([path]) => path).sort();
+    assert.equal(found.join() === [...expected].sort().join(), true,
+      `name inventory: ${name} is mentioned exactly by ${[...expected].sort().join(", ")}; found ${found.join(", ")}`);
+  }
 });
