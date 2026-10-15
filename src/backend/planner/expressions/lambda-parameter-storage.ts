@@ -6,6 +6,7 @@ import { allocateSyntheticParameter, planParameterBindingPrelude } from "../bind
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../types/target-type-object-shapes.js";
 import { targetTypeRefEquals } from "../../../target-model/types/index.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { applyCsharpConversionSelection, readCsharpConversionClassification } from "./conversions.js";
 import { planCsharpRuntimeParameterDefault } from "../declarations/callables/defaults.js";
@@ -20,6 +21,7 @@ export function planLambdaParameterStorage(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
+  parameterTargetTypes: readonly TargetTypeRef[] = [],
 ): { readonly parameters: readonly CsharpLambdaParameter[]; readonly prelude: readonly CsharpStatement[] } | undefined {
   const nativeParameters = [...parameters];
   const prelude: CsharpStatement[] = [];
@@ -27,7 +29,7 @@ export function planLambdaParameterStorage(
     if (node === undefined) continue;
     const parameter = parameters[index];
     if (parameter === undefined) return undefined;
-    const selected = planParameterValue(node, parameter, sourceFile, input, diagnostics, state);
+    const selected = planParameterValue(node, parameter, parameterTargetTypes[index], sourceFile, input, diagnostics, state);
     if (selected === undefined) return undefined;
     nativeParameters[index] = selected.parameter;
     prelude.push(...selected.prelude);
@@ -52,6 +54,7 @@ export function planLambdaParameterStorage(
 function planParameterValue(
   node: Node,
   parameter: CsharpLambdaParameter,
+  delegateParameterType: TargetTypeRef | undefined,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
@@ -61,7 +64,7 @@ function planParameterValue(
   if (nativeType === undefined) {
     return input.program.records.runtimeDefault.get(node) === undefined
       ? { parameter, prelude: [] }
-      : planLambdaParameterDefault(node, parameter, sourceFile, input, diagnostics, state, true);
+      : planLambdaParameterDefault(node, parameter, delegateParameterType, sourceFile, input, diagnostics, state, true);
   }
   const valueType = input.program.records.requiredStorageType.get(node);
   if (valueType === undefined) {
@@ -69,7 +72,7 @@ function planParameterValue(
     return undefined;
   }
   if (input.program.records.runtimeDefault.get(node) !== undefined) {
-    return planLambdaParameterDefault(node, parameter, sourceFile, input, diagnostics, state, false);
+    return planLambdaParameterDefault(node, parameter, nativeType, sourceFile, input, diagnostics, state, false);
   }
   if (targetTypeRefEquals(nativeType, valueType)) return { parameter, prelude: [] };
   const type = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, valueType, diagnostics, node);
@@ -89,16 +92,17 @@ function planParameterValue(
 function planLambdaParameterDefault(
   node: Node,
   parameter: CsharpLambdaParameter,
+  selectedParameterType: TargetTypeRef | undefined,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-  contractStorage: boolean,
+  declareIncomingType: boolean,
 ): { readonly parameter: CsharpLambdaParameter; readonly prelude: readonly CsharpStatement[] } | undefined {
   const name = allocateSyntheticParameter(state);
-  const selected = planCsharpRuntimeParameterDefault(node, name, sourceFile, input, diagnostics, state);
+  const selected = planCsharpRuntimeParameterDefault(node, name, sourceFile, input, diagnostics, state, selectedParameterType);
   if (selected === undefined) return undefined;
-  const incoming = contractStorage ? { ...parameter, type: selected.parameterType } : parameter;
+  const incoming = declareIncomingType ? { ...parameter, type: selected.parameterType } : parameter;
   if (selected.passthrough) return { parameter: incoming, prelude: [] };
   return { parameter: { ...incoming, name }, prelude: consumeCsharpPlannedValue(selected.value, initializer => [
     { kind: "LocalDeclarationStatement", name: parameter.name, type: selected.valueType, initializer }]) };
