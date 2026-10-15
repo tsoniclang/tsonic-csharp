@@ -154,7 +154,7 @@ export function tryPlanBinaryExpression(
     expression?.Left !== undefined &&
     expression.Right !== undefined
   ) {
-    return planJsValueAssignment(
+    return tryPlanJsValueAssignment(
       node,
       expression.Left,
       expression.Right,
@@ -191,7 +191,7 @@ export function tryPlanBinaryExpression(
   );
 }
 
-function planJsValueAssignment(
+function tryPlanJsValueAssignment(
   node: Node,
   left: Node,
   right: Node,

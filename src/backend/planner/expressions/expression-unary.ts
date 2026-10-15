@@ -247,11 +247,16 @@ function rejectUnloweredJsValueObjectShapeUpdate(
 ): void {
   const jsValueProperty = operand === undefined ? undefined
     : input.program.records.selectedProperty.get(operand)?.sourceOwned?.jsValueProperty;
+  if (jsValueProperty === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "A source-owned property update has no sealed C# property classification.",
+    ));
+    return;
+  }
   diagnostics.push(unsupportedNodeDiagnostic(
     node,
-    jsValueProperty === undefined
-      ? "A source-owned property update has no sealed C# property classification."
-      : jsValueProperty.kind === "rejected"
+    jsValueProperty.kind === "rejected"
       ? jsValueProperty.reason
       : `Closed JS-value object-shape update '${sourceOperator}' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden.`,
   ));
