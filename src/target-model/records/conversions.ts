@@ -1,4 +1,5 @@
 import type { CsharpConversionMode, CsharpConversionSelection } from "../conversions/selection.js";
+import type { CsharpExactLiteralRequest } from "../conversions/exact-literals.js";
 import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../types/model.js";
 import type { SourceProjectReference } from "@tsonic/target-api/source";
 import type { Node } from "@tsonic/tsts";
@@ -34,6 +35,7 @@ export interface CsharpConversionClassifications {
   readonly directCallableReference: { readonly get: (expression: Node) => SourceProjectReference | undefined };
   readonly conversion: { readonly get: (source: TargetTypeRef | undefined, target: TargetTypeRef | undefined, mode: CsharpConversionMode) => CsharpConversionSelection | undefined };
   readonly expressionConversion: { readonly get: (expression: Node, source: TargetTypeRef | undefined, target: TargetTypeRef | undefined, mode: CsharpConversionMode) => CsharpConversionSelection | undefined };
+  readonly exactLiteralRequests: readonly CsharpExactLiteralRequest[];
 }
 
 export interface CsharpValueReadStages {

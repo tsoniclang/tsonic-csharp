@@ -25,6 +25,7 @@ function sealedConversions(inputs, elementTarget = int64) {
     navigation: { referenceFor: () => undefined },
     projectTypes: { directSupertypes: () => [] },
     providers: { findTargetBindingByTargetId: () => undefined },
+    literalValues: { literalValue: Object.freeze({ get: () => undefined }) },
     target: {},
   };
   const evidence = { compileTimeMetadata: { get: () => false },
