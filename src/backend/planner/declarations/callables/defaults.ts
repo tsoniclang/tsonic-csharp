@@ -7,7 +7,8 @@ import { planExpressionWithExpectedType } from "../../expressions/index.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
 import type { CsharpPlannedValue } from "../../expressions/planned-values.js";
 import { planCsharpBindingDefaultValue } from "../../bindings/optional-values.js";
-import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";
+import type { CsharpDefaultParameterContract } from "../../../../target-model/records/declarations.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 
 type CsharpRuntimeParameterDefaultPlan = {
@@ -26,27 +27,28 @@ export function planCsharpRuntimeParameterDefault(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): CsharpRuntimeParameterDefaultPlan | undefined {
+  const contract = input.program.records.runtimeDefault.get(node);
+  if (contract === undefined) {
+    return failTargetPlannerInvariant("tsonic-csharp", "A runtime parameter default requires its sealed contract.", node);
+  }
   const initialDiagnosticCount = diagnostics.length;
-  const selected = planRuntimeParameterDefault(node, incomingName, sourceFile, input, diagnostics, state);
+  const selected = planRuntimeParameterDefault(node, contract, incomingName, sourceFile, input, diagnostics, state);
   if (selected === undefined && !diagnostics.slice(initialDiagnosticCount).some(diagnostic => diagnostic.category === "error")) {
     diagnostics.push(unsupportedNodeDiagnostic(node,
-      "Required C# runtime parameter default lowering produced neither a native parameter nor an error."));
+      `Required C# runtime parameter default lowering for '${targetTypeRefKey(contract.parameterType)}' produced neither a native parameter nor an error.`));
   }
   return selected;
 }
 
 function planRuntimeParameterDefault(
   node: Node,
+  contract: CsharpDefaultParameterContract,
   incomingName: string,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): CsharpRuntimeParameterDefaultPlan | undefined {
-  const contract = input.program.records.runtimeDefault.get(node);
-  if (contract === undefined) {
-    return failTargetPlannerInvariant("tsonic-csharp", "A runtime parameter default requires its sealed contract.", node);
-  }
   const declaration = input.program.source.ast.as.AsParameterDeclaration(node);
   if (declaration?.Initializer === undefined) {
     return failTargetPlannerInvariant("tsonic-csharp",

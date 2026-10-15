@@ -65,7 +65,7 @@ import {
 import {
   directCsharpSourceYieldExpression,
 } from "../../../target-model/syntax/yield-expression.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -272,7 +272,7 @@ export function planThrowStatement(
   const type = csharpTypeFromTargetTypeRef(thrown.targetCarrier, input.scope.typeParameterNames);
   if (type === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(statement.Expression,
-      "Throw statements require C# type syntax for the sealed thrown carrier before C# emission."));
+      `Throw statements require C# type syntax for the sealed thrown carrier '${targetTypeRefKey(thrown.targetCarrier)}' before C# emission.`));
     return [];
   }
   const expression = planExpressionWithExpectedType(statement.Expression, sourceFile,
