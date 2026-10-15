@@ -146,8 +146,6 @@ test("a compiled program publishes exact literal selections at its actual reques
 });
 
 test("a provider argument adapter's literal input step is requested by the selected call and rendered from its record", () => {
-  const counter = Object.freeze({ kind: "target-named", id: "MyLib.Counter",
-    csharpRender: Object.freeze({ kind: "named", namespace: Object.freeze(["MyLib"]), name: "Counter" }) });
   const planned = Object.freeze({ kind: "LiteralExpression", value: 30 });
   const cases = [
     ["int32", "int16", { kind: "source-representation" }, planned],
@@ -155,13 +153,14 @@ test("a provider argument adapter's literal input step is requested by the selec
       { kind: "IntegerLiteralExpression", digits: "30", suffix: "L" }],
   ];
   for (const [readName, inputName, record, input] of cases) {
-    const fixture = providerAdapterCall(counter, primitive(readName), primitive(inputName));
+    const fixture = providerAdapterCall(primitive(readName), primitive(inputName));
     const mapping = fixture.selected.call.argumentMappings[0];
     assert.equal(mapping.conversion.kind === "provider-argument-adapter" && mapping.conversion.sourceToInput.proof === "literal" &&
       mapping.conversion.resultToTarget.kind === "identity", true, `${readName} to ${inputName}: policy selects the adapter with a literal input step`);
-    const requests = sealedLiteralRequests(fixture, counter);
+    const requests = sealedProviderCallConversions(fixture).conversions.exactLiteralRequests
+      .filter(request => request.expression === fixture.literal);
     assert.deepEqual(requests.map(request => request.target === undefined ? "intrinsic" : targetTypeRefKey(request.target)),
-      [primitive(inputName), "intrinsic", primitive(readName), counter].map(type => type === "intrinsic" ? type : targetTypeRefKey(type)),
+      [primitive(inputName), "intrinsic", primitive(readName), fixture.counter].map(type => type === "intrinsic" ? type : targetTypeRefKey(type)),
       `${inputName}: the selected call requests the adapter input; reads and the expected type request the rest`);
     const exactLiteral = analyzeCsharpExactLiteralSelections(fixture.host.literalValues, requests).exactLiteral;
     assert.deepEqual(exactLiteral.get(fixture.literal, primitive(inputName)), record, `${inputName}: the record at the adapter input`);
@@ -176,7 +175,16 @@ test("a provider argument adapter's literal input step is requested by the selec
   }
 });
 
-function providerAdapterCall(counter, read, inputType) {
+test("exact literal requests are published only on the sealed conversion classifications, frozen", () => {
+  const { analysis, conversions } = sealedProviderCallConversions(providerAdapterCall(primitive("int32"), primitive("int16")));
+  assert.equal(Object.hasOwn(analysis.classifications, "exactLiteralRequests"), false, "open classifications publish no request list");
+  assert.equal(Array.isArray(conversions.exactLiteralRequests) && Object.isFrozen(conversions.exactLiteralRequests), true,
+    "the sealed request list is frozen");
+});
+
+function providerAdapterCall(read, inputType) {
+  const counter = Object.freeze({ kind: "target-named", id: "MyLib.Counter",
+    csharpRender: Object.freeze({ kind: "named", namespace: Object.freeze(["MyLib"]), name: "Counter" }) });
   const adapter = Object.freeze({ kind: "static-method", id: `MyLib.Counter.From(${inputType.name})`,
     declaringType: counter, targetName: "From", inputType, resultType: counter });
   const literal = Object.freeze({ syntaxKind: "IsNumericLiteral", text: "30" });
@@ -200,11 +208,11 @@ function providerAdapterCall(counter, read, inputType) {
   });
   const selected = selectCsharpProviderCall(direct.host, source.call, direct.sourceFile);
   assert.equal(selected.kind, "resolved", "the provider call is selected");
-  return { ...direct, literal, call: source.call, read, selected };
+  return { ...direct, counter, literal, call: source.call, read, selected };
 }
 
-function sealedLiteralRequests(fixture, counter) {
-  const { host, sourceFile, call, literal, read, selected } = fixture;
+function sealedProviderCallConversions(fixture) {
+  const { host, sourceFile, counter, call, literal, read, selected } = fixture;
   const none = Object.freeze({ get: () => undefined });
   const policy = { ...host, sourceFiles: [sourceFile],
     ast: { ...host.ast, parent: () => undefined, getSourceFile: () => sourceFile,
@@ -214,7 +222,6 @@ function sealedLiteralRequests(fixture, counter) {
   const evidence = { compileTimeMetadata: Object.freeze({ get: () => false }), storageTargetType: none, yield: none };
   const shapes = { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false };
   const analysis = analyzeCsharpConversions(policy, evidence, shapes);
-  assert.equal(Object.hasOwn(analysis.classifications, "exactLiteralRequests"), false, "open classifications publish no request list");
   const conversions = analysis.seal({
     operations: { nativeUnreachable: Object.freeze({ get: () => false }), borrowedSequence: none, selectedConstruction: none,
       unaryOperation: none, selectedCall: Object.freeze({ get: node => node === call ? { target: selected } : undefined }) },
@@ -224,6 +231,5 @@ function sealedLiteralRequests(fixture, counter) {
     valueReads: { valueRead: Object.freeze({ get: node => node === literal ? { source: read } : undefined }) },
   });
   assert.equal(conversions.issues.length, 0, "conversion analysis seals without issues");
-  assert.equal(Object.isFrozen(conversions.exactLiteralRequests), true, "the sealed request list is frozen");
-  return conversions.exactLiteralRequests.filter(request => request.expression === literal);
+  return { analysis, conversions };
 }
