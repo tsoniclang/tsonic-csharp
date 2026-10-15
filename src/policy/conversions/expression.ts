@@ -29,7 +29,7 @@ import { selectCsharpGuardedIntegerConversion } from "./integer-refinement.js";
 export function selectCsharpExpressionConversion(
   input: Pick<
     CsharpPolicyContext,
-    "ast" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "navigation" | "sourceFacts"
+    "ast" | "literalValues" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "navigation" | "sourceFacts"
   > & CsharpConversionShapeQueries,
   expression: Node,
   source: TargetTypeRef | undefined,
@@ -99,7 +99,7 @@ export function selectCsharpExpressionConversion(
       };
     }
   }
-  return csharpLiteralIsRepresentableAs(input, expression, target)
+  return csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(expression), target)
     ? { kind: "implicit", proof: "literal" }
     : selected;
 }
@@ -107,7 +107,7 @@ export function selectCsharpExpressionConversion(
 export function selectCsharpProviderArgumentConversion(
   input: Pick<
     CsharpPolicyContext,
-    "ast" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "navigation" | "sourceFacts"
+    "ast" | "literalValues" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "navigation" | "sourceFacts"
   > & CsharpConversionShapeQueries,
   expression: Node,
   source: TargetTypeRef | undefined,

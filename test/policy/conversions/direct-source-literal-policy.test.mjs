@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   resolveCsharpSourceLiteralTargetType,
 } from "../../../dist/policy/types/resolution/source-literal-policy.js";
+import { analyzeCsharpSourceLiteralValues } from "../../../dist/analysis/source-evidence/literal-values.js";
 import {
   csharpSourcePrimitiveTargetType,
   isCsharpArrayIndexTargetType,
@@ -13,14 +14,14 @@ test("pure C# source literals select exact integral and floating representations
   assert.deepEqual(
     resolveCsharpSourceLiteralTargetType(
       literalPolicyHost({ id: "csharp" }),
-      numericLiteral("0"),
+      literalValue(numericLiteral("0")),
     ),
     csharpSourcePrimitiveTargetType("int32"),
   );
   assert.deepEqual(
     resolveCsharpSourceLiteralTargetType(
       literalPolicyHost({ id: "csharp" }),
-      numericLiteral("0.5"),
+      literalValue(numericLiteral("0.5")),
     ),
     csharpSourcePrimitiveTargetType("float64"),
   );
@@ -30,7 +31,7 @@ test("the explicit JS surface retains JavaScript numeric representation", () => 
   assert.deepEqual(
     resolveCsharpSourceLiteralTargetType(
       literalPolicyHost({ id: "csharp", surfaces: ["js"] }),
-      numericLiteral("0"),
+      literalValue(numericLiteral("0")),
     ),
     csharpSourcePrimitiveTargetType("float64"),
   );
@@ -40,14 +41,14 @@ test("signed pure C# literals apply the same exact representation policy", () =>
   assert.deepEqual(
     resolveCsharpSourceLiteralTargetType(
       literalPolicyHost({ id: "csharp" }),
-      prefixLiteral("KindMinusToken", "1"),
+      literalValue(prefixLiteral("KindMinusToken", "1")),
     ),
     csharpSourcePrimitiveTargetType("int32"),
   );
   assert.deepEqual(
     resolveCsharpSourceLiteralTargetType(
       literalPolicyHost({ id: "csharp" }),
-      prefixLiteral("KindMinusToken", "2147483649"),
+      literalValue(prefixLiteral("KindMinusToken", "2147483649")),
     ),
     csharpSourcePrimitiveTargetType("float64"),
   );
@@ -73,25 +74,36 @@ test("C# integral and array-index policies remain distinct", () => {
 });
 
 function literalPolicyHost(target) {
-  return {
-    target,
-    ast: {
-      is: {
-        IsNumericLiteral: (node) => node.kind === "numeric",
-        IsParenthesizedExpression: (node) => node.kind === "parenthesized",
-        IsPrefixUnaryExpression: (node) => node.kind === "prefix",
-      },
-      as: {
-        AsParenthesizedExpression: (node) => ({ Expression: node.expression }),
-        AsPrefixUnaryExpression: (node) =>
-          node.kind === "prefix"
-            ? { Operand: node.operand }
-            : undefined,
-      },
-      operatorKindName: (node) => node.operator,
-      text: (node) => node.text,
-    },
-  };
+  return { target };
+}
+
+const literalAst = {
+  is: {
+    IsStringLiteral: () => false,
+    IsNoSubstitutionTemplateLiteral: () => false,
+    IsNumericLiteral: (node) => node.kind === "numeric",
+    IsBigIntLiteral: () => false,
+    IsParenthesizedExpression: (node) => node.kind === "parenthesized",
+    IsPrefixUnaryExpression: (node) => node.kind === "prefix",
+    IsBinaryExpression: () => false,
+    IsArrayLiteralExpression: () => false,
+  },
+  as: {
+    AsParenthesizedExpression: (node) => ({ Expression: node.expression }),
+    AsPrefixUnaryExpression: (node) =>
+      node.kind === "prefix"
+        ? { Operand: node.operand }
+        : undefined,
+  },
+  kindName: (node) => node.kind === "numeric" ? "KindNumericLiteral" : node.kind === "prefix" ? "KindPrefixUnaryExpression" : "KindSourceFile",
+  authoredRange: () => ({ kind: "synthetic" }),
+  forEachChild: (node, visit) => [...(node.children ?? []), ...(node.operand === undefined ? [] : [node.operand])].forEach(visit),
+  operatorKindName: (node) => node.operator,
+  text: (node) => node.text,
+};
+
+function literalValue(node) {
+  return analyzeCsharpSourceLiteralValues(literalAst, [{ kind: "file", children: [node] }]).literalValue.get(node);
 }
 
 function numericLiteral(text) {
