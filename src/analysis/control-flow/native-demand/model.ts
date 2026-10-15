@@ -1,4 +1,4 @@
-import type { AstReader, SourceFile } from "@tsonic/tsts";
+import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import type { TargetPlanningSourceNavigation } from "@tsonic/target-api/analysis";
 import type { CsharpAttributeApplicationIndex } from "../../../target-model/records/attributes.js";
 import type { CsharpClassFactoryIndex } from "../../../target-model/records/class-factories.js";
@@ -13,7 +13,12 @@ import type { CsharpProjectTypeClassifications } from "../../../target-model/rec
 import type { CsharpSafetyApplicationFactIndex } from "../../../target-model/records/safety.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
 
-export interface CsharpNativeDemandAnalysisInput extends CsharpNativeParticipationInput, CsharpExpectedNativeUseInput {
+export interface CsharpNativeDefaultUseInput {
+  readonly unusedDefault: { readonly get: (initializer: Node) => boolean };
+}
+
+export interface CsharpNativeDemandAnalysisInput
+  extends CsharpNativeParticipationInput, CsharpExpectedNativeUseInput, CsharpNativeDefaultUseInput {
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];
   readonly navigation: Pick<TargetPlanningSourceNavigation, "isProjectDeclaration" | "referenceFor" | "sourceReferenceFor">;

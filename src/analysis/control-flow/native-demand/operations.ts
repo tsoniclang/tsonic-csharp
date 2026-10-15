@@ -311,7 +311,7 @@ function binaryUses(input: CsharpNativeDemandAnalysisInput, node: Node): readonl
   const right = binary?.Right;
   switch (operations.operatorForm.get(node)) {
     case "destructuring-assignment":
-      return use(node, right, { kind: "operand", position: "right" });
+      return [...use(node, right, { kind: "operand", position: "right" }), ...assignmentPatternDefaultUses(input, left)];
     case "js-array-mutation":
       return arrayMutationUses(input, node);
     case "type-test":
@@ -409,6 +409,37 @@ function unaryUses(input: CsharpNativeDemandAnalysisInput, node: Node): readonly
   }
 }
 
+function defaultUse(input: CsharpNativeDemandAnalysisInput, owner: Node, initializer: Node | undefined): readonly CsharpNativeChildUse[] {
+  return initializer === undefined || input.unusedDefault.get(initializer) ? [] : use(owner, initializer, { kind: "default" });
+}
+
+function assignmentPatternDefaultUses(input: CsharpNativeDemandAnalysisInput, pattern: Node | undefined): readonly CsharpNativeChildUse[] {
+  const { ast } = input;
+  if (pattern === undefined) return [];
+  if (ast.is.IsParenthesizedExpression(pattern)) return assignmentPatternDefaultUses(input, ast.as.AsParenthesizedExpression(pattern)?.Expression);
+  if (ast.is.IsArrayLiteralExpression(pattern)) {
+    return ast.children(pattern).flatMap(element => element === undefined ? [] : assignmentTargetDefaultUses(input, element));
+  }
+  if (!ast.is.IsObjectLiteralExpression(pattern)) return [];
+  return ast.children(pattern).flatMap(member => {
+    if (member === undefined) return [];
+    if (ast.is.IsPropertyAssignment(member)) return assignmentTargetDefaultUses(input, ast.as.AsPropertyAssignment(member)?.Initializer);
+    if (ast.is.IsShorthandPropertyAssignment(member)) {
+      return defaultUse(input, member, ast.as.AsShorthandPropertyAssignment(member)?.ObjectAssignmentInitializer);
+    }
+    return ast.is.IsSpreadAssignment(member) ? assignmentPatternDefaultUses(input, ast.as.AsSpreadAssignment(member)?.Expression) : [];
+  });
+}
+
+function assignmentTargetDefaultUses(input: CsharpNativeDemandAnalysisInput, target: Node | undefined): readonly CsharpNativeChildUse[] {
+  const { ast } = input;
+  if (target === undefined) return [];
+  if (ast.is.IsSpreadElement(target)) return assignmentPatternDefaultUses(input, ast.as.AsSpreadElement(target)?.Expression);
+  if (!ast.is.IsBinaryExpression(target) || ast.operatorKindName(target) !== "KindEqualsToken") return assignmentPatternDefaultUses(input, target);
+  const assignment = ast.as.AsBinaryExpression(target);
+  return [...defaultUse(input, target, assignment?.Right), ...assignmentPatternDefaultUses(input, assignment?.Left)];
+}
+
 function csharpNativeStatementChildUses(
   input: CsharpNativeDemandAnalysisInput,
   node: Node,
@@ -418,9 +449,11 @@ function csharpNativeStatementChildUses(
     const expression = ast.as.AsExpressionStatement(node)?.Expression;
     const assignment = expression !== undefined && ast.is.IsParenthesizedExpression(expression)
       ? ast.as.AsParenthesizedExpression(expression)?.Expression : expression;
-    return assignment !== undefined && operations.operatorForm.get(assignment) === "destructuring-assignment"
-      ? use(node, ast.as.AsBinaryExpression(assignment)?.Right, { kind: "operand", position: "right" })
-      : use(node, expression, { kind: "effect" });
+    if (assignment === undefined || operations.operatorForm.get(assignment) !== "destructuring-assignment") {
+      return use(node, expression, { kind: "effect" });
+    }
+    const binary = ast.as.AsBinaryExpression(assignment);
+    return [...use(node, binary?.Right, { kind: "operand", position: "right" }), ...assignmentPatternDefaultUses(input, binary?.Left)];
   }
   if (ast.is.IsReturnStatement(node)) return use(node, ast.as.AsReturnStatement(node)?.Expression, { kind: "return" });
   if (ast.is.IsThrowStatement(node)) {
@@ -429,7 +462,7 @@ function csharpNativeStatementChildUses(
   if (ast.is.IsVariableDeclaration(node)) {
     return evidence.sourceStruct.get(node) !== undefined ? [] : use(node, ast.as.AsVariableDeclaration(node)?.Initializer, { kind: "initializer" });
   }
-  if (ast.is.IsBindingElement(node)) return use(node, ast.as.AsBindingElement(node)?.Initializer, { kind: "default" });
+  if (ast.is.IsBindingElement(node)) return defaultUse(input, node, ast.as.AsBindingElement(node)?.Initializer);
   if (ast.is.IsIfStatement(node)) return use(node, ast.as.AsIfStatement(node)?.Expression, { kind: "condition" });
   if (ast.is.IsWhileStatement(node)) return use(node, ast.as.AsWhileStatement(node)?.Expression, { kind: "condition" });
   if (ast.is.IsDoStatement(node)) return use(node, ast.as.AsDoStatement(node)?.Expression, { kind: "condition" });

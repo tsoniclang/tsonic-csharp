@@ -16,7 +16,7 @@ function compileProgram(options) {
   return compiled.result.program;
 }
 
-function ownerInput(program, participation = new Map(), expected = new Map()) {
+function ownerInput(program, participation = new Map(), expected = new Map(), unused = new Set()) {
   return {
     ast: program.source.ast,
     sourceFiles: program.sourceFiles,
@@ -31,6 +31,7 @@ function ownerInput(program, participation = new Map(), expected = new Map()) {
     safetyApplications: program.records,
     participation: { get: (declaration) => participation.get(declaration) },
     expectedUse: { get: (site) => expected.get(site.subject)?.get(targetUseSiteIdentity(site)) },
+    unusedDefault: { get: (initializer) => unused.has(initializer) },
   };
 }
 
@@ -327,4 +328,36 @@ test("switch cases precede their clause statements and erased statements keep th
     "use return sentinel(3 as int32)",
   ];
   assert.equal(JSON.stringify(order) === JSON.stringify(expected), true, `native order: ${order.join("; ")}`);
+});
+
+test("defaults follow the binding owner's default-use choice in declaration and assignment patterns", () => {
+  const program = compileProgram({ sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    function sentinel(value: int32): int32 { return value; }
+    export function read(pair: [int32, int32], optional: [int32, int32?], box: { a?: int32 }): int32 {
+      const [first = sentinel(1 as int32)] = pair;
+      const [, second = sentinel(2 as int32)] = optional;
+      let third: int32 = 0 as int32;
+      [third = sentinel(3 as int32)] = pair;
+      let fourth: int32 = 0 as int32;
+      [, fourth = sentinel(4 as int32)] = optional;
+      let fifth: int32 = 0 as int32;
+      const copy = ([, fifth = sentinel(5 as int32)] = optional);
+      let a: int32 = 0 as int32;
+      ({ a = sentinel(6 as int32) } = box);
+      return first + second + third + fourth + fifth + a + copy[0];
+    }
+  ` });
+  const ast = program.source.ast;
+  const defaultNode = (text) => indexNodes(program).find((node) => ast.kindName(node) === "KindCallExpression" && sourceText(program, node) === text);
+  const unused = new Set([defaultNode("sentinel(1 as int32)"), defaultNode("sentinel(3 as int32)")]);
+  assert.equal([...unused].every((node) => node !== undefined), true, "the default-use port is keyed by the program's own default expressions");
+  const uses = describeUses(program, collectCsharpNativeUses(ownerInput(program, new Map(), new Map(), unused)));
+  for (const text of ["sentinel(1 as int32)", "sentinel(3 as int32)"]) {
+    assert.equal(usesText(uses, text), false, `${text} is an unused tuple default and is not a native use`);
+  }
+  for (const text of ["sentinel(2 as int32)", "sentinel(4 as int32)", "sentinel(5 as int32)", "sentinel(6 as int32)"]) {
+    assert.equal(usesRole(uses, "default", text), true, `${text} is a demanded default use`);
+  }
+  assert.equal(usesRole(uses, "operand:right", "pair"), true, "a statement-level destructuring assignment reads its source");
 });
