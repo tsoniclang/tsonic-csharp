@@ -54,6 +54,9 @@ test("floating, signed-zero, char, boolean, string and array literal rules keep 
   assert.equal(csharpLiteralIsRepresentableAs(array([numeric(1, 1n), numeric(255, 255n)]), bytes), true, "every element fits");
   assert.equal(csharpLiteralIsRepresentableAs(array([numeric(1, 1n), numeric(256, 256n)]), bytes), false, "one element out of range");
   assert.equal(csharpLiteralIsRepresentableAs(array([numeric(1, 1n), undefined]), bytes), false, "a non-literal element");
+  assert.equal(csharpLiteralIsRepresentableAs(array([]), bytes), true, "a proven empty array fits");
+  assert.equal(csharpLiteralIsRepresentableAs(array([undefined]), bytes), false, "a present one-element list with a hole refuses");
+  assert.equal(csharpLiteralIsRepresentableAs(array([undefined, numeric(1, 1n)]), bytes), false, "a sparse list refuses");
   assert.equal(csharpLiteralIsRepresentableAs(numeric(7, 7n), csharpNullableTargetType(primitive("int32"))), true,
     "nullable target reads its element");
   assert.equal(csharpLiteralIsRepresentableAs(Object.freeze({ form: "binary", integerConstant: 300n }), primitive("int16")) &&

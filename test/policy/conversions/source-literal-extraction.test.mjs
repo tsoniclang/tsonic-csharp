@@ -1,6 +1,35 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { analyzeCsharpSourceLiteralValues } from "../../../dist/analysis/source-evidence/literal-values.js";
+
+function syntheticAst(touched) {
+  const kinds = ["StringLiteral", "NoSubstitutionTemplateLiteral", "NumericLiteral", "BigIntLiteral", "PrefixUnaryExpression",
+    "ParenthesizedExpression", "BinaryExpression", "ArrayLiteralExpression"];
+  return {
+    is: Object.fromEntries(kinds.map((kind) => [`Is${kind}`, (node) => {
+      if (kind === "StringLiteral") touched?.push(node);
+      return node.kind === kind;
+    }])),
+    as: {
+      AsParenthesizedExpression: (node) => ({ Expression: node.expression }),
+      AsPrefixUnaryExpression: (node) => ({ Operand: node.operand }),
+      AsBinaryExpression: (node) => ({ Left: node.left, Right: node.right }),
+    },
+    kindName: (node) => `Kind${node.kind}`,
+    operatorKindName: (node) => node.operator,
+    authoredRange: () => ({ kind: "synthetic" }),
+    text: (node) => node.text,
+    elements: (node) => node.elements ?? [],
+    forEachChild: (node, visit) => {
+      for (const child of [...(node.children ?? []), node.operand, node.expression, node.left, node.right, ...(node.elements ?? [])]) {
+        if (child !== undefined) visit(child);
+      }
+    },
+  };
+}
+
+const numericNode = (text) => ({ kind: "NumericLiteral", text });
 
 function literals(sourceText, surface = "native") {
   const compiled = compileCsharpSource({ surface, sourceText });
@@ -43,6 +72,9 @@ test("one checked extraction publishes exact frozen literal data with bigint pre
     assert.equal(byKind("KindTrueKeyword")[0]?.datum.form === "true", true, `${surface}: boolean literal form`);
     assert.equal(found.every((entry) => Object.isFrozen(entry.datum) && (entry.datum.elements === undefined || Object.isFrozen(entry.datum.elements))),
       true, `${surface}: every datum and element list is frozen`);
+    assert.equal(found.every((entry) => (entry.datum.form === "array") === Array.isArray(entry.datum.elements) &&
+      ((entry.datum.form === "string" || entry.datum.form === "template") === (typeof entry.datum.text === "string"))), true,
+    `${surface}: array data always has elements and text data always has text, by form`);
     assert.equal(found.every((entry) => program.records.literalValue.get(entry.node) === entry.datum), true,
       `${surface}: every read returns the one extracted datum`);
   }
@@ -76,4 +108,38 @@ test("literals in type-only declarations, overload sets and abstract signatures 
   const output = [...compiled.artifacts.values()].join("\n");
   assert.equal(/abstract double area\(double scale\);/u.test(output) && /return 2;/u.test(output), true,
     "the abstract signature and the concrete body keep their native output");
+});
+
+test("extraction walks iteratively in source post-order and extracts every node once", () => {
+  const touched = [];
+  const ast = syntheticAst(touched);
+  const one = numericNode("1");
+  const minus = { kind: "PrefixUnaryExpression", operator: "KindMinusToken", operand: numericNode("0") };
+  const list = { kind: "ArrayLiteralExpression", elements: [one, undefined, minus] };
+  const second = { kind: "StringLiteral", text: "x" };
+  const files = [{ kind: "SourceFile", children: [list] }, { kind: "SourceFile", children: [second] }];
+  const index = analyzeCsharpSourceLiteralValues(ast, files);
+  const expected = [one, minus.operand, minus, list, files[0], second, files[1]];
+  assert.equal(touched.length === expected.length && touched.every((node, position) => node === expected[position]), true,
+    "children before parents, siblings and files in source order, each node once");
+  const array = index.literalValue.get(list);
+  assert.equal(array.form === "array" && array.elements.length === 3 && array.elements[1] === undefined &&
+    array.elements[0] === index.literalValue.get(one) && array.elements[2] === index.literalValue.get(minus), true,
+  "a sparse array keeps its hole and references each element datum");
+  assert.equal(Object.is(index.literalValue.get(minus).number, -0) && index.literalValue.get(minus).integer === 0n, true,
+    "signed zero survives the iterative walk");
+  assert.equal(index.literalValue.get(files[0]) === undefined, true, "a source file has no datum");
+});
+
+test("extraction depth does not depend on the host call stack", () => {
+  let node = numericNode("7");
+  const leaf = node;
+  for (let depth = 0; depth < 100_000; depth += 1) node = { kind: "ParenthesizedExpression", expression: node };
+  const nested = { kind: "ArrayLiteralExpression", elements: [node] };
+  const index = analyzeCsharpSourceLiteralValues(syntheticAst(), [{ kind: "SourceFile", children: [nested] }]);
+  const outer = index.literalValue.get(node);
+  assert.equal(outer?.form === "parenthesized" && outer.number === 7 && outer.integer === 7n, true,
+    "the outermost of 100,000 nested parentheses carries the exact enclosed literal");
+  assert.equal(index.literalValue.get(leaf)?.integer === 7n && index.literalValue.get(nested)?.elements[0] === outer, true,
+    "the leaf and the enclosing array keep their data");
 });
