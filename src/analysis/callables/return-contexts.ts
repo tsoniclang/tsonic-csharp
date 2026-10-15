@@ -1,11 +1,8 @@
 import type { Node } from "@tsonic/tsts";
 import { HasSyntacticModifier, ModifierFlagsAsync } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import {
-  getCsharpGeneratorProtocol,
-  getCsharpLambdaSignature,
-  getCsharpTaskResultTargetType,
-} from "../../policy/types/index.js";
+import { getCsharpGeneratorProtocol } from "../../target-model/types/carriers/generators.js";
+import { getCsharpLambdaSignature, getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
 import type { CsharpReturnTargetContract } from "../../target-model/records/declarations.js";
 import type { CsharpReturnContext } from "../../target-model/records/return-contexts.js";
 import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
@@ -18,15 +15,12 @@ export function selectCsharpCallableReturnContext(
   callable: CsharpSourceCallableContract,
   contextualTarget?: TargetTypeRef,
 ): CsharpReturnContext | undefined {
-  const async = HasSyntacticModifier(policy.ast, callable.sourceDeclaration, ModifierFlagsAsync);
-  const selectedReturnType = getCsharpLambdaSignature(contextualTarget)?.returnType;
-  if (selectedReturnType !== undefined) {
-    return returnContext(async ? getCsharpTaskResultTargetType(selectedReturnType) : selectedReturnType);
-  }
+  const selectedReturnType = getCsharpLambdaSignature(contextualTarget)?.returnType ?? callable.returnType;
   if (evidence.generator.get(callable.sourceDeclaration) !== undefined) {
-    return returnContext(getCsharpGeneratorProtocol(callable.returnType)?.returnType);
+    return returnContext(getCsharpGeneratorProtocol(selectedReturnType)?.returnType);
   }
-  return returnContext(async ? getCsharpTaskResultTargetType(callable.returnType) : callable.returnType);
+  const async = HasSyntacticModifier(policy.ast, callable.sourceDeclaration, ModifierFlagsAsync);
+  return returnContext(async ? getCsharpTaskResultTargetType(selectedReturnType) : selectedReturnType);
 }
 
 export function selectCsharpAccessorReturnContext(

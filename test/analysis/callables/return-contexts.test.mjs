@@ -6,6 +6,7 @@ import {
   selectCsharpCallableReturnContext,
 } from "../../../dist/analysis/callables/return-contexts.js";
 import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { csharpGeneratorTargetType, csharpAsyncGeneratorTargetType } from "../../../dist/target-model/types/carriers/generators.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 
@@ -39,6 +40,23 @@ test("a contextual delegate selects the body return target before the declaratio
   const awaited = selectCsharpCallableReturnContext(policy, evidence, callable(asyncDeclaration, integer), asyncContextual);
   assert.equal(awaited !== undefined && targetTypeRefEquals(awaited.target, number), true, "async delegate returns its Task result");
 });
+
+for (const [asynchronous, factory] of [[false, csharpGeneratorTargetType], [true, csharpAsyncGeneratorTargetType]]) {
+  test(`a contextual ${asynchronous ? "async" : "sync"} generator body uses its protocol return type`, () => {
+    const declaration = {};
+    const generatorPolicy = { ast: { hasModifier: () => asynchronous } };
+    const generatorEvidence = { generator: { get: node => node === declaration ? {} : undefined } };
+    const declared = factory({ yieldType: integer, returnType: integer, nextType: integer });
+    const contextual = factory({ yieldType: integer, returnType: number, nextType: integer });
+    const contract = callable(declaration, declared);
+    const ordinary = selectCsharpCallableReturnContext(generatorPolicy, generatorEvidence, contract);
+    assert.equal(ordinary !== undefined && targetTypeRefEquals(ordinary.target, integer), true);
+    const selected = selectCsharpCallableReturnContext(generatorPolicy, generatorEvidence, contract,
+      csharpDelegateTargetType("System.Func", [], contextual));
+    assert.equal(selected !== undefined && targetTypeRefEquals(selected.target, number), true,
+      "the context chooses the protocol before projecting its body result, never the wrapper or a Task result");
+  });
+}
 
 test("a get accessor returns to its resolved return contract; other accessors have no body return target", () => {
   const resolved = selectCsharpAccessorReturnContext(policy, getter, { kind: "resolved", type: number });
