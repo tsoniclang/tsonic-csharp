@@ -20,6 +20,24 @@ import { createCsharpBindingProjectionPolicy } from "../../../dist/policy/types/
 const int32 = csharpSourcePrimitiveTargetType("int32");
 const string = csharpStringTargetType();
 
+test("tuple rest projections freeze their owned slices without freezing borrowed source metadata", () => {
+  const tuple = { kind: "tuple", elements: [int32, string] };
+  const sourceElements = tuple.elements;
+  const carrier = resolveCsharpArrayBindingCarrier(tuple);
+  const rest = csharpArrayBindingProjectionTarget(carrier, 1, true);
+  const empty = csharpArrayBindingProjectionTarget(carrier, 2, true);
+  assert.equal(carrier === tuple && tuple.elements === sourceElements, true, "the source tuple is retained by identity");
+  assert.equal([rest, empty].every(slice => Object.isFrozen(slice) && Object.isFrozen(slice.elements)), true,
+    "both nonempty and empty rest slices own frozen containers");
+  assert.equal(Reflect.set(rest.elements, 0, int32) || Reflect.set(empty.elements, 0, string), false,
+    "writes to both owned rest slices are refused");
+  assert.equal(rest.elements.length === 1 && rest.elements[0] === string && empty.elements.length === 0, true,
+    "refused mutations preserve exact canonical elements");
+  assert.equal(csharpArrayBindingProjectionTarget(carrier, 1, false) === string, true, "ordinary projections keep identity");
+  assert.equal(!Object.isFrozen(tuple) && !Object.isFrozen(sourceElements) && sourceElements.length === 2 &&
+    sourceElements[0] === int32 && sourceElements[1] === string, true, "borrowed source metadata remains untouched");
+});
+
 function checkedBinding(sourceText) {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/project",
     files: { "/project/index.ts": sourceText },
