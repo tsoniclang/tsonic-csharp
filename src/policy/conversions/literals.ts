@@ -1,5 +1,7 @@
+import type { SourcePrimitiveKind } from "@tsonic/tsts";
 import type { SourceLiteralValue } from "@tsonic/target-api/source";
 import type { CsharpExactLiteralRecipe, CsharpExactLiteralSelection } from "../../target-model/conversions/exact-literals.js";
+import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import {
   csharpBigIntFitsSourcePrimitive,
   csharpNumericLiteralFitsSourcePrimitive,
@@ -141,6 +143,50 @@ export function selectCsharpExactLiteralConversion(
     default:
       return classifiedLiteralRepresentation(literal);
   }
+}
+
+export function selectCsharpExplicitNumericConstantConversion(
+  constant: number | bigint,
+  target: TargetTypeRef,
+): CsharpConversionSelection | undefined {
+  const targetType = getCsharpNullableElementTargetType(target) ?? target;
+  if (targetType.kind !== "source-primitive" || csharpExplicitNumericConstantFits(constant, targetType.name) !== false) {
+    return undefined;
+  }
+  return Object.freeze({ kind: "rejected", reason: `Source numeric literal is outside the '${targetType.name}' range.` });
+}
+
+function csharpExplicitNumericConstantFits(constant: number | bigint, target: SourcePrimitiveKind): boolean | undefined {
+  switch (target) {
+    case "int8":
+    case "uint8":
+    case "int16":
+    case "uint16":
+    case "int32":
+    case "uint32":
+    case "int64":
+    case "uint64":
+    case "native-int":
+    case "native-uint": {
+      const value = truncatedConstant(constant);
+      return value !== undefined && csharpBigIntFitsSourcePrimitive(value, target);
+    }
+    case "char": {
+      const value = truncatedConstant(constant);
+      return value !== undefined && value >= 0n && value <= 65535n;
+    }
+    case "decimal":
+      return typeof constant === "number"
+        ? Number.isFinite(constant) && csharpFiniteNumberFitsFloatingTarget(constant, "decimal")
+        : undefined;
+    default:
+      return undefined;
+  }
+}
+
+function truncatedConstant(constant: number | bigint): bigint | undefined {
+  if (typeof constant === "bigint") return constant;
+  return Number.isFinite(constant) ? BigInt(Math.trunc(constant)) : undefined;
 }
 
 const float32OverflowThreshold = (1n << 128n) - (1n << 103n);
