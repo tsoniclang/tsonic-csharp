@@ -451,7 +451,7 @@ function resolveDefinitionHeritage(
       };
     }
     const targetKind = targetDeclarationKind(host, catalog, target);
-    const kindError = heritageKindError(definition, edge.kind, targetKind);
+    const kindError = heritageKindError(definition, edge.kind, targetKind, target);
     if (kindError !== undefined) {
       return {
         kind: "unresolved",
@@ -493,6 +493,7 @@ function heritageKindError(
   definition: CsharpProjectTypeDefinition,
   relation: "extends" | "implements",
   targetKind: CsharpProjectTypeDefinition["kind"] | undefined,
+  target: TargetTypeRef,
 ): string | undefined {
   if (definition.kind === "enum" || definition.kind === "struct") {
     return `Project ${definition.kind} '${definition.sourceName}' cannot declare C# heritage.`;
@@ -501,9 +502,9 @@ function heritageKindError(
     if (relation === "implements") {
       return `Project interface '${definition.sourceName}' cannot implement a C# type.`;
     }
-    return targetKind !== undefined && targetKind !== "interface"
-      ? `Project interface '${definition.sourceName}' cannot inherit the selected non-interface C# type.`
-      : undefined;
+    return targetKind === "interface" || targetKind === undefined && isCsharpStructuralInterfaceTarget(target)
+      ? undefined
+      : `Project interface '${definition.sourceName}' cannot inherit the non-interface C# type '${targetTypeRefKey(target)}'.`;
   }
   if (relation === "extends") {
     return targetKind !== undefined && targetKind !== "class"
@@ -513,6 +514,13 @@ function heritageKindError(
   return targetKind !== undefined && targetKind !== "interface"
     ? `Project class '${definition.sourceName}' cannot implement the selected non-interface C# type.`
     : undefined;
+}
+
+function isCsharpStructuralInterfaceTarget(type: TargetTypeRef): boolean {
+  return type.kind === "target-named" && (
+    (type as CsharpTargetNamedTypeRef).csharpStructuralContract === true ||
+    (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface"
+  );
 }
 
 function targetDeclarationKind(
