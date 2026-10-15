@@ -1,6 +1,7 @@
 import type { TargetTypeRef } from "../types/model.js";
 import type { CsharpReturnContextIndex } from "./return-contexts.js";
 import type { Node } from "@tsonic/tsts";
+import type { CsharpExpectedNativeUseInput } from "./native-demand.js";
 
 export interface CsharpExpectedTypeIssue {
   readonly node: Node;
@@ -8,7 +9,7 @@ export interface CsharpExpectedTypeIssue {
   readonly message: string;
 }
 
-export interface CsharpExpectedTypeClassifications {
+export interface CsharpExpectedTypeClassifications extends CsharpExpectedNativeUseInput {
   readonly issues: readonly CsharpExpectedTypeIssue[];
   readonly targetTypes: readonly TargetTypeRef[];
   readonly expectedType: { readonly get: (expression: Node) => readonly TargetTypeRef[] };
