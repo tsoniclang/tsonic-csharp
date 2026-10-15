@@ -3,6 +3,8 @@ import { classifyCsharpUnionCall } from "./union-calls.js";
 import { classifyCsharpSourceCallee } from "../../policy/types/callables/source-callees.js";
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 import { classifyCsharpClassPropertyStorage } from "./class-property-storage.js";
+import { classifyTypeofComparison } from "./typeof-comparisons.js";
+import { classifyMethodTypeArgumentProjections } from "./method-type-arguments.js";
 import type { CsharpAwaitCompletion } from "../../target-model/types/await-completions.js";
 import { selectCsharpAwaitCompletion } from "../../policy/operations/control-flow/await-completions.js";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
@@ -28,7 +30,6 @@ import type {
 } from "@tsonic/target-api/analysis";
 import {
   AsForInOrOfStatement,
-  selectSourceNativeValueGuard,
 } from "@tsonic/target-api/source";
 import type {
   Node,
@@ -50,11 +51,9 @@ import {
   selectCsharpTargetElement,
   selectCsharpTargetProperty,
 } from "../../policy/operations/members/index.js";
-import type { CsharpSelectedTargetCall } from "../../target-model/records/members.js";
 import {
   selectCsharpBinaryOperation,
   selectCsharpDestructuringAssignmentOperation,
-  selectCsharpTypeofComparison,
   selectCsharpIteration,
   selectCsharpNativePointerOperation,
   selectCsharpResourceManagement,
@@ -67,9 +66,6 @@ import {
   selectCsharpJsStringConversion,
   selectCsharpRegularExpressionLiteral,
 } from "../../policy/operations/index.js";
-import type {
-  CsharpTypeofRuntimeKind,
-} from "../../policy/types/index.js";
 import {
   isCsharpThrowableType,
 } from "../../policy/types/index.js";
@@ -767,46 +763,6 @@ function visit(
   }
 }
 
-function classifyTypeofComparison(
-  policy: CsharpPolicyContext,
-  comparison: Node,
-  sourceFile: SourceFile,
-): CsharpBinaryClassification["typeofComparison"] {
-  const guard = selectSourceNativeValueGuard(policy, comparison);
-  if (guard?.kind !== "typeof") {
-    return undefined;
-  }
-  const runtimeKind = runtimeKindLiteral(guard.value);
-  if (runtimeKind === undefined) {
-    return undefined;
-  }
-  return Object.freeze({
-    operand: guard.sourceOperand,
-    runtimeKind,
-    selection: selectCsharpTypeofComparison(
-      policy.types.resolveNode(guard.sourceOperand, sourceFile),
-      runtimeKind,
-      guard.negated,
-      policy.typeDefinitions,
-    ),
-  });
-}
-
-function runtimeKindLiteral(
-  value: string,
-): CsharpTypeofRuntimeKind | undefined {
-  return value === "string" ||
-      value === "number" ||
-      value === "boolean" ||
-      value === "bigint" ||
-      value === "symbol" ||
-      value === "object" ||
-      value === "function" ||
-      value === "undefined"
-    ? value
-    : undefined;
-}
-
 function operationResultType(
   facts: ReturnType<ReturnType<typeof createTargetClassificationBuilder>["seal"]>,
   node: Node,
@@ -891,34 +847,4 @@ function setClassification<Value>(
   if (result.kind === "conflict") {
     throw new Error(`Conflicting target classification '${key.id}'.`);
   }
-}
-
-function classifyMethodTypeArgumentProjections(
-  policy: CsharpPolicyContext,
-  selection: CsharpSelectedTargetCall,
-  contextNode: Node,
-  sourceFile: SourceFile,
-): NonNullable<
-  CsharpCallClassification["methodTypeArgumentProjections"]
-> {
-  const projections = selection.targetMember
-    .csharpMethodTypeArgumentProjections ?? [];
-  return Object.freeze(projections.flatMap((projection) => {
-    const argument = selection.targetMethodTypeArguments[
-      projection.targetTypeParameterIndex
-    ];
-    if (argument?.kind !== "selected-source") {
-      return [];
-    }
-    return [Object.freeze({
-      targetTypeParameterIndex: projection.targetTypeParameterIndex,
-      projection: policy.objectShapes.resolveProjectConstructibleSelectedType(
-        argument.targetType,
-        argument.explicitTypeNode,
-        argument.selectedType,
-        contextNode,
-        sourceFile,
-      ),
-    })];
-  }));
 }
