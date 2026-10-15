@@ -64,13 +64,17 @@ for (const [name, body, count] of acceptedForms) {
     const ast = compiled.result.program.source.ast;
     const calls = [];
     const visit = (node) => {
-      if (ast.is.IsCallExpression(node)) calls.push(records.selectedCall.get(node));
+      if (ast.is.IsCallExpression(node)) calls.push([node, records.selectedCall.get(node)]);
       ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
     };
     for (const sourceFile of compiled.result.program.sourceFiles) visit(sourceFile);
-    const keepAlive = calls.filter((call) => call?.form.kind === "keep-alive");
+    const keepAlive = calls.filter(([, call]) => call?.form.kind === "keep-alive");
     assert.equal(keepAlive.length, count);
-    for (const call of keepAlive) assert.equal(call.form.sourceFlow.kind, "keep-alive");
+    for (const [node, call] of keepAlive) {
+      assert.equal(call.form.sourceFlow.kind, "keep-alive");
+      assert.equal(Object.isFrozen(call.form) && Object.isFrozen(call.form.sourceFlow), true, "the keep-alive form and its descriptor are frozen");
+      assert.equal(call.form.sourceFlow.valueExpression === ast.arguments(node)[0], true, "the descriptor borrows the call's own argument node");
+    }
   });
 }
 

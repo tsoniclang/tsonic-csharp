@@ -15,6 +15,11 @@ import type {
 } from "../../target-model/records/operations.js";
 import type { CsharpSafetyApplicationFactIndex, CsharpSafetyOperation } from "../../target-model/records/safety.js";
 import type { CsharpSourceFlowCallSelection } from "../../target-model/records/source-flow.js";
+import type { CsharpJsStringConversionSelection } from "../../target-model/records/explicit-js-string.js";
+import type { CsharpJsArrayMutationSelection } from "../../target-model/records/js-array-mutations.js";
+import type { CsharpMemoryBindingSelection } from "../../target-model/records/memory-bindings.js";
+import type { CsharpNativePointerOperationSelection } from "../../target-model/records/native-pointers.js";
+import type { CsharpTypedLocationOperationSelection } from "../../target-model/records/typed-locations.js";
 import type { CsharpClosedTypeTest } from "../../target-model/operations/type-tests.js";
 import {
   csharpDestructuringAssignmentSyntax,
@@ -59,11 +64,11 @@ export function csharpErasedExpressionStatement(
 }
 
 export function selectCsharpNativeHandler(
-  memoryBinding: unknown,
+  memoryBinding: CsharpMemoryBindingSelection | undefined,
   safety: CsharpSafetyOperation | undefined,
-  jsStringConversion: { readonly kind: string } | undefined,
-  nativePointer: { readonly kind: string } | undefined,
-  typedLocation: { readonly kind: string } | undefined,
+  jsStringConversion: CsharpJsStringConversionSelection | undefined,
+  nativePointer: CsharpNativePointerOperationSelection | undefined,
+  typedLocation: CsharpTypedLocationOperationSelection | undefined,
 ): CsharpNativeHandler | undefined {
   if (memoryBinding !== undefined) return "memory-binding";
   if (safety !== undefined) return "explicit-safety";
@@ -78,7 +83,8 @@ export function selectCsharpCallForm(
   jsValue: CsharpJsValueOperationSelection,
 ): CsharpCallForm {
   return Object.freeze(typeTest !== undefined ? { kind: "type-test" as const, typeTest }
-    : sourceFlow.kind === "keep-alive" ? { kind: "keep-alive" as const, sourceFlow }
+    : sourceFlow.kind === "keep-alive"
+    ? { kind: "keep-alive" as const, sourceFlow: Object.freeze({ kind: "keep-alive" as const, valueExpression: sourceFlow.valueExpression }) }
     : jsValue.kind !== "not-js-value" ? { kind: "js-value" as const, operation: jsValue }
     : { kind: "target" as const });
 }
@@ -86,7 +92,7 @@ export function selectCsharpCallForm(
 export function selectCsharpOperatorForm(
   ast: CsharpPolicyContext["ast"],
   node: Node,
-  mutation: { readonly kind: string } | undefined,
+  mutation: CsharpJsArrayMutationSelection | undefined,
   binary: CsharpBinaryClassification | undefined,
   unary: CsharpUnaryClassification | undefined,
   property: (subject: Node) => CsharpPropertyClassification | undefined,
