@@ -1,5 +1,5 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
-import { sourceIntegerConstantValue, sourceIntegerLiteralValue } from "@tsonic/target-api/source";
+import { createSourceIntegerConstantReader, sourceIntegerLiteralValue } from "@tsonic/target-api/source";
 import type {
   CsharpSourceLiteralIndex,
   CsharpSourceLiteralValue,
@@ -12,6 +12,7 @@ export function analyzeCsharpSourceLiteralValues(
   sourceFiles: readonly SourceFile[],
 ): CsharpSourceLiteralIndex {
   const values = new WeakMap<Node, CsharpSourceLiteralValue>();
+  const integerConstantOf = createSourceIntegerConstantReader(ast, (node) => values.get(node)?.integer);
   const pending: { readonly node: Node; readonly finish: boolean }[] = [];
   for (const sourceFile of sourceFiles) {
     pending.push({ node: sourceFile, finish: false });
@@ -58,12 +59,12 @@ export function analyzeCsharpSourceLiteralValues(
     if (ast.is.IsParenthesizedExpression(node)) {
       const inner = ast.as.AsParenthesizedExpression(node)?.Expression;
       const enclosed = inner === undefined ? undefined : values.get(inner);
-      const integerConstant = sourceIntegerConstantValue(ast, node);
+      const integerConstant = integerConstantOf(node);
       return enclosed?.number === undefined && enclosed?.integer === undefined && integerConstant === undefined ? undefined
         : scalar("parenthesized", { number: enclosed?.number, integer: enclosed?.integer, integerConstant });
     }
     if (ast.is.IsBinaryExpression(node)) {
-      const integerConstant = sourceIntegerConstantValue(ast, node);
+      const integerConstant = integerConstantOf(node);
       return integerConstant === undefined ? undefined : scalar("binary", { integerConstant });
     }
     if (ast.is.IsArrayLiteralExpression(node)) {
