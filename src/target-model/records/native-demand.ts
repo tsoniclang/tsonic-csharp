@@ -1,6 +1,8 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
+import { targetUseSiteRef, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import type { CsharpConversionMode } from "../conversions/selection.js";
+import { csharpTargetRepresentationContractId } from "../identities/identities.js";
+import { targetTypeRefKey } from "../types/equality.js";
 import type { TargetTypeRef } from "../types/model.js";
 import type { CsharpNativeLocationSelection } from "./native-locations.js";
 import type { CsharpNativeHandler } from "./operations.js";
@@ -105,4 +107,41 @@ export interface CsharpExpectedNativeUse {
 
 export interface CsharpExpectedNativeUseInput {
   readonly expectedUse: { readonly get: (site: TargetUseSiteRef) => CsharpExpectedNativeUse | undefined };
+}
+
+export function csharpNativeUseSite(
+  owner: Node,
+  slot: CsharpNativeUseSlot,
+  context: CsharpNativeUseContext = {},
+): TargetUseSiteRef {
+  return targetUseSiteRef(
+    owner,
+    csharpNativeUseRole(slot),
+    csharpTargetRepresentationContractId,
+    context.target === undefined ? undefined : targetTypeRefKey(context.target),
+  );
+}
+
+function csharpNativeUseRole(slot: CsharpNativeUseSlot): string {
+  switch (slot.kind) {
+    case "operand":
+      return `operand:${slot.position}`;
+    case "branch":
+      return `branch:${slot.branch}`;
+    case "argument":
+      return `argument:source=${slot.sourceIndex}:effective=${slot.effectiveIndex}` +
+        (slot.parameterIndex === undefined ? "" : `:parameter=${slot.parameterIndex}`);
+    case "base-argument":
+      return `base-argument:source=${slot.sourceIndex}`;
+    case "element":
+    case "member":
+    case "span":
+    case "case":
+    case "attribute-invocation":
+      return `${slot.kind}:${slot.index}`;
+    case "intrinsic-operand":
+      return `intrinsic-operand:${slot.operand}` + (slot.index === undefined ? "" : `:${slot.index}`);
+    default:
+      return slot.kind;
+  }
 }

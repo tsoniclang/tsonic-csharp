@@ -4,10 +4,11 @@ import {
   createTargetUseClassificationBuilder,
   type TargetUseSiteRef,
 } from "@tsonic/target-api/analysis";
-import type {
-  CsharpNativeCompletion,
-  CsharpNativeUse,
-  CsharpNativeUseClassifications,
+import {
+  csharpNativeUseSite,
+  type CsharpNativeCompletion,
+  type CsharpNativeUse,
+  type CsharpNativeUseClassifications,
 } from "../../../target-model/records/native-demand.js";
 import { csharpNativeCarrierCompletion, csharpNativeOrderedCompletion } from "./completion.js";
 import type { CsharpNativeDemandAnalysisInput } from "./model.js";
@@ -21,7 +22,6 @@ import {
   isCsharpNativeExpression,
   type CsharpNativeChildUse,
 } from "./operations.js";
-import { csharpNativeUseSite } from "./use-sites.js";
 
 export interface CsharpNativeUseEntry {
   readonly site: TargetUseSiteRef;

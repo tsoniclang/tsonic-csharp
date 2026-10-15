@@ -3,7 +3,7 @@ import test from "node:test";
 import { targetUseSiteIdentity } from "@tsonic/target-api/analysis";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpNativeDemand, collectCsharpNativeUses } from "../../../dist/analysis/control-flow/native-demand/analyze.js";
-import { csharpNativeUseSite } from "../../../dist/analysis/control-flow/native-demand/use-sites.js";
+import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 

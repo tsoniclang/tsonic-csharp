@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { targetUseSiteIdentity } from "@tsonic/target-api/analysis";
-import { csharpNativeUseSite } from "../../../dist/analysis/control-flow/native-demand/use-sites.js";
+import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
 import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 
