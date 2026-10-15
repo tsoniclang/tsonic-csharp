@@ -56,8 +56,11 @@ export function csharpLiteralIsRepresentableAs(
     }
     case "float16":
     case "float32":
-    case "float64":
     case "decimal": {
+      return value?.number !== undefined && Number.isFinite(value.number) &&
+        csharpFiniteNumberFitsFloatingTarget(value.number, target.name);
+    }
+    case "float64": {
       return value?.number !== undefined && Number.isFinite(value.number);
     }
     case "int64":
@@ -115,6 +118,9 @@ export function selectCsharpExactLiteralConversion(
       if (value === undefined || !Number.isFinite(value)) {
         return rejected("C# numeric literal conversion requires an exact finite source value.");
       }
+      if (!csharpFiniteNumberFitsFloatingTarget(value, targetType.name)) {
+        return rejected(`Source numeric literal is outside the '${targetType.name}' range.`);
+      }
       return resolved({ kind: "float", target: targetType, precision: targetType.name, value });
     }
     case "int64":
@@ -135,6 +141,32 @@ export function selectCsharpExactLiteralConversion(
     default:
       return classifiedLiteralRepresentation(literal);
   }
+}
+
+const float32OverflowThreshold = (1n << 128n) - (1n << 103n);
+const decimalOverflowThresholdTwice = (((1n << 96n) - 1n) << 1n) + 1n;
+
+function csharpFiniteNumberFitsFloatingTarget(value: number, target: "float16" | "float32" | "decimal"): boolean {
+  const magnitude = Math.abs(value);
+  switch (target) {
+    case "float16":
+      return magnitude < 65520;
+    case "float32":
+      return magnitude < 3.4e38 || magnitude <= 3.5e38 && printedMagnitudeIsBelow(magnitude, float32OverflowThreshold, 1n);
+    case "decimal":
+      return magnitude < 7.9e28 || magnitude <= 8e28 && printedMagnitudeIsBelow(magnitude, decimalOverflowThresholdTwice, 2n);
+  }
+}
+
+function printedMagnitudeIsBelow(magnitude: number, limit: bigint, scale: bigint): boolean {
+  const parts = /^([0-9]+)(?:\.([0-9]+))?(?:e\+([0-9]+))?$/u.exec(String(magnitude));
+  if (parts === null) {
+    return false;
+  }
+  const fraction = parts[2] ?? "";
+  const exponent = Number(parts[3] ?? "0") - fraction.length;
+  const digits = BigInt(`${parts[1]}${fraction}`) * scale;
+  return exponent >= 0 ? digits * 10n ** BigInt(exponent) < limit : digits < limit * 10n ** BigInt(-exponent);
 }
 
 function classifiedLiteralRepresentation(literal: SourceLiteralValue | undefined): CsharpExactLiteralSelection {
