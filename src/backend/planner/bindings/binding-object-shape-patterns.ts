@@ -86,14 +86,14 @@ function planObjectShapeBindingElement(
     name: member.targetName,
   };
   if (element.Initializer === undefined) {
-    return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, member.type);
+    return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
   }
   const defaultedProjection = planObjectShapeDefaultProjection(projected, member, element.Initializer, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
   if (defaultedProjection === undefined) {
     return [];
   }
   return consumeCsharpPlannedValue(defaultedProjection.value, expression =>
-    planBindingNameFromProjection(name, expression, defaultedProjection.type, elementNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier));
+    planBindingNameFromProjection(name, expression, defaultedProjection.type, elementNode, sourceFile, input, diagnostics, state));
 }
 
 function planObjectShapeRestBindingElement(
@@ -152,5 +152,5 @@ function planObjectShapeRestBindingElement(
     kind: "ObjectCreationExpression",
     type: restType,
     assignments: assignments as readonly CsharpObjectInitializerAssignment[],
-  }, restType, elementNode, sourceFile, input, diagnostics, state, restShape.targetType);
+  }, restType, elementNode, sourceFile, input, diagnostics, state);
 }

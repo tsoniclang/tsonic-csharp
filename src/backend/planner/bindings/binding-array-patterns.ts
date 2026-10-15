@@ -174,10 +174,9 @@ function planArrayBindingElement(
           input,
           diagnostics,
           state,
-          defaultedElementCarrier,
         ));
       }
-      return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
+      return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
     }
     if (planDefaultExpressionWithExpectedType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Array destructuring defaults require the active expression planner before C# emission."));
@@ -188,9 +187,9 @@ function planArrayBindingElement(
       return [];
     }
     return consumeCsharpPlannedValue(defaultedProjection.value, expression =>
-      planBindingNameFromProjection(name, expression, defaultedProjection.type, elementNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier));
+      planBindingNameFromProjection(name, expression, defaultedProjection.type, elementNode, sourceFile, input, diagnostics, state));
   }
-  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
+  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
 }
 
 function planArrayBindingProjection(
@@ -241,7 +240,7 @@ function planArrayRestBindingElement(
     return [];
   }
   const projected = planArrayRestProjection(sourceExpression, index, sourceCarrier);
-  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, projection.restCarrier);
+  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
 }
 
 function planTupleRestBindingElement(
@@ -277,7 +276,7 @@ function planTupleRestBindingElement(
       name: `Item${index + offset + 1}`,
     }));
   const projected = csharpTupleExpression(projectedElements, projectedType);
-  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, restCarrier);
+  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
 }
 
 function planArrayRestProjection(
