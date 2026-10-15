@@ -1,5 +1,5 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
-import type { TargetPlanningSourceNavigation } from "@tsonic/target-api/analysis";
+import type { TargetPlanningSourceNavigation, TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import type { CsharpAttributeApplicationIndex } from "../../../target-model/records/attributes.js";
 import type { CsharpClassFactoryIndex } from "../../../target-model/records/class-factories.js";
 import type { CsharpClassInitializationIndex } from "../../../target-model/records/class-initialization.js";
@@ -7,6 +7,7 @@ import type { CsharpValueReadClassifications } from "../../../target-model/recor
 import type {
   CsharpExpectedNativeUseInput,
   CsharpNativeParticipationInput,
+  CsharpNativeUseClassifications,
 } from "../../../target-model/records/native-demand.js";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations.js";
 import type { CsharpProjectTypeClassifications } from "../../../target-model/records/project-types.js";
@@ -22,7 +23,8 @@ export interface CsharpNativeDemandAnalysisInput
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];
   readonly navigation: Pick<TargetPlanningSourceNavigation, "isProjectDeclaration" | "referenceFor" | "sourceReferenceFor">;
-  readonly evidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata" | "sourceArgument" | "sourceDefaultValue" | "sourceStruct">;
+  readonly evidence: Pick<CsharpSourceEvidenceIndex,
+    "compileTimeMetadata" | "sourceArgument" | "sourceDefaultValue" | "sourceField" | "sourceStruct">;
   readonly operations: Pick<CsharpTargetOperationClassifications,
     | "binaryOperation"
     | "elementDeletion"
@@ -48,4 +50,16 @@ export interface CsharpNativeDemandAnalysisInput
   readonly classInitialization: Pick<CsharpClassInitializationIndex, "classInitializationRegion">;
   readonly projectTypes: Pick<CsharpProjectTypeClassifications, "definitionContainingDeclaration">;
   readonly safetyApplications: Pick<CsharpSafetyApplicationFactIndex, "safetyOperation">;
+}
+
+export type CsharpNativeUnadmittedReason = "argument-grouping-refused" | "argument-type-unresolved" | "completion-unresolved";
+
+export interface CsharpNativeUnadmittedUse {
+  readonly site: TargetUseSiteRef;
+  readonly expression: Node;
+  readonly reason: CsharpNativeUnadmittedReason;
+}
+
+export interface CsharpNativeDemandAnalysis extends CsharpNativeUseClassifications {
+  readonly unadmitted: readonly CsharpNativeUnadmittedUse[];
 }

@@ -44,7 +44,7 @@ export function translateSourceOwnedCall(
     return receiver === undefined || arguments_ === undefined ? undefined
       : composeCsharpPlannedCall(node, sourceFile, input, diagnostics, receiver, arguments_, (value, args) =>
         planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
-          planCsharpUnionDispatcherCall(node, source, classification, value!, args, input, diagnostics), union.resultType));
+          planCsharpUnionDispatcherCall(node, classification, value!, args, input, diagnostics), union.resultType));
   }
   const selected = classification.sourceCall;
   if (selected === undefined || selected.kind === "rejected" || selected.kind === "union-method") {
@@ -124,7 +124,7 @@ export function translateSourceOwnedArguments(
 ): CsharpPlannedCallArguments | undefined {
   const exactTargetArity = classification.sourceMethodValue === undefined && (classification.sourceCall?.kind === "value" || sourceCalleeRequiresExactTargetArity(source, input));
   const nativeParameters = classification.sourceNativeParameters;
-  const groups = csharpSourceArgumentGroups(source, classification, exactTargetArity);
+  const groups = csharpSourceArgumentGroups(classification, exactTargetArity);
   if (nativeParameters === undefined || groups === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Source-owned arguments have no exact native parameter grouping."));
     return undefined;

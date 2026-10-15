@@ -1,11 +1,12 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import { IsTypeSyntaxNode, sourceDeclarationIsModuleScoped, sourceNodesEqual } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { IsTypeSyntaxNode, sourceClassFieldIsTypeOnly, sourceDeclarationIsModuleScoped, sourceNodesEqual } from "@tsonic/target-api/source";
 import { csharpConstructorBaseCall } from "../../callables/constructor-entry.js";
 import {
   csharpNativePositionalArgumentSlot,
   csharpSelectedTargetArgumentBindings,
   csharpSourceOwnedArgumentBindings,
-  type CsharpNativeArgumentBinding,
+  type CsharpNativeArgumentBindings,
   type CsharpNativeUseSlot,
 } from "../../../target-model/records/native-demand.js";
 import type { ResolvedSourceCallInfo } from "../../../target-model/records/members.js";
@@ -49,17 +50,50 @@ function positionalArgumentUses(owner: Node, nodes: readonly Node[]): readonly C
   return nodes.flatMap((expression, index) => use(owner, expression, csharpNativePositionalArgumentSlot(index)));
 }
 
+export type CsharpNativeChildRefusal = "argument-grouping-refused" | "argument-type-unresolved";
+
+export interface CsharpNativeChildUses {
+  readonly runtime: readonly CsharpNativeChildUse[];
+  readonly planning: readonly CsharpNativeChildUse[];
+  readonly refusal?: CsharpNativeChildRefusal;
+}
+
+interface BoundArguments {
+  readonly uses: readonly CsharpNativeChildUse[];
+  readonly refusal?: CsharpNativeChildRefusal;
+}
+
+function same(uses: readonly CsharpNativeChildUse[]): CsharpNativeChildUses {
+  return Object.freeze({ runtime: uses, planning: uses });
+}
+
+function argumentsFirst(
+  head: readonly CsharpNativeChildUse[],
+  bound: BoundArguments,
+  planningHead: readonly CsharpNativeChildUse[] = head,
+): CsharpNativeChildUses {
+  return bound.refusal === undefined
+    ? Object.freeze({ runtime: [...head, ...bound.uses], planning: [...bound.uses, ...planningHead] })
+    : Object.freeze({ runtime: [], planning: [], refusal: bound.refusal });
+}
+
 function boundArgumentUses(
   input: CsharpNativeDemandAnalysisInput,
   owner: Node,
   sourceArguments: ResolvedSourceCallInfo["sourceArguments"],
-  bindings: readonly CsharpNativeArgumentBinding[],
-): readonly CsharpNativeChildUse[] {
-  return bindings.flatMap(binding => {
+  bindings: CsharpNativeArgumentBindings,
+): BoundArguments {
+  if (bindings.kind === "inconsistent") {
+    failTargetAnalysisInvariant("tsonic-csharp",
+      `Selected target sequence argument ${bindings.sourceArgumentIndex} disagrees with its finalized parameter binding.`, owner);
+  }
+  if (bindings.kind === "refused") return { uses: [], refusal: "argument-grouping-refused" };
+  if (bindings.kind === "unresolved") return { uses: [], refusal: "argument-type-unresolved" };
+  return { uses: bindings.bindings.flatMap(binding => {
     const argument = sourceArguments[binding.sourceArgumentIndex]?.expression;
     const expression = binding.sequence && argument !== undefined ? input.ast.as.AsSpreadElement(argument)?.Expression : argument;
     return use(owner, expression, binding.slot);
-  });
+  }) };
 }
 
 function intrinsicUses(owner: Node, nodes: readonly (Node | undefined)[], operand: "value" | "argument"): readonly CsharpNativeChildUse[] {
@@ -104,35 +138,44 @@ function receiverUses(
 export function csharpNativeExpressionChildUses(
   input: CsharpNativeDemandAnalysisInput,
   node: Node,
-): readonly CsharpNativeChildUse[] {
-  const { ast, operations, evidence, valueReads } = input;
-  if (evidence.sourceDefaultValue.get(node) !== undefined) return [];
+): CsharpNativeChildUses {
+  const { ast, evidence } = input;
+  if (evidence.sourceDefaultValue.get(node) !== undefined) return same([]);
   const passing = evidence.sourceArgument.get(node);
-  if (passing === undefined || passing.kind === "rejected") return [];
+  if (passing === undefined || passing.kind === "rejected") return same([]);
   if (!sourceNodesEqual(ast, passing.argument.storageExpression, node)) {
-    return use(node, passing.argument.storageExpression, { kind: "operand", position: "only" });
+    return same(use(node, passing.argument.storageExpression, { kind: "operand", position: "only" }));
   }
   if (ast.is.IsCallExpression(node)) return callUses(input, node);
-  if (ast.is.IsNewExpression(node)) {
-    const construction = operations.selectedConstruction.get(node);
-    if (construction === undefined) return [];
-    if (construction.jsValue.kind === "resolved") {
-      return [...use(node, ast.as.AsNewExpression(node)?.Expression, { kind: "callee" }), ...positionalArgumentUses(node, arguments_(ast, node))];
-    }
-    const target = construction.target;
-    if (target?.kind === "resolved") {
-      return boundArgumentUses(input, node, target.source.sourceArguments, csharpSelectedTargetArgumentBindings(target.call));
-    }
-    if (target?.kind !== "source-owned") return [];
-    const sourceArguments = boundArgumentUses(input, node, target.source.sourceArguments,
-      csharpSourceOwnedArgumentBindings(target.source, construction));
-    const callee = target.source.sourceCallee.expression;
-    const calleeType = valueReads.valueRead.get(callee)?.value;
-    const reference = input.navigation.sourceReferenceFor(callee);
-    const calleeValue = getCsharpClassFactory(calleeType) !== undefined || getCsharpDelegateSignature(calleeType) !== undefined &&
-      (reference === undefined || !ast.is.IsClassDeclaration(reference.declaration));
-    return calleeValue ? [...sourceArguments, ...use(node, callee, { kind: "callee" })] : sourceArguments;
+  if (ast.is.IsNewExpression(node)) return constructionUses(input, node);
+  if (ast.is.IsClassExpression(node)) return same([]);
+  return same(valueChildUses(input, node));
+}
+
+function constructionUses(input: CsharpNativeDemandAnalysisInput, node: Node): CsharpNativeChildUses {
+  const { ast, operations, valueReads } = input;
+  const construction = operations.selectedConstruction.get(node);
+  if (construction === undefined) return same([]);
+  if (construction.jsValue.kind === "resolved") {
+    return same([...use(node, ast.as.AsNewExpression(node)?.Expression, { kind: "callee" }), ...positionalArgumentUses(node, arguments_(ast, node))]);
   }
+  const target = construction.target;
+  if (target?.kind === "resolved") {
+    return argumentsFirst([], boundArgumentUses(input, node, target.source.sourceArguments, csharpSelectedTargetArgumentBindings(target.call)));
+  }
+  if (target?.kind !== "source-owned") return same([]);
+  const sourceArguments = boundArgumentUses(input, node, target.source.sourceArguments,
+    csharpSourceOwnedArgumentBindings(construction.sourceArgumentGrouping));
+  const callee = target.source.sourceCallee.expression;
+  const calleeType = valueReads.valueRead.get(callee)?.value;
+  const reference = input.navigation.sourceReferenceFor(callee);
+  const calleeValue = getCsharpClassFactory(calleeType) !== undefined || getCsharpDelegateSignature(calleeType) !== undefined &&
+    (reference === undefined || !ast.is.IsClassDeclaration(reference.declaration));
+  return argumentsFirst(calleeValue ? use(node, callee, { kind: "callee" }) : [], sourceArguments);
+}
+
+function valueChildUses(input: CsharpNativeDemandAnalysisInput, node: Node): readonly CsharpNativeChildUse[] {
+  const { ast, operations } = input;
   if (ast.is.IsPropertyAccessExpression(node)) {
     if (moduleStaticMemberReference(input, node)) return [];
     const selection = operations.selectedProperty.get(node)?.selection;
@@ -199,8 +242,13 @@ export function csharpNativeExpressionChildUses(
   return children.flatMap(child => use(node, child, { kind: "operand", position: "only" }));
 }
 
-function callUses(input: CsharpNativeDemandAnalysisInput, node: Node): readonly CsharpNativeChildUse[] {
-  const { ast, operations, safetyApplications } = input;
+function callUses(input: CsharpNativeDemandAnalysisInput, node: Node): CsharpNativeChildUses {
+  const intrinsic = intrinsicCallUses(input, node);
+  return intrinsic === undefined ? selectedCallUses(input, node) : same(intrinsic);
+}
+
+function intrinsicCallUses(input: CsharpNativeDemandAnalysisInput, node: Node): readonly CsharpNativeChildUse[] | undefined {
+  const { operations, safetyApplications } = input;
   switch (operations.nativeHandler.get(node)) {
     case "memory-binding": {
       const binding = operations.memoryBinding.get(node);
@@ -221,51 +269,58 @@ function callUses(input: CsharpNativeDemandAnalysisInput, node: Node): readonly 
     case "typed-location":
       return typedLocationUses(input, node);
     case undefined:
-      break;
+      return undefined;
   }
+}
+
+function selectedCallUses(input: CsharpNativeDemandAnalysisInput, node: Node): CsharpNativeChildUses {
+  const { ast, operations } = input;
   const classification = operations.selectedCall.get(node);
-  if (classification === undefined) return [];
+  if (classification === undefined) return same([]);
   const form = classification.form;
   const source = classification.source;
   switch (form.kind) {
     case "type-test":
-      return use(node, source?.sourceArguments[0]?.expression, csharpNativePositionalArgumentSlot(0));
+      return same(use(node, source?.sourceArguments[0]?.expression, csharpNativePositionalArgumentSlot(0)));
     case "keep-alive":
-      return use(node, form.sourceFlow.valueExpression, csharpNativePositionalArgumentSlot(0));
+      return same(use(node, form.sourceFlow.valueExpression, csharpNativePositionalArgumentSlot(0)));
     case "js-value": {
-      if (form.operation.kind !== "resolved") return [];
+      if (form.operation.kind !== "resolved") return same([]);
       const access = source?.sourceCalleeAccess;
       const member = access?.kind === "property" || access?.kind === "element" ? access : undefined;
       const receiver = member?.receiver.expression ?? source?.sourceCallee.expression ?? ast.as.AsCallExpression(node)?.Expression;
-      return [
+      return same([
         ...use(node, receiver, { kind: member === undefined ? "callee" : "receiver" }),
         ...(member?.kind === "element" ? use(node, member.argument.expression, { kind: "key" }) : []),
         ...positionalArgumentUses(node, arguments_(ast, node)),
-      ];
+      ]);
     }
     case "target":
       break;
   }
   const target = classification.target;
   if (target?.kind === "resolved") {
-    const receiver = target.call.receiver.kind === "instance" ? receiverUses(input, node, target.source.sourceReceiver)
-      : target.call.receiver.kind === "target-parameter" ? use(node, target.source.sourceReceiver?.expression, { kind: "receiver" }) : [];
-    return [...receiver, ...boundArgumentUses(input, node, target.source.sourceArguments, csharpSelectedTargetArgumentBindings(target.call))];
+    const bound = boundArgumentUses(input, node, target.source.sourceArguments, csharpSelectedTargetArgumentBindings(target.call));
+    if (target.call.receiver.kind === "target-parameter") {
+      return same([...use(node, target.source.sourceReceiver?.expression, { kind: "receiver" }), ...bound.uses]);
+    }
+    return argumentsFirst(target.call.receiver.kind === "instance" ? receiverUses(input, node, target.source.sourceReceiver) : [], bound);
   }
-  if (target?.kind !== "source-owned" || source === undefined) return [];
-  const sourceArguments = boundArgumentUses(input, node, source.sourceArguments, csharpSourceOwnedArgumentBindings(source, classification));
+  if (target?.kind !== "source-owned" || source === undefined) return same([]);
+  const sourceArguments = boundArgumentUses(input, node, source.sourceArguments,
+    csharpSourceOwnedArgumentBindings(classification.sourceArgumentGrouping));
   if (classification.unionCall.kind === "resolved") {
-    return [...use(node, classification.unionCall.receiver, { kind: "receiver" }), ...sourceArguments];
+    const receiver = use(node, classification.unionCall.receiver, { kind: "receiver" });
+    return sourceArguments.refusal === undefined ? same([...receiver, ...sourceArguments.uses])
+      : Object.freeze({ runtime: receiver, planning: receiver, refusal: sourceArguments.refusal });
   }
   const callee = classification.sourceCall;
-  if (callee === undefined || callee.kind === "rejected" || callee.kind === "union-method") return [];
-  if (callee.kind === "function" || callee.kind === "value") return [...use(node, callee.expression, { kind: "callee" }), ...sourceArguments];
+  if (callee === undefined || callee.kind === "rejected" || callee.kind === "union-method") return same([]);
+  if (callee.kind === "function" || callee.kind === "value") return argumentsFirst(use(node, callee.expression, { kind: "callee" }), sourceArguments);
   const access = source.sourceCalleeAccess;
-  return [
-    ...receiverUses(input, node, callee.receiver),
-    ...(access?.kind === "element" ? use(node, access.argument.expression, { kind: "key" }) : []),
-    ...sourceArguments,
-  ];
+  const receiver = receiverUses(input, node, callee.receiver);
+  const key = access?.kind === "element" ? use(node, access.argument.expression, { kind: "key" }) : [];
+  return argumentsFirst([...receiver, ...key], sourceArguments, [...key, ...receiver]);
 }
 
 function nativePointerUses(input: CsharpNativeDemandAnalysisInput, node: Node): readonly CsharpNativeChildUse[] {
@@ -553,10 +608,17 @@ function attributeSteps(input: CsharpNativeDemandAnalysisInput, node: Node): rea
 
 function classSteps(input: CsharpNativeDemandAnalysisInput, node: Node): readonly CsharpNativeConstructStep[] {
   const { ast } = input;
-  const members = ast.members(node).filter((member): member is Node => member !== undefined && !ast.is.IsClassStaticBlockDeclaration(member));
+  const members = ast.members(node).filter((member): member is Node => member !== undefined &&
+    !ast.is.IsClassStaticBlockDeclaration(member) && !sourceClassFieldIsTypeOnly(ast, member));
   const region = (isStatic: boolean): readonly CsharpNativeConstructStep[] =>
-    input.classInitialization.classInitializationRegion.get(node, isStatic).flatMap(member => ast.is.IsClassStaticBlockDeclaration(member)
-      ? [constructStep(member)] : useSteps(use(member, ast.as.AsPropertyDeclaration(member)?.Initializer, { kind: "initializer" })));
+    input.classInitialization.classInitializationRegion.get(node, isStatic).flatMap(member => {
+      if (ast.is.IsClassStaticBlockDeclaration(member)) return [constructStep(member)];
+      const property = ast.as.AsPropertyDeclaration(member);
+      const initializer = property?.Initializer;
+      if (sourceClassFieldIsTypeOnly(ast, member) || initializer === undefined ||
+        input.evidence.sourceField.get([member, property?.name, property?.Type, initializer]) !== undefined) return [];
+      return useSteps(use(member, initializer, { kind: "initializer" }));
+    });
   const memberSteps = (selected: readonly Node[]): readonly CsharpNativeConstructStep[] =>
     selected.flatMap(member => isConstructChild(input, member) ? [constructStep(member)] : []);
   const split = input.classFactories.classFactory.get(node) !== undefined ||
@@ -574,7 +636,8 @@ export function csharpNativeConstructSteps(
 ): readonly CsharpNativeConstructStep[] {
   const { ast } = input;
   if (ast.is.IsSourceFile(node)) {
-    return [...input.classFactories.factories.filter(factory => factory.sourceFile === node).map(factory => constructStep(factory.declaration)),
+    return [...input.classFactories.factories.filter(factory => factory.sourceFile === node).flatMap(factory =>
+      ast.is.IsClassExpression(factory.declaration) ? classSteps(input, factory.declaration) : [constructStep(factory.declaration)]),
       ...childConstructSteps(input, node)];
   }
   const attributes = attributeSteps(input, node);

@@ -4,9 +4,9 @@ import type { CsharpConversionMode } from "../conversions/selection.js";
 import { csharpTargetRepresentationContractId } from "../identities/identities.js";
 import { targetTypeRefKey } from "../types/equality.js";
 import type { TargetTypeRef } from "../types/model.js";
-import type { CsharpSelectedTargetCall, ResolvedSourceCallInfo } from "./members.js";
+import type { CsharpSelectedTargetCall } from "./members.js";
 import type { CsharpNativeLocationSelection } from "./native-locations.js";
-import type { CsharpNativeHandler, CsharpSourceCallArgumentClassification } from "./operations.js";
+import type { CsharpNativeHandler, CsharpSourceArgumentGrouping } from "./operations.js";
 
 export type CsharpNativeCompletion =
   | { readonly kind: "value"; readonly carrier: TargetTypeRef }
@@ -171,38 +171,35 @@ export function csharpNativePositionalArgumentSlot(sourceIndex: number): CsharpN
   return Object.freeze({ kind: "argument", sourceIndex, effectiveIndex: sourceIndex });
 }
 
-export function csharpSelectedTargetArgumentBindings(call: CsharpSelectedTargetCall): readonly CsharpNativeArgumentBinding[] {
+export type CsharpNativeArgumentBindings =
+  | { readonly kind: "bound"; readonly bindings: readonly CsharpNativeArgumentBinding[] }
+  | { readonly kind: "refused" }
+  | { readonly kind: "unresolved" }
+  | { readonly kind: "inconsistent"; readonly sourceArgumentIndex: number };
+
+const refusedBindings: CsharpNativeArgumentBindings = Object.freeze({ kind: "refused" });
+const unresolvedBindings: CsharpNativeArgumentBindings = Object.freeze({ kind: "unresolved" });
+
+export function csharpSelectedTargetArgumentBindings(call: CsharpSelectedTargetCall): CsharpNativeArgumentBindings {
   const sequences = new Map((call.sequenceArguments ?? []).map(sequence => [sequence.sourceArgumentIndex, sequence]));
   const bound = new Set<number>();
   const bindings: CsharpNativeArgumentBinding[] = [];
   for (const selection of call.arguments) {
     const sequence = sequences.get(selection.sourceArgumentIndex);
     if (sequence !== undefined && bound.has(sequence.sourceArgumentIndex)) continue;
-    if (sequence !== undefined && sequence.targetParameterIndex !== selection.targetParameterIndex) break;
+    if (sequence !== undefined && sequence.targetParameterIndex !== selection.targetParameterIndex) {
+      return Object.freeze({ kind: "inconsistent", sourceArgumentIndex: selection.sourceArgumentIndex });
+    }
     if (sequence !== undefined) bound.add(sequence.sourceArgumentIndex);
     bindings.push(argumentBinding(selection.sourceArgumentIndex, selection.effectiveArgumentIndex, selection.targetParameterIndex,
       sequence !== undefined));
   }
-  return Object.freeze(bindings);
+  return Object.freeze({ kind: "bound", bindings: Object.freeze(bindings) });
 }
 
-export function csharpSourceOwnedArgumentBindings(
-  source: ResolvedSourceCallInfo,
-  classification: CsharpSourceCallArgumentClassification,
-): readonly CsharpNativeArgumentBinding[] {
-  const parameters = classification.sourceNativeParameters;
-  if (parameters === undefined) return Object.freeze([]);
-  const restIndex = parameters.findIndex(parameter => parameter.paramsArray === true);
-  const bindings: CsharpNativeArgumentBinding[] = [];
-  for (let sourceArgumentIndex = 0; sourceArgumentIndex < source.sourceArguments.length; sourceArgumentIndex += 1) {
-    const matching = source.sourceArgumentBindings.filter(binding => binding.sourceArgumentIndex === sourceArgumentIndex);
-    const first = matching[0];
-    if (first === undefined || matching.some(binding =>
-      binding.sourceParameterIndex !== first.sourceParameterIndex || binding.sourceForm !== first.sourceForm)) break;
-    const parameterIndex = restIndex < 0 ? first.effectiveArgumentIndex : Math.min(first.effectiveArgumentIndex, restIndex);
-    if (parameters[parameterIndex] === undefined ||
-      classification.sourceArgumentParameterTypes?.[source.sourceArgumentBindings.indexOf(first)] === undefined) break;
-    bindings.push(argumentBinding(sourceArgumentIndex, first.effectiveArgumentIndex, parameterIndex, first.sourceForm === "spread-sequence"));
-  }
-  return Object.freeze(bindings);
+export function csharpSourceOwnedArgumentBindings(grouping: CsharpSourceArgumentGrouping | undefined): CsharpNativeArgumentBindings {
+  if (grouping === undefined || grouping.kind === "unresolved") return unresolvedBindings;
+  if (grouping.kind === "refused") return refusedBindings;
+  return Object.freeze({ kind: "bound", bindings: Object.freeze(grouping.arguments.map(entry =>
+    argumentBinding(entry.sourceArgumentIndex, entry.effectiveArgumentIndex, entry.parameterIndex, entry.spread))) });
 }

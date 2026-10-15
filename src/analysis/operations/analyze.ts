@@ -29,7 +29,7 @@ import {
   AsForInOrOfStatement,
   selectSourceNativeValueGuard,
 } from "@tsonic/target-api/source";
-import { createCsharpOperationErasure, csharpErasedExpressionStatement, selectCsharpCallForm, selectCsharpNativeHandler, selectCsharpOperatorForm,
+import { classifyCsharpSourceCallArguments, createCsharpOperationErasure, csharpErasedExpressionStatement, selectCsharpCallForm, selectCsharpNativeHandler, selectCsharpOperatorForm,
   type CsharpOperationErasure, type CsharpOperationErasureIndexes } from "./native-dispatch.js";
 import type {
   Node,
@@ -481,23 +481,7 @@ function visit(
         : {
             sourceTypeArguments:
               policy.types.resolveSourceCallTypeArguments(source, sourceFile),
-            sourceNativeParameters: policy.types.resolveSourceCallParameters(source, sourceFile),
-            sourceParameterTypes: Object.freeze(
-              source.sourceSelectedSignatureParameters.map((_, index) =>
-                policy.types.resolveSourceCallParameter(
-                  source,
-                  index,
-                  sourceFile,
-                )),
-            ),
-            sourceArgumentParameterTypes: Object.freeze(
-              source.sourceArgumentBindings.map((binding) =>
-                policy.types.resolveSourceCallArgumentParameter(
-                  source,
-                  binding,
-                  sourceFile,
-                )),
-            ),
+            ...classifyCsharpSourceCallArguments(policy, source, sourceFile),
           }),
     }));
   } else if (ast.is.IsNewExpression(node)) {
@@ -537,27 +521,7 @@ function visit(
               ),
           }
         : {},
-      ...target?.kind === "source-owned"
-        ? {
-            sourceNativeParameters: policy.types.resolveSourceCallParameters(target.source, sourceFile),
-            sourceParameterTypes: Object.freeze(
-              target.source.sourceSelectedSignatureParameters.map((_, index) =>
-                policy.types.resolveSourceCallParameter(
-                  target.source,
-                  index,
-                  sourceFile,
-                )),
-            ),
-            sourceArgumentParameterTypes: Object.freeze(
-              target.source.sourceArgumentBindings.map((binding) =>
-                policy.types.resolveSourceCallArgumentParameter(
-                  target.source,
-                  binding,
-                  sourceFile,
-                )),
-            ),
-          }
-        : {},
+      ...target?.kind === "source-owned" ? classifyCsharpSourceCallArguments(policy, target.source, sourceFile) : {},
     }));
   } else if (ast.is.IsPropertyAccessExpression(node)) {
     const selection = selectCsharpTargetProperty(policy, node, sourceFile);

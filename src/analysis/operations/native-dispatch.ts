@@ -1,8 +1,10 @@
-import type { Node } from "@tsonic/tsts";
+import type { Node, SourceFile } from "@tsonic/tsts";
 import { isAstNode } from "@tsonic/target-api/source";
 import type { TsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { targetBinaryOperator } from "../../policy/operations/index.js";
+import { selectCsharpSourceArgumentGrouping } from "../../policy/operations/members/selection/source-argument-groups.js";
+import type { ResolvedSourceCallInfo } from "../../target-model/records/members.js";
 import type { CsharpJsValueOperationSelection } from "../../target-model/operations/js-values.js";
 import type {
   CsharpBinaryClassification,
@@ -12,6 +14,7 @@ import type {
   CsharpOperatorForm,
   CsharpPropertyClassification,
   CsharpUnaryClassification,
+  CsharpSourceCallArgumentClassification,
 } from "../../target-model/records/operations.js";
 import type { CsharpSafetyApplicationFactIndex, CsharpSafetyOperation } from "../../target-model/records/safety.js";
 import type { CsharpSourceFlowCallSelection } from "../../target-model/records/source-flow.js";
@@ -26,6 +29,24 @@ import {
   isCsharpAssignmentOperator,
   sourceOperatorFromKindName,
 } from "../../target-model/syntax/operators.js";
+
+export function classifyCsharpSourceCallArguments(
+  policy: CsharpPolicyContext,
+  source: ResolvedSourceCallInfo,
+  sourceFile: SourceFile,
+): Pick<CsharpSourceCallArgumentClassification,
+  "sourceNativeParameters" | "sourceParameterTypes" | "sourceArgumentParameterTypes" | "sourceArgumentGrouping"> {
+  const sourceNativeParameters = policy.types.resolveSourceCallParameters(source, sourceFile);
+  const sourceArgumentParameterTypes = Object.freeze(source.sourceArgumentBindings.map(binding =>
+    policy.types.resolveSourceCallArgumentParameter(source, binding, sourceFile)));
+  return {
+    sourceNativeParameters,
+    sourceParameterTypes: Object.freeze(source.sourceSelectedSignatureParameters.map((_, index) =>
+      policy.types.resolveSourceCallParameter(source, index, sourceFile))),
+    sourceArgumentParameterTypes,
+    sourceArgumentGrouping: selectCsharpSourceArgumentGrouping(source, sourceNativeParameters, sourceArgumentParameterTypes),
+  };
+}
 
 export interface CsharpOperationErasureIndexes {
   readonly attributeApplications: TsonicAttributeApplicationFactIndex;

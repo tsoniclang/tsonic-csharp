@@ -237,7 +237,6 @@ function nativeOrder(program, uses, construct) {
     const use = uses.get(site);
     flattened.push(`use ${site.role} ${use === undefined ? "-" : sourceText(program, use.expression)}`);
     if (use === undefined || use.kind === "erased") return;
-    for (const child of use.children) visitUse(child);
     visitSteps(uses.order(use.expression) ?? []);
   };
   const visitSteps = (steps) => {

@@ -30,12 +30,26 @@ export interface CsharpMethodTypeArgumentProjectionClassification {
   readonly projection: CsharpProjectConstructibleTypeProjection;
 }
 
+export interface CsharpSourceArgumentGroupingEntry {
+  readonly sourceArgumentIndex: number;
+  readonly effectiveArgumentIndex: number;
+  readonly parameterIndex: number;
+  readonly spread: boolean;
+  readonly type: TargetTypeRef;
+}
+
+export type CsharpSourceArgumentGrouping =
+  | { readonly kind: "grouped"; readonly arguments: readonly CsharpSourceArgumentGroupingEntry[] }
+  | { readonly kind: "refused" }
+  | { readonly kind: "unresolved" };
+
 export interface CsharpSourceCallArgumentClassification {
   readonly sourceCall?: import("../operations/source-callees.js").CsharpSourceCalleeSelection;
   readonly sourceNativeParameters?: readonly import("../types/model.js").CsharpTargetParameter[];
   readonly sourceMethodValue?: NonNullable<import("../types/model.js").CsharpTargetNamedTypeRef["csharpMethodValue"]>;
   readonly sourceParameterTypes?: readonly (TargetTypeRef | undefined)[];
   readonly sourceArgumentParameterTypes?: readonly (TargetTypeRef | undefined)[];
+  readonly sourceArgumentGrouping?: CsharpSourceArgumentGrouping;
 }
 
 export type CsharpCallForm =

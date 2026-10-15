@@ -1,4 +1,3 @@
-import type { ResolvedSourceCallInfo } from "../../../../../target-model/records/members.js";
 import type { CsharpSourceCallArgumentClassification } from "../../../../../target-model/records/operations.js";
 import type { TargetTypeRef } from "../../../../../target-model/types/model.js";
 
@@ -10,29 +9,19 @@ export interface CsharpSourceArgumentGroup {
 }
 
 export function csharpSourceArgumentGroups(
-  source: ResolvedSourceCallInfo,
   classification: CsharpSourceCallArgumentClassification,
   exactArity = false,
 ): readonly CsharpSourceArgumentGroup[] | undefined {
   const parameters = classification.sourceNativeParameters;
-  if (parameters === undefined) return undefined;
+  const grouping = classification.sourceArgumentGrouping;
+  if (parameters === undefined || grouping?.kind !== "grouped") return undefined;
   const restIndex = parameters.findIndex(parameter => parameter.paramsArray === true);
   const groups: CsharpSourceArgumentGroup[] = [];
   const rest: { readonly index: number; readonly spread: boolean; readonly type: TargetTypeRef }[] = [];
-  let previousParameter = -1;
-  for (const [index] of source.sourceArguments.entries()) {
-    const bindings = source.sourceArgumentBindings.filter(binding => binding.sourceArgumentIndex === index);
-    const binding = bindings[0];
-    if (binding === undefined || bindings.length !== 1 || binding.sourceForm === "spread-element") return undefined;
-    const parameterIndex = restIndex < 0 ? binding.effectiveArgumentIndex : Math.min(restIndex, binding.effectiveArgumentIndex);
-    const parameter = parameters[parameterIndex];
-    const type = classification.sourceArgumentParameterTypes?.[source.sourceArgumentBindings.indexOf(binding)];
-    if (parameter === undefined || type === undefined || parameterIndex < previousParameter) return undefined;
-    const argument = { index, spread: binding.sourceForm === "spread-sequence", type };
-    if (parameter.paramsArray === true) rest.push(argument);
-    else if (argument.spread) return undefined;
-    else groups.push({ parameterIndex, type, collect: false, arguments: [argument] });
-    previousParameter = parameterIndex;
+  for (const entry of grouping.arguments) {
+    const argument = { index: entry.sourceArgumentIndex, spread: entry.spread, type: entry.type };
+    if (parameters[entry.parameterIndex]?.paramsArray === true) rest.push(argument);
+    else groups.push({ parameterIndex: entry.parameterIndex, type: entry.type, collect: false, arguments: [argument] });
   }
   if (restIndex >= 0 && (rest.length > 0 || exactArity)) {
     if (!exactArity && rest.every(argument => !argument.spread)) {
@@ -45,7 +34,6 @@ export function csharpSourceArgumentGroups(
   const bound = new Set(groups.map(group => group.parameterIndex));
   for (const [parameterIndex, parameter] of parameters.entries()) {
     if (bound.has(parameterIndex) || parameter.paramsArray === true) continue;
-    if (parameter.optional !== true) return undefined;
     if (exactArity) groups.push({ parameterIndex, type: parameter.type, collect: false, arguments: [] });
   }
   return groups.sort((left, right) => left.parameterIndex - right.parameterIndex);
