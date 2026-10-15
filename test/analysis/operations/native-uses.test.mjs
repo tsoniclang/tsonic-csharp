@@ -200,3 +200,29 @@ test("receivers and statements the planner does not read are not native uses", (
     ["effect", "[x, y] = values", "a statement-level destructuring assignment is not an effect use"],
   ]) assert.equal(usesRole(uses, role, text), false, label);
 });
+
+test("a signature-only declaration keeps its attribute and parameter uses and omits only its body", () => {
+  const program = compileProgram({ sourceText: `
+    import { attribute } from "@tsonic/core/lang.js";
+    import { ObsoleteAttribute } from "@tsonic/dotnet/System.js";
+    import type { int32 } from "@tsonic/core/types.js";
+    function sentinel(value: int32): int32 { return value; }
+    export abstract class Subject {
+      abstract run(value: int32): int32;
+      walk(value: int32): int32 { return sentinel(value); }
+    }
+    attribute<Subject>().method(subject => subject.run).add(() => new ObsoleteAttribute("method"));
+    attribute<Subject>().method(subject => subject.run).parameter("value").add(() => new ObsoleteAttribute("parameter"));
+    attribute<Subject>().method(subject => subject.walk).add(() => new ObsoleteAttribute("walk"));
+  ` });
+  const run = findNode(program, "KindMethodDeclaration", "abstract run(value: int32): int32;");
+  const walk = findNode(program, "KindMethodDeclaration", "walk(value: int32): int32 { return sentinel(value); }");
+  assert.equal(run !== undefined && walk !== undefined, true, "the participation port is keyed by the program's own methods");
+  const uses = describeUses(program, collectCsharpNativeUses(ownerInput(program, new Map([[run, "signature"], [walk, "erased"]]))));
+  for (const description of [
+    "attribute-invocation:0 | new ObsoleteAttribute(\"method\") | value value",
+    "attribute-invocation:0 | new ObsoleteAttribute(\"parameter\") | value value",
+  ]) assert.equal(uses.has(description), true, description);
+  assert.equal(usesText(uses, "new ObsoleteAttribute(\"walk\")"), false, "an erased declaration contributes no attribute use");
+  assert.equal(usesText(uses, "sentinel(value)"), false, "an erased declaration contributes no body use");
+});

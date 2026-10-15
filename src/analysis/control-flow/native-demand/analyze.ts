@@ -53,10 +53,8 @@ export function collectCsharpNativeUses(input: CsharpNativeDemandAnalysisInput):
 
   function visitDeclarations(node: Node, skippedStatement: Node | undefined): void {
     if (evidence.compileTimeMetadata.get(node) || operations.nativeUnreachable.get(node)) return;
-    if (isCallable(node)) {
-      const participation = input.participation.get(node);
-      if (participation === "erased" || participation === "signature") return;
-    }
+    const participation = isCallable(node) ? input.participation.get(node) : undefined;
+    if (participation === "erased") return;
     if (ast.is.IsExpressionStatement(node) && operations.erasedStatement.get(node)) {
       const expression = ast.as.AsExpressionStatement(node)?.Expression;
       if (expression !== undefined) {
@@ -66,6 +64,10 @@ export function collectCsharpNativeUses(input: CsharpNativeDemandAnalysisInput):
     }
     for (const [index, application] of attributeApplications.attributeApplication.get(node).entries()) {
       visitUse({ owner: node, expression: application.invocation, slot: { kind: "attribute-invocation", index } });
+    }
+    if (participation === "signature") {
+      for (const parameter of ast.parameters(node)) if (parameter !== undefined) visitDeclarations(parameter, undefined);
+      return;
     }
     let skipped = skippedStatement;
     if (ast.is.IsConstructorDeclaration(node)) {
