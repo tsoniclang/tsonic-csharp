@@ -22,7 +22,6 @@ export interface CsharpProgramRecords {
   readonly literalValue: import("@tsonic/target-api/source").SourceLiteralIndex["literalValue"];
   readonly nativeParticipation: CsharpNativeParticipationInput["participation"];
   readonly attributeApplication: CsharpAttributeApplicationIndex["attributeApplication"];
-  readonly erasedAttribute: CsharpAttributeApplicationIndex["erasedAttribute"];
   readonly callableDispatch: CsharpProjectCallableAdapters["callableDispatch"];
   readonly captureFrame: CsharpCaptureStorage["captureFrame"];
   readonly capturedBinding: CsharpCaptureStorage["capturedBinding"];
@@ -67,6 +66,7 @@ export interface CsharpProgramRecords {
   readonly borrowedSequence: CsharpTargetOperationClassifications["borrowedSequence"];
   readonly nativeGuardResult: CsharpTargetOperationClassifications["nativeGuardResult"];
   readonly nativeUnreachable: CsharpTargetOperationClassifications["nativeUnreachable"];
+  readonly erasedStatement: CsharpTargetOperationClassifications["erasedStatement"];
   readonly operatorForm: CsharpTargetOperationClassifications["operatorForm"];
   readonly memoryBinding: CsharpTargetOperationClassifications["memoryBinding"];
   readonly operationResultType: CsharpTargetOperationClassifications["operationResultType"];

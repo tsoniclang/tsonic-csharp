@@ -28,8 +28,3 @@ export function planAttributesForSubject(
       type: construction.type, arguments: construction.arguments ?? [] }];
   });
 }
-
-export function isErasedAttributeExpressionStatement(statement: Node, input: CsharpPlanningContext): boolean {
-  const expression = input.program.source.ast.as.AsExpressionStatement(statement)?.Expression;
-  return expression !== undefined && input.program.records.erasedAttribute.get(expression);
-}

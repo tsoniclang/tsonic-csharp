@@ -22,9 +22,6 @@ import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
 import {
-  isErasedAttributeExpressionStatement,
-} from "../declarations/attributes.js";
-import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
@@ -75,9 +72,6 @@ import {
 import {
   isCsharpGeneratorReturnInsideFinally,
 } from "./generators.js";
-import {
-  isErasedSafetyExpressionStatement,
-} from "../safety/explicit-safety.js";
 
 export function planReturnStatement(
   node: Node,
@@ -319,10 +313,7 @@ export function planExpressionStatement(
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  if (
-    isErasedAttributeExpressionStatement(node, input) ||
-    isErasedSafetyExpressionStatement(node, input)
-  ) {
+  if (input.program.records.erasedStatement.get(node)) {
     return [];
   }
   const expression = AsExpressionStatement(input.program.source.ast, node)!.Expression;

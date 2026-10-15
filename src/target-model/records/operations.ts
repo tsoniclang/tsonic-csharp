@@ -160,6 +160,7 @@ export interface CsharpTargetOperationClassifications {
   readonly borrowedSequence: { readonly get: (expression: Node) => CsharpBorrowedSequenceInput | undefined };
   readonly nativeGuardResult: { readonly get: (expression: Node) => boolean | undefined };
   readonly nativeUnreachable: { readonly get: (node: Node) => boolean };
+  readonly erasedStatement: { readonly get: (statement: Node) => boolean };
   readonly operatorForm: {
     readonly get: (expression: Node) => CsharpOperatorForm | undefined;
     readonly usesExpectedResultType: (expression: Node) => boolean | undefined;

@@ -36,7 +36,6 @@ import type {
   CsharpTypeMember,
   CsharpTypeNode,
 } from "../../target-ast/syntax/index.js";
-import { isErasedAttributeExpressionStatement } from "../declarations/attributes.js";
 import {
   getCsharpTypeForNode,
   predefined,
@@ -65,7 +64,6 @@ import {
 } from "../statements/resource-management.js";
 import {
   diagnoseCsharpSafetyApplications,
-  isErasedSafetyExpressionStatement,
 } from "../safety/explicit-safety.js";
 
 export interface PlannedCsharpSourceFile {
@@ -134,10 +132,7 @@ export function planSourceFile(
         if (statement === undefined || input.program.records.compileTimeMetadata.get(statement)) {
           continue;
         }
-        if (
-          isErasedAttributeExpressionStatement(statement, input) ||
-          isErasedSafetyExpressionStatement(statement, input)
-        ) {
+        if (input.program.records.erasedStatement.get(statement)) {
           continue;
         }
         switch (input.program.source.ast.kindName(statement)) {
