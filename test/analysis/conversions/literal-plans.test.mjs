@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { analyzeCsharpConversions } from "../../../dist/analysis/conversions/analyze.js";
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
 import { createCsharpExactLiteralRequestCollector } from "../../../dist/analysis/conversions/literal-requests.js";
+import { applyCsharpConversionSelection } from "../../../dist/backend/planner/expressions/conversions.js";
 import { selectCsharpExactLiteralConversion } from "../../../dist/policy/conversions/literals.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { callEvidence, directProviderHost, providerBinding, providerDeclaration, providerFact, providerMethod,
+  selectCsharpProviderCall, signatureRelation, targetParameter } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
 
 const primitive = name => csharpSourcePrimitiveTargetType(name);
 const primitives = ["bool", "char", "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "native-int",
@@ -140,3 +144,86 @@ test("a compiled program publishes exact literal selections at its actual reques
   assert.deepEqual(records.exactLiteral.get(program.sourceFiles[0], primitive("int64")), { kind: "not-applicable" });
   assert.equal(Object.isFrozen(records.exactLiteral) && !Object.hasOwn(records.exactLiteral, "set"), true);
 });
+
+test("a provider argument adapter's literal input step is requested by the selected call and rendered from its record", () => {
+  const counter = Object.freeze({ kind: "target-named", id: "MyLib.Counter",
+    csharpRender: Object.freeze({ kind: "named", namespace: Object.freeze(["MyLib"]), name: "Counter" }) });
+  const planned = Object.freeze({ kind: "LiteralExpression", value: 30 });
+  const cases = [
+    ["int32", "int16", { kind: "source-representation" }, planned],
+    ["float64", "int64", { kind: "resolved", recipe: { kind: "integer", target: primitive("int64"), width: "int64", value: 30n } },
+      { kind: "IntegerLiteralExpression", digits: "30", suffix: "L" }],
+  ];
+  for (const [readName, inputName, record, input] of cases) {
+    const fixture = providerAdapterCall(counter, primitive(readName), primitive(inputName));
+    const mapping = fixture.selected.call.argumentMappings[0];
+    assert.equal(mapping.conversion.kind === "provider-argument-adapter" && mapping.conversion.sourceToInput.proof === "literal" &&
+      mapping.conversion.resultToTarget.kind === "identity", true, `${readName} to ${inputName}: policy selects the adapter with a literal input step`);
+    const requests = sealedLiteralRequests(fixture, counter);
+    assert.deepEqual(requests.map(request => request.target === undefined ? "intrinsic" : targetTypeRefKey(request.target)),
+      [primitive(inputName), "intrinsic", primitive(readName), counter].map(type => type === "intrinsic" ? type : targetTypeRefKey(type)),
+      `${inputName}: the selected call requests the adapter input; reads and the expected type request the rest`);
+    const exactLiteral = analyzeCsharpExactLiteralSelections(fixture.host.literalValues, requests).exactLiteral;
+    assert.deepEqual(exactLiteral.get(fixture.literal, primitive(inputName)), record, `${inputName}: the record at the adapter input`);
+    const diagnostics = [];
+    const rendered = applyCsharpConversionSelection(fixture.literal, fixture.sourceFile, {
+      program: { records: { exactLiteral } }, scope: { typeParameterNames: undefined },
+    }, diagnostics, mapping.sourceType, mapping.targetType, mapping.conversion, planned);
+    assert.deepEqual(rendered, { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "QualifiedName", left: { kind: "IdentifierName", name: "MyLib" }, name: "Counter" }, name: "From" },
+    arguments: [{ kind: "Argument", expression: input }] }, `${inputName}: the planner renders the adapter call`);
+    assert.equal(diagnostics.length, 0, `${inputName}: no planner diagnostics`);
+  }
+});
+
+function providerAdapterCall(counter, read, inputType) {
+  const adapter = Object.freeze({ kind: "static-method", id: `MyLib.Counter.From(${inputType.name})`,
+    declaringType: counter, targetName: "From", inputType, resultType: counter });
+  const literal = Object.freeze({ syntaxKind: "IsNumericLiteral", text: "30" });
+  const declaration = providerDeclaration();
+  const binding = providerBinding();
+  const member = providerMethod({ parameters: [targetParameter("count", counter)], declaringTypeId: binding.id });
+  const source = callEvidence({ argumentExpressions: [literal] });
+  const relation = signatureRelation({ declaration, binding, member, sourceParameters: [{
+    sourceParameterIndex: 0, targetParameterIndex: 0, sourcePassingMode: "by-value", targetPassingMode: "by-value",
+    sourceAcceptsOmission: false, targetAcceptsOmission: false, sourceRest: false, targetParamsArray: false,
+    argumentAdapter: adapter }] });
+  const receiver = { kind: "target-named", id: binding.id };
+  const direct = directProviderHost({
+    relations: [relation],
+    facts: [providerFact(source.signatureDeclaration, declaration)],
+    calls: [[source.call, source.evidence]],
+    signatureDeclarations: [[source.evidence.selectedSignature, source.signatureDeclaration]],
+    nodeTypes: [[literal, read], [source.evidence.sourceReceiver.expression, receiver]],
+    semanticTypes: [[source.evidence.sourceArguments[0].type, read], [source.evidence.sourceReceiver.type, receiver],
+      [source.evidence.sourceResultType, member.returnType]],
+  });
+  const selected = selectCsharpProviderCall(direct.host, source.call, direct.sourceFile);
+  assert.equal(selected.kind, "resolved", "the provider call is selected");
+  return { ...direct, literal, call: source.call, read, selected };
+}
+
+function sealedLiteralRequests(fixture, counter) {
+  const { host, sourceFile, call, literal, read, selected } = fixture;
+  const none = Object.freeze({ get: () => undefined });
+  const policy = { ...host, sourceFiles: [sourceFile],
+    ast: { ...host.ast, parent: () => undefined, getSourceFile: () => sourceFile,
+      forEachChild: (node, visit) => { if (node === sourceFile) visit(call); else if (node === call) visit(literal); } },
+    navigation: { ...host.navigation, referenceFor: () => undefined },
+    semanticsFor: () => host.semantics(sourceFile) };
+  const evidence = { compileTimeMetadata: Object.freeze({ get: () => false }), storageTargetType: none, yield: none };
+  const shapes = { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false };
+  const analysis = analyzeCsharpConversions(policy, evidence, shapes);
+  assert.equal(Object.hasOwn(analysis.classifications, "exactLiteralRequests"), false, "open classifications publish no request list");
+  const conversions = analysis.seal({
+    operations: { nativeUnreachable: Object.freeze({ get: () => false }), borrowedSequence: none, selectedConstruction: none,
+      unaryOperation: none, selectedCall: Object.freeze({ get: node => node === call ? { target: selected } : undefined }) },
+    expectedTypes: { expectedType: Object.freeze({ get: node => node === literal ? [counter] : [] }),
+      requiredExpectedType: Object.freeze({ get: () => [] }), callableTarget: none,
+      exactIntegerConversion: Object.freeze({ get: () => false }) },
+    valueReads: { valueRead: Object.freeze({ get: node => node === literal ? { source: read } : undefined }) },
+  });
+  assert.equal(conversions.issues.length, 0, "conversion analysis seals without issues");
+  assert.equal(Object.isFrozen(conversions.exactLiteralRequests), true, "the sealed request list is frozen");
+  return conversions.exactLiteralRequests.filter(request => request.expression === literal);
+}

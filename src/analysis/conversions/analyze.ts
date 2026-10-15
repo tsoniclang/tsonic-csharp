@@ -43,7 +43,7 @@ import type { CsharpTargetCallSelection } from "../../target-model/records/membe
 import type { CsharpBorrowedSequenceInput } from "../../target-model/records/borrowed-sequences.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpConversionAnalysis } from "./model.js";
+import type { CsharpConversionAnalysis, CsharpSealedConversionClassifications } from "./model.js";
 import type { CsharpConversionClassifications, CsharpConversionIssue, CsharpExpressionConversionClassification } from "../../target-model/records/conversions.js";
 import { sealCsharpDelegateAdapterIdentities } from "./delegate-identities.js";
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
@@ -76,7 +76,7 @@ export function analyzeCsharpConversions(
   const directCallables = new WeakMap<Node, NonNullable<ReturnType<CsharpPolicyContext["navigation"]["referenceFor"]>>>();
   let classificationCount = 0;
   let closed = false;
-  let sealedClassifications: CsharpConversionClassifications | undefined;
+  let sealedClassifications: CsharpSealedConversionClassifications | undefined;
   const literalRequests = createCsharpExactLiteralRequestCollector(policy.literalValues);
 
   const openClassifications: CsharpConversionClassifications = {
@@ -109,7 +109,6 @@ export function analyzeCsharpConversions(
             : classifyExpression(expression, source, target, mode)
         );
     } }),
-    exactLiteralRequests: literalRequests.requests,
   };
   const classifications = Object.freeze(openClassifications);
 
@@ -125,7 +124,7 @@ export function analyzeCsharpConversions(
       delegateAdapters = sealCsharpDelegateAdapterIdentities(policy, expressionSelections, issues);
       closed = true;
       const sealedIssues = Object.freeze([...issues]);
-      const sealed: CsharpConversionClassifications = {
+      const sealed: CsharpSealedConversionClassifications = {
         issues: sealedIssues,
         propertyProjection: Object.freeze({ get: openClassifications.propertyProjection.get }),
         delegateAdapters: Object.freeze({ get: openClassifications.delegateAdapters.get }),
@@ -145,7 +144,7 @@ export function analyzeCsharpConversions(
           return expressionSelections.get(expression)?.get(key)?.selection ??
             pairSelections.get(key);
         } }),
-        exactLiteralRequests: Object.freeze([...literalRequests.requests]),
+        exactLiteralRequests: Object.freeze(literalRequests.requests),
       };
       sealedClassifications = Object.freeze(sealed);
       return sealedClassifications;
@@ -500,6 +499,7 @@ export function analyzeCsharpConversions(
           : selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
         if (expression !== undefined) {
           classifyExpression(expression, mapping.sourceType, mapping.targetType, "implicit", false, true);
+          literalRequests.requestConversion(expression, mapping.sourceType, mapping.targetType, mapping.conversion);
           let source = mapping.sourceType;
           let target = mapping.targetType;
           let conversion = mapping.conversion;
