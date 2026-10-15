@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { analyzeCsharpSourceLiteralValues } from "../../../dist/analysis/source-evidence/literal-values.js";
 import { test } from "node:test";
 import {
   argumentPassingFactKey,
@@ -481,11 +482,14 @@ export function directProviderHost(options = {}) {
   const elementEvidenceByNode = new Map(options.elements ?? []);
   const providers = providerResolver(catalog, bindings);
   const ast = options.ast ?? fixtureAst();
+  const literalValues = Object.freeze({ literalValue: Object.freeze({ get: (node) =>
+    analyzeCsharpSourceLiteralValues(ast, [{ syntaxKind: "IsSourceFile", children: [node] }]).literalValue.get(node) }) });
   const projectDeclarations = new Set(options.projectDeclarations ?? []);
   return {
     sourceFile,
     host: Object.freeze({
       ast,
+      literalValues,
       sourceFacts,
       providers,
       navigation: Object.freeze({
@@ -717,6 +721,14 @@ function fixtureAst() {
     }),
     operatorKindName(node) {
       return node?.operatorKind;
+    },
+    forEachChild(node, visit) {
+      for (const child of [...(node?.children ?? []), node?.Operand, node?.Expression, node?.Left, node?.Right]) {
+        if (child !== undefined) visit(child);
+      }
+    },
+    elements(node) {
+      return node?.elements ?? [];
     },
     kindName(node) {
       return node?.syntaxKind?.replace(/^Is/u, "Kind");

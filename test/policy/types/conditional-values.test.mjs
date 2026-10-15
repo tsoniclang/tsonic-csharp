@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { resolveBinaryTargetRepresentation } from "../../../dist/policy/types/resolution/representation.js";
+import { analyzeCsharpSourceLiteralValues } from "../../../dist/analysis/source-evidence/literal-values.js";
 import { selectCsharpBinaryOperands } from "../../../dist/policy/operations/operators/operator-selection.js";
 import { csharpBinarySelectionsEqual } from "../../../dist/analysis/expected-types/binary-equality.js";
 import { selectCsharpConversion, selectCsharpExpressionConversion } from "../../../dist/policy/conversions/index.js";
@@ -26,8 +27,14 @@ const ast = {
   as: { ...Object.fromEntries(["ParenthesizedExpression", "AsExpression", "TypeAssertion", "SatisfiesExpression", "NonNullExpression"]
     .map(name => [`As${name}`, node => ({ Expression: node.expression })])),
     AsBinaryExpression: node => ({ Left: node.left, Right: node.right }) },
+  forEachChild: (node, visit) => [...(node.children ?? []), ...(node.expression === undefined ? [] : [node.expression]),
+    ...(node.left === undefined ? [] : [node.left]), ...(node.right === undefined ? [] : [node.right])].forEach(visit),
+  authoredRange: () => ({ kind: "synthetic" }),
+  text: node => node.text,
 };
-const input = { ast, target: {}, types: { resolveReadStorage: () => undefined },
+const literalValues = { literalValue: { get: node =>
+  analyzeCsharpSourceLiteralValues(ast, [{ kind: "SourceFile", children: [node] }]).literalValue.get(node) } };
+const input = { ast, literalValues, target: {}, types: { resolveReadStorage: () => undefined },
   projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined } };
 
 test("sequence completion demand is sealed independently of its checked value carrier", () => {
@@ -53,7 +60,7 @@ test("conditional values preserve finite native arms, exact width and one absenc
   assert.equal(getCsharpRuntimeUnionArms(combined), undefined);
   assert.deepEqual(getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(combined)), [boolean, integer]);
   for (const operator of ["&&", "||"]) {
-    const carrier = resolveBinaryTargetRepresentation(ast, operator, value, boolean, value, csharpNullableTargetType(integer));
+    const carrier = resolveBinaryTargetRepresentation(ast, literalValues, operator, value, boolean, value, csharpNullableTargetType(integer));
     assert.ok(targetTypeRefEquals(carrier, expected));
     const selected = selectCsharpBinaryOperands(input, value, rightValue, operator, carrier,
       node => node === value ? boolean : csharpNullableTargetType(integer));
@@ -68,7 +75,7 @@ test("constant boolean conditions select only their reachable native payload", (
     ["||", trueLiteral, "left"], ["||", falseLiteral, "right"]]) {
     const expected = branch === "right" ? integer : boolean;
     const wrapped = { kind: "ParenthesizedExpression", expression: left };
-    const carrier = resolveBinaryTargetRepresentation(ast, operator, wrapped, boolean, value, integer);
+    const carrier = resolveBinaryTargetRepresentation(ast, literalValues, operator, wrapped, boolean, value, integer);
     assert.ok(targetTypeRefEquals(carrier, expected));
     const selection = selectCsharpBinaryOperands(input, wrapped, value, operator, carrier,
       node => node === value ? integer : boolean);
@@ -87,7 +94,7 @@ test("conditional value admission never invents truthiness, numeric conversion o
     node => node === trueLiteral ? boolean : record);
   assert.equal(selected.kind, "resolved");
   assert.ok(targetTypeRefEquals(selected.rightType, record));
-  assert.ok(targetTypeRefEquals(resolveBinaryTargetRepresentation(ast, "&&", value, boolean, value, record), expected));
+  assert.ok(targetTypeRefEquals(resolveBinaryTargetRepresentation(ast, literalValues, "&&", value, boolean, value, record), expected));
   const invalidLeft = selectCsharpBinaryOperands(input, trueLiteral, value, "&&", expected,
     node => node === trueLiteral ? integer : record);
   assert.equal(invalidLeft.kind, "rejected");
@@ -101,7 +108,7 @@ test("conditional value admission never invents truthiness, numeric conversion o
 
 test("comma condition completion selects its exact literal branch without dropping preceding effects", () => {
   const sequence = { kind: "BinaryExpression", operator: "KindCommaToken", left: value, right: trueLiteral };
-  assert.ok(targetTypeRefEquals(resolveBinaryTargetRepresentation(ast, "&&", sequence, boolean, rightValue, integer), integer));
+  assert.ok(targetTypeRefEquals(resolveBinaryTargetRepresentation(ast, literalValues, "&&", sequence, boolean, rightValue, integer), integer));
 });
 
 test("a completed void expression may supply absence but void is not a native value conversion", () => {
@@ -117,11 +124,11 @@ test("a completed void expression may supply absence but void is not a native va
 test("nested coalescing preserves the selected native nullable width and generic storage", () => {
   const optional = csharpNullableTargetType(integer);
   for (const right of [optional, csharpAbsenceTargetType()]) {
-    assert.equal(targetTypeRefEquals(resolveBinaryTargetRepresentation(ast, "??", value, optional, rightValue, right), optional), true);
+    assert.equal(targetTypeRefEquals(resolveBinaryTargetRepresentation(ast, literalValues, "??", value, optional, rightValue, right), optional), true);
   }
-  assert.equal(targetTypeRefEquals(resolveBinaryTargetRepresentation(ast, "??", value, optional, rightValue, integer), integer), true);
+  assert.equal(targetTypeRefEquals(resolveBinaryTargetRepresentation(ast, literalValues, "??", value, optional, rightValue, integer), integer), true);
   const generic = { kind: "type-parameter", identity: "fixture::T", name: "T" };
   const genericOptional = csharpNullableTargetType(generic);
-  assert.equal(targetTypeRefEquals(resolveBinaryTargetRepresentation(ast, "??", value, genericOptional, rightValue, generic), generic), true);
-  assert.equal(resolveBinaryTargetRepresentation(ast, "??", value, optional, rightValue, csharpStringTargetType()), undefined);
+  assert.equal(targetTypeRefEquals(resolveBinaryTargetRepresentation(ast, literalValues, "??", value, genericOptional, rightValue, generic), generic), true);
+  assert.equal(resolveBinaryTargetRepresentation(ast, literalValues, "??", value, optional, rightValue, csharpStringTargetType()), undefined);
 });

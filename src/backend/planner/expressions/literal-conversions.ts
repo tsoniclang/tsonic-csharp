@@ -1,7 +1,6 @@
 import type {
   Node,
 } from "@tsonic/tsts";
-import { sourceIntegerConstantValue } from "@tsonic/target-api/source";
 import type {
   CsharpExpression,
 } from "../../target-ast/syntax/index.js";
@@ -10,8 +9,6 @@ import {
 } from "../types/target-types.js";
 import {
   csharpBigIntFitsSourcePrimitive,
-  csharpBigIntLiteralValue,
-  csharpNumericLiteralValue,
   csharpNumericLiteralFitsSourcePrimitive,
 } from "../../../target-model/syntax/numeric-literals.js";
 import type {
@@ -23,6 +20,7 @@ import {
 import type {
   CsharpPlanningContext,
 } from "../context.js";
+import type { CsharpSourceLiteralValue } from "../../../target-model/records/source-literals.js";
 
 export function planCsharpExactLiteralConversion(
   input: CsharpPlanningContext,
@@ -33,17 +31,15 @@ export function planCsharpExactLiteralConversion(
     return { kind: "not-applicable" };
   }
   const targetType = getCsharpNullableElementTargetType(target) ?? target;
+  const literal = input.program.records.literalValue.get(node);
   if (targetType.kind !== "source-primitive") {
-    return classifiedLiteralRepresentation(input, node, target);
+    return classifiedLiteralRepresentation(literal);
   }
-  if (input.program.source.ast.kindName(node) === "KindBinaryExpression" ||
-    input.program.source.ast.kindName(node) === "KindParenthesizedExpression") {
-    const value = sourceIntegerConstantValue(input.program.source.ast, node);
-    if (value !== undefined && csharpBigIntFitsSourcePrimitive(value, targetType.name)) {
-      return { kind: "source-representation" };
-    }
+  if ((literal?.form === "binary" || literal?.form === "parenthesized") &&
+    literal.integerConstant !== undefined && csharpBigIntFitsSourcePrimitive(literal.integerConstant, targetType.name)) {
+    return { kind: "source-representation" };
   }
-  if (Object.is(csharpNumericLiteralValue(input.program.source.ast, node), -0)) {
+  if (Object.is(literal?.number, -0)) {
     if (targetType.name === "float64" || targetType.name === "float32" || targetType.name === "float16") {
       const zero: CsharpExpression = {
         kind: "PrefixUnaryExpression",
@@ -58,19 +54,16 @@ export function planCsharpExactLiteralConversion(
             kind: "CastExpression", type: halfType, expression: { kind: "ParenthesizedExpression", expression: zero },
           } };
     }
-    if (targetType.name !== "decimal" && csharpNumericLiteralFitsSourcePrimitive(input.program.source.ast, node, targetType.name)) {
+    if (targetType.name !== "decimal" && csharpNumericLiteralFitsSourcePrimitive(literal, targetType.name)) {
       return { kind: "resolved", expression: { kind: "LiteralExpression", value: 0 } };
     }
   }
   switch (targetType.name) {
     case "char": {
-      if (
-        !input.program.source.ast.is.IsStringLiteral(node) &&
-        !input.program.source.ast.is.IsNoSubstitutionTemplateLiteral(node)
-      ) {
+      if ((literal?.form !== "string" && literal?.form !== "template") || literal.text === undefined) {
         return { kind: "not-applicable" };
       }
-      const value = input.program.source.ast.text(node);
+      const value = literal.text;
       return value.length === 1
         ? {
             kind: "resolved",
@@ -87,13 +80,10 @@ export function planCsharpExactLiteralConversion(
     case "float16":
     case "float32":
     case "decimal": {
-      if (
-        !input.program.source.ast.is.IsNumericLiteral(node) &&
-        !input.program.source.ast.is.IsPrefixUnaryExpression(node)
-      ) {
+      if (literal?.form !== "numeric" && literal?.form !== "prefix-unary") {
         return { kind: "not-applicable" };
       }
-      const value = csharpNumericLiteralValue(input.program.source.ast, node);
+      const value = literal.number;
       if (value === undefined || !Number.isFinite(value)) {
         return {
           kind: "rejected",
@@ -131,7 +121,7 @@ export function planCsharpExactLiteralConversion(
     case "uint128":
     case "native-int":
     case "native-uint": {
-      const value = csharpBigIntLiteralValue(input.program.source.ast, node);
+      const value = literal?.integer;
       if (value === undefined) {
         return { kind: "not-applicable" };
       }
@@ -150,7 +140,7 @@ export function planCsharpExactLiteralConversion(
         : { kind: "resolved", expression };
     }
     default:
-      return classifiedLiteralRepresentation(input, node, target);
+      return classifiedLiteralRepresentation(literal);
   }
 }
 
@@ -161,18 +151,9 @@ export type CsharpExactLiteralConversionPlan =
   | { readonly kind: "rejected"; readonly reason: string };
 
 function classifiedLiteralRepresentation(
-  input: CsharpPlanningContext,
-  node: Node,
-  _target: TargetTypeRef,
+  literal: CsharpSourceLiteralValue | undefined,
 ): CsharpExactLiteralConversionPlan {
-  return input.program.source.ast.is.IsArrayLiteralExpression(node) ||
-      input.program.source.ast.is.IsStringLiteral(node) ||
-      input.program.source.ast.is.IsNoSubstitutionTemplateLiteral(node) ||
-      input.program.source.ast.is.IsNumericLiteral(node) ||
-      input.program.source.ast.is.IsBigIntLiteral(node) ||
-      input.program.source.ast.is.IsPrefixUnaryExpression(node) ||
-      input.program.source.ast.kindName(node) === "KindTrueKeyword" ||
-      input.program.source.ast.kindName(node) === "KindFalseKeyword"
+  return literal !== undefined && literal.form !== "parenthesized" && literal.form !== "binary"
     ? { kind: "source-representation" }
     : { kind: "not-applicable" };
 }
