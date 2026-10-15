@@ -1,20 +1,24 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { isAstNode, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { createTsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";
+import { createTsonicAttributeApplicationFactIndex, type TsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";
 import { admitCsharpAttributeArguments, diagnoseCsharpAttributeTypeValues, type CsharpAttributeArgumentEvidence } from "./type-validation.js";
 import type { CsharpAttributeApplication, CsharpAttributeApplicationIndex } from "../../target-model/records/attributes.js";
 
 const emptyApplications: readonly CsharpAttributeApplication[] = Object.freeze([]);
 
+export function createCsharpSourceAttributeApplicationIndex(
+  source: Pick<TargetSourceProgram, "ast" | "sourceFacts">,
+  sourceFiles: readonly SourceFile[],
+): TsonicAttributeApplicationFactIndex {
+  return createTsonicAttributeApplicationFactIndex({ ast: source.ast, sourceFiles, sourceFacts: source.sourceFacts });
+}
+
 export function analyzeCsharpAttributeApplications(
   source: TargetSourceProgram,
-  sourceFiles: readonly SourceFile[],
+  applications: TsonicAttributeApplicationFactIndex,
   evidence: CsharpAttributeArgumentEvidence,
 ): { readonly index: CsharpAttributeApplicationIndex; readonly diagnostics: readonly TargetDiagnostic[] } {
-  const applications = createTsonicAttributeApplicationFactIndex({
-    ast: source.ast, sourceFiles, sourceFacts: source.sourceFacts,
-  });
   const diagnostics = [...diagnoseCsharpAttributeTypeValues(source, applications)];
   const byDeclaration = new Map<Node, CsharpAttributeApplication[]>();
   const reject = (message: string, subject?: Node): void => {
@@ -78,7 +82,6 @@ export function analyzeCsharpAttributeApplications(
     diagnostics: Object.freeze(diagnostics),
     index: Object.freeze({
       attributeApplication: Object.freeze({ get: (declaration: Node) => byDeclaration.get(declaration) ?? emptyApplications }),
-      erasedAttribute: Object.freeze({ get: (subject: Node) => applications.forSubject(subject) !== undefined }),
     }),
   });
 }

@@ -5,6 +5,12 @@ import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 import { classifyCsharpClassPropertyStorage } from "./class-property-storage.js";
 import { classifyTypeofComparison } from "./typeof-comparisons.js";
 import { classifyMethodTypeArgumentProjections } from "./method-type-arguments.js";
+import {
+  createCsharpOperationErasure,
+  csharpErasedExpressionStatement,
+  type CsharpOperationErasure,
+  type CsharpOperationErasureIndexes,
+} from "./statement-erasure.js";
 import type { CsharpAwaitCompletion } from "../../target-model/types/await-completions.js";
 import { selectCsharpAwaitCompletion } from "../../policy/operations/control-flow/await-completions.js";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
@@ -160,6 +166,7 @@ const exactCatchRethrowKey = createTargetClassificationKey<boolean>(
 );
 const nativeGuardResultKey = createTargetClassificationKey<boolean>("csharp.operation.native-guard-result");
 const nativeUnreachableKey = createTargetClassificationKey<boolean>("csharp.operation.native-unreachable");
+const erasedStatementKey = createTargetClassificationKey<boolean>("csharp.operation.erased-statement");
 const operatorFormKey = createTargetClassificationKey<CsharpOperatorFormClassification>("csharp.operation.operator-form");
 const borrowedSequenceKey = createTargetClassificationKey<ReturnType<typeof classifyCsharpBorrowedSequenceInput>>(
   "csharp.operation.borrowed-sequence",
@@ -170,6 +177,7 @@ const operationResultKeyIds: ReadonlySet<string> = new Set([memoryBindingKey.id,
 export function analyzeCsharpTargetOperations(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
+  erasureIndexes: CsharpOperationErasureIndexes,
 ): CsharpTargetOperationClassifications {
   const builder = createTargetClassificationBuilder();
   const operationResultSubjects = new Set<Node>();
@@ -184,12 +192,14 @@ export function analyzeCsharpTargetOperations(
   const binaryExecutionDrivers:
     import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[] = [];
   const issues: CsharpOperationIssue[] = [];
+  const erasure = createCsharpOperationErasure(policy.ast, erasureIndexes, issues);
   for (const sourceFile of policy.sourceFiles) {
     visit(
       sourceFile,
       sourceFile,
       policy,
       evidence,
+      erasure,
       producer,
       binaryExecutionDrivers,
       issues,
@@ -210,6 +220,7 @@ export function analyzeCsharpTargetOperations(
     borrowedSequence: Object.freeze({ get: node => facts.get(node, borrowedSequenceKey) }),
     nativeGuardResult: Object.freeze({ get: node => facts.get(node, nativeGuardResultKey) }),
     nativeUnreachable: Object.freeze({ get: node => facts.get(node, nativeUnreachableKey) === true }),
+    erasedStatement: Object.freeze({ get: node => facts.get(node, erasedStatementKey) === true }),
     operatorForm: Object.freeze({ get: node => facts.get(node, operatorFormKey)?.form, usesExpectedResultType: node => facts.get(node, operatorFormKey)?.usesExpectedResultType }),
     memoryBinding: Object.freeze({ get: node => facts.get(node, memoryBindingKey) }),
     binaryExecutionDriver: () => selectedBinaryExecutionDriver,
@@ -249,10 +260,11 @@ function visit(
   sourceFile: SourceFile,
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
+  erasure: CsharpOperationErasure,
   builder: ReturnType<typeof createTargetClassificationBuilder>,
   binaryExecutionDrivers:
     import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[],
-  issues: CsharpOperationIssue[],
+  scopeIssues: CsharpOperationIssue[] | undefined,
 ): void {
   if (evidence.compileTimeMetadata.get(node)) return;
   if (policy.types.nativeUnreachable(node)) {
@@ -260,6 +272,9 @@ function visit(
     return;
   }
   const { ast } = policy;
+  const issues = erasure.demandedInvocations.has(node) ? erasure.issues : scopeIssues;
+  const erased = ast.is.IsExpressionStatement(node) && csharpErasedExpressionStatement(ast, node, erasure);
+  if (erased) setClassification(builder, node, erasedStatementKey, true);
   if (ast.is.IsAwaitExpression(node)) {
     const expression = ast.as.AsAwaitExpression(node)?.Expression;
     const completion = selectCsharpAwaitCompletion(
@@ -267,7 +282,7 @@ function visit(
       policy.typeDefinitions);
     const rejection = awaitResultMappingRejection(policy, completion);
     if (rejection !== undefined) {
-      issues.push(Object.freeze({ node, code: "CSHARP_AWAIT_RESULT_MAPPING_NOT_PROVEN", message: rejection }));
+      issues?.push(Object.freeze({ node, code: "CSHARP_AWAIT_RESULT_MAPPING_NOT_PROVEN", message: rejection }));
     }
     setClassification(builder, node, awaitKey, rejection === undefined ? completion : undefined);
   }
@@ -409,7 +424,7 @@ function visit(
       ? selectCsharpTargetCall(policy, node, sourceFile)
       : undefined;
     const conversionIssue = csharpSelectedCallConversionIssue(policy, selectedTarget);
-    if (conversionIssue !== undefined) issues.push(conversionIssue);
+    if (conversionIssue !== undefined) issues?.push(conversionIssue);
     const target = conversionIssue === undefined ? selectedTarget : undefined;
     if (target?.kind === "resolved") {
       const driver = target.call.targetMember.csharpBinaryExecutionDriver;
@@ -420,7 +435,7 @@ function visit(
       : policy.types.resolveNode(node, sourceFile);
     const selectedOptionalReceiver = classifyCsharpOptionalCallReceiver(policy, source, target, sourceFile);
     const receiverIssue = csharpOperationConversionIssue(node, selectedOptionalReceiver?.conversion, "CSHARP_MEMBER_RECEIVER_CONVERSION_NOT_PROVEN");
-    if (receiverIssue !== undefined) issues.push(receiverIssue);
+    if (receiverIssue !== undefined) issues?.push(receiverIssue);
     const optionalReceiver = receiverIssue === undefined ? selectedOptionalReceiver : undefined;
     const optionalCallee = classifyCsharpOptionalCallCallee(policy, source, sourceFile);
     const sourceCall = source === undefined || target?.kind !== "source-owned" ? undefined
@@ -492,7 +507,7 @@ function visit(
       ? selectCsharpTargetCall(policy, node, sourceFile)
       : undefined;
     const conversionIssue = csharpSelectedCallConversionIssue(policy, selectedTarget);
-    if (conversionIssue !== undefined) issues.push(conversionIssue);
+    if (conversionIssue !== undefined) issues?.push(conversionIssue);
     const target = conversionIssue === undefined ? selectedTarget : undefined;
     if (target?.kind === "resolved") {
       const driver = target.call.targetMember.csharpBinaryExecutionDriver;
@@ -543,7 +558,7 @@ function visit(
     const selectedReceiver = selection.kind === "resolved" || selection.kind === "source-owned"
       ? classifyCsharpMemberReceiver(policy, selection.source, sourceFile) : undefined;
     const receiverIssue = csharpOperationConversionIssue(node, selectedReceiver?.conversion, "CSHARP_MEMBER_RECEIVER_CONVERSION_NOT_PROVEN");
-    if (receiverIssue !== undefined) issues.push(receiverIssue);
+    if (receiverIssue !== undefined) issues?.push(receiverIssue);
     const receiverProjection = receiverIssue === undefined ? selectedReceiver : undefined;
     setClassification(
       builder,
@@ -568,7 +583,7 @@ function visit(
     const source = policy.semantics(sourceFile).operations.elementAccess(node);
     const selectedReceiver = source === undefined ? undefined : classifyCsharpMemberReceiver(policy, source, sourceFile);
     const receiverIssue = csharpOperationConversionIssue(node, selectedReceiver?.conversion, "CSHARP_MEMBER_RECEIVER_CONVERSION_NOT_PROVEN");
-    if (receiverIssue !== undefined) issues.push(receiverIssue);
+    if (receiverIssue !== undefined) issues?.push(receiverIssue);
     const receiverProjection = receiverIssue === undefined ? selectedReceiver : undefined;
     const jsValue = validateCsharpJsValueOperationSelection(selectCsharpJsValueReceiverExpressionOperation(
       policy,
@@ -581,7 +596,7 @@ function visit(
     const sourceOwned = classifySourceOwnedElementMember(policy, target, sourceFile);
     const selectedTypes = source === undefined ? {} : elementSelectedTypes(policy, source, sourceFile, target);
     const elementIssue = csharpOperationConversionIssue(node, selectedTypes.flowReadConversion, "CSHARP_ELEMENT_READ_CONVERSION_NOT_PROVEN");
-    if (elementIssue !== undefined) issues.push(elementIssue);
+    if (elementIssue !== undefined) issues?.push(elementIssue);
     setClassification(builder, node, elementKey, Object.freeze({
       jsValue,
       ...(receiverProjection === undefined ? {} : { receiverProjection }),
@@ -750,9 +765,10 @@ function visit(
           sourceFile,
           policy,
           evidence,
+          erasure,
           builder,
           binaryExecutionDrivers,
-          issues,
+          erased ? undefined : issues,
         );
       }
     },

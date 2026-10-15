@@ -42,7 +42,7 @@ import type {
   CsharpPlanningRepresentationQueries,
 } from "../../policy/types/index.js";
 import type { ResolvedSourceCallInfo } from "../../target-model/records/members.js";
-import { analyzeCsharpAttributeApplications } from "../attributes/application-index.js";
+import { analyzeCsharpAttributeApplications, createCsharpSourceAttributeApplicationIndex } from "../attributes/application-index.js";
 import {
   createCsharpSafetyApplicationFactIndex,
 } from "../safety/application-index.js";
@@ -140,6 +140,14 @@ export function analyzeCsharpTargetProgram(
   const nativeControlIssues = analyzeCsharpNativeControlFlow(source);
   if (nativeControlIssues.length !== 0) return rejectedTargetStage(nativeControlIssues);
   const memoryBindings = createTsonicMemoryBindingIndex(source);
+  const sourceAttributeApplications = createCsharpSourceAttributeApplicationIndex(source, source.navigation.sourceFiles);
+  const safetyApplications = createCsharpSafetyApplicationFactIndex({
+    ast: source.ast,
+    sourceFiles: source.navigation.sourceFiles,
+    sourceFacts: source.sourceFacts,
+    navigation: source.navigation,
+  });
+  const statementErasure = Object.freeze({ attributeApplications: sourceAttributeApplications, safetyApplications });
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
   const literalValues = analyzeSourceLiteralValues(source.ast, sourceFiles);
   const sourceStorage = createSourceStorageQuery(source, sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source));
@@ -187,6 +195,7 @@ export function analyzeCsharpTargetProgram(
         names,
         typeHost,
         sourceStorage,
+        statementErasure,
         previous,
       );
       if (evaluated.kind === "rejected") {
@@ -231,6 +240,7 @@ export function analyzeCsharpTargetProgram(
     names,
     typeHost,
     sourceStorage,
+    statementErasure,
     stable,
   );
   if (evaluated.kind === "rejected") return evaluated;
@@ -285,18 +295,12 @@ export function analyzeCsharpTargetProgram(
     request.binaryExecutionDriver,
     operationBinaryExecutionDriver,
   );
-  const attributes = analyzeCsharpAttributeApplications(source, source.navigation.sourceFiles, {
+  const attributes = analyzeCsharpAttributeApplications(source, sourceAttributeApplications, {
     operations: analysis.operations, conversions: analysis.conversions,
     valueReads: analysis.valueReads, sourceEvidence: analysis.sourceEvidence,
   });
   if (attributes.diagnostics.length > 0) return rejectedTargetStage(attributes.diagnostics);
   const attributeApplications = attributes.index;
-  const safetyApplications = createCsharpSafetyApplicationFactIndex({
-    ast: source.ast,
-    sourceFiles: source.navigation.sourceFiles,
-    sourceFacts: source.sourceFacts,
-    navigation: source.navigation,
-  });
   const moduleInitialization = analyzeCsharpModuleInitialization({
     sourceEvidence: analysis.sourceEvidence,
     source,
@@ -304,8 +308,7 @@ export function analyzeCsharpTargetProgram(
     projectRoot: input.paths.projectRoot,
     entryPoint: input.project.entryPoint,
     outputType: configuration.outputType,
-    attributeApplications,
-    safetyApplications,
+    operations: analysis.operations,
   });
   if (moduleInitialization.issues.length > 0) {
     return rejectedTargetStage(moduleInitialization.issues.map((issue) => ({
@@ -392,6 +395,7 @@ function analyzeIteration(
   names: ReturnType<typeof createCsharpSourceNameBuilder>,
   typeHost: Parameters<typeof createCsharpTypeAnalysis>[0],
   sourceStorage: SourceStorageQueries,
+  statementErasure: Parameters<typeof analyzeCsharpTargetOperations>[2],
   previous: CsharpRepresentationContract | undefined,
 ) {
   const requiredRecords: CsharpRequiredRecord[] = [];
@@ -446,7 +450,7 @@ function analyzeIteration(
     policy,
   );
   const sourceEvidence = evidence.index;
-  const operations = analyzeCsharpTargetOperations(policy, sourceEvidence);
+  const operations = analyzeCsharpTargetOperations(policy, sourceEvidence, statementErasure);
   const valueReadStages = analyzeCsharpValueReadStages(policy, sourceEvidence, operations);
   const typeProjections = analyzeCsharpTypeProjections(input.source, sourceEvidence, operations);
   const declarations = analyzeCsharpDeclarations(
