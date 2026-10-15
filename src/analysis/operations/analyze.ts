@@ -75,7 +75,7 @@ import {
   isCsharpThrowableType,
 } from "../../policy/types/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpCallClassification, CsharpBinaryClassification, CsharpConstructionClassification, CsharpElementClassification, CsharpNativeHandler, CsharpOperatorForm, CsharpPropertyClassification, CsharpUnaryClassification, CsharpTargetOperationClassifications, CsharpOperationIssue } from "../../target-model/records/operations.js";
+import type { CsharpCallClassification, CsharpBinaryClassification, CsharpConstructionClassification, CsharpElementClassification, CsharpNativeHandler, CsharpOperatorFormClassification, CsharpPropertyClassification, CsharpUnaryClassification, CsharpTargetOperationClassifications, CsharpOperationIssue } from "../../target-model/records/operations.js";
 import {
   composeCsharpBinaryExecutionDriver,
 } from "../../providers/model/provider-policy-contribution.js";
@@ -167,7 +167,7 @@ const nativeGuardResultKey = createTargetClassificationKey<boolean>("csharp.oper
 const nativeUnreachableKey = createTargetClassificationKey<boolean>("csharp.operation.native-unreachable");
 const erasedStatementKey = createTargetClassificationKey<boolean>("csharp.operation.erased-statement");
 const nativeHandlerKey = createTargetClassificationKey<CsharpNativeHandler>("csharp.operation.native-handler");
-const operatorFormKey = createTargetClassificationKey<CsharpOperatorForm>("csharp.operation.operator-form");
+const operatorFormKey = createTargetClassificationKey<CsharpOperatorFormClassification>("csharp.operation.operator-form");
 const borrowedSequenceKey = createTargetClassificationKey<ReturnType<typeof classifyCsharpBorrowedSequenceInput>>(
   "csharp.operation.borrowed-sequence",
 );
@@ -222,7 +222,7 @@ export function analyzeCsharpTargetOperations(
     nativeUnreachable: Object.freeze({ get: node => facts.get(node, nativeUnreachableKey) === true }),
     erasedStatement: Object.freeze({ get: node => facts.get(node, erasedStatementKey) === true }),
     nativeHandler: Object.freeze({ get: node => facts.get(node, nativeHandlerKey) }),
-    operatorForm: Object.freeze({ get: node => facts.get(node, operatorFormKey) }),
+    operatorForm: Object.freeze({ get: node => facts.get(node, operatorFormKey)?.form, usesExpectedResultType: node => facts.get(node, operatorFormKey)?.usesExpectedResultType }),
     memoryBinding: Object.freeze({ get: node => facts.get(node, memoryBindingKey) }),
     binaryExecutionDriver: () => selectedBinaryExecutionDriver,
     operationResultType: Object.freeze({ get: (node) => operationResultTypes.get(node) }),

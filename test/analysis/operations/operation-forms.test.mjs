@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { csharpBinaryOperationUsesExpectedResultType } from "../../../dist/policy/operations/operators/expected-result.js";
+import { sourceOperatorFromKindName } from "../../../dist/target-model/syntax/operators.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
 function recordedForms(compiled) {
   const program = compiled.result.program;
@@ -99,4 +102,69 @@ test("an update of a JS-value object-shape member keeps its writable-location re
       message: "Closed JS-value object-shape update '++' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden." }],
   );
   assert.equal(compiled.source.ast.kindName(compiled.result.diagnostics[0].sourceNode), "KindPostfixUnaryExpression");
+});
+
+test("binary expected-result eligibility is stored once from the checked operator that every selection carries", () => {
+  for (const [surface, sourceText] of [
+    ["native", `
+      import type { int32 } from "@tsonic/core/types.js";
+      function touch(value: int32): int32 { return value; }
+      export function f(a: int32, b: int32, c: int32 | undefined, flag: boolean): number {
+        const wide: number = a + b;
+        const narrow: int32 = a << b;
+        const both: boolean = flag && a === b;
+        const pick: int32 = c ?? a;
+        const last: number = (touch(a), b);
+        let total: int32 = a;
+        total += b;
+        return both ? wide + last : -narrow + total + pick;
+      }
+    `],
+    ["js", `
+      export function f(a: number, b: string | undefined, s: string): string {
+        const sum: number = a * 2;
+        const text: string = b ?? s;
+        return s + sum + text;
+      }
+    `],
+  ]) {
+    const compiled = compiledWithoutDiagnostics({ surface, sourceText });
+    const program = compiled.result.program;
+    const ast = program.source.ast;
+    const records = program.records;
+    let eligibleContextual = 0;
+    let ineligible = 0;
+    let unary = 0;
+    for (const sourceFile of program.sourceFiles) {
+      if (!String(ast.getPath(sourceFile)).endsWith("/index.ts")) continue;
+      const text = String(ast.getSourceText(sourceFile));
+      const visit = (node) => {
+        const label = `${surface} ${text.slice(ast.pos(node), ast.end(node)).trim()}`;
+        if (ast.is.IsPrefixUnaryExpression(node) || ast.is.IsPostfixUnaryExpression(node)) {
+          assert.equal(records.operatorForm.usesExpectedResultType(node) === undefined, true, `${label}: a unary operator has no binary eligibility`);
+          unary += 1;
+        }
+        if (ast.is.IsBinaryExpression(node)) {
+          const checked = sourceOperatorFromKindName(ast.operatorKindName(node));
+          const eligible = records.operatorForm.usesExpectedResultType(node);
+          assert.equal(eligible === (checked === undefined ? undefined : csharpBinaryOperationUsesExpectedResultType(checked)), true,
+            `${label}: the stored eligibility is the policy result for the checked operator`);
+          const baseline = records.binaryOperation.get(node)?.target;
+          assert.equal(baseline?.kind !== "resolved" || baseline.sourceOperator === checked, true, `${label}: the baseline selection carries the checked operator`);
+          for (const target of records.expectedType.get(node)) {
+            const selection = records.expectedBinary.get(node, target);
+            if (selection?.kind !== "resolved") continue;
+            assert.equal(selection.sourceOperator === checked && records.operatorForm.get(node) !== undefined, true,
+              `${label}: a contextual selection carries the checked operator and has a stored form`);
+            if (eligible === true && targetTypeRefEquals(selection.resultType, target)) eligibleContextual += 1;
+          }
+          if (eligible === false) ineligible += 1;
+        }
+        ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
+      };
+      visit(sourceFile);
+    }
+    assert.equal(eligibleContextual > 0 && ineligible > 0, true, `${surface}: eligible contextual results and ineligible operators are covered`);
+    assert.equal(surface === "js" || unary > 0, true, `${surface}: a unary operator is covered`);
+  }
 });

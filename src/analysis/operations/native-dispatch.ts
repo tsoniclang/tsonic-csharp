@@ -3,6 +3,7 @@ import { isAstNode } from "@tsonic/target-api/source";
 import type { TsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { targetBinaryOperator } from "../../policy/operations/index.js";
+import { csharpBinaryOperationUsesExpectedResultType } from "../../policy/operations/operators/expected-result.js";
 import { selectCsharpSourceArgumentGrouping } from "../../policy/operations/members/selection/source-argument-groups.js";
 import type { ResolvedSourceCallInfo } from "../../target-model/records/members.js";
 import type { CsharpJsValueOperationSelection } from "../../target-model/operations/js-values.js";
@@ -12,6 +13,7 @@ import type {
   CsharpNativeHandler,
   CsharpOperationIssue,
   CsharpOperatorForm,
+  CsharpOperatorFormClassification,
   CsharpPropertyClassification,
   CsharpUnaryClassification,
   CsharpSourceCallArgumentClassification,
@@ -28,6 +30,7 @@ import {
   csharpDestructuringAssignmentSyntax,
   isCsharpAssignmentOperator,
   sourceOperatorFromKindName,
+  type CsharpSourceOperator,
 } from "../../target-model/syntax/operators.js";
 
 export function classifyCsharpSourceCallArguments(
@@ -117,8 +120,23 @@ export function selectCsharpOperatorForm(
   binary: CsharpBinaryClassification | undefined,
   unary: CsharpUnaryClassification | undefined,
   property: (subject: Node) => CsharpPropertyClassification | undefined,
-): CsharpOperatorForm {
+): CsharpOperatorFormClassification {
   const operator = sourceOperatorFromKindName(ast.operatorKindName(node));
+  const form = selectOperatorForm(ast, node, operator, mutation, binary, unary, property);
+  return Object.freeze(ast.is.IsBinaryExpression(node) && operator !== undefined
+    ? { form, usesExpectedResultType: csharpBinaryOperationUsesExpectedResultType(operator) }
+    : { form });
+}
+
+function selectOperatorForm(
+  ast: CsharpPolicyContext["ast"],
+  node: Node,
+  operator: CsharpSourceOperator | undefined,
+  mutation: CsharpJsArrayMutationSelection | undefined,
+  binary: CsharpBinaryClassification | undefined,
+  unary: CsharpUnaryClassification | undefined,
+  property: (subject: Node) => CsharpPropertyClassification | undefined,
+): CsharpOperatorForm {
   if (!ast.is.IsBinaryExpression(node)) {
     if (mutation === undefined || mutation.kind !== "not-js-array-mutation") return "js-array-mutation";
     const operand = ast.is.IsPrefixUnaryExpression(node)
