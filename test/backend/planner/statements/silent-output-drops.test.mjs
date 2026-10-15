@@ -6,7 +6,7 @@ import { planThrowStatement } from "../../../../dist/backend/planner/statements/
 import { csharpTargetNamedType } from "../../../../dist/target-model/types/index.js";
 import { createTsonicPlugin } from "../../../../../csharp-nodejs/dist/index.js";
 
-const throwMessage = "Throw statements require C# type syntax for the sealed thrown carrier before C# emission.";
+const throwMessage = "Throw statements require C# type syntax for the sealed thrown carrier 'target:example.Unrendered<>' before C# emission.";
 
 test("a sealed thrown carrier without C# type syntax is reported, never emitted as a dropped throw", () => {
   const compiled = compileCsharpSource({ sourceText: "export function fail(error: Error): void { throw error; }" });
