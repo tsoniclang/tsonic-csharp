@@ -1,16 +1,8 @@
-import type {
-  Node,
-} from "@tsonic/tsts";
-import { sourceIntegerConstantValue } from "@tsonic/target-api/source";
+import type { CsharpSourceLiteralValue } from "../../target-model/records/source-literals.js";
 import {
   csharpBigIntFitsSourcePrimitive,
-  csharpBigIntLiteralValue,
   csharpNumericLiteralFitsSourcePrimitive,
-  csharpNumericLiteralValue,
 } from "../../target-model/syntax/numeric-literals.js";
-import type {
-  CsharpPolicyContext,
-} from "../model/context.js";
 import type {
   TargetTypeRef,
 } from "../types/index.js";
@@ -21,44 +13,36 @@ import {
 } from "../../target-model/types/index.js";
 
 export function csharpLiteralIsRepresentableAs(
-  input: Pick<CsharpPolicyContext, "ast">,
-  node: Node,
+  value: CsharpSourceLiteralValue | undefined,
   target: TargetTypeRef,
 ): boolean {
   const nullableElement = getCsharpNullableElementTargetType(target);
   if (nullableElement !== undefined) {
-    return csharpLiteralIsRepresentableAs(input, node, nullableElement);
+    return csharpLiteralIsRepresentableAs(value, nullableElement);
   }
-  if (input.ast.is.IsArrayLiteralExpression(node)) {
+  if (value?.form === "array") {
     const elementType = target.kind === "array"
       ? target.element
       : getCsharpArrayLiteralElementTargetType(target);
     return elementType !== undefined &&
-      input.ast.elements(node).every((element) =>
+      (value.elements ?? []).every((element) =>
         element !== undefined &&
-        csharpLiteralIsRepresentableAs(input, element, elementType));
+        csharpLiteralIsRepresentableAs(element, elementType));
   }
   if (isCsharpStringTargetType(target)) {
-    return input.ast.is.IsStringLiteral(node) ||
-      input.ast.is.IsNoSubstitutionTemplateLiteral(node);
+    return value?.form === "string" || value?.form === "template";
   }
   if (target.kind !== "source-primitive") {
     return false;
   }
-  if (input.ast.kindName(node) === "KindBinaryExpression" || input.ast.kindName(node) === "KindParenthesizedExpression") {
-    const value = sourceIntegerConstantValue(input.ast, node);
-    if (value !== undefined && csharpBigIntFitsSourcePrimitive(value, target.name)) return true;
-  }
+  if ((value?.form === "binary" || value?.form === "parenthesized") &&
+    value.integerConstant !== undefined && csharpBigIntFitsSourcePrimitive(value.integerConstant, target.name)) return true;
   switch (target.name) {
     case "bool":
-      return input.ast.kindName(node) === "KindTrueKeyword" ||
-        input.ast.kindName(node) === "KindFalseKeyword";
+      return value?.form === "true" || value?.form === "false";
     case "char":
-      return (
-        input.ast.is.IsStringLiteral(node) ||
-        input.ast.is.IsNoSubstitutionTemplateLiteral(node)
-      ) &&
-        input.ast.text(node).length === 1;
+      return (value?.form === "string" || value?.form === "template") &&
+        value.text?.length === 1;
     case "int8":
     case "uint8":
     case "int16":
@@ -67,26 +51,20 @@ export function csharpLiteralIsRepresentableAs(
     case "uint32":
     case "native-int":
     case "native-uint": {
-      return csharpNumericLiteralFitsSourcePrimitive(
-        input.ast,
-        node,
-        target.name,
-      );
+      return csharpNumericLiteralFitsSourcePrimitive(value, target.name);
     }
     case "float16":
     case "float32":
     case "float64":
     case "decimal": {
-      const value = csharpNumericLiteralValue(input.ast, node);
-      return value !== undefined && Number.isFinite(value);
+      return value?.number !== undefined && Number.isFinite(value.number);
     }
     case "int64":
     case "uint64":
     case "int128":
     case "uint128": {
-      const value = csharpBigIntLiteralValue(input.ast, node);
-      return value !== undefined &&
-        csharpBigIntFitsSourcePrimitive(value, target.name);
+      return value?.integer !== undefined &&
+        csharpBigIntFitsSourcePrimitive(value.integer, target.name);
     }
   }
 }

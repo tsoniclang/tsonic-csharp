@@ -8,6 +8,7 @@ const target = { kind: "target-named", id: "source.Contract" };
 const expression = {};
 const policy = {
   ast: { is: { IsArrayLiteralExpression: () => false } },
+  literalValues: { literalValue: { get: () => undefined } },
   projectTypes: { directSupertypes: () => [] },
   providers: { findTargetBindingByTargetId: () => undefined },
   target: {},

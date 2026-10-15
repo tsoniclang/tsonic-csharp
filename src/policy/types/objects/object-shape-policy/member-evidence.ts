@@ -13,7 +13,6 @@ import { resolveObjectShapeSourceMemberKey } from "./source-member-identity.js";
 import { resolveCsharpCallableTypeParameters } from "../../../constraints/callable-type-parameters.js";
 import { csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../../target-model/types/method-values.js";
 import { isCsharpIntegralTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
-import { csharpNumericLiteralValue } from "../../../../target-model/syntax/numeric-literals.js";
 
 export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePolicyHost) {
   function retainLiteralMemberEvidence(
@@ -235,7 +234,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
         const carriers = declarations.map(declaration => {
           const value = host.ast.is.IsPropertyAssignment(declaration) || host.ast.is.IsShorthandPropertyAssignment(declaration)
             ? ObjectLiteralProperty_Value(host.ast, declaration) : undefined;
-          return value === undefined || csharpNumericLiteralValue(host.ast, value) !== undefined
+          return value === undefined || host.literalValues.literalValue.get(value)?.number !== undefined
             ? undefined : host.typeResolver.resolveNode(value, queries.sourceFile, nextState(state));
         });
         const first = carriers[0];

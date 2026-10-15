@@ -114,7 +114,7 @@ export function resolveSelectedExpressionType(
     const falseCarrier = resolveNodeWithState(conditional.WhenFalse, queries.sourceFile, nextState(state));
     const left = resolveCsharpContextualLiteralCarrier(host, conditional.WhenTrue, falseCarrier) ?? trueCarrier;
     const right = resolveCsharpContextualLiteralCarrier(host, conditional.WhenFalse, trueCarrier) ?? falseCarrier;
-    const common = selectCsharpConditionalNumericCarrier(conditional.WhenTrue, conditional.WhenFalse, left, right, host.ast) ??
+    const common = selectCsharpConditionalNumericCarrier(conditional.WhenTrue, conditional.WhenFalse, left, right, host.literalValues) ??
       commonTargetRepresentation(left, right);
     if (common !== undefined) return common;
     if (left === undefined || right === undefined) return undefined;
@@ -140,6 +140,7 @@ export function resolveSelectedExpressionType(
       resolveNodeWithState(binary?.Right, queries.sourceFile, nextState(state));
     return resolveBinaryTargetRepresentation(
       host.ast,
+      host.literalValues,
       operator,
       binary?.Left,
       left,

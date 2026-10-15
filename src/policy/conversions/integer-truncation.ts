@@ -6,7 +6,6 @@ import {
   csharpBigIntegerTargetType,
   targetTypeRefEquals,
 } from "../../target-model/types/index.js";
-import { csharpNumericLiteralValue } from "../../target-model/syntax/numeric-literals.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 
@@ -29,7 +28,7 @@ export function selectCsharpIntegerTruncationConversion(
   const signed = truncations.get(selection.call.targetMember.id);
   const widthArgument = selection.source.sourceArguments[0]?.expression;
   if (signed === undefined || widthArgument === undefined || selection.source.sourceArguments.length !== 2) return undefined;
-  const width = csharpNumericLiteralValue(policy.ast, widthArgument);
+  const width = policy.literalValues.literalValue.get(widthArgument)?.number;
   return width !== undefined && sourceIntegerTruncationFits(width, signed, target.name)
     ? { kind: "integer-truncation", signed, width }
     : undefined;

@@ -1,45 +1,8 @@
-import type {
-  AstReader,
-  Node,
-  SourcePrimitiveKind,
-} from "@tsonic/tsts";
-import { parseFiniteNumberLiteral } from "./literal-values.js";
-import { sourceIntegerLiteralValue } from "@tsonic/target-api/source";
-
-export function csharpNumericLiteralValue(
-  ast: AstReader,
-  node: Node,
-): number | undefined {
-  if (ast.is.IsParenthesizedExpression(node)) {
-    const inner = ast.as.AsParenthesizedExpression(node)?.Expression;
-    return inner === undefined ? undefined : csharpNumericLiteralValue(ast, inner);
-  }
-  if (ast.is.IsNumericLiteral(node)) {
-    return parseFiniteNumberLiteral(ast.text(node));
-  }
-  if (!ast.is.IsPrefixUnaryExpression(node)) {
-    return undefined;
-  }
-  const expression = ast.as.AsPrefixUnaryExpression(node);
-  const operand = expression?.Operand;
-  const operator = ast.operatorKindName(node);
-  if (
-    operand === undefined ||
-    (operator !== "KindPlusToken" && operator !== "KindMinusToken")
-  ) {
-    return undefined;
-  }
-  const value = csharpNumericLiteralValue(ast, operand);
-  return value === undefined
-    ? undefined
-    : operator === "KindMinusToken"
-      ? -value
-      : value;
-}
+import type { SourcePrimitiveKind } from "@tsonic/tsts";
+import type { CsharpSourceLiteralValue } from "../records/source-literals.js";
 
 export function csharpNumericLiteralFitsSourcePrimitive(
-  ast: AstReader,
-  node: Node,
+  literal: Pick<CsharpSourceLiteralValue, "number" | "integer"> | undefined,
   primitive: SourcePrimitiveKind,
 ): boolean {
   if (
@@ -48,14 +11,10 @@ export function csharpNumericLiteralFitsSourcePrimitive(
     primitive === "float64" ||
     primitive === "decimal"
   ) {
-    const value = csharpNumericLiteralValue(ast, node);
-    return value !== undefined && Number.isFinite(value);
+    return literal?.number !== undefined && Number.isFinite(literal.number);
   }
-  const integer = csharpBigIntLiteralValue(ast, node);
-  return integer !== undefined && csharpBigIntFitsSourcePrimitive(integer, primitive);
+  return literal?.integer !== undefined && csharpBigIntFitsSourcePrimitive(literal.integer, primitive);
 }
-
-export const csharpBigIntLiteralValue = sourceIntegerLiteralValue;
 
 export function csharpBigIntFitsSourcePrimitive(
   value: bigint,

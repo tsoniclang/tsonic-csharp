@@ -82,7 +82,7 @@ export function resolveNodeWithState(
   if (direct !== undefined) {
     return direct;
   }
-  const literal = resolveCsharpSourceLiteralTargetType(host, node);
+  const literal = resolveCsharpSourceLiteralTargetType(host, host.literalValues.literalValue.get(node));
   if (literal !== undefined) {
     return literal;
   }

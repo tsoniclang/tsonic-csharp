@@ -1,4 +1,5 @@
-import type { AstReader, Node } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
+import type { CsharpSourceLiteralIndex } from "../../target-model/records/source-literals.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { isCsharpIntegralTargetType } from "../../target-model/types/carriers/scalar-types.js";
@@ -12,7 +13,7 @@ export function selectCsharpConditionalNumericCarrier(
   whenFalse: Node,
   trueCarrier: TargetTypeRef | undefined,
   falseCarrier: TargetTypeRef | undefined,
-  ast: AstReader,
+  literalValues: CsharpSourceLiteralIndex,
 ): TargetTypeRef | undefined {
   const trueElement = getCsharpNullableElementTargetType(trueCarrier);
   const falseElement = getCsharpNullableElementTargetType(falseCarrier);
@@ -25,10 +26,10 @@ export function selectCsharpConditionalNumericCarrier(
   else if (isCsharpAbsenceTargetType(right) && left !== undefined && isCsharpIntegralTargetType(left)) selected = left;
   else if (left !== undefined && right !== undefined && isCsharpIntegralTargetType(left) && isCsharpIntegralTargetType(right)) {
     selected = targetTypeRefEquals(left, right) ? left
-      : selectCsharpNumericBinaryPromotion({ ast }, whenTrue, left, whenFalse, right)?.resultType;
-  } else if (left !== undefined && isCsharpIntegralTargetType(left) && csharpLiteralIsRepresentableAs({ ast }, whenFalse, left)) {
+      : selectCsharpNumericBinaryPromotion({ literalValues }, whenTrue, left, whenFalse, right)?.resultType;
+  } else if (left !== undefined && isCsharpIntegralTargetType(left) && csharpLiteralIsRepresentableAs(literalValues.literalValue.get(whenFalse), left)) {
     selected = left;
-  } else if (right !== undefined && isCsharpIntegralTargetType(right) && csharpLiteralIsRepresentableAs({ ast }, whenTrue, right)) {
+  } else if (right !== undefined && isCsharpIntegralTargetType(right) && csharpLiteralIsRepresentableAs(literalValues.literalValue.get(whenTrue), right)) {
     selected = right;
   }
   return selected === undefined ? undefined : optional ? csharpNullableTargetType(selected) : selected;

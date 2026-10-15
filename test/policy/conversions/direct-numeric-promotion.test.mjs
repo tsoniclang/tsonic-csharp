@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpBigIntegerTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { analyzeCsharpSourceLiteralValues } from "../../../dist/analysis/source-evidence/literal-values.js";
 
 import {
   csharpSourcePrimitiveTargetType,
@@ -10,6 +11,7 @@ import {
 const ast = {
   is: {
     IsArrayLiteralExpression: (node) => node.kind === "array",
+    IsBinaryExpression: (node) => node.kind === "binary",
     IsBigIntLiteral: (node) => node.kind === "bigint",
     IsNoSubstitutionTemplateLiteral: (node) => node.kind === "template",
     IsNumericLiteral: (node) => node.kind === "numeric",
@@ -22,13 +24,16 @@ const ast = {
     AsPrefixUnaryExpression: (node) => node,
   },
   elements: (node) => node.elements ?? [],
+  forEachChild: (node, visit) => [...(node.children ?? []), ...(node.Operand === undefined ? [] : [node.Operand]),
+    ...(node.elements ?? [])].forEach(visit),
   kindName: (node) => node.kindName,
   authoredRange: () => ({ kind: "synthetic" }),
   operatorKindName: (node) => node.operator,
   text: (node) => node.text,
 };
 
-const input = { ast };
+const input = { literalValues: { literalValue: { get: (node) =>
+  analyzeCsharpSourceLiteralValues(ast, [{ kind: "file", children: [node] }]).literalValue.get(node) } } };
 const value = { kind: "value" };
 
 test("C# numeric promotion follows exact predefined target arithmetic", () => {

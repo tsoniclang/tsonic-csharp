@@ -14,7 +14,6 @@ import { selectCsharpAuthoredUnionRefinement, sourceRefinementOnlyRemovesNullish
 import { Node_Expression, Node_Type, ObjectLiteralProperty_Value } from "@tsonic/target-api/source";
 import { getCsharpCallableValueSignature } from "../../../target-model/types/carriers/delegates.js";
 import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDeclarations } from "../objects/object-shape-policy/union-construction.js";
-import { csharpNumericLiteralValue, csharpBigIntLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
 import { getCsharpArrayLiteralElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { resolveTypeParameter, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
@@ -410,7 +409,8 @@ function sourceArgumentInferencePairs(
   state: CsharpTypeResolutionState,
 ): readonly { readonly pattern: TargetTypeRef; readonly actual: TargetTypeRef }[] | undefined {
   const { host, resolveSelectedValueWithState } = scope;
-  if (csharpNumericLiteralValue(host.ast, literal) !== undefined || csharpBigIntLiteralValue(host.ast, literal) !== undefined) return [];
+  const literalValue = host.literalValues.literalValue.get(literal);
+  if (literalValue?.number !== undefined || literalValue?.integer !== undefined) return [];
   if (host.ast.is.IsParenthesizedExpression(literal) || host.ast.is.IsSatisfiesExpression(literal)) {
     const inner = Node_Expression(host.ast, literal);
     return inner === undefined ? undefined : sourceArgumentInferencePairs(scope, inner, pattern, sourceFile, nextState(state));
