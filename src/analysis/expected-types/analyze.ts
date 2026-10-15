@@ -94,9 +94,10 @@ export function analyzeCsharpExpectedTypes(
     ast: policy.ast,
     sites: projection.sites,
     sitesOf: projection.sitesOf,
+    withheldOf: projection.withheldOf,
     expectedBinary,
     intrinsicTarget: constructions.intrinsicTarget,
-    callableTarget: returns.callableTarget,
+    constructionCarrier: constructions.constructionCarrier,
     absentValue,
   });
 

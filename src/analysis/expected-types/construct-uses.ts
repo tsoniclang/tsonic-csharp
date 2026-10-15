@@ -9,10 +9,18 @@ import {
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
-import type { CsharpProviderArgumentMapping } from "../../target-model/records/members.js";
-import type { CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
+import type { CsharpProviderArgumentMapping, CsharpSelectedTargetCall } from "../../target-model/records/members.js";
+import type { CsharpSourceArgumentGrouping } from "../../target-model/records/operations.js";
+import {
+  csharpSelectedTargetArgumentBindings,
+  csharpSourceOwnedArgumentBindings,
+  type CsharpNativeArgumentBindings,
+  type CsharpNativeUseSlot,
+} from "../../target-model/records/native-demand.js";
 import type { CsharpExpectedUseCollection } from "./collection.js";
-import type { CsharpExpectedTypeAnalysisInput, CsharpExpectedTypeStrength } from "./model.js";
+import type { CsharpExpectedTypeAnalysisInput, CsharpExpectedTypeStrength, CsharpExpectedUseDemand } from "./model.js";
+
+const operation: CsharpExpectedUseDemand = Object.freeze({ withheld: "operation" });
 
 export interface CsharpExpectedConstructUses {
   readonly recordThrownValue: (node: Node) => void;
@@ -32,7 +40,7 @@ export function createCsharpExpectedConstructUses(
 
   function recordThrownValue(node: Node): void {
     const thrown = operations.throwValue.get(node);
-    if (thrown !== undefined) record(thrown.expression, thrown.targetCarrier, "required", undefined);
+    if (thrown !== undefined) record(thrown.expression, thrown.targetCarrier, "required", operation);
   }
 
   function recordInitializer(node: Node): void {
@@ -70,69 +78,72 @@ export function createCsharpExpectedConstructUses(
       return false;
     }
     if (nativePointer?.kind === "raw-location") {
-      record(nativePointer.expression, nativePointer.inputType, "required", undefined);
+      record(nativePointer.expression, nativePointer.inputType, "required", operation);
     } else if (nativePointer?.kind === "raw-address") {
-      for (const argument of nativePointer.arguments) record(argument.expression, argument.sourceType, "required", undefined);
+      for (const argument of nativePointer.arguments) record(argument.expression, argument.sourceType, "required", operation);
     } else if (nativePointer?.kind === "raw-identity") {
-      for (const argument of nativePointer.arguments) record(argument, nativePointer.parameterType, "required", undefined);
+      for (const argument of nativePointer.arguments) record(argument, nativePointer.parameterType, "required", operation);
     } else if (typedLocation !== undefined && typedLocation.kind !== "not-typed-location" &&
       typedLocation.kind !== "rejected") {
       if (typedLocation.kind === "location-allocate") {
-        record(typedLocation.initialExpression, typedLocation.pointeeType, "required", undefined);
+        record(typedLocation.initialExpression, typedLocation.pointeeType, "required", operation);
       } else if (typedLocation.kind === "location-store") {
-        record(typedLocation.valueExpression, typedLocation.pointeeType, "required", undefined);
+        record(typedLocation.valueExpression, typedLocation.pointeeType, "required", operation);
       } else if (typedLocation.kind === "location-equal") {
-        record(typedLocation.leftExpression, typedLocation.parameterType, "required", undefined);
-        record(typedLocation.rightExpression, typedLocation.parameterType, "required", undefined);
+        record(typedLocation.leftExpression, typedLocation.parameterType, "required", operation);
+        record(typedLocation.rightExpression, typedLocation.parameterType, "required", operation);
       } else if (typedLocation.kind === "location-hash") {
-        record(typedLocation.locationExpression, typedLocation.parameterType, "required", undefined);
+        record(typedLocation.locationExpression, typedLocation.parameterType, "required", operation);
       } else if (typedLocation.kind === "location-bind" || typedLocation.kind === "location-project" ||
         typedLocation.kind === "location-view") {
-        for (const argument of typedLocation.arguments) record(argument.expression, argument.type, "required", undefined);
+        for (const argument of typedLocation.arguments) record(argument.expression, argument.type, "required", operation);
       }
     } else if (call?.target?.kind === "resolved") {
-      recordSelectedCallReceiver(call.target, "required");
+      recordSelectedCallReceiver(node, call.target, "required");
       recordSelectedCallArguments(
+        node,
         call.target.source.sourceArguments,
-        call.target.call.arguments,
+        call.target.call,
         call.target.call.origin === "provider"
           ? call.target.call.argumentMappings
           : undefined,
         "required",
       );
     } else if (call?.source !== undefined) {
-      recordSourceArgumentBindings(call.source, call.sourceArgumentParameterTypes);
+      recordSourceArgumentBindings(node, call.source, call.sourceArgumentParameterTypes, call.sourceArgumentGrouping);
     }
 
     const construction = operations.selectedConstruction.get(node);
     if (construction?.target?.kind === "resolved") {
-      recordSelectedCallReceiver(construction.target, "required");
+      recordSelectedCallReceiver(node, construction.target, "required");
       recordSelectedCallArguments(
+        node,
         construction.target.source.sourceArguments,
-        construction.target.call.arguments,
+        construction.target.call,
         construction.target.call.origin === "provider"
           ? construction.target.call.argumentMappings
           : undefined,
         "required",
       );
     } else if (construction?.target?.kind === "source-owned") {
-      recordSourceArgumentBindings(construction.target.source, construction.sourceArgumentParameterTypes);
+      recordSourceArgumentBindings(node, construction.target.source, construction.sourceArgumentParameterTypes,
+        construction.sourceArgumentGrouping);
     }
 
     const switchSelection = operations.switchStatement.get(node);
     if (switchSelection?.kind === "ordered") {
       for (const clause of switchSelection.clauses) {
         if (clause.comparison?.kind !== "resolved") continue;
-        record(clause.comparison.left, clause.comparison.leftInputType, "required", undefined);
-        record(clause.comparison.right, clause.comparison.rightInputType, "required", undefined);
+        record(clause.comparison.left, clause.comparison.leftInputType, "required", operation);
+        record(clause.comparison.right, clause.comparison.rightInputType, "required", operation);
       }
     }
 
     const binary = operations.binaryOperation.get(node)?.target;
     if (binary?.kind === "resolved") {
-      record(binary.left, binary.leftInputType, "required", undefined);
+      record(binary.left, binary.leftInputType, "required", operation);
       if (binary.targetOperation.kind === "conditional-value" && binary.targetOperation.branch !== "right") {
-        record(binary.left, binary.resultType, "required", undefined);
+        record(binary.left, binary.resultType, "required", operation);
       }
       const selected = binary.sourceOperator === "="
         ? policy.semantics(sourceFile)?.operations.propertyAccess(binary.left) ??
@@ -145,18 +156,18 @@ export function createCsharpExpectedConstructUses(
           [selected.selectedDeclaration, selected.selectedSymbol]);
       if (binary.targetOperation.kind !== "conditional-value" || binary.targetOperation.branch !== "left") {
         record(binary.right, binary.rightInputType, "required",
-          binary.sourceOperator === "=" ? at(node, { kind: "operand", position: "right" }) : undefined,
+          binary.sourceOperator === "=" ? at(node, { kind: "operand", position: "right" }) : operation,
           member?.kind === "resolved" && member.member.exactNumericStorage === true);
       }
     }
     const mutation = operations.jsArrayMutation.get(node);
     if (mutation?.kind === "set-typed-element" && mutation.calculation !== undefined) {
-      record(mutation.calculation.left, mutation.calculation.leftInputType, "required", undefined);
-      record(mutation.calculation.right, mutation.calculation.rightInputType, "required", undefined);
+      record(mutation.calculation.left, mutation.calculation.leftInputType, "required", operation);
+      record(mutation.calculation.right, mutation.calculation.rightInputType, "required", operation);
     }
     const unary = operations.unaryOperation.get(node)?.target;
     if (unary?.kind === "resolved") {
-      record(unary.operand, unary.operandType, "required", undefined);
+      record(unary.operand, unary.operandType, "required", operation);
     }
 
     const element = operations.selectedElement.get(node)?.target;
@@ -166,21 +177,21 @@ export function createCsharpExpectedConstructUses(
         argument,
         element.targetMember.parameters[element.targetParameterIndex]?.type,
         "required",
-        undefined,
+        operation,
       );
     } else if (element?.kind === "project-indexer") {
       record(
         policy.ast.as.AsElementAccessExpression(node)?.ArgumentExpression,
         element.keyType,
         "required",
-        undefined,
+        operation,
       );
     }
 
     if (nativePointer?.kind === "store") {
-      record(nativePointer.valueExpression, nativePointer.pointeeType, "required", undefined);
+      record(nativePointer.valueExpression, nativePointer.pointeeType, "required", operation);
     } else if (nativePointer?.kind === "offset") {
-      record(nativePointer.offsetExpression, nativePointer.offsetType, "required", undefined);
+      record(nativePointer.offsetExpression, nativePointer.offsetType, "required", operation);
     }
 
     const iteration = operations.iteration.get(node);
@@ -189,7 +200,7 @@ export function createCsharpExpectedConstructUses(
         policy.ast.as.AsForInOrOfStatement(node)?.Expression,
         iteration.iterableType,
         "required",
-        undefined,
+        operation,
       );
     }
 
@@ -204,46 +215,76 @@ export function createCsharpExpectedConstructUses(
         yieldSelection.operand.expression,
         expectedYieldType,
         "required",
-        undefined,
+        operation,
       );
     }
     return true;
   }
 
   function recordSourceArgumentBindings(
+    owner: Node,
     source: {
       readonly sourceArguments: readonly { readonly expression: Node }[];
       readonly sourceArgumentBindings: readonly { readonly sourceArgumentIndex: number }[];
     },
     parameterTypes: readonly (TargetTypeRef | undefined)[] | undefined,
+    grouping: CsharpSourceArgumentGrouping | undefined,
   ): void {
+    const bindings = csharpSourceOwnedArgumentBindings(grouping);
     for (let index = 0; index < source.sourceArgumentBindings.length; index += 1) {
       const binding = source.sourceArgumentBindings[index]!;
+      const first = source.sourceArgumentBindings.findIndex((candidate) =>
+        candidate.sourceArgumentIndex === binding.sourceArgumentIndex) === index;
       record(
         source.sourceArguments[binding.sourceArgumentIndex]?.expression,
         parameterTypes?.[index],
         "required",
-        undefined,
+        sourceArgumentDemand(owner, bindings, binding.sourceArgumentIndex, first),
       );
     }
   }
 
+  function sourceArgumentDemand(
+    owner: Node,
+    bindings: CsharpNativeArgumentBindings,
+    sourceArgumentIndex: number,
+    first: boolean,
+  ): CsharpExpectedUseDemand {
+    if (bindings.kind !== "bound") return withheldBinding(bindings);
+    const binding = bindings.bindings.find((candidate) => candidate.sourceArgumentIndex === sourceArgumentIndex);
+    if (binding === undefined) throw new Error(`C# source argument ${sourceArgumentIndex} has no bound native slot.`);
+    return binding.sequence || !first ? { withheld: "argument-sequence" } : at(owner, binding.slot);
+  }
+
+  function selectedArgumentDemand(
+    owner: Node,
+    bindings: CsharpNativeArgumentBindings,
+    sequences: ReadonlySet<number>,
+    argument: CsharpSelectedTargetCall["arguments"][number],
+  ): CsharpExpectedUseDemand {
+    if (bindings.kind !== "bound") return withheldBinding(bindings);
+    if (sequences.has(argument.sourceArgumentIndex)) return { withheld: "argument-sequence" };
+    const binding = bindings.bindings.find((candidate) => candidate.slot.sourceIndex === argument.sourceArgumentIndex &&
+      candidate.slot.effectiveIndex === argument.effectiveArgumentIndex && candidate.slot.parameterIndex === argument.targetParameterIndex);
+    if (binding === undefined) throw new Error(`C# selected argument ${argument.effectiveArgumentIndex} has no bound native slot.`);
+    return at(owner, binding.slot);
+  }
+
+  function withheldBinding(bindings: Exclude<CsharpNativeArgumentBindings, { readonly kind: "bound" }>): CsharpExpectedUseDemand {
+    return { withheld: bindings.kind === "refused" ? "argument-refused"
+      : bindings.kind === "unresolved" ? "argument-unresolved" : "argument-inconsistent" };
+  }
+
   function recordSelectedCallArguments(
+    owner: Node,
     sourceArguments: readonly { readonly expression: Node }[],
-    arguments_: readonly {
-      readonly sourceArgumentIndex: number;
-      readonly effectiveArgumentIndex: number;
-      readonly targetParameter: Parameters<
-        typeof csharpTargetParameterValueType
-      >[0];
-      readonly sourceForm: Parameters<
-        typeof csharpTargetParameterValueType
-      >[1];
-    }[],
+    call: CsharpSelectedTargetCall,
     argumentMappings: readonly CsharpProviderArgumentMapping[] | undefined,
     strength: CsharpExpectedTypeStrength,
   ): void {
-    for (const argument of arguments_) {
+    const bindings = csharpSelectedTargetArgumentBindings(call);
+    const sequences = new Set((call.sequenceArguments ?? []).map((sequence) => sequence.sourceArgumentIndex));
+    for (const argument of call.arguments) {
       const expression = sourceArguments[argument.sourceArgumentIndex]
         ?.expression;
       const mapping = argumentMappings?.find((candidate) =>
@@ -259,7 +300,7 @@ export function createCsharpExpectedConstructUses(
               argument.sourceForm,
             ),
         strength,
-        undefined,
+        selectedArgumentDemand(owner, bindings, sequences, argument),
       );
     }
   }
@@ -291,6 +332,7 @@ export function createCsharpExpectedConstructUses(
   }
 
   function recordSelectedCallReceiver(
+    owner: Node,
     selection: Extract<CsharpTargetCallSelection, { readonly kind: "resolved" }>,
     strength: CsharpExpectedTypeStrength,
   ): void {
@@ -306,7 +348,7 @@ export function createCsharpExpectedConstructUses(
         ? undefined
         : csharpTargetParameterValueType(parameter, "value"),
       strength,
-      undefined,
+      at(owner, { kind: "receiver" }),
     );
   }
 }

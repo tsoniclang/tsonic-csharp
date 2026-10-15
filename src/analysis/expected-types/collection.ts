@@ -11,6 +11,7 @@ import type {
   CsharpExpectedTypeRecord,
   CsharpExpectedTypeStrength,
   CsharpExpectedTypeUse,
+  CsharpExpectedUseWithholding,
 } from "./model.js";
 
 const maximumExpectedTargetUses = 1_048_576;
@@ -37,6 +38,7 @@ export interface CsharpExpectedUseProjection {
   readonly exactIntegerConversion: (expression: Node, targetType: TargetTypeRef) => boolean;
   readonly sites: readonly CsharpExpectedUseSite[];
   readonly sitesOf: (expression: Node) => readonly CsharpExpectedUseSite[];
+  readonly withheldOf: (expression: Node) => readonly CsharpExpectedUseWithholding[];
 }
 
 export interface CsharpExpectedUseCollection {
@@ -58,6 +60,7 @@ export function createCsharpExpectedUseCollection(policy: CsharpPolicyContext): 
   const contextualCallables = new Set<Node>();
   const demandsBySubject = new WeakMap<object, Map<string, { readonly site: TargetUseSiteRef; readonly demands: Map<string, CsharpExpectedUseDemandEntry> }>>();
   const siteOrder: { readonly subject: object; readonly identity: string }[] = [];
+  const withheld = new Map<Node, Set<CsharpExpectedUseWithholding>>();
   let expectedTargetUseCount = 0;
   let processedPending = 0;
 
@@ -99,7 +102,11 @@ export function createCsharpExpectedUseCollection(policy: CsharpPolicyContext): 
       types.set(key, use);
       pending.push(Object.freeze({ expression, ...use }));
     }
-    if (demand !== undefined) {
+    if (demand !== undefined && "withheld" in demand) {
+      const reasons = withheld.get(expression) ?? new Set<CsharpExpectedUseWithholding>();
+      reasons.add(demand.withheld);
+      withheld.set(expression, reasons);
+    } else if (demand !== undefined) {
       recordDemand(csharpNativeUseSite(demand.owner, demand.slot), expression, targetType, key, strength, demand.forwardedFrom);
     }
   };
@@ -173,6 +180,8 @@ export function createCsharpExpectedUseCollection(policy: CsharpPolicyContext): 
     const frozenSites = Object.freeze(sites);
     const noSites: readonly CsharpExpectedUseSite[] = Object.freeze([]);
     const sitesOf = new Map([...sitesByExpression].map(([expression, list]) => [expression, Object.freeze(list)] as const));
+    const noWithholding: readonly CsharpExpectedUseWithholding[] = Object.freeze([]);
+    const withheldOf = new Map([...withheld].map(([expression, reasons]) => [expression, Object.freeze([...reasons].sort())] as const));
     return Object.freeze({
       targetTypes: Object.freeze([...targetTypes.entries()]
         .sort(([left], [right]) => left.localeCompare(right))
@@ -184,6 +193,7 @@ export function createCsharpExpectedUseCollection(policy: CsharpPolicyContext): 
         byExpression.get(expression)?.get(targetTypeRefKey(targetType))?.exactInteger === true,
       sites: frozenSites,
       sitesOf: (expression: Node) => sitesOf.get(expression) ?? noSites,
+      withheldOf: (expression: Node) => withheldOf.get(expression) ?? noWithholding,
     });
   }
 }

@@ -31,11 +31,24 @@ export interface CsharpExpectedTypePending extends CsharpExpectedTypeUse {
   readonly expression: Node;
 }
 
-export interface CsharpExpectedUseDemand {
+export interface CsharpExpectedUseSiteDemand {
   readonly owner: Node;
   readonly slot: CsharpNativeUseSlot;
   readonly forwardedFrom?: TargetTypeRef;
 }
+
+export type CsharpExpectedUseWithholding =
+  | "operation"
+  | "argument-refused"
+  | "argument-unresolved"
+  | "argument-inconsistent"
+  | "argument-sequence";
+
+export interface CsharpExpectedUseWithheldDemand {
+  readonly withheld: CsharpExpectedUseWithholding;
+}
+
+export type CsharpExpectedUseDemand = CsharpExpectedUseSiteDemand | CsharpExpectedUseWithheldDemand;
 
 export type CsharpExpectedTypeRecord = (
   expression: Node | undefined,

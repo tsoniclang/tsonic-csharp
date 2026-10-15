@@ -24,12 +24,15 @@ import type {
 
 export type CsharpExpectedBinarySelection = ReturnType<typeof selectCsharpBinaryOperation>;
 
+const operation: CsharpExpectedUseDemand = Object.freeze({ withheld: "operation" });
+
 export interface CsharpExpectedTypePropagation {
   readonly propagate: (pending: CsharpExpectedTypePending) => void;
   readonly recordIntrinsicArrayLiteralElements: (node: Node) => void;
   readonly recordIntrinsicObjectLiteralMembers: (node: Node) => void;
   readonly seal: () => {
     readonly arrayLiteralCarrier: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined;
+    readonly constructionCarrier: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined;
     readonly intrinsicTarget: (expression: Node, targetType: TargetTypeRef) => boolean;
   };
 }
@@ -42,6 +45,7 @@ export function createCsharpExpectedTypePropagation(
   const { policy, evidence, operations, objectShapes, valueReadStages } = input;
   const record = collection.record;
   const arrayCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
+  const objectCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
   const intrinsicTargets = new WeakMap<Node, Set<string>>();
 
   return Object.freeze({
@@ -51,6 +55,8 @@ export function createCsharpExpectedTypePropagation(
     seal: () => Object.freeze({
       arrayLiteralCarrier: (expression: Node, targetType: TargetTypeRef) =>
         arrayCarriers.get(expression)?.get(targetTypeRefKey(targetType)),
+      constructionCarrier: (expression: Node, targetType: TargetTypeRef) =>
+        (arrayCarriers.get(expression) ?? objectCarriers.get(expression))?.get(targetTypeRefKey(targetType)),
       intrinsicTarget: (expression: Node, targetType: TargetTypeRef) =>
         intrinsicTargets.get(expression)?.has(targetTypeRefKey(targetType)) === true,
     }),
@@ -118,15 +124,15 @@ export function createCsharpExpectedTypePropagation(
       const expectedSelection = expectedBinary(expression, targetType);
       const selection = expectedSelection ?? operations.binaryOperation.get(expression)?.target;
       if (selection?.kind === "resolved") {
-        record(selection.left, selection.leftInputType, strength, undefined);
+        record(selection.left, selection.leftInputType, strength, operation);
         if (selection.targetOperation.kind === "conditional-value" && selection.targetOperation.branch !== "right") {
-          record(selection.left, selection.resultType, strength, undefined);
+          record(selection.left, selection.resultType, strength, operation);
         }
         if (selection.targetOperation.kind !== "conditional-value" || selection.targetOperation.branch !== "left") {
-          record(selection.right, selection.rightInputType, strength, undefined);
+          record(selection.right, selection.rightInputType, strength, operation);
         }
         if (selection.sourceOperator === "??") {
-          record(selection.right, targetType, strength, undefined);
+          record(selection.right, targetType, strength, operation);
         }
       }
       return;
@@ -153,6 +159,7 @@ export function createCsharpExpectedTypePropagation(
     const positions = childPositions(expression);
     const member = (property: Node) => positioned(positions, property, index => forwarded(expression, targetType, { kind: "member", index }));
     if (indexedValueType !== undefined) {
+      if (isCsharpRecordDictionaryTargetType(carrier)) recordObjectCarrier(expression, targetType, carrier);
       for (const property of policy.ast.properties(expression)) {
         if (property === undefined) {
           continue;
@@ -178,6 +185,7 @@ export function createCsharpExpectedTypePropagation(
     if (resolution?.kind !== "resolved") {
       return;
     }
+    recordObjectCarrier(expression, targetType, resolution.shape.targetType);
     for (const property of policy.ast.properties(expression)) {
       if (property === undefined) {
         continue;
@@ -224,6 +232,12 @@ export function createCsharpExpectedTypePropagation(
           selected.member.exactNumericStorage === true);
       }
     }
+  }
+
+  function recordObjectCarrier(expression: Node, targetType: TargetTypeRef, carrier: TargetTypeRef): void {
+    const carriers = objectCarriers.get(expression) ?? new Map<string, TargetTypeRef>();
+    carriers.set(targetTypeRefKey(targetType), carrier);
+    objectCarriers.set(expression, carriers);
   }
 
   function recordIntrinsicObjectLiteralMembers(node: Node): void {
