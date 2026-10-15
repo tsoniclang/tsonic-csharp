@@ -5,17 +5,19 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 
 const header = `import type { int32 } from "@tsonic/core/types.js";\n`;
 const refused = [
-  ["Error", "CodedError", "target:System.Exception<>'.",
+  ["Error", "CodedError", "System.Exception'.",
     "export interface CodedError extends Error { code: int32; }\nexport function f(e: CodedError): void { throw e; }\n"],
-  ["Promise<int32>", "Pending", "target:System.Threading.Tasks.Task`1<",
+  ["Promise<int32>", "Pending", "System.Threading.Tasks.Task'.",
     "export interface Pending extends Promise<int32> { tag: string; }\nexport function f(v: Pending): string { return v.tag; }\n"],
+  ["Base", "Extended", "Base'.",
+    "export class Base { x: int32 = 0; }\nexport interface Extended extends Base { y: int32; }\nexport function f(v: Extended): int32 { return v.y; }\n"],
 ];
 const refusedOnJs = [
-  ["Date", "Stamp", "target:Tsonic.CSharp.Js.Date<>'.",
+  ["Date", "Stamp", "Tsonic.CSharp.Js.Date'.",
     "export interface Stamp extends Date { tag: string; }\nexport function f(v: Stamp): string { return v.tag; }\n"],
-  ["RegExp", "Pattern", "target:Tsonic.CSharp.Js.RegExp<>'.",
+  ["RegExp", "Pattern", "Tsonic.CSharp.Js.RegExp'.",
     "export interface Pattern extends RegExp { tag: string; }\nexport function f(v: Pattern): string { return v.tag; }\n"],
-  ["RangeError", "Ranged", "target:Tsonic.CSharp.Runtime.RangeError<>'.",
+  ["RangeError", "Ranged", "Tsonic.CSharp.Runtime.RangeError'.",
     "export interface Ranged extends RangeError { code: int32; }\nexport function f(v: Ranged): int32 { return v.code; }\n"],
 ];
 
