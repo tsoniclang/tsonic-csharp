@@ -92,7 +92,7 @@ test("the native-use owner publishes one consumed use per slot with its ordered 
   const uses = describeUses(program, collectCsharpNativeUses(ownerInput(program)));
   const expected = [
     "effect | log(value) | effect void",
-    "argument:source=0:effective=0 | value | value value",
+    "argument:source=0:effective=0:parameter=0 | value | value value",
     "initializer | flag ? value : 0 as int | value value",
     "condition | flag | value value",
     "branch:true | value | value value",
@@ -360,4 +360,50 @@ test("defaults follow the binding owner's default-use choice in declaration and 
     assert.equal(usesRole(uses, "default", text), true, `${text} is a demanded default use`);
   }
   assert.equal(usesRole(uses, "operand:right", "pair"), true, "a statement-level destructuring assignment reads its source");
+});
+
+test("argument uses follow the selected source, effective and target-parameter bindings", () => {
+  const program = compileProgram({ surface: "js", sourceText: `
+    import type { uint8 } from "@tsonic/core/types.js";
+    export function run(values: number[], tuple: [uint8, number]): string {
+      const index = values.indexOf(2);
+      return String.fromCharCode(...tuple) + index;
+    }
+  ` });
+  const indexOf = findNode(program, "KindCallExpression", "values.indexOf(2)");
+  const fromCharCode = findNode(program, "KindCallExpression", "String.fromCharCode(...tuple)");
+  assert.equal(indexOf !== undefined && fromCharCode !== undefined, true, "both calls are the program's own call expressions");
+  const input = ownerInput(program);
+  const uses = analyzeCsharpNativeDemand(input).nativeUse;
+  const argument = (owner, slot) => uses.get(csharpNativeUseSite(owner, { kind: "argument", ...slot }));
+  const mapped = argument(indexOf, { sourceIndex: 0, effectiveIndex: 0, parameterIndex: 1 });
+  assert.equal(mapped?.kind === "value" && sourceText(program, mapped.expression) === "2", true,
+    "a receiver-as-parameter call keys its first source argument to target parameter 1");
+  assert.equal(argument(indexOf, { sourceIndex: 0, effectiveIndex: 1, parameterIndex: 1 }) === undefined, true, "a wrong effective index has no use");
+  assert.equal(argument(indexOf, { sourceIndex: 0, effectiveIndex: 0, parameterIndex: 0 }) === undefined, true, "a wrong parameter index has no use");
+  assert.equal(argument(indexOf, { sourceIndex: 0, effectiveIndex: 0 }) === undefined, true, "a positional key has no use for a bound argument");
+  const spread = argument(fromCharCode, { sourceIndex: 0, effectiveIndex: 0, parameterIndex: 0 });
+  assert.equal(spread?.kind === "value" && sourceText(program, spread.expression) === "tuple", true,
+    "a tuple spread into a params parameter is one use of its operand at its first binding");
+  assert.equal(argument(fromCharCode, { sourceIndex: 0, effectiveIndex: 1, parameterIndex: 0 }) === undefined, true,
+    "the spread's second element binding does not evaluate the operand again");
+  const operandUses = collectCsharpNativeUses(input).filter(({ site, use }) => site.subject === fromCharCode &&
+    ["tuple", "...tuple"].includes(sourceText(program, use.expression)));
+  assert.equal(operandUses.length === 1, true, "the spread operand is evaluated once");
+});
+
+test("source-owned rest arguments key a sequence spread to the params parameter", () => {
+  const program = compileProgram({ sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    function sentinel(value: int32): int32 { return value; }
+    function sum(first: int32, ...rest: int32[]): int32 { return first; }
+    export function run(values: int32[]): int32 { return sum(sentinel(1 as int32), sentinel(2 as int32), ...values); }
+  ` });
+  const call = findNode(program, "KindCallExpression", "sum(sentinel(1 as int32), sentinel(2 as int32), ...values)");
+  const uses = analyzeCsharpNativeDemand(ownerInput(program)).nativeUse;
+  const argument = (slot) => uses.get(csharpNativeUseSite(call, { kind: "argument", ...slot }));
+  const text = (use) => use === undefined ? "-" : sourceText(program, use.expression);
+  assert.equal(text(argument({ sourceIndex: 0, effectiveIndex: 0, parameterIndex: 0 })) === "sentinel(1 as int32)", true, "the first argument binds parameter 0");
+  assert.equal(text(argument({ sourceIndex: 1, effectiveIndex: 1, parameterIndex: 1 })) === "sentinel(2 as int32)", true, "the second argument binds the rest parameter");
+  assert.equal(text(argument({ sourceIndex: 2, effectiveIndex: 2, parameterIndex: 1 })) === "values", true, "the sequence spread binds its operand to the rest parameter");
 });

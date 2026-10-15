@@ -1,7 +1,14 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { IsTypeSyntaxNode, sourceDeclarationIsModuleScoped, sourceNodesEqual } from "@tsonic/target-api/source";
 import { csharpConstructorBaseCall } from "../../callables/constructor-entry.js";
-import type { CsharpNativeUseSlot } from "../../../target-model/records/native-demand.js";
+import {
+  csharpNativePositionalArgumentSlot,
+  csharpSelectedTargetArgumentBindings,
+  csharpSourceOwnedArgumentBindings,
+  type CsharpNativeArgumentBinding,
+  type CsharpNativeUseSlot,
+} from "../../../target-model/records/native-demand.js";
+import type { ResolvedSourceCallInfo } from "../../../target-model/records/members.js";
 import { getCsharpClassFactory } from "../../../target-model/types/carriers/class-factories.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/index.js";
@@ -38,8 +45,21 @@ function arguments_(ast: AstReader, node: Node): readonly Node[] {
   return ast.arguments(node).filter((argument): argument is Node => argument !== undefined);
 }
 
-function argumentUses(owner: Node, nodes: readonly Node[]): readonly CsharpNativeChildUse[] {
-  return nodes.flatMap((expression, index) => use(owner, expression, { kind: "argument", sourceIndex: index, effectiveIndex: index }));
+function positionalArgumentUses(owner: Node, nodes: readonly Node[]): readonly CsharpNativeChildUse[] {
+  return nodes.flatMap((expression, index) => use(owner, expression, csharpNativePositionalArgumentSlot(index)));
+}
+
+function boundArgumentUses(
+  input: CsharpNativeDemandAnalysisInput,
+  owner: Node,
+  sourceArguments: ResolvedSourceCallInfo["sourceArguments"],
+  bindings: readonly CsharpNativeArgumentBinding[],
+): readonly CsharpNativeChildUse[] {
+  return bindings.flatMap(binding => {
+    const argument = sourceArguments[binding.sourceArgumentIndex]?.expression;
+    const expression = binding.sequence && argument !== undefined ? input.ast.as.AsSpreadElement(argument)?.Expression : argument;
+    return use(owner, expression, binding.slot);
+  });
 }
 
 function intrinsicUses(owner: Node, nodes: readonly (Node | undefined)[], operand: "value" | "argument"): readonly CsharpNativeChildUse[] {
@@ -97,12 +117,15 @@ export function csharpNativeExpressionChildUses(
     const construction = operations.selectedConstruction.get(node);
     if (construction === undefined) return [];
     if (construction.jsValue.kind === "resolved") {
-      return [...use(node, ast.as.AsNewExpression(node)?.Expression, { kind: "callee" }), ...argumentUses(node, arguments_(ast, node))];
+      return [...use(node, ast.as.AsNewExpression(node)?.Expression, { kind: "callee" }), ...positionalArgumentUses(node, arguments_(ast, node))];
     }
     const target = construction.target;
-    if (target?.kind === "resolved") return argumentUses(node, target.source.sourceArguments.map(argument => argument.expression));
+    if (target?.kind === "resolved") {
+      return boundArgumentUses(input, node, target.source.sourceArguments, csharpSelectedTargetArgumentBindings(target.call));
+    }
     if (target?.kind !== "source-owned") return [];
-    const sourceArguments = argumentUses(node, target.source.sourceArguments.map(argument => argument.expression));
+    const sourceArguments = boundArgumentUses(input, node, target.source.sourceArguments,
+      csharpSourceOwnedArgumentBindings(target.source, construction));
     const callee = target.source.sourceCallee.expression;
     const calleeType = valueReads.valueRead.get(callee)?.value;
     const reference = input.navigation.sourceReferenceFor(callee);
@@ -206,9 +229,9 @@ function callUses(input: CsharpNativeDemandAnalysisInput, node: Node): readonly 
   const source = classification.source;
   switch (form.kind) {
     case "type-test":
-      return use(node, source?.sourceArguments[0]?.expression, { kind: "argument", sourceIndex: 0, effectiveIndex: 0 });
+      return use(node, source?.sourceArguments[0]?.expression, csharpNativePositionalArgumentSlot(0));
     case "keep-alive":
-      return use(node, form.sourceFlow.valueExpression, { kind: "argument", sourceIndex: 0, effectiveIndex: 0 });
+      return use(node, form.sourceFlow.valueExpression, csharpNativePositionalArgumentSlot(0));
     case "js-value": {
       if (form.operation.kind !== "resolved") return [];
       const access = source?.sourceCalleeAccess;
@@ -217,7 +240,7 @@ function callUses(input: CsharpNativeDemandAnalysisInput, node: Node): readonly 
       return [
         ...use(node, receiver, { kind: member === undefined ? "callee" : "receiver" }),
         ...(member?.kind === "element" ? use(node, member.argument.expression, { kind: "key" }) : []),
-        ...argumentUses(node, arguments_(ast, node)),
+        ...positionalArgumentUses(node, arguments_(ast, node)),
       ];
     }
     case "target":
@@ -227,10 +250,10 @@ function callUses(input: CsharpNativeDemandAnalysisInput, node: Node): readonly 
   if (target?.kind === "resolved") {
     const receiver = target.call.receiver.kind === "instance" ? receiverUses(input, node, target.source.sourceReceiver)
       : target.call.receiver.kind === "target-parameter" ? use(node, target.source.sourceReceiver?.expression, { kind: "receiver" }) : [];
-    return [...receiver, ...argumentUses(node, target.source.sourceArguments.map(argument => argument.expression))];
+    return [...receiver, ...boundArgumentUses(input, node, target.source.sourceArguments, csharpSelectedTargetArgumentBindings(target.call))];
   }
   if (target?.kind !== "source-owned" || source === undefined) return [];
-  const sourceArguments = argumentUses(node, source.sourceArguments.map(argument => argument.expression));
+  const sourceArguments = boundArgumentUses(input, node, source.sourceArguments, csharpSourceOwnedArgumentBindings(source, classification));
   if (classification.unionCall.kind === "resolved") {
     return [...use(node, classification.unionCall.receiver, { kind: "receiver" }), ...sourceArguments];
   }
