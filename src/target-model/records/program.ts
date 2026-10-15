@@ -4,6 +4,7 @@ import type { CsharpCaptureStorage } from "./capture-storage.js";
 import type { CsharpClassFactoryIndex } from "./class-factories.js";
 import type { CsharpClassInitializationIndex } from "./class-initialization.js";
 import type { CsharpConversionClassifications, CsharpValueReadClassifications } from "./conversions.js";
+import type { CsharpExactLiteralSelectionIndex } from "../conversions/exact-literals.js";
 import type { CsharpDeclarationClassifications } from "./declarations.js";
 import type { CsharpExpectedTypeClassifications } from "./expected-types.js";
 import type { CsharpModuleInitializationIndex } from "./module-initialization.js";
@@ -44,6 +45,7 @@ export interface CsharpProgramRecords {
   readonly directCallableReference: CsharpConversionClassifications["directCallableReference"];
   readonly conversion: CsharpConversionClassifications["conversion"];
   readonly expressionConversion: CsharpConversionClassifications["expressionConversion"];
+  readonly exactLiteral: CsharpExactLiteralSelectionIndex["exactLiteral"];
   readonly returnContract: CsharpDeclarationClassifications["returnContract"];
   readonly runtimeDefault: CsharpDeclarationClassifications["runtimeDefault"];
   readonly methodWrite: CsharpDeclarationClassifications["methodWrite"];

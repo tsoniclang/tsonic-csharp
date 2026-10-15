@@ -4,6 +4,7 @@ import type { CsharpCaptureStorage } from "../../../target-model/records/capture
 import type { CsharpClassFactoryIndex } from "../../../target-model/records/class-factories.js";
 import type { CsharpClassInitializationIndex } from "../../../target-model/records/class-initialization.js";
 import type { CsharpConversionClassifications, CsharpValueReadClassifications } from "../../../target-model/records/conversions.js";
+import type { CsharpExactLiteralSelectionIndex } from "../../../target-model/conversions/exact-literals.js";
 import type { CsharpDeclarationClassifications } from "../../../target-model/records/declarations.js";
 import type { CsharpExpectedTypeClassifications } from "../../../target-model/records/expected-types.js";
 import type { CsharpModuleInitializationIndex } from "../../../target-model/records/module-initialization.js";
@@ -29,6 +30,7 @@ export interface CsharpProgramRecordInput {
   readonly declarations: CsharpDeclarationClassifications;
   readonly storage: CsharpStorageClassifications;
   readonly conversions: CsharpConversionClassifications;
+  readonly exactLiterals: CsharpExactLiteralSelectionIndex;
   readonly classFactories: CsharpClassFactoryIndex;
   readonly classInitialization: CsharpClassInitializationIndex;
   readonly captureStorage: CsharpCaptureStorage;
@@ -69,6 +71,7 @@ export function createCsharpProgramRecords(input: CsharpProgramRecordInput): Csh
     directCallableReference: input.conversions.directCallableReference,
     conversion: input.conversions.conversion,
     expressionConversion: input.conversions.expressionConversion,
+    exactLiteral: input.exactLiterals.exactLiteral,
     returnContract: input.declarations.returnContract,
     runtimeDefault: input.declarations.runtimeDefault,
     methodWrite: input.declarations.methodWrite,

@@ -9,6 +9,7 @@ import { analyzeCsharpClassFactories } from "../project-types/class-factories.js
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 import { createCsharpProgramRecords } from "./records/create.js";
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
+import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
 import { analyzeCsharpNativeControlFlow } from "../control-flow/native-control-flow.js";
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
 import { type CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
@@ -335,8 +336,9 @@ export function analyzeCsharpTargetProgram(
   const classInitialization = analyzeCsharpClassInitialization(source, classFactories);
   const numericRepresentations = analyzeCsharpNumericRepresentations({ source, sourceFiles,
     evidence: analysis.sourceEvidence, operations: analysis.operations });
+  const exactLiterals = analyzeCsharpExactLiteralSelections(literalValues, analysis.conversions.exactLiteralRequests);
   const records = createCsharpProgramRecords({
-    literalValues, nativeParticipation,
+    literalValues, exactLiterals, nativeParticipation,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
     numericRepresentations, attributeApplications, safetyApplications, operations: analysis.operations,

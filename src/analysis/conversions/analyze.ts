@@ -52,6 +52,7 @@ import { selectCsharpIntegerTruncationConversion } from "../../policy/conversion
 import { selectCsharpExactIntegerConversion } from "../../policy/conversions/exact-integer.js";
 import { admitCsharpConversionSelection } from "./validation.js";
 import { selectCsharpPropertyProjections } from "./property-projections.js";
+import { createCsharpExactLiteralRequestCollector } from "./literal-requests.js";
 
 const unavailableConversion: CsharpConversionSelection = Object.freeze({
   kind: "rejected",
@@ -76,6 +77,7 @@ export function analyzeCsharpConversions(
   let classificationCount = 0;
   let closed = false;
   let sealedClassifications: CsharpConversionClassifications | undefined;
+  const literalRequests = createCsharpExactLiteralRequestCollector(policy.literalValues);
 
   const openClassifications: CsharpConversionClassifications = {
     issues,
@@ -107,6 +109,7 @@ export function analyzeCsharpConversions(
             : classifyExpression(expression, source, target, mode)
         );
     } }),
+    exactLiteralRequests: literalRequests.requests,
   };
   const classifications = Object.freeze(openClassifications);
 
@@ -142,6 +145,7 @@ export function analyzeCsharpConversions(
           return expressionSelections.get(expression)?.get(key)?.selection ??
             pairSelections.get(key);
         } }),
+        exactLiteralRequests: Object.freeze([...literalRequests.requests]),
       };
       sealedClassifications = Object.freeze(sealed);
       return sealedClassifications;
@@ -160,6 +164,7 @@ export function analyzeCsharpConversions(
     if (operations.nativeUnreachable.get(node)) return;
     const sourceTypes = exactSourceTypes(node, valueReads, expectedTypes.callableTarget.get(node));
     const sourceType = sourceTypes[0];
+    literalRequests.requestReads(node, sourceTypes, expectedTypes.expectedType.get(node), operations);
     const borrowedSequence = operations.borrowedSequence.get(node);
     if (borrowedSequence !== undefined) {
       const element = getCsharpCollectionElementTargetType(borrowedSequence.sourceCarrier);
@@ -715,6 +720,7 @@ export function analyzeCsharpConversions(
             "C# delegate adaptation requires a source-owned callable; provider-owned delegate conversion requires provider conversion metadata.",
         })
       : candidate);
+    literalRequests.requestConversion(expression, source, target, selected);
     if (selections === undefined) {
       selections = new Map();
       expressionSelections.set(expression, selections);
