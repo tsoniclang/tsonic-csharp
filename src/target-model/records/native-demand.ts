@@ -84,7 +84,7 @@ export type CsharpNativeUse =
   | {
       readonly kind: "erased";
       readonly expression: Node;
-      readonly cause: "erased-statement" | "discarded-callable" | "unemitted-body" | "intrinsic-unconsumed";
+      readonly cause: "erased-statement" | "discarded-callable";
     };
 
 export type CsharpNativeOrderStep =
