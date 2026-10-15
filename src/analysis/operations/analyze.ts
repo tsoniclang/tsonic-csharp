@@ -10,6 +10,7 @@ import { csharpOperationConversionIssue, csharpSelectedCallConversionIssue } fro
 import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";
 import { resolveCsharpInstanceType } from "../../policy/types/resolution/instance-tests.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
+import { selectCsharpOperatorForm } from "../../policy/operations/operators/operator-forms.js";
 import { selectCsharpArrayTypeTest } from "../../policy/operations/source-profiles/js/type-tests.js";
 import { getCsharpTypeofResult, type CsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
@@ -29,8 +30,7 @@ import {
   AsForInOrOfStatement,
   selectSourceNativeValueGuard,
 } from "@tsonic/target-api/source";
-import { classifyCsharpSourceCallArguments, createCsharpOperationErasure, csharpErasedExpressionStatement, selectCsharpCallForm, selectCsharpNativeHandler, selectCsharpOperatorForm,
-  type CsharpOperationErasure, type CsharpOperationErasureIndexes } from "./native-dispatch.js";
+import { classifyCsharpSourceCallArguments, createCsharpOperationErasure, csharpErasedExpressionStatement, selectCsharpCallForm, selectCsharpNativeHandler, type CsharpOperationErasure, type CsharpOperationErasureIndexes } from "./native-dispatch.js";
 import type {
   Node,
   SourceFile,
@@ -744,7 +744,7 @@ function visit(
     },
   );
   if (ast.is.IsBinaryExpression(node) || ast.is.IsPrefixUnaryExpression(node) || ast.is.IsPostfixUnaryExpression(node)) {
-    setClassification(builder, node, operatorFormKey, selectCsharpOperatorForm(ast, node, builder.get(node, jsArrayMutationKey),
+    setClassification(builder, node, operatorFormKey, selectCsharpOperatorForm(policy, node, builder.get(node, jsArrayMutationKey),
       builder.get(node, binaryKey), builder.get(node, unaryKey), (subject) => builder.get(subject, propertyKey)));
   }
 }
