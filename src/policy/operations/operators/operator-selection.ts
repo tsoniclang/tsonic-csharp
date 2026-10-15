@@ -626,7 +626,7 @@ export function selectCsharpUnaryOperation(
     : rejected(incompatibility);
 }
 
-function targetBinaryOperator(
+export function targetBinaryOperator(
   source: CsharpSourceOperator,
 ): string | undefined {
   switch (source) {

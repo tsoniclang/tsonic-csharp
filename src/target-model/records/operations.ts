@@ -138,6 +138,21 @@ export interface CsharpOperationIssue {
   readonly message: string;
 }
 
+export type CsharpOperatorForm =
+  | "destructuring-assignment"
+  | "js-array-mutation"
+  | "type-test"
+  | "js-value-operation"
+  | "typeof-comparison"
+  | "js-value-write"
+  | "js-value-object-shape-update"
+  | "selected";
+
+export interface CsharpOperatorFormClassification {
+  readonly form: CsharpOperatorForm;
+  readonly usesExpectedResultType?: boolean;
+}
+
 export interface CsharpTargetOperationClassifications {
   readonly issues: readonly CsharpOperationIssue[];
   readonly awaitCompletion: { readonly get: (node: Node) => import("../types/await-completions.js").CsharpAwaitCompletion | undefined };
@@ -145,6 +160,10 @@ export interface CsharpTargetOperationClassifications {
   readonly borrowedSequence: { readonly get: (expression: Node) => CsharpBorrowedSequenceInput | undefined };
   readonly nativeGuardResult: { readonly get: (expression: Node) => boolean | undefined };
   readonly nativeUnreachable: { readonly get: (node: Node) => boolean };
+  readonly operatorForm: {
+    readonly get: (expression: Node) => CsharpOperatorForm | undefined;
+    readonly usesExpectedResultType: (expression: Node) => boolean | undefined;
+  };
   readonly memoryBinding: { readonly get: (node: Node) => CsharpMemoryBindingSelection | undefined };
   binaryExecutionDriver(): CsharpTargetBinaryExecutionDriver | undefined;
   readonly operationResultType: { readonly get: (node: Node) => TargetTypeRef | undefined };

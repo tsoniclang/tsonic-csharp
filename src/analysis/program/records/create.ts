@@ -90,6 +90,7 @@ export function createCsharpProgramRecords(input: CsharpProgramRecordInput): Csh
     borrowedSequence: input.operations.borrowedSequence,
     nativeGuardResult: input.operations.nativeGuardResult,
     nativeUnreachable: input.operations.nativeUnreachable,
+    operatorForm: input.operations.operatorForm,
     memoryBinding: input.operations.memoryBinding,
     operationResultType: input.operations.operationResultType,
     selectedCall: input.operations.selectedCall,

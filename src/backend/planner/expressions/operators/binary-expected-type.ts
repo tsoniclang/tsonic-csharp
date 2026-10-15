@@ -1,6 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpSourceOperator } from "../../../../target-model/syntax/operators.js";
 import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
@@ -23,7 +22,7 @@ export function tryPlanBinaryExpressionWithExpectedType(
   if (!input.program.source.ast.is.IsBinaryExpression(node)) return undefined;
   const baseline = input.program.records.binaryOperation.get(node)?.target;
   if (expectedTargetType === undefined || baseline?.kind === "resolved" &&
-    !binaryOperationUsesExpectedResultType(baseline.sourceOperator)) return undefined;
+    input.program.records.operatorForm.usesExpectedResultType(node) !== true) return undefined;
   const selection = input.program.records.expectedBinary.get(node, expectedTargetType);
   if (selection === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node,
@@ -31,32 +30,9 @@ export function tryPlanBinaryExpressionWithExpectedType(
     return undefined;
   }
   return selection.kind === "resolved" &&
-    binaryOperationUsesExpectedResultType(selection.sourceOperator) &&
+    input.program.records.operatorForm.usesExpectedResultType(node) === true &&
     targetTypeRefEquals(selection.resultType, expectedTargetType)
     ? planSelectedCsharpBinaryOperation(node, selection, sourceFile, input, diagnostics,
         planExpression, planExpressionWithExpectedType, state)
     : undefined;
-}
-
-function binaryOperationUsesExpectedResultType(operator: CsharpSourceOperator): boolean {
-  switch (operator) {
-    case ",":
-    case "&&":
-    case "||":
-    case "+":
-    case "-":
-    case "*":
-    case "/":
-    case "%":
-    case "**":
-    case "&":
-    case "|":
-    case "^":
-    case "<<":
-    case ">>":
-    case ">>>":
-      return true;
-    default:
-      return false;
-  }
 }

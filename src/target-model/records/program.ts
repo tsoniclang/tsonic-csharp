@@ -65,6 +65,7 @@ export interface CsharpProgramRecords {
   readonly borrowedSequence: CsharpTargetOperationClassifications["borrowedSequence"];
   readonly nativeGuardResult: CsharpTargetOperationClassifications["nativeGuardResult"];
   readonly nativeUnreachable: CsharpTargetOperationClassifications["nativeUnreachable"];
+  readonly operatorForm: CsharpTargetOperationClassifications["operatorForm"];
   readonly memoryBinding: CsharpTargetOperationClassifications["memoryBinding"];
   readonly operationResultType: CsharpTargetOperationClassifications["operationResultType"];
   readonly selectedCall: CsharpTargetOperationClassifications["selectedCall"];

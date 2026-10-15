@@ -10,6 +10,7 @@ import { csharpOperationConversionIssue, csharpSelectedCallConversionIssue } fro
 import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";
 import { resolveCsharpInstanceType } from "../../policy/types/resolution/instance-tests.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
+import { selectCsharpOperatorForm } from "../../policy/operations/operators/operator-forms.js";
 import { selectCsharpArrayTypeTest } from "../../policy/operations/source-profiles/js/type-tests.js";
 import { getCsharpTypeofResult, type CsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
@@ -73,7 +74,7 @@ import {
   isCsharpThrowableType,
 } from "../../policy/types/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpCallClassification, CsharpBinaryClassification, CsharpConstructionClassification, CsharpElementClassification, CsharpPropertyClassification, CsharpUnaryClassification, CsharpTargetOperationClassifications, CsharpOperationIssue } from "../../target-model/records/operations.js";
+import type { CsharpCallClassification, CsharpBinaryClassification, CsharpConstructionClassification, CsharpElementClassification, CsharpOperatorFormClassification, CsharpPropertyClassification, CsharpUnaryClassification, CsharpTargetOperationClassifications, CsharpOperationIssue } from "../../target-model/records/operations.js";
 import {
   composeCsharpBinaryExecutionDriver,
 } from "../../providers/model/provider-policy-contribution.js";
@@ -163,6 +164,7 @@ const exactCatchRethrowKey = createTargetClassificationKey<boolean>(
 );
 const nativeGuardResultKey = createTargetClassificationKey<boolean>("csharp.operation.native-guard-result");
 const nativeUnreachableKey = createTargetClassificationKey<boolean>("csharp.operation.native-unreachable");
+const operatorFormKey = createTargetClassificationKey<CsharpOperatorFormClassification>("csharp.operation.operator-form");
 const borrowedSequenceKey = createTargetClassificationKey<ReturnType<typeof classifyCsharpBorrowedSequenceInput>>(
   "csharp.operation.borrowed-sequence",
 );
@@ -212,6 +214,7 @@ export function analyzeCsharpTargetOperations(
     borrowedSequence: Object.freeze({ get: node => facts.get(node, borrowedSequenceKey) }),
     nativeGuardResult: Object.freeze({ get: node => facts.get(node, nativeGuardResultKey) }),
     nativeUnreachable: Object.freeze({ get: node => facts.get(node, nativeUnreachableKey) === true }),
+    operatorForm: Object.freeze({ get: node => facts.get(node, operatorFormKey)?.form, usesExpectedResultType: node => facts.get(node, operatorFormKey)?.usesExpectedResultType }),
     memoryBinding: Object.freeze({ get: node => facts.get(node, memoryBindingKey) }),
     binaryExecutionDriver: () => selectedBinaryExecutionDriver,
     operationResultType: Object.freeze({ get: (node) => operationResultTypes.get(node) }),
@@ -758,6 +761,10 @@ function visit(
       }
     },
   );
+  if (ast.is.IsBinaryExpression(node) || ast.is.IsPrefixUnaryExpression(node) || ast.is.IsPostfixUnaryExpression(node)) {
+    setClassification(builder, node, operatorFormKey, selectCsharpOperatorForm(policy, node, builder.get(node, jsArrayMutationKey),
+      builder.get(node, binaryKey), builder.get(node, unaryKey), (subject) => builder.get(subject, propertyKey)));
+  }
 }
 
 function classifyTypeofComparison(
