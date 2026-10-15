@@ -143,3 +143,36 @@ test("extraction depth does not depend on the host call stack", () => {
   assert.equal(index.literalValue.get(leaf)?.integer === 7n && index.literalValue.get(nested)?.elements[0] === outer, true,
     "the leaf and the enclosing array keep their data");
 });
+
+test("integer constants come from one shared reader that reads each extracted leaf datum once", () => {
+  const ast = syntheticAst();
+  const textReads = new Map();
+  const operatorReads = new Map();
+  const counted = {
+    ...ast,
+    text: (node) => { textReads.set(node, (textReads.get(node) ?? 0) + 1); return ast.text(node); },
+    operatorKindName: (node) => { operatorReads.set(node, (operatorReads.get(node) ?? 0) + 1); return ast.operatorKindName(node); },
+  };
+  const binary = (operator, left, right) => ({ kind: "BinaryExpression", operator, left, right });
+  const group = (expression) => ({ kind: "ParenthesizedExpression", expression });
+  const leaves = [numericNode("1"), numericNode("2"), numericNode("3"), numericNode("4")];
+  const sum = binary("KindPlusToken", leaves[0], leaves[1]);
+  const product = binary("KindAsteriskToken", group(sum), leaves[2]);
+  const difference = binary("KindMinusToken", group(product), leaves[3]);
+  const outer = group(difference);
+  const name = { kind: "Identifier" };
+  const refused = binary("KindPlusToken", name, numericNode("1"));
+  const containing = binary("KindAsteriskToken", group(refused), numericNode("2"));
+  const index = analyzeCsharpSourceLiteralValues(counted, [{ kind: "SourceFile", children: [outer, containing] }]);
+  const constant = (node) => index.literalValue.get(node)?.integerConstant;
+  assert.equal(constant(sum) === 3n && constant(product) === 9n && constant(difference) === 5n && constant(outer) === 5n, true,
+    "every nested root keeps its exact integer constant");
+  assert.equal(index.literalValue.get(refused) === undefined && index.literalValue.get(containing) === undefined &&
+    index.literalValue.get(containing.left) === undefined, true,
+  "a refused root and every root that contains it have no integer constant");
+  assert.equal(leaves.every((leaf) => textReads.get(leaf) === 2), true,
+    "each numeric leaf is read only by its own extraction, never again by an enclosing integer root");
+  const roots = [sum, product.left, product, difference.left, difference, outer];
+  assert.equal(roots.every((node) => operatorReads.get(node) === 1), true,
+    "each operator and grouping node is evaluated once across all enclosing integer roots");
+});
