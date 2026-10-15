@@ -45,24 +45,24 @@ export function csharpReadOnlyListTargetType(elementType: TargetTypeRef): Csharp
 }
 
 export function csharpListTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
-  const type = csharpTargetNamedType(
+  const type = Object.freeze(csharpTargetNamedType(
     "System.Collections.Generic.List`1",
-    [elementType],
+    Object.freeze([elementType]),
     csharpQualifiedTypeRenderShape("System.Collections.Generic", "List"),
     {
       arrayLiteralElementType: elementType,
       enumerableElementType: elementType,
       readOnlyIndexableElementType: elementType,
       denseMutableElementType: elementType,
-      arrayLiteralBuilder: { appendElementMethod: "Add", capacityConstructor: true },
+      arrayLiteralBuilder: Object.freeze({ appendElementMethod: "Add", capacityConstructor: true }),
       indexableLengthMemberName: "Count",
       collectionSemantics: "dense",
     },
-  );
-  return {
+  ));
+  return Object.freeze({
     ...type,
     csharpArrayLiteralConstructionType: type,
-  };
+  });
 }
 
 export function getCsharpCollectionElementTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
