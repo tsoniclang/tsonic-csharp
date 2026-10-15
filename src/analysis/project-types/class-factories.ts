@@ -8,6 +8,7 @@ import type { CsharpStorageClassifications, CsharpStorageIssue } from "../../tar
 import { getCsharpClassFactory } from "../../target-model/types/carriers/class-factories.js";
 import type { CsharpSourceNameResolver } from "../names/source-names.js";
 import { csharpTargetNamedType } from "../../target-model/types/factories.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 
 export function analyzeCsharpClassFactories(
   source: TargetSourceProgram,
@@ -15,6 +16,7 @@ export function analyzeCsharpClassFactories(
   evidence: CsharpSourceEvidenceIndex,
   storage: CsharpStorageClassifications,
   names: CsharpSourceNameResolver,
+  requiredRecords: CsharpRequiredRecord[],
 ): CsharpClassFactoryIndex {
   const factories: CsharpClassFactory[] = [];
   const issues: CsharpStorageIssue[] = [];
@@ -31,6 +33,8 @@ export function analyzeCsharpClassFactories(
   for (const definition of catalog.definitions) {
     if (!definition.local) continue;
     const declaration = definition.declaration;
+    requireCsharpRecord(requiredRecords, { family: "classFactory", subject: declaration,
+      construct: "local class definition", producer: "analyzeCsharpClassFactories" });
     const type = evidence.classConstructorType.get(declaration);
     const contract = getCsharpClassFactory(type);
     const selected = sourceLexicalCaptures(declaration, [declaration], source.ast, source.navigation);

@@ -32,6 +32,7 @@ import type {
 } from "../objects/index.js";
 import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications, CsharpStorageIssue } from "../../target-model/records/storage.js";
 import { canConstructCsharpStorageLiteral } from "./literal-construction.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 
 interface MutableStorageContract {
   readonly declaration: Node;
@@ -52,7 +53,8 @@ export function analyzeCsharpStorage(
   conversions: CsharpConversionClassifications,
   declarations: CsharpDeclarationClassifications,
   callables: CsharpCallableContractIndex,
-  previous?: CsharpStorageClassifications,
+  previous: CsharpStorageClassifications | undefined,
+  requiredRecords: CsharpRequiredRecord[],
 ): CsharpStorageRepresentationClassifications {
   const contracts = new Map<Node, MutableStorageContract>();
   const issues: CsharpStorageIssue[] = [];
@@ -241,7 +243,11 @@ export function analyzeCsharpStorage(
         }
         requireTargetType(parameter, parameter, runtimeDefault?.valueType ?? effectiveAuthored ?? targetType);
         const contract = contracts.get(parameter);
-        if (contract !== undefined) contract.lambdaParameterType = targetType;
+        if (contract !== undefined) {
+          requireCsharpRecord(requiredRecords, { family: "requiredStorageType", subject: parameter,
+            construct: "adapted lambda parameter", producer: "analyzeCsharpStorage" });
+          contract.lambdaParameterType = targetType;
+        }
       }
     }
   }

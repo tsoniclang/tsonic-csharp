@@ -18,6 +18,7 @@ import type { CsharpSourceModuleConstructionIndex } from "../../../target-model/
 import type { CsharpStorageClassifications } from "../../../target-model/records/storage.js";
 import type { CsharpGenericProjectionIndex } from "../../../target-model/records/type-projections.js";
 import type { CsharpProgramRecords } from "../../../target-model/records/program.js";
+import { assertCsharpRequiredRecords, type CsharpRequiredRecord } from "./required-records.js";
 
 export interface CsharpProgramRecordInput {
   readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
@@ -43,8 +44,11 @@ export interface CsharpProgramRecordInput {
   readonly moduleInitialization: CsharpModuleInitializationIndex;
 }
 
-export function createCsharpProgramRecords(input: CsharpProgramRecordInput): CsharpProgramRecords {
-  return Object.freeze({
+export function createCsharpProgramRecords(
+  input: CsharpProgramRecordInput,
+  required: readonly CsharpRequiredRecord[],
+): CsharpProgramRecords {
+  const records: CsharpProgramRecords = Object.freeze({
     literalValue: input.literalValues.literalValue,
     nativeParticipation: input.nativeParticipation.participation,
     attributeApplication: input.attributeApplications.attributeApplication,
@@ -169,4 +173,6 @@ export function createCsharpProgramRecords(input: CsharpProgramRecordInput): Csh
     genericProjection: input.typeProjections.genericProjection,
     outerGenericProjection: input.typeProjections.outerGenericProjection,
   });
+  assertCsharpRequiredRecords(records, required);
+  return records;
 }
