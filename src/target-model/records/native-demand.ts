@@ -86,8 +86,15 @@ export type CsharpNativeUse =
       readonly cause: "erased-statement" | "discarded-callable" | "unemitted-body" | "intrinsic-unconsumed";
     };
 
+export type CsharpNativeOrderStep =
+  | { readonly kind: "use"; readonly site: TargetUseSiteRef }
+  | { readonly kind: "construct"; readonly construct: Node };
+
 export interface CsharpNativeUseClassifications {
-  readonly nativeUse: { readonly get: (site: TargetUseSiteRef) => CsharpNativeUse | undefined };
+  readonly nativeUse: {
+    readonly get: (site: TargetUseSiteRef) => CsharpNativeUse | undefined;
+    readonly order: (construct: Node) => readonly CsharpNativeOrderStep[] | undefined;
+  };
 }
 
 export type CsharpNativeParticipation = "erased" | "frame-body" | "body" | "signature";

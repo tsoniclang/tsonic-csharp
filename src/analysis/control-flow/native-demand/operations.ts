@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import { sourceDeclarationIsModuleScoped, sourceNodesEqual } from "@tsonic/target-api/source";
+import { IsTypeSyntaxNode, sourceDeclarationIsModuleScoped, sourceNodesEqual } from "@tsonic/target-api/source";
 import { csharpConstructorBaseCall } from "../../callables/constructor-entry.js";
 import type { CsharpNativeUseSlot } from "../../../target-model/records/native-demand.js";
 import { getCsharpClassFactory } from "../../../target-model/types/carriers/class-factories.js";
@@ -409,7 +409,7 @@ function unaryUses(input: CsharpNativeDemandAnalysisInput, node: Node): readonly
   }
 }
 
-export function csharpNativeStatementChildUses(
+function csharpNativeStatementChildUses(
   input: CsharpNativeDemandAnalysisInput,
   node: Node,
 ): readonly CsharpNativeChildUse[] {
@@ -433,33 +433,18 @@ export function csharpNativeStatementChildUses(
   if (ast.is.IsIfStatement(node)) return use(node, ast.as.AsIfStatement(node)?.Expression, { kind: "condition" });
   if (ast.is.IsWhileStatement(node)) return use(node, ast.as.AsWhileStatement(node)?.Expression, { kind: "condition" });
   if (ast.is.IsDoStatement(node)) return use(node, ast.as.AsDoStatement(node)?.Expression, { kind: "condition" });
-  if (ast.is.IsForStatement(node)) {
-    const statement = ast.as.AsForStatement(node);
-    const initializer = statement?.Initializer;
-    return [
-      ...(initializer !== undefined && isCsharpNativeExpression(ast, initializer) ? use(node, initializer, { kind: "initializer" }) : []),
-      ...use(node, statement?.Condition, { kind: "condition" }),
-      ...use(node, statement?.Incrementor, { kind: "effect" }),
-    ];
-  }
   if (ast.is.IsForOfStatement(node) || ast.is.IsForInStatement(node)) {
     return use(node, ast.as.AsForInOrOfStatement(node)?.Expression, { kind: "operand", position: "only" });
   }
-  if (ast.is.IsSwitchStatement(node)) {
-    const statement = ast.as.AsSwitchStatement(node);
-    const clauses = statement?.CaseBlock === undefined ? [] : ast.children(statement.CaseBlock);
-    return [
-      ...use(node, statement?.Expression, { kind: "condition" }),
-      ...clauses.flatMap((clause, index) => clause === undefined || !ast.is.IsCaseClause(clause) ? []
-        : use(node, ast.as.AsCaseOrDefaultClause(clause)?.Expression, { kind: "case", index })),
-    ];
+  if (ast.is.IsExportAssignment(node)) {
+    const assignment = ast.as.AsExportAssignment(node);
+    return assignment === undefined || assignment.IsExportEquals ? [] : use(node, assignment.Expression, { kind: "initializer" });
   }
-  if (ast.is.IsPropertyDeclaration(node)) return use(node, ast.as.AsPropertyDeclaration(node)?.Initializer, { kind: "initializer" });
   if (ast.is.IsParameterDeclaration(node)) return use(node, ast.as.AsParameterDeclaration(node)?.Initializer, { kind: "default" });
   return [];
 }
 
-export function csharpNativeBaseCallUses(input: CsharpNativeDemandAnalysisInput, constructor: Node): {
+function csharpNativeBaseCallUses(input: CsharpNativeDemandAnalysisInput, constructor: Node): {
   readonly statement: Node | undefined;
   readonly arguments: readonly CsharpNativeChildUse[];
 } {
@@ -471,4 +456,100 @@ export function csharpNativeBaseCallUses(input: CsharpNativeDemandAnalysisInput,
     arguments: arguments_(ast, baseCall).flatMap((expression, index) =>
       use(constructor, expression, { kind: "base-argument", sourceIndex: index })),
   };
+}
+
+export type CsharpNativeConstructStep =
+  | { readonly kind: "use"; readonly use: CsharpNativeChildUse }
+  | { readonly kind: "construct"; readonly node: Node };
+
+function useSteps(uses: readonly CsharpNativeChildUse[]): readonly CsharpNativeConstructStep[] {
+  return uses.map(entry => Object.freeze({ kind: "use" as const, use: entry }));
+}
+
+function constructStep(node: Node): CsharpNativeConstructStep {
+  return Object.freeze({ kind: "construct", node });
+}
+
+function isConstructChild(input: CsharpNativeDemandAnalysisInput, node: Node): boolean {
+  const { ast } = input;
+  const kind = ast.kindName(node);
+  return !isCsharpNativeExpression(ast, node) && !IsTypeSyntaxNode(ast, node) && !ast.is.IsTypeLiteralNode(node) &&
+    !kind.endsWith("Keyword") && !kind.endsWith("Token") && kind !== "KindEndOfFile" &&
+    !(ast.is.IsClassDeclaration(node) && input.classFactories.classFactory.get(node) !== undefined);
+}
+
+function childConstructSteps(input: CsharpNativeDemandAnalysisInput, node: Node, skipped?: Node): readonly CsharpNativeConstructStep[] {
+  const steps: CsharpNativeConstructStep[] = [];
+  input.ast.forEachChild(node, (child) => {
+    if (child !== undefined && child !== skipped && isConstructChild(input, child)) steps.push(constructStep(child));
+  });
+  return steps;
+}
+
+function parameterSteps(input: CsharpNativeDemandAnalysisInput, node: Node): readonly CsharpNativeConstructStep[] {
+  return input.ast.parameters(node).flatMap(parameter => parameter === undefined ? [] : [constructStep(parameter)]);
+}
+
+function attributeSteps(input: CsharpNativeDemandAnalysisInput, node: Node): readonly CsharpNativeConstructStep[] {
+  return useSteps([...input.attributeApplications.attributeApplication.get(node).entries()].flatMap(([index, application]) =>
+    use(node, application.invocation, { kind: "attribute-invocation", index })));
+}
+
+function classSteps(input: CsharpNativeDemandAnalysisInput, node: Node): readonly CsharpNativeConstructStep[] {
+  const { ast } = input;
+  const members = ast.members(node).filter((member): member is Node => member !== undefined && !ast.is.IsClassStaticBlockDeclaration(member));
+  const region = (isStatic: boolean): readonly CsharpNativeConstructStep[] =>
+    input.classInitialization.classInitializationRegion.get(node, isStatic).flatMap(member => ast.is.IsClassStaticBlockDeclaration(member)
+      ? [constructStep(member)] : useSteps(use(member, ast.as.AsPropertyDeclaration(member)?.Initializer, { kind: "initializer" })));
+  const memberSteps = (selected: readonly Node[]): readonly CsharpNativeConstructStep[] =>
+    selected.flatMap(member => isConstructChild(input, member) ? [constructStep(member)] : []);
+  const split = input.classFactories.classFactory.get(node) !== undefined ||
+    input.projectTypes.definitionContainingDeclaration(node)?.staticCompanion === true;
+  if (!split) return [...region(false), ...region(true), ...memberSteps(members)];
+  const isStatic = (member: Node): boolean => ast.hasModifierKind(member, "static");
+  return [...region(false), ...memberSteps(members.filter(member => !isStatic(member))), ...region(true),
+    ...memberSteps(members.filter(isStatic))];
+}
+
+export function csharpNativeConstructSteps(
+  input: CsharpNativeDemandAnalysisInput,
+  node: Node,
+  signatureOnly: boolean,
+): readonly CsharpNativeConstructStep[] {
+  const { ast } = input;
+  if (ast.is.IsSourceFile(node)) {
+    return [...input.classFactories.factories.filter(factory => factory.sourceFile === node).map(factory => constructStep(factory.declaration)),
+      ...childConstructSteps(input, node)];
+  }
+  const attributes = attributeSteps(input, node);
+  if (signatureOnly) return [...attributes, ...parameterSteps(input, node)];
+  if (ast.is.IsClassDeclaration(node) || ast.is.IsClassExpression(node)) return [...attributes, ...classSteps(input, node)];
+  if (ast.is.IsPropertyDeclaration(node)) return [...attributes, ...childConstructSteps(input, node)];
+  if (ast.is.IsConstructorDeclaration(node)) {
+    const body = ast.body(node);
+    return [...attributes, ...parameterSteps(input, node), ...useSteps(csharpNativeBaseCallUses(input, node).arguments),
+      ...(body === undefined ? [] : [constructStep(body)])];
+  }
+  if (ast.is.IsForStatement(node)) {
+    const statement = ast.as.AsForStatement(node);
+    const initializer = statement?.Initializer;
+    return [...attributes,
+      ...(initializer === undefined ? [] : isCsharpNativeExpression(ast, initializer)
+        ? useSteps(use(node, initializer, { kind: "initializer" })) : [constructStep(initializer)]),
+      ...useSteps(use(node, statement?.Condition, { kind: "condition" })),
+      ...useSteps(use(node, statement?.Incrementor, { kind: "effect" })),
+      ...(statement?.Statement === undefined ? [] : [constructStep(statement.Statement)])];
+  }
+  if (ast.is.IsSwitchStatement(node)) {
+    const statement = ast.as.AsSwitchStatement(node);
+    const clauses = statement?.CaseBlock === undefined ? [] : ast.children(statement.CaseBlock);
+    return [...attributes, ...useSteps(use(node, statement?.Expression, { kind: "condition" })),
+      ...clauses.flatMap((clause, index) => clause === undefined ? [] : [
+        ...(ast.is.IsCaseClause(clause) ? useSteps(use(node, ast.as.AsCaseOrDefaultClause(clause)?.Expression, { kind: "case", index })) : []),
+        constructStep(clause)])];
+  }
+  const owner = ast.parent(node);
+  const skipped = owner !== undefined && ast.is.IsConstructorDeclaration(owner) && ast.body(owner) === node
+    ? csharpNativeBaseCallUses(input, owner).statement : undefined;
+  return [...attributes, ...useSteps(csharpNativeStatementChildUses(input, node)), ...childConstructSteps(input, node, skipped)];
 }

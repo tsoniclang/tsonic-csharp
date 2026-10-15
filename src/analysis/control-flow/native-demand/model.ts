@@ -2,12 +2,14 @@ import type { AstReader, SourceFile } from "@tsonic/tsts";
 import type { TargetPlanningSourceNavigation } from "@tsonic/target-api/analysis";
 import type { CsharpAttributeApplicationIndex } from "../../../target-model/records/attributes.js";
 import type { CsharpClassFactoryIndex } from "../../../target-model/records/class-factories.js";
+import type { CsharpClassInitializationIndex } from "../../../target-model/records/class-initialization.js";
 import type { CsharpValueReadClassifications } from "../../../target-model/records/conversions.js";
 import type {
   CsharpExpectedNativeUseInput,
   CsharpNativeParticipationInput,
 } from "../../../target-model/records/native-demand.js";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations.js";
+import type { CsharpProjectTypeClassifications } from "../../../target-model/records/project-types.js";
 import type { CsharpSafetyApplicationFactIndex } from "../../../target-model/records/safety.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
 
@@ -37,6 +39,8 @@ export interface CsharpNativeDemandAnalysisInput extends CsharpNativeParticipati
   >;
   readonly valueReads: CsharpValueReadClassifications;
   readonly attributeApplications: CsharpAttributeApplicationIndex;
-  readonly classFactories: Pick<CsharpClassFactoryIndex, "classFactory">;
+  readonly classFactories: Pick<CsharpClassFactoryIndex, "classFactory" | "factories">;
+  readonly classInitialization: Pick<CsharpClassInitializationIndex, "classInitializationRegion">;
+  readonly projectTypes: Pick<CsharpProjectTypeClassifications, "definitionContainingDeclaration">;
   readonly safetyApplications: Pick<CsharpSafetyApplicationFactIndex, "safetyOperation">;
 }

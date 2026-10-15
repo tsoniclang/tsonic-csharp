@@ -25,7 +25,9 @@ function ownerInput(program, participation = new Map(), expected = new Map()) {
     operations: program.records,
     valueReads: program.records,
     attributeApplications: program.records,
-    classFactories: program.records,
+    classFactories: { classFactory: program.records.classFactory, factories: program.classFactories },
+    classInitialization: program.records,
+    projectTypes: program.projectTypes,
     safetyApplications: program.records,
     participation: { get: (declaration) => participation.get(declaration) },
     expectedUse: { get: (site) => expected.get(site.subject)?.get(targetUseSiteIdentity(site)) },
@@ -225,4 +227,104 @@ test("a signature-only declaration keeps its attribute and parameter uses and om
   ]) assert.equal(uses.has(description), true, description);
   assert.equal(usesText(uses, "new ObsoleteAttribute(\"walk\")"), false, "an erased declaration contributes no attribute use");
   assert.equal(usesText(uses, "sentinel(value)"), false, "an erased declaration contributes no body use");
+});
+
+function nativeOrder(program, uses, construct) {
+  const ast = program.source.ast;
+  const flattened = [];
+  const visitUse = (site) => {
+    const use = uses.get(site);
+    flattened.push(`use ${site.role} ${use === undefined ? "-" : sourceText(program, use.expression)}`);
+    if (use === undefined || use.kind === "erased") return;
+    for (const child of use.children) visitUse(child);
+    visitSteps(uses.order(use.expression) ?? []);
+  };
+  const visitSteps = (steps) => {
+    for (const step of steps) {
+      if (step.kind === "use") visitUse(step.site);
+      else {
+        flattened.push(`construct ${ast.kindName(step.construct)}`);
+        visitSteps(uses.order(step.construct) ?? []);
+      }
+    }
+  };
+  visitSteps(uses.order(construct) ?? []);
+  return flattened;
+}
+
+function indexFile(program) {
+  const ast = program.source.ast;
+  return program.sourceFiles.find((sourceFile) => String(ast.getPath(sourceFile)).endsWith("/index.ts"));
+}
+
+const orderHeader = `
+  import type { int32 } from "@tsonic/core/types.js";
+  function sentinel(value: int32): int32 { return value; }
+  function init(): int32 { return 0 as int32; }
+  function condition(): boolean { return false; }
+  function increment(): void {}
+`;
+
+test("the owner publishes the default-export initializer and the native for order once", () => {
+  const program = compileProgram({ sourceText: `${orderHeader}
+    export function run(): void { for (let index = init(); condition(); increment()) { sentinel(index); } }
+    export default sentinel(7 as int32);
+  ` });
+  const uses = analyzeCsharpNativeDemand(ownerInput(program)).nativeUse;
+  const order = nativeOrder(program, uses, indexFile(program)).filter((entry) => entry.startsWith("use ") && !entry.includes(" 0 as int32") &&
+    !entry.includes("return false") && !/^use (callee|argument|operand|return)[ :]/.test(entry));
+  const expected = [
+    "use initializer init()",
+    "use condition condition()",
+    "use effect increment()",
+    "use effect sentinel(index)",
+    "use initializer sentinel(7 as int32)",
+  ];
+  assert.equal(JSON.stringify(order) === JSON.stringify(expected), true, `native order: ${order.join("; ")}`);
+  const exportAssignment = findNode(program, "KindExportAssignment", "export default sentinel(7 as int32);");
+  assert.equal(uses.get(csharpNativeUseSite(exportAssignment, { kind: "initializer" }))?.kind === "value", true,
+    "the default-export initializer is a value use of its export assignment");
+  assert.equal(Object.isFrozen(uses.order(indexFile(program))), true, "the published order is frozen");
+});
+
+test("class factories come first in a file and class initialization regions precede members", () => {
+  const program = compileProgram({ sourceText: `${orderHeader}
+    const early: int32 = sentinel(1 as int32);
+    export function make(): int32 { class Local { value: int32 = sentinel(2 as int32); } return new Local().value; }
+    export class Api { method(): int32 { return sentinel(3 as int32); } value: int32 = sentinel(4 as int32); }
+  ` });
+  const uses = analyzeCsharpNativeDemand(ownerInput(program)).nativeUse;
+  const order = nativeOrder(program, uses, indexFile(program));
+  const position = (entry) => order.indexOf(entry);
+  const factory = position("use initializer sentinel(2 as int32)");
+  const early = position("use initializer sentinel(1 as int32)");
+  const region = position("use initializer sentinel(4 as int32)");
+  const method = position("use return sentinel(3 as int32)");
+  assert.equal(factory >= 0 && early > factory, true, "the class factory's members are ordered before the file's statements");
+  assert.equal(region >= 0 && method > region, true, "a class initialization region is ordered before the class members");
+  assert.equal(order.filter((entry) => entry === "use initializer sentinel(2 as int32)").length === 1, true,
+    "the class factory's members are ordered once");
+});
+
+test("switch cases precede their clause statements and erased statements keep their place", () => {
+  const program = compileProgram({ ...safetyOptions, sourceText: `
+    import { safety } from "@tsonic/core/lang.js";
+    import type { int32 } from "@tsonic/core/types.js";
+    function sentinel(value: int32): int32 { return value; }
+    export function run(value: int32): int32 {
+      safety(sentinel(5 as int32)).requiresunsafe();
+      switch (sentinel(value)) { case sentinel(1 as int32): return sentinel(2 as int32); default: return sentinel(3 as int32); }
+    }
+  ` });
+  const uses = analyzeCsharpNativeDemand(ownerInput(program)).nativeUse;
+  const order = nativeOrder(program, uses, indexFile(program)).filter((entry) => /^use (effect|condition|case|return)[ :]/.test(entry) &&
+    !entry.includes("return value"));
+  const expected = [
+    "use effect safety(sentinel(5 as int32)).requiresunsafe()",
+    "use condition sentinel(value)",
+    "use case:0 sentinel(1 as int32)",
+    "use return sentinel(2 as int32)",
+    "use return sentinel(3 as int32)",
+  ];
+  assert.equal(JSON.stringify(order) === JSON.stringify(expected), true, `native order: ${order.join("; ")}`);
 });
