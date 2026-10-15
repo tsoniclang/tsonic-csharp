@@ -85,7 +85,8 @@ test("binary callable identity never adapts either selected native operand", () 
   const input = { ...policy, ast: { is: { IsBinaryExpression: () => false,
     IsObjectLiteralExpression: () => false, IsArrayLiteralExpression: () => false,
     IsStringLiteral: () => false, IsNoSubstitutionTemplateLiteral: () => false },
-    kindName: () => "KindIdentifier" }, types: { resolveReadStorage: () => undefined } };
+    kindName: () => "KindIdentifier" }, literalValues: { literalValue: { get: () => undefined } },
+    types: { resolveReadStorage: () => undefined } };
   for (const [leftType, rightType] of [[inferred, annotated], [annotated, inferred]]) {
     for (const operator of ["===", "!=="]) {
       const selected = selectCsharpBinaryOperands(input, left, right, operator, boolean,

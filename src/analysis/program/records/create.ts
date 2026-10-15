@@ -18,6 +18,7 @@ import type { CsharpGenericProjectionIndex } from "../../../target-model/records
 import type { CsharpProgramRecords } from "../../../target-model/records/program.js";
 
 export interface CsharpProgramRecordInput {
+  readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
   readonly sourceEvidence: CsharpSourceEvidenceIndex;
   readonly flowReads: CsharpFlowReadClassifications;
   readonly valueReads: CsharpValueReadClassifications;
@@ -40,6 +41,7 @@ export interface CsharpProgramRecordInput {
 
 export function createCsharpProgramRecords(input: CsharpProgramRecordInput): CsharpProgramRecords {
   return Object.freeze({
+    literalValue: input.literalValues.literalValue,
     attributeApplication: input.attributeApplications.attributeApplication,
     erasedAttribute: input.attributeApplications.erasedAttribute,
     callableDispatch: input.callableAdapters.callableDispatch,

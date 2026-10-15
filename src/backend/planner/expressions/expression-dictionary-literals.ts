@@ -36,7 +36,7 @@ import type {
 } from "../../target-ast/syntax/index.js";
 import {
   parseFiniteNumberLiteral,
-} from "../../../target-model/syntax/literal-values.js";
+} from "@tsonic/target-api/source";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";

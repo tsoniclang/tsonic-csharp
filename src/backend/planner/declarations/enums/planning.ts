@@ -30,7 +30,7 @@ import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../modifiers.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
 import {
   parseFiniteNumberLiteral,
-} from "../../../../target-model/syntax/literal-values.js";
+} from "@tsonic/target-api/source";
 
 export function planEnumDeclaration(
   node: Node,

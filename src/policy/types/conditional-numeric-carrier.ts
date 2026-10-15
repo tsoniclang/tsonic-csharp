@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpSourceLiteralIndex } from "../../target-model/records/source-literals.js";
+import type { SourceLiteralIndex } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { isCsharpIntegralTargetType } from "../../target-model/types/carriers/scalar-types.js";
@@ -13,7 +13,7 @@ export function selectCsharpConditionalNumericCarrier(
   whenFalse: Node,
   trueCarrier: TargetTypeRef | undefined,
   falseCarrier: TargetTypeRef | undefined,
-  literalValues: CsharpSourceLiteralIndex,
+  literalValues: SourceLiteralIndex,
 ): TargetTypeRef | undefined {
   const trueElement = getCsharpNullableElementTargetType(trueCarrier);
   const falseElement = getCsharpNullableElementTargetType(falseCarrier);

@@ -73,6 +73,7 @@ export type CsharpProviderCallInstantiation =
 
 export interface CsharpProviderCallInstantiationHost {
   readonly ast: AstReader;
+  readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
   readonly navigation: SourceProgramNavigation;
   readonly sourceFacts?: ReadonlySourceFactResolver;
   readonly providers: CsharpProviderRelationResolver;

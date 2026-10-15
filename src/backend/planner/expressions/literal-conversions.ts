@@ -20,7 +20,7 @@ import {
 import type {
   CsharpPlanningContext,
 } from "../context.js";
-import type { CsharpSourceLiteralValue } from "../../../target-model/records/source-literals.js";
+import type { SourceLiteralValue } from "@tsonic/target-api/source";
 
 export function planCsharpExactLiteralConversion(
   input: CsharpPlanningContext,
@@ -151,7 +151,7 @@ export type CsharpExactLiteralConversionPlan =
   | { readonly kind: "rejected"; readonly reason: string };
 
 function classifiedLiteralRepresentation(
-  literal: CsharpSourceLiteralValue | undefined,
+  literal: SourceLiteralValue | undefined,
 ): CsharpExactLiteralConversionPlan {
   return literal !== undefined && literal.form !== "parenthesized" && literal.form !== "binary"
     ? { kind: "source-representation" }

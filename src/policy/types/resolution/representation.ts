@@ -1,4 +1,4 @@
-import type { CsharpSourceLiteralIndex } from "../../../target-model/records/source-literals.js";
+import type { SourceLiteralIndex } from "@tsonic/target-api/source";
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
@@ -14,7 +14,7 @@ import { resolveCsharpShortCircuitResult } from "./short-circuit-values.js";
 
 export function resolveBinaryTargetRepresentation(
   ast: AstReader,
-  literalValues: CsharpSourceLiteralIndex,
+  literalValues: SourceLiteralIndex,
   operator: ReturnType<typeof sourceOperatorFromKindName>,
   leftNode: Node | undefined,
   left: TargetTypeRef | undefined,

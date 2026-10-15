@@ -1,8 +1,8 @@
 import type { SourcePrimitiveKind } from "@tsonic/tsts";
-import type { CsharpSourceLiteralValue } from "../records/source-literals.js";
+import type { SourceLiteralValue } from "@tsonic/target-api/source";
 
 export function csharpNumericLiteralFitsSourcePrimitive(
-  literal: Pick<CsharpSourceLiteralValue, "number" | "integer"> | undefined,
+  literal: Pick<SourceLiteralValue, "number" | "integer"> | undefined,
   primitive: SourcePrimitiveKind,
 ): boolean {
   if (

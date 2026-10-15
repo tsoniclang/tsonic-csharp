@@ -41,7 +41,7 @@ export interface CsharpPlanningRepresentationQueries {
 }
 
 export interface CsharpTypePolicyBaseHost {
-  readonly literalValues: import("../../../target-model/records/source-literals.js").CsharpSourceLiteralIndex;
+  readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
   readonly sourceStorage: import("@tsonic/target-api/analysis").SourceStorageQueries;
   readonly errorStorageDemands: import("@tsonic/target-api/analysis").SourceErrorStorageDemandQueries;
   callOnlyAlias(declaration: Node): import("@tsonic/target-api/source").SourceCallOnlyAlias | undefined;

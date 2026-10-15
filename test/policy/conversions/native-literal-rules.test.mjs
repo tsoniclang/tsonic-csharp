@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpLiteralIsRepresentableAs } from "../../../dist/policy/conversions/literals.js";
 import { csharpNumericLiteralFitsSourcePrimitive } from "../../../dist/target-model/syntax/numeric-literals.js";
+import * as numericRules from "../../../dist/target-model/syntax/numeric-literals.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 
@@ -9,6 +10,11 @@ const primitive = name => csharpSourcePrimitiveTargetType(name);
 const numeric = (number, integer) => Object.freeze({ form: "numeric", ...(number === undefined ? {} : { number }),
   ...(integer === undefined ? {} : { integer }) });
 const bigint = integer => Object.freeze({ form: "bigint", integer });
+
+test("native literal rules do not retain the replaced AST numeric readers", () => {
+  assert.equal(Object.hasOwn(numericRules, "csharpNumericLiteralValue"), false);
+  assert.equal(Object.hasOwn(numericRules, "csharpBigIntLiteralValue"), false);
+});
 
 test("native integer literal rules decide from exact bigint data at every bound", () => {
   for (const [name, minimum, maximum] of [

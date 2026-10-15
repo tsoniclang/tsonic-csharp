@@ -7,6 +7,7 @@ import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-
 import { analyzeCsharpClassFactories } from "../project-types/class-factories.js";
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 import { createCsharpProgramRecords } from "./records/create.js";
+import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { analyzeCsharpNativeControlFlow } from "../control-flow/native-control-flow.js";
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
 import { type CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
@@ -137,6 +138,7 @@ export function analyzeCsharpTargetProgram(
   if (nativeControlIssues.length !== 0) return rejectedTargetStage(nativeControlIssues);
   const memoryBindings = createTsonicMemoryBindingIndex(source);
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
+  const literalValues = analyzeSourceLiteralValues(source.ast, sourceFiles);
   const sourceStorage = createSourceStorageQuery(source, sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source));
   const sourceStorageFailure = sourceStorage.failureReason();
   if (sourceStorageFailure !== undefined) return rejectedTargetStage([{
@@ -154,6 +156,7 @@ export function analyzeCsharpTargetProgram(
     sourceIdentities,
   });
   const typeHost = {
+    literalValues,
     sourceStorage,
     errorStorageDemands: createCsharpErrorStorageDemandQuery(source, sourceStorage),
     callOnlyAlias: createCsharpSourceProfileCallableAliasQuery(source),
@@ -327,6 +330,7 @@ export function analyzeCsharpTargetProgram(
   const numericRepresentations = analyzeCsharpNumericRepresentations({ source, sourceFiles,
     evidence: analysis.sourceEvidence, operations: analysis.operations });
   const records = createCsharpProgramRecords({
+    literalValues,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
     numericRepresentations, attributeApplications, safetyApplications, operations: analysis.operations,
@@ -412,6 +416,7 @@ function analyzeIteration(
     representations,
   );
   const policyContext = createCsharpAnalysisPolicyContext({
+    literalValues: typeHost.literalValues,
     callOnlyAlias: typeHost.callOnlyAlias,
     input,
     sourceFiles,

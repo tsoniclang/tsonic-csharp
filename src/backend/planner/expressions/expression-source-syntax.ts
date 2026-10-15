@@ -40,7 +40,7 @@ import type {
 import {
   parseBigIntLiteral,
   parseFiniteNumberLiteral,
-} from "../../../target-model/syntax/literal-values.js";
+} from "@tsonic/target-api/source";
 import {
   csharpBigIntegerTargetType,
 } from "../../../target-model/types/index.js";

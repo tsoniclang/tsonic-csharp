@@ -1,5 +1,5 @@
 import type { TargetSelection } from "@tsonic/target-api";
-import type { CsharpSourceLiteralValue } from "../../../target-model/records/source-literals.js";
+import type { SourceLiteralValue } from "@tsonic/target-api/source";
 import type {
   TargetTypeRef,
 } from "../../../target-model/types/model.js";
@@ -19,7 +19,7 @@ export interface CsharpSourceLiteralPolicyHost {
 
 export function resolveCsharpSourceLiteralTargetType(
   host: CsharpSourceLiteralPolicyHost,
-  literal: CsharpSourceLiteralValue | undefined,
+  literal: SourceLiteralValue | undefined,
 ): TargetTypeRef | undefined {
   const value = literal?.number;
   if (value === undefined) {

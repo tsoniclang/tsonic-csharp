@@ -1,4 +1,4 @@
-import type { CsharpSourceLiteralValue } from "../../target-model/records/source-literals.js";
+import type { SourceLiteralValue } from "@tsonic/target-api/source";
 import {
   csharpBigIntFitsSourcePrimitive,
   csharpNumericLiteralFitsSourcePrimitive,
@@ -13,7 +13,7 @@ import {
 } from "../../target-model/types/index.js";
 
 export function csharpLiteralIsRepresentableAs(
-  value: CsharpSourceLiteralValue | undefined,
+  value: SourceLiteralValue | undefined,
   target: TargetTypeRef,
 ): boolean {
   const nullableElement = getCsharpNullableElementTargetType(target);
