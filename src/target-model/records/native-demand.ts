@@ -4,8 +4,9 @@ import type { CsharpConversionMode } from "../conversions/selection.js";
 import { csharpTargetRepresentationContractId } from "../identities/identities.js";
 import { targetTypeRefKey } from "../types/equality.js";
 import type { TargetTypeRef } from "../types/model.js";
+import type { CsharpSelectedTargetCall } from "./members.js";
 import type { CsharpNativeLocationSelection } from "./native-locations.js";
-import type { CsharpNativeHandler } from "./operations.js";
+import type { CsharpNativeHandler, CsharpSourceArgumentGrouping } from "./operations.js";
 
 export type CsharpNativeCompletion =
   | { readonly kind: "value"; readonly carrier: TargetTypeRef }
@@ -83,11 +84,18 @@ export type CsharpNativeUse =
   | {
       readonly kind: "erased";
       readonly expression: Node;
-      readonly cause: "erased-statement" | "discarded-callable" | "unemitted-body" | "intrinsic-unconsumed";
+      readonly cause: "erased-statement" | "discarded-callable";
     };
 
+export type CsharpNativeOrderStep =
+  | { readonly kind: "use"; readonly site: TargetUseSiteRef }
+  | { readonly kind: "construct"; readonly construct: Node };
+
 export interface CsharpNativeUseClassifications {
-  readonly nativeUse: { readonly get: (site: TargetUseSiteRef) => CsharpNativeUse | undefined };
+  readonly nativeUse: {
+    readonly get: (site: TargetUseSiteRef) => CsharpNativeUse | undefined;
+    readonly order: (construct: Node) => readonly CsharpNativeOrderStep[] | undefined;
+  };
 }
 
 export type CsharpNativeParticipation = "erased" | "frame-body" | "body" | "signature";
@@ -144,4 +152,54 @@ function csharpNativeUseRole(slot: CsharpNativeUseSlot): string {
     default:
       return slot.kind;
   }
+}
+
+export type CsharpNativeArgumentSlot = Extract<CsharpNativeUseSlot, { readonly kind: "argument" }>;
+
+export interface CsharpNativeArgumentBinding {
+  readonly sourceArgumentIndex: number;
+  readonly sequence: boolean;
+  readonly slot: CsharpNativeArgumentSlot;
+}
+
+function argumentBinding(sourceArgumentIndex: number, effectiveIndex: number, parameterIndex: number, sequence: boolean): CsharpNativeArgumentBinding {
+  return Object.freeze({ sourceArgumentIndex, sequence,
+    slot: Object.freeze({ kind: "argument" as const, sourceIndex: sourceArgumentIndex, effectiveIndex, parameterIndex }) });
+}
+
+export function csharpNativePositionalArgumentSlot(sourceIndex: number): CsharpNativeArgumentSlot {
+  return Object.freeze({ kind: "argument", sourceIndex, effectiveIndex: sourceIndex });
+}
+
+export type CsharpNativeArgumentBindings =
+  | { readonly kind: "bound"; readonly bindings: readonly CsharpNativeArgumentBinding[] }
+  | { readonly kind: "refused" }
+  | { readonly kind: "unresolved" }
+  | { readonly kind: "inconsistent"; readonly sourceArgumentIndex: number };
+
+const refusedBindings: CsharpNativeArgumentBindings = Object.freeze({ kind: "refused" });
+const unresolvedBindings: CsharpNativeArgumentBindings = Object.freeze({ kind: "unresolved" });
+
+export function csharpSelectedTargetArgumentBindings(call: CsharpSelectedTargetCall): CsharpNativeArgumentBindings {
+  const sequences = new Map((call.sequenceArguments ?? []).map(sequence => [sequence.sourceArgumentIndex, sequence]));
+  const bound = new Set<number>();
+  const bindings: CsharpNativeArgumentBinding[] = [];
+  for (const selection of call.arguments) {
+    const sequence = sequences.get(selection.sourceArgumentIndex);
+    if (sequence !== undefined && bound.has(sequence.sourceArgumentIndex)) continue;
+    if (sequence !== undefined && sequence.targetParameterIndex !== selection.targetParameterIndex) {
+      return Object.freeze({ kind: "inconsistent", sourceArgumentIndex: selection.sourceArgumentIndex });
+    }
+    if (sequence !== undefined) bound.add(sequence.sourceArgumentIndex);
+    bindings.push(argumentBinding(selection.sourceArgumentIndex, selection.effectiveArgumentIndex, selection.targetParameterIndex,
+      sequence !== undefined));
+  }
+  return Object.freeze({ kind: "bound", bindings: Object.freeze(bindings) });
+}
+
+export function csharpSourceOwnedArgumentBindings(grouping: CsharpSourceArgumentGrouping | undefined): CsharpNativeArgumentBindings {
+  if (grouping === undefined || grouping.kind === "unresolved") return unresolvedBindings;
+  if (grouping.kind === "refused") return refusedBindings;
+  return Object.freeze({ kind: "bound", bindings: Object.freeze(grouping.arguments.map(entry =>
+    argumentBinding(entry.sourceArgumentIndex, entry.effectiveArgumentIndex, entry.parameterIndex, entry.spread))) });
 }
