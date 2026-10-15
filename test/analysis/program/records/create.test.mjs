@@ -40,7 +40,7 @@ for (const surface of ["native", "js"]) {
     const { program, call, declaration } = fixture(surface);
     assert.equal(Object.isFrozen(program) && Object.isFrozen(program.records), true, "sealed program and record port");
     const families = Object.entries(program.records);
-    assert.equal(families.length, 120, "every current record family is assembled");
+    assert.equal(families.length, 119, "every current record family is assembled");
     for (const [name, family] of families) {
       assert.equal(Object.isFrozen(family) && typeof family.get === "function", true, `${name}: frozen typed reader`);
       assert.equal(Object.hasOwn(family, "set"), false, `${name}: no public write path`);
@@ -72,6 +72,9 @@ for (const surface of ["native", "js"]) {
     assert.equal(Object.hasOwn(program.records.conversion, "select"), false, "conversion lookup has one record reader");
     assert.equal(Object.hasOwn(program.records, "closedArrayStorage"), false, "unused private analysis resolver is not a final record");
     assert.equal(Object.hasOwn(program.records, "inspectClosedArrayStorage"), false, "private native-backing inspection never crosses the seal");
+    assert.equal(Object.hasOwn(program.records, "sourceSafetyApplication"), false, "safety admission reads findings; no per-file application family");
+    assert.equal(typeof program.records.safetyApplication.get === "function" && typeof program.records.safetyOperation.get === "function", true,
+      "declaration and operation safety lookups stay published");
     assert.equal(Array.isArray(program.classFactories) && Array.isArray(program.captureFrames), true, "catalog data is separate");
   });
 }

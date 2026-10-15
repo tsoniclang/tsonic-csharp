@@ -91,7 +91,6 @@ export interface CsharpProgramRecords {
   readonly throwable: CsharpTargetOperationClassifications["throwable"];
   readonly throwValue: CsharpTargetOperationClassifications["throwValue"];
   readonly exactCatchRethrow: CsharpTargetOperationClassifications["exactCatchRethrow"];
-  readonly sourceSafetyApplication: CsharpSafetyApplicationFactIndex["sourceSafetyApplication"];
   readonly safetyApplication: CsharpSafetyApplicationFactIndex["safetyApplication"];
   readonly safetyOperation: CsharpSafetyApplicationFactIndex["safetyOperation"];
   readonly bindingProjection: CsharpSourceEvidenceIndex["bindingProjection"];

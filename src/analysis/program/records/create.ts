@@ -116,7 +116,6 @@ export function createCsharpProgramRecords(input: CsharpProgramRecordInput): Csh
     throwable: input.operations.throwable,
     throwValue: input.operations.throwValue,
     exactCatchRethrow: input.operations.exactCatchRethrow,
-    sourceSafetyApplication: input.safetyApplications.sourceSafetyApplication,
     safetyApplication: input.safetyApplications.safetyApplication,
     safetyOperation: input.safetyApplications.safetyOperation,
     bindingProjection: input.sourceEvidence.bindingProjection,
