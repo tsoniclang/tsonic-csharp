@@ -1,5 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { failTargetPlannerInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { DestructuringPlannerState } from "../../bindings/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
@@ -8,6 +8,15 @@ import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../ty
 import type { CsharpPlannedValue } from "../../expressions/planned-values.js";
 import { planCsharpBindingDefaultValue } from "../../bindings/optional-values.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+
+type CsharpRuntimeParameterDefaultPlan = {
+  readonly valueType: CsharpTypeNode;
+  readonly parameterType: CsharpTypeNode;
+  readonly defaultValue?: CsharpExpression;
+  readonly value: CsharpPlannedValue;
+  readonly passthrough: boolean;
+};
 
 export function planCsharpRuntimeParameterDefault(
   node: Node,
@@ -16,11 +25,33 @@ export function planCsharpRuntimeParameterDefault(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-): { readonly valueType: CsharpTypeNode; readonly parameterType: CsharpTypeNode;
-  readonly defaultValue?: CsharpExpression; readonly value: CsharpPlannedValue; readonly passthrough: boolean } | undefined {
+): CsharpRuntimeParameterDefaultPlan | undefined {
+  const initialDiagnosticCount = diagnostics.length;
+  const selected = planRuntimeParameterDefault(node, incomingName, sourceFile, input, diagnostics, state);
+  if (selected === undefined && !diagnostics.slice(initialDiagnosticCount).some(diagnostic => diagnostic.category === "error")) {
+    diagnostics.push(unsupportedNodeDiagnostic(node,
+      "Required C# runtime parameter default lowering produced neither a native parameter nor an error."));
+  }
+  return selected;
+}
+
+function planRuntimeParameterDefault(
+  node: Node,
+  incomingName: string,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+): CsharpRuntimeParameterDefaultPlan | undefined {
   const contract = input.program.records.runtimeDefault.get(node);
+  if (contract === undefined) {
+    return failTargetPlannerInvariant("tsonic-csharp", "A runtime parameter default requires its sealed contract.", node);
+  }
   const declaration = input.program.source.ast.as.AsParameterDeclaration(node);
-  if (contract === undefined || declaration?.Initializer === undefined) return undefined;
+  if (declaration?.Initializer === undefined) {
+    return failTargetPlannerInvariant("tsonic-csharp",
+      "A runtime parameter default contract requires its authored parameter initializer.", node);
+  }
   const valueType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, contract.valueType, diagnostics, node);
   const parameterType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, contract.parameterType, diagnostics, node);
   if (valueType === undefined || parameterType === undefined) return undefined;

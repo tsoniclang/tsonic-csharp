@@ -10,7 +10,7 @@ import {
   KindVariableDeclarationList,
 } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { failTargetPlannerInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpLocalDeclaration,
@@ -150,7 +150,10 @@ export function planForOfStatement(
       value => [{ kind: "LocalDeclarationStatement", name: binding.name, type: binding.type, initializer: value }, ...bodyStatements],
       input.scope.typeParameterNames);
     const type = csharpTypeFromTargetTypeRef(sourceCollection.completion.carrier, input.scope.typeParameterNames);
-    if (loop === undefined || type === undefined) return [];
+    if (loop === undefined || type === undefined) {
+      return failTargetPlannerInvariant("tsonic-csharp",
+        "A native indexed for-of carrier has no C# length member, element read or type syntax.", diagnosticNode);
+    }
     return [...binding.outerPrelude, { kind: "LocalDeclarationStatement", name, type, initializer: source }, loop];
   }
   const collection = selectedIteration.iterationKind === "for-await-of" &&

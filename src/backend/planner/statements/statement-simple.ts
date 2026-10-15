@@ -270,7 +270,12 @@ export function planThrowStatement(
     return [];
   }
   const type = csharpTypeFromTargetTypeRef(thrown.targetCarrier, input.scope.typeParameterNames);
-  const expression = type === undefined ? undefined : planExpressionWithExpectedType(statement.Expression, sourceFile,
+  if (type === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(statement.Expression,
+      "Throw statements require C# type syntax for the sealed thrown carrier before C# emission."));
+    return [];
+  }
+  const expression = planExpressionWithExpectedType(statement.Expression, sourceFile,
     input, diagnostics, type, statement.Expression, state, thrown.targetCarrier);
   if (expression === undefined) {
     return [];
