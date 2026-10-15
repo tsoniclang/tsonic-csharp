@@ -25,7 +25,7 @@ export function csharpLiteralIsRepresentableAs(
       ? target.element
       : getCsharpArrayLiteralElementTargetType(target);
     return elementType !== undefined &&
-      (value.elements ?? []).every((element) =>
+      value.elements.every((element) =>
         element !== undefined &&
         csharpLiteralIsRepresentableAs(element, elementType));
   }
@@ -42,7 +42,7 @@ export function csharpLiteralIsRepresentableAs(
       return value?.form === "true" || value?.form === "false";
     case "char":
       return (value?.form === "string" || value?.form === "template") &&
-        value.text?.length === 1;
+        value.text.length === 1;
     case "int8":
     case "uint8":
     case "int16":
