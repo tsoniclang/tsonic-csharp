@@ -1,0 +1,188 @@
+import type { CsharpPlanningContext } from "../context.js";
+import {
+  type Node,
+  type SourceFile,
+} from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../../target-model/types/index.js";
+import type { CsharpTargetParameter } from "../../../target-model/types/index.js";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { CsharpArgument, CsharpTypeNode } from "../../target-ast/syntax/index.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "../diagnostics.js";
+import {
+  isAstNode,
+} from "@tsonic/target-api/source";
+import type {
+  DestructuringPlannerState,
+} from "../bindings/index.js";
+import type {
+  ExpectedExpressionPlanner,
+  ExpressionPlanner,
+} from "./expression-planner-types.js";
+import type { CsharpPlannedArgument, CsharpPlannedValue } from "./planned-values.js";
+import { mapCsharpPlannedValue } from "./planned-values.js";
+import { isCsharpJsValueTargetType } from "../../../target-model/types/index.js";
+import { planCsharpPropertyValueProjection } from "./property-value-projection.js";
+
+export function planCallArgumentCore(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+  planExpressionWithExpectedType: ExpectedExpressionPlanner,
+  expectedType?: CsharpTypeNode,
+  expectedTypeSubject?: Node,
+  conversionExpectedTargetType?: TargetTypeRef,
+  expectedArgumentPassingMode: CsharpTargetParameter["passingMode"] = "by-value",
+  state?: DestructuringPlannerState,
+  selectedTargetParameter?: CsharpTargetParameter,
+): CsharpPlannedArgument | undefined {
+  const selected = input.program.records.sourceArgument.get(node);
+  if (selected === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# call planning received an argument without sealed passing evidence.",
+    ));
+    return undefined;
+  }
+  if (selected.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, selected.reason));
+    return undefined;
+  }
+  const argument = selected.argument;
+  if (!csharpSupportsArgumentPassingMode(argument.passingMode)) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `C# argument emission does not support finalized argument-passing mode '${argument.passingMode}'.`));
+    return undefined;
+  }
+  if (argument.passingMode !== expectedArgumentPassingMode) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `Finalized argument-passing fact '${argument.passingMode}' does not match the selected call parameter mode '${expectedArgumentPassingMode}'.`));
+    return undefined;
+  }
+  if (selectedTargetParameter?.csharpValueProjection !== undefined &&
+    (selectedTargetParameter.csharpValueProjection !== "properties" || argument.passingMode !== "by-value" ||
+      !isCsharpJsValueTargetType(selectedTargetParameter.type) ||
+      !isCsharpJsValueTargetType(conversionExpectedTargetType))) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Checked property projection requires one exact by-value TsValue parameter."));
+    return undefined;
+  }
+  if (
+    selectedTargetParameter?.csharpOutputMayBeNull === true &&
+    (
+      argument.passingMode === "by-value" ||
+      argument.passingMode === "byref-readonly"
+    )
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      `Selected target parameter '${selectedTargetParameter.name}' declares nullable output on non-writing passing mode '${argument.passingMode}'.`,
+    ));
+    return undefined;
+  }
+  if (!isAstNode(input.program.source.ast, argument.storageExpression)) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Argument-passing facts must carry exact source storage expressions before C# argument emission."));
+    return undefined;
+  }
+  const passing = getCsharpArgumentPassing(argument.passingMode, node, diagnostics);
+  if (argument.passingMode !== "by-value" && passing === undefined) {
+    return undefined;
+  }
+  const propertyProjection = selectedTargetParameter?.csharpValueProjection === "properties" &&
+    !input.program.source.ast.is.IsObjectLiteralExpression(argument.storageExpression);
+  const original = propertyProjection ? planExpression(argument.storageExpression, sourceFile, input, diagnostics, state) : undefined;
+  const expression = propertyProjection && selectedTargetParameter !== undefined
+    ? mapCsharpPlannedValue(original, selectedTargetParameter.type, value =>
+        planCsharpPropertyValueProjection(argument.storageExpression, sourceFile, input, diagnostics,
+          original?.completion.carrier, value))
+    : argument.passingMode === "by-value"
+    ? planCallArgumentExpression(
+        argument.storageExpression,
+        sourceFile,
+        input,
+        diagnostics,
+        planExpression,
+        planExpressionWithExpectedType,
+        expectedType,
+        expectedTypeSubject,
+        conversionExpectedTargetType,
+        state,
+      )
+    : planExpression(
+        argument.storageExpression,
+        sourceFile,
+        { ...input, storageExpression: argument.storageExpression },
+        diagnostics,
+        state,
+      );
+  if (expression === undefined) {
+    return undefined;
+  }
+  const nativeLocation = passing === undefined ? undefined : input.program.records.nativeLocation.get(argument.storageExpression);
+  if (passing !== undefined && (nativeLocation?.kind !== "resolved" || nativeLocation.address === undefined ||
+    (passing === "ref" || passing === "out") && nativeLocation.address.passing !== "byref-readwrite")) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, nativeLocation?.kind === "rejected" ? nativeLocation.reason
+      : "Native by-reference argument planning requires its sealed physical address and passing contract."));
+    return undefined;
+  }
+  return {
+    ...expression,
+    ...(passing !== undefined ? { passing } : {}),
+    ...(nativeLocation?.kind === "resolved" ? { nativeLocation } : {}),
+    ...(input.program.sourceNavigation.expressionEffects(argument.storageExpression).suspends ? { suspends: true } : {}),
+  };
+}
+
+function planCallArgumentExpression(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+  planExpressionWithExpectedType: ExpectedExpressionPlanner,
+  expectedType?: CsharpTypeNode,
+  expectedTypeSubject?: Node,
+  conversionExpectedTargetType?: TargetTypeRef,
+  state?: DestructuringPlannerState,
+): CsharpPlannedValue | undefined {
+  if (expectedType !== undefined) {
+    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state);
+  }
+  return planExpression(node, sourceFile, input, diagnostics, state);
+}
+
+function csharpSupportsArgumentPassingMode(
+  mode: CsharpTargetParameter["passingMode"],
+): boolean {
+  switch (mode) {
+    case "by-value":
+    case "byref-writeonly-must-init":
+    case "byref-readwrite":
+    case "byref-readonly":
+      return true;
+    case "borrow-shared":
+    case "borrow-mut":
+    case "move":
+      return false;
+  }
+}
+
+function getCsharpArgumentPassing(
+  mode: CsharpTargetParameter["passingMode"],
+  node: Node,
+  diagnostics: TargetDiagnostic[],
+): CsharpArgument["passing"] {
+  switch (mode) {
+    case "by-value":
+      return undefined;
+    case "byref-writeonly-must-init":
+      return "out";
+    case "byref-readwrite":
+      return "ref";
+    case "byref-readonly":
+      return "in";
+    default:
+      diagnostics.push(unsupportedNodeDiagnostic(node, `C# argument emission does not support finalized argument-passing mode '${mode}'.`));
+      return undefined;
+  }
+}

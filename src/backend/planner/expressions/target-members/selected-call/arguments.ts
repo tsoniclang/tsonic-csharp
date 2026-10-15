@@ -1,0 +1,451 @@
+import { applyCsharpConversionSelection } from "../../conversions.js";
+import {
+  csharpTargetParameterValueType,
+  getCsharpDelegateSignature,
+  csharpArgumentVectorCallbackResultMatches,
+  getCsharpJsArrayElementTargetType,
+} from "../../../../../target-model/types/index.js";
+import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
+import { targetArgumentOrderIsRepresentable } from "./helpers.js";
+import { planCsharpRestSequence } from "./rest-sequences.js";
+import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
+import type { CsharpSelectedCallArgument, CsharpSelectedTargetCall, CsharpProviderArgumentMapping, ResolvedSourceCallInfo } from "../../../../../target-model/records/members.js";
+import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
+import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/syntax/index.js";
+import type { CsharpPlanningContext } from "../../../context.js";
+import type { CsharpTargetParameter } from "../../../../../target-model/types/index.js";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { CsharpPlannedArgument } from "../../planned-values.js";
+import { csharpPlannedValue, mapCsharpPlannedValue } from "../../planned-values.js";
+import { captureCsharpPlannedValue } from "../../planned-value-composition.js";
+import { csharpPlannedArgumentSyntax, type CsharpPlannedCallArguments } from "./planned-arguments.js";
+
+export function translateSelectedTargetArguments(
+  node: Node,
+  source: ResolvedSourceCallInfo,
+  selection: CsharpSelectedTargetCall,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+  planCallArgument: CallArgumentPlanner,
+): CsharpPlannedCallArguments | undefined {
+  const planned: {
+    readonly parameterIndex: number;
+    readonly effectiveArgumentIndex: number;
+    readonly argument: CsharpPlannedArgument;
+    readonly sequence?: boolean;
+  }[] = [];
+  if (selection.receiver.kind === "target-parameter") {
+    const receiver = source.sourceReceiver?.expression;
+    const parameter = selection.targetMember.parameters[
+      selection.receiver.targetParameterIndex
+    ];
+    if (receiver === undefined || parameter === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "Selected first-argument target receiver has no exact source receiver or target parameter.",
+      ));
+      return undefined;
+    }
+    const argument = translateCallArgument(
+      receiver,
+      parameter,
+      "value",
+      sourceFile,
+      input,
+      diagnostics,
+      planExpression,
+      planCallArgument,
+    );
+    if (argument === undefined) {
+      return undefined;
+    }
+    planned.push({
+      parameterIndex: selection.receiver.targetParameterIndex,
+      effectiveArgumentIndex: -1,
+      argument,
+    });
+  }
+  const plannedSequences = new Set<number>();
+  const sequenceArguments = new Map(selection.sequenceArguments?.map(sequence =>
+    [sequence.sourceArgumentIndex, sequence]));
+  if (sequenceArguments.size !== (selection.sequenceArguments?.length ?? 0)) return undefined;
+  for (const argumentSelection of selection.arguments) {
+    const sourceArgument = source.sourceArguments[
+      argumentSelection.sourceArgumentIndex
+    ]?.expression;
+    if (sourceArgument === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        `Selected target argument ${argumentSelection.effectiveArgumentIndex} has no exact checker-owned source expression.`,
+      ));
+      return undefined;
+    }
+    const sequence = sequenceArguments.get(argumentSelection.sourceArgumentIndex);
+    if (sequence !== undefined) {
+      if (plannedSequences.has(sequence.sourceArgumentIndex)) continue;
+      const operand = input.program.source.ast.as.AsSpreadElement(sourceArgument)?.Expression;
+      if (operand !== sequence.expression || sequence.targetParameterIndex !== argumentSelection.targetParameterIndex) return undefined;
+      const expression = planCsharpRestSequence(sequence, sourceFile, input, diagnostics, planExpression);
+      if (expression === undefined) return undefined;
+      plannedSequences.add(sequence.sourceArgumentIndex);
+      planned.push({ parameterIndex: sequence.targetParameterIndex, effectiveArgumentIndex: argumentSelection.sourceArgumentIndex,
+        argument: expression, sequence: true });
+      continue;
+    }
+    const argument = translateCallArgument(
+      sourceArgument,
+      argumentSelection.targetParameter,
+      argumentSelection.sourceForm,
+      sourceFile,
+      input,
+      diagnostics,
+      planExpression,
+      planCallArgument,
+      selection.origin === "provider"
+        ? selection.argumentMappings.find((mapping) =>
+            mapping.effectiveArgumentIndex ===
+              argumentSelection.effectiveArgumentIndex)
+        : undefined,
+    );
+    if (argument === undefined) {
+      return undefined;
+    }
+    planned.push({
+      parameterIndex: argumentSelection.targetParameterIndex,
+      effectiveArgumentIndex: argumentSelection.sourceArgumentIndex,
+      argument,
+    });
+  }
+  planned.sort((left, right) => left.effectiveArgumentIndex - right.effectiveArgumentIndex);
+  const operands = planned.map(entry => entry.argument);
+  const ordered = planned.map((entry, index) => ({ ...entry, index })).sort((left, right) =>
+    left.parameterIndex - right.parameterIndex ||
+    left.effectiveArgumentIndex - right.effectiveArgumentIndex);
+  if (!targetArgumentOrderIsRepresentable(
+    ordered.map((entry) => entry.parameterIndex),
+    selection.targetMember.parameters,
+  )) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "Selected target argument relation requires a target argument reorder or omission that cannot be represented positionally.",
+    ));
+    return undefined;
+  }
+  return { operands, ...(ordered.some((entry, index) => entry.index !== index) ? { reordered: true as const } : {}), arguments: values => {
+  const planned = ordered.map(entry => ({ ...entry, argument: csharpPlannedArgumentSyntax(entry.argument, values[entry.index]!) }));
+  if (plannedSequences.size === 0) return planned.map(entry => entry.argument);
+  const arguments_: CsharpArgument[] = [];
+  for (let index = 0; index < planned.length;) {
+    const entry = planned[index]!;
+    const group = [entry];
+    index += 1;
+    while (index < planned.length && planned[index]!.parameterIndex === entry.parameterIndex) {
+      group.push(planned[index]!);
+      index += 1;
+    }
+    if (!group.some(candidate => candidate.sequence === true)) {
+      arguments_.push(...group.map(candidate => candidate.argument));
+      continue;
+    }
+    const expression: CsharpExpression = group.length === 1 ? entry.argument.expression : {
+      kind: "CollectionExpression", elements: group.map(candidate => ({
+        kind: candidate.sequence === true ? "SpreadElement" : "ExpressionElement",
+        expression: candidate.argument.expression,
+      })),
+    };
+    arguments_.push({ kind: "Argument", expression });
+  }
+  return arguments_;
+  } };
+}
+
+export function translateCallArgument(
+  expression: Node,
+  parameter: CsharpTargetParameter,
+  sourceForm: CsharpSelectedCallArgument["sourceForm"],
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+  planCallArgument: CallArgumentPlanner,
+  selectedMapping?: CsharpProviderArgumentMapping,
+): CsharpPlannedArgument | undefined {
+  if (sourceForm === "spread-element") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      expression,
+      "Tuple-expanded call arguments require an explicit target tuple expansion plan.",
+    ));
+    return undefined;
+  }
+  if (sourceForm === "spread-sequence" && parameter.paramsArray !== true) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      expression,
+      "Sequence-spread call arguments require an exact related C# params parameter.",
+    ));
+    return undefined;
+  }
+  if (parameter.csharpSourceArgumentAdapter !== undefined) {
+    return translateEcmascriptArgumentVectorCallback(
+      expression,
+      parameter,
+      sourceForm,
+      sourceFile,
+      input,
+      diagnostics,
+      planCallArgument,
+    );
+  }
+  const targetType = csharpTargetParameterValueType(parameter, sourceForm);
+  const expectedType = csharpTypeFromTargetTypeRef(targetType, input.scope.typeParameterNames);
+  if (expectedType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      expression,
+      `Selected target parameter '${parameter.name}' has no renderable C# type.`,
+    ));
+    return undefined;
+  }
+  if (
+    selectedMapping?.kind === "by-value" &&
+    (
+      selectedMapping.conversion.kind === "provider-argument-adapter" ||
+      selectedMapping.conversion.kind === "lifted-provider-argument-adapter" ||
+      selectedMapping.conversion.kind === "checked-native-integer"
+    )
+  ) {
+    if (
+      sourceForm !== "value" ||
+      parameter.passingMode !== "by-value"
+    ) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        expression,
+        `Exact provider argument conversion '${selectedMapping.conversion.kind}' requires an ordinary by-value source argument.`,
+      ));
+      return undefined;
+    }
+    const sourceExpression = planExpression(
+      expression,
+      sourceFile,
+      input,
+      diagnostics,
+    );
+    return mapCsharpPlannedValue(sourceExpression, selectedMapping.targetType, value => applyCsharpConversionSelection(
+      expression, sourceFile, input, diagnostics, selectedMapping.sourceType, selectedMapping.targetType, selectedMapping.conversion, value));
+  }
+  if (
+    selectedMapping?.kind === "by-value" &&
+    selectedMapping.conversion.kind === "delegate-adapter"
+  ) {
+    if (
+      nativeDelegateBindingIsDirectlyTargetTypable(
+        expression,
+        selectedMapping,
+        input,
+      )
+    ) {
+      return planCallArgument(
+        expression,
+        sourceFile,
+        input,
+        diagnostics,
+        expectedType,
+        undefined,
+        targetType,
+        parameter.passingMode,
+        parameter,
+      );
+    }
+    const sourceExpectedType = csharpTypeFromTargetTypeRef(
+      selectedMapping.sourceType, input.scope.typeParameterNames,
+    );
+    if (sourceExpectedType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        expression,
+        "Exact provider delegate adaptation requires a renderable source callable carrier.",
+      ));
+      return undefined;
+    }
+    const sourceArgument = planCallArgument(
+      expression,
+      sourceFile,
+      input,
+      diagnostics,
+      sourceExpectedType,
+      undefined,
+      selectedMapping.sourceType,
+      "by-value",
+    );
+    if (sourceArgument === undefined) {
+      return undefined;
+    }
+    return mapCsharpPlannedValue(sourceArgument, selectedMapping.targetType, value => applyCsharpConversionSelection(
+      expression, sourceFile, input, diagnostics, selectedMapping.sourceType, selectedMapping.targetType, selectedMapping.conversion, value));
+  }
+  return planCallArgument(
+    expression,
+    sourceFile,
+    input,
+    diagnostics,
+    expectedType,
+    undefined,
+    targetType,
+    parameter.passingMode,
+    parameter,
+  );
+}
+
+function nativeDelegateBindingIsDirectlyTargetTypable(
+  expression: Node,
+  mapping: Extract<CsharpProviderArgumentMapping, { readonly kind: "by-value" }>,
+  input: CsharpPlanningContext,
+): boolean {
+  return (
+    input.program.source.ast.is.IsArrowFunction(expression) ||
+    input.program.source.ast.is.IsFunctionExpression(expression)
+  ) &&
+    mapping.conversion.kind === "delegate-adapter" &&
+    mapping.conversion.strategy === "native-binding";
+}
+
+function translateEcmascriptArgumentVectorCallback(
+  expression: Node,
+  parameter: CsharpTargetParameter,
+  sourceForm: CsharpSelectedCallArgument["sourceForm"],
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planCallArgument: CallArgumentPlanner,
+): CsharpPlannedArgument | undefined {
+  const adapter = parameter.csharpSourceArgumentAdapter;
+  if (
+    adapter?.kind !== "ecmascript-argument-vector-callback" ||
+    sourceForm !== "value" ||
+    parameter.passingMode !== "by-value"
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      expression,
+      "The selected ECMAScript callback adapter requires one ordinary by-value source argument.",
+    ));
+    return undefined;
+  }
+  const effectiveSourceCallableType =
+    input.program.records.callableTarget.get(expression) ??
+      adapter.sourceCallableType;
+  const sourceSignature = getCsharpDelegateSignature(
+    effectiveSourceCallableType,
+  );
+  const targetSignature = getCsharpDelegateSignature(parameter.type);
+  const vectorType = targetSignature?.parameters[0];
+  if (
+    sourceSignature === undefined ||
+    targetSignature === undefined ||
+    targetSignature.parameters.length !== 1 ||
+    vectorType === undefined ||
+    !csharpArgumentVectorCallbackResultMatches(
+      sourceSignature.returnType,
+      targetSignature.returnType,
+    ) ||
+    sourceSignature.restParameterIndex !== undefined &&
+      sourceSignature.restParameterIndex !==
+        sourceSignature.parameters.length - 1
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      expression,
+      "The selected ECMAScript callback adapter has no exact source-callable and target argument-vector contract.",
+    ));
+    return undefined;
+  }
+  const sourceCallableType = csharpTypeFromTargetTypeRef(
+    effectiveSourceCallableType, input.scope.typeParameterNames,
+  );
+  const vectorCsharpType = csharpTypeFromTargetTypeRef(vectorType, input.scope.typeParameterNames);
+  if (sourceCallableType === undefined || vectorCsharpType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      expression,
+      "The selected ECMAScript callback adapter contains an unrenderable callable or argument-vector type.",
+    ));
+    return undefined;
+  }
+  const plannedSource = planCallArgument(
+    expression,
+    sourceFile,
+    input,
+    diagnostics,
+    sourceCallableType,
+    undefined,
+    effectiveSourceCallableType,
+    "by-value",
+  );
+  if (plannedSource === undefined) {
+    return undefined;
+  }
+  if (plannedSource.completion.kind === "never") return plannedSource;
+  if (plannedSource.completion.kind !== "value") return undefined;
+  const capture = captureCsharpPlannedValue(expression, input, diagnostics, effectiveSourceCallableType);
+  if (capture === undefined) return undefined;
+  const parameterName = `__tsonic_ecmascriptArguments_${
+    Math.max(0, input.program.source.ast.pos(expression))
+  }_${Math.max(0, input.program.source.ast.end(expression))}`;
+  const vectorExpression = {
+    kind: "IdentifierName" as const,
+    name: parameterName,
+  };
+  const callbackArguments: CsharpArgument[] = [];
+  for (let index = 0; index < sourceSignature.parameters.length; index += 1) {
+    const sourceParameterType = sourceSignature.parameters[index]!;
+    const rest = sourceSignature.restParameterIndex === index;
+    const projectedType = rest
+      ? getCsharpJsArrayElementTargetType(sourceParameterType)
+      : sourceParameterType;
+    const projectedCsharpType = projectedType === undefined
+      ? undefined
+      : csharpTypeFromTargetTypeRef(projectedType, input.scope.typeParameterNames);
+    if (projectedCsharpType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        expression,
+        rest
+          ? "An ECMAScript callback rest parameter requires an exact JS-array element representation."
+          : `ECMAScript callback parameter ${index} has no renderable target representation.`,
+      ));
+      return undefined;
+    }
+    callbackArguments.push({
+      kind: "Argument",
+      expression: {
+        kind: "InvocationExpression",
+        callee: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: vectorExpression,
+          name: rest ? "Rest" : "Get",
+          typeArguments: [projectedCsharpType],
+        },
+        arguments: [{
+          kind: "Argument",
+          expression: { kind: "LiteralExpression", value: index },
+        }],
+      },
+    });
+  }
+  return csharpPlannedValue(parameter.type, {
+      kind: "LambdaExpression",
+      parameters: [{
+        kind: "Parameter",
+        name: parameterName,
+        type: vectorCsharpType,
+      }],
+      body: {
+        kind: "InvocationExpression",
+        callee: {
+          kind: "ParenthesizedExpression",
+          expression: {
+            kind: "CastExpression",
+            type: sourceCallableType,
+            expression: { kind: "IdentifierName", name: capture.name },
+          },
+        },
+        arguments: callbackArguments,
+      },
+    }, [...plannedSource.prelude, { kind: "LocalDeclarationStatement", ...capture, initializer: plannedSource.completion.expression }]);
+}

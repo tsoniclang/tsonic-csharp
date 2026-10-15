@@ -1,0 +1,309 @@
+import type {
+  ProviderVirtualDeclarationFact,
+} from "@tsonic/tsts";
+import type {
+  TargetBindingFact,
+} from "../../../target-model/types/model.js";
+import type {
+  DotnetReflectionTypeDataProvider,
+} from "../acquisition/provider.js";
+import {
+  resolveDotnetProviderTargetRelations,
+} from "./target-relation-resolver.js";
+import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
+import {
+  assertCsharpProviderPolicyIsNonContradictory,
+  createCsharpProviderRejectionCatalog,
+  createCsharpProviderRelationCatalog,
+  providerMemberSourceIdentity,
+  providerSignatureSourceIdentity,
+  providerTypeSourceIdentity,
+  providerValueSourceIdentity,
+} from "./index.js";
+import type {
+  CsharpProviderPolicyContribution,
+} from "../../model/provider-policy-contribution.js";
+import {
+  csharpBuiltInProviderPolicies,
+} from "../../builtins/source-semantic-relations.js";
+import type {
+  CsharpProviderRelationResolution,
+  CsharpProviderRelationResolver,
+} from "../../model/relation-resolver.js";
+
+export interface CsharpProviderRelationResolverInputs {
+  readonly providers: readonly DotnetReflectionTypeDataProvider[];
+  readonly providerPolicies: readonly CsharpProviderPolicyContribution[];
+}
+
+export function createCsharpProviderRelationResolver(
+  inputs: CsharpProviderRelationResolverInputs,
+): CsharpProviderRelationResolver {
+  const providers = Object.freeze([...inputs.providers]);
+  const staticCatalogs = [
+    ...csharpBuiltInProviderPolicies().map((policy) => ({
+      ...policy,
+      rejections: [],
+    })),
+    ...inputs.providerPolicies,
+  ].map((contribution) => ({
+    providerId: contribution.providerId,
+    providerVersion: contribution.providerVersion,
+    relationCatalog: createCsharpProviderRelationCatalog([
+      contribution.relations,
+    ]),
+    rejectionCatalog: createCsharpProviderRejectionCatalog([
+      contribution.rejections,
+    ]),
+  })).map((policy) => {
+    assertCsharpProviderPolicyIsNonContradictory(
+      policy.relationCatalog,
+      policy.rejectionCatalog,
+    );
+    return policy;
+  });
+  const staticBindings = uniqueStaticBindings(
+    staticCatalogs.flatMap((entry) =>
+      entry.relationCatalog.relations.map((relation) =>
+        relation.targetBinding)),
+  );
+  assertUniqueProviderIdentities(providers);
+  assertUniqueProviderSources(providers, staticCatalogs);
+  const resolutions = new WeakMap<
+    ProviderVirtualDeclarationFact,
+    Map<CsharpProviderTargetRelation["kind"], CsharpProviderRelationResolution>
+  >();
+  const resolve = (
+    declaration: ProviderVirtualDeclarationFact | undefined,
+    kind: CsharpProviderTargetRelation["kind"],
+  ): CsharpProviderRelationResolution => {
+    if (declaration === undefined) {
+      return {
+        kind: "missing",
+        reason: "Selected source declaration has no provider identity fact.",
+      };
+    }
+    const provider = providers.find((candidate) =>
+      candidate.identity.id === declaration.providerId &&
+      candidate.identity.version === declaration.providerVersion);
+    if (provider !== undefined) {
+      return resolveDotnetProviderTargetRelations(provider, declaration, kind);
+    }
+    const staticCatalog = staticCatalogs.find((candidate) =>
+      candidate.providerId === declaration.providerId &&
+      candidate.providerVersion === declaration.providerVersion);
+    if (staticCatalog === undefined) {
+      return {
+        kind: "missing",
+        reason:
+          `No C# target provider owns '${declaration.providerId}@${declaration.providerVersion}'.`,
+      };
+    }
+    switch (kind) {
+      case "type": {
+        const source = providerTypeSourceIdentity(declaration);
+        return source.kind === "missing"
+          ? source
+          : resolveStaticProviderPolicy(
+              staticCatalog,
+              source.identity,
+              staticCatalog.relationCatalog.resolveType(source.identity),
+            );
+      }
+      case "value": {
+        const source = providerValueSourceIdentity(declaration);
+        return source.kind === "missing"
+          ? source
+          : resolveStaticProviderPolicy(
+              staticCatalog,
+              source.identity,
+              staticCatalog.relationCatalog.resolveValue(source.identity),
+            );
+      }
+      case "member": {
+        const source = providerMemberSourceIdentity(declaration);
+        return source.kind === "missing"
+          ? source
+          : resolveStaticProviderPolicy(
+              staticCatalog,
+              source.identity,
+              staticCatalog.relationCatalog.resolveMember(source.identity),
+            );
+      }
+      case "signature": {
+        const source = providerSignatureSourceIdentity(declaration);
+        return source.kind === "missing"
+          ? source
+          : resolveStaticProviderPolicy(
+              staticCatalog,
+              source.identity,
+              staticCatalog.relationCatalog.resolveSignature(
+                source.identity,
+              ),
+            );
+      }
+    }
+  };
+  const selected = (
+    declaration: ProviderVirtualDeclarationFact | undefined,
+    kind: CsharpProviderTargetRelation["kind"],
+  ): CsharpProviderRelationResolution => {
+    if (declaration === undefined) return resolve(declaration, kind);
+    let kinds = resolutions.get(declaration);
+    const existing = kinds?.get(kind);
+    if (existing !== undefined) return existing;
+    const result = resolve(declaration, kind);
+    if (kinds === undefined) {
+      kinds = new Map();
+      resolutions.set(declaration, kinds);
+    }
+    kinds.set(kind, result);
+    return result;
+  };
+  return Object.freeze({
+    validateReferences() {
+      return Object.freeze(providers.flatMap((provider) => {
+        const diagnostic = provider.validateReferences();
+        return diagnostic === undefined ? [] : [diagnostic];
+      }));
+    },
+    resolveType(
+      declaration: ProviderVirtualDeclarationFact | undefined,
+    ): CsharpProviderRelationResolution {
+      return selected(declaration, "type");
+    },
+    resolveValue(
+      declaration: ProviderVirtualDeclarationFact | undefined,
+    ): CsharpProviderRelationResolution {
+      return selected(declaration, "value");
+    },
+    resolveMember(
+      declaration: ProviderVirtualDeclarationFact | undefined,
+    ): CsharpProviderRelationResolution {
+      return selected(declaration, "member");
+    },
+    resolveSignature(
+      declaration: ProviderVirtualDeclarationFact | undefined,
+    ): CsharpProviderRelationResolution {
+      return selected(declaration, "signature");
+    },
+    findTargetBindingByTargetId(targetId: string): TargetBindingFact | undefined {
+      return findUniqueTargetBinding(
+        [
+          ...providers.map((provider) =>
+            provider.findTargetBindingByTargetId(targetId)),
+          ...staticBindings.filter((binding) => binding.id === targetId),
+        ],
+      );
+    },
+    findTargetBindingByMetadataName(metadataName: string): TargetBindingFact | undefined {
+      return findUniqueTargetBinding(
+        [
+          ...providers.map((provider) =>
+            provider.findTargetBindingByMetadataName(metadataName)),
+          ...staticBindings.filter((binding) =>
+            binding.targetName === metadataName),
+        ],
+      );
+    },
+  });
+}
+
+type StaticProviderPolicy = {
+  readonly providerId: string;
+  readonly providerVersion: string;
+  readonly relationCatalog: ReturnType<
+    typeof createCsharpProviderRelationCatalog
+  >;
+  readonly rejectionCatalog: ReturnType<
+    typeof createCsharpProviderRejectionCatalog
+  >;
+};
+
+function resolveStaticProviderPolicy(
+  policy: StaticProviderPolicy,
+  source: Parameters<StaticProviderPolicy["rejectionCatalog"]["resolve"]>[0],
+  relations: readonly CsharpProviderTargetRelation[],
+): CsharpProviderRelationResolution {
+  const diagnostic = policy.rejectionCatalog.resolve(source);
+  return diagnostic === undefined
+    ? { kind: "resolved", relations }
+    : { kind: "rejected", diagnostic };
+}
+
+function uniqueStaticBindings(
+  bindings: readonly TargetBindingFact[],
+): readonly TargetBindingFact[] {
+  const byId = new Map<string, TargetBindingFact>();
+  for (const binding of bindings) {
+    const existing = byId.get(binding.id);
+    if (
+      existing !== undefined &&
+      JSON.stringify(existing) !== JSON.stringify(binding)
+    ) {
+      throw new Error(
+        `C# provider relation contributions define incompatible target binding '${binding.id}'.`,
+      );
+    }
+    byId.set(binding.id, binding);
+  }
+  return Object.freeze([...byId.values()]);
+}
+
+function assertUniqueProviderSources(
+  providers: readonly DotnetReflectionTypeDataProvider[],
+  staticCatalogs: readonly {
+    readonly providerId: string;
+    readonly providerVersion: string;
+  }[],
+): void {
+  const identities = new Set(
+    providers.map((provider) =>
+      JSON.stringify([provider.identity.id, provider.identity.version])),
+  );
+  for (const catalog of staticCatalogs) {
+    const identity = JSON.stringify([
+      catalog.providerId,
+      catalog.providerVersion,
+    ]);
+    if (identities.has(identity)) {
+      throw new Error(
+        `C# target provider '${catalog.providerId}@${catalog.providerVersion}' is registered more than once.`,
+      );
+    }
+    identities.add(identity);
+  }
+}
+
+function findUniqueTargetBinding(
+  candidates: readonly (TargetBindingFact | undefined)[],
+): TargetBindingFact | undefined {
+  const bindings = candidates.filter(
+    (candidate): candidate is TargetBindingFact => candidate !== undefined,
+  );
+  if (bindings.length === 0) {
+    return undefined;
+  }
+  const first = bindings[0]!;
+  return bindings.every((binding) => binding.id === first.id)
+    ? first
+    : undefined;
+}
+
+function assertUniqueProviderIdentities(
+  providers: readonly DotnetReflectionTypeDataProvider[],
+): void {
+  const identities = new Set<string>();
+  for (const provider of providers) {
+    const identity = JSON.stringify([
+      provider.identity.id,
+      provider.identity.version,
+    ]);
+    if (identities.has(identity)) {
+      throw new Error(
+        `C# target provider '${provider.identity.id}@${provider.identity.version}' is registered more than once.`,
+      );
+    }
+    identities.add(identity);
+  }
+}

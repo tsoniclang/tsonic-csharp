@@ -1,0 +1,218 @@
+import type { CsharpPlanningContext } from "../../context.js";
+import {
+  AsObjectLiteralExpression,
+  KindMethodDeclaration,
+  KindPropertyAssignment,
+  KindShorthandPropertyAssignment,
+  KindSpreadAssignment,
+  SourceKind,
+} from "@tsonic/target-api/source";
+import type {
+  Node,
+  SourceFile,
+} from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../../../target-model/types/index.js";
+import {
+  isCsharpJsValueTargetType,
+  isCsharpJsValueObjectShapeTargetType,
+  projectCsharpJsValueObjectLiteralShape,
+  validateCsharpJsValueObjectShapeCarrier,
+  getCsharpRuntimeUnionArms,
+  getCsharpNullableElementTargetType,
+  csharpStringTargetType,
+} from "../../../../target-model/types/index.js";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { CsharpTypeNode } from "../../../target-ast/syntax/index.js";
+import type { CsharpObjectShapeFact } from "../../../../target-model/types/index.js";
+import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
+import { planCsharpObjectCaptureAssignments } from "../declarations/authored-methods.js";
+import { csharpConstructibleTypeFromObjectShapeFact } from "../index.js";
+import {
+  translateCsharpJsValueInvocation,
+} from "../../expressions/js-value-operations.js";
+import type {
+  ExpectedExpressionPlanner,
+  ExpressionPlanner,
+} from "../../expressions/expression-planner-types.js";
+import {
+  planExplicitObjectShapeLiteralMember,
+  planObjectShapeLiteralAssignment,
+} from "./assignments.js";
+import {
+  getExpectedObjectShapeFact,
+} from "./support.js";
+import { csharpPlannedValue, type CsharpPlannedValue } from "../../expressions/planned-values.js";
+import { buildCsharpPlannedValue } from "../../expressions/planned-value-composition.js";
+import { planCsharpObjectInitialization, type CsharpPlannedObjectInitializer } from "../../expressions/planned-initializers.js";
+
+export function planObjectLiteralExpressionWithExpectedType(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  expectedType: CsharpTypeNode,
+  expectedTypeSubject: Node | undefined,
+  planExpression: ExpressionPlanner,
+  planExpressionWithExpectedType: ExpectedExpressionPlanner,
+  expectedTargetType?: TargetTypeRef,
+  state?: DestructuringPlannerState,
+): CsharpPlannedValue | undefined {
+  const unionCarrier = expectedTargetType === undefined ? undefined
+    : input.types.objectShapes.resolveObjectLiteralUnionCarrier(node, expectedTargetType);
+  if (getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(expectedTargetType) ?? expectedTargetType, input.program.typeDefinitions) !== undefined && unionCarrier === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal requires one exact sealed union-arm construction contract."));
+    return undefined;
+  }
+  const expectedObjectShape = input.types.objectShapes.resolveTarget(unionCarrier) ?? getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input, expectedTargetType);
+  const resolved = input.types.objectShapes.resolveObjectLiteralTargetShape(
+    expectedObjectShape ?? getExpectedObjectShapeFact(node, sourceFile, input),
+    node,
+    sourceFile,
+  );
+  if (resolved === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "Object literal planning requires a sealed target-shape classification produced during C# analysis.",
+    ));
+    return undefined;
+  }
+  if (resolved.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      resolved.subject,
+      resolved.reason,
+    ));
+    return undefined;
+  }
+  let objectShape = resolved.kind === "resolved" ? resolved.shape : undefined;
+  if (
+    objectShape !== undefined &&
+    isCsharpJsValueTargetType(expectedTargetType) &&
+    !isCsharpJsValueObjectShapeTargetType(objectShape.targetType)
+  ) {
+    const projection = projectCsharpJsValueObjectLiteralShape(objectShape);
+    if (projection.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, projection.reason));
+      return undefined;
+    }
+    objectShape = projection.shape;
+  }
+  if (objectShape !== undefined) {
+    return planObjectLiteralExpressionWithObjectShape(node, sourceFile, input, diagnostics, objectShape, planExpression, planExpressionWithExpectedType, state);
+  }
+  void expectedType;
+  diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal emission requires finalized TSTS/provider object-shape facts before C# emission."));
+  return undefined;
+}
+
+function planObjectLiteralExpressionWithObjectShape(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  objectShape: CsharpObjectShapeFact,
+  planExpression: ExpressionPlanner,
+  planExpressionWithExpectedType: ExpectedExpressionPlanner,
+  state?: DestructuringPlannerState,
+): CsharpPlannedValue | undefined {
+  if (isCsharpJsValueObjectShapeTargetType(objectShape.targetType)) {
+    return planJsValueObjectLiteral(
+      node,
+      sourceFile,
+      input,
+      diagnostics,
+      objectShape,
+      planExpressionWithExpectedType,
+    );
+  }
+  const type = csharpConstructibleTypeFromObjectShapeFact(
+    input,
+    objectShape,
+    diagnostics,
+    node,
+  );
+  if (type === undefined) {
+    return undefined;
+  }
+  const literal = AsObjectLiteralExpression(input.program.source.ast, node)!;
+  const captures = planCsharpObjectCaptureAssignments(objectShape, node, input, diagnostics, state);
+  if (captures === undefined) return undefined;
+  const assignments: CsharpPlannedObjectInitializer[] = [];
+  for (const property of literal.Properties?.Nodes ?? []) {
+    if (property === undefined) {
+      continue;
+    }
+    const planned = planObjectShapeLiteralAssignment(property, objectShape, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType);
+    if (planned === undefined) {
+      return undefined;
+    }
+    assignments.push(...planned);
+  }
+  return planCsharpObjectInitialization(node, sourceFile, input, diagnostics, objectShape.targetType, type, captures, assignments);
+}
+
+function planJsValueObjectLiteral(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  objectShape: CsharpObjectShapeFact,
+  planExpressionWithExpectedType: ExpectedExpressionPlanner,
+): CsharpPlannedValue | undefined {
+  const carrierRejection = validateCsharpJsValueObjectShapeCarrier(objectShape);
+  if (carrierRejection !== undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, carrierRejection));
+    return undefined;
+  }
+  const literal = AsObjectLiteralExpression(input.program.source.ast, node)!;
+  const arguments_: CsharpPlannedValue[] = [];
+  for (const property of literal.Properties?.Nodes ?? []) {
+    if (property === undefined) {
+      continue;
+    }
+    const kind = SourceKind(input.program.source.ast, property);
+    if (
+      kind === KindSpreadAssignment ||
+      kind === KindMethodDeclaration ||
+      (kind !== KindPropertyAssignment &&
+        kind !== KindShorthandPropertyAssignment)
+    ) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        property,
+        "Closed JS-value object literals require explicit property assignments; spread and method members need their own exact runtime operation contract.",
+      ));
+      return undefined;
+    }
+    const planned = planExplicitObjectShapeLiteralMember(
+      property,
+      objectShape,
+      sourceFile,
+      input,
+      diagnostics,
+      planExpressionWithExpectedType,
+    );
+    if (planned === undefined) {
+      return undefined;
+    }
+    arguments_.push(
+      csharpPlannedValue(csharpStringTargetType(), { kind: "LiteralExpression", value: planned.member.sourceName }),
+      planned.expression,
+    );
+  }
+  const operation = input.program.records.jsObjectLiteral.get(node);
+  if (operation?.kind !== "resolved") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      operation?.kind === "rejected"
+        ? operation.reason
+        : "C# object-literal planning requires a sealed JS-value operation classification produced during analysis.",
+    ));
+    return undefined;
+  }
+  return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, arguments_, values => translateCsharpJsValueInvocation(
+    input.scope.typeParameterNames,
+    operation,
+    undefined,
+    values,
+  ), objectShape.targetType);
+}

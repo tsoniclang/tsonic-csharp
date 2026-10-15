@@ -1,0 +1,112 @@
+import type { CsharpPlanningContext } from "../context.js";
+import type { DestructuringPlannerState } from "../bindings/binding-state.js";
+import { planTypedArrayMutation } from "./typed-array-mutations.js";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { CsharpPlannedValue } from "./planned-values.js";
+import { buildCsharpPlannedValue } from "./planned-value-composition.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "../diagnostics.js";
+import type {
+  CallArgumentPlanner,
+  ExpressionPlanner,
+  ExpectedExpressionPlanner,
+} from "./expression-planner-types.js";
+import {
+  csharpSourcePrimitiveTargetType,
+} from "../../../target-model/types/index.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "../types/target-types.js";
+
+export function tryPlanJsArrayMutationExpression(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+  planCallArgument: CallArgumentPlanner,
+  planExpected: ExpectedExpressionPlanner,
+  state?: DestructuringPlannerState,
+): CsharpPlannedValue | undefined {
+  const selection = input.program.records.jsArrayMutation.get(node);
+  if (selection === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# planning received an array mutation without a sealed operation classification.",
+    ));
+    return undefined;
+  }
+  if (selection.kind === "not-js-array-mutation") {
+    return undefined;
+  }
+  if (selection.kind === "set-typed-element" || selection.kind === "update-typed-element") {
+    return planTypedArrayMutation(node, selection, sourceFile, input, diagnostics,
+      planExpression, planExpected, state);
+  }
+  if (selection.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
+    return undefined;
+  }
+  if (selection.kind !== "set-length") {
+    return undefined;
+  }
+  const receiver = planExpression(
+    selection.receiver,
+    sourceFile,
+    input,
+    diagnostics,
+  );
+  const argument = planMutationArgument(
+    selection.value,
+    sourceFile,
+    input,
+    diagnostics,
+    planCallArgument,
+  );
+  if (receiver === undefined || argument === undefined) {
+    return undefined;
+  }
+  return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, argument], values => ({
+    kind: "InvocationExpression",
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: values[0]!,
+      name: selection.targetMemberName,
+    },
+    arguments: [{ kind: "Argument", expression: values[1]! }],
+  }));
+}
+
+function planMutationArgument(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planCallArgument: CallArgumentPlanner,
+) {
+  const targetType = csharpSourcePrimitiveTargetType("float64");
+  const expectedType = csharpTypeFromTargetTypeRef(targetType, input.scope.typeParameterNames);
+  if (expectedType === undefined) {
+    throw new Error("The C# float64 mutation parameter must always be renderable.");
+  }
+  const argument = planCallArgument(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    expectedType,
+    undefined,
+    targetType,
+    "by-value",
+  );
+  if (argument?.passing !== undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# JS Array mutation indexes and lengths require by-value arguments.",
+    ));
+    return undefined;
+  }
+  return argument;
+}

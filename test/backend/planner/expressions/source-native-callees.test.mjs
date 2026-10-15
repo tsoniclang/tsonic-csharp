@@ -1,0 +1,126 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { sourceNativeCalleeFiles } from "../../../../../tsonic/test/fixtures/source-native-callees.mjs";
+import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
+import { planCsharpNativeFunctionCallee, planCsharpNativeMethodCallee } from "../../../../dist/backend/planner/expressions/target-members/selected-call/native-callees.js";
+import { createDestructuringPlannerState } from "../../../../dist/backend/planner/bindings/binding-state.js";
+import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
+import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
+
+test("native function references retain exact lexical overrides without acquiring delegate carriers", () => {
+  const expression = {};
+  const parent = createDestructuringPlannerState();
+  const state = createDestructuringPlannerState();
+  state.parent = parent;
+  const outer = { kind: "IdentifierName", name: "outerSelf" };
+  const inner = { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "retainedFrame" }, name: "invoke" };
+  parent.expressionOverrides.set(expression, outer);
+  const input = { program: { source: { ast: { is: { IsIdentifier: node => node === expression } } } } };
+  const selected = { kind: "function", expression };
+  const diagnostics = [];
+  assert.equal(planCsharpNativeFunctionCallee(selected, {}, input, diagnostics, state) === outer, true);
+  state.expressionOverrides.set(expression, inner);
+  assert.equal(planCsharpNativeFunctionCallee(selected, {}, input, diagnostics, state) === inner, true);
+  assert.equal(parent.expressionOverrides.get(expression) === outer, true, "another activation is not mutated");
+  assert.equal(diagnostics.length, 0);
+});
+
+test("native method planning requires one exact closed member contract", () => {
+  const expression = {};
+  const receiver = {};
+  const declaration = {};
+  const carrier = csharpSourcePrimitiveTargetType("int32");
+  const selected = { kind: "method", expression, declaration, receiver: { expression: receiver, type: carrier } };
+  const member = { memberKind: "method", targetName: "read", type: carrier };
+  const sourceOwned = { objectShape: { targetType: carrier }, shapeMember: { kind: "resolved", member },
+    jsValueOperation: { kind: "not-js-value" }, runtimeUnionProperty: { kind: "not-runtime-union" } };
+  const classification = { selection: { kind: "source-owned", source: { callCallee: true,
+    selectedDeclaration: declaration, receiver: { expression: receiver, type: {} } } }, sourceOwned };
+  const plan = subject => {
+    assert.equal(subject === receiver, true, "only the receiver is evaluated");
+    return csharpPlannedValue(carrier, { kind: "IdentifierName", name: "receiver" });
+  };
+  const invoke = fact => {
+    const diagnostics = [];
+    const input = { program: { sourceNavigation: { sourceReferenceFor: () => undefined, referenceFor: () => undefined },
+      records: { selectedProperty: { get: () => fact },
+        selectedElement: { get: () => undefined },
+        sourceMember: { get: () => fact?.sourceOwned } } } };
+    const result = planCsharpNativeMethodCallee(selected, {}, input, diagnostics, plan);
+    return { result, diagnostics };
+  };
+  const valid = invoke(classification);
+  assert.equal(valid.result?.name, "read");
+  assert.equal(valid.result?.kind, "value");
+  assert.equal(valid.diagnostics.length, 0);
+  for (const [label, fact] of [
+    ["missing classification", undefined],
+    ["not a direct callee", { ...classification, selection: { ...classification.selection,
+      source: { ...classification.selection.source, callCallee: false } } }],
+    ["missing shape member", { ...classification, sourceOwned: { ...sourceOwned, shapeMember: undefined } }],
+    ["rejected shape member", { ...classification, sourceOwned: { ...sourceOwned, shapeMember: { kind: "rejected" } } }],
+    ["stored callable field", { ...classification, sourceOwned: { ...sourceOwned,
+      shapeMember: { kind: "resolved", member: { ...member, memberKind: "property" } } } }],
+    ["JS-value operation", { ...classification, sourceOwned: { ...sourceOwned, jsValueOperation: { kind: "resolved" } } }],
+    ["runtime-union operation", { ...classification, sourceOwned: { ...sourceOwned, runtimeUnionProperty: { kind: "resolved" } } }],
+  ]) {
+    const rejected = invoke(fact);
+    assert.equal(rejected.result === undefined, true, label);
+    assert.equal(rejected.diagnostics.length, 1, label);
+  }
+});
+
+test("generic class static callees remain exact namespace syntax, never runtime receiver operands", () => {
+  const expression = {};
+  const receiver = {};
+  const declaration = {};
+  const classDeclaration = {};
+  const className = {};
+  const methodName = {};
+  const file = { IsDeclarationFile: false };
+  const sourceOwned = { jsValueOperation: { kind: "not-js-value" }, runtimeUnionProperty: { kind: "not-runtime-union" } };
+  const classification = { selection: { kind: "source-owned", source: { callCallee: true,
+    selectedDeclaration: declaration, receiver: { expression: receiver, type: {} } } }, sourceOwned };
+  const input = {
+    program: { sourceNavigation: { referenceFor: () => ({ declaration: classDeclaration, sourceFile: file }),
+        sourceReferenceFor: () => ({ declaration: classDeclaration, sourceFile: file }),
+        isProjectDeclaration: candidate => candidate === classDeclaration },
+      source: { ast: { kindName: () => "KindClassDeclaration", getFileName: () => "/project/entry.ts",
+        name: candidate => candidate === classDeclaration ? className : methodName,
+        is: { IsClassExpression: () => false } } },
+      records: { selectedProperty: { get: () => classification },
+        selectedElement: { get: () => undefined },
+        sourceMember: { get: () => input.program.records.selectedProperty.get()?.sourceOwned },
+        classFactory: { get: () => undefined } } },
+    types: { projectTypes: { definitionContainingDeclaration: () => ({ scopeName: "ModuleScope" }) } },
+    names: { resolve: name => ({ kind: "resolved", name: name === className ? "Entry" : "identity" }) },
+  };
+  const diagnostics = [];
+  const result = planCsharpNativeMethodCallee({ kind: "method", expression, declaration }, file, input, diagnostics,
+    () => assert.fail("native static calls must not acquire or capture a constructor delegate"));
+  assert.equal(result?.kind, "type");
+  assert.equal(result?.name, "identity");
+  assert.deepEqual(result.receiver,
+    { kind: "QualifiedName", left: { kind: "IdentifierName", name: "ModuleScope" }, name: "Entry" });
+  assert.equal(diagnostics.length, 0);
+  input.program.records.selectedProperty.get = () => ({ ...classification, receiverProjection: {
+    conversion: { kind: "rejected", reason: "missing selected native receiver proof" },
+  } });
+  const rejected = planCsharpNativeMethodCallee({ kind: "method", expression, declaration }, file, input, diagnostics,
+    () => assert.fail("rejected evidence must not acquire a constructor delegate"));
+  assert.equal(rejected === undefined, true, "native type syntax cannot conceal rejected source evidence");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /missing selected native receiver proof/u);
+});
+
+for (const surface of ["native", "js"]) {
+  test(`direct native callees are syntax rather than acquired delegates in ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: sourceNativeCalleeFiles["index.ts"],
+      files: { "helper.ts": sourceNativeCalleeFiles["helper.ts"] } });
+    assertCsharpCompilationSucceeded(compiled);
+    const generated = [...compiled.artifacts.values()].join("\n");
+    assert.equal(/\.read\(\)/u.test(generated), true);
+    assert.equal(/\.identity<int>\(/u.test(generated), true);
+    assert.equal(/new\s+(?:global::)?System\.(?:Action|Func)/u.test(generated), false);
+  });
+}

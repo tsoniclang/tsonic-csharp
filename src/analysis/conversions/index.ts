@@ -1,0 +1,10 @@
+export { analyzeCsharpConversions } from "./analyze.js";
+export type { CsharpConversionAnalysis } from "./model.js";
+export type { CsharpConversionClassifications, CsharpConversionIssue } from "../../target-model/records/conversions.js";
+export type {
+  CsharpConversionMode,
+  CsharpConversionSelection,
+} from "../../target-model/conversions/selection.js";
+export {
+  csharpConversionIsApplicable,
+} from "../../target-model/conversions/selection.js";

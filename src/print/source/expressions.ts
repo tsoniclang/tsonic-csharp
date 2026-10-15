@@ -1,0 +1,451 @@
+import type {
+  CsharpArgument,
+  CsharpAssignmentOperatorToken,
+  CsharpBinaryOperatorToken,
+  CsharpCollectionInitializerElement,
+  CsharpExpression,
+  CsharpInterpolatedStringPart,
+  CsharpLambdaParameter,
+  CsharpObjectInitializerAssignment,
+  CsharpPattern,
+  CsharpPostfixUnaryOperatorToken,
+  CsharpPrefixUnaryOperatorToken,
+  CsharpTypeNode,
+} from "../../backend/target-ast/syntax/index.js";
+import type { CsharpPrintContext } from "./context.js";
+import { failUnsupportedCsharpSyntax } from "./fail-closed.js";
+import {
+  escapeCsharpInterpolatedStringText,
+  indentLines,
+  printCharLiteral,
+  printIntegerLiteral,
+  printLiteral,
+  printNumericLiteral,
+} from "./format.js";
+import { isCsharpTypeSyntax } from "./types.js";
+import { csharpExpressionPrecedence } from "./precedence.js";
+import { transformCsharpTargetAst } from "../../backend/target-ast/normalization/transformation.js";
+
+export function printCsharpExpression(
+  expression: CsharpExpression,
+  context: CsharpPrintContext,
+): string {
+  if (isCsharpTypeSyntax(expression)) {
+    return context.printType(expression);
+  }
+  switch (expression.kind) {
+    case "LiteralExpression":
+      return printLiteral(expression.value, expression.stringStyle);
+    case "NumericLiteralExpression":
+      return printNumericLiteral(expression.value, expression.suffix);
+    case "IntegerLiteralExpression":
+      return printIntegerLiteral(expression.digits, expression.suffix);
+    case "CharacterLiteralExpression":
+      return printCharLiteral(expression.value);
+    case "InterpolatedStringExpression":
+      return printInterpolatedString(expression.parts, context);
+    case "ParenthesizedExpression":
+      return `(${context.printExpression(expression.expression)})`;
+    case "SimpleMemberAccessExpression":
+      return `${printPostfixOperand(expression.receiver, context)}.${printMemberName(expression.name, expression.typeArguments, context)}`;
+    case "ConditionalAccessExpression":
+      return `${printPostfixOperand(expression.receiver, context)}?.${printMemberName(expression.name, expression.typeArguments, context)}`;
+    case "ElementAccessExpression":
+      return `${printPostfixOperand(expression.receiver, context)}[${expression.arguments.map(context.printExpression).join(", ")}]`;
+    case "ConditionalElementAccessExpression":
+      return `${printPostfixOperand(expression.receiver, context)}?[${expression.arguments.map(context.printExpression).join(", ")}]`;
+    case "InvocationExpression":
+      return `${printPostfixOperand(expression.callee, context)}(${expression.arguments.map(context.printArgument).join(", ")})`;
+    case "AwaitExpression":
+      return `await ${printPostfixOperand(expression.expression, context)}`;
+    case "UnsafeExpression":
+      return `unsafe(${context.printExpression(expression.expression)})`;
+    case "CheckedExpression":
+      return `checked(${context.printExpression(expression.expression)})`;
+    case "ObjectCreationExpression":
+      if (expression.collectionInitializers !== undefined) {
+        return printCsharpCollectionInitializer(expression.type, expression.arguments ?? [], expression.collectionInitializers, context);
+      }
+      return expression.assignments === undefined
+        ? printCsharpObjectCreation(expression.type, expression.arguments ?? [], context)
+        : printCsharpObjectInitializer(expression.type, expression.arguments ?? [], expression.assignments, context);
+    case "CastExpression": {
+      const printedExpression = context.printExpression(expression.expression);
+      return castOperandRequiresParentheses(expression.expression)
+        ? `(${context.printType(expression.type)})(${printedExpression})`
+        : `(${context.printType(expression.type)})${printedExpression}`;
+    }
+    case "BinaryExpression": {
+      const precedence = csharpExpressionPrecedence(expression);
+      const rightAssociative = expression.operatorToken.kind === "QuestionQuestionToken";
+      return `${printOperand(expression.left, precedence, rightAssociative, context)} ${printCsharpBinaryOperatorToken(expression.operatorToken)} ${printOperand(expression.right, precedence, !rightAssociative, context)}`;
+    }
+    case "AssignmentExpression":
+      return `${printOperand(expression.left, 1, true, context)} ${printCsharpAssignmentOperatorToken(expression.operatorToken)} ${context.printExpression(expression.right)}`;
+    case "IsPatternExpression":
+      return `${printOperand(expression.expression, 10, false, context)} is ${expression.negated === true ? "not " : ""}${context.printType(expression.type)}${expression.designation === undefined ? "" : ` ${expression.designation}`}`;
+    case "NullPatternExpression":
+      return `${printOperand(expression.expression, 10, false, context)} is ${expression.negated ? "not " : ""}null`;
+    case "PrefixUnaryExpression":
+      return `${printCsharpPrefixUnaryOperatorToken(expression.operatorToken)}${printPostfixOperand(expression.operand, context)}`;
+    case "PostfixUnaryExpression":
+      return `${printPostfixOperand(expression.operand, context)}${printCsharpPostfixUnaryOperatorToken(expression.operatorToken)}`;
+    case "ConditionalExpression":
+      return `${printOperand(expression.condition, 2, true, context)} ? ${context.printExpression(expression.whenTrue)} : ${context.printExpression(expression.whenFalse)}`;
+    case "SwitchExpression":
+      return `(${context.printExpression(expression.expression)}) switch { ${expression.arms.map(arm =>
+        `${printCsharpPattern(arm.pattern, context)}${arm.when === undefined ? "" : ` when ${context.printExpression(arm.when)}`} => ${context.printExpression(arm.expression)}`
+      ).join(", ")} }`;
+    case "ThrowExpression":
+      return `throw ${context.printExpression(expression.expression)}`;
+    case "ArrayCreationExpression": {
+      if (expression.size !== undefined) {
+        return expression.elementType === undefined
+          ? `new[] { }`
+          : `new ${printAllocatedArrayType(expression.elementType, `[${context.printExpression(expression.size)}]`, context)}`;
+      }
+      const elements = expression.elements.map(context.printExpression).join(", ");
+      const initializer = elements.length === 0 ? "{ }" : `{ ${elements} }`;
+      return expression.elementType === undefined
+        ? `new[] ${initializer}`
+        : `new ${printAllocatedArrayType(expression.elementType, "[]", context)} ${initializer}`;
+    }
+    case "CollectionExpression":
+      return `[${expression.elements.map(element => `${element.kind === "SpreadElement" ? ".. " : ""}${context.printExpression(element.expression)}`).join(", ")}]`;
+    case "TupleExpression":
+      return `(${expression.elements.map(context.printExpression).join(", ")})`;
+    case "DefaultExpression":
+      return `default(${context.printType(expression.type)})${expression.nullForgiving === true ? "!" : ""}`;
+    case "LambdaExpression":
+      return printCsharpLambda(expression, context);
+  }
+  return failUnsupportedCsharpSyntax(expression, "expression");
+}
+
+function printOperand(expression: CsharpExpression, precedence: number, equal: boolean, context: CsharpPrintContext): string {
+  const printed = context.printExpression(expression);
+  const selected = csharpExpressionPrecedence(expression);
+  return selected < precedence || equal && selected === precedence ? `(${printed})` : printed;
+}
+
+function castOperandRequiresParentheses(expression: CsharpExpression): boolean {
+  return csharpExpressionPrecedence(expression) < 14 || expression.kind === "SwitchExpression";
+}
+
+function printPostfixOperand(
+  expression: CsharpExpression,
+  context: CsharpPrintContext,
+): string {
+  const printed = context.printExpression(expression);
+  return postfixOperandRequiresParentheses(expression)
+    ? `(${printed})`
+    : printed;
+}
+
+function postfixOperandRequiresParentheses(
+  expression: CsharpExpression,
+): boolean {
+  if (isCsharpTypeSyntax(expression)) {
+    return false;
+  }
+  switch (expression.kind) {
+    case "AwaitExpression":
+    case "UnsafeExpression":
+    case "CheckedExpression":
+    case "CastExpression":
+    case "BinaryExpression":
+    case "AssignmentExpression":
+    case "IsPatternExpression":
+    case "NullPatternExpression":
+    case "PrefixUnaryExpression":
+    case "ConditionalExpression":
+    case "SwitchExpression":
+    case "ThrowExpression":
+    case "LambdaExpression":
+      return true;
+    case "PostfixUnaryExpression":
+      return expression.operatorToken.kind !== "ExclamationToken";
+    case "LiteralExpression":
+    case "NumericLiteralExpression":
+    case "IntegerLiteralExpression":
+    case "CharacterLiteralExpression":
+    case "InterpolatedStringExpression":
+    case "ParenthesizedExpression":
+    case "InvocationExpression":
+    case "ObjectCreationExpression":
+    case "SimpleMemberAccessExpression":
+    case "ConditionalAccessExpression":
+    case "ElementAccessExpression":
+    case "ConditionalElementAccessExpression":
+    case "ArrayCreationExpression":
+    case "CollectionExpression":
+    case "TupleExpression":
+    case "DefaultExpression":
+      return false;
+  }
+}
+
+function printCsharpPattern(pattern: CsharpPattern, context: CsharpPrintContext): string {
+  switch (pattern.kind) {
+    case "ConstantPattern": return context.printExpression(pattern.expression);
+    case "DeclarationPattern": return `${context.printType(pattern.type)} ${pattern.designation}`;
+    case "VarPattern": return `var ${pattern.designation}`;
+    case "DiscardPattern": return "_";
+  }
+  return failUnsupportedCsharpSyntax(pattern, "pattern");
+}
+
+function printMemberName(
+  name: string,
+  typeArguments: readonly CsharpTypeNode[] | undefined,
+  context: CsharpPrintContext,
+): string {
+  return typeArguments === undefined || typeArguments.length === 0
+    ? name
+    : `${name}<${typeArguments.map(context.printType).join(", ")}>`;
+}
+
+function printCsharpBinaryOperatorToken(token: CsharpBinaryOperatorToken): string {
+  switch (token.kind) {
+    case "AmpersandAmpersandToken":
+      return "&&";
+    case "BarBarToken":
+      return "||";
+    case "QuestionQuestionToken":
+      return "??";
+    case "AmpersandToken":
+      return "&";
+    case "BarToken":
+      return "|";
+    case "CaretToken":
+      return "^";
+    case "EqualsEqualsToken":
+      return "==";
+    case "ExclamationEqualsToken":
+      return "!=";
+    case "LessThanToken":
+      return "<";
+    case "LessThanEqualsToken":
+      return "<=";
+    case "GreaterThanToken":
+      return ">";
+    case "GreaterThanEqualsToken":
+      return ">=";
+    case "LessThanLessThanToken":
+      return "<<";
+    case "GreaterThanGreaterThanToken":
+      return ">>";
+    case "GreaterThanGreaterThanGreaterThanToken":
+      return ">>>";
+    case "PlusToken":
+      return "+";
+    case "MinusToken":
+      return "-";
+    case "AsteriskToken":
+      return "*";
+    case "SlashToken":
+      return "/";
+    case "PercentToken":
+      return "%";
+  }
+  return failUnsupportedCsharpSyntax(token, "binary operator token");
+}
+
+function printCsharpAssignmentOperatorToken(token: CsharpAssignmentOperatorToken): string {
+  switch (token.kind) {
+    case "QuestionQuestionEqualsToken":
+      return "??=";
+    case "EqualsToken":
+      return "=";
+    case "PlusEqualsToken":
+      return "+=";
+    case "MinusEqualsToken":
+      return "-=";
+    case "AsteriskEqualsToken":
+      return "*=";
+    case "SlashEqualsToken":
+      return "/=";
+    case "PercentEqualsToken":
+      return "%=";
+    case "AmpersandEqualsToken":
+      return "&=";
+    case "BarEqualsToken":
+      return "|=";
+    case "CaretEqualsToken":
+      return "^=";
+    case "LessThanLessThanEqualsToken":
+      return "<<=";
+    case "GreaterThanGreaterThanEqualsToken":
+      return ">>=";
+    case "GreaterThanGreaterThanGreaterThanEqualsToken":
+      return ">>>=";
+  }
+  return failUnsupportedCsharpSyntax(token, "assignment operator token");
+}
+
+function printCsharpPrefixUnaryOperatorToken(token: CsharpPrefixUnaryOperatorToken): string {
+  switch (token.kind) {
+    case "AsteriskToken":
+      return "*";
+    case "PlusToken":
+      return "+";
+    case "MinusToken":
+      return "-";
+    case "TildeToken":
+      return "~";
+    case "ExclamationToken":
+      return "!";
+    case "PlusPlusToken":
+      return "++";
+    case "MinusMinusToken":
+      return "--";
+  }
+  return failUnsupportedCsharpSyntax(token, "prefix unary operator token");
+}
+
+function printCsharpPostfixUnaryOperatorToken(token: CsharpPostfixUnaryOperatorToken): string {
+  switch (token.kind) {
+    case "ExclamationToken":
+      return "!";
+    case "PlusPlusToken":
+      return "++";
+    case "MinusMinusToken":
+      return "--";
+  }
+  return failUnsupportedCsharpSyntax(token, "postfix unary operator token");
+}
+
+function printCsharpObjectInitializer(
+  type: CsharpTypeNode,
+  argumentsList: readonly CsharpArgument[],
+  assignments: readonly CsharpObjectInitializerAssignment[],
+  context: CsharpPrintContext,
+): string {
+  if (assignments.length === 0) {
+    return printCsharpObjectCreation(type, argumentsList, context);
+  }
+  return [
+    printCsharpObjectCreationHeader(type, argumentsList, context),
+    "{",
+    ...indentLines(assignments.map((assignment) =>
+      `${assignment.name} = ${context.printExpression(assignment.expression)},`)),
+    "}",
+  ].join("\n");
+}
+
+function printCsharpCollectionInitializer(
+  type: CsharpTypeNode,
+  argumentsList: readonly CsharpArgument[],
+  initializers: readonly CsharpCollectionInitializerElement[],
+  context: CsharpPrintContext,
+): string {
+  if (initializers.length === 0) {
+    return printCsharpObjectCreation(type, argumentsList, context);
+  }
+  return [
+    printCsharpObjectCreationHeader(type, argumentsList, context),
+    "{",
+    ...indentLines(initializers.map((initializer) => printCsharpCollectionInitializerElement(initializer, context))),
+    "}",
+  ].join("\n");
+}
+
+function printCsharpCollectionInitializerElement(
+  initializer: CsharpCollectionInitializerElement,
+  context: CsharpPrintContext,
+): string {
+  switch (initializer.kind) {
+    case "IndexerInitializer":
+      return `[${initializer.arguments.map(context.printExpression).join(", ")}] = ${context.printExpression(initializer.expression)},`;
+  }
+  return failUnsupportedCsharpSyntax(initializer, "collection initializer element");
+}
+
+function printAllocatedArrayType(element: CsharpTypeNode, dimensions: string, context: CsharpPrintContext): string {
+  const array = element.kind === "NullableType" ? element.inner : element;
+  if (array.kind !== "ArrayType") return `${context.printType(element)}${dimensions}`;
+  const rank = `[${",".repeat(Math.max(0, (array.rank ?? 1) - 1))}]`;
+  return printAllocatedArrayType(array.elementType,
+    `${dimensions}${rank}${element.kind === "NullableType" ? "?" : ""}`, context);
+}
+
+function printCsharpObjectCreation(
+  type: CsharpTypeNode,
+  argumentsList: readonly CsharpArgument[],
+  context: CsharpPrintContext,
+): string {
+  const header = printCsharpObjectCreationHeader(type, argumentsList, context);
+  return argumentsList.length === 0 ? `${header}()` : header;
+}
+
+function printCsharpObjectCreationHeader(
+  type: CsharpTypeNode,
+  argumentsList: readonly CsharpArgument[],
+  context: CsharpPrintContext,
+): string {
+  return argumentsList.length === 0
+    ? `new ${context.printType(type)}`
+    : `new ${context.printType(type)}(${argumentsList.map(context.printArgument).join(", ")})`;
+}
+
+function printCsharpLambda(
+  lambda: Extract<CsharpExpression, { readonly kind: "LambdaExpression" }>,
+  context: CsharpPrintContext,
+): string {
+  const parameters = printCsharpLambdaParameters(lambda.parameters, context);
+  const asyncPrefix = lambda.async === true ? "async " : "";
+  if ("statements" in lambda.body) {
+    return [`${asyncPrefix}${parameters} =>`, "{", ...indentLines(context.printStatements(lambda.body.statements)), "}"].join("\n");
+  }
+  return `${asyncPrefix}${parameters} => ${context.printExpression(lambda.body)}`;
+}
+
+function printCsharpLambdaParameters(
+  parameters: readonly CsharpLambdaParameter[],
+  context: CsharpPrintContext,
+): string {
+  const first = parameters[0];
+  if (parameters.length === 1 && first !== undefined && first.type === undefined) {
+    return printCsharpLambdaParameter(first, context);
+  }
+  return `(${parameters.map((parameter) => printCsharpLambdaParameter(parameter, context)).join(", ")})`;
+}
+
+function printCsharpLambdaParameter(
+  parameter: CsharpLambdaParameter,
+  context: CsharpPrintContext,
+): string {
+  return parameter.type === undefined
+    ? parameter.name
+    : `${context.printType(parameter.type)} ${parameter.name}`;
+}
+
+function printInterpolatedString(
+  parts: readonly CsharpInterpolatedStringPart[],
+  context: CsharpPrintContext,
+): string {
+  const body = parts.map((part) => {
+    switch (part.kind) {
+      case "InterpolatedStringText":
+        return escapeCsharpInterpolatedStringText(part.text);
+      case "Interpolation":
+        return `{${printInterpolationExpression(part.expression, context)}}`;
+    }
+    return failUnsupportedCsharpSyntax(part, "interpolated string part");
+  }).join("");
+  return `$"${body}"`;
+}
+
+function printInterpolationExpression(
+  expression: CsharpExpression,
+  context: CsharpPrintContext,
+): string {
+  const printed = context.printExpression(expression);
+  if (expression.kind === "ParenthesizedExpression") return printed;
+  let requiresParentheses = expression.kind === "ConditionalExpression";
+  transformCsharpTargetAst(expression, record => {
+    requiresParentheses ||= record.kind === "AliasQualifiedName";
+    return record;
+  });
+  return requiresParentheses ? `(${printed})` : printed;
+}

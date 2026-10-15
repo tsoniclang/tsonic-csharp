@@ -1,0 +1,120 @@
+import type { CsharpSourceLiteralIndex } from "../../../target-model/records/source-literals.js";
+import type { AstReader, Node } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { getCsharpGenericOptionalParts, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpAwaitResultTargetType } from "../../operations/control-flow/await-completions.js";
+import { isCsharpDestructuringAssignmentPattern, isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
+import { selectCsharpNumericBinaryPromotion } from "../../operations/numeric/promotion.js";
+import { sourcePrimitiveImplicitlyConverts } from "../../conversions/source-primitives.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
+import { resolveCsharpShortCircuitResult } from "./short-circuit-values.js";
+
+export function resolveBinaryTargetRepresentation(
+  ast: AstReader,
+  literalValues: CsharpSourceLiteralIndex,
+  operator: ReturnType<typeof sourceOperatorFromKindName>,
+  leftNode: Node | undefined,
+  left: TargetTypeRef | undefined,
+  rightNode: Node | undefined,
+  right: TargetTypeRef | undefined,
+): TargetTypeRef | undefined {
+  if (operator === undefined || left === undefined || right === undefined) {
+    return undefined;
+  }
+  if (operator === "??=") {
+    const valueType = getCsharpNullableElementTargetType(left);
+    return valueType !== undefined && targetTypeRefEquals(valueType, right)
+      ? valueType
+      : left;
+  }
+  if (isCsharpAssignmentOperator(operator)) {
+    return operator === "=" &&
+        isCsharpDestructuringAssignmentPattern(ast, leftNode)
+      ? right
+      : left;
+  }
+  switch (operator) {
+    case "===":
+    case "==":
+    case "!==":
+    case "!=":
+    case "<":
+    case "<=":
+    case ">":
+    case ">=":
+    case "in":
+    case "instanceof":
+      return csharpSourcePrimitiveTargetType("bool");
+    case "&&":
+    case "||":
+      return resolveCsharpShortCircuitResult(ast, operator, leftNode, left, right);
+    case ",":
+      return right;
+    case "<<":
+    case ">>":
+    case ">>>":
+      return left;
+    case "??": {
+      if (targetTypeRefEquals(left, right) || isCsharpAbsenceTargetType(right)) return left;
+      const nonNullableLeft = getNonNullableTargetRepresentation(left);
+      const numeric = leftNode === undefined || rightNode === undefined
+        ? undefined
+        : selectCsharpNumericBinaryPromotion(
+            { literalValues },
+            leftNode,
+            nonNullableLeft,
+            rightNode,
+            right,
+          );
+      return numeric?.resultType ??
+        commonTargetRepresentation(nonNullableLeft, right);
+    }
+    default: {
+      const numeric = leftNode === undefined || rightNode === undefined
+        ? undefined
+        : selectCsharpNumericBinaryPromotion(
+            { literalValues },
+            leftNode,
+            left,
+            rightNode,
+            right,
+          );
+      return numeric?.resultType ?? commonTargetRepresentation(left, right);
+    }
+  }
+}
+
+export function commonTargetRepresentation(
+  left: TargetTypeRef | undefined,
+  right: TargetTypeRef | undefined,
+): TargetTypeRef | undefined {
+  if (left === undefined || right === undefined) {
+    return undefined;
+  }
+  if (targetTypeRefEquals(left, right)) {
+    return left;
+  }
+  if (sourcePrimitiveImplicitlyConverts(right, left)) {
+    return right;
+  }
+  if (sourcePrimitiveImplicitlyConverts(left, right)) {
+    return left;
+  }
+  return undefined;
+}
+
+export function getNonNullableTargetRepresentation(
+  type: TargetTypeRef,
+): TargetTypeRef {
+  return getCsharpNullableElementTargetType(type) ?? getCsharpGenericOptionalParts(type)?.element ?? type;
+}
+
+export function getTaskResultType(
+  type: TargetTypeRef,
+  definitions?: CsharpTypeDefinitions,
+): TargetTypeRef | undefined {
+  return getCsharpAwaitResultTargetType(type, definitions);
+}

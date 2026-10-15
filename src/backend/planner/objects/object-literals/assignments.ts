@@ -1,0 +1,173 @@
+import type { CsharpPlanningContext } from "../../context.js";
+import {
+  AsPropertyAssignment,
+  AsShorthandPropertyAssignment,
+  KindMethodDeclaration,
+  KindGetAccessor,
+  KindPropertyAssignment,
+  KindShorthandPropertyAssignment,
+  KindSpreadAssignment,
+  KindSetAccessor,
+  Node_Name,
+  SourceKind,
+} from "@tsonic/target-api/source";
+import type {
+  Node,
+  SourceFile,
+} from "@tsonic/tsts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type {
+  CsharpObjectShapeFact,
+  CsharpObjectShapeMemberFact,
+} from "../../../../target-model/types/index.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "../../diagnostics.js";
+import {
+  objectShapeStorageMemberName,
+} from "../index.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "../../types/target-types.js";
+import type {
+  ExpectedExpressionPlanner,
+  ExpressionPlanner,
+} from "../../expressions/expression-planner-types.js";
+import {
+  findObjectShapeMemberForProperty,
+} from "./support.js";
+import {
+  planObjectShapeMethodMemberAssignment,
+} from "./methods.js";
+import {
+  planObjectShapeAccessorMemberAssignment,
+} from "./accessors.js";
+import {
+  planObjectShapeSpreadAssignments,
+} from "./spread.js";
+import type { CsharpPlannedValue } from "../../expressions/planned-values.js";
+import type { CsharpPlannedObjectInitializer } from "../../expressions/planned-initializers.js";
+
+export function planObjectShapeLiteralAssignment(
+  property: Node,
+  objectShape: CsharpObjectShapeFact,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+  planExpressionWithExpectedType: ExpectedExpressionPlanner,
+): readonly CsharpPlannedObjectInitializer[] | undefined {
+  switch (SourceKind(input.program.source.ast, property)) {
+    case KindPropertyAssignment:
+    case KindShorthandPropertyAssignment: {
+      const planned = planExplicitObjectShapeLiteralMember(
+        property,
+        objectShape,
+        sourceFile,
+        input,
+        diagnostics,
+        planExpressionWithExpectedType,
+      );
+      return planned === undefined
+        ? undefined
+        : [{ value: planned.expression, presence: { kind: "required" }, assignments: expression => [{
+            kind: "AssignmentExpression",
+            name: objectShapeStorageMemberName(objectShape, planned.member),
+            carrier: planned.member.type,
+            expression,
+          }] }];
+    }
+    case KindMethodDeclaration: {
+      if (objectShape.methodImplementation?.declaration === input.program.source.ast.parent(property) &&
+        objectShape.members.some(member => member.methodValueContract !== undefined && member.sourceDeclarations?.includes(property))) return [];
+      const assignment = planObjectShapeMethodMemberAssignment(property, objectShape, sourceFile, input, diagnostics);
+      return assignment === undefined ? undefined : [assignment];
+    }
+    case KindGetAccessor:
+    case KindSetAccessor: {
+      const assignment = planObjectShapeAccessorMemberAssignment(
+        property,
+        objectShape,
+        sourceFile,
+        input,
+        diagnostics,
+      );
+      return assignment === undefined ? undefined : [assignment];
+    }
+    case KindSpreadAssignment:
+      const spread = planObjectShapeSpreadAssignments(property, objectShape, sourceFile, input, diagnostics, planExpression);
+      return spread === undefined ? undefined : [spread];
+    default:
+      diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal member is outside the current C# planning surface."));
+      return undefined;
+  }
+}
+
+export interface CsharpPlannedObjectShapeLiteralMember {
+  readonly member: CsharpObjectShapeMemberFact;
+  readonly expression: CsharpPlannedValue;
+}
+
+export function planExplicitObjectShapeLiteralMember(
+  property: Node,
+  objectShape: CsharpObjectShapeFact,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planExpressionWithExpectedType: ExpectedExpressionPlanner,
+): CsharpPlannedObjectShapeLiteralMember | undefined {
+  const kind = SourceKind(input.program.source.ast, property);
+  const initializer = kind === KindPropertyAssignment
+    ? AsPropertyAssignment(input.program.source.ast, property)?.Initializer
+    : kind === KindShorthandPropertyAssignment
+    ? Node_Name(input.program.source.ast, property)
+    : undefined;
+  if (kind === KindShorthandPropertyAssignment) {
+    const shorthand = AsShorthandPropertyAssignment(input.program.source.ast, property);
+    if (shorthand?.ObjectAssignmentInitializer !== undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        property,
+        "Object literal shorthand defaults require finalized default-value semantics before C# emission.",
+      ));
+      return undefined;
+    }
+  }
+  if (initializer === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      property,
+      "Explicit object literal members require an exact initializer expression.",
+    ));
+    return undefined;
+  }
+  const member = findObjectShapeMemberForProperty(
+    objectShape,
+    property,
+    input,
+    diagnostics,
+  );
+  if (member === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      property,
+      "Object literal property must match one finalized object-shape source contract member.",
+    ));
+    return undefined;
+  }
+  const memberType = csharpTypeFromTargetTypeRef(member.type, input.scope.typeParameterNames);
+  if (memberType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      property,
+      `Object-shape member '${member.sourceName}' must carry a renderable target type before C# emission.`,
+    ));
+    return undefined;
+  }
+  const expression = planExpressionWithExpectedType(
+    initializer,
+    sourceFile,
+    input,
+    diagnostics,
+    memberType,
+    undefined,
+    member.type,
+  );
+  return expression === undefined ? undefined : { member, expression };
+}
