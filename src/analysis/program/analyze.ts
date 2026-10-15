@@ -8,6 +8,7 @@ import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-
 import { analyzeCsharpClassFactories } from "../project-types/class-factories.js";
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 import { createCsharpProgramRecords } from "./records/create.js";
+import type { CsharpRequiredRecord } from "./records/required-records.js";
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
 import { analyzeCsharpNativeControlFlow } from "../control-flow/native-control-flow.js";
@@ -316,7 +317,8 @@ export function analyzeCsharpTargetProgram(
       source: "tsonic-csharp",
     })));
   }
-  const classFactories = analyzeCsharpClassFactories(source, analysis.typeSystem.projectTypes.catalog, analysis.sourceEvidence, analysis.storage, names);
+  const classFactories = analyzeCsharpClassFactories(source, analysis.typeSystem.projectTypes.catalog, analysis.sourceEvidence, analysis.storage, names,
+    analysis.requiredRecords);
   if (classFactories.issues.length > 0) return rejectedTargetStage(classFactories.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));
@@ -331,6 +333,7 @@ export function analyzeCsharpTargetProgram(
     ast: source.ast, nodes: sourceStorage.nodes, navigation: source.navigation,
     captureClosure: captureStorage.captureClosure, lambdaCreation: captureStorage.lambdaCreation,
     objectShapes: analysis.objectShapes, compileTimeMetadata: analysis.sourceEvidence.compileTimeMetadata,
+    requiredRecords: analysis.requiredRecords,
   });
   const typeDefinitions = analysis.typeDefinitions.seal();
   const classInitialization = analyzeCsharpClassInitialization(source, classFactories);
@@ -345,7 +348,7 @@ export function analyzeCsharpTargetProgram(
     sourceEvidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions: analysis.conversions,
     expectedTypes: analysis.expectedTypes, storage: analysis.storage,
     sourceModuleConstructions: sourceModuleConstructions.index, moduleInitialization: moduleInitialization.index,
-  });
+  }, analysis.requiredRecords);
   const program: CsharpTargetProgram = Object.freeze({
     typeDefinitions,
     records,
@@ -391,6 +394,7 @@ function analyzeIteration(
   sourceStorage: SourceStorageQueries,
   previous: CsharpRepresentationContract | undefined,
 ) {
+  const requiredRecords: CsharpRequiredRecord[] = [];
   let typeSystem: CsharpTypeAnalysis | undefined;
   const planningRepresentations: CsharpPlanningRepresentationQueries = {
     genericProjections(declaration) { return previous?.typeProjections.genericProjection.get(declaration) ?? []; },
@@ -485,6 +489,7 @@ function analyzeIteration(
     declarations,
     callables,
     previous?.storage,
+    requiredRecords,
   );
   const valueReads = valueReadStages.seal(storageRepresentations);
   const conversions = conversionAnalysis.seal({
@@ -510,6 +515,7 @@ function analyzeIteration(
     conversions,
     storage,
     valueReads,
+    requiredRecords,
   }));
 }
 

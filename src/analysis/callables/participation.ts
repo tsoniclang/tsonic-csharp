@@ -6,6 +6,7 @@ import type { CsharpNativeParticipation, CsharpNativeParticipationInput } from "
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import type { CsharpObjectShapeClassifications } from "../objects/model.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 
 export interface CsharpNativeParticipationAnalysisInput {
   readonly ast: AstReader;
@@ -15,6 +16,7 @@ export interface CsharpNativeParticipationAnalysisInput {
   readonly lambdaCreation: CsharpCaptureStorage["lambdaCreation"];
   readonly objectShapes: Pick<CsharpObjectShapeClassifications, "resolveNode">;
   readonly compileTimeMetadata: CsharpSourceEvidenceIndex["compileTimeMetadata"];
+  readonly requiredRecords: CsharpRequiredRecord[];
 }
 
 export function analyzeCsharpNativeParticipation(input: CsharpNativeParticipationAnalysisInput): CsharpNativeParticipationInput {
@@ -29,6 +31,8 @@ export function analyzeCsharpNativeParticipation(input: CsharpNativeParticipatio
     }
     const selected = select(node);
     if (selected === undefined) continue;
+    requireCsharpRecord(input.requiredRecords, { family: "nativeParticipation", subject: node,
+      construct: "callable declaration", producer: "analyzeCsharpNativeParticipation" });
     participation.set(node, selected);
     if (selected === "erased") excluded.add(node);
   }

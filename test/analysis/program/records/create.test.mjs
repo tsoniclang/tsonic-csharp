@@ -78,5 +78,9 @@ for (const surface of ["native", "js"]) {
     assert.equal(Object.hasOwn(program.records, "closedArrayStorage"), false, "unused private analysis resolver is not a final record");
     assert.equal(Object.hasOwn(program.records, "inspectClosedArrayStorage"), false, "private native-backing inspection never crosses the seal");
     assert.equal(Array.isArray(program.classFactories) && Array.isArray(program.captureFrames), true, "catalog data is separate");
+    for (const name of ["requiredRecords", "requireCsharpRecord", "assertCsharpRequiredRecords"]) {
+      assert.equal(Object.hasOwn(program, name) || Object.hasOwn(program.records, name), false,
+        `${name}: no requirement list, builder or assertion crosses the seal`);
+    }
   });
 }
