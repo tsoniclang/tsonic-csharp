@@ -200,7 +200,8 @@ for (const [code, placement, body, expected] of reportedIssueForms) {
     const ast = compiled.source.ast;
     const reported = compiled.result.diagnostics.map((diagnostic) =>
       `${ast.kindName(diagnostic.sourceNode)}:${sourceText.slice(ast.pos(diagnostic.sourceNode), ast.end(diagnostic.sourceNode)).trim()}`);
-    assert.deepEqual(reported, expected, "only the issues outside erased statements and inside demanded invocations are reported");
+    assert.equal(JSON.stringify(reported) === JSON.stringify(expected), true,
+      `only the issues outside erased statements and inside demanded invocations are reported: ${JSON.stringify(reported)}`);
     const message = code === awaitIssue ? awaitMappingMessage : forcedMessage;
     assert.equal(compiled.result.diagnostics.every((diagnostic) => diagnostic.code === code && diagnostic.message === message),
       true, "each reported diagnostic is the operation admission issue");
@@ -218,18 +219,19 @@ test("a source-flow marker inside a demanded attribute invocation is still rejec
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.equal(compiled.result.program === undefined, true, "program is not published");
   assert.equal(compiled.artifacts.size, 0, "no artifacts are published");
-  assert.deepEqual(
-    compiled.result.diagnostics.map(({ code, category, source, message }) => ({ code, category, source, message })),
-    [{ code: "CSHARP_UNSUPPORTED_ATTRIBUTE_APPLICATION", category: "error", source: "tsonic-csharp",
-      message: "C# attribute application argument 1 is not a C# attribute constant; attribute arguments must be literals, .NET literal fields, native operators over constants, or one-dimensional arrays of them." }],
-  );
-  assert.equal(compiled.source.ast.kindName(compiled.result.diagnostics[0].sourceNode), "KindConditionalExpression");
+  const captured = compiled.result.diagnostics.map(({ code, category, source, message, sourceNode }) =>
+    ({ code, category, source, message, node: compiled.source.ast.kindName(sourceNode) }));
+  assert.equal(JSON.stringify(captured) === JSON.stringify([{ code: "CSHARP_UNSUPPORTED_ATTRIBUTE_APPLICATION",
+    category: "error", source: "tsonic-csharp",
+    message: "C# attribute application argument 1 is not a C# attribute constant; attribute arguments must be literals, .NET literal fields, native operators over constants, or one-dimensional arrays of them.",
+    node: "KindConditionalExpression" }]), true, `attribute admission rejects the demanded invocation's argument: ${JSON.stringify(captured)}`);
   const { compiled: forcedCompiled, forced } = compileWithForcedIssue(memberIssue, { sourceText });
   const ast = forcedCompiled.source.ast;
-  const subjects = new Set(forced.subjects);
-  const invocationSubjects = [...subjects].filter((node) => sourceText.slice(ast.pos(node), ast.end(node)).trim() === "move(value)");
-  assert.equal(invocationSubjects.length === 1 && subjects.size > 1, true,
-    "the forced issue reaches the invocation's marker call and the statement's builder chain");
-  assert.deepEqual(forcedCompiled.result.diagnostics.map((diagnostic) => diagnostic.sourceNode), invocationSubjects,
-    "only the demanded invocation's issue is reported; the erased statement's own issues are not");
+  const describe = (node) => `${ast.kindName(node)}:${sourceText.slice(ast.pos(node), ast.end(node)).trim()}`;
+  const subjects = [...new Set(forced.subjects)].map(describe);
+  assert.equal(subjects.includes("KindCallExpression:move(value)") && subjects.length > 1, true,
+    `the forced issue reaches the invocation's marker call and the statement's builder chain: ${JSON.stringify(subjects)}`);
+  const reported = forcedCompiled.result.diagnostics.map((diagnostic) => describe(diagnostic.sourceNode));
+  assert.equal(JSON.stringify(reported) === JSON.stringify(["KindCallExpression:move(value)"]), true,
+    `only the demanded invocation's issue is reported; the erased statement's own issues are not: ${JSON.stringify(reported)}`);
 });
