@@ -2,17 +2,9 @@ import type { SourcePrimitiveKind } from "@tsonic/tsts";
 import type { SourceLiteralValue } from "@tsonic/target-api/source";
 
 export function csharpNumericLiteralFitsSourcePrimitive(
-  literal: Pick<SourceLiteralValue, "number" | "integer"> | undefined,
-  primitive: SourcePrimitiveKind,
+  literal: Pick<SourceLiteralValue, "integer"> | undefined,
+  primitive: Exclude<SourcePrimitiveKind, "float16" | "float32" | "float64" | "decimal">,
 ): boolean {
-  if (
-    primitive === "float16" ||
-    primitive === "float32" ||
-    primitive === "float64" ||
-    primitive === "decimal"
-  ) {
-    return literal?.number !== undefined && Number.isFinite(literal.number);
-  }
   return literal?.integer !== undefined && csharpBigIntFitsSourcePrimitive(literal.integer, primitive);
 }
 
