@@ -125,6 +125,32 @@ test("casts retain the complete lower-precedence operand inside checked expressi
   } }), "(int)(offset = size - 8L)");
 });
 
+test("a cast to a type that is also an expression keeps a signed or dereferenced operand in parentheses", () => {
+  const name = (text) => ({ kind: "IdentifierName", name: text });
+  const half = { kind: "QualifiedName", left: name("System"), name: "Half" };
+  const types = [
+    ["Half", name("Half"), true], ["System.Half", half, true], ["global::System.Half", { kind: "AliasQualifiedName", alias: "global", name: half }, true],
+    ["G<int>", { kind: "IdentifierName", name: "G", typeArguments: [{ kind: "PredefinedType", name: "int" }] }, true],
+    ["nint", { kind: "PredefinedType", name: "nint" }, true], ["nuint", { kind: "PredefinedType", name: "nuint" }, true],
+    ["dynamic", { kind: "PredefinedType", name: "dynamic" }, true], ["int", { kind: "PredefinedType", name: "int" }, false],
+    ["float", { kind: "PredefinedType", name: "float" }, false], ["object", { kind: "PredefinedType", name: "object" }, false],
+    ["Half?", { kind: "NullableType", inner: name("Half") }, false],
+  ];
+  const prefix = (token, operand) => ({ kind: "PrefixUnaryExpression", operatorToken: { kind: token }, operand: name(operand) });
+  const operands = [
+    ["-1.5", { kind: "LiteralExpression", value: -1.5 }, true], ["-x", prefix("MinusToken", "x"), true], ["+x", prefix("PlusToken", "x"), true],
+    ["--x", prefix("MinusMinusToken", "x"), true], ["++x", prefix("PlusPlusToken", "x"), true], ["*p", prefix("AsteriskToken", "p"), true],
+    ["~x", prefix("TildeToken", "x"), false], ["!b", prefix("ExclamationToken", "b"), false], ["x", name("x"), false],
+    ["1.5", { kind: "LiteralExpression", value: 1.5 }, false],
+  ];
+  const mismatches = types.flatMap(([typeText, type, alsoExpression]) => operands.flatMap(([operandText, operand, signed]) => {
+    const expected = alsoExpression && signed ? `(${typeText})(${operandText})` : `(${typeText})${operandText}`;
+    const printed = printCsharpExpression({ kind: "CastExpression", type, expression: operand });
+    return printed === expected ? [] : [`${printed} != ${expected}`];
+  }));
+  assert.deepEqual(mismatches, [], "a parenthesized type that is also an expression is a cast only before a token that cannot continue a binary expression");
+});
+
 test("numeric tokens retain floating values beyond the native integer literal range", () => {
   for (const kind of ["LiteralExpression", "NumericLiteralExpression"]) {
     for (const [value, expected] of [
