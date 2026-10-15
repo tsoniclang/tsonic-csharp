@@ -43,14 +43,19 @@ export function read(value: Value): int32 { return unsafecontext(value.current);
     { index: ["getter:requires-unsafe"] }],
 ];
 
-function membership(body) {
+function sourceIndex(body) {
   const compiled = compileCsharpSource({ sourceText: `${header}${body}\n`,
     targetOptions: { languageDialect: "csharp15-preview", memorySafetyRules: "preview" } });
   assert.equal(compiled.sourceDiagnosticsText, "");
   const source = createTargetSourceProgram(compiled.source);
-  const { ast } = source;
-  const index = createCsharpSafetyApplicationFactIndex({ ast, sourceFiles: source.navigation.sourceFiles,
+  const index = createCsharpSafetyApplicationFactIndex({ ast: source.ast, sourceFiles: source.navigation.sourceFiles,
     sourceFacts: source.sourceFacts, navigation: source.navigation });
+  return { source, index };
+}
+
+function membership(body) {
+  const { source, index } = sourceIndex(body);
+  const { ast } = source;
   const nodes = [];
   const visit = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
   source.navigation.sourceFiles.forEach(visit);
@@ -78,3 +83,18 @@ for (const [name, body, expected] of cases) {
     }
   });
 }
+
+test("C# safety fact index publishes only its declaration, operation and findings lookups", { timeout: 300_000 }, () => {
+  const { source, index } = sourceIndex(`safety<Value>().property(value => value.current).getter().requiresunsafe();`);
+  const empty = createCsharpSafetyApplicationFactIndex({ ast: source.ast, sourceFiles: source.navigation.sourceFiles,
+    navigation: source.navigation });
+  for (const [label, published] of [["source index", index], ["empty index", empty]]) {
+    assert.deepEqual(Object.keys(published), ["safetyApplication", "safetyOperation", "findings"], `${label}: exact lookups`);
+    assert.equal(Object.hasOwn(published, "sourceSafetyApplication"), false, `${label}: no per-file application port`);
+    assert.equal(Object.hasOwn(published, "all"), false, `${label}: no flat application list`);
+    assert.equal(Object.isFrozen(published) && Object.isFrozen(published.findings), true, `${label}: frozen lookups`);
+  }
+  const [file] = source.navigation.sourceFiles;
+  assert.equal(index.findings.get(file).applications.length, 1, "the retained findings lookup still reads the one application");
+  assert.equal(empty.findings.get(file).applications.length, 0, "the empty datum has no applications");
+});

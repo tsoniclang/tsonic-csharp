@@ -3,8 +3,6 @@ import type { TargetSafetyApplication, TargetSafetyApplicationFindings, TargetSa
 import type { Node, SourceFile } from "@tsonic/tsts";
 
 export interface CsharpSafetyApplicationFactIndex {
-  readonly all: readonly CsharpSafetyApplication[];
-  readonly sourceSafetyApplication: { readonly get: (sourceFile: SourceFile) => readonly CsharpSafetyApplication[] };
   readonly safetyApplication: { readonly get: (declaration: Node) => readonly CsharpSafetyApplication[] };
   readonly safetyOperation: { readonly get: (subject: Node) => CsharpSafetyOperation | undefined };
   readonly findings: { readonly get: (sourceFile: SourceFile) => TargetSafetyApplicationFindings<CsharpSafetyApplication> };

@@ -34,8 +34,6 @@ export function createCsharpSafetyApplicationFactIndex(
     readSafetyBuilder: (subject) => readCsharpSourceSafetyBuilder(sourceFacts, subject),
   });
   return Object.freeze({
-    all: index.all,
-    sourceSafetyApplication: Object.freeze({ get: index.forSourceFile }),
     safetyApplication: Object.freeze({ get: index.forDeclaration }),
     safetyOperation: Object.freeze({ get: index.operationForExpression }),
     findings: Object.freeze({ get: index.findings }),
@@ -48,8 +46,6 @@ const emptyFindings: TargetSafetyApplicationFindings<CsharpSafetyApplication> = 
   applications: Object.freeze([]),
 });
 const emptyIndex: CsharpSafetyApplicationFactIndex = Object.freeze({
-  all: emptyApplications,
-  sourceSafetyApplication: Object.freeze({ get: () => emptyApplications }),
   safetyApplication: Object.freeze({ get: () => emptyApplications }),
   safetyOperation: Object.freeze({ get: () => undefined }),
   findings: Object.freeze({ get: () => emptyFindings }),
