@@ -24,7 +24,6 @@ export type CsharpNativeUseSlot =
         | "write-target"
         | "update-target"
         | "default"
-        | "attribute-invocation"
         | "present-payload"
         | "constructed-result";
     }
@@ -32,7 +31,7 @@ export type CsharpNativeUseSlot =
   | { readonly kind: "branch"; readonly branch: "true" | "false" }
   | { readonly kind: "argument"; readonly sourceIndex: number; readonly effectiveIndex: number; readonly parameterIndex?: number }
   | { readonly kind: "base-argument"; readonly sourceIndex: number }
-  | { readonly kind: "element" | "member" | "span" | "case"; readonly index: number }
+  | { readonly kind: "element" | "member" | "span" | "case" | "attribute-invocation"; readonly index: number }
   | {
       readonly kind: "intrinsic-operand";
       readonly operand: "value" | "offset" | "location" | "initial" | "left" | "right" | "argument";
@@ -50,6 +49,7 @@ export type CsharpNativeUse =
       readonly input: CsharpNativeCompletion;
       readonly target: TargetTypeRef;
       readonly mode: CsharpConversionMode;
+      readonly children: readonly TargetUseSiteRef[];
       readonly completion: CsharpNativeCompletion;
     }
   | {
@@ -99,6 +99,7 @@ export interface CsharpExpectedNativeUse {
   readonly target: TargetTypeRef;
   readonly strength: "contextual" | "required";
   readonly representation: "convert" | "construct" | "forward";
+  readonly mode: CsharpConversionMode;
   readonly children: readonly TargetUseSiteRef[];
 }
 

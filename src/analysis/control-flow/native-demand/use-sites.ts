@@ -32,6 +32,7 @@ function csharpNativeUseRole(slot: CsharpNativeUseSlot): string {
     case "member":
     case "span":
     case "case":
+    case "attribute-invocation":
       return `${slot.kind}:${slot.index}`;
     case "intrinsic-operand":
       return `intrinsic-operand:${slot.operand}` + (slot.index === undefined ? "" : `:${slot.index}`);
