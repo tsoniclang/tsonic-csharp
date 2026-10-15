@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { resolveBinaryTargetRepresentation } from "../../../dist/policy/types/resolution/representation.js";
-import { analyzeCsharpSourceLiteralValues } from "../../../dist/analysis/source-evidence/literal-values.js";
+import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { selectCsharpBinaryOperands } from "../../../dist/policy/operations/operators/operator-selection.js";
 import { csharpBinarySelectionsEqual } from "../../../dist/analysis/expected-types/binary-equality.js";
 import { selectCsharpConversion, selectCsharpExpressionConversion } from "../../../dist/policy/conversions/index.js";
@@ -33,7 +33,7 @@ const ast = {
   text: node => node.text,
 };
 const literalValues = { literalValue: { get: node =>
-  analyzeCsharpSourceLiteralValues(ast, [{ kind: "SourceFile", children: [node] }]).literalValue.get(node) } };
+  analyzeSourceLiteralValues(ast, [{ kind: "SourceFile", children: [node] }]).literalValue.get(node) } };
 const input = { ast, literalValues, target: {}, types: { resolveReadStorage: () => undefined },
   projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined } };
 

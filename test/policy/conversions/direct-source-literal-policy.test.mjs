@@ -3,7 +3,7 @@ import { test } from "node:test";
 import {
   resolveCsharpSourceLiteralTargetType,
 } from "../../../dist/policy/types/resolution/source-literal-policy.js";
-import { analyzeCsharpSourceLiteralValues } from "../../../dist/analysis/source-evidence/literal-values.js";
+import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import {
   csharpSourcePrimitiveTargetType,
   isCsharpArrayIndexTargetType,
@@ -103,7 +103,7 @@ const literalAst = {
 };
 
 function literalValue(node) {
-  return analyzeCsharpSourceLiteralValues(literalAst, [{ kind: "file", children: [node] }]).literalValue.get(node);
+  return analyzeSourceLiteralValues(literalAst, [{ kind: "file", children: [node] }]).literalValue.get(node);
 }
 
 function numericLiteral(text) {

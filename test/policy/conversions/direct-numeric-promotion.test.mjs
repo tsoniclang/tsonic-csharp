@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpBigIntegerTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
-import { analyzeCsharpSourceLiteralValues } from "../../../dist/analysis/source-evidence/literal-values.js";
+import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 
 import {
   csharpSourcePrimitiveTargetType,
@@ -33,7 +33,7 @@ const ast = {
 };
 
 const input = { literalValues: { literalValue: { get: (node) =>
-  analyzeCsharpSourceLiteralValues(ast, [{ kind: "file", children: [node] }]).literalValue.get(node) } } };
+  analyzeSourceLiteralValues(ast, [{ kind: "file", children: [node] }]).literalValue.get(node) } } };
 const value = { kind: "value" };
 
 test("C# numeric promotion follows exact predefined target arithmetic", () => {

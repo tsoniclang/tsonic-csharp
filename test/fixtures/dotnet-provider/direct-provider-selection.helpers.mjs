@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { analyzeCsharpSourceLiteralValues } from "../../../dist/analysis/source-evidence/literal-values.js";
+import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { test } from "node:test";
 import {
   argumentPassingFactKey,
@@ -483,7 +483,7 @@ export function directProviderHost(options = {}) {
   const providers = providerResolver(catalog, bindings);
   const ast = options.ast ?? fixtureAst();
   const literalValues = Object.freeze({ literalValue: Object.freeze({ get: (node) =>
-    analyzeCsharpSourceLiteralValues(ast, [{ syntaxKind: "IsSourceFile", children: [node] }]).literalValue.get(node) }) });
+    analyzeSourceLiteralValues(ast, [{ syntaxKind: "IsSourceFile", children: [node] }]).literalValue.get(node) }) });
   const projectDeclarations = new Set(options.projectDeclarations ?? []);
   return {
     sourceFile,
