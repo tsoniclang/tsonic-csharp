@@ -28,6 +28,7 @@ import {
 import {
   csharpTargetNamedType,
 } from "../../../target-model/types/factories.js";
+import { csharpRenderShapeForTargetNamedType } from "../../../target-model/types/render-shapes.js";
 import type { CsharpProjectConstructorPolicy } from "./project-type-constructors.js";
 import type { CsharpProjectForwardingConstructor } from "../../../target-model/records/project-types.js";
 import {
@@ -504,7 +505,7 @@ function heritageKindError(
     }
     return targetKind === "interface" || targetKind === undefined && isCsharpStructuralInterfaceTarget(target)
       ? undefined
-      : `Project interface '${definition.sourceName}' cannot inherit the non-interface C# type '${targetTypeRefKey(target)}'.`;
+      : `Project interface '${definition.sourceName}' cannot inherit the non-interface C# type '${csharpHeritageTargetName(target)}'.`;
   }
   if (relation === "extends") {
     return targetKind !== undefined && targetKind !== "class"
@@ -514,6 +515,11 @@ function heritageKindError(
   return targetKind !== undefined && targetKind !== "interface"
     ? `Project class '${definition.sourceName}' cannot implement the selected non-interface C# type.`
     : undefined;
+}
+
+function csharpHeritageTargetName(type: TargetTypeRef): string {
+  const shape = type.kind === "target-named" ? csharpRenderShapeForTargetNamedType(type) : undefined;
+  return shape?.kind === "named" ? [...(shape.namespace ?? []), shape.name].join(".") : targetTypeRefKey(type);
 }
 
 function isCsharpStructuralInterfaceTarget(type: TargetTypeRef): boolean {
