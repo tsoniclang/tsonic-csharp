@@ -129,6 +129,7 @@ test("the participation lookup is sealed, stable and ignores foreign nodes", () 
   assert.equal(arrow !== undefined, true);
   assert.equal(participation.get(arrow), "erased");
   assert.equal(participation.get(arrow) === participation.get(arrow), true, "repeated reads are identical");
+  assert.equal(participation.get({}) === undefined, true, "a foreign node has no participation");
   let inspected = 0;
   const foreign = Object.defineProperty({}, "kind", { get() { inspected += 1; throw Error("foreign source node"); } });
   assert.equal(participation.get(foreign) === undefined, true, "a foreign node has no participation");
