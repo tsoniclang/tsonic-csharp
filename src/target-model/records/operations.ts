@@ -138,6 +138,13 @@ export interface CsharpOperationIssue {
   readonly message: string;
 }
 
+export type CsharpNativeHandler =
+  | "memory-binding"
+  | "explicit-safety"
+  | "js-string-conversion"
+  | "native-pointer"
+  | "typed-location";
+
 export interface CsharpTargetOperationClassifications {
   readonly issues: readonly CsharpOperationIssue[];
   readonly awaitCompletion: { readonly get: (node: Node) => import("../types/await-completions.js").CsharpAwaitCompletion | undefined };
