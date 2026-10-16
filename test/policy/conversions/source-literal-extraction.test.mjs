@@ -94,6 +94,7 @@ export function exponent(): decimal { return 1.00e1; }
 export function zeroExponent(): decimal { return 0.000e2; }
 export function nativeCast(value: float64): float32 { return value as float32; }
 export function withDefault(value: float32 = -1.5): float32 { return value; }
+export function decimalDefault(value: decimal = -1.50): decimal { return value; }
 `;
   for (const surface of ["native", "js"]) {
     const compiled = compileCsharpSource({ surface, sourceText });
@@ -101,11 +102,17 @@ export function withDefault(value: float32 = -1.5): float32 { return value; }
       `${surface}: exact native literal and explicit cast controls compile`);
     const output = [...compiled.artifacts.values()].join("\n");
     const required = ["1.00000005960464477539062500000001F", "9007199254740993M", "return 1M;", "return 1.00M;",
-      "return 0.000M;", "return -0.000M;", "return 1.00e+1M;", "return 0.000e+2M;", "return (float)value;", "-1.5F"];
+      "return 0.000M;", "return -0.000M;", "return 1.00e+1M;", "return 0.000e+2M;", "return (float)value;", "-1.5F", "-1.50M"];
     assert.deepEqual(required.filter(text => !output.includes(text)), [], `${surface}: exact syntax follows the selected native use`);
     assert.equal(/9007199254740992M|\b1\.0000000596046448F/u.test(output), false,
       `${surface}: the native token never uses the lossy double summary`);
     assert.doesNotThrow(() => JSON.stringify(compiled.result.plan), `${surface}: every native token remains JSON-safe`);
+    const program = compiled.result.program;
+    const defaults = program.sourceFiles.flatMap(file => program.source.ast.statements(file))
+      .flatMap(node => program.source.ast.parameters(node))
+      .filter(node => program.source.ast.as.AsParameterDeclaration(node)?.Initializer !== undefined);
+    assert.equal(defaults.length === 2 && defaults.every(node => program.records.runtimeDefault.get(node) !== undefined), true,
+      `${surface}: exact native numeric defaults use the sealed runtime-default producer, not the inline-literal allowlist`);
   }
 });
 
