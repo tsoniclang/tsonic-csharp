@@ -142,6 +142,7 @@ export function analyzeCsharpTargetProgram(
     return rejectedTargetStage(project.diagnostics);
   }
   const source = input.source;
+  if (source.semantics.enumConstants.issues.length !== 0) return rejectedTargetStage(source.semantics.enumConstants.issues);
   const computedFieldIssues = analyzeCsharpComputedFieldNames(source);
   if (computedFieldIssues.length !== 0) return rejectedTargetStage(computedFieldIssues);
   const nativeControlIssues = analyzeCsharpNativeControlFlow(source);
