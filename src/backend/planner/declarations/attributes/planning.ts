@@ -1,6 +1,7 @@
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { failTargetPlannerInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpAttribute } from "../../../target-ast/syntax/index.js";
 import { planExpression } from "../../expressions/index.js";
 
@@ -18,8 +19,7 @@ export function planAttributesForSubject(
     const construction = planned.completion.kind === "value" ? planned.completion.expression : undefined;
     if (planned.prelude.length !== 0 || construction?.kind !== "ObjectCreationExpression" ||
       construction.assignments !== undefined || construction.collectionInitializers !== undefined) {
-      return failTargetPlannerInvariant(
-        "tsonic-csharp",
+      return failCsharpPlannerInvariant(
         "C# planning received an admitted attribute application that did not plan as one native attribute construction.",
         attribute.invocation,
       );

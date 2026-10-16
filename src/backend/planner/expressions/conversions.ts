@@ -2,7 +2,7 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import { failTargetPlannerInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpConversionMode,
   CsharpConversionSelection,
@@ -26,6 +26,7 @@ import type {
   CsharpTypeNode,
 } from "../../target-ast/syntax/index.js";
 import {
+  failCsharpPlannerInvariant,
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
@@ -245,7 +246,7 @@ export function applyCsharpConversionSelection(
       if (sourceElement === undefined || targetElement === undefined ||
         !targetTypeRefEquals(sourceElement, selection.sourceElement) ||
         !targetTypeRefEquals(targetElement, selection.targetElement)) {
-        return failTargetPlannerInvariant("tsonic-csharp",
+        return failCsharpPlannerInvariant(
           "Nullable conversion requires its exact sealed source and destination element carriers.", node);
       }
       const presentType = renderRequiredTargetType(input.scope.typeParameterNames, node, sourceElement, diagnostics);
@@ -535,7 +536,7 @@ function applyRuntimeUnionArmConversion(
     ? undefined
     : csharpTypeFromTargetTypeRef(optional?.operations ?? unionType, input.scope.typeParameterNames);
   if (selectedArm === undefined || !targetTypeRefEquals(selectedArm, selection.armType)) {
-    return failTargetPlannerInvariant("tsonic-csharp",
+    return failCsharpPlannerInvariant(
       "C# runtime-union construction requires one exact source arm and a renderable closed union carrier.", node);
   }
   if (declaringType === undefined) {
