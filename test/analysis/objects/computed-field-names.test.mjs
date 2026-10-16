@@ -31,6 +31,66 @@ const staticKeys = [
 ];
 
 for (const surface of [undefined, "js"]) {
+  test(`C# ${surface ?? "native"} erases checked symbolic type-family metadata without a native field obligation`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+declare const storage: unique symbol;
+interface Stored<Value> { readonly [storage]: Value; }
+type Storage<Value> = Value extends Stored<infer Inner> ? Inner : Value;
+export function read(value: Storage<number>): number { return value; }
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    assert.equal([...compiled.artifacts.values()].join("\n").includes("Stored"), false,
+      "the phantom predicate never becomes emitted native storage");
+  });
+
+  test(`C# ${surface ?? "native"} still refuses an actual symbolic native field`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+declare const storage: unique symbol;
+export interface Holder { readonly [storage]: number; }
+export function accept(value: Holder): void {}
+` });
+    assertCsharpCheckingSucceeded(compiled);
+    assert.equal(compiled.targetDiagnostics.filter(issue => issue.code === "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN").length, 1,
+      "the actual native field, not the valid source-only contract, owns one precise refusal");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true, "symbolic storage is rejected before sealing");
+    assert.equal(compiled.result.artifacts.length, 0, "no synthetic symbolic native field is invented");
+  });
+
+  test(`C# ${surface ?? "native"} keeps non-authored checked element arguments`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+export function read(): number {
+  const pair = { 1: 7 };
+  let index: 1 = 1;
+  return pair[index];
+}
+` });
+    assertCsharpCompilationSucceeded(compiled);
+  });
+
+  for (const [kind, declaration] of [
+    ["class", "export class Holder { [+1] = 1; }"],
+    ["interface", "export interface Holder { [-0]: number; }"],
+  ]) {
+    test(`C# ${surface ?? "native"} refuses an emitted signed bound ${kind} key`, () => {
+      const compiled = compileCsharpSource({ surface, sourceText: `${declaration}
+export function accept(value: Holder): void {}
+` });
+      assertCsharpCheckingSucceeded(compiled);
+      const issues = compiled.targetDiagnostics.filter(issue => issue.code === "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN");
+      assert.equal(issues.length === 1 && issues[0].message.includes("checker key") && issues[0].message.includes("exact string key"), true,
+        "one actual native field consumes the same precise checked identity refusal");
+      assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true, "bound key mismatch is pre-seal");
+      assert.equal(compiled.result.artifacts.length, 0, "no mismatched native field name is emitted");
+    });
+  }
+
+  test(`C# ${surface ?? "native"} object zero and its destructuring use the completed checked identity`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+export function read(): number { const object = { [-0]: 7 }; const { [-0]: value } = object; return value; }
+` });
+    assertCsharpCompilationSucceeded(compiled);
+  });
+
   test(`C# ${surface ?? "native"} struct fields share checked computed names with finalized FieldFact evidence`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 import { field, struct } from "@tsonic/core/lang.js";
