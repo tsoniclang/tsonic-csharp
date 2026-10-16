@@ -275,11 +275,7 @@ export function analyzeCsharpTargetProgram(
   const structuralForwarding = finalizeCsharpStructuralInterfaceForwarding(
     analysis.policy, analysis.objectShapes, callableAdapters, analysis.declarations,
   );
-  const nativeValueCarriers = analyzeCsharpNativeValueCarriers(
-    source.ast, sourceStorage.nodes, analysis.sourceEvidence, analysis.valueReads, analysis.objectShapes, analysis.requiredRecords,
-  );
   const analysisIssues = [
-    ...nativeValueCarriers.issues,
     ...structuralForwarding.issues,
     ...callableAdapters.issues,
     ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
@@ -389,17 +385,26 @@ export function analyzeCsharpTargetProgram(
     bindingPatterns: bindingCandidates, callableCreation: callableCreations.callableCreation, attributeApplications,
     propertyKeyBindings: analysis.expectedTypes.constructions.propertyKeys, exactLiteral: exactLiterals.exactLiteral,
     classInitialization, projectTypes: analysis.typeSystem.projectTypes.catalog, classFactories, expected: expectedUse,
+    nativePropertyNameIssues: analysis.nativePropertyNameIssues,
   }, analysis.requiredRecords);
+  const sourceRefusals = nativeDemand.unadmitted.filter(use => use.kind === "source-refusal");
+  if (sourceRefusals.length > 0) return rejectedTargetStage(sourceRefusals.map(use => use.diagnostic));
+  const nativeValueCarriers = analyzeCsharpNativeValueCarriers(
+    source.ast, nativeDemand.requiredNativeValueDeclarations, analysis.sourceEvidence, analysis.valueReads, analysis.objectShapes,
+    source.semantics.forNode, analysis.requiredRecords,
+  );
+  if (nativeValueCarriers.issues.length > 0) return rejectCsharpAnalysisIssues(nativeValueCarriers.issues);
   const bindingPatterns = admitCsharpBindingPatterns(bindingCandidates, nativeDemand.requiredBindingRoots, analysis.requiredRecords);
   if (bindingPatterns.issues.length > 0) return rejectCsharpAnalysisIssues(bindingPatterns.issues);
-  if (nativeDemand.unadmitted.length > 0) {
-    const refusals = nativeDemand.unadmitted.filter(use =>
+  const pendingUses = nativeDemand.unadmitted.filter(use => use.kind === "pending-use");
+  if (pendingUses.length > 0) {
+    const refusals = pendingUses.filter(use =>
       use.message !== undefined || use.reason === "argument-refused" || use.reason === "source-argument-rejected" || use.reason === "property-key-refused");
     if (refusals.length > 0) return rejectCsharpAnalysisIssues(refusals.map(use => ({
       node: use.expression, code: use.code ?? "CSHARP_UNSUPPORTED_AST", message: use.message ?? failTargetAnalysisInvariant(
         "tsonic-csharp", "A native source refusal requires its exact admitted reason.", use.expression),
     })));
-    const incomplete = nativeDemand.unadmitted[0]!;
+    const incomplete = pendingUses[0]!;
     return failTargetAnalysisInvariant("tsonic-csharp",
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
   }
@@ -521,12 +526,8 @@ function analyzeIteration(
     typeSystem.analysisTypes,
     policy,
   );
-  if (evidence.nativePropertyNameIssues.length !== 0) return rejectedTargetStage<never>(evidence.nativePropertyNameIssues);
   const sourceEvidence = evidence.index;
   const operations = analyzeCsharpTargetOperations(policy, sourceEvidence, statementErasure, sourceStorage.nodes, requiredRecords);
-  const nativePropertyNameIssues = operations.issues.filter(issue =>
-    issue.code === "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN" || issue.code === "CSHARP_ENUM_CONSTANT_RESOURCE_LIMIT");
-  if (nativePropertyNameIssues.length !== 0) return rejectCsharpAnalysisIssues(nativePropertyNameIssues);
   const valueReadStages = analyzeCsharpValueReadStages(policy, sourceEvidence, operations);
   const typeProjections = analyzeCsharpTypeProjections(input.source, sourceEvidence, operations);
   const declarations = analyzeCsharpDeclarations(
@@ -587,6 +588,7 @@ function analyzeIteration(
     typeProjections,
     typeSystem,
     sourceEvidence,
+    nativePropertyNameIssues: evidence.nativePropertyNameIssues,
     operations,
     declarations,
     objectShapes: sealedObjectShapes,

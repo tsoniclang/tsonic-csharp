@@ -11,7 +11,7 @@ import { isCsharpUnusedTupleDefault } from "../control-flow/binding-patterns.js"
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { isCsharpRecordDictionaryTargetType } from "../../target-model/types/carriers/collections.js";
 import type { CsharpNativePropertyKey } from "../../target-model/conversions/exact-literals.js";
-import type { CsharpNativeDemandAnalysis, CsharpNativeDemandAnalysisInput, CsharpNativeUnadmittedReason } from "./native-demand-model.js";
+import type { CsharpNativeDemandAnalysis, CsharpNativeDemandAnalysisInput, CsharpNativeUnadmitted, CsharpNativeUnadmittedReason } from "./native-demand-model.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 
 interface VisitedUse {
@@ -52,14 +52,21 @@ export function analyzeCsharpNativeDemand(
   const policyInput = { ...input, baseCalls: Object.freeze({ get: (node: Node) => baseCalls.get(node) }),
     unusedDefault: Object.freeze({ get: (node: Node) => unusedDefaults.has(node) }) };
   const entries: { readonly site: TargetUseSiteRef; readonly use: CsharpNativeUse }[] = [];
-  const unadmitted: { readonly site: TargetUseSiteRef; readonly expression: Node;
-    readonly reason: CsharpNativeUnadmittedReason; readonly message?: string; readonly code?: string }[] = [];
+  const unadmitted: CsharpNativeUnadmitted[] = [];
+  const propertyNameRequirements = new Map<Node, CsharpNativeDemandAnalysisInput["nativePropertyNameIssues"][number][]>();
+  const refusedPropertyNames = new Set<Node>();
+  for (const issue of input.nativePropertyNameIssues) for (const requiredBy of issue.requiredBy) {
+    const issues = propertyNameRequirements.get(requiredBy) ?? [];
+    issues.push(issue);
+    propertyNameRequirements.set(requiredBy, issues);
+  }
   const states = new Map<object, Map<string, UseState>>();
   const published = new Map<object, Map<string, CsharpNativeUse>>();
   const emissions = new Map<Node, { readonly site: TargetUseSiteRef; readonly use: CsharpNativeUse }>();
   const orders = new Map<Node, readonly CsharpNativeOrderStep[]>();
   const constructs = new Set<Node>();
   const requiredBindingRoots = new Set<Node>();
+  const requiredNativeValueDeclarations = new Set<Node>();
   const slots = new Map<object, Map<string, ExpectedSlot>>();
   const slot = (site: TargetUseSiteRef): ExpectedSlot => {
     let owner = slots.get(site.subject);
@@ -82,6 +89,7 @@ export function analyzeCsharpNativeDemand(
   for (const file of input.sourceFiles) visitConstruct(file);
   return Object.freeze({ entries: Object.freeze(entries), unadmitted: Object.freeze(unadmitted),
     requiredBindingRoots: Object.freeze([...requiredBindingRoots]),
+    requiredNativeValueDeclarations: Object.freeze([...requiredNativeValueDeclarations]),
     nativeUse: Object.freeze({ get: (site: TargetUseSiteRef) => published.get(site.subject)?.get(targetUseSiteIdentity(site)),
       order: (construct: Node) => orders.get(construct), expression: (node: Node) => emissions.get(node) }) });
 
@@ -108,13 +116,19 @@ export function analyzeCsharpNativeDemand(
   }
 
   function pending(site: TargetUseSiteRef, expression: Node, reason: CsharpNativeUnadmittedReason, message?: string, code?: string): VisitedUse {
-    unadmitted.push(Object.freeze({ site, expression, reason, ...(message === undefined ? {} : { message }), ...(code === undefined ? {} : { code }) }));
+    unadmitted.push(Object.freeze({ kind: "pending-use", site, expression, reason, ...(message === undefined ? {} : { message }), ...(code === undefined ? {} : { code }) }));
     return Object.freeze({ site, expression, completion: undefined });
   }
 
   function visitConstruct(node: Node): void {
     if (constructs.has(node)) return;
     constructs.add(node);
+    const selected = selectCsharpNativeConstructSteps(policyInput, node);
+    if (selected.kind === "erased" || refusePropertyNames(node)) {
+      orders.set(node, Object.freeze([]));
+      return;
+    }
+    if (input.evidence.sourceStruct.get(node) !== undefined) requiredNativeValueDeclarations.add(node);
     const participation = input.participation.get(node);
     if (participation === "body" || participation === "frame-body" || participation === "signature") {
       for (const parameter of ast.parameters(node)) if (parameter !== undefined) requiredBindingRoots.add(parameter);
@@ -127,8 +141,19 @@ export function analyzeCsharpNativeDemand(
         publish(site, { kind: "erased", expression, cause: "erased-statement" });
         steps.push(Object.freeze({ kind: "use", site }));
       }
-    } else for (const step of selectCsharpNativeConstructSteps(policyInput, node)) visitStep(step, steps);
+    } else for (const step of selected.steps) visitStep(step, steps);
     orders.set(node, Object.freeze(steps));
+  }
+
+  function refusePropertyNames(requiredBy: Node): boolean {
+    const issues = propertyNameRequirements.get(requiredBy);
+    if (issues === undefined) return false;
+    for (const diagnostic of issues) {
+      if (refusedPropertyNames.has(diagnostic.sourceNode)) continue;
+      refusedPropertyNames.add(diagnostic.sourceNode);
+      unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy, diagnostic }));
+    }
+    return true;
   }
 
   function visitStep(step: CsharpNativeOperandStep, steps: CsharpNativeOrderStep[], visited?: ReadonlyMap<CsharpNativeChildUse, VisitedUse>): void {
@@ -144,7 +169,9 @@ export function analyzeCsharpNativeDemand(
   function visitUse(child: CsharpNativeChildUse, exact?: TargetUseSiteRef): VisitedUse {
     let site = exact ?? csharpNativeUseSite(child.owner, child.slot, child.context);
     const expression = child.expression;
-    if (exact === undefined) {
+    const erased = input.evidence.compileTimeMetadata.get(expression) || input.participation.get(expression) === "erased";
+    if (!erased && refusePropertyNames(expression)) return Object.freeze({ site, expression, completion: undefined });
+    if (exact === undefined && !erased) {
       const candidates = slots.get(site.subject)?.get(site.role);
       const matching = candidates?.expressions.get(expression) ?? [];
       if (matching.length > 1) return pending(site, expression, "use-context-unresolved");
@@ -165,7 +192,7 @@ export function analyzeCsharpNativeDemand(
     }
     const unresolved = Object.freeze({ site, expression, completion: undefined });
     owner.set(identity, { expression, state: "visiting", visited: unresolved });
-    const result = evaluate(child, site);
+    const result = erased ? publish(site, { kind: "erased", expression, cause: "discarded-callable" }) : evaluate(child, site);
     owner.set(identity, { expression, state: "closed", visited: result });
     if (result.completion?.kind === "value") {
       if (child.slot.kind === "initializer" && ast.is.IsVariableDeclaration(child.owner) ||
@@ -182,9 +209,6 @@ export function analyzeCsharpNativeDemand(
 
   function evaluate(child: CsharpNativeChildUse, site: TargetUseSiteRef): VisitedUse {
     const expression = child.expression;
-    if (input.evidence.compileTimeMetadata.get(expression) || input.participation.get(expression) === "erased") {
-      return publish(site, { kind: "erased", expression, cause: "discarded-callable" });
-    }
     const expected = input.expected.expectedUse.get(site);
     const withheld = exactPending.get(site.subject)?.get(targetUseSiteIdentity(site));
     if (withheld !== undefined) return pending(site, expression, "expected-use-pending", withheld.message);

@@ -76,8 +76,10 @@ export function analyzeCsharpSourceEvidence(
   const compileTimeMetadata = new WeakSet<Node>(typeOnlyDeclarations.declarations);
   const memoryMetadataIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
   const fixedArrayIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
-  const nativePropertyNameIssues: TargetDiagnostic[] = [];
-  const requiredPropertyNames = new WeakSet<Node>();
+  const nativePropertyNameIssues = new Map<Node, {
+    readonly diagnostic: TargetDiagnostic;
+    readonly requiredBy: Set<Node>;
+  }>();
   const rejectedFixedArrayTypes = new Set<Type>();
   const expressionTypes = new WeakMap<Node, Cached<Type>>();
   const nodeTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
@@ -191,6 +193,22 @@ export function analyzeCsharpSourceEvidence(
     visit(sourceFile, sourceFile);
   }
 
+  function requirePropertyName(name: Node, requiredBy: Node): void {
+    const previous = nativePropertyNameIssues.get(name);
+    if (previous !== undefined) {
+      previous.requiredBy.add(requiredBy);
+      return;
+    }
+    const selected = source.semantics.forNode(name).propertyNames.get(name);
+    if (selected === undefined) {
+      if (source.ast.is.IsComputedPropertyName(name)) failTargetAnalysisInvariant("tsonic-csharp",
+        "A native computed field requires its completed checked property-name selection.", name);
+      return;
+    }
+    const diagnostic = csharpNativePropertyNameIssue(name, selected);
+    if (diagnostic !== undefined) nativePropertyNameIssues.set(name, { diagnostic, requiredBy: new Set([requiredBy]) });
+  }
+
   function visit(node: Node, sourceFile: SourceFile, typeOnly = false): void {
     if (!typeOnly && policy.types.nativeUnreachable(node)) return;
     if (source.ast.is.IsVariableDeclaration(node)) {
@@ -236,6 +254,16 @@ export function analyzeCsharpSourceEvidence(
     }
     typeOnly ||= source.ast.is.IsTypeAliasDeclaration(node) || source.ast.is.IsInterfaceDeclaration(node) || source.ast.is.IsExportDeclaration(node);
     if (!typeOnly) {
+      const members = source.ast.is.IsObjectLiteralExpression(node) ? source.ast.properties(node)
+        : source.ast.is.IsClassDeclaration(node) || source.ast.is.IsClassExpression(node) ? source.ast.members(node) : [];
+      for (const member of members) {
+        if (member === undefined || sourceClassFieldIsTypeOnly(source.ast, member)) continue;
+        const name = source.ast.name(member);
+        if (name !== undefined) requirePropertyName(name, node);
+      }
+      const argument = source.ast.is.IsElementAccessExpression(node) ? source.ast.as.AsElementAccessExpression(node)?.ArgumentExpression
+        : source.ast.is.IsBindingElement(node) ? source.ast.as.AsBindingElement(node)?.PropertyName : undefined;
+      if (argument !== undefined) requirePropertyName(argument, node);
       const authoredType = source.ast.is.IsTypeReferenceNode(node) ? node : source.ast.typeNode(node);
       recordFixedArrayIssues(node, [node, ...(authoredType === undefined ? [] : semantics.facts.authoredTypeSubjects(authoredType))]);
       const requiredType = authoredType === undefined ? undefined : semantics.types.authoredType(authoredType);
@@ -248,20 +276,10 @@ export function analyzeCsharpSourceEvidence(
               while (owner !== undefined && !compileTimeMetadata.has(owner)) owner = source.ast.parent(owner);
               if (owner !== undefined) continue;
               const name = source.ast.name(member);
-              if (name === undefined || requiredPropertyNames.has(name)) continue;
-              requiredPropertyNames.add(name);
-              const selectedName = source.semantics.forNode(member).propertyNames.get(name);
-              if (selectedName === undefined) {
-                if (source.ast.is.IsComputedPropertyName(name)) failTargetAnalysisInvariant("tsonic-csharp",
-                  "A native computed field requires its completed checked property-name selection.", name);
-                continue;
-              }
-              const issue = csharpNativePropertyNameIssue(name, selectedName);
-              if (issue !== undefined) nativePropertyNameIssues.push(issue);
+              if (name !== undefined) requirePropertyName(name, node);
             }
           }
         }
-        if (nativePropertyNameIssues.length !== 0) return;
       }
     }
     arguments_.set(
@@ -596,7 +614,8 @@ export function analyzeCsharpSourceEvidence(
       return sourceOwnedProjectShapes.get(node);
     } }),
   };
-  return Object.freeze({ index: Object.freeze(index), nativePropertyNameIssues: Object.freeze(nativePropertyNameIssues), inspectClosedArrayStorage: arrayStorage.resolve });
+  return Object.freeze({ index: Object.freeze(index), nativePropertyNameIssues: Object.freeze([...nativePropertyNameIssues].map(([sourceNode, issue]) =>
+    Object.freeze({ ...issue.diagnostic, sourceNode, requiredBy: Object.freeze([...issue.requiredBy]) }))), inspectClosedArrayStorage: arrayStorage.resolve });
 }
 
 function isCsharpFlowReadEvidenceNode(

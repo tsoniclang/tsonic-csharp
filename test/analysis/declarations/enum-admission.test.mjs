@@ -16,6 +16,14 @@ const numericUses = [
   ["complement numeric local", "export function use(value: Value): number { const result: number = ~value; return result; }"],
   ["complement arithmetic", "export function use(value: Value): number { return ~value + 1; }"],
   ["bitwise numeric return", "export function use(left: Value, right: Value): number { return left | right; }"],
+  ["inferred complement return", "export function use(value: Value): number { const result = ~value; return result; }"],
+  ["inferred complement copy return", "export function use(value: Value): number { const result = ~value; const copy = result; return copy; }"],
+  ["inferred bitwise return", "export function use(left: Value, right: Value): number { const result = left | right; return result; }"],
+  ["inferred complement argument", "function consume(value: number): number { return value; } export function use(value: Value): number { const result = ~value; return consume(result); }"],
+  ["inferred complement assignment", "export function use(value: Value): number { const result = ~value; let copy = 0; copy = result; return copy; }"],
+  ["inferred complement comparison", "export function use(value: Value): boolean { const result = ~value; return result === 0; }"],
+  ["inferred complement arithmetic", "export function use(value: Value): number { const result = ~value; return result + 1; }"],
+  ["unwritten inferred binding", "export function use(value: Value): number { let result = ~value; return result; }"],
   ["shift", "export function use(value: Value): number { return value << 1; }"],
 ];
 
@@ -64,6 +72,20 @@ export function equal(): boolean { return High.Value === 9007199254740992; }
       assert.equal(compiled.result.artifacts.length, 0, "merged enum output never reaches the native compiler");
     });
   }
+
+  test(`C# ${surface ?? "native"} refuses cross-file checked merged enum membership once`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: "export function run(): number { return 42; }", files: {
+      "first.ts": "enum Value { First = 9007199254740992 }",
+      "second.ts": "enum Value { Second = 9007199254740993 }",
+    } });
+    assertCsharpCheckingSucceeded(compiled);
+    assert.equal(compiled.targetDiagnostics.length, 1, "consumer-local merged symbols still have one actual declaration group");
+    assert.equal(compiled.targetDiagnostics[0]?.code, "TSONIC_ENUM_MERGED_DECLARATIONS_NOT_SUPPORTED", "merged admission precedes R2 and native layout");
+    assert.equal(compiled.targetDiagnostics[0]?.message, "Enum 'Value' has 2 declarations; tsonic supports one declaration per enum.",
+      "both targets consume the same checked membership and reason");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.result.artifacts.length === 0, true,
+      "no partial enum definitions are emitted");
+  });
 
   test(`C# ${surface ?? "native"} retains native same-enum equality and bitwise domains`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `

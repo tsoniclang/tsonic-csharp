@@ -15,10 +15,14 @@ export interface CsharpNativeConstructInput extends CsharpNativeOperandInput, Cs
   readonly unusedDefault: { readonly get: (initializer: Node) => boolean };
 }
 
-export function selectCsharpNativeConstructSteps(input: CsharpNativeConstructInput, node: Node): readonly CsharpNativeOperandStep[] {
+export type CsharpNativeConstructSelection =
+  | { readonly kind: "erased" }
+  | { readonly kind: "selected"; readonly steps: readonly CsharpNativeOperandStep[] };
+
+export function selectCsharpNativeConstructSteps(input: CsharpNativeConstructInput, node: Node): CsharpNativeConstructSelection {
   const { ast } = input;
   if (input.evidence.compileTimeMetadata.get(node) || input.operations.nativeUnreachable.get(node) || input.participation.get(node) === "erased") {
-    return Object.freeze([]);
+    return Object.freeze({ kind: "erased" });
   }
   const construct = (child: Node): CsharpNativeOperandStep => Object.freeze({ kind: "construct", node: child });
   const use = (expression: Node | undefined, slot: Parameters<typeof csharpNativeChildUses>[2], owner = node): readonly CsharpNativeOperandStep[] =>
@@ -30,7 +34,8 @@ export function selectCsharpNativeConstructSteps(input: CsharpNativeConstructInp
       ast.kindName(child).endsWith("Keyword") || ast.kindName(child).endsWith("Token") || ast.kindName(child) === "KindEndOfFile" ||
       ast.is.IsClassDeclaration(child) && input.classFactories.classFactory.get(child) !== undefined ? [] : [construct(child)]);
   const parameters = (): readonly CsharpNativeOperandStep[] => ast.parameters(node).flatMap(parameter => parameter === undefined ? [] : [construct(parameter)]);
-  const finish = (steps: readonly CsharpNativeOperandStep[]): readonly CsharpNativeOperandStep[] => Object.freeze([...steps]);
+  const finish = (steps: readonly CsharpNativeOperandStep[]): CsharpNativeConstructSelection =>
+    Object.freeze({ kind: "selected", steps: Object.freeze([...steps]) });
   if (ast.is.IsSourceFile(node)) return finish([...input.classFactories.factories.filter(factory => factory.sourceFile === node)
     .map(factory => construct(factory.declaration)), ...childConstructs(node)]);
   if (input.participation.get(node) === "signature") return finish([...attributes, ...parameters()]);
