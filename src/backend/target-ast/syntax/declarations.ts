@@ -66,6 +66,7 @@ export interface CsharpInterfaceDeclaration {
 export interface CsharpEnumDeclaration {
   readonly kind: "EnumDeclaration";
   readonly name: string;
+  readonly underlyingType: "int" | "long";
   readonly modifiers: readonly CsharpModifier[];
   readonly attributes?: readonly CsharpAttribute[];
   readonly members: readonly CsharpEnumMember[];

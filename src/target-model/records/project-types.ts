@@ -25,12 +25,11 @@ export interface CsharpProjectTypeIssue {
   readonly message: string;
 }
 
-export interface CsharpProjectTypeDefinition {
+interface CsharpProjectTypeDefinitionData {
   readonly id: string;
   readonly declaration: Node;
   readonly sourceFile: SourceFile;
   readonly sourceName: string;
-  readonly kind: "class" | "interface" | "enum" | "struct";
   readonly typeParameterBindings: readonly Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[];
   readonly typeProjections: readonly import("../types/projections.js").CsharpProjectedType[];
   readonly outerTypeProjections: readonly import("../types/projections.js").CsharpProjectedType[];
@@ -45,6 +44,11 @@ export interface CsharpProjectTypeDefinition {
   readonly factoryName?: string;
   readonly factoryIdentityName?: string;
 }
+
+export type CsharpProjectTypeDefinition = CsharpProjectTypeDefinitionData & (
+  | { readonly kind: "class" | "interface" | "struct" }
+  | { readonly kind: "enum"; readonly integerWidth: 32 | 64 }
+);
 
 export interface CsharpProjectTypeHeritage {
   readonly definition: CsharpProjectTypeDefinition;

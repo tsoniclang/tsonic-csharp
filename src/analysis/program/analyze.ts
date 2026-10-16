@@ -173,6 +173,7 @@ export function analyzeCsharpTargetProgram(
     semanticsFor: source.semantics.forNode,
   });
   const typeHost = {
+    enumConstants: source.semantics.enumConstants,
     literalValues,
     sourceStorage,
     errorStorageDemands: createCsharpErrorStorageDemandQuery(source, sourceStorage),
@@ -405,7 +406,8 @@ function analyzeIteration(
   sourceFiles: readonly SourceFile[],
   sourceIdentities: ReturnType<typeof createCsharpSourceIdentityPolicy>,
   names: ReturnType<typeof createCsharpSourceNameBuilder>,
-  typeHost: Parameters<typeof createCsharpTypeAnalysis>[0],
+  typeHost: Parameters<typeof createCsharpTypeAnalysis>[0] &
+    Pick<import("../../policy/types/project/project-types.js").CsharpProjectTypeCatalogHost, "enumConstants">,
   sourceStorage: SourceStorageQueries,
   statementErasure: Parameters<typeof analyzeCsharpTargetOperations>[2],
   previous: CsharpRepresentationContract | undefined,

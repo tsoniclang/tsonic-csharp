@@ -59,7 +59,7 @@ function printTypeDeclarationLines(
   if (declaration.kind === "EnumDeclaration") {
     return [
       ...context.printAttributes(declaration.attributes),
-      `${modifiers}enum ${declaration.name}`,
+      `${modifiers}enum ${declaration.name} : ${declaration.underlyingType}`,
       "{",
       ...indentLines(declaration.members.map((member, index, members) => printEnumMemberLine(member, index, members, context))),
       "}",
