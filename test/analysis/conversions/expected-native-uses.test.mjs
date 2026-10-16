@@ -86,8 +86,8 @@ test("constructed pointer and ordinary source domains read the chosen RNH payloa
     import { unsafe as directUnsafe } from "@tsonic/csharp/lang.js";
     import { offsetnativeptr } from "@tsonic/core/lang.js";
     import type { ptr } from "@tsonic/csharp/lang.js";
-    import type { int32 } from "@tsonic/core/types.js";
-    export function shifted(pointer: ptr<int32>, offset: int32): ptr<int32> { return directUnsafe(offsetnativeptr(pointer, offset)); }
+    import type { int32, nativeInt } from "@tsonic/core/types.js";
+    export function shifted(pointer: ptr<int32>, offset: nativeInt): ptr<int32> { return directUnsafe(offsetnativeptr(pointer, offset)); }
   `, "native", { languageDialect: "csharp15-preview" });
   const sites = collect(value);
   const pointer = value.nodes.find(node => value.program.records.nativeHandler.get(node)?.selection.kind === "offset");
