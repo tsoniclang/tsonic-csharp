@@ -16,6 +16,7 @@ function fixture(changes = {}) {
   const ast = { is: {
     IsVariableDeclaration: node => node?.kind === "variable", IsCallExpression: node => node?.kind === "call",
     IsObjectLiteralExpression: node => node?.kind === "object", IsPropertyAssignment: node => node?.kind === "property",
+    IsComputedPropertyName: () => false,
   }, as: { AsVariableDeclaration: node => node, AsPropertyAssignment: node => node },
   arguments: node => node.arguments, properties: node => node.properties,
   name: node => node.name, text: node => node?.text ?? "",
@@ -24,14 +25,16 @@ function fixture(changes = {}) {
     sourceField: { get: subjects => subjects.includes(property) ? field : undefined } };
   const values = { valueRead: { get: node => node === type ? { value: carrier } : undefined } };
   const shapes = { resolveNode: () => undefined };
-  return { ast, declaration, property, shape, type, field, metadata, carrier, evidence, values, shapes, ...changes };
+  const selectedName = Object.freeze({ kind: "resolved", name: "value", constant: Object.freeze({ kind: "string", value: "value" }) });
+  const semanticsFor = () => ({ propertyNames: { get: name => name === property.name ? selectedName : undefined } });
+  return { ast, declaration, property, shape, type, field, metadata, carrier, evidence, values, shapes, semanticsFor, ...changes };
 }
 
 test("value carrier admission publishes complete immutable exact field selections", async () => {
   const { analyzeCsharpNativeValueCarriers } = await import("../../../dist/analysis/objects/value-carriers.js");
   const value = fixture();
   const requirements = [];
-  const selected = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.values, value.shapes, requirements);
+  const selected = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.values, value.shapes, value.semanticsFor, requirements);
   assert.equal(selected.issues.length, 0, "complete field evidence admitted");
   const declaration = selected.nativeValueDeclaration.get(value.declaration);
   assert.equal(declaration?.source === value.metadata, true, "exact source struct metadata");
@@ -55,7 +58,7 @@ test("value carrier admission preserves selected bound storage without guessing 
   const member = Object.freeze({ bound: true, sourceSubjects: Object.freeze([value.type]), type: value.carrier });
   const shape = Object.freeze({ members: Object.freeze([member]) });
   const selected = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.values,
-    { resolveNode: node => node === value.declaration ? shape : undefined }, []);
+    { resolveNode: node => node === value.declaration ? shape : undefined }, value.semanticsFor, []);
   const field = selected.nativeValueDeclaration.get(value.declaration)?.fields[0];
   assert.equal(field?.bound?.owner === shape && field.bound.member === member, true, "exact bound owner and native member");
   assert.equal(Object.isFrozen(field.bound), true, "immutable storage correspondence");
@@ -66,7 +69,7 @@ test("the canonical seal requires each native value plan at its exact declaratio
   const { assertCsharpRequiredRecords } = await import("../../../dist/analysis/program/records/required-records.js");
   const value = fixture();
   const requirements = [];
-  const selected = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.values, value.shapes, requirements);
+  const selected = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.values, value.shapes, value.semanticsFor, requirements);
   assert.doesNotThrow(() => assertCsharpRequiredRecords({ nativeValueDeclaration: selected.nativeValueDeclaration }, requirements),
     "the admitted exact declaration satisfies the canonical seal");
   const sibling = {};
@@ -87,7 +90,7 @@ for (const failure of ["value marker", "shape", "property", "field fact", "carri
     if (failure === "field fact") value.evidence.sourceField.get = () => undefined;
     if (failure === "carrier") value.values.valueRead.get = () => undefined;
     const requirements = [];
-    const selected = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.values, value.shapes, requirements);
+    const selected = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.values, value.shapes, value.semanticsFor, requirements);
     assert.equal(selected.issues.length, 1, "one precise owner rejection");
     assert.equal(selected.issues[0]?.code, "CSHARP_UNSUPPORTED_AST", "existing source diagnostic family retained");
     assert.equal(selected.nativeValueDeclaration.get(value.declaration) === undefined, true, "invalid declaration is never published");
