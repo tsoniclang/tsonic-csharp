@@ -26,13 +26,23 @@ test("sequence bindings retain one operand without overlooking a contradictory l
     selected.bindings[0].slot.effectiveIndex === 0, true);
   for (const [name, call] of [
     ["contradictory later element", { sequenceArguments, arguments: [targetArgument(0, 0, 1), targetArgument(0, 1, 2)] }],
-    ["duplicate effective", { arguments: [targetArgument(0, 0, 1), targetArgument(1, 0, 2)] }],
+    ["duplicate exact source/effective", { arguments: [targetArgument(0, 0, 1), targetArgument(0, 0, 2)] }],
     ["missing sequence binding", { sequenceArguments, arguments: [] }],
     ["duplicate sequence", { sequenceArguments: [...sequenceArguments, ...sequenceArguments], arguments: [targetArgument(0, 0, 1)] }],
   ]) {
     const result = csharpSelectedTargetArgumentBindings(call);
     assert.equal(result.kind === "inconsistent" && !Object.hasOwn(result, "bindings") && Object.isFrozen(result), true, name);
   }
+});
+
+test("an admitted empty sequence and the following value retain distinct source sites at the same effective index", () => {
+  const selected = csharpSelectedTargetArgumentBindings({
+    sequenceArguments: [{ sourceArgumentIndex: 0, targetParameterIndex: 0, elements: [] }],
+    arguments: [targetArgument(0, 0, 0, "spread-sequence"), targetArgument(1, 0, 0)],
+  });
+  assert.equal(selected.kind === "bound" && selected.bindings.length === 2, true);
+  assert.deepEqual(selected.bindings.map(binding => [binding.slot.sourceIndex, binding.slot.effectiveIndex, binding.sequence]),
+    [[0, 0, true], [1, 0, false]], "selected rest-sequence producer's empty-tuple sentinel does not collide with the value");
 });
 
 function sourceInput() {
