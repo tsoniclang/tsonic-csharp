@@ -18,6 +18,7 @@ for (const [name, statement, discarded] of [
     const results = compiled.result.program.promiseResults;
     assert.equal(results instanceof Map, true);
     assert.equal([...results.values()].filter(row => row.discard !== undefined).length, discarded);
+    if (discarded > 0) assert.equal(compiled.result.program.binaryExecutionDriver?.id, "tsonic.csharp.js.event-loop-v1");
     for (const row of results.values()) assert.equal(Object.isFrozen(row), true);
   });
 }

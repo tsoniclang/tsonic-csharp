@@ -115,6 +115,7 @@ import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-de
 import { createSourceStorageQuery, type SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../../policy/operations/source-profiles/source-storage-effects.js";
 import { analyzeCsharpPromiseResults } from "../callables/promise-results.js";
+import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/project/binary-execution-drivers.js";
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
 
@@ -292,7 +293,7 @@ export function analyzeCsharpTargetProgram(
   }
   const operationBinaryExecutionDriver =
     analysis.operations.binaryExecutionDriver();
-  const binaryExecutionDriver = composeCsharpBinaryExecutionDriver(
+  const prerequisiteBinaryExecutionDriver = composeCsharpBinaryExecutionDriver(
     request.binaryExecutionDriver,
     operationBinaryExecutionDriver,
   );
@@ -356,6 +357,8 @@ export function analyzeCsharpTargetProgram(
   const promiseResults = analyzeCsharpPromiseResults({ source, nodes: sourceStorage.nodes, records,
     definitions: typeDefinitions, sourceCarrier: (type, file) => analysis.policy.types.resolveType(type, file) });
   if (promiseResults.diagnostics.length > 0) return rejectedTargetStage(promiseResults.diagnostics);
+  const binaryExecutionDriver = composeCsharpBinaryExecutionDriver(prerequisiteBinaryExecutionDriver,
+    [...promiseResults.results.values()].some(result => result.discard !== undefined) ? csharpJsEventLoopBinaryExecutionDriver : undefined);
   const program: CsharpTargetProgram = Object.freeze({
     typeDefinitions,
     records,
