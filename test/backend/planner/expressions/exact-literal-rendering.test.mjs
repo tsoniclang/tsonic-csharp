@@ -2,11 +2,54 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { planCsharpExactLiteralConversion } from "../../../../dist/backend/planner/expressions/literal-conversions.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
-import { csharpPlannedExpressionIsStable } from "../../../../dist/backend/planner/expressions/planned-values.js";
+import { csharpPlannedExpressionIsStable, csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { evaluatedConstant } from "../../../../dist/backend/planner/expressions/csharp-expression-builders.js";
+import { csharpExpressionIsNativeNumericConstant } from "../../../../dist/backend/target-ast/syntax/expressions.js";
+import { planCsharpPlannedDiscard } from "../../../../dist/backend/planner/statements/statement-output.js";
+import { printCsharpStatement } from "../../../../dist/print/source/printer.js";
 
 const primitive = name => csharpSourcePrimitiveTargetType(name);
 const node = Object.freeze({});
+
+for (const [name, primitiveName, minimum, maximum] of [
+  ["sbyte", "int8", -128, 127],
+  ["byte", "uint8", 0, 255],
+  ["short", "int16", -32768, 32767],
+  ["ushort", "uint16", 0, 65535],
+  ["uint", "uint32", 0, 4294967295],
+]) {
+  for (const [boundary, value, expected] of [
+    ["minimum-minus-one", minimum - 1, false],
+    ["minimum", minimum, true],
+    ["maximum", maximum, true],
+    ["maximum-plus-one", maximum + 1, false],
+  ]) {
+    test(`native constant proof: ${name} ${boundary}`, () => {
+      const label = `${name} ${boundary}`;
+      const expression = { kind: "CastExpression", type: { kind: "PredefinedType", name },
+        expression: { kind: "LiteralExpression", value } };
+      assert.equal(csharpExpressionIsNativeNumericConstant(expression), expected,
+        `${label}: only an in-range builtin cast proves a constant`);
+      assert.equal(csharpPlannedExpressionIsStable(expression), expected,
+        `${label}: stability requires the same native range proof`);
+      const evaluated = evaluatedConstant(expression, "number");
+      const statements = planCsharpPlannedDiscard(csharpPlannedValue(primitive(primitiveName), expression));
+      if (expected) {
+        assert.deepEqual(evaluated, { kind: "LiteralExpression", value: "number" },
+          `${label}: a valid constant can be replaced without evaluation`);
+        assert.equal(statements.length, 0, `${label}: a valid discarded constant adds no native work`);
+      } else {
+        assert.equal(evaluated.kind, "SwitchExpression", `${label}: evaluation cannot disappear`);
+        assert.equal(evaluated.expression === expression, true, `${label}: the exact invalid cast is retained`);
+        assert.equal(statements.length, 1, `${label}: a discarded invalid cast is not erased`);
+        assert.equal(statements[0].expression.right === expression, true,
+          `${label}: the discarded statement retains the exact cast`);
+        assert.equal(printCsharpStatement(statements[0]), `_ = (${name})${value};`,
+          `${label}: native syntax remains available for the native range diagnostic`);
+      }
+    });
+  }
+}
 
 function plan(selection, target = primitive("int64")) {
   const reads = [];
