@@ -29,10 +29,7 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
-import type {
-  ExpectedExpressionPlanner,
-  ExpressionPlanner,
-} from "../../expressions/expression-planner-types.js";
+import type { ExpressionPlanner } from "../../expressions/expression-planner-types.js";
 import {
   findObjectShapeMemberForProperty,
 } from "./support.js";
@@ -48,14 +45,7 @@ import {
 import type { CsharpPlannedValue } from "../../expressions/planned-values.js";
 import type { CsharpPlannedObjectInitializer } from "../../expressions/planned-initializers.js";
 
-export function planObjectShapeLiteralAssignment(
-  property: Node,
-  objectShape: CsharpObjectShapeFact,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
-  planExpressionWithExpectedType: ExpectedExpressionPlanner,
+export function planObjectShapeLiteralAssignment(property: Node, objectShape: CsharpObjectShapeFact, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner
 ): readonly CsharpPlannedObjectInitializer[] | undefined {
   switch (SourceKind(input.program.source.ast, property)) {
     case KindPropertyAssignment:
@@ -66,7 +56,7 @@ export function planObjectShapeLiteralAssignment(
         sourceFile,
         input,
         diagnostics,
-        planExpressionWithExpectedType,
+        planExpression,
       );
       return planned === undefined
         ? undefined
@@ -114,7 +104,7 @@ export function planExplicitObjectShapeLiteralMember(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-  planExpressionWithExpectedType: ExpectedExpressionPlanner,
+  planExpression: ExpressionPlanner,
 ): CsharpPlannedObjectShapeLiteralMember | undefined {
   const kind = SourceKind(input.program.source.ast, property);
   const initializer = kind === KindPropertyAssignment
@@ -160,14 +150,7 @@ export function planExplicitObjectShapeLiteralMember(
     ));
     return undefined;
   }
-  const expression = planExpressionWithExpectedType(
-    initializer,
-    sourceFile,
-    input,
-    diagnostics,
-    memberType,
-    undefined,
-    member.type,
+  const expression = planExpression(initializer, sourceFile, input, diagnostics
   );
   return expression === undefined ? undefined : { member, expression };
 }

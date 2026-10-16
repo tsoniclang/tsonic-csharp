@@ -44,10 +44,7 @@ import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type {
   CsharpDelegateSignatureShape,
 } from "../../../target-model/types/index.js";
-import type {
-  ExpressionPlanner,
-  ExpectedExpressionPlanner,
-} from "./expression-planner-types.js";
+import type { ExpressionPlanner } from "./expression-planner-types.js";
 import {
   getCsharpTaskResultTargetType,
   csharpVoidReturnCompletion,
@@ -84,20 +81,11 @@ export interface LambdaTargetContext {
   };
 }
 
-export function planArrowFunctionExpression(
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
-  expectedType?: CsharpTypeNode,
-  state?: DestructuringPlannerState,
-  expectedTargetType?: TargetTypeRef,
-  planExpressionWithExpectedType?: ExpectedExpressionPlanner,
+export function planArrowFunctionExpression(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState
 ): CsharpPlannedValue | undefined {
   const creationPolicy = input.program.records.lambdaCreation.get(node);
   if (creationPolicy.kind === "discarded") return csharpPlannedEffect(csharpVoidTargetType(), []);
-  const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
+  const targetContext = getLambdaTargetContext(node, input);
   const closure = input.scope.nativeCallableBody?.declaration === node ? undefined : input.program.records.captureClosure.get(node);
   const complete = (expression: CsharpExpression | undefined): CsharpPlannedValue | undefined => {
     const carrier = closure?.method.type ?? targetContext?.carrier;
@@ -130,7 +118,7 @@ export function planArrowFunctionExpression(
       planCsharpFrameClosureReference(node, input, diagnostics, state), closure.method.type);
   }
   const expression = AsArrowFunction(input.program.source.ast, node)!;
-  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, targetContext);
+  diagnoseMissingLambdaTargetContext(node, input, diagnostics, targetContext);
   const returnContext = getLambdaReturnContext(node, targetContext, input, diagnostics);
   if (isAsyncExpression(input.program.source.ast, node) && returnContext === undefined) {
     return undefined;
@@ -181,18 +169,7 @@ export function planArrowFunctionExpression(
   ];
   const completion = expression.Body === undefined ? undefined : csharpVoidReturnCompletion(
     input.types.classifications.resolveNode(expression.Body, sourceFile), returnContext?.returnExpressionTargetType);
-  const body = completion === undefined && returnContext !== undefined && planExpressionWithExpectedType !== undefined
-    ? planExpressionWithExpectedType(
-      expression.Body!,
-      sourceFile,
-      scopedInput,
-      diagnostics,
-      returnContext.returnExpressionType,
-      returnContext.returnExpressionTypeSubject,
-      returnContext.returnExpressionTargetType,
-      plannerState,
-    )
-    : planExpression(expression.Body!, sourceFile, scopedInput, diagnostics, plannerState);
+  const body = planExpression(expression.Body!, sourceFile, scopedInput, diagnostics, plannerState);
   if (body === undefined) {
     return undefined;
   }
@@ -228,9 +205,7 @@ export function planFunctionExpression(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-  expectedType?: CsharpTypeNode,
   state?: DestructuringPlannerState,
-  expectedTargetType?: TargetTypeRef,
 ): CsharpPlannedValue | undefined {
   const creationPolicy = input.program.records.lambdaCreation.get(node);
   if (creationPolicy.kind === "discarded") return csharpPlannedEffect(csharpVoidTargetType(), []);
@@ -239,7 +214,7 @@ export function planFunctionExpression(
       "A native expression-tree quotation requires expression-bodied arrow syntax, not a function-expression statement body."));
     return undefined;
   }
-  const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
+  const targetContext = getLambdaTargetContext(node, input);
   const closure = input.scope.nativeCallableBody?.declaration === node ? undefined : input.program.records.captureClosure.get(node);
   const complete = (expression: CsharpExpression | undefined, prelude: readonly CsharpStatement[] = []): CsharpPlannedValue | undefined =>
     planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression,
@@ -248,7 +223,7 @@ export function planFunctionExpression(
     return complete(planCsharpFrameClosureReference(node, input, diagnostics, state));
   }
   const expression = AsFunctionExpression(input.program.source.ast, node)!;
-  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, targetContext);
+  diagnoseMissingLambdaTargetContext(node, input, diagnostics, targetContext);
   const generatorSyntax = hasCsharpGeneratorSyntax(node, input);
   const returnContext = generatorSyntax
     ? undefined
@@ -493,12 +468,11 @@ export function planLambdaParameters(
 
 export function diagnoseMissingLambdaTargetContext(
   node: Node,
-  sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   expectedContext?: LambdaTargetContext,
 ): void {
-  if (expectedContext !== undefined || getLambdaTargetContext(node, sourceFile, input) !== undefined) {
+  if (expectedContext !== undefined || getLambdaTargetContext(node, input) !== undefined) {
     return;
   }
   diagnostics.push(unsupportedNodeDiagnostic(node, "Lambda emission requires a contextual function/delegate type from TSTS or provider facts before C# emission."));
@@ -506,22 +480,16 @@ export function diagnoseMissingLambdaTargetContext(
 
 export function getLambdaTargetContext(
   node: Node,
-  sourceFile: SourceFile,
   input: CsharpPlanningContext,
-  expectedType?: CsharpTypeNode,
-  expectedTargetType?: TargetTypeRef,
 ): LambdaTargetContext | undefined {
   if (!HasSourceKind(input.program.source.ast, node, KindArrowFunction) && !HasSourceKind(input.program.source.ast, node, KindFunctionExpression)) {
     return undefined;
   }
-  void expectedType;
-  const observedSelf = (input.program.records.namedSelf.get(node)?.values.length ?? 0) > 0;
   const nativeBody = input.scope.nativeCallableBody;
   return lambdaTargetContextFromTargetRef(
     input.scope.typeParameterNames,
     nativeBody?.declaration === node ? nativeBody.carrier
-      : observedSelf ? input.types.classifications.resolveNode(node, sourceFile)
-      : input.program.records.callableTarget.get(node) ?? expectedTargetType ?? input.types.classifications.resolveNode(node, sourceFile),
+      : input.program.records.callableTarget.get(node),
   );
 }
 

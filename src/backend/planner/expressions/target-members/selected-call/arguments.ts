@@ -20,6 +20,7 @@ import type { CsharpPlannedArgument } from "../../planned-values.js";
 import { csharpPlannedValue, mapCsharpPlannedValue } from "../../planned-values.js";
 import { captureCsharpPlannedValue } from "../../planned-value-composition.js";
 import { csharpPlannedArgumentSyntax, type CsharpPlannedCallArguments } from "./planned-arguments.js";
+import { requireCsharpNativeExpressionUse } from "../../native-uses.js";
 
 export function translateSelectedTargetArguments(
   node: Node,
@@ -238,23 +239,8 @@ export function translateCallArgument(
     selectedMapping?.kind === "by-value" &&
     selectedMapping.conversion.kind === "delegate-adapter"
   ) {
-    if (
-      nativeDelegateBindingIsDirectlyTargetTypable(
-        expression,
-        selectedMapping,
-        input,
-      )
-    ) {
-      return planCallArgument(
-        expression,
-        sourceFile,
-        input,
-        diagnostics,
-        expectedType,
-        undefined,
-        targetType,
-        parameter.passingMode,
-        parameter,
+    if (selectedMapping.conversion.strategy === "native-binding") {
+      return planCallArgument(expression, sourceFile, input, diagnostics, targetType, parameter.passingMode, parameter
       );
     }
     const sourceExpectedType = csharpTypeFromTargetTypeRef(
@@ -267,15 +253,7 @@ export function translateCallArgument(
       ));
       return undefined;
     }
-    const sourceArgument = planCallArgument(
-      expression,
-      sourceFile,
-      input,
-      diagnostics,
-      sourceExpectedType,
-      undefined,
-      selectedMapping.sourceType,
-      "by-value",
+    const sourceArgument = planCallArgument(expression, sourceFile, input, diagnostics, selectedMapping.sourceType, "by-value"
     );
     if (sourceArgument === undefined) {
       return undefined;
@@ -283,30 +261,8 @@ export function translateCallArgument(
     return mapCsharpPlannedValue(sourceArgument, selectedMapping.targetType, value => applyCsharpConversionSelection(
       expression, sourceFile, input, diagnostics, selectedMapping.sourceType, selectedMapping.targetType, selectedMapping.conversion, value));
   }
-  return planCallArgument(
-    expression,
-    sourceFile,
-    input,
-    diagnostics,
-    expectedType,
-    undefined,
-    targetType,
-    parameter.passingMode,
-    parameter,
+  return planCallArgument(expression, sourceFile, input, diagnostics, targetType, parameter.passingMode, parameter
   );
-}
-
-function nativeDelegateBindingIsDirectlyTargetTypable(
-  expression: Node,
-  mapping: Extract<CsharpProviderArgumentMapping, { readonly kind: "by-value" }>,
-  input: CsharpPlanningContext,
-): boolean {
-  return (
-    input.program.source.ast.is.IsArrowFunction(expression) ||
-    input.program.source.ast.is.IsFunctionExpression(expression)
-  ) &&
-    mapping.conversion.kind === "delegate-adapter" &&
-    mapping.conversion.strategy === "native-binding";
 }
 
 function translateEcmascriptArgumentVectorCallback(
@@ -330,16 +286,16 @@ function translateEcmascriptArgumentVectorCallback(
     ));
     return undefined;
   }
-  const effectiveSourceCallableType =
-    input.program.records.callableTarget.get(expression) ??
-      adapter.sourceCallableType;
+  const nativeUse = requireCsharpNativeExpressionUse(input, expression).use;
+  const effectiveSourceCallableType = nativeUse.kind === "erased" || nativeUse.completion.kind !== "value"
+    ? undefined : nativeUse.completion.type;
   const sourceSignature = getCsharpDelegateSignature(
     effectiveSourceCallableType,
   );
   const targetSignature = getCsharpDelegateSignature(parameter.type);
   const vectorType = targetSignature?.parameters[0];
   if (
-    sourceSignature === undefined ||
+    effectiveSourceCallableType === undefined || sourceSignature === undefined ||
     targetSignature === undefined ||
     targetSignature.parameters.length !== 1 ||
     vectorType === undefined ||
@@ -368,15 +324,7 @@ function translateEcmascriptArgumentVectorCallback(
     ));
     return undefined;
   }
-  const plannedSource = planCallArgument(
-    expression,
-    sourceFile,
-    input,
-    diagnostics,
-    sourceCallableType,
-    undefined,
-    effectiveSourceCallableType,
-    "by-value",
+  const plannedSource = planCallArgument(expression, sourceFile, input, diagnostics, effectiveSourceCallableType, "by-value"
   );
   if (plannedSource === undefined) {
     return undefined;

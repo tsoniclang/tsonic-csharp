@@ -26,7 +26,7 @@ import {
 } from "../bindings/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { planCsharpCaptureFrame, planCsharpCapturedInitialization } from "../bindings/capture-storage.js";
-import { planExpression, planExpressionWithExpectedType } from "../expressions/index.js";
+import { planExpression } from "../expressions/index.js";
 import { planLocalDeclaration } from "../bindings/locals.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planStringCodePointForOfStatement } from "./statement-string-iteration.js";
@@ -102,7 +102,7 @@ export function planForOfStatement(
   if (isCsharpStringCodePointIteration(selectedIteration)) {
     return planStringCodePointForOfStatement(statementNode, statement, binding, selectedIteration, sourceFile, input, diagnostics, state, planNestedStatementBody);
   }
-  const sourceCollection = planForOfCollectionExpression(statement.Expression, binding.type, sourceFile, input, diagnostics);
+  const sourceCollection = planForOfCollectionExpression(statement.Expression, sourceFile, input, diagnostics);
   if (sourceCollection === undefined) {
     return [];
   }
@@ -204,7 +204,6 @@ function forOfResourceDeclaration(
 
 function planForOfCollectionExpression(
   expression: Node | undefined,
-  elementType: ReturnType<typeof getCsharpTypeForNode>,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
@@ -219,13 +218,7 @@ function planForOfCollectionExpression(
     return undefined;
   }
   if (HasSourceKind(input.program.source.ast, expression, KindArrayLiteralExpression)) {
-    return planExpressionWithExpectedType(
-      expression,
-        sourceFile,
-        input,
-        diagnostics,
-        { kind: "ArrayType", elementType },
-        undefined,
+    return planExpression(expression, sourceFile, input, diagnostics
       );
   }
   return planExpression(expression, sourceFile, input, diagnostics);
@@ -312,13 +305,11 @@ function planForOfBindingCore(
         prelude: planBindingPatternFromExpression(
           variableName,
           { kind: "IdentifierName", name: itemName },
-          first,
           sourceFile,
           input,
           diagnostics,
           state,
-          undefined,
-          planExpressionWithExpectedType,
+          planExpression,
         ),
       };
     }

@@ -12,10 +12,7 @@ import type {
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
-import type {
-  ExpectedExpressionPlanner,
-  ExpressionPlanner,
-} from "./expression-planner-types.js";
+import type { ExpressionPlanner } from "./expression-planner-types.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -26,15 +23,7 @@ import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values
 import { buildCsharpPlannedValue, planCsharpExpressionCompletion, projectCsharpPlannedValue } from "./planned-value-composition.js";
 import type { CsharpNativeHandler } from "../../../target-model/records/native-handlers.js";
 
-export function planCsharpNativePointerOperation(
-  node: Node,
-  selection: Extract<CsharpNativeHandler, { readonly kind: "native-pointer" }>["selection"],
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
-  planExpressionWithExpectedType: ExpectedExpressionPlanner,
-  state: DestructuringPlannerState | undefined,
+export function planCsharpNativePointerOperation(node: Node, selection: Extract<CsharpNativeHandler, { readonly kind: "native-pointer" }>["selection"], sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state: DestructuringPlannerState | undefined
 ): CsharpPlannedValue | undefined {
   if (selection.kind === "rejected") {
     diagnostics.push(nativePointerDiagnostic(
@@ -50,8 +39,7 @@ export function planCsharpNativePointerOperation(
       return undefined;
     }
     const type = csharpTypeFromTargetTypeRef(selection.inputType, input.scope.typeParameterNames);
-    const value = type === undefined ? undefined : planExpressionWithExpectedType(
-      selection.expression, sourceFile, input, diagnostics, type, undefined, selection.inputType, state);
+    const value = type === undefined ? undefined : planExpression(selection.expression, sourceFile, input, diagnostics, state);
     return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
       value => planCsharpNativeMemoryCall(input.scope.typeParameterNames, selection.method, value, selection.layout));
   }
@@ -60,8 +48,7 @@ export function planCsharpNativePointerOperation(
     for (const argument of selection.arguments) {
       const sourceType = csharpTypeFromTargetTypeRef(argument.sourceType, input.scope.typeParameterNames);
       const parameterType = csharpTypeFromTargetTypeRef(argument.parameterType, input.scope.typeParameterNames);
-      const expression = sourceType === undefined ? undefined : planExpressionWithExpectedType(
-        argument.expression, sourceFile, input, diagnostics, sourceType, undefined, argument.sourceType, state);
+      const expression = sourceType === undefined ? undefined : planExpression(argument.expression, sourceFile, input, diagnostics, state);
       if (expression === undefined || parameterType === undefined) return undefined;
       const adapted = targetTypeRefEquals(argument.sourceType, argument.parameterType)
         ? expression : mapCsharpPlannedValue(expression, argument.parameterType, value => ({ kind: "CastExpression", type: parameterType,
@@ -85,8 +72,7 @@ export function planCsharpNativePointerOperation(
   if (selection.kind === "raw-identity") {
     const receiver = csharpTypeFromTargetTypeRef(selection.carrier, input.scope.typeParameterNames);
     const parameter = csharpTypeFromTargetTypeRef(selection.parameterType, input.scope.typeParameterNames);
-    const arguments_ = selection.arguments.map(argument => parameter === undefined ? undefined : planExpressionWithExpectedType(
-      argument, sourceFile, input, diagnostics, parameter, undefined, selection.parameterType, state));
+    const arguments_ = selection.arguments.map(argument => parameter === undefined ? undefined : planExpression(argument, sourceFile, input, diagnostics, state));
     return receiver === undefined || arguments_.some(argument => argument === undefined) ? undefined
       : buildCsharpPlannedValue(node, sourceFile, input, diagnostics, arguments_, values => ({
         kind: "InvocationExpression" as const,
@@ -123,15 +109,7 @@ export function planCsharpNativePointerOperation(
       const pointeeType = csharpTypeFromTargetTypeRef(selection.pointeeType, input.scope.typeParameterNames);
       const value = pointeeType === undefined
         ? undefined
-        : planExpressionWithExpectedType(
-            selection.valueExpression,
-            sourceFile,
-            input,
-            diagnostics,
-            pointeeType,
-            undefined,
-            selection.pointeeType,
-            state,
+        : planExpression(selection.valueExpression, sourceFile, input, diagnostics, state
           );
       return value === undefined ? undefined
         : buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [pointer, value], values => ({
@@ -145,15 +123,7 @@ export function planCsharpNativePointerOperation(
       const offsetType = csharpTypeFromTargetTypeRef(selection.offsetType, input.scope.typeParameterNames);
       const offset = offsetType === undefined
         ? undefined
-        : planExpressionWithExpectedType(
-            selection.offsetExpression,
-            sourceFile,
-            input,
-            diagnostics,
-            offsetType,
-            undefined,
-            selection.offsetType,
-            state,
+        : planExpression(selection.offsetExpression, sourceFile, input, diagnostics, state
           );
       return offset === undefined ? undefined
         : buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [pointer, offset], values => ({

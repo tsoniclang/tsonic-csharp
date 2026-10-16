@@ -3,21 +3,18 @@ import { planCsharpMemoryBinding } from "./memory-bindings.js";
 import {
   KindArrowFunction,
   KindCallExpression,
-  KindArrayLiteralExpression,
   KindBinaryExpression,
   KindDeleteExpression,
   KindElementAccessExpression,
   KindFunctionExpression,
   KindIdentifier,
   KindNewExpression,
-  KindObjectLiteralExpression,
   KindPostfixUnaryExpression,
   KindPrefixUnaryExpression,
   KindPropertyAccessExpression,
   KindRegularExpressionLiteral,
   KindTemplateExpression,
   KindTypeOfExpression,
-  KindVoidExpression,
   SourceKind,
 } from "@tsonic/target-api/source";
 import {
@@ -30,12 +27,9 @@ import type {
 } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { sourceNodesEqual } from "@tsonic/target-api/source";
-import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/syntax/index.js";
+import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { getCsharpExpressionOverride } from "../bindings/binding-state.js";
-import {
-  planArrayLiteralExpressionFromFacts,
-} from "./array-literals/index.js";
 import { getCsharpTypeForNode } from "../types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planClassFactoryExpression } from "../declarations/classes/factories.js";
@@ -56,7 +50,7 @@ import {
   planElementAccessExpression,
   planPropertyAccessExpression,
 } from "./target-members/index.js";
-import { planExpressionWithExpectedTypeCore } from "./expression-expected-types.js";
+import { planCsharpNativeExpression } from "./expression-expected-types.js";
 import {
   planCallArgumentCore,
 } from "./expression-call-arguments.js";
@@ -66,9 +60,6 @@ import {
 import {
   planTemplateExpression,
 } from "./expression-template-strings.js";
-import {
-  planVoidExpression,
-} from "./expression-void.js";
 import {
   planPostfixUnaryExpression,
   planPrefixUnaryExpression,
@@ -84,10 +75,6 @@ import {
   tryPlanDestructuringAssignmentExpression,
 } from "../bindings/destructuring-assignment.js";
 import {
-  applyCsharpConversionSelection,
-  readCsharpExpressionConversionClassification,
-} from "./conversions.js";
-import {
   planCsharpTypedLocationOperation,
   planCsharpProjectedFieldWrite,
 } from "./expression-typed-locations.js";
@@ -100,26 +87,13 @@ import {
 import {
   planCsharpJsStringConversion,
 } from "./expression-js-string-conversion.js";
-import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedArgument, type CsharpPlannedValue } from "./planned-values.js";
-import { planCsharpAbsentValue } from "./optional-storage.js";
+import { csharpPlannedValue, type CsharpPlannedArgument, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { captureCsharpPlannedValue } from "./planned-value-composition.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import type { CsharpPromiseDiscard } from "../../../target-model/records/promise-results.js";
 import type { CsharpStatement } from "../../target-ast/syntax/index.js";
-
-function requireExpressionPlan<T>(
-  node: Node,
-  diagnostics: TargetDiagnostic[],
-  plan: () => T | undefined,
-): T | undefined {
-  const initialDiagnosticCount = diagnostics.length;
-  const selected = plan();
-  if (selected === undefined && !diagnostics.slice(initialDiagnosticCount).some(diagnostic => diagnostic.category === "error")) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Required C# expression planning produced neither a native completion nor an error."));
-  }
-  return selected;
-}
+import { requireExpressionPlan } from "./required-plan.js";
 
 export function planExpression(
   node: Node,
@@ -129,7 +103,7 @@ export function planExpression(
   state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
   return requireExpressionPlan(node, diagnostics, () => {
-    const planned = planExpressionCore(node, sourceFile, input, diagnostics, state);
+    const planned = planSelectedExpression(node, sourceFile, input, diagnostics, state);
     const discard = input.program.promiseResults.get(node)?.discard;
     if (planned === undefined || planned.completion.kind !== "value" || discard === undefined) return planned;
     const captured = captureCsharpPlannedValue(node, input, diagnostics, planned.completion.carrier);
@@ -231,27 +205,8 @@ function planExpressionCore(
     expressionDiagnostics,
     nestedState ?? state,
   );
-  const scopedPlanCallArgument = (
-    argumentNode: Node,
-    argumentSourceFile: SourceFile,
-    argumentInput: CsharpPlanningContext,
-    argumentDiagnostics: TargetDiagnostic[],
-    expectedType?: CsharpTypeNode,
-    expectedTypeSubject?: Node,
-    conversionExpectedTargetType?: TargetTypeRef,
-    expectedArgumentPassingMode?: CsharpTargetParameter["passingMode"],
-    selectedTargetParameter?: CsharpTargetParameter,
-  ): CsharpPlannedArgument | undefined => planCallArgument(
-    argumentNode,
-    argumentSourceFile,
-    argumentInput,
-    argumentDiagnostics,
-    expectedType,
-    expectedTypeSubject,
-    conversionExpectedTargetType,
-    state,
-    expectedArgumentPassingMode,
-    selectedTargetParameter,
+  const scopedPlanCallArgument = (argumentNode: Node, argumentSourceFile: SourceFile, argumentInput: CsharpPlanningContext, argumentDiagnostics: TargetDiagnostic[], conversionExpectedTargetType?: TargetTypeRef, expectedArgumentPassingMode?: CsharpTargetParameter["passingMode"], selectedTargetParameter?: CsharpTargetParameter
+  ): CsharpPlannedArgument | undefined => planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, conversionExpectedTargetType, state, expectedArgumentPassingMode, selectedTargetParameter
   );
   const nativeHandler = input.program.records.nativeHandler.get(node);
   switch (nativeHandler?.kind) {
@@ -284,63 +239,12 @@ function planExpressionCore(
       }
     case "native-pointer":
       {
-        return planCsharpNativePointerOperation(
-          node,
-          nativeHandler.selection,
-          sourceFile,
-          input,
-          diagnostics,
-          scopedPlanExpression,
-          (
-            expressionNode,
-            expressionSourceFile,
-            expressionInput,
-            expressionDiagnostics,
-            expressionExpectedType,
-            expectedTypeSubject,
-            expectedTargetType,
-            nestedState,
-          ) => planExpressionWithExpectedType(
-            expressionNode,
-            expressionSourceFile,
-            expressionInput,
-            expressionDiagnostics,
-            expressionExpectedType,
-            expectedTypeSubject,
-            nestedState ?? state,
-            expectedTargetType,
-          ),
-          state,
+        return planCsharpNativePointerOperation(node, nativeHandler.selection, sourceFile, input, diagnostics, scopedPlanExpression, state
         );
       }
     case "typed-location":
       {
-        return planCsharpTypedLocationOperation(
-          node,
-          nativeHandler.selection,
-          sourceFile,
-          input,
-          diagnostics,
-          scopedPlanExpression,
-          (
-            expressionNode,
-            expressionSourceFile,
-            expressionInput,
-            expressionDiagnostics,
-            expressionExpectedType,
-            expectedTypeSubject,
-            expectedTargetType,
-          ) => planExpressionWithExpectedType(
-            expressionNode,
-            expressionSourceFile,
-            expressionInput,
-            expressionDiagnostics,
-            expressionExpectedType,
-            expectedTypeSubject,
-            state,
-            expectedTargetType,
-          ),
-          state,
+        return planCsharpTypedLocationOperation(node, nativeHandler.selection, sourceFile, input, diagnostics, scopedPlanExpression, state
         );
       }
     case undefined:
@@ -368,8 +272,6 @@ function planExpressionCore(
         scopedPlanExpression,
         state,
       );
-    case KindVoidExpression:
-      return planVoidExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     case KindDeleteExpression:
       return planCsharpElementDeletion(
         node,
@@ -379,17 +281,6 @@ function planExpressionCore(
         scopedPlanExpression,
         scopedPlanCallArgument,
       );
-    case KindArrayLiteralExpression: {
-      return planArrayLiteralExpressionFromFacts(node, sourceFile, input, diagnostics, {
-        planExpression: (element, elementSourceFile, elementInput, elementDiagnostics) =>
-          planExpression(element, elementSourceFile, elementInput, elementDiagnostics, state),
-        planExpressionWithExpectedType: (element, elementSourceFile, elementInput, elementDiagnostics, expectedType, expectedTypeSubject, expectedTargetType) =>
-          planExpressionWithExpectedType(element, elementSourceFile, elementInput, elementDiagnostics, expectedType, expectedTypeSubject, state, expectedTargetType),
-      });
-    }
-    case KindObjectLiteralExpression:
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Object literals require an explicit target type before C# emission."));
-      return undefined;
     case KindTemplateExpression:
       return planTemplateExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     case KindPropertyAccessExpression: {
@@ -405,28 +296,9 @@ function planExpressionCore(
         input,
         diagnostics,
         scopedPlanExpression,
-        (
-          argumentNode,
-          argumentSourceFile,
-          argumentInput,
-          argumentDiagnostics,
-          expectedType,
-          expectedTypeSubject,
-          conversionExpectedTargetType,
-          expectedArgumentPassingMode,
-          selectedTargetParameter,
+        (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, conversionExpectedTargetType, expectedArgumentPassingMode, selectedTargetParameter
         ) =>
-          planCallArgument(
-            argumentNode,
-            argumentSourceFile,
-            argumentInput,
-            argumentDiagnostics,
-            expectedType,
-            expectedTypeSubject,
-            conversionExpectedTargetType,
-            state,
-            expectedArgumentPassingMode,
-            selectedTargetParameter,
+          planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, conversionExpectedTargetType, state, expectedArgumentPassingMode, selectedTargetParameter
           ),
       );
       return element === undefined ? undefined : planCsharpProjectedFieldWrite(
@@ -434,20 +306,10 @@ function planExpressionCore(
       );
     }
     case KindArrowFunction:
-      return planArrowFunctionExpression(
-        node,
-        sourceFile,
-        input,
-        diagnostics,
-        scopedPlanExpression,
-        undefined,
-        state,
-        undefined,
-        (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, expectedTargetType, nestedState) =>
-          planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, nestedState ?? state, expectedTargetType),
+      return planArrowFunctionExpression(node, sourceFile, input, diagnostics, scopedPlanExpression, state
       );
     case KindFunctionExpression:
-      return planFunctionExpression(node, sourceFile, input, diagnostics, undefined, state);
+      return planFunctionExpression(node, sourceFile, input, diagnostics, state);
     case KindCallExpression:
       return planCallExpression(
         node,
@@ -456,21 +318,20 @@ function planExpressionCore(
         diagnostics,
         (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
           planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
-        (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, expectedArgumentPassingMode, selectedTargetParameter) =>
-          planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state, expectedArgumentPassingMode, selectedTargetParameter),
+        (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, conversionExpectedTargetType, expectedArgumentPassingMode, selectedTargetParameter) =>
+          planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, conversionExpectedTargetType, state, expectedArgumentPassingMode, selectedTargetParameter),
         state,
       );
     case KindNewExpression:
-      return planNewExpression(node, sourceFile, input, diagnostics, scopedPlanExpression, (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, expectedArgumentPassingMode, selectedTargetParameter) =>
-        planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state, expectedArgumentPassingMode, selectedTargetParameter));
+      return planNewExpression(node, sourceFile, input, diagnostics, scopedPlanExpression, (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, conversionExpectedTargetType, expectedArgumentPassingMode, selectedTargetParameter) =>
+        planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, conversionExpectedTargetType, state, expectedArgumentPassingMode, selectedTargetParameter));
     case KindPrefixUnaryExpression:
     case KindPostfixUnaryExpression: {
       if (input.program.records.operatorForm.get(node) === "js-array-mutation") {
         return tryPlanJsArrayMutationExpression(node, sourceFile, input, diagnostics, scopedPlanExpression,
-          (argument, file, context, errors, type, subject, target, passing, parameter) =>
-            planCallArgument(argument, file, context, errors, type, subject, target, state, passing, parameter),
-          (expression, file, context, errors, type, subject, target, nestedState) =>
-            planExpressionWithExpectedType(expression, file, context, errors, type, subject, nestedState ?? state, target), state);
+          (argument, file, context, errors, target, passing, parameter) =>
+            planCallArgument(argument, file, context, errors, target, state, passing, parameter),
+          state);
       }
       if (SourceKind(input.program.source.ast, node) === KindPostfixUnaryExpression) {
         return planPostfixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
@@ -478,20 +339,11 @@ function planExpressionCore(
       return planPrefixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     }
     case KindBinaryExpression: {
-      if (input.program.records.operatorForm.get(node) === "destructuring-assignment") return tryPlanDestructuringAssignmentExpression(
-        node,
-        sourceFile,
-        input,
-        diagnostics,
-        state,
-        (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
-          planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
-        (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, nestedState) =>
-          planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, nestedState ?? state),
+      if (input.program.records.operatorForm.get(node) === "destructuring-assignment") return tryPlanDestructuringAssignmentExpression(node, sourceFile, input, diagnostics, state, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
+          planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state)
       );
       const binary = tryPlanBinaryExpression(node, sourceFile, input, diagnostics, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
-        planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state), scopedPlanCallArgument, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, expectedTargetType) =>
-        planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, state, expectedTargetType), state);
+        planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state), scopedPlanCallArgument, state);
       return binary;
     }
     default: {
@@ -501,103 +353,24 @@ function planExpressionCore(
   }
 }
 
-export function planCallArgument(
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  expectedType?: CsharpTypeNode,
-  expectedTypeSubject?: Node,
-  conversionExpectedTargetType?: TargetTypeRef,
-  state?: DestructuringPlannerState,
-  expectedArgumentPassingMode?: CsharpTargetParameter["passingMode"],
-  selectedTargetParameter?: CsharpTargetParameter,
+export function planCallArgument(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], conversionExpectedTargetType?: TargetTypeRef, state?: DestructuringPlannerState, expectedArgumentPassingMode?: CsharpTargetParameter["passingMode"], selectedTargetParameter?: CsharpTargetParameter
 ): CsharpPlannedArgument | undefined {
-  return requireExpressionPlan(node, diagnostics, () => planCallArgumentCore(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState) =>
-      planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState ?? state),
-    (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, nestedExpectedTargetType, nestedState) =>
-      planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, nestedState ?? state, nestedExpectedTargetType),
-    expectedType,
-    expectedTypeSubject,
-    conversionExpectedTargetType,
-    expectedArgumentPassingMode,
-    state,
-    selectedTargetParameter,
+  return requireExpressionPlan(node, diagnostics, () => planCallArgumentCore(node, sourceFile, input, diagnostics, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState) =>
+      planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState ?? state), conversionExpectedTargetType, expectedArgumentPassingMode, state, selectedTargetParameter
   ));
 }
 
-export function planExpressionWithExpectedType(
+
+
+function planSelectedExpression(
   node: Node,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-  expectedType: CsharpTypeNode,
-  expectedTypeSubject?: Node,
   state?: DestructuringPlannerState,
-  expectedTargetType?: TargetTypeRef,
 ): CsharpPlannedValue | undefined {
-  return requireExpressionPlan(node, diagnostics, () => planExpectedExpression(
-    node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, state, expectedTargetType,
-  ));
-}
-
-function planExpectedExpression(
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  expectedType: CsharpTypeNode,
-  expectedTypeSubject?: Node,
-  state?: DestructuringPlannerState,
-  expectedTargetType?: TargetTypeRef,
-): CsharpPlannedValue | undefined {
-  const effectiveExpectedTargetType = expectedTargetType ??
-    (
-      expectedTypeSubject === undefined
-        ? undefined
-        : input.types.classifications.resolveNode(expectedTypeSubject, sourceFile)
-    );
-  const plan = planExpressionWithExpectedTypeCore(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, {
-    planExpression: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState) =>
-      planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState ?? state),
-    planExpressionWithExpectedType: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, nestedExpectedTargetType, nestedState) =>
-      planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, nestedState ?? state, nestedExpectedTargetType),
-  }, state, effectiveExpectedTargetType);
-  if (plan === undefined || effectiveExpectedTargetType === undefined) {
-    return plan?.expression;
-  }
-  if (plan.representation === "expected") {
-    return plan.expression;
-  }
-  const sourceType = plan.expression.completion.carrier;
-  const selection = readCsharpExpressionConversionClassification(
-    node,
-    input,
-    diagnostics,
-    sourceType,
-    effectiveExpectedTargetType,
-    "implicit",
-  );
-  if (selection === undefined) {
-    return undefined;
-  }
-  if (plan.expression?.completion.kind === "void" && selection.kind === "absence") {
-    const absent = planCsharpAbsentValue(effectiveExpectedTargetType, input.scope.typeParameterNames);
-    return absent === undefined ? undefined : csharpPlannedValue(effectiveExpectedTargetType, absent, plan.expression.prelude);
-  }
-  return mapCsharpPlannedValue(plan.expression, effectiveExpectedTargetType, expression => applyCsharpConversionSelection(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    sourceType,
-    effectiveExpectedTargetType,
-    selection,
-    expression,
-  ));
+  return planCsharpNativeExpression(node, sourceFile, input, diagnostics, {planSourceExpression: planExpressionCore,
+planExpression: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState) =>
+      planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState ?? state)
+  }, state);
 }

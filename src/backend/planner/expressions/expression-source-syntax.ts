@@ -3,32 +3,20 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import {
-  AsAsExpression,
   AsAwaitExpression,
   AsBigIntLiteral,
-  AsConditionalExpression,
   AsNoSubstitutionTemplateLiteral,
-  AsNonNullExpression,
-  AsParenthesizedExpression,
-  AsSatisfiesExpression,
   AsStringLiteral,
-  AsTypeAssertion,
-  KindAsExpression,
   KindAwaitExpression,
   KindBigIntLiteral,
-  KindConditionalExpression,
   KindFalseKeyword,
   KindNoSubstitutionTemplateLiteral,
-  KindNonNullExpression,
   KindNullKeyword,
   KindNumericLiteral,
-  KindParenthesizedExpression,
-  KindSatisfiesExpression,
   KindStringLiteral,
   KindSuperKeyword,
   KindThisKeyword,
   KindTrueKeyword,
-  KindTypeAssertionExpression,
   Node_Text,
   SourceKind,
 } from "@tsonic/target-api/source";
@@ -43,18 +31,11 @@ import {
   csharpBigIntegerTargetType,
 } from "../../../target-model/types/index.js";
 import {
-  applyCsharpConversionSelection,
-  readCsharpExpressionConversionClassification,
-} from "./conversions.js";
-import {
   planCsharpExactLiteralConversion,
 } from "./literal-conversions.js";
 import {
   requireCsharpStringRuntimeCarrier,
 } from "./expression-literal-carriers.js";
-import {
-  planCsharpConditionExpression,
-} from "./expression-bool-carriers.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -70,8 +51,8 @@ import {
   planThisExpression,
 } from "./expression-this.js";
 import { planCsharpAwaitCompletion } from "./await-completions.js";
-import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
-import { planCsharpExpressionCompletion, planCsharpValueBranch } from "./planned-value-composition.js";
+import type { CsharpPlannedValue } from "./planned-values.js";
+import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 
 export function tryPlanSourceSyntaxExpression(
   node: Node,
@@ -155,52 +136,6 @@ export function tryPlanSourceSyntaxExpression(
       return value(planThisExpression(node, sourceFile, input, diagnostics));
     case KindSuperKeyword:
       return value({ kind: "IdentifierName", name: "base" });
-    case KindAsExpression: {
-      const assertion = AsAsExpression(input.program.source.ast, node)!;
-      return planAssertionExpression(
-        node,
-        assertion.Expression,
-        assertion.Type,
-        sourceFile,
-        input,
-        diagnostics,
-        planExpression,
-      );
-    }
-    case KindSatisfiesExpression:
-      return planExpression(AsSatisfiesExpression(input.program.source.ast, node)!.Expression!, sourceFile, input, diagnostics);
-    case KindNonNullExpression: {
-      const expression = AsNonNullExpression(input.program.source.ast, node)!.Expression;
-      return planAssertionExpression(
-        node,
-        expression,
-        node,
-        sourceFile,
-        input,
-        diagnostics,
-        planExpression,
-      );
-    }
-    case KindTypeAssertionExpression: {
-      const assertion = AsTypeAssertion(input.program.source.ast, node)!;
-      return planAssertionExpression(
-        node,
-        assertion.Expression,
-        assertion.Type,
-        sourceFile,
-        input,
-        diagnostics,
-        planExpression,
-      );
-    }
-    case KindParenthesizedExpression: {
-      const expression = AsParenthesizedExpression(input.program.source.ast, node)!;
-      const inner = planExpression(expression.Expression!, sourceFile, input, diagnostics);
-      if (inner === undefined) {
-        return undefined;
-      }
-      return mapCsharpPlannedValue(inner, inner.completion.carrier, expression => ({ kind: "ParenthesizedExpression", expression }));
-    }
     case KindAwaitExpression: {
       const expression = AsAwaitExpression(input.program.source.ast, node)!;
       if (expression.Expression === undefined) {
@@ -232,82 +167,7 @@ export function tryPlanSourceSyntaxExpression(
       }
       return planCsharpAwaitCompletion(node, awaitedCarrier, completion, awaited, input, diagnostics);
     }
-    case KindConditionalExpression: {
-      const expression = AsConditionalExpression(input.program.source.ast, node)!;
-      if (expression.Condition === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Conditional expression requires a condition expression."));
-        return undefined;
-      }
-      const condition = planCsharpConditionExpression(
-        expression.Condition,
-        "Conditional expression condition",
-        sourceFile,
-        input,
-        diagnostics,
-        planExpression,
-      );
-      const whenTrue = planExpression(expression.WhenTrue!, sourceFile, input, diagnostics);
-      const whenFalse = planExpression(expression.WhenFalse!, sourceFile, input, diagnostics);
-      if (condition === undefined || whenTrue === undefined || whenFalse === undefined) {
-        return undefined;
-      }
-      return planCsharpValueBranch(node, sourceFile, input, diagnostics, condition, whenTrue, whenFalse);
-    }
     default:
       return undefined;
   }
-}
-
-function planAssertionExpression(
-  node: Node,
-  expressionNode: Node | undefined,
-  targetTypeNode: Node | undefined,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
-): CsharpPlannedValue | undefined {
-  if (expressionNode === undefined || targetTypeNode === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "C# assertion translation requires exact expression and target type syntax.",
-    ));
-    return undefined;
-  }
-  if (input.program.source.ast.isConstAssertion(node)) {
-    return planExpression(expressionNode, sourceFile, input, diagnostics);
-  }
-  const sourceType = input.types.classifications.resolveNode(expressionNode, sourceFile);
-  const targetType = input.types.classifications.resolveNode(targetTypeNode, sourceFile);
-  const selection = readCsharpExpressionConversionClassification(
-    expressionNode,
-    input,
-    diagnostics,
-    sourceType,
-    targetType,
-    "explicit",
-  );
-  if (selection === undefined) {
-    return undefined;
-  }
-  if (selection.kind === "implicit" && selection.proof === "literal") {
-    const literal = planCsharpExactLiteralConversion(
-      input,
-      expressionNode,
-      targetType,
-    );
-    if (literal.kind === "resolved") {
-      return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, literal.expression, targetType);
-    }
-    diagnostics.push(unsupportedNodeDiagnostic(
-      expressionNode,
-      literal.kind === "rejected"
-        ? literal.reason
-        : "A selected C# assertion-literal conversion requires an exact target literal representation.",
-    ));
-    return undefined;
-  }
-  if (targetType === undefined) return undefined;
-  return mapCsharpPlannedValue(planExpression(expressionNode, sourceFile, input, diagnostics), targetType, expression =>
-    applyCsharpConversionSelection(expressionNode, sourceFile, input, diagnostics, sourceType, targetType, selection, expression));
 }

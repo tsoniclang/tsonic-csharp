@@ -1,6 +1,5 @@
 import type { CsharpPlanningContext } from "../context.js";
 import {
-  AsParameterDeclaration,
   HasSourceKind,
   KindArrayBindingPattern,
   KindIdentifier,
@@ -17,7 +16,7 @@ import {
 } from "./binding-patterns.js";
 import type { CsharpEntryBinding } from "./binding-patterns.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
-import { planExpressionWithExpectedType } from "../expressions/index.js";
+import { planExpression } from "../expressions/index.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 
 export {
@@ -65,15 +64,8 @@ export function planVariableBindingStatements(
   }
   const sourceName = allocateDestructuringTemp(state);
   const sourceExpression: CsharpExpression = { kind: "IdentifierName", name: sourceName };
-  const sourceType = getCsharpTypeForExpressionCarrier(initializer, sourceFile, input, diagnostics, bindingName, "Destructuring source expression");
-  const initializerExpression = planExpressionWithExpectedType(
-    initializer,
-    sourceFile,
-    input,
-    diagnostics,
-    sourceType,
-    initializer,
-    state,
+  const sourceType = getCsharpTypeForExpressionCarrier(initializer, input, diagnostics, bindingName, "Destructuring source expression");
+  const initializerExpression = planExpression(initializer, sourceFile, input, diagnostics, state
   );
   if (initializerExpression === undefined) {
     return [];
@@ -85,7 +77,7 @@ export function planVariableBindingStatements(
       type: sourceType,
       initializer: expression,
     },
-    ...planBindingPatternFromExpression(bindingName, sourceExpression, initializer, sourceFile, input, diagnostics, state, undefined, planExpressionWithExpectedType, retainBinding),
+    ...planBindingPatternFromExpression(bindingName, sourceExpression, sourceFile, input, diagnostics, state, planExpression, retainBinding),
   ]);
 }
 
@@ -105,18 +97,14 @@ export function planParameterBindingPrelude(
     diagnostics.push(unsupportedNodeDiagnostic(bindingName, "Parameter binding name is outside the current C# planning surface."));
     return [];
   }
-  const parameter = AsParameterDeclaration(input.program.source.ast, input.program.source.ast.parent(bindingName));
-  const bindingSource = parameter ?? bindingName;
   return planBindingPatternFromExpression(
     bindingName,
     { kind: "IdentifierName", name: parameterName },
-    bindingSource,
     sourceFile,
     input,
     diagnostics,
     state,
-    undefined,
-    planExpressionWithExpectedType,
+    planExpression,
     retainBinding,
   );
 }

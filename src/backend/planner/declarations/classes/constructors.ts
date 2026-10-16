@@ -35,7 +35,6 @@ import {
 import { planClassMemberModifiers } from "./modifiers.js";
 import { planCsharpConstructorInitializerArgument } from "./initializer-arguments.js";
 import type { DestructuringPlannerState } from "../../bindings/index.js";
-import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { planCsharpPreparedConstructor, type CsharpConstructorArgumentPlan } from "./constructor-entry.js";
 import { planCsharpParameterPropertyAssignments } from "./parameter-properties.js";
 import { csharpConstructorBaseCall, csharpConstructorRequiresPreparation } from "../../../../analysis/callables/constructor-entry.js";
@@ -128,8 +127,7 @@ function planBaseConstructorArguments(
       continue;
     }
     const carrier = selection?.sourceArgumentParameterTypes?.[index];
-    const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
-    const plannedArgument = planCallArgument(argument, sourceFile, input, diagnostics, type, undefined, carrier, state);
+    const plannedArgument = planCallArgument(argument, sourceFile, input, diagnostics, carrier, state);
     if (plannedArgument === undefined) {
       return undefined;
     }

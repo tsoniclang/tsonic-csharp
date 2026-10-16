@@ -6,7 +6,7 @@ import type { CsharpExpression, CsharpTypeMember } from "../../../target-ast/syn
 import type { CsharpPlanningContext } from "../../context.js";
 import { createCsharpMemberPlanningContext } from "../../context.js";
 import { planArrowFunctionExpression, planFunctionExpression } from "../../expressions/expression-lambdas.js";
-import { planExpression, planExpressionWithExpectedType } from "../../expressions/index.js";
+import { planExpression } from "../../expressions/index.js";
 import { planTypeParameters } from "../../types/type-parameters.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { getCsharpLambdaSignature, getCsharpExpressionTreeDelegateType, isCsharpVoidTargetType } from "../../../../target-model/types/index.js";
@@ -58,11 +58,8 @@ export function renderCsharpCaptureFrameMethods(
       continue;
     }
     const planned = input.program.source.ast.is.IsArrowFunction(method.declaration)
-      ? planArrowFunctionExpression(method.declaration, file, context, diagnostics, planExpression,
-        undefined, undefined, method.type,
-        (node, file, input, diagnostics, type, subject, target, state) =>
-          planExpressionWithExpectedType(node, file, input, diagnostics, type, subject, state, target))
-      : planFunctionExpression(method.declaration, file, context, diagnostics, undefined, undefined, method.type);
+      ? planArrowFunctionExpression(method.declaration, file, context, diagnostics, planExpression, undefined)
+      : planFunctionExpression(method.declaration, file, context, diagnostics);
     const lambda = planned?.completion.kind === "value" ? planned.completion.expression : undefined;
     if (planned === undefined || planned.prelude.length !== 0 || lambda?.kind !== "LambdaExpression") return undefined;
     if (quotation) {

@@ -203,15 +203,7 @@ function translateProjectIndexerElement(
     planExpression,
     input.program.records.selectedElement.get(node)?.receiverProjection,
   );
-  const argument = planCallArgument(
-    selection.source.argument.expression,
-    sourceFile,
-    input,
-    diagnostics,
-    keyType,
-    undefined,
-    selection.keyType,
-    "by-value",
+  const argument = planCallArgument(selection.source.argument.expression, sourceFile, input, diagnostics, selection.keyType, "by-value"
   );
   if (receiver === undefined || !isValueArgument(argument)) {
     return undefined;
@@ -269,15 +261,7 @@ function translateSelectedElement(
     planExpression,
     input.program.records.selectedElement.get(node)?.receiverProjection,
   );
-  const argument = planCallArgument(
-    selection.source.argument.expression,
-    sourceFile,
-    input,
-    diagnostics,
-    expectedType,
-    undefined,
-    parameter.type,
-    parameter.passingMode,
+  const argument = planCallArgument(selection.source.argument.expression, sourceFile, input, diagnostics, parameter.type, parameter.passingMode
   );
   if (receiver === undefined || !isValueArgument(argument)) {
     if (argument !== undefined && argument.passing !== undefined) {

@@ -17,16 +17,10 @@ import {
 import {
   unsupportedNodeDiagnostic,
 } from "../../diagnostics.js";
-import type {
-  ExpectedExpressionPlanner,
-  ExpressionPlanner,
-} from "../expression-planner-types.js";
+import type { ExpressionPlanner } from "../expression-planner-types.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
-import {
-  planBinaryOperand,
-} from "./operands.js";
 import {
   callStatic,
   literalNumber,
@@ -47,34 +41,20 @@ import { planCsharpPlannedDiscard } from "../../statements/statement-output.js";
 import { planCsharpConditionalValue } from "./conditional-values.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
-export function planSelectedCsharpBinaryOperation(
-  node: Node,
-  selection: CsharpResolvedBinaryOperation,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
-  planExpressionWithExpectedType: ExpectedExpressionPlanner,
-  state?: DestructuringPlannerState,
+export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpResolvedBinaryOperation, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState
 ): CsharpPlannedValue | undefined {
   const operation = selection.targetOperation;
-  if (operation.kind === "conditional-value") return planCsharpConditionalValue(
-    node, selection, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, state);
+  if (operation.kind === "conditional-value") return planCsharpConditionalValue(node, selection, sourceFile, input, diagnostics, planExpression, state);
   if (operation.kind === "sequence") {
     const left = planExpression(selection.left, sourceFile, input, diagnostics, state);
     if (left === undefined || left.completion.kind === "never") return left;
-    const type = csharpTypeFromTargetTypeRef(selection.resultType, input.scope.typeParameterNames);
-    const right = type === undefined || operation.resultUse === "discarded"
-      ? planExpression(selection.right, sourceFile, input, diagnostics, state)
-      : planExpressionWithExpectedType(selection.right, sourceFile, input, diagnostics,
-        type, undefined, selection.resultType, state);
+    const right = planExpression(selection.right, sourceFile, input, diagnostics, state);
     return right === undefined ? undefined : {
       prelude: [...planCsharpPlannedDiscard(left), ...right.prelude], completion: right.completion,
     };
   }
   if (operation.kind === "closed-value-coalesce") {
-    return planCsharpClosedValueCoalescing(node, selection, sourceFile, input, diagnostics,
-      planExpression, planExpressionWithExpectedType, state);
+    return planCsharpClosedValueCoalescing(node, selection, sourceFile, input, diagnostics, planExpression, state);
   }
   if (operation.kind === "union-equality") {
     return planCsharpUnionEquality(node, selection, sourceFile, input, diagnostics, planExpression, state);
@@ -89,8 +69,7 @@ export function planSelectedCsharpBinaryOperation(
       return undefined;
     }
     const left = planExpression(selection.left, sourceFile, input, diagnostics, state);
-    const right = planExpressionWithExpectedType(selection.right, sourceFile, input, diagnostics,
-      resultType, undefined, selection.resultType, state);
+    const right = planExpression(selection.right, sourceFile, input, diagnostics, state);
     if (left === undefined || right === undefined) return undefined;
     const name = allocateExpressionTemp(state);
     const reference: CsharpExpression = { kind: "IdentifierName", name };
@@ -116,16 +95,8 @@ export function planSelectedCsharpBinaryOperation(
     ), selection.resultType);
   }
   if (operation.kind === "nullish-equality") {
-    const operands = [
-      { node: selection.left, type: selection.leftInputType },
-      { node: selection.right, type: selection.rightInputType },
-    ].map(({ node: operand, type }) => {
-      const syntaxType = csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames);
-      const expression = syntaxType === undefined ? undefined : planExpressionWithExpectedType(
-        operand, sourceFile, input, diagnostics, syntaxType, undefined, type, state,
-      );
-      return expression;
-    });
+    const operands = [selection.left, selection.right].map(operand =>
+      planExpression(operand, sourceFile, input, diagnostics, state));
     const [left, right] = operands;
     if (left === undefined || right === undefined) return undefined;
     return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [left, right], values => ({
@@ -290,23 +261,7 @@ export function planSelectedCsharpBinaryOperation(
       { ...input, storageExpression },
       diagnostics,
     );
-    const expectedRightType = csharpTypeFromTargetTypeRef(selection.rightInputType, input.scope.typeParameterNames);
-    const right = expectedRightType !== undefined
-      ? planExpressionWithExpectedType(
-          selection.right,
-          sourceFile,
-          input,
-          diagnostics,
-          expectedRightType,
-          undefined,
-          selection.rightInputType,
-        )
-      : planExpression(
-          selection.right,
-          sourceFile,
-          input,
-          diagnostics,
-        );
+    const right = planExpression(selection.right, sourceFile, input, diagnostics, state);
     if (left === undefined || right === undefined) return undefined;
     if (left.completion.kind === "never") return left;
     if (left.completion.kind !== "value") return undefined;
@@ -379,28 +334,8 @@ export function planSelectedCsharpBinaryOperation(
     ));
     return undefined;
   }
-  const left = planBinaryOperand(
-    selection.left,
-    binaryToken,
-    sourceFile,
-    input,
-    diagnostics,
-    planExpression,
-    planExpressionWithExpectedType,
-    csharpTypeFromTargetTypeRef(selection.leftInputType, input.scope.typeParameterNames),
-    selection.leftInputType,
-  );
-  const right = planBinaryOperand(
-    selection.right,
-    binaryToken,
-    sourceFile,
-    input,
-    diagnostics,
-    planExpression,
-    planExpressionWithExpectedType,
-    csharpTypeFromTargetTypeRef(selection.rightInputType, input.scope.typeParameterNames),
-    selection.rightInputType,
-  );
+  const left = planExpression(selection.left, sourceFile, input, diagnostics, state);
+  const right = planExpression(selection.right, sourceFile, input, diagnostics, state);
   if (left === undefined || right === undefined) return undefined;
   if (binaryToken.kind === "QuestionQuestionToken") return planCsharpCoalescingValue(
     node, sourceFile, input, diagnostics, left, right, selection.resultType);

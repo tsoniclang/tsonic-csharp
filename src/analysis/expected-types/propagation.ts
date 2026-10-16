@@ -10,11 +10,15 @@ import {
   csharpPropertySourceMemberKey,
   csharpWellKnownSymbolSourceMemberKey,
   resolveCsharpObjectShapeMemberBySourceKey,
+  projectCsharpJsValueObjectLiteralShape,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
 import type { selectCsharpBinaryOperation } from "../../policy/operations/index.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
+import type { CsharpConversionMode } from "../../target-model/conversions/selection.js";
+import type { CsharpExactLiteralRequest, CsharpNativePropertyKeyBinding } from "../../target-model/conversions/exact-literals.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpExpectedUseCollection } from "./collection.js";
 import type {
   CsharpExpectedTypeAnalysisInput,
@@ -32,7 +36,10 @@ export interface CsharpExpectedTypePropagation {
   readonly seal: () => {
     readonly arrayLiteralCarrier: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined;
     readonly constructionCarrier: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined;
+    readonly objectShape: (expression: Node, targetType: TargetTypeRef) => CsharpObjectShapeFact | undefined;
     readonly intrinsicTarget: (expression: Node, targetType: TargetTypeRef) => boolean;
+    readonly propertyKeyRequests: readonly CsharpExactLiteralRequest[];
+    readonly propertyKeys: (expression: Node, carrier: TargetTypeRef) => readonly CsharpNativePropertyKeyBinding[] | undefined;
   };
 }
 
@@ -45,8 +52,11 @@ export function createCsharpExpectedTypePropagation(
   const record = collection.record;
   const arrayCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
   const objectCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
+  const objectConstructions = new WeakMap<Node, Map<string, CsharpObjectShapeFact>>();
   const intrinsicTargets = new WeakMap<Node, Set<string>>();
   const positionsByOwner = new WeakMap<Node, ReadonlyMap<Node, number>>();
+  const propertyKeys = new WeakMap<Node, Map<string, readonly CsharpNativePropertyKeyBinding[]>>();
+  const propertyKeyRequests: CsharpExactLiteralRequest[] = [];
 
   return Object.freeze({
     propagate,
@@ -57,13 +67,18 @@ export function createCsharpExpectedTypePropagation(
         arrayCarriers.get(expression)?.get(targetTypeRefKey(targetType)),
       constructionCarrier: (expression: Node, targetType: TargetTypeRef) =>
         (arrayCarriers.get(expression) ?? objectCarriers.get(expression))?.get(targetTypeRefKey(targetType)),
+      objectShape: (expression: Node, targetType: TargetTypeRef) =>
+        objectConstructions.get(expression)?.get(targetTypeRefKey(targetType)),
       intrinsicTarget: (expression: Node, targetType: TargetTypeRef) =>
         intrinsicTargets.get(expression)?.has(targetTypeRefKey(targetType)) === true,
+      propertyKeyRequests: Object.freeze([...propertyKeyRequests]),
+      propertyKeys: (expression: Node, carrier: TargetTypeRef) => propertyKeys.get(expression)?.get(targetTypeRefKey(carrier)),
     }),
   });
 
-  function forwarded(owner: Node, slot: CsharpNativeUseSlot, parent?: TargetUseSiteRef): CsharpExpectedUseSiteDemand | undefined {
-    return parent === undefined ? undefined : { owner, slot, forwardedFrom: parent };
+  function forwarded(owner: Node, slot: CsharpNativeUseSlot, parent?: TargetUseSiteRef,
+    mode: CsharpConversionMode = "implicit"): CsharpExpectedUseSiteDemand | undefined {
+    return parent === undefined ? undefined : { owner, slot, forwardedFrom: parent, mode };
   }
 
   function childPositions(owner: Node): ReadonlyMap<Node, number> {
@@ -92,7 +107,7 @@ export function createCsharpExpectedTypePropagation(
       const assertion = policy.ast.is.IsAsExpression(expression)
         ? policy.ast.as.AsAsExpression(expression) : policy.ast.as.AsTypeAssertion(expression);
       record(assertion?.Expression, targetType, strength,
-        forwarded(expression, { kind: "operand", position: "only" }, pending.site), exactInteger);
+        forwarded(expression, { kind: "operand", position: "only" }, pending.site, pending.mode), exactInteger);
       return;
     }
     if (policy.ast.is.IsParenthesizedExpression(expression)) {
@@ -100,7 +115,7 @@ export function createCsharpExpectedTypePropagation(
         policy.ast.as.AsParenthesizedExpression(expression)?.Expression,
         targetType,
         strength,
-        forwarded(expression, { kind: "operand", position: "only" }, pending.site),
+        forwarded(expression, { kind: "operand", position: "only" }, pending.site, pending.mode),
         exactInteger,
       );
       return;
@@ -110,7 +125,7 @@ export function createCsharpExpectedTypePropagation(
         policy.ast.as.AsSatisfiesExpression(expression)?.Expression,
         targetType,
         strength,
-        forwarded(expression, { kind: "operand", position: "only" }, pending.site),
+        forwarded(expression, { kind: "operand", position: "only" }, pending.site, pending.mode),
         exactInteger,
       );
       return;
@@ -118,34 +133,35 @@ export function createCsharpExpectedTypePropagation(
     if (policy.ast.is.IsConditionalExpression(expression)) {
       const conditional = policy.ast.as.AsConditionalExpression(expression);
       record(conditional?.WhenTrue, targetType, strength,
-        forwarded(expression, { kind: "branch", branch: "true" }, pending.site), exactInteger);
+        forwarded(expression, { kind: "branch", branch: "true" }, pending.site, pending.mode), exactInteger);
       record(conditional?.WhenFalse, targetType, strength,
-        forwarded(expression, { kind: "branch", branch: "false" }, pending.site), exactInteger);
+        forwarded(expression, { kind: "branch", branch: "false" }, pending.site, pending.mode), exactInteger);
       return;
     }
     if (policy.ast.is.IsBinaryExpression(expression)) {
-      const expectedSelection = expectedBinary(expression, targetType);
-      const selection = expectedSelection ?? operations.binaryOperation.get(expression)?.target;
+      const selection = operations.operatorForm.get(expression) !== "selected" ? undefined
+        : operations.operatorForm.usesExpectedResultType(expression)
+          ? expectedBinary(expression, targetType) : operations.binaryOperation.get(expression)?.target;
       if (selection?.kind === "resolved") {
-        record(selection.left, selection.leftInputType, strength, forwarded(expression, { kind: "operand", position: "left" }, pending.site));
+        record(selection.left, selection.leftInputType, strength, forwarded(expression, { kind: "operand", position: "left" }, pending.site, pending.mode));
         if (selection.targetOperation.kind === "conditional-value" && selection.targetOperation.branch !== "right") {
-          record(selection.left, selection.resultType, strength, forwarded(expression, { kind: "present-payload" }, pending.site));
+          record(selection.left, selection.resultType, strength, forwarded(expression, { kind: "present-payload" }, pending.site, pending.mode));
         }
         if (selection.targetOperation.kind !== "conditional-value" || selection.targetOperation.branch !== "left") {
-          record(selection.right, selection.rightInputType, strength, forwarded(expression, { kind: "operand", position: "right" }, pending.site));
+          record(selection.right, selection.rightInputType, strength, forwarded(expression, { kind: "operand", position: "right" }, pending.site, pending.mode));
         }
         if (selection.sourceOperator === "??") {
-          record(selection.right, targetType, strength, forwarded(expression, { kind: "operand", position: "right" }, pending.site));
+          record(selection.right, targetType, strength, forwarded(expression, { kind: "operand", position: "right" }, pending.site, pending.mode));
         }
       }
       return;
     }
     if (policy.ast.is.IsArrayLiteralExpression(expression)) {
-      recordArrayLiteralElements(expression, targetType, strength, pending.site);
+      recordArrayLiteralElements(expression, targetType, strength, pending.site, pending.mode);
       return;
     }
     if (policy.ast.is.IsObjectLiteralExpression(expression)) {
-      recordObjectLiteralMembers(expression, targetType, strength, pending.site);
+      recordObjectLiteralMembers(expression, targetType, strength, pending.site, pending.mode);
     }
   }
 
@@ -154,6 +170,7 @@ export function createCsharpExpectedTypePropagation(
     targetType: TargetTypeRef,
     strength: CsharpExpectedTypeStrength,
     parent?: TargetUseSiteRef,
+    mode: CsharpConversionMode = "implicit",
   ): void {
     const construction = objectShapes.resolveObjectLiteralUnionCarrier(expression, targetType) ?? targetType;
     const carrier = getCsharpNullableElementTargetType(construction) ?? construction;
@@ -161,9 +178,18 @@ export function createCsharpExpectedTypePropagation(
       : isCsharpRecordDictionaryTargetType(carrier) && carrier.kind === "target-named"
       ? carrier.typeArguments?.[1] : undefined;
     const positions = childPositions(expression);
-    const member = (property: Node) => positioned(positions, property, index => forwarded(expression, { kind: "member", index }, parent));
+    const member = (property: Node) => positioned(positions, property, index => forwarded(expression, { kind: "member", index }, parent, mode));
     if (indexedValueType !== undefined) {
-      if (isCsharpRecordDictionaryTargetType(carrier)) recordObjectCarrier(expression, targetType, carrier);
+      if (isCsharpRecordDictionaryTargetType(carrier)) {
+        recordObjectCarrier(expression, targetType, carrier);
+        recordDictionaryKeys(expression, carrier);
+      }
+      else {
+        const source = objectShapes.resolveObjectLiteralTargetShape(objectShapes.resolveNode(expression), expression);
+        const projection = source?.kind === "resolved" ? projectCsharpJsValueObjectLiteralShape(source.shape) : undefined;
+        if (projection?.kind !== "resolved") return;
+        recordObjectShape(expression, targetType, projection.shape);
+      }
       for (const property of policy.ast.properties(expression)) {
         if (property === undefined) {
           continue;
@@ -189,7 +215,7 @@ export function createCsharpExpectedTypePropagation(
     if (resolution?.kind !== "resolved") {
       return;
     }
-    recordObjectCarrier(expression, targetType, resolution.shape.targetType);
+    recordObjectShape(expression, targetType, resolution.shape);
     for (const property of policy.ast.properties(expression)) {
       if (property === undefined) {
         continue;
@@ -239,10 +265,37 @@ export function createCsharpExpectedTypePropagation(
     }
   }
 
+  function recordDictionaryKeys(expression: Node, carrier: TargetTypeRef): void {
+    const key = targetTypeRefKey(carrier);
+    const targets = propertyKeys.get(expression) ?? new Map<string, readonly CsharpNativePropertyKeyBinding[]>();
+    if (targets.has(key)) return;
+    const target = carrier.kind === "target-named" ? carrier.typeArguments?.[0] : undefined;
+    if (target === undefined) return failTargetAnalysisInvariant("tsonic-csharp", "A dictionary construction requires its native key carrier.", expression);
+    const bindings: CsharpNativePropertyKeyBinding[] = [];
+    for (const property of policy.ast.properties(expression)) {
+      if (property === undefined || !policy.ast.is.IsPropertyAssignment(property) && !policy.ast.is.IsShorthandPropertyAssignment(property)) continue;
+      const name = policy.ast.name(property);
+      const propertyKey = name === undefined ? undefined : policy.semanticsFor(name).propertyNames.get(name);
+      if (name === undefined || propertyKey === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "A native dictionary key requires its canonical checked property-name selection.", property);
+      propertyKeyRequests.push(Object.freeze({ expression: name, target, propertyKey }));
+      bindings.push(Object.freeze({ property, name, target }));
+    }
+    targets.set(key, Object.freeze(bindings));
+    propertyKeys.set(expression, targets);
+  }
+
   function recordObjectCarrier(expression: Node, targetType: TargetTypeRef, carrier: TargetTypeRef): void {
     const carriers = objectCarriers.get(expression) ?? new Map<string, TargetTypeRef>();
     carriers.set(targetTypeRefKey(targetType), carrier);
     objectCarriers.set(expression, carriers);
+  }
+
+  function recordObjectShape(expression: Node, targetType: TargetTypeRef, shape: CsharpObjectShapeFact): void {
+    recordObjectCarrier(expression, targetType, shape.targetType);
+    const shapes = objectConstructions.get(expression) ?? new Map<string, CsharpObjectShapeFact>();
+    shapes.set(targetTypeRefKey(targetType), Object.freeze(shape));
+    objectConstructions.set(expression, shapes);
   }
 
   function recordIntrinsicObjectLiteralMembers(node: Node): void {
@@ -276,6 +329,7 @@ export function createCsharpExpectedTypePropagation(
     targetType: TargetTypeRef,
     strength: CsharpExpectedTypeStrength,
     parent?: TargetUseSiteRef,
+    mode: CsharpConversionMode = "implicit",
   ): void {
     const carrier = selectCsharpArrayLiteralCarrier(targetType,
       valueReadStages.get(expression)?.operationValue, policy.typeDefinitions);
@@ -288,7 +342,7 @@ export function createCsharpExpectedTypePropagation(
     carriers.set(targetTypeRefKey(targetType), carrier);
     const elements = policy.ast.elements(expression);
     const positions = childPositions(expression);
-    const element = (node: Node) => positioned(positions, node, index => forwarded(expression, { kind: "element", index }, parent));
+    const element = (node: Node) => positioned(positions, node, index => forwarded(expression, { kind: "element", index }, parent, mode));
     if (carrier.kind === "tuple") {
       for (let index = 0; index < elements.length; index += 1) {
         const node = elements[index];

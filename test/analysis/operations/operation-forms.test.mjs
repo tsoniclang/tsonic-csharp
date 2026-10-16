@@ -7,6 +7,9 @@ import { targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { selectCsharpCallForm } from "../../../dist/policy/operations/members/selection/call-forms.js";
 import { planCsharpOptionalReceiverChain } from "../../../dist/backend/planner/expressions/target-members/selected-call/optional-chain.js";
+import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { selectCsharpSourceFlowCall } from "../../../dist/policy/operations/flow/source-flow.js";
 
 function recordedCalls(compiled) {
   const program = compiled.result.program;
@@ -129,17 +132,21 @@ test("an assignment without a direct C# operator is a selected form even on a JS
 });
 
 test("an update of a JS-value object-shape member keeps its writable-location refusal", () => {
-  const compiled = compileCsharpSource({ surface: "js", sourceText: `
-    type T = { a: any };
-    export function f(x: T): void { x.a++; }
-  ` });
-  assert.equal(compiled.sourceDiagnosticsText, "");
-  assert.deepEqual(
-    compiled.result.diagnostics.map(({ code, message }) => ({ code, message })),
-    [{ code: "CSHARP_UNSUPPORTED_AST",
-      message: "Closed JS-value object-shape update '++' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden." }],
-  );
-  assert.equal(compiled.source.ast.kindName(compiled.result.diagnostics[0].sourceNode), "KindPostfixUnaryExpression");
+  for (const [operation, kind] of [["x.a++", "KindPostfixUnaryExpression"], ["++x.a", "KindPrefixUnaryExpression"]]) {
+    const compiled = compileCsharpSource({ surface: "js", sourceText: `
+      type T = { a: any };
+      export function f(x: T): void { ${operation}; }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "");
+    assert.deepEqual(
+      compiled.result.diagnostics.map(({ code, message }) => ({ code, message })),
+      [{ code: "CSHARP_UNSUPPORTED_AST",
+        message: "Closed JS-value object-shape update '++' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden." }],
+    );
+    assert.equal(compiled.source.ast.kindName(compiled.result.diagnostics[0].sourceNode), kind, `${operation}: the exact source update is rejected`);
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+      `${operation}: the source rejection precedes publication and native planning`);
+  }
 });
 
 test("binary expected-result eligibility is stored once from the checked operator that every selection carries", () => {
@@ -170,6 +177,7 @@ test("binary expected-result eligibility is stored once from the checked operato
     const program = compiled.result.program;
     const ast = program.source.ast;
     const records = program.records;
+    const expected = createExpectedNativeUseOwner(compiled).analysis;
     let eligibleContextual = 0;
     let ineligible = 0;
     let unary = 0;
@@ -189,8 +197,8 @@ test("binary expected-result eligibility is stored once from the checked operato
             `${label}: the stored eligibility is the policy result for the checked operator`);
           const baseline = records.binaryOperation.get(node)?.target;
           assert.equal(baseline?.kind !== "resolved" || baseline.sourceOperator === checked, true, `${label}: the baseline selection carries the checked operator`);
-          for (const target of records.expectedType.get(node)) {
-            const selection = records.expectedBinary.get(node, target);
+          for (const target of expected.expectedType.get(node)) {
+            const selection = expected.expectedBinary.get(node, target);
             if (selection?.kind !== "resolved") continue;
             assert.equal(selection.sourceOperator === checked && records.operatorForm.get(node) !== undefined, true,
               `${label}: a contextual selection carries the checked operator and has a stored form`);
@@ -251,13 +259,21 @@ test("source-flow rejection keeps its exact descriptor and source call through t
   assert.equal(diagnostic.message, "C# target does not implement source flow marker 'move'; this intrinsic requires an explicit target contract and cannot be erased or lowered as an identity call.");
   assert.equal(compiled.source.ast.kindName(diagnostic.sourceNode), "KindCallExpression");
   assert.equal(compiled.artifacts.size, 0);
-  const calls = recordedCalls(compiled);
+  const source = createTargetSourceProgram(compiled.source);
+  const calls = [];
+  const visit = node => {
+    if (source.ast.is.IsCallExpression(node)) calls.push(node);
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of source.sourceFiles) visit(file);
   assert.equal(calls.length, 1);
-  const form = calls[0].classification?.form;
+  const selected = selectCsharpSourceFlowCall({ ast: source.ast, sourceFacts: source.sourceFacts }, calls[0]);
+  const form = selectCsharpCallForm(undefined, selected, { kind: "not-js-value" });
   assert.equal(form?.kind === "source-flow-rejected", true, "source rejection is a selected form");
   assert.equal(Object.isFrozen(form.sourceFlow), true, "source rejection descriptor is frozen");
   assert.equal(form.sourceFlow.code === diagnostic.code && form.sourceFlow.reason === diagnostic.message, true, "rejection is preserved exactly");
-  assert.equal(diagnostic.sourceNode === calls[0].node, true, "rejection remains on the original call");
+  assert.equal(diagnostic.sourceNode === calls[0], true, "rejection remains on the original call");
+  assert.equal(compiled.result.program === undefined, true, "the owning source refusal precedes the program seal");
 });
 
 test("local functions named like core markers remain ordinary calls, including shadowing", () => {

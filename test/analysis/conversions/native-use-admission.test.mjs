@@ -6,6 +6,28 @@ import { analyzeCsharpExpectedTypes } from "../../../dist/analysis/expected-type
 import { admitCsharpExpectedNativeUses, collectCsharpExpectedNativeUseSites } from "../../../dist/analysis/expected-types/native-uses.js";
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
+import { analyzeCsharpCallableCreations } from "../../../dist/analysis/callables/creation.js";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpProviderArgumentSourceCarrier } from "../../../dist/policy/operations/members/selection/native-use-arguments.js";
+
+test("separately rendered provider conversions consume the exact source carrier once", () => {
+  const source = csharpSourcePrimitiveTargetType("float64");
+  const target = csharpSourcePrimitiveTargetType("int32");
+  for (const conversion of [{ kind: "provider-argument-adapter" }, { kind: "lifted-provider-argument-adapter" },
+    { kind: "checked-native-integer" }, { kind: "delegate-adapter", strategy: "adaptation" }]) {
+    const mapping = { kind: "by-value", effectiveArgumentIndex: 0, sourceType: source, targetType: target, conversion };
+    assert.equal(csharpProviderArgumentSourceCarrier(mapping) === source, true,
+      `${conversion.kind}: native operand construction is not the later selected conversion`);
+  }
+  for (const conversion of [{ kind: "identity" }, { kind: "nullable-map" }, { kind: "delegate-adapter", strategy: "native-binding" }]) {
+    assert.equal(csharpProviderArgumentSourceCarrier({ kind: "by-value", effectiveArgumentIndex: 0,
+      sourceType: source, targetType: target, conversion }) === undefined, true,
+      `${conversion.kind}: an ordinary argument keeps its admitted native target`);
+  }
+  assert.equal(csharpProviderArgumentSourceCarrier({ kind: "checked-source", effectiveArgumentIndex: 0, targetType: target }) === undefined,
+    true, "a checked source parameter has no fabricated provider conversion");
+});
 
 function owners(sourceText, surface) {
   const compiled = compileCsharpSource({ sourceText, surface });
@@ -24,12 +46,15 @@ function owners(sourceText, surface) {
     return declared?.kind === "resolved" ? [{ sourceDeclaration: node, returnType: declared.type }] : [];
   });
   const expected = analyzeCsharpExpectedTypes({ ast, sourceFiles: program.sourceFiles, literalValues,
-    semantics: source.semantics.forFile, typeDefinitions: program.typeDefinitions }, records, records, program.objectShapes,
+    semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode, typeDefinitions: program.typeDefinitions }, records, records, program.objectShapes,
     { declarationContracts: contracts, closedInputType: () => undefined, get: () => undefined },
     { get: node => { const read = records.valueRead.get(node); return read === undefined ? undefined
       : { literalTarget: read.selectedOperation ?? read.source, operationValue: read.selectedOperation ?? read.source }; } }, records);
-  const exact = analyzeCsharpExactLiteralSelections(literalValues, expected.nativeUseSites.requests.flatMap(request =>
-    request.expression === undefined ? [] : [{ expression: request.expression, target: request.targetType }]));
+  const exact = analyzeCsharpExactLiteralSelections(literalValues, [
+    ...expected.constructions.propertyKeyRequests,
+    ...expected.nativeUseSites.requests.flatMap(request =>
+      request.expression === undefined ? [] : [{ expression: request.expression, target: request.targetType }]),
+  ]);
   const final = { ast, exactLiteral: exact.exactLiteral, callableCreation: { get: () => undefined }, valueRead: records.valueRead,
     absentValue: { get: () => false }, operations: records };
   const initializer = name => ast.as.AsVariableDeclaration(nodes.find(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === name)).Initializer;
@@ -99,4 +124,88 @@ test("a required pending request and a cycle stay explicit rather than publishin
   const admission = admitCsharpExpectedNativeUses(expected, value.final);
   assert.equal(admission.entries.length, 0, "native-use-admission:100: admission.entries.length");
   assert.deepEqual(admission.pending.map(entry => entry.reason), ["argument-unresolved", "forwarding-cycle", "forwarding-cycle"], "native-use-admission:101: admission.pending.map(entry => entry.reason)");
+});
+
+function nativeCreations(value, overrides = {}) {
+  const records = value.program.records;
+  const contract = declaration => {
+    const result = records.returnContract.get(declaration);
+    if (result?.kind !== "resolved") return undefined;
+    const parameters = value.ast.parameters(declaration).map(parameter => {
+      const type = records.lambdaParameterType.get(parameter);
+      return type === undefined ? undefined : { sourceParameter: parameter, targetParameter: { type, passingMode: "by-value" } };
+    });
+    return parameters.some(parameter => parameter === undefined) ? undefined : {
+      sourceDeclaration: declaration, methodTypeParameterIdentities: [], parameters, returnType: result.type,
+    };
+  };
+  return analyzeCsharpCallableCreations({ ast: value.ast, nodes: value.nodes,
+    captures: records, contracts: { get: identity => contract(identity.declaration), closedInputType: () => undefined }, expectedTypes: records,
+    storage: records, evidence: records, conversions: records, ...overrides });
+}
+
+for (const surface of ["native", "js"]) {
+  test(`${surface} actual callable creation consumes closed native parameters rather than an unrelated requested delegate`, () => {
+    const value = owners(`import type { int32 } from "@tsonic/core/types.js";
+      export const callback: (value: int32) => int32 = value => value;`, surface);
+    const expression = value.initializer("callback");
+    const actual = nativeCreations(value);
+    const selected = actual.callableCreation.get(expression);
+    assert.equal(selected?.kind === "selected", true, "the completed callable has one selected creation");
+    assert.equal(actual.callableTarget.get(expression) === selected.carrier, true, "publication reads the canonical creation object");
+    const missingStorage = nativeCreations(value, { storage: { lambdaParameterType: { get: () => undefined } } });
+    assert.equal(missingStorage.callableCreation.get(expression)?.kind === "pending" && missingStorage.callableTarget.get(expression) === undefined,
+      true, "a callable contract cannot replace the exact parameter storage that native emission consumes");
+    assert.equal(Object.isFrozen(selected) && Object.isFrozen(actual), true, "creation evidence is immutable");
+    const unrelated = csharpDelegateTargetType("System.Func", [csharpSourcePrimitiveTargetType("float64")],
+      csharpSourcePrimitiveTargetType("float64"));
+    const mismatched = nativeCreations(value, { expectedTypes: { callableTarget: { get: () => unrelated } } });
+    assert.equal(mismatched.callableCreation.get(expression)?.kind, "selected", "actual native creation remains available independently of an unrelated destination");
+    assert.equal(mismatched.callableTarget.get(expression) !== unrelated, true, "an unproved requested carrier never replaces actual creation");
+    const unproven = nativeCreations(value, { contracts: { get: () => undefined, closedInputType: () => undefined }, storage: { lambdaParameterType: { get: () => undefined } } });
+    assert.equal(unproven.callableCreation.get(expression)?.kind, "pending", "known contextual demand alone is not physical creation proof");
+  });
+}
+
+test("frame callable creation retains the selected implementation carrier before contextual conversion", () => {
+  const value = owners(`export function create(): () => number {
+    for (let index = 0; index < 3; index++) { const read = () => index; return read; }
+    return () => 0;
+  }`, "native");
+  const expression = value.nodes.find(node => value.ast.is.IsArrowFunction(node) &&
+    value.program.records.captureClosure.get(node) !== undefined);
+  assert.equal(expression !== undefined, true, "the real capture owner publishes a shared-frame method");
+  const closure = value.program.records.captureClosure.get(expression);
+  const selected = nativeCreations(value).callableCreation.get(expression);
+  assert.equal(selected?.kind === "selected" && selected.carrier === closure.method.type, true,
+    "actual frame method identity is authoritative, not the consumer's delegate request");
+});
+
+test("discarded callable definitions do not manufacture a carrier or a runtime value", () => {
+  const value = owners("export function run(): void { (() => 1); }", "native");
+  const expression = value.nodes.find(node => value.ast.is.IsArrowFunction(node));
+  assert.equal(expression !== undefined, true, "one checked discarded definition");
+  const actual = nativeCreations(value);
+  assert.equal(actual.callableCreation.get(expression)?.kind, "discarded", "completed allocation decision is retained");
+  assert.equal(actual.callableTarget.get(expression) === undefined, true, "no delegate carrier for an erased definition");
+});
+
+test("creation checks native passing modes and params shape before accepting a contextual signature", () => {
+  const value = owners(`import type { int32 } from "@tsonic/core/types.js";
+    export const callback: (value: int32) => int32 = value => value;`, "native");
+  const expression = value.initializer("callback");
+  const integer = csharpSourcePrimitiveTargetType("int32");
+  const original = csharpDelegateTargetType("System.Func", [integer], integer);
+  for (const [label, signature] of [
+    ["ref", { ...original.csharpDelegateSignature, parameterPassingModes: ["byref-readwrite"] }],
+    ["in", { ...original.csharpDelegateSignature, parameterPassingModes: ["byref-readonly"] }],
+    ["out", { ...original.csharpDelegateSignature, parameterPassingModes: ["byref-writeonly-must-init"] }],
+    ["params", { ...original.csharpDelegateSignature, restParameterIndex: 0 }],
+  ]) {
+    const mismatched = Object.freeze({ ...original, csharpDelegateSignature: Object.freeze(signature) });
+    const selected = nativeCreations(value, { expectedTypes: { callableTarget: { get: () => mismatched } } });
+    assert.equal(selected.callableCreation.get(expression)?.kind, "selected", `${label}: actual native creation remains available`);
+    assert.equal(selected.callableTarget.get(expression) !== mismatched, true,
+      `${label}: a destination modifier cannot change the native parameter storage`);
+  }
 });

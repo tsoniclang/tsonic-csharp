@@ -23,6 +23,11 @@ function owners(sourceText, surface = "native") {
   const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: program.sourceFiles, participation, evidence: records,
     operations: records, valueReads: records, objectShapes: program.objectShapes });
   const input = { ast, sourceFiles: program.sourceFiles, navigation: program.sourceNavigation, evidence: records, operations: records,
+    declarations: records, objectShapes: program.objectShapes,
+    exactLiteral: records.exactLiteral, propertyKeyBindings: expression => {
+      const use = records.nativeUse.expression(expression)?.use;
+      return use === undefined || use.kind === "erased" ? undefined : use.propertyKeys;
+    },
     valueReads: records, participation, bindingPatterns, callableCreation: { get: node => {
       const closure = records.captureClosure.get(node);
       return closure === undefined ? undefined : { kind: "selected", carrier: closure.method.type };
@@ -35,12 +40,17 @@ function owners(sourceText, surface = "native") {
   });
   const literalValues = analyzeSourceLiteralValues(ast, program.sourceFiles);
   const expected = analyzeCsharpExpectedTypes({ ast, sourceFiles: program.sourceFiles, literalValues,
-    semantics: source.semantics.forFile, typeDefinitions: program.typeDefinitions }, records, records, program.objectShapes,
+    semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode, typeDefinitions: program.typeDefinitions }, records, records, program.objectShapes,
     { declarationContracts: contracts, closedInputType: () => undefined, get: () => undefined },
     { get: node => { const read = records.valueRead.get(node); return read === undefined ? undefined
       : { literalTarget: read.selectedOperation ?? read.source, operationValue: read.selectedOperation ?? read.source }; } }, records);
-  const exact = analyzeCsharpExactLiteralSelections(literalValues, expected.nativeUseSites.requests.flatMap(request =>
-    request.expression === undefined ? [] : [{ expression: request.expression, target: request.targetType }]));
+  const exact = analyzeCsharpExactLiteralSelections(literalValues, [
+    ...expected.constructions.propertyKeyRequests,
+    ...expected.nativeUseSites.requests.flatMap(request =>
+      request.expression === undefined ? [] : [{ expression: request.expression, target: request.targetType }]),
+  ]);
+  input.propertyKeyBindings = expected.constructions.propertyKeys;
+  input.exactLiteral = exact.exactLiteral;
   input.expected = admitCsharpExpectedNativeUses(expected, { ast, exactLiteral: exact.exactLiteral, callableCreation: input.callableCreation,
     valueRead: records.valueRead, absentValue: { get: () => false }, operations: records });
   const text = node => String(ast.getSourceText(ast.getSourceFile(node))).slice(ast.pos(node), ast.end(node)).trim().replace(/\s+/gu, " ");
@@ -56,7 +66,7 @@ for (const surface of ["native", "js"]) test(`${surface} finite native uses cove
       if (result > 0) result = value;
       return result > 1 ? result : value;
     }`, surface);
-  const demand = analyzeCsharpNativeDemand(value.input);
+  const demand = analyzeCsharpNativeDemand(value.input, []);
   assert.equal(demand.unadmitted.length, 0, demand.unadmitted.map(entry => `${entry.reason}: ${value.text(entry.expression)}`).join("; "));
   assert.equal(demand.entries.some(entry => entry.site.role.includes("argument:source=0:effective=0:parameter=0:source-parameter=0") &&
     value.text(entry.use.expression) === "value"), true, "U4 exact grouping is retained");
@@ -65,7 +75,8 @@ for (const surface of ["native", "js"]) test(`${surface} finite native uses cove
   const conditional = demand.entries.find(entry => entry.use.kind !== "erased" && entry.use.evaluation.kind === "conditional");
   assert.equal(conditional !== undefined && conditional.use.children.length === 3, true, "condition and two alternatives are explicit");
   assert.equal(Object.isFrozen(demand) && Object.isFrozen(demand.entries) && demand.entries.every(entry => Object.isFrozen(entry.use)), true, "native-uses:67: Object.isFrozen(demand) && Object.isFrozen(demand.entries) && demand.entries.every(entry =");
-  assert.equal(Object.hasOwn(value.program.records, "nativeUse"), false, "no program/backend composition in N5");
+  assert.equal(Object.hasOwn(value.program.records, "nativeUse"), true, "the final owner publishes the one canonical native-use family");
+  assert.equal(typeof value.program.records.nativeUse.expression, "function", "the backend consumes exact sealed emission contexts");
 });
 
 test("class initialization, base constructor arguments and callable defaults each have one native root", () => {
@@ -77,9 +88,14 @@ test("class initialization, base constructor arguments and callable defaults eac
       constructor(value: int32) { super(value); }
       method(value: int32 = 5): int32 { return value; }
     }`);
-  const demand = analyzeCsharpNativeDemand(value.input);
-  const counts = role => demand.entries.filter(entry => entry.site.role === role).length;
-  assert.equal(counts("base-argument:source=0"), 1, "super arguments are not visited again through the constructor body");
+  const demand = analyzeCsharpNativeDemand(value.input, []);
+  const base = value.nodes.find(node => value.ast.is.IsCallExpression(node) &&
+    value.ast.kindName(value.ast.as.AsCallExpression(node)?.Expression) === "KindSuperKeyword");
+  const argument = value.ast.arguments(base)[0];
+  assert.equal(base !== undefined && argument !== undefined, true, "one actual super call and source argument");
+  assert.equal(demand.entries.filter(entry => entry.site.subject === base && entry.use.expression === argument &&
+    entry.site.role.startsWith("argument:source=0:effective=0")).length, 1,
+    "the canonical selected-call argument is not visited again through the constructor body");
   assert.equal(demand.entries.filter(entry => entry.site.role === "initializer" && ["3", "4"].includes(value.text(entry.use.expression))).length, 2, "native-uses:83: demand.entries.filter(entry => entry.site.role === \"initializer\" && [\"3\", \"4\"].includes(va");
   assert.equal(demand.entries.some(entry => entry.site.role === "default" && value.text(entry.use.expression) === "5"), true, "native-uses:84: demand.entries.some(entry => entry.site.role === \"default\" && value.text(entry.use.express");
   assert.equal(demand.unadmitted.length, 0, demand.unadmitted.map(entry => `${entry.reason}: ${value.text(entry.expression)}`).join("; "));
@@ -96,8 +112,8 @@ test("erased and frame-body participation are consumed as recorded, not rescanne
   }`);
   const nested = value.nodes.find(node => value.ast.is.IsFunctionDeclaration(node) && value.ast.text(value.ast.name(node)) === "add");
   assert.equal(value.records.nativeParticipation.get(nested), "frame-body", "native-uses:98: value.records.nativeParticipation.get(nested)");
-  const demand = analyzeCsharpNativeDemand(value.input);
+  const demand = analyzeCsharpNativeDemand(value.input, []);
   assert.equal(demand.nativeUse.order(nested) !== undefined, true, "frame methods still compile their body");
-  const erased = analyzeCsharpNativeDemand({ ...value.input, participation: { get: node => node === nested ? "erased" : value.records.nativeParticipation.get(node) } });
+  const erased = analyzeCsharpNativeDemand({ ...value.input, participation: { get: node => node === nested ? "erased" : value.records.nativeParticipation.get(node) } }, []);
   assert.equal(erased.nativeUse.order(nested)?.length, 0, "the same finite source observes the supplied final participation");
 });

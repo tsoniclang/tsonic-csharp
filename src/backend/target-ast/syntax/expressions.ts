@@ -10,8 +10,7 @@ export type CsharpExpression =
       readonly value: string | number | boolean | null;
       readonly stringStyle?: "raw";
     }
-  | { readonly kind: "NumericLiteralExpression"; readonly token: CsharpNumericLiteralToken; readonly suffix: "F"; readonly value?: never }
-  | { readonly kind: "NumericLiteralExpression"; readonly token: CsharpNumericLiteralToken; readonly suffix: "M"; readonly value?: never }
+  | { readonly kind: "NumericLiteralExpression"; readonly token: CsharpNumericLiteralToken; readonly suffix: "F" | "M" | "D"; readonly value?: never }
   | { readonly kind: "NumericLiteralExpression"; readonly value: number; readonly suffix?: "D"; readonly token?: never }
   | { readonly kind: "IntegerLiteralExpression"; readonly digits: string; readonly suffix: "L" | "UL" }
   | { readonly kind: "CharacterLiteralExpression"; readonly value: string }
@@ -158,7 +157,7 @@ export function csharpExpressionIsNativeNumericConstant(expression: CsharpExpres
   if (expression.kind === "PrefixUnaryExpression") {
     return (expression.operatorToken.kind === "PlusToken" || expression.operatorToken.kind === "MinusToken") &&
       expression.operand.kind === "NumericLiteralExpression" &&
-      (expression.operand.suffix === "F" || expression.operand.suffix === "M");
+      (expression.operand.suffix === "F" || expression.operand.suffix === "M" || expression.operand.suffix === "D");
   }
   if (expression.kind !== "CastExpression" || expression.type.kind !== "PredefinedType" ||
     expression.expression.kind !== "LiteralExpression" || typeof expression.expression.value !== "number" ||

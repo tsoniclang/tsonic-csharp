@@ -1,10 +1,11 @@
 import type { Node } from "@tsonic/tsts";
 import type { SourceLiteralIndex } from "@tsonic/target-api/source";
-import { selectCsharpExactLiteralConversion } from "../../policy/conversions/literals.js";
+import { selectCsharpExactLiteralConversion, selectCsharpExactPropertyKeyConversion } from "../../policy/conversions/literals.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type {
   CsharpExactLiteralRequest,
+  CsharpExactLiteralRole,
   CsharpExactLiteralSelection,
   CsharpExactLiteralSelectionIndex,
 } from "../../target-model/conversions/exact-literals.js";
@@ -19,26 +20,27 @@ export function analyzeCsharpExactLiteralSelections(
   const selections = new Map<Node, Map<string, CsharpExactLiteralSelection>>();
   for (const request of requests) {
     const literal = literalValues.literalValue.get(request.expression);
-    if (literal === undefined) continue;
-    const key = requestKey(request.target);
+    if (literal === undefined && request.propertyKey === undefined) continue;
+    const key = requestKey(request.target, request.propertyKey === undefined ? "value" : "property-key");
     let byTarget = selections.get(request.expression);
     if (byTarget === undefined) {
       byTarget = new Map();
       selections.set(request.expression, byTarget);
     }
     if (byTarget.has(key)) continue;
-    byTarget.set(key, selectCsharpExactLiteralConversion(literal, request.target));
+    byTarget.set(key, request.propertyKey === undefined ? selectCsharpExactLiteralConversion(literal, request.target)
+      : selectCsharpExactPropertyKeyConversion(request.propertyKey, request.target));
   }
   return Object.freeze({
     exactLiteral: Object.freeze({
-      get: (expression: Node, target: TargetTypeRef | undefined) =>
-        literalValues.literalValue.get(expression) === undefined
-          ? notALiteral
-          : selections.get(expression)?.get(requestKey(target)),
+      get: (expression: Node, target: TargetTypeRef | undefined, role: CsharpExactLiteralRole = "value") => {
+        const selected = selections.get(expression)?.get(requestKey(target, role));
+        return selected !== undefined ? selected : role === "value" && literalValues.literalValue.get(expression) === undefined ? notALiteral : undefined;
+      },
     }),
   });
 }
 
-function requestKey(target: TargetTypeRef | undefined): string {
-  return target === undefined ? intrinsicRequest : targetTypeRefKey(target);
+function requestKey(target: TargetTypeRef | undefined, role: CsharpExactLiteralRole): string {
+  return `${role}:${target === undefined ? intrinsicRequest : targetTypeRefKey(target)}`;
 }

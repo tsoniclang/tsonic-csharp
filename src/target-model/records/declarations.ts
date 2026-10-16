@@ -1,6 +1,7 @@
 import type { TargetTypeRef } from "../types/model.js";
 import type { CsharpRuntimeParameterDefault } from "../types/parameter-defaults.js";
 import type { Node } from "@tsonic/tsts";
+import type { CsharpDefaultValueContract } from "./value-projections.js";
 
 export type CsharpReturnTargetContract =
   | { readonly kind: "resolved"; readonly type: TargetTypeRef; readonly undefinedReturn?: boolean; readonly fallthroughUndefined?: boolean }
@@ -8,6 +9,7 @@ export type CsharpReturnTargetContract =
 
 export type CsharpDefaultParameterContract = CsharpRuntimeParameterDefault & {
   readonly acceptsOmission: boolean;
+  readonly native: CsharpDefaultValueContract;
 };
 
 export interface CsharpDeclarationClassifications {

@@ -3,8 +3,11 @@ import { targetUseSiteRef, type TargetUseSiteRef } from "@tsonic/target-api/anal
 import type { CsharpConversionMode } from "../conversions/selection.js";
 import { csharpTargetRepresentationContractId } from "../identities/identities.js";
 import { targetTypeRefKey } from "../types/equality.js";
-import type { TargetTypeRef } from "../types/model.js";
+import type { CsharpObjectShapeFact, TargetTypeRef } from "../types/model.js";
 import type { CsharpNativeHandler } from "./native-handlers.js";
+import type { CsharpExactLiteralRecipe, CsharpNativePropertyKey } from "../conversions/exact-literals.js";
+import type { CsharpResolvedBinaryOperation } from "./operator-selection.js";
+import type { CsharpDefaultValueContract } from "./value-projections.js";
 
 export type CsharpNativeUseSlot =
   | { readonly kind: "effect" | "initializer" | "return" | "thrown" | "condition" | "receiver" | "callee" | "key" |
@@ -13,7 +16,6 @@ export type CsharpNativeUseSlot =
   | { readonly kind: "branch"; readonly branch: "true" | "false" }
   | { readonly kind: "argument"; readonly sourceIndex: number; readonly effectiveIndex: number; readonly parameterIndex?: number;
       readonly sourceParameterIndex?: number }
-  | { readonly kind: "base-argument"; readonly sourceIndex: number }
   | { readonly kind: "element" | "member" | "span" | "case" | "attribute-invocation"; readonly index: number }
   | { readonly kind: "intrinsic-operand"; readonly operand: "value" | "offset" | "location" | "initial" | "left" | "right" | "argument";
       readonly index?: number };
@@ -46,7 +48,6 @@ export function csharpNativeUseSite(owner: Node, slot: CsharpNativeUseSlot, cont
         (slot.parameterIndex === undefined ? "" : `:parameter=${slot.parameterIndex}`) +
         (slot.sourceParameterIndex === undefined ? "" : `:source-parameter=${slot.sourceParameterIndex}`);
       break;
-    case "base-argument": role = `base-argument:source=${slot.sourceIndex}`; break;
     case "element": case "member": case "span": case "case": case "attribute-invocation": role = `${slot.kind}:${slot.index}`; break;
     case "intrinsic-operand": role = `intrinsic-operand:${slot.operand}` + (slot.index === undefined ? "" : `:${slot.index}`); break;
     default: role = slot.kind;
@@ -82,6 +83,9 @@ export interface CsharpExpectedNativeUse {
   readonly representation: "construct" | "forward" | "convert";
   readonly mode: CsharpConversionMode;
   readonly children: readonly TargetUseSiteRef[];
+  readonly literal?: CsharpExactLiteralRecipe;
+  readonly binary?: CsharpResolvedBinaryOperation;
+  readonly objectShape?: CsharpObjectShapeFact;
   readonly construction?: {
     readonly site: TargetUseSiteRef;
     readonly carrier: TargetTypeRef;
@@ -118,6 +122,11 @@ interface CsharpNativeEvaluatedUse {
   readonly completion: CsharpNativeCompletion;
   readonly children: readonly TargetUseSiteRef[];
   readonly evaluation: CsharpNativeEvaluation;
+  readonly literal?: CsharpExactLiteralRecipe;
+  readonly propertyKeys?: readonly CsharpNativePropertyKey[];
+  readonly binary?: CsharpResolvedBinaryOperation;
+  readonly objectShape?: CsharpObjectShapeFact;
+  readonly defaultValue?: CsharpDefaultValueContract;
 }
 
 export type CsharpNativeUse =
@@ -132,5 +141,6 @@ export interface CsharpNativeUseClassifications {
   readonly nativeUse: {
     readonly get: (site: TargetUseSiteRef) => CsharpNativeUse | undefined;
     readonly order: (construct: Node) => readonly CsharpNativeOrderStep[] | undefined;
+    readonly expression: (node: Node) => { readonly site: TargetUseSiteRef; readonly use: CsharpNativeUse } | undefined;
   };
 }

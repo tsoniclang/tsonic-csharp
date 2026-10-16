@@ -8,11 +8,7 @@ import { buildCsharpPlannedValue } from "./planned-value-composition.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
-import type {
-  CallArgumentPlanner,
-  ExpressionPlanner,
-  ExpectedExpressionPlanner,
-} from "./expression-planner-types.js";
+import type { CallArgumentPlanner, ExpressionPlanner } from "./expression-planner-types.js";
 import {
   csharpSourcePrimitiveTargetType,
 } from "../../../target-model/types/index.js";
@@ -27,7 +23,6 @@ export function tryPlanJsArrayMutationExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
-  planExpected: ExpectedExpressionPlanner,
   state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
   const selection = input.program.records.jsArrayMutation.get(node);
@@ -43,7 +38,7 @@ export function tryPlanJsArrayMutationExpression(
   }
   if (selection.kind === "set-typed-element" || selection.kind === "update-typed-element") {
     return planTypedArrayMutation(node, selection, sourceFile, input, diagnostics,
-      planExpression, planExpected, state);
+      planExpression, state);
   }
   if (selection.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
@@ -91,15 +86,7 @@ function planMutationArgument(
   if (expectedType === undefined) {
     throw new Error("The C# float64 mutation parameter must always be renderable.");
   }
-  const argument = planCallArgument(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    expectedType,
-    undefined,
-    targetType,
-    "by-value",
+  const argument = planCallArgument(node, sourceFile, input, diagnostics, targetType, "by-value"
   );
   if (argument?.passing !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(

@@ -150,7 +150,7 @@ test("sealed C# classification queries cannot delegate to analysis policy", () =
   const projectQueries = sourceSection(
     projectTypes,
     "const classifications: CsharpProjectTypeClassifications = {",
-    "function visit(node: Node): void",
+    "return Object.freeze(classifications);",
   );
   assert.doesNotMatch(projectQueries, /\bpolicy\./u);
 
@@ -180,26 +180,40 @@ test("sealed C# classification queries cannot delegate to analysis policy", () =
   assert.doesNotMatch(nameQuery, /\bhost\./u);
 });
 
+test("binding rendering has no superseded source or carrier hint API", () => {
+  for (const file of ["binding-patterns.ts", "binding-array-patterns.ts", "binding-object-patterns.ts",
+    "binding-pattern-contracts.ts", "destructuring-assignment/planning.ts"]) {
+    const source = readFileSync(resolve(repositoryRoot, "src/backend/planner/bindings", file), "utf8");
+    assert.doesNotMatch(source, /\b(?:getObjectShapeForBindingSource|_sourceNode|_sourceCarrier|_sourceCarrierOverride|_sourceFile|projectedCarrier)\b/u,
+      `${file}: only sealed projection evidence determines the binding representation`);
+  }
+});
+
 test("expected-result specializations are classified by exact target use", () => {
   const analysis = readFileSync(
     resolve(repositoryRoot, "src/analysis/expected-types/analyze.ts"),
     "utf8",
   );
-  assert.match(analysis, /createTargetUseClassificationBuilder/u);
-  assert.match(analysis, /"binary-expected-result"/u);
-  assert.match(analysis, /csharpTargetRepresentationContractId/u);
+  assert.match(analysis, /new WeakMap<Node, Map<string, CsharpExpectedBinarySelection>>/u);
+  assert.match(analysis, /expectedBinaries\.get\(expression\)\?\.get\(targetTypeRefKey\(targetType\)\)/u);
+  const nativeSites = readFileSync(resolve(repositoryRoot, "src/target-model/records/native-demand.ts"), "utf8");
+  assert.match(nativeSites, /targetUseSiteRef\(owner, role, csharpTargetRepresentationContractId,/u);
+  const finalizer = readFileSync(resolve(repositoryRoot, "src/analysis/expected-types/native-uses.ts"), "utf8");
+  assert.match(finalizer, /targetUseSiteIdentity\(entry\.site\)/u);
   assert.match(analysis, /evidence\.nodeTargetType/u);
 
   const planner = readFileSync(
     resolve(
       repositoryRoot,
-      "src/backend/planner/expressions/operators/binary-expected-type.ts",
+      "src/backend/planner/expressions/expression-expected-types.ts",
     ),
     "utf8",
   );
-  assert.match(planner, /program\.records\.expectedBinary\.get/u);
+  assert.match(planner, /requireCsharpNativeExpressionUse\(input, node\)/u);
+  assert.match(planner, /use\.binary/u);
   assert.doesNotMatch(planner, /selectCsharpBinaryOperation/u);
   assert.doesNotMatch(planner, /selectExpectedResultType|sameCsharpType|expectedResultCompatible/u);
+  assert.doesNotMatch(planner, /program\.records\.expectedBinary/u);
 });
 
 test("C# analysis walks only the host-selected project source graph", () => {
@@ -218,7 +232,14 @@ test("C# conversion analysis seals sparse exact uses without a type Cartesian pr
   );
   assert.match(analysis, /classifyExpression\(/u);
   assert.match(analysis, /classifyPair\(/u);
-  assert.match(analysis, /seal\(\{ operations, expectedTypes, storage \}\)/u);
+  assert.match(analysis, /prepare\(\{ operations, expectedTypes, valueReads \}\)/u);
+  assert.match(analysis, /seal\(nativeDemand, requiredRecords\)/u);
+  assert.equal((analysis.match(/sealCsharpConversionUses\(nativeDemand,/gu) ?? []).length, 1,
+    "one final conversion-use admission owner");
+  const admission = readFileSync(resolve(repositoryRoot, "src/analysis/conversions/use-admission.ts"), "utf8");
+  assert.match(admission, /export function sealCsharpConversionUses\(/u);
+  assert.match(admission, /for \(const entry of demand\.entries\)/u);
+  assert.doesNotMatch(analysis, /return admitted\.expressions[^;]+\?\?[^;]+pairSelections/u);
   assert.doesNotMatch(analysis, /types\.size\s*\*\s*types\.size/u);
   assert.doesNotMatch(
     analysis,

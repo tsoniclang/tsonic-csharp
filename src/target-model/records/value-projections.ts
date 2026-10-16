@@ -81,6 +81,20 @@ export interface CsharpBindingProjectionFact {
   readonly source?: CsharpBindingPatternSource;
   readonly element?: CsharpBindingElementProjection;
   readonly assignmentPattern?: CsharpDestructuringAssignmentPattern;
+  readonly defaultValue?: CsharpDefaultValueContract;
+}
+
+export interface CsharpDefaultValueContract {
+  readonly kind: "value" | "absence" | "coalesce" | "guarded";
+  readonly source: TargetTypeRef;
+  readonly storage: TargetTypeRef;
+  readonly present: TargetTypeRef;
+  readonly guardType: TargetTypeRef;
+  readonly target: TargetTypeRef;
+  readonly normalize: boolean;
+  readonly optional: boolean;
+  readonly retainStorage: boolean;
+  readonly presence: boolean;
 }
 
 export interface CsharpBindingPatternIssue {

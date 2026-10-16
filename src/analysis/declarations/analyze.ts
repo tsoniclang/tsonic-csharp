@@ -30,6 +30,7 @@ import {
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpRuntimeParameterDefault } from "../../target-model/types/parameter-defaults.js";
+import { selectCsharpDefaultValueContract } from "../../policy/types/objects/binding-projection-policy.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpValueReadStageIndex } from "../../target-model/records/conversions.js";
@@ -67,10 +68,13 @@ export function analyzeCsharpDeclarations(
         if (owner !== undefined && (policy.ast.is.IsClassDeclaration(owner) || policy.ast.is.IsClassExpression(owner))) {
           const reserved = new Set(policy.ast.members(owner).map(member => {
             const name = policy.ast.name(member);
-            return name === undefined ? undefined : policy.ast.text(name);
+            const selected = name === undefined ? undefined : policy.semanticsFor(name).propertyNames.get(name);
+            return selected?.kind === "resolved" ? selected.name : undefined;
           }));
+          const declarationName = policy.ast.name(declaration);
+          const selectedName = declarationName === undefined ? undefined : policy.semanticsFor(declarationName).propertyNames.get(declarationName);
           const allocate = (prefix: string): string => {
-            let name = `${prefix}${policy.ast.text(policy.ast.name(declaration))}`;
+            let name = `${prefix}${selectedName?.kind === "resolved" ? selectedName.name : policy.ast.pos(declaration)}`;
             while (reserved.has(name)) name = `_${name}`;
             reserved.add(name);
             return name;
@@ -104,7 +108,8 @@ export function analyzeCsharpDeclarations(
           const slot = owner === undefined ? undefined : queries.types.declarationSignatureInfo(owner)
             ?.parameters.find(parameter => parameter.declaration === node);
           if (slot === undefined) throw new Error("A native parameter default requires its exact checked declaration slot.");
-          runtimeDefaults.set(node, Object.freeze({ ...runtimeDefault, acceptsOmission: slot.acceptsOmission }));
+          runtimeDefaults.set(node, Object.freeze({ ...runtimeDefault, acceptsOmission: slot.acceptsOmission,
+            native: selectCsharpDefaultValueContract(runtimeDefault.parameterType, runtimeDefault.valueType, false) }));
         }
       }
     }

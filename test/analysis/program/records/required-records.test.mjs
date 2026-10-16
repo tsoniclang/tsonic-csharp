@@ -3,6 +3,7 @@ import test from "node:test";
 import { resolvedTargetStage, runTargetCompilationStages } from "@tsonic/target-api/artifacts";
 import { createCsharpProgramRecords } from "../../../../dist/analysis/program/records/create.js";
 import { assertCsharpRequiredRecords, requireCsharpRecord } from "../../../../dist/analysis/program/records/required-records.js";
+import { targetUseSiteRef } from "@tsonic/target-api/analysis";
 import {
   compileCsharpRequiredRecordSource,
   csharpRecordInput,
@@ -12,6 +13,11 @@ import {
 
 const sourceText = `
   import type { int32 } from "@tsonic/core/types.js";
+  import { field, struct } from "@tsonic/core/lang.js";
+  export const FirstValue = struct({ value: field<int32>() });
+  export const SecondValue = struct({ value: field<int32>() });
+  export const firstLiteral: int32 = 7;
+  export const secondLiteral: int32 = 9;
   export function apply(mapper: (left: int32, right: int32) => int32, input: int32): int32 {
     return mapper(input, input);
   }
@@ -26,7 +32,10 @@ const sourceText = `
     }
     const first = new First(seed);
     const second = new Second(seed);
-    return apply((left, right) => left + right + first.value + second.value, seed);
+    const [left] = [seed];
+    const [right] = [seed];
+    const identity: (value: int32) => int32 = value => value;
+    return apply((left, right) => left + right + first.value + second.value, seed) + identity(left) + right;
   }
 `;
 const construct = "checked selected construct";
@@ -34,17 +43,22 @@ const producer = "selected native owner";
 const { source, program, nodes } = compileCsharpRequiredRecordSource(sourceText, "native");
 const { ast } = source;
 const records = program.records;
-const families = ["classFactory", "requiredStorageType", "nativeParticipation"];
+const families = ["classFactory", "requiredStorageType", "nativeParticipation", "callableTarget", "bindingPatternProjection", "sourceArgument", "nativeValueDeclaration"];
 const subjects = Object.freeze({
   classFactory: nodes.filter(node => ast.is.IsClassDeclaration(node)),
   requiredStorageType: nodes.filter(node => ast.is.IsParameterDeclaration(node) && records.lambdaParameterType.get(node) !== undefined),
   nativeParticipation: nodes.filter(node => ast.is.IsFunctionDeclaration(node)),
+  callableTarget: nodes.filter(node => records.callableTarget.get(node) !== undefined),
+  bindingPatternProjection: nodes.filter(node => ast.is.IsArrayBindingPattern(node) && records.bindingPatternProjection.get(node) !== undefined),
+  sourceArgument: nodes.filter(node => records.sourceArgument.get(node) !== undefined).slice(0, 2),
+  nativeValueDeclaration: nodes.filter(node => records.nativeValueDeclaration.get(node) !== undefined),
 });
 const ordinaryParameters = nodes.filter(node => ast.is.IsParameterDeclaration(node) &&
   (ast.is.IsFunctionDeclaration(ast.parent(node)) || ast.is.IsConstructorDeclaration(ast.parent(node))));
 for (const family of families) {
-  assert.equal(subjects[family].length === 2 && subjects[family].every(subject => records[family].get(subject) !== undefined), true,
-    `${family}: two exact checked subjects carry their published plan`);
+  const count = family === "requiredStorageType" ? 3 : 2;
+  assert.equal(subjects[family].length === count && subjects[family].every(subject => records[family].get(subject) !== undefined), true,
+    `${family}: every exact checked subject carries its published plan`);
 }
 assert.equal(ordinaryParameters.length === 5, true, "five ordinary function and constructor parameters");
 
@@ -66,7 +80,7 @@ function readingRecords(base, reads) {
 test("the record input fixture is the exact inverse of the mandatory assembly", () => {
   const assembled = createCsharpProgramRecords(csharpRecordInput(records), []);
   const names = Object.keys(records);
-  assert.equal(Object.isFrozen(assembled) && Object.keys(assembled).length === 120 && names.length === 120, true,
+  assert.equal(Object.isFrozen(assembled) && Object.keys(assembled).length === 117 && names.length === 117, true,
     "the assembly returns every current record family, frozen");
   assert.equal(names.every(family => assembled[family] === records[family]), true, "every assembled reader is the published reader");
 });
@@ -74,6 +88,70 @@ test("the record input fixture is the exact inverse of the mandatory assembly", 
 test("the assembly has no optional requirement list", () => {
   assert.throws(() => createCsharpProgramRecords(csharpRecordInput(records)), TypeError, "the removed one-argument form fails");
   assert.throws(() => createCsharpProgramRecords(csharpRecordInput(records), undefined), TypeError, "an absent list is not an empty list");
+});
+
+test("native-use requirements preserve owner, semantic slot and context, not just the expression", () => {
+  const entry = nodes.map(node => records.nativeUse.expression(node)).find(entry => entry?.use.kind !== "erased" &&
+    entry?.use.completion.kind === "value");
+  assert.equal(entry !== undefined, true, "the real program has an admitted exact native conversion use");
+  const row = { family: "nativeUse", subject: entry.use.expression, site: entry.site, construct, producer };
+  assertCsharpRequiredRecords(records, [row]);
+  const other = targetUseSiteRef(entry.site.subject, entry.site.role, entry.site.enclosingContract, "different native context");
+  assert.equal(records.nativeUse.get(other) === undefined && records.nativeUse.get(entry.site) === entry.use, true,
+    "the published sibling does not satisfy another exact context");
+  assert.throws(() => assertCsharpRequiredRecords(records, [{ ...row, site: other }]), failure("nativeUse", row.subject));
+});
+
+test("exact conversion requirements cannot fall back to another expression or conversion mode", () => {
+  const entry = nodes.map(node => records.nativeUse.expression(node)).find(entry => entry?.use.kind !== "erased" &&
+    entry?.use.completion.kind === "value");
+  assert.equal(entry !== undefined, true, "the real program contains a completing native conversion use");
+  const use = entry.use;
+  const row = { family: "expressionConversion", subject: use.expression, source: use.carrier,
+    target: use.kind === "converted" ? use.target : use.carrier, mode: use.kind === "converted" ? use.mode : "implicit", construct, producer };
+  assertCsharpRequiredRecords(records, [row]);
+  assert.equal(records.conversion.get(row.source, row.target, row.mode) !== undefined, true, "the corresponding type pair remains present");
+  const omitted = csharpRecordsOmitting(records, "expressionConversion", row.subject);
+  assert.throws(() => assertCsharpRequiredRecords(omitted, [row]), failure("expressionConversion", row.subject),
+    "a pair is not exact expression evidence");
+  assert.throws(() => assertCsharpRequiredRecords(records, [{ ...row, subject: program.sourceFiles[0] }]),
+    failure("expressionConversion", program.sourceFiles[0]), "an unrelated source subject cannot borrow the published pair");
+});
+
+test("the seal rejects an omitted exact literal at its own source and native target", () => {
+  const literals = nodes.filter(node => ast.is.IsVariableDeclaration(node) &&
+    ast.is.IsIdentifier(ast.name(node)) && ["firstLiteral", "secondLiteral"].includes(ast.text(ast.name(node))))
+    .map(node => ast.as.AsVariableDeclaration(node).Initializer);
+  assert.equal(literals.length, 2, "two real checked literal subjects");
+  const rows = literals.map(subject => ({ family: "exactLiteral", subject,
+    target: records.nativeUse.expression(subject).use.carrier, construct, producer }));
+  assert.equal(rows.every(row => records.exactLiteral.get(row.subject, row.target)?.kind === "resolved"), true,
+    "both native literal producers publish their exact target");
+  assertCsharpRequiredRecords(records, rows);
+  const omitted = csharpRecordsOmitting(records, "exactLiteral", rows[1].subject);
+  assertCsharpRequiredRecords(omitted, [rows[0]]);
+  assert.throws(() => createCsharpProgramRecords(csharpRecordInput(omitted), rows), failure("exactLiteral", rows[1].subject),
+    "the present sibling literal never supplies the omitted subject");
+  const wrongTarget = { ...rows[1], target: { kind: "source-primitive", name: "bool" } };
+  assert.throws(() => assertCsharpRequiredRecords(records, [wrongTarget]), failure("exactLiteral", rows[1].subject),
+    "a present source literal never supplies a different native target");
+});
+
+test("a conversion premise cannot borrow the exact expression classification", () => {
+  const subject = nodes.find(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "firstLiteral");
+  const expression = ast.as.AsVariableDeclaration(subject).Initializer;
+  const use = records.nativeUse.expression(expression).use;
+  const row = { family: "conversion", subject: expression, source: use.carrier,
+    target: use.kind === "converted" ? use.target : use.carrier,
+    mode: use.kind === "converted" ? use.mode : "implicit", construct, producer };
+  assertCsharpRequiredRecords(records, [row]);
+  assert.equal(records.expressionConversion.get(expression, row.source, row.target, row.mode) !== undefined, true,
+    "the independently required expression classification is still present");
+  const omitted = Object.freeze({ ...records, conversion: Object.freeze({ get(source, target, mode) {
+    return source === row.source && target === row.target && mode === row.mode ? undefined : records.conversion.get(source, target, mode);
+  } }) });
+  assert.throws(() => createCsharpProgramRecords(csharpRecordInput(omitted), [row]), failure("conversion", expression),
+    "expression evidence is not the owning pair publication");
 });
 
 for (const family of families) {

@@ -49,13 +49,14 @@ import type {
   CsharpDestructuringAssignmentPattern,
   CsharpDestructuringAssignmentTarget,
 } from "../../target-model/records/value-projections.js";
-import { selectCsharpBindingPatternProjection } from "../../policy/types/objects/binding-projection-policy.js";
+import { selectCsharpBindingPatternProjection, selectCsharpDefaultValueContract } from "../../policy/types/objects/binding-projection-policy.js";
 import { csharpBindingDefaultCarrier } from "../../target-model/types/binding-normalization.js";
 import {
   isCsharpNeverTargetType,
   isCsharpVoidTargetType,
 } from "../../target-model/types/index.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/index.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 
 export interface CsharpBindingPatternAnalysisInput {
   readonly ast: AstReader;
@@ -74,6 +75,26 @@ export interface CsharpBindingPatternCandidate extends CsharpBindingPatternIssue
 
 export interface CsharpBindingPatternAnalysis extends CsharpBindingPatternClassifications {
   readonly candidates: readonly CsharpBindingPatternCandidate[];
+  readonly entries: readonly { readonly node: Node; readonly root: Node; readonly fact: CsharpBindingProjectionFact }[];
+}
+
+export function admitCsharpBindingPatterns(
+  patterns: CsharpBindingPatternAnalysis,
+  requiredRoots: readonly Node[],
+  requiredRecords: CsharpRequiredRecord[],
+): CsharpBindingPatternClassifications & { readonly issues: readonly CsharpBindingPatternIssue[] } {
+  const required = new Set(requiredRoots);
+  const published = new Map<Node, CsharpBindingProjectionFact>();
+  for (const entry of patterns.entries) {
+    if (!required.has(entry.root)) continue;
+    requireCsharpRecord(requiredRecords, { family: "bindingPatternProjection", subject: entry.node,
+      construct: "consumed native binding pattern", producer: "admitCsharpBindingPatterns" });
+    published.set(entry.node, entry.fact);
+  }
+  return Object.freeze({
+    bindingPatternProjection: Object.freeze({ get: (node: Node) => published.get(node) }),
+    issues: Object.freeze(patterns.candidates.filter(candidate => required.has(candidate.root))),
+  });
 }
 
 export function isCsharpUnusedTupleDefault(
@@ -95,7 +116,8 @@ export function analyzeCsharpBindingPatterns(
   input: CsharpBindingPatternAnalysisInput,
 ): CsharpBindingPatternAnalysis {
   const { ast } = input;
-  const facts = new WeakMap<Node, CsharpBindingProjectionFact>();
+  const facts = new Map<Node, CsharpBindingProjectionFact>();
+  const roots = new Map<Node, Node>();
   const lookup = Object.freeze({ get: (node: Node) => facts.get(node) });
   const candidates: CsharpBindingPatternCandidate[] = [];
   const assignmentDefaults = new WeakSet<Node>();
@@ -104,6 +126,7 @@ export function analyzeCsharpBindingPatterns(
   return Object.freeze({
     bindingPatternProjection: lookup,
     candidates: Object.freeze(candidates),
+    entries: Object.freeze([...facts].map(([node, fact]) => Object.freeze({ node, fact, root: roots.get(node)! }))),
   });
 
   function visit(node: Node, sourceFile: SourceFile): void {
@@ -166,11 +189,24 @@ export function analyzeCsharpBindingPatterns(
   }
 
   function recordSource(node: Node, source: CsharpBindingPatternSource): void {
+    if (root === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A binding projection requires its checked root.", node);
+    roots.set(node, root);
     facts.set(node, Object.freeze({ ...facts.get(node), source: Object.freeze(source) }));
   }
 
-  function recordElement(node: Node, element: CsharpBindingElementProjection): void {
-    facts.set(node, Object.freeze({ ...facts.get(node), element: Object.freeze(element) }));
+  function recordElement(node: Node, element: CsharpBindingElementProjection, initializer?: Node, presence = false): void {
+    if (root === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A binding element requires its checked root.", node);
+    roots.set(node, root);
+    const source = element.kind === "array-element" ? element.elementCarrier
+      : element.kind === "object-shape-member" ? element.member.type : undefined;
+    const tupleDefault = element.kind === "array-element" ? element.tupleDefault : undefined;
+    const initialType = initializer === undefined ? undefined : input.evidence.nodeTargetType.get(initializer);
+    const target = tupleDefault?.kind === "planned" ? tupleDefault.carrier
+      : source === undefined || initialType === undefined ? undefined : csharpBindingDefaultCarrier(source, initialType);
+    const defaultValue = source === undefined || target === undefined || initializer === undefined || tupleDefault?.kind === "unused"
+      ? undefined : selectCsharpDefaultValueContract(source, target, presence);
+    facts.set(node, Object.freeze({ ...facts.get(node), element: Object.freeze(element),
+      ...(defaultValue === undefined ? {} : { defaultValue }) }));
   }
 
   function carrierDetail(sourceNode: Node, defaultReason: string): { readonly reason: string; readonly evidence: readonly string[] } {
@@ -218,7 +254,7 @@ export function analyzeCsharpBindingPatterns(
       const projection = selectCsharpBindingPatternProjection({ kind: "array-element", carrier: bindingCarrier,
         index, rest: element.DotDotDotToken !== undefined, hasDefault: element.Initializer !== undefined });
       if (projection.kind !== "element") continue;
-      recordElement(elementNode, projection.element);
+      recordElement(elementNode, projection.element, element.Initializer, bindingCarrier.kind === "array");
       if (projection.element.kind === "array-rest" || projection.element.kind === "tuple-rest") {
         analyzeNested(name, elementNode, sourceFile, projection.element.restCarrier);
         continue;
@@ -231,9 +267,9 @@ export function analyzeCsharpBindingPatterns(
       } else if (tupleDefault !== undefined) {
         analyzeNested(name, elementNode, sourceFile, tupleDefault.kind === "planned" ? tupleDefault.carrier : elementCarrier);
       } else if (bindingCarrier.kind === "array") {
-        const defaultValue = input.evidence.nodeTargetType.get(element.Initializer);
+        const defaultValue = facts.get(elementNode)?.defaultValue;
         if (defaultValue !== undefined) {
-          analyzeNested(name, elementNode, sourceFile, csharpBindingDefaultCarrier(bindingCarrier.element, defaultValue));
+          analyzeNested(name, elementNode, sourceFile, defaultValue.target);
         }
       }
     }
@@ -311,14 +347,14 @@ export function analyzeCsharpBindingPatterns(
         continue;
       }
       const { member } = selected.element;
-      recordElement(elementNode, selected.element);
+      recordElement(elementNode, selected.element, element.Initializer);
       if (element.Initializer === undefined) {
         analyzeNested(name, elementNode, sourceFile, member.type);
         continue;
       }
-      const defaultValue = input.evidence.nodeTargetType.get(element.Initializer);
+      const defaultValue = facts.get(elementNode)?.defaultValue;
       if (defaultValue !== undefined) {
-        analyzeNested(name, elementNode, sourceFile, csharpBindingDefaultCarrier(member.type, defaultValue));
+        analyzeNested(name, elementNode, sourceFile, defaultValue.target);
       }
     }
   }
@@ -389,6 +425,8 @@ export function analyzeCsharpBindingPatterns(
       issue(selected.pattern, "Destructuring assignment target is outside the current C# planning surface.");
       return;
     }
+    if (root === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A destructuring assignment requires its checked root.", node);
+    roots.set(node, root);
     facts.set(node, Object.freeze({ ...facts.get(node), assignmentPattern: pattern }));
     if (!completesWithValue(selected.source)) return;
     admitSource(selected.pattern, selected.source, sourceFile, "Destructuring assignment source");
@@ -401,6 +439,9 @@ export function analyzeCsharpBindingPatterns(
     sourceFile: SourceFile,
     sourceCarrier: TargetTypeRef | undefined,
   ): void {
+    if (root === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An assignment projection requires its checked root.", pattern.sourceNode);
+    roots.set(pattern.sourceNode, root);
+    facts.set(pattern.sourceNode, Object.freeze({ ...facts.get(pattern.sourceNode), assignmentPattern: pattern }));
     if (pattern.kind === "array") {
       analyzeArrayAssignmentPattern(pattern, sourceNode, sourceFile, sourceCarrier);
     } else {
@@ -427,7 +468,7 @@ export function analyzeCsharpBindingPatterns(
       const projection = selectCsharpBindingPatternProjection({ kind: "array-element", carrier: bindingCarrier,
         index, rest: element.rest, hasDefault: element.initializer !== undefined });
       if (projection.kind !== "element") continue;
-      recordElement(element.sourceNode, projection.element);
+      recordElement(element.sourceNode, projection.element, element.initializer, bindingCarrier.kind === "array");
       if (projection.element.kind === "array-rest" || projection.element.kind === "tuple-rest") {
         analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, projection.element.restCarrier);
         continue;
@@ -440,9 +481,9 @@ export function analyzeCsharpBindingPatterns(
       } else if (tupleDefault !== undefined) {
         analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, tupleDefault.kind === "planned" ? tupleDefault.carrier : elementCarrier);
       } else if (bindingCarrier.kind === "array") {
-        const defaultValue = input.evidence.nodeTargetType.get(element.initializer);
+        const defaultValue = facts.get(element.sourceNode)?.defaultValue;
         if (defaultValue !== undefined) {
-          analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, csharpBindingDefaultCarrier(bindingCarrier.element, defaultValue));
+          analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, defaultValue.target);
         }
       }
     }
@@ -487,14 +528,14 @@ export function analyzeCsharpBindingPatterns(
         continue;
       }
       const { member } = selected.element;
-      recordElement(element.sourceNode, selected.element);
+      recordElement(element.sourceNode, selected.element, element.initializer);
       if (element.initializer === undefined) {
         analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, member.type);
         continue;
       }
-      const defaultValue = input.evidence.nodeTargetType.get(element.initializer);
+      const defaultValue = facts.get(element.sourceNode)?.defaultValue;
       if (defaultValue !== undefined) {
-        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, csharpBindingDefaultCarrier(member.type, defaultValue));
+        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, defaultValue.target);
       }
     }
   }

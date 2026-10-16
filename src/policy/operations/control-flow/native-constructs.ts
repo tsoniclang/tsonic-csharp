@@ -55,8 +55,8 @@ export function selectCsharpNativeConstructSteps(input: CsharpNativeConstructInp
   if (ast.is.IsConstructorDeclaration(node)) {
     const call = input.baseCalls.get(node);
     const body = ast.body(node);
-    return finish([...attributes, ...parameters(), ...(call === undefined ? [] : ast.arguments(call).flatMap((argument, index) =>
-      use(argument, { kind: "base-argument", sourceIndex: index }))), ...(body === undefined ? [] : [construct(body)])]);
+    return finish([...attributes, ...parameters(), ...(call === undefined ? [] : use(call, { kind: "effect" })),
+      ...(body === undefined ? [] : [construct(body)])]);
   }
   if (ast.is.IsForStatement(node)) {
     const statement = ast.as.AsForStatement(node);

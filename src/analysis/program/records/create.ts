@@ -8,7 +8,8 @@ import type { CsharpExactLiteralSelectionIndex } from "../../../target-model/con
 import type { CsharpDeclarationClassifications } from "../../../target-model/records/declarations.js";
 import type { CsharpExpectedTypeClassifications } from "../../../target-model/records/expected-types.js";
 import type { CsharpModuleInitializationIndex } from "../../../target-model/records/module-initialization.js";
-import type { CsharpNativeParticipationInput } from "../../../target-model/records/native-demand.js";
+import type { CsharpNativeParticipationInput, CsharpNativeUseClassifications } from "../../../target-model/records/native-demand.js";
+import type { CsharpBindingPatternClassifications } from "../../../target-model/records/value-projections.js";
 import type { CsharpNumericRepresentations } from "../../../target-model/records/numeric.js";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations.js";
 import type { CsharpSafetyApplicationFactIndex } from "../../../target-model/records/safety.js";
@@ -20,11 +21,14 @@ import type { CsharpGenericProjectionIndex } from "../../../target-model/records
 import type { CsharpProgramRecords } from "../../../target-model/records/program.js";
 import type { CsharpNativeValueCarriers } from "../../../target-model/records/native-value-carriers.js";
 import { assertCsharpRequiredRecords, type CsharpRequiredRecord } from "./required-records.js";
+import type { CsharpCallableCreationIndex } from "../../callables/model.js";
 
 export interface CsharpProgramRecordInput {
   readonly nativeValueCarriers: CsharpNativeValueCarriers;
   readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
   readonly nativeParticipation: CsharpNativeParticipationInput;
+  readonly nativeDemand: CsharpNativeUseClassifications;
+  readonly bindingPatterns: CsharpBindingPatternClassifications;
   readonly sourceEvidence: CsharpSourceEvidenceIndex;
   readonly flowReads: CsharpFlowReadClassifications;
   readonly valueReads: CsharpValueReadClassifications;
@@ -37,6 +41,7 @@ export interface CsharpProgramRecordInput {
   readonly classFactories: CsharpClassFactoryIndex;
   readonly classInitialization: CsharpClassInitializationIndex;
   readonly captureStorage: CsharpCaptureStorage;
+  readonly callableCreations: CsharpCallableCreationIndex;
   readonly numericRepresentations: CsharpNumericRepresentations;
   readonly typeProjections: CsharpGenericProjectionIndex;
   readonly callableAdapters: CsharpProjectCallableAdapters;
@@ -54,6 +59,8 @@ export function createCsharpProgramRecords(
     nativeValueDeclaration: input.nativeValueCarriers.nativeValueDeclaration,
     literalValue: input.literalValues.literalValue,
     nativeParticipation: input.nativeParticipation.participation,
+    nativeUse: input.nativeDemand.nativeUse,
+    bindingPatternProjection: input.bindingPatterns.bindingPatternProjection,
     attributeApplication: input.attributeApplications.attributeApplication,
     callableDispatch: input.callableAdapters.callableDispatch,
     captureFrame: input.captureStorage.captureFrame,
@@ -81,14 +88,8 @@ export function createCsharpProgramRecords(
     returnContract: input.declarations.returnContract,
     runtimeDefault: input.declarations.runtimeDefault,
     methodWrite: input.declarations.methodWrite,
-    expectedType: input.expectedTypes.expectedType,
-    requiredExpectedType: input.expectedTypes.requiredExpectedType,
     returnContext: input.expectedTypes.returnContext,
-    exactIntegerConversion: input.expectedTypes.exactIntegerConversion,
-    storageExpectedType: input.expectedTypes.storageExpectedType,
-    callableTarget: input.expectedTypes.callableTarget,
-    arrayLiteralCarrier: input.expectedTypes.arrayLiteralCarrier,
-    expectedBinary: input.expectedTypes.expectedBinary,
+    callableTarget: input.callableCreations.callableTarget,
     moduleInitializationDependencies: input.moduleInitialization.moduleInitializationDependencies,
     requiresModuleInitializer: input.moduleInitialization.requiresModuleInitializer,
     asyncModuleInitializer: input.moduleInitialization.asyncModuleInitializer,

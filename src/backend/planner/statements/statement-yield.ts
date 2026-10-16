@@ -29,9 +29,7 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
-import {
-  planExpressionWithExpectedType,
-} from "../expressions/index.js";
+import { planExpression } from "../expressions/index.js";
 import { csharpPlannedValue } from "../expressions/planned-values.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
 export interface CsharpYieldValuePlan {
@@ -83,15 +81,7 @@ export function planCsharpYieldValue(
         type: yieldType,
         nullForgiving: true,
       })
-    : planExpressionWithExpectedType(
-        source.operand.expression,
-        sourceFile,
-        input,
-        diagnostics,
-        yieldType,
-        source.operand.expression,
-        state,
-        generator.protocol.yieldType,
+    : planExpression(source.operand.expression, sourceFile, input, diagnostics, state
       );
   if (yieldedExpression === undefined) {
     return undefined;
@@ -166,15 +156,7 @@ function planCsharpDelegatedYield(
     ));
     return undefined;
   }
-  const delegatedExpression = planExpressionWithExpectedType(
-    operand.expression,
-    sourceFile,
-    input,
-    diagnostics,
-    delegatedTypeNode,
-    operand.expression,
-    state,
-    delegatedType,
+  const delegatedExpression = planExpression(operand.expression, sourceFile, input, diagnostics, state
   );
   if (delegatedExpression === undefined) {
     return undefined;

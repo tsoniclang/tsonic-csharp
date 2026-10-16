@@ -194,19 +194,24 @@ export function analyzeCsharpStorage(
     const selectedSignature = callableTarget === undefined
       ? undefined
       : getCsharpLambdaSignature(callableTarget);
-    const signatures = selectedSignature === undefined ? [] : [selectedSignature];
-    for (const signature of signatures) {
-      if (parameters.length > signature.parameters.length) {
+    const nativeContract = contextual && callableTarget === undefined
+      ? callables.get({ kind: "declaration", declaration: node })
+      : undefined;
+    const parameterTypes = selectedSignature === undefined
+      ? nativeContract?.parameters.map(parameter => parameter.targetParameter.type)
+      : selectedSignature.parameters;
+    if (parameterTypes !== undefined) {
+      if (parameters.length > parameterTypes.length) {
         issues.push(issue(
-          parameters[signature.parameters.length]!,
+          parameters[parameterTypes.length]!,
           "CSHARP_LAMBDA_PARAMETER_ARITY_CONFLICT",
           "The source lambda declares more parameters than its exact selected C# delegate representation.",
         ));
-        continue;
+        return;
       }
       for (let index = 0; index < parameters.length; index += 1) {
         const parameter = parameters[index]!;
-        const targetType = signature.parameters[index]!;
+        const targetType = parameterTypes[index]!;
         const declaration = policy.ast.as.AsParameterDeclaration(parameter);
         const authored = declaration?.Type === undefined
           ? undefined

@@ -109,7 +109,7 @@ export function createCsharpExpectedUseCollection(policy: Pick<CsharpPolicyConte
             ...(expression === undefined ? {} : { expression }), ...(targetType === undefined ? {} : { targetType }) });
         entry.requests.set(parent, request);
         if (request.kind === "requested") pending.push({ value: Object.freeze({ expression: request.expression,
-          targetType: request.targetType, strength: request.strength, exactInteger: request.exactInteger, site: entry.site }),
+          targetType: request.targetType, strength: request.strength, exactInteger: request.exactInteger, site: entry.site, mode: request.mode }),
           current: request, entry, ...(parent === undefined ? {} : { parent }) });
       }
     }

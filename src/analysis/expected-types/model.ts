@@ -26,7 +26,7 @@ export interface CsharpExpectedTypeAnalysisInput {
   readonly objectShapes: CsharpObjectShapeClassifications;
   readonly callables: CsharpCallableContractIndex;
   readonly valueReadStages: CsharpValueReadStageIndex;
-  readonly declarations: Pick<CsharpDeclarationClassifications, "returnContract">;
+  readonly declarations: Pick<CsharpDeclarationClassifications, "returnContract" | "runtimeDefault">;
 }
 
 export interface CsharpExpectedTypeAnalysis extends CsharpExpectedTypeClassifications {
@@ -43,6 +43,7 @@ export interface CsharpExpectedTypeUse {
 export interface CsharpExpectedTypePending extends CsharpExpectedTypeUse {
   readonly expression: Node;
   readonly site?: TargetUseSiteRef;
+  readonly mode?: CsharpConversionMode;
 }
 
 export type CsharpExpectedUseWithholding =
@@ -83,8 +84,7 @@ export interface CsharpExpectedNativeUseFinalInput {
   readonly exactLiteral: CsharpExactLiteralSelectionIndex["exactLiteral"];
   readonly callableCreation: { readonly get: (expression: Node) => CsharpNativeCallableCreation | undefined };
   readonly valueRead: CsharpValueReadClassifications["valueRead"];
-  readonly absentValue: { readonly get: (expression: Node) => boolean };
-  readonly operations: Pick<CsharpTargetOperationClassifications, "binaryOperation">;
+  readonly operations: Pick<CsharpTargetOperationClassifications, "binaryOperation" | "operatorForm">;
 }
 
 export type CsharpExpectedNativeUsePendingReason = CsharpNativeRepresentationPending | CsharpExpectedUseWithholding
@@ -92,6 +92,7 @@ export type CsharpExpectedNativeUsePendingReason = CsharpNativeRepresentationPen
 
 export interface CsharpExpectedNativeUseAdmission extends CsharpExpectedNativeUseInput {
   readonly entries: readonly { readonly site: TargetUseSiteRef; readonly use: CsharpExpectedNativeUse }[];
-  readonly pending: readonly { readonly site: TargetUseSiteRef; readonly reason: CsharpExpectedNativeUsePendingReason }[];
+  readonly pending: readonly { readonly site: TargetUseSiteRef; readonly reason: CsharpExpectedNativeUsePendingReason;
+    readonly expression?: Node; readonly message?: string }[];
   readonly inactive: readonly TargetUseSiteRef[];
 }

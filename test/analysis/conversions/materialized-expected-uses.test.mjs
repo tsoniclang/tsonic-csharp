@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
 
 const source = `
   import type { int32 } from "@tsonic/core/types.js";
@@ -21,13 +22,13 @@ function compiled(surface) {
     nodes.push(node);
     program.source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
   }
-  return { program, nodes, artifacts: result.artifacts, diagnostics: result.targetDiagnostics };
+  return { program, nodes, expected: createExpectedNativeUseOwner(result).analysis,
+    artifacts: result.artifacts, diagnostics: result.targetDiagnostics };
 }
 
 for (const surface of ["native", "js"]) {
   test(`expected-type views are materialized once and read by lookup in ${surface}`, () => {
-    const { program, nodes } = compiled(surface);
-    const records = program.records;
+    const { expected: records, nodes } = compiled(surface);
     let expectedNodes = 0;
     for (const node of nodes) {
       const all = records.expectedType.get(node);
@@ -48,8 +49,7 @@ for (const surface of ["native", "js"]) {
   });
 
   test(`expected binary selections are materialized per contextual target in ${surface}`, () => {
-    const { program, nodes } = compiled(surface);
-    const records = program.records;
+    const { expected: records, nodes, program } = compiled(surface);
     const binaries = nodes.filter(node => program.source.ast.is.IsBinaryExpression(node));
     let selected = 0;
     for (const node of binaries) {

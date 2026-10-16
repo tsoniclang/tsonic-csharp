@@ -34,8 +34,9 @@ function fixture(destination = string, completion) {
   ] };
   const pairs = [];
   const input = { program: { source: { ast },
-    records: { expectedType: { get: () => [] },
-      arrayLiteralCarrier: { get: () => undefined },
+    records: { nativeUse: { expression: node => node === array ? { use: {
+      kind: "constructed", carrier: { kind: "array", element: destination },
+    } } : undefined },
       conversion: { get(from, to, mode) {
     pairs.push([from, to, mode]);
     return targetTypeRefEquals(from, to) ? { kind: "identity" } : { kind: "rejected", reason: "No selected native conversion." };
@@ -106,7 +107,8 @@ test("borrowed construction admits only the sealed contextual destination withou
     () => [], () => []);
   assert.equal(consume(), undefined);
   assert.equal(state.pairs.length, 0);
-  state.input.program.records.expectedType = { get: node => node === state.array ? [contextual] : [] }; state.input.program.records.arrayLiteralCarrier = { get: (node, target) => node === state.array && target === contextual ? contextual : undefined };
+  state.input.program.records.nativeUse = { expression: node => node === state.array
+    ? { use: { kind: "constructed", carrier: contextual } } : undefined };
   assert.equal(consume(), undefined);
   assert.deepEqual(state.pairs, [[string, int32, "implicit"]]);
   assert.equal(state.diagnostics.length, 2);

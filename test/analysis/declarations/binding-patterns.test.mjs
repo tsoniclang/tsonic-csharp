@@ -1,17 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { compileCsharpSource, checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpBindingPatterns, isCsharpUnusedTupleDefault } from "../../../dist/analysis/control-flow/binding-patterns.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+import { csharpJsSetTargetType } from "../../../dist/target-model/types/carriers/js.js";
 
 const arrayMessage = "Array destructuring requires a finalized provider array or tuple runtime-carrier fact for the source expression. Runtime carrier fact is missing for the array destructuring source expression.";
 
 function publishedProgram(sourceText, surface) {
   const compiled = compileCsharpSource({ sourceText, surface });
   assert.equal(compiled.sourceDiagnosticsText, "", "the source checks without diagnostics");
-  assert.equal(compiled.result.program !== undefined, true, "the analysis publishes a program");
+  assert.equal(compiled.result.program !== undefined, true, `the analysis publishes a program: ${compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; ")}`);
   return { program: compiled.result.program, source: createTargetSourceProgram(compiled.source) };
 }
 
@@ -67,7 +68,7 @@ test("binding facts and tuple defaults are computed once for declaration, parame
   const ast = program.source.ast;
   assert.equal(Object.isFrozen(analysis) && Object.isFrozen(analysis.candidates), true, "the analysis result is frozen");
   assert.equal(analysis.candidates.length === 0, true, "every pattern of the program has its facts and no candidate issue");
-  assert.equal(Object.hasOwn(program.records, "bindingPatternProjection"), false, "the facts are not published as a record family");
+  assert.equal(Object.hasOwn(program.records, "bindingPatternProjection"), true, "the final admitted facts use the canonical record family");
 
   const declared = findNode(program, "KindArrayBindingPattern", "[first = 1]");
   assert.equal(projection.get(declared)?.source?.kind === "array-source" &&
@@ -104,18 +105,35 @@ test("binding facts and tuple defaults are computed once for declaration, parame
 });
 
 test("an unsupported pattern stays a candidate issue with its pattern root and nothing is rejected", () => {
-  const { program, source } = publishedProgram(`
+  const sourceText = `
     export function example(): number { const [value] = new Set([1]); return value; }
-  `, "js");
-  const analysis = analyzeCsharpBindingPatterns(factsInput(program, source));
+  `;
+  const checked = checkCsharpSource({ sourceText, surface: "js" });
+  assert.equal(checked.sourceDiagnosticsText, "", "the original unsupported pattern remains source-valid");
+  const source = createTargetSourceProgram(checked.source);
+  const program = { source, sourceFiles: source.navigation.sourceFiles };
   const declaration = findNode(program, "KindVariableDeclaration", "[value] = new Set([1])");
   const pattern = findNode(program, "KindArrayBindingPattern", "[value]");
+  const initializer = source.ast.as.AsVariableDeclaration(declaration).Initializer;
+  const carrier = csharpJsSetTargetType(csharpSourcePrimitiveTargetType("float64"));
+  const analysis = analyzeCsharpBindingPatterns({ ast: source.ast, semanticsFor: source.semantics.forNode,
+    sourceFiles: program.sourceFiles, participation: { get: () => "body" },
+    evidence: { compileTimeMetadata: { get: () => false } },
+    operations: { nativeUnreachable: { get: () => false } },
+    valueReads: { valueRead: { get: node => node === initializer ? { value: carrier } : undefined } },
+    objectShapes: { resolveNode: () => undefined } });
   assert.equal(analysis.candidates.length === 1, true, "one candidate issue");
   const [candidate] = analysis.candidates;
   assert.equal(candidate.node === pattern && candidate.root === declaration, true, "the candidate names its pattern and its declaration root");
   assert.equal(candidate.code === "CSHARP_UNSUPPORTED_AST" && candidate.message === arrayMessage && candidate.evidence.length === 0, true,
     "the candidate keeps the existing code and message");
   assert.equal(analysis.bindingPatternProjection.get(pattern) === undefined, true, "the unsupported pattern has no facts");
+  const compiled = compileCsharpSource({ sourceText, surface: "js" });
+  const errors = compiled.targetDiagnostics.filter(diagnostic => diagnostic.category === "error");
+  assert.equal(errors.length === 1 && errors[0].code === candidate.code && errors[0].message === candidate.message, true,
+    "actual demand admission rejects at the same owner before conversions and publication");
+  assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+    "the admitted source refusal never publishes a partially sealed program");
 });
 
 test("binding traversal consumes final participation and skips the complete unused-default subtree", () => {

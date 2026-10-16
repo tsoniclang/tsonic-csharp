@@ -38,7 +38,7 @@ export function planCsharpArrayConstruction(
   for (const element of elements) {
     if (element === undefined) return undefined;
     if (!input.program.source.ast.is.IsSpreadElement(element)) {
-      const value = planner.planExpressionWithExpectedType(element, sourceFile, input, diagnostics, elementType, undefined, elementTarget);
+      const value = planner.planExpression(element, sourceFile, input, diagnostics);
       if (value === undefined) return undefined;
       contributions.push({ node: element, value });
       continue;

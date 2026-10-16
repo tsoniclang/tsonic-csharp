@@ -16,11 +16,7 @@ import { planCsharpJsValueLogical } from "./js-value-logical.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
-import type {
-  CallArgumentPlanner,
-  ExpectedExpressionPlanner,
-  ExpressionPlanner,
-} from "./expression-planner-types.js";
+import type { CallArgumentPlanner, ExpressionPlanner } from "./expression-planner-types.js";
 import {
   tryPlanJsArrayMutationExpression,
 } from "./expression-js-array-mutations.js";
@@ -45,19 +41,8 @@ import {
 export {
   planTypeofExpression,
 } from "./expression-typeof-operators.js";
-export {
-  tryPlanBinaryExpressionWithExpectedType,
-} from "./operators/binary-expected-type.js";
 
-export function tryPlanBinaryExpression(
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
-  planCallArgument: CallArgumentPlanner,
-  planExpressionWithExpectedType: ExpectedExpressionPlanner,
-  state?: DestructuringPlannerState,
+export function tryPlanBinaryExpression(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, planCallArgument: CallArgumentPlanner, state?: DestructuringPlannerState
 ): CsharpPlannedValue | undefined {
   if (!HasSourceKind(input.program.source.ast, node, KindBinaryExpression)) {
     return undefined;
@@ -71,7 +56,6 @@ export function tryPlanBinaryExpression(
       diagnostics,
       planExpression,
       planCallArgument,
-      planExpressionWithExpectedType,
       state,
     );
   }
@@ -154,16 +138,7 @@ export function tryPlanBinaryExpression(
     expression?.Left !== undefined &&
     expression.Right !== undefined
   ) {
-    return tryPlanJsValueAssignment(
-      node,
-      expression.Left,
-      expression.Right,
-      sourceOperator,
-      sourceFile,
-      input,
-      diagnostics,
-      planExpression,
-      planExpressionWithExpectedType,
+    return tryPlanJsValueAssignment(node, expression.Left, expression.Right, sourceOperator, sourceFile, input, diagnostics, planExpression
     );
   }
   const classification = input.program.records.binaryOperation.get(node);
@@ -179,28 +154,11 @@ export function tryPlanBinaryExpression(
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
   }
-  return planSelectedCsharpBinaryOperation(
-    node,
-    selection,
-    sourceFile,
-    input,
-    diagnostics,
-    planExpression,
-    planExpressionWithExpectedType,
-    state,
+  return planSelectedCsharpBinaryOperation(node, selection, sourceFile, input, diagnostics, planExpression, state
   );
 }
 
-function tryPlanJsValueAssignment(
-  node: Node,
-  left: Node,
-  right: Node,
-  sourceOperator: string,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
-  planExpressionWithExpectedType: ExpectedExpressionPlanner,
+function tryPlanJsValueAssignment(node: Node, left: Node, right: Node, sourceOperator: string, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner
 ): CsharpPlannedValue | undefined {
   if (input.program.source.ast.is.IsPropertyAccessExpression(left)) {
     const property = input.program.source.ast.as.AsPropertyAccessExpression(left);
@@ -257,14 +215,7 @@ function tryPlanJsValueAssignment(
         );
         const value = memberType === undefined
           ? undefined
-          : planExpressionWithExpectedType(
-              right,
-              sourceFile,
-              input,
-              diagnostics,
-              memberType,
-              undefined,
-              jsValueProperty.member.type,
+          : planExpression(right, sourceFile, input, diagnostics
             );
         if (receiver === undefined || value === undefined) {
           diagnostics.push(unsupportedNodeDiagnostic(

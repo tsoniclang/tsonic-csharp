@@ -6,22 +6,14 @@ import type { CsharpExpression } from "../../../target-ast/syntax/index.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import type { ExpectedExpressionPlanner, ExpressionPlanner } from "../expression-planner-types.js";
+import type { ExpressionPlanner } from "../expression-planner-types.js";
 import { planCsharpStorageIsAbsent } from "../optional-storage.js";
 import { planCsharpAssignmentLocation } from "./assignment-location.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";
 import { planCsharpValueBranch } from "../planned-value-composition.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 
-export function planCsharpClosedValueCoalescing(
-  node: Node,
-  selection: CsharpResolvedBinaryOperation,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
-  planExpressionWithExpectedType: ExpectedExpressionPlanner,
-  state: DestructuringPlannerState | undefined,
+export function planCsharpClosedValueCoalescing(node: Node, selection: CsharpResolvedBinaryOperation, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state: DestructuringPlannerState | undefined
 ): CsharpPlannedValue | undefined {
   const operation = selection.targetOperation;
   if (operation.kind !== "closed-value-coalesce") return undefined;
@@ -37,8 +29,7 @@ export function planCsharpClosedValueCoalescing(
     storage = nested;
   }
   const left = planExpression(storage, sourceFile, { ...input, storageExpression: storage }, diagnostics, state);
-  const right = planExpressionWithExpectedType(selection.right, sourceFile, input, diagnostics,
-    type, undefined, selection.rightInputType, state);
+  const right = planExpression(selection.right, sourceFile, input, diagnostics, state);
   if (left === undefined || right === undefined) return undefined;
   const build = (location: CsharpExpression): CsharpPlannedValue | undefined => {
     const name = allocateExpressionTemp(state);

@@ -6,7 +6,7 @@ import {
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { CsharpTargetParameter } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpArgument, CsharpTypeNode } from "../../target-ast/syntax/index.js";
+import type { CsharpArgument } from "../../target-ast/syntax/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -16,28 +16,13 @@ import {
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
-import type {
-  ExpectedExpressionPlanner,
-  ExpressionPlanner,
-} from "./expression-planner-types.js";
-import type { CsharpPlannedArgument, CsharpPlannedValue } from "./planned-values.js";
+import type { ExpressionPlanner } from "./expression-planner-types.js";
+import type { CsharpPlannedArgument } from "./planned-values.js";
 import { mapCsharpPlannedValue } from "./planned-values.js";
 import { isCsharpJsValueTargetType } from "../../../target-model/types/index.js";
 import { planCsharpPropertyValueProjection } from "./property-value-projection.js";
 
-export function planCallArgumentCore(
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
-  planExpressionWithExpectedType: ExpectedExpressionPlanner,
-  expectedType?: CsharpTypeNode,
-  expectedTypeSubject?: Node,
-  conversionExpectedTargetType?: TargetTypeRef,
-  expectedArgumentPassingMode: CsharpTargetParameter["passingMode"] = "by-value",
-  state?: DestructuringPlannerState,
-  selectedTargetParameter?: CsharpTargetParameter,
+export function planCallArgumentCore(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, conversionExpectedTargetType?: TargetTypeRef, expectedArgumentPassingMode: CsharpTargetParameter["passingMode"] = "by-value", state?: DestructuringPlannerState, selectedTargetParameter?: CsharpTargetParameter
 ): CsharpPlannedArgument | undefined {
   const selected = input.program.records.sourceArgument.get(node);
   if (selected === undefined) {
@@ -96,18 +81,7 @@ export function planCallArgumentCore(
         planCsharpPropertyValueProjection(argument.storageExpression, sourceFile, input, diagnostics,
           original?.completion.carrier, value))
     : argument.passingMode === "by-value"
-    ? planCallArgumentExpression(
-        argument.storageExpression,
-        sourceFile,
-        input,
-        diagnostics,
-        planExpression,
-        planExpressionWithExpectedType,
-        expectedType,
-        expectedTypeSubject,
-        conversionExpectedTargetType,
-        state,
-      )
+    ? planExpression(argument.storageExpression, sourceFile, input, diagnostics, state)
     : planExpression(
         argument.storageExpression,
         sourceFile,
@@ -131,24 +105,6 @@ export function planCallArgumentCore(
     ...(nativeLocation?.kind === "resolved" ? { nativeLocation } : {}),
     ...(input.program.sourceNavigation.expressionEffects(argument.storageExpression).suspends ? { suspends: true } : {}),
   };
-}
-
-function planCallArgumentExpression(
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
-  planExpressionWithExpectedType: ExpectedExpressionPlanner,
-  expectedType?: CsharpTypeNode,
-  expectedTypeSubject?: Node,
-  conversionExpectedTargetType?: TargetTypeRef,
-  state?: DestructuringPlannerState,
-): CsharpPlannedValue | undefined {
-  if (expectedType !== undefined) {
-    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state);
-  }
-  return planExpression(node, sourceFile, input, diagnostics, state);
 }
 
 function csharpSupportsArgumentPassingMode(

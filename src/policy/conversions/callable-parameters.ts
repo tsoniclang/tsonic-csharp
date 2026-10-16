@@ -8,18 +8,43 @@ export function csharpCallableParameterConversionRequests(
   source: readonly CsharpTargetParameter[],
   target: readonly CsharpTargetParameter[],
 ): readonly { readonly source: TargetTypeRef; readonly target: TargetTypeRef }[] {
-  const sources = new Map<string, TargetTypeRef>();
-  const targets = new Map<string, TargetTypeRef>();
-  for (const [parameters, types] of [[source, sources], [target, targets]] as const) {
-    for (const parameter of parameters) {
-      types.set(targetTypeRefKey(parameter.type), parameter.type);
-      const element = restElement(parameter.type);
-      if (parameter.paramsArray === true && element !== undefined) types.set(targetTypeRefKey(element), element);
-      const present = parameter.optional === true ? getCsharpNullableElementTargetType(parameter.type) : undefined;
-      if (present !== undefined) types.set(targetTypeRefKey(present), present);
+  const requests = new Map<string, { readonly source: TargetTypeRef; readonly target: TargetTypeRef }>();
+  const request = (source: TargetTypeRef, target: TargetTypeRef): void => {
+    requests.set(conversionKey(source, target), Object.freeze({ source, target }));
+  };
+  if (!validParameters(source) || !validParameters(target)) return Object.freeze([]);
+  if (sameParameters(source, target)) {
+    source.forEach((parameter, index) => request(parameter.type, target[index]!.type));
+    return Object.freeze([...requests.values()]);
+  }
+  if (source.some(parameter => parameter.passingMode !== "by-value") || target.some(parameter => parameter.passingMode !== "by-value")) {
+    return Object.freeze([]);
+  }
+  let sourceIndex = 0;
+  let offset = 0;
+  for (const destination of target) {
+    const origin = source[sourceIndex];
+    if (destination.paramsArray === true) {
+      if (origin?.paramsArray === true && offset === 0) request(origin.type, destination.type);
+      const element = restElement(destination.type)!;
+      for (; sourceIndex < source.length; sourceIndex++) {
+        const parameter = source[sourceIndex]!;
+        if (parameter.optional === true) break;
+        request(parameter.paramsArray === true ? restElement(parameter.type)! : parameter.type, element);
+      }
+      break;
+    }
+    if (origin === undefined) continue;
+    if (origin.paramsArray === true) {
+      request(restElement(origin.type)!, destination.optional === true
+        ? getCsharpNullableElementTargetType(destination.type) ?? destination.type : destination.type);
+      offset++;
+    } else {
+      request(origin.type, destination.type);
+      sourceIndex++;
     }
   }
-  return Object.freeze([...sources.values()].flatMap(source => [...targets.values()].map(target => Object.freeze({ source, target }))));
+  return Object.freeze([...requests.values()]);
 }
 
 export function selectCsharpCallableParameterAdapters(
@@ -27,15 +52,10 @@ export function selectCsharpCallableParameterAdapters(
   target: readonly CsharpTargetParameter[],
   admitted: readonly CsharpCallableValueAdapter[],
 ): readonly CsharpCallableParameterAdapter[] | undefined {
-  const valid = (parameters: readonly CsharpTargetParameter[]) => parameters.every((parameter, index) =>
-    parameter.paramsArray !== true || index === parameters.length - 1 && restElement(parameter.type) !== undefined);
-  if (!valid(source) || !valid(target)) return undefined;
+  if (!validParameters(source) || !validParameters(target)) return undefined;
   const conversions = new Map(admitted.map(adapter => [conversionKey(adapter.source, adapter.target), adapter]));
   const conversion = (source: TargetTypeRef, target: TargetTypeRef) => conversions.get(conversionKey(source, target));
-  const same = source.length === target.length && source.every((parameter, index) =>
-    parameter.passingMode === target[index]!.passingMode && parameter.paramsArray === target[index]!.paramsArray &&
-    targetTypeRefEquals(parameter.type, target[index]!.type));
-  if (same) {
+  if (sameParameters(source, target)) {
     const adapters: CsharpCallableParameterAdapter[] = [];
     for (const [parameterIndex, parameter] of source.entries()) {
       const adapter = conversion(parameter.type, target[parameterIndex]!.type);
@@ -51,7 +71,7 @@ export function selectCsharpCallableParameterAdapters(
   let offset = 0;
   for (const [targetIndex, destination] of target.entries()) {
     const origin = source[sourceIndex];
-    const direct = origin === undefined || offset !== 0 || origin.paramsArray !== destination.paramsArray ? undefined
+    const direct = origin === undefined || offset !== 0 || (origin.paramsArray === true) !== (destination.paramsArray === true) ? undefined
       : conversion(origin.type, destination.type);
     if (direct !== undefined) {
       adapters.push(Object.freeze({ kind: "value", parameterIndex: sourceIndex++, adapter: direct }));
@@ -95,4 +115,15 @@ function restElement(type: TargetTypeRef): TargetTypeRef | undefined {
 
 function conversionKey(source: TargetTypeRef, target: TargetTypeRef): string {
   return JSON.stringify([targetTypeRefKey(source), targetTypeRefKey(target)]);
+}
+
+function validParameters(parameters: readonly CsharpTargetParameter[]): boolean {
+  return parameters.every((parameter, index) => parameter.paramsArray !== true ||
+    index === parameters.length - 1 && restElement(parameter.type) !== undefined);
+}
+
+function sameParameters(source: readonly CsharpTargetParameter[], target: readonly CsharpTargetParameter[]): boolean {
+  return source.length === target.length && source.every((parameter, index) =>
+    parameter.passingMode === target[index]!.passingMode && (parameter.paramsArray === true) === (target[index]!.paramsArray === true) &&
+    targetTypeRefEquals(parameter.type, target[index]!.type));
 }

@@ -25,6 +25,7 @@ export interface CsharpNativeRepresentationInput {
   readonly mode: CsharpConversionMode;
   readonly source?: TargetTypeRef;
   readonly absent: boolean;
+  readonly projection?: "present-payload";
   readonly literal: CsharpExactLiteralSelection | undefined;
   readonly callable: CsharpNativeCallableCreation | undefined;
   readonly constructionCarrier?: TargetTypeRef;
@@ -37,9 +38,11 @@ export type CsharpNativeRepresentationPending =
   | "construction-unresolved" | "operation-unresolved" | "forwarding-child-unresolved";
 
 export type CsharpNativeRepresentationSelection =
-  | { readonly kind: "pending"; readonly reason: CsharpNativeRepresentationPending }
+  | { readonly kind: "pending"; readonly reason: CsharpNativeRepresentationPending; readonly message?: string }
   | { readonly kind: "selected"; readonly representation: CsharpExpectedNativeUse["representation"];
       readonly carrier: TargetTypeRef; readonly children: readonly TargetUseSiteRef[];
+      readonly literal?: CsharpExpectedNativeUse["literal"];
+      readonly binary?: CsharpResolvedBinaryOperation;
       readonly construction?: CsharpExpectedNativeUse["construction"] };
 
 export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresentationInput): CsharpNativeRepresentationSelection {
@@ -48,7 +51,8 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
   const selected = (representation: CsharpExpectedNativeUse["representation"], carrier: TargetTypeRef,
     children: readonly TargetUseSiteRef[] = none): CsharpNativeRepresentationSelection =>
     Object.freeze({ kind: "selected", representation, carrier, children: Object.freeze([...children]) });
-  const pending = (reason: CsharpNativeRepresentationPending): CsharpNativeRepresentationSelection => Object.freeze({ kind: "pending", reason });
+  const pending = (reason: CsharpNativeRepresentationPending, message?: string): CsharpNativeRepresentationSelection =>
+    Object.freeze({ kind: "pending", reason, ...(message === undefined ? {} : { message }) });
   const child = (node: Node | undefined, slot: CsharpNativeUseSlot, carrier: TargetTypeRef): TargetUseSiteRef | undefined => {
     if (node === undefined) return undefined;
     const site = csharpNativeUseSite(expression, slot, { target: carrier, mode: input.mode });
@@ -60,9 +64,11 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
     return site === undefined ? pending("forwarding-child-unresolved") : selected("forward", target, [site]);
   };
 
-  if (ast.is.IsBinaryExpression(expression)) {
+  if (input.projection === "present-payload") return input.source === undefined ? pending("source-unresolved")
+    : selected(targetTypeRefEquals(input.source, target) ? "forward" : "convert", input.source);
+
+  if (ast.is.IsBinaryExpression(expression) && input.binary?.kind === "resolved") {
     const binary = input.binary;
-    if (binary?.kind !== "resolved") return pending("operation-unresolved");
     const left = child(binary.left, { kind: "operand", position: "left" }, binary.leftInputType);
     const rightNeeded = binary.targetOperation.kind !== "conditional-value" || binary.targetOperation.branch !== "left";
     const right = rightNeeded ? child(binary.right, { kind: "operand", position: "right" }, binary.rightInputType) : undefined;
@@ -73,12 +79,16 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
       if (present === undefined) return pending("forwarding-child-unresolved");
       children.push(present);
     }
-    return selected(targetTypeRefEquals(binary.resultType, target) ? "construct" : "convert", binary.resultType, children);
+    return Object.freeze({ kind: "selected", representation: targetTypeRefEquals(binary.resultType, target) ? "construct" : "convert",
+      carrier: binary.resultType, children: Object.freeze(children), binary });
   }
-  if (input.absent) return selected("construct", target);
-  if (input.literal === undefined) return pending("literal-unrequested");
-  if (input.literal.kind === "rejected") return pending("literal-rejected");
-  if (input.literal.kind === "resolved") return selected("construct", target);
+  if (!input.absent) {
+    if (input.literal === undefined) return pending("literal-unrequested");
+    if (input.literal.kind === "rejected") return pending("literal-rejected", input.literal.reason);
+    if (input.literal.kind === "resolved") return Object.freeze({
+      kind: "selected", representation: "construct", carrier: target, children: none, literal: input.literal.recipe,
+    });
+  }
   if (ast.isConstAssertion(expression)) {
     const assertion = ast.is.IsAsExpression(expression) ? ast.as.AsAsExpression(expression) : ast.as.AsTypeAssertion(expression);
     return forward(assertion?.Expression);
@@ -92,6 +102,8 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
     return whenTrue === undefined || whenFalse === undefined ? pending("forwarding-child-unresolved")
       : selected("forward", target, [whenTrue, whenFalse]);
   }
+  if (input.absent) return input.source === undefined ? pending("source-unresolved")
+    : selected(targetTypeRefEquals(input.source, target) ? "forward" : "convert", input.source);
   if (ast.is.IsArrowFunction(expression) || ast.is.IsFunctionExpression(expression)) {
     if (input.callable === undefined || input.callable.kind === "pending") return pending("callable-creation");
     if (input.callable.kind === "discarded") return pending("callable-discarded");
@@ -107,5 +119,6 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
     return Object.freeze({ kind: "selected", representation: "convert", carrier, children: Object.freeze([site]),
       construction: Object.freeze({ site, carrier, children }) });
   }
-  return input.source === undefined ? pending("source-unresolved") : selected("convert", input.source);
+  return input.source === undefined ? pending("source-unresolved")
+    : selected(targetTypeRefEquals(input.source, target) ? "forward" : "convert", input.source);
 }

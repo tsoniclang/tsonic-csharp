@@ -49,7 +49,7 @@ export function planArrayLiteralExpression(
     return planCsharpArrayConstruction(node, sourceFile, input, diagnostics, elementType, elementTargetType, planner);
   }
   const elements = plannedArrayElements(literal.Elements?.Nodes ?? [], sourceFile, input, diagnostics, (element, elementSourceFile, elementInput, elementDiagnostics) =>
-    planner.planExpressionWithExpectedType(element, elementSourceFile, elementInput, elementDiagnostics, elementType, undefined, elementTargetType));
+    planner.planExpression(element, elementSourceFile, elementInput, elementDiagnostics));
   if (elements === undefined) {
     return undefined;
   }

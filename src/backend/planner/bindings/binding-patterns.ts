@@ -11,7 +11,6 @@ import {
 import type { Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
@@ -19,31 +18,20 @@ import type {
   CsharpTypeNode,
 } from "../../target-ast/syntax/index.js";
 import { planArrayBindingPattern } from "./binding-array-patterns.js";
-import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.js";
+import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
 import { allocateDestructuringTemp } from "./binding-state.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "../types/index.js";
 import { getCsharpTypeFromSemanticType } from "../types/csharp-semantic-types.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
-import {
-  getObjectShapeForBindingSource,
-  planObjectBindingPattern,
-} from "./binding-object-patterns.js";
-import { csharpTypeFromObjectShapeFact } from "../objects/index.js";
-import {
-  probeCarrierFromResolution,
-  missingCarrierDiagnosticDetail,
-  resolveRuntimeCarrierForExpression,
-} from "../types/runtime-carriers.js";
+import { planObjectBindingPattern } from "./binding-object-patterns.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import {
-  getArrayBoundaryCoreCarrierForExpression,
-} from "../expressions/arrays/boundary-facts.js";
-import {
   planCsharpTypedLocationIdentityDeclaration,
 } from "./typed-location-identities.js";
+import { requireCsharpNativeExpressionUse } from "../expressions/native-uses.js";
 
 export interface CsharpEntryBinding {
   readonly name: string;
@@ -53,13 +41,11 @@ export interface CsharpEntryBinding {
 export function planBindingPatternFromExpression(
   patternNode: Node,
   sourceExpression: CsharpExpression,
-  sourceNode: Node | undefined,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-  sourceCarrier?: TargetTypeRef,
-  planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
+  planExpression?: ExpressionPlanner,
   retainBinding?: (binding: CsharpEntryBinding, declaration: Node) => void,
 ): readonly CsharpStatement[] {
   const projectionPlanner: BindingProjectionPlanner = (
@@ -71,7 +57,6 @@ export function planBindingPatternFromExpression(
     projectionInput,
     projectionDiagnostics,
     projectionState,
-    projectedCarrier,
   ) => planBindingNameFromProjection(
     name,
     projected,
@@ -81,15 +66,14 @@ export function planBindingPatternFromExpression(
     projectionInput,
     projectionDiagnostics,
     projectionState,
-    projectedCarrier,
-    planDefaultExpressionWithExpectedType,
+    planExpression,
     retainBinding,
   );
   if (HasSourceKind(input.program.source.ast, patternNode, KindArrayBindingPattern)) {
-    return planArrayBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, projectionPlanner, planDefaultExpressionWithExpectedType, sourceCarrier);
+    return planArrayBindingPattern(patternNode, sourceExpression, sourceFile, input, diagnostics, state, projectionPlanner, planExpression);
   }
   if (HasSourceKind(input.program.source.ast, patternNode, KindObjectBindingPattern)) {
-    return planObjectBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, projectionPlanner, planDefaultExpressionWithExpectedType);
+    return planObjectBindingPattern(patternNode, sourceExpression, sourceFile, input, diagnostics, state, projectionPlanner, planExpression);
   }
   diagnostics.push(unsupportedNodeDiagnostic(patternNode, "Binding pattern is outside the current C# planning surface."));
   return [];
@@ -104,8 +88,7 @@ function planBindingNameFromProjection(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-  projectedCarrier?: TargetTypeRef,
-  planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
+  planExpression?: ExpressionPlanner,
   retainBinding?: (binding: CsharpEntryBinding, declaration: Node) => void,
 ): readonly CsharpStatement[] {
   if (HasSourceKind(input.program.source.ast, name, KindIdentifier)) {
@@ -149,7 +132,7 @@ function planBindingNameFromProjection(
         type: nestedType,
         initializer: projected,
       },
-      ...planBindingPatternFromExpression(name, nestedSource, projectionNode, sourceFile, input, diagnostics, state, projectedCarrier, planDefaultExpressionWithExpectedType, retainBinding),
+      ...planBindingPatternFromExpression(name, nestedSource, sourceFile, input, diagnostics, state, planExpression, retainBinding),
     ];
   }
   diagnostics.push(unsupportedNodeDiagnostic(name, "Destructuring target binding name is outside the current C# planning surface."));
@@ -158,27 +141,18 @@ function planBindingNameFromProjection(
 
 export function getCsharpTypeForExpressionCarrier(
   expression: Node,
-  sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   diagnosticNode: Node,
   description: string,
 ): CsharpTypeNode {
-  const carrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
-  const carrier = getArrayBoundaryCoreCarrierForExpression(input, expression, sourceFile) ??
-    probeCarrierFromResolution(carrierResolution);
+  const selected = requireCsharpNativeExpressionUse(input, expression).use;
+  const carrier = selected.kind === "erased" ? undefined : selected.completion.kind === "value"
+    ? selected.completion.type : selected.carrier;
   const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
   if (type !== undefined) {
     return type;
   }
-  const objectShape = getObjectShapeForBindingSource(expression, sourceFile, input);
-  if (objectShape !== undefined) {
-    const objectShapeType = csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, diagnosticNode);
-    if (objectShapeType !== undefined) {
-      return objectShapeType;
-    }
-  }
-  const detail = missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the destructuring source expression.");
-  diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, `${description} requires a finalized runtime carrier fact before C# emission. ${detail.reason}`, detail.evidence));
+  diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, `${description} requires its admitted native source carrier before C# emission.`));
   return invalidCsharpType("missing destructuring source carrier");
 }

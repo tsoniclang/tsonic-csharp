@@ -41,14 +41,7 @@ export function planPrefixUnaryExpression(
   );
   const form = input.program.records.operatorForm.get(node);
   if (form === "js-value-object-shape-update") {
-    rejectUnloweredJsValueObjectShapeUpdate(
-      node,
-      operandNode,
-      sourceOperator,
-      input,
-      diagnostics,
-    );
-    return undefined;
+    return failCsharpPlannerInvariant("An admitted native unary cannot retain a rejected JS-value object-shape update.", node);
   }
   if (form === "js-value-operation" && sourceOperator !== undefined) {
     const classification = input.program.records.unaryOperation.get(node);
@@ -140,14 +133,7 @@ export function planPostfixUnaryExpression(
   );
   const form = input.program.records.operatorForm.get(node);
   if (form === "js-value-object-shape-update") {
-    rejectUnloweredJsValueObjectShapeUpdate(
-      node,
-      operandNode,
-      sourceOperator,
-      input,
-      diagnostics,
-    );
-    return undefined;
+    return failCsharpPlannerInvariant("An admitted native unary cannot retain a rejected JS-value object-shape update.", node);
   }
   if (form === "js-value-operation" && sourceOperator !== undefined) {
     const classification = input.program.records.unaryOperation.get(node);
@@ -237,28 +223,4 @@ function planUnaryOperand(
     storageExpression = inner;
   }
   return planExpression(selection.operand, sourceFile, { ...input, storageExpression }, diagnostics);
-}
-
-function rejectUnloweredJsValueObjectShapeUpdate(
-  node: Node,
-  operand: Node | undefined,
-  sourceOperator: string | undefined,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-): void {
-  const jsValueProperty = operand === undefined ? undefined
-    : input.program.records.selectedProperty.get(operand)?.sourceOwned?.jsValueProperty;
-  if (jsValueProperty === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "A source-owned property update has no sealed C# property classification.",
-    ));
-    return;
-  }
-  diagnostics.push(unsupportedNodeDiagnostic(
-    node,
-    jsValueProperty.kind === "rejected"
-      ? jsValueProperty.reason
-      : `Closed JS-value object-shape update '${sourceOperator}' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden.`,
-  ));
 }

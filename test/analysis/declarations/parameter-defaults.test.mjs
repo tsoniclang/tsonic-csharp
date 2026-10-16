@@ -47,6 +47,9 @@ test("native default declarations retain exact omission independently of their i
     assert.equal(selected.valueType.name, "int32");
     assert.equal(getCsharpNullableElementTargetType(selected.parameterType).name, "int32");
     assert.equal(Object.isFrozen(selected), true);
+    assert.equal(Object.isFrozen(selected.native) && selected.native.source === selected.parameterType &&
+      selected.native.target === selected.valueType && selected.native.kind === "coalesce" && selected.native.presence === false, true,
+      "the immutable native default decision is owned by declaration analysis");
   }
 });
 

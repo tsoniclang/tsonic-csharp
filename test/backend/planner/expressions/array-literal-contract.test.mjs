@@ -9,7 +9,7 @@ import { analyzeCsharpTargetProgram } from "../../../../dist/analysis/program/in
 import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/relations/resolver.js";
 import { createCsharpTargetConfiguration } from "../../../../dist/options/csharp-target-options.js";
 import { createCsharpPlanningContext, createCsharpMemberPlanningContext } from "../../../../dist/backend/planner/context.js";
-import { planExpression, planExpressionWithExpectedType } from "../../../../dist/backend/planner/expressions/index.js";
+import { planExpression } from "../../../../dist/backend/planner/expressions/index.js";
 import { planNativeCollectionArrayLiteralExpression } from "../../../../dist/backend/planner/expressions/array-literals/native-collection.js";
 import { csharpListTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/target-types.js";
@@ -39,7 +39,7 @@ test("native collection construction fills only its declared native builder", { 
   const element = csharpSourcePrimitiveTargetType("float64");
   const carrier = csharpListTargetType(element);
   const diagnostics = [];
-  const planner = { planExpression, planExpressionWithExpectedType };
+  const planner = { planExpression };
   const planned = planNativeCollectionArrayLiteralExpression(node, source.ast.getSourceFile(node), context,
     diagnostics, carrier, element, planner);
   assert.equal(planned?.completion.kind, "value");

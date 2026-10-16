@@ -23,7 +23,7 @@ export function analyzeCsharpExpectedTypes(
   objectShapes: CsharpObjectShapeClassifications,
   callables: CsharpCallableContractIndex,
   valueReadStages: CsharpValueReadStageIndex,
-  declarations: Pick<CsharpDeclarationClassifications, "returnContract">,
+  declarations: Pick<CsharpDeclarationClassifications, "returnContract" | "runtimeDefault">,
 ): CsharpExpectedTypeAnalysis {
   const input: CsharpExpectedTypeAnalysisInput = { policy, evidence, operations, objectShapes, callables, valueReadStages, declarations };
   const collection = createCsharpExpectedUseCollection(policy);

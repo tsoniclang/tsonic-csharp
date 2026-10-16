@@ -63,7 +63,7 @@ function translateCsharpCallExpressionCore(
     const targetType = csharpTypeFromTargetTypeRef(fact.sourceCarrier, input.scope.typeParameterNames);
     const value = sourceCall?.sourceArguments.length !== 1 || argument === undefined || carrier === undefined ||
       targetType === undefined || !targetTypeRefEquals(carrier, fact.sourceCarrier) ? undefined
-      : planCallArgument(argument.expression, sourceFile, input, diagnostics, targetType, undefined, fact.sourceCarrier);
+      : planCallArgument(argument.expression, sourceFile, input, diagnostics, fact.sourceCarrier);
     const result = projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
       selected => planCsharpClosedTypeTest(selected, fact, input,
         createDestructuringPlannerState(sourceFile, input.program.source.ast)));

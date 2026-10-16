@@ -23,6 +23,7 @@ import { createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from
 import {
   rejectedTargetStage,
   resolvedTargetStage,
+  failTargetAnalysisInvariant,
 } from "@tsonic/target-api/artifacts";
 import {
   resolveTargetContractFixedPoint,
@@ -115,6 +116,10 @@ import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-de
 import { createSourceStorageQuery, type SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../../policy/operations/source-profiles/source-storage-effects.js";
 import { analyzeCsharpPromiseResults } from "../callables/promise-results.js";
+import { analyzeCsharpCallableCreations } from "../callables/creation.js";
+import { analyzeCsharpBindingPatterns, admitCsharpBindingPatterns } from "../control-flow/binding-patterns.js";
+import { admitCsharpExpectedNativeUses } from "../expected-types/native-uses.js";
+import { analyzeCsharpNativeDemand } from "../operations/native-demand.js";
 import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/project/binary-execution-drivers.js";
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
@@ -347,6 +352,11 @@ export function analyzeCsharpTargetProgram(
   if (captureStorage.issues.length > 0) return rejectedTargetStage(captureStorage.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));
+  const callableCreations = analyzeCsharpCallableCreations({
+    ast: source.ast, nodes: sourceStorage.nodes, captures: captureStorage, contracts: analysis.callables,
+    expectedTypes: analysis.expectedTypes, storage: analysis.storage, evidence: analysis.sourceEvidence, conversions: analysis.conversions,
+  });
+  if (analysis.conversions.issues.length > 0) return rejectCsharpAnalysisIssues(analysis.conversions.issues);
   const flowReads = analyzeCsharpFlowReadProjections(analysis.policy, analysis.sourceEvidence, analysis.operations, analysis.valueReads);
   if (flowReads.issues.length > 0) return rejectCsharpAnalysisIssues(flowReads.issues);
   const nativeParticipation = analyzeCsharpNativeParticipation({
@@ -355,18 +365,54 @@ export function analyzeCsharpTargetProgram(
     objectShapes: analysis.objectShapes, compileTimeMetadata: analysis.sourceEvidence.compileTimeMetadata,
     requiredRecords: analysis.requiredRecords,
   });
-  const typeDefinitions = analysis.typeDefinitions.seal();
   const classInitialization = analyzeCsharpClassInitialization(source, classFactories);
   const numericRepresentations = analyzeCsharpNumericRepresentations({ source, sourceFiles,
     evidence: analysis.sourceEvidence, operations: analysis.operations });
-  const exactLiterals = analyzeCsharpExactLiteralSelections(literalValues, analysis.conversions.exactLiteralRequests);
+  const exactLiterals = analyzeCsharpExactLiteralSelections(literalValues, [
+    ...analysis.conversions.exactLiteralRequests,
+    ...analysis.expectedTypes.constructions.propertyKeyRequests,
+    ...analysis.expectedTypes.nativeUseSites.requests.flatMap(request => request.kind === "requested"
+      ? [{ expression: request.expression, target: request.targetType }] : []),
+  ]);
+  const bindingCandidates = analyzeCsharpBindingPatterns({
+    ast: source.ast, semanticsFor: source.semantics.forNode, sourceFiles, participation: nativeParticipation.participation, evidence: analysis.sourceEvidence,
+    operations: analysis.operations, valueReads: analysis.valueReads, objectShapes: analysis.objectShapes,
+  });
+  const expectedUse = admitCsharpExpectedNativeUses(analysis.expectedTypes, {
+    ast: source.ast, exactLiteral: exactLiterals.exactLiteral, callableCreation: callableCreations.callableCreation,
+    valueRead: analysis.valueReads.valueRead, operations: analysis.operations,
+  });
+  const nativeDemand = analyzeCsharpNativeDemand({
+    ast: source.ast, sourceFiles, navigation: source.navigation, evidence: analysis.sourceEvidence,
+    operations: analysis.operations, valueReads: analysis.valueReads, participation: nativeParticipation.participation,
+    declarations: analysis.declarations, objectShapes: analysis.objectShapes,
+    bindingPatterns: bindingCandidates, callableCreation: callableCreations.callableCreation, attributeApplications,
+    propertyKeyBindings: analysis.expectedTypes.constructions.propertyKeys, exactLiteral: exactLiterals.exactLiteral,
+    classInitialization, projectTypes: analysis.typeSystem.projectTypes.catalog, classFactories, expected: expectedUse,
+  }, analysis.requiredRecords);
+  const bindingPatterns = admitCsharpBindingPatterns(bindingCandidates, nativeDemand.requiredBindingRoots, analysis.requiredRecords);
+  if (bindingPatterns.issues.length > 0) return rejectCsharpAnalysisIssues(bindingPatterns.issues);
+  if (nativeDemand.unadmitted.length > 0) {
+    const refusals = nativeDemand.unadmitted.filter(use =>
+      use.message !== undefined || use.reason === "argument-refused" || use.reason === "source-argument-rejected" || use.reason === "property-key-refused");
+    if (refusals.length > 0) return rejectCsharpAnalysisIssues(refusals.map(use => ({
+      node: use.expression, code: use.code ?? "CSHARP_UNSUPPORTED_AST", message: use.message ?? failTargetAnalysisInvariant(
+        "tsonic-csharp", "A native source refusal requires its exact admitted reason.", use.expression),
+    })));
+    const incomplete = nativeDemand.unadmitted[0]!;
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
+  }
+  const conversions = analysis.conversionAnalysis.seal(nativeDemand, analysis.requiredRecords);
+  if (conversions.issues.length > 0) return rejectCsharpAnalysisIssues(conversions.issues);
+  const typeDefinitions = analysis.typeDefinitions.seal();
   const records = createCsharpProgramRecords({
     nativeValueCarriers,
-    literalValues, exactLiterals, nativeParticipation,
+    literalValues, exactLiterals, nativeParticipation, nativeDemand, bindingPatterns,
     flowReads, valueReads: analysis.valueReads,
-    callableAdapters, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
+    callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
     numericRepresentations, attributeApplications, safetyApplications, operations: analysis.operations,
-    sourceEvidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions: analysis.conversions,
+    sourceEvidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions,
     expectedTypes: analysis.expectedTypes, storage: analysis.storage,
     sourceModuleConstructions: sourceModuleConstructions.index, moduleInitialization: moduleInitialization.index,
   }, analysis.requiredRecords);
@@ -526,7 +572,7 @@ function analyzeIteration(
     requiredRecords,
   );
   const valueReads = valueReadStages.seal(storageRepresentations);
-  const conversions = conversionAnalysis.seal({
+  const conversions = conversionAnalysis.prepare({
     operations,
     expectedTypes,
     valueReads,
@@ -547,6 +593,7 @@ function analyzeIteration(
     callables,
     expectedTypes,
     conversions,
+    conversionAnalysis,
     storage,
     valueReads,
     requiredRecords,

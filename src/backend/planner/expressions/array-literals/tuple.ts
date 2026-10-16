@@ -47,16 +47,8 @@ export function planTupleLiteralExpression(
   if (arrayLiteralHasElision(node, input)) {
     return rejectSparseArrayLiteralElision(node, diagnostics);
   }
-  let elementIndex = 0;
   const plannedElements = plannedArrayElements(literal.Elements?.Nodes ?? [], sourceFile, input, diagnostics,
-    (element, elementSourceFile, elementInput, elementDiagnostics) => {
-      const target = tupleTarget?.elements[elementIndex++];
-      const type = target === undefined ? undefined : csharpTypeFromTargetTypeRef(target, input.scope.typeParameterNames);
-      return type === undefined
-        ? planner.planExpression(element, elementSourceFile, elementInput, elementDiagnostics)
-        : planner.planExpressionWithExpectedType(element, elementSourceFile, elementInput,
-            elementDiagnostics, type, undefined, target);
-    });
+    planner.planExpression);
   if (plannedElements === undefined) {
     return undefined;
   }

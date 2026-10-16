@@ -6,8 +6,9 @@ import { createDestructuringPlannerState } from "../../../../dist/backend/planne
 import { planCsharpRuntimeParameterDefault } from "../../../../dist/backend/planner/declarations/callables/defaults.js";
 import { planParametersWithPrelude } from "../../../../dist/backend/planner/declarations/callables/parameters.js";
 import { csharpTargetNamedType } from "../../../../dist/target-model/types/index.js";
+import { selectCsharpDefaultValueContract } from "../../../../dist/policy/types/objects/binding-projection-policy.js";
 
-const defaultMessage = "Required C# runtime parameter default lowering for 'target:example.Unrendered<>' produced neither a native parameter nor an error.";
+const defaultMessage = "A runtime parameter default requires renderable sealed native value and incoming carriers.";
 const invariantMessage = "A runtime parameter default contract requires its authored parameter initializer.";
 const sourceText = `import type { int32 } from "@tsonic/core/types.js";
 export function withDefault(t: [int32, string] = [1, "a"]): int32 {
@@ -38,7 +39,8 @@ test("a runtime default whose sealed storage has no C# type syntax is reported, 
   const contract = program.records.runtimeDefault.get(withDefault);
   assert.equal(contract !== undefined, true, "analysis seals the runtime default contract");
   const unrendered = csharpTargetNamedType("example.Unrendered");
-  const changed = withRuntimeDefault(program, withDefault, { ...contract, valueType: unrendered, parameterType: unrendered });
+  const changed = withRuntimeDefault(program, withDefault, { ...contract, valueType: unrendered, parameterType: unrendered,
+    native: selectCsharpDefaultValueContract(unrendered, unrendered, false) });
   const context = { ...createCsharpPlanningContext(program), program: changed };
   const diagnostics = [];
   const selected = planCsharpRuntimeParameterDefault(withDefault, "incoming", ast.getSourceFile(withDefault), context,
@@ -55,7 +57,8 @@ test("a parameter list never loses a runtime-default parameter without a diagnos
   const { program, ast, withDefault } = compiledParameters();
   const contract = program.records.runtimeDefault.get(withDefault);
   const unrendered = csharpTargetNamedType("example.Unrendered");
-  const changed = withRuntimeDefault(program, withDefault, { ...contract, valueType: unrendered, parameterType: unrendered });
+  const changed = withRuntimeDefault(program, withDefault, { ...contract, valueType: unrendered, parameterType: unrendered,
+    native: selectCsharpDefaultValueContract(unrendered, unrendered, false) });
   const context = { ...createCsharpPlanningContext(program), program: changed };
   const diagnostics = [];
   const planned = planParametersWithPrelude([withDefault], ast.getSourceFile(withDefault), context, diagnostics);
