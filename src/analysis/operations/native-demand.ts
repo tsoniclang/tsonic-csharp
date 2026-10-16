@@ -24,7 +24,7 @@ interface UseState {
 }
 
 interface ExpectedSlot {
-  readonly entries: { readonly site: TargetUseSiteRef; readonly use: CsharpExpectedNativeUse }[];
+  readonly expressions: Map<Node, { readonly site: TargetUseSiteRef; readonly use: CsharpExpectedNativeUse }[]>;
   pending: boolean;
 }
 
@@ -54,10 +54,14 @@ export function analyzeCsharpNativeDemand(input: CsharpNativeDemandAnalysisInput
     let owner = slots.get(site.subject);
     if (owner === undefined) { owner = new Map(); slots.set(site.subject, owner); }
     let value = owner.get(site.role);
-    if (value === undefined) { value = { entries: [], pending: false }; owner.set(site.role, value); }
+    if (value === undefined) { value = { expressions: new Map(), pending: false }; owner.set(site.role, value); }
     return value;
   };
-  for (const entry of input.expected.entries) slot(entry.site).entries.push(entry);
+  for (const entry of input.expected.entries) {
+    const byExpression = slot(entry.site).expressions;
+    const uses = byExpression.get(entry.use.expression) ?? [];
+    uses.push(entry); byExpression.set(entry.use.expression, uses);
+  }
   for (const entry of input.expected.pending) slot(entry.site).pending = true;
   const exactPending = new Map<object, Set<string>>();
   for (const entry of input.expected.pending) {
@@ -115,7 +119,7 @@ export function analyzeCsharpNativeDemand(input: CsharpNativeDemandAnalysisInput
     const expression = child.expression;
     if (exact === undefined && child.context?.target === undefined) {
       const candidates = slots.get(site.subject)?.get(site.role);
-      const matching = candidates?.entries.filter(entry => entry.use.expression === expression) ?? [];
+      const matching = candidates?.expressions.get(expression) ?? [];
       if (matching.length > 1) return pending(site, expression, "use-context-unresolved");
       if (matching.length === 1 && candidates?.pending !== true) site = matching[0]!.site;
       else if (candidates?.pending === true) return pending(site, expression, "expected-use-pending");
