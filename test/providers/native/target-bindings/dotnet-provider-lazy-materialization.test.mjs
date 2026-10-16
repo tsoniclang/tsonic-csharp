@@ -165,6 +165,8 @@ test("cross-module inherited members materialize only the exact base export", ()
     namespaceName: "Example",
     exports: [{
       kind: "type",
+      isByRefLike: false,
+      allowsRefLikeTypeArguments: [],
       typeKind: "class",
       sourceName: "Derived",
       namespaceName: "Example",
@@ -172,6 +174,8 @@ test("cross-module inherited members materialize only the exact base export", ()
       metadataName: "Example.Derived",
       baseType: {
         kind: "named",
+        isByRefLike: false,
+        allowsRefLikeTypeArguments: [],
         targetId: baseTargetId,
         metadataName: "Example.Base",
         sourceShape: {
@@ -195,6 +199,8 @@ test("cross-module inherited members materialize only the exact base export", ()
         namespaceName: "Example",
         exports: [{
           kind: "type",
+          isByRefLike: false,
+          allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName: "Base",
           namespaceName: "Example",
@@ -205,6 +211,8 @@ test("cross-module inherited members materialize only the exact base export", ()
           } : {}),
         }, {
           kind: "type",
+          isByRefLike: false,
+          allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName: "Unrelated",
           namespaceName: "Example",
@@ -258,6 +266,8 @@ test("source declaration requests carry their own immutable slice and materializ
         namespaceName: "Example",
         exports: [{
           kind: "type",
+          isByRefLike: false,
+          allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName,
           namespaceName: "Example",
@@ -332,6 +342,8 @@ test("TSTS checking rebuilds the program after exact .NET export demand", () => 
         namespaceName: "Example",
         exports: [{
           kind: "type",
+          isByRefLike: false,
+          allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName: "Widget",
           namespaceName: "Example",

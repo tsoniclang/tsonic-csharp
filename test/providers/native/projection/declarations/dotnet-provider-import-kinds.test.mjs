@@ -28,6 +28,8 @@ test(".NET provider preserves exact synthetic export slices used by provider her
         namespaceName: "Acme",
         exports: [{
           kind: "type",
+          isByRefLike: false,
+          allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName: "Base",
           namespaceName: "Acme",
@@ -88,6 +90,8 @@ test(".NET provider resolves interleaved declaration requests from each exact re
         namespaceName: "Acme",
         exports: (context.requestedExports ?? []).map((sourceName) => ({
           kind: "type",
+          isByRefLike: false,
+          allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName,
           namespaceName: "Acme",
@@ -127,6 +131,8 @@ test(".NET provider resolves interleaved declaration requests from each exact re
 
 test(".NET provider imports external class heritage as values without widening type-only refs", () => {
   const externalType = (metadataName, moduleSpecifier, exportName) => namedDotnetTypeRef(metadataName, {
+    isByRefLike: false,
+    allowsRefLikeTypeArguments: [],
     sourceShape: {
       kind: "provider-ref",
       moduleSpecifier,
@@ -147,6 +153,8 @@ test(".NET provider imports external class heritage as values without widening t
     namespaceName: "Acme",
     exports: [{
       kind: "type",
+      isByRefLike: false,
+      allowsRefLikeTypeArguments: [],
       typeKind: "class",
       sourceName: "Derived",
       namespaceName: "Acme",
@@ -193,6 +201,8 @@ test(".NET provider imports external class heritage as values without widening t
 
 test(".NET provider promotes a repeated external ref to one value-capable heritage import", () => {
   const baseType = namedDotnetTypeRef("Acme.Base", {
+    isByRefLike: false,
+    allowsRefLikeTypeArguments: [],
     sourceShape: {
       kind: "provider-ref",
       moduleSpecifier: "@acme/base.js",
@@ -204,6 +214,8 @@ test(".NET provider promotes a repeated external ref to one value-capable herita
     namespaceName: "Acme",
     exports: [{
       kind: "type",
+      isByRefLike: false,
+      allowsRefLikeTypeArguments: [],
       typeKind: "class",
       sourceName: "Derived",
       namespaceName: "Acme",

@@ -1,7 +1,8 @@
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { createSourceStorageBudget, defaultSourceStorageLimits, decideSourceAsyncResultUse, type SourceStorageQueries } from "@tsonic/target-api/analysis";
-import { sourceExpressionResultDisposition, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { createSourceStorageBudget, defaultSourceStorageLimits, decideSourceAsyncResultUse, createSourceControlFlow,
+  solveSourceFlow, type SourceStorageQueries } from "@tsonic/target-api/analysis";
+import { sourceEnclosingCallable, sourceExpressionResultDisposition, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { classifyCsharpSourceProfileType } from "../../policy/types/resolution/source-profile.js";
 import type { CsharpProgramRecords } from "../../target-model/records/program.js";
 import type { CsharpPromiseDiscard, CsharpPromiseResult, CsharpPromiseResults } from "../../target-model/records/promise-results.js";
@@ -9,8 +10,140 @@ import { getCsharpTaskResultTargetType } from "../../target-model/types/carriers
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
 import { isCsharpValueTypeTargetType } from "../../target-model/types/identity.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
+import type { CsharpCallableContractIndex } from "./model.js";
+import type { CsharpCaptureFrame } from "../../target-model/records/capture-storage.js";
+
+export function analyzeCsharpRefLikePlacements(input: {
+  readonly source: TargetSourceProgram;
+  readonly nodes: readonly Node[];
+  readonly callables: CsharpCallableContractIndex;
+  readonly captureFrames: readonly CsharpCaptureFrame[];
+  readonly generatorFor: (declaration: Node) => boolean;
+  readonly bindingCarrierFor: (declaration: Node) => TargetTypeRef | undefined;
+  readonly expressionCarrierFor: (expression: Node) => TargetTypeRef | undefined;
+}): readonly TargetDiagnostic[] {
+  const diagnostics: TargetDiagnostic[] = [];
+  const rejected = new Map<Node, Set<string>>();
+  const scopedBindings = new Map<Node, Set<Node>>();
+  const { ast } = input.source;
+  const reject = (node: Node, code: string, message: string): void => {
+    const codes = rejected.get(node) ?? new Set<string>();
+    if (codes.has(code)) return;
+    codes.add(code);
+    rejected.set(node, codes);
+    diagnostics.push(Object.freeze({ code, category: "error", source: "tsonic-csharp", sourceNode: node,
+      message, evidence: ["target.capability=csharp.native.ref-like-placement"] }));
+  };
+  const isRefLike = (type: TargetTypeRef | undefined): boolean => type?.kind === "target-named" &&
+    (type as CsharpTargetNamedTypeRef).csharpByRefLike === true;
+  const inspect = (type: TargetTypeRef | undefined, node: Node): void => {
+    if (type === undefined) return;
+    const pending = [type];
+    const visited = new Set<TargetTypeRef>();
+    while (pending.length > 0) {
+      const current = pending.pop()!;
+      if (visited.has(current)) continue;
+      visited.add(current);
+      if (current.kind === "array" || current.kind === "tuple") {
+        const elements = current.kind === "array" ? [current.element] : current.elements;
+        if (elements.some(isRefLike)) reject(node, "CSHARP_REFLIKE_GENERIC_ARGUMENT",
+          "A ref-like native value cannot be stored in an array or an ordinary value tuple.");
+        pending.push(...elements);
+      } else if (current.kind === "target-named") {
+        const taskResult = getCsharpTaskResultTargetType(current);
+        if (isRefLike(taskResult)) reject(node, "CSHARP_REFLIKE_ASYNC_RESULT",
+          "A native Task result cannot contain a ref-like value.");
+        const allowed = (current as CsharpTargetNamedTypeRef).csharpAllowsRefLikeTypeArguments;
+        for (const [index, argument] of (current.typeArguments ?? []).entries()) {
+          if (argument !== taskResult && isRefLike(argument) && allowed !== undefined && allowed[index] !== true) {
+            reject(node, "CSHARP_REFLIKE_GENERIC_ARGUMENT",
+              "The selected native generic parameter does not allow ref struct arguments.");
+          }
+          pending.push(argument);
+        }
+      }
+    }
+  };
+  for (const frame of input.captureFrames) {
+    for (const binding of frame.bindings) {
+      if (isRefLike(binding.type)) reject(binding.declaration, "CSHARP_REFLIKE_FRAME_CAPTURE",
+        "A native ref-like value cannot be captured in a retained callable frame.");
+      inspect(binding.type, binding.declaration);
+    }
+    for (const receiver of frame.receivers) {
+      if (isRefLike(receiver.type)) reject(receiver.owner, "CSHARP_REFLIKE_FRAME_CAPTURE",
+        "A native ref-like receiver cannot be captured in a retained callable frame.");
+    }
+  }
+  for (const node of input.nodes) {
+    if (ast.is.IsVariableDeclaration(node) || ast.is.IsPropertyDeclaration(node)) {
+      const type = input.bindingCarrierFor(node);
+      inspect(type, node);
+      if (ast.is.IsVariableDeclaration(node) && isRefLike(type)) {
+        const owner = sourceEnclosingCallable(node, ast);
+        if (owner !== undefined) {
+          const bindings = scopedBindings.get(owner) ?? new Set<Node>();
+          bindings.add(node);
+          scopedBindings.set(owner, bindings);
+        }
+      }
+      if (ast.is.IsPropertyDeclaration(node) && isRefLike(type)) reject(node, "CSHARP_REFLIKE_FRAME_CAPTURE",
+        "A native ref-like value cannot be stored in an ordinary source object field.");
+    } else if (ast.is.IsCallExpression(node) || ast.is.IsNewExpression(node)) {
+      inspect(input.expressionCarrierFor(node), node);
+    }
+  }
+  for (const contract of input.callables.declarationContracts) {
+    const declaration = contract.sourceDeclaration;
+    inspect(contract.returnType, declaration);
+    for (const parameter of contract.parameters) inspect(parameter.targetParameter.type, parameter.sourceParameter);
+    const generator = input.generatorFor(declaration);
+    if (!ast.hasModifierKind(declaration, "async") && !generator || ast.body(declaration) === undefined) continue;
+    for (const parameter of contract.parameters) {
+      if (isRefLike(parameter.targetParameter.type)) reject(parameter.sourceParameter, "CSHARP_REFLIKE_ASYNC_PARAMETER",
+        "A native async or iterator method cannot declare a ref-like parameter.");
+    }
+    const ownedBindings = scopedBindings.get(declaration);
+    if (ownedBindings === undefined || ownedBindings.size === 0) continue;
+    const selected = createSourceControlFlow(input.source, declaration);
+    if (selected.kind === "unresolved") {
+      reject(declaration, "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN", selected.reason);
+      continue;
+    }
+    const bindings = new Set([...selected.graph.bindings].filter(binding => ownedBindings.has(binding)));
+    if (bindings.size === 0) continue;
+    const live = solveSourceFlow<ReadonlySet<Node>>(selected.graph, {
+      direction: "backward",
+      lattice: {
+        empty: () => new Set<Node>(),
+        join(left, right, work) {
+          const result = new Set(left);
+          for (const value of right) { work.step(); result.add(value); }
+          return result;
+        },
+        equals: (left, right, work) => left.size === right.size && [...left].every(value => { work.step(); return right.has(value); }),
+      },
+      transfer(point, state, work) {
+        work.step();
+        const operation = point.operation;
+        if (!("binding" in operation) || !bindings.has(operation.binding)) return state;
+        const result = new Set(state);
+        if (operation.kind === "read" || operation.kind === "capture") result.add(operation.binding);
+        else result.delete(operation.binding);
+        return result;
+      },
+    });
+    if (live.kind === "unresolved") { reject(declaration, "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN", live.reason); continue; }
+    for (const point of selected.graph.points) {
+      if (!live.reachable.has(point.id) || point.operation.kind !== "await" && point.operation.kind !== "yield") continue;
+      for (const binding of live.after.get(point.id) ?? []) reject(binding, "CSHARP_REFLIKE_ACROSS_SUSPENSION",
+        "A native ref-like value cannot remain live across an await or yield suspension.");
+    }
+  }
+  return Object.freeze(diagnostics);
+}
 
 export function analyzeCsharpPromiseResults(input: {
   readonly source: TargetSourceProgram;

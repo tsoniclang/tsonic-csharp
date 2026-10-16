@@ -132,6 +132,8 @@ test(".NET target binding provider records virtual declaration model metrics", (
         namespaceName: "Example",
         exports: [{
           kind: "type",
+          isByRefLike: false,
+          allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName: "Widget",
           namespaceName: "Example",
@@ -195,6 +197,8 @@ test(".NET target binding provider preserves requested export slices for virtual
         namespaceName: "Example",
         exports: [{
           kind: "type",
+          isByRefLike: false,
+          allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName: "Widget",
           namespaceName: "Example",
@@ -227,6 +231,8 @@ test(".NET native Array augmentation stays out of unrelated System export slices
     namespaceName: "System",
     exports: [{
       kind: "type",
+      isByRefLike: false,
+      allowsRefLikeTypeArguments: [],
       typeKind: "interface",
       sourceName: "IFormatProvider",
       namespaceName: "System",
@@ -264,6 +270,8 @@ test(".NET target binding provider receives requested export slices from TSTS na
         namespaceName: "System",
         exports: [{
           kind: "type",
+          isByRefLike: false,
+          allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName: "Convert",
           namespaceName: "System",
@@ -405,6 +413,8 @@ test(".NET target binding provider fails closed when a requested export is unpro
         namespaceName: "Example",
         exports: [{
           kind: "type",
+          isByRefLike: false,
+          allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName: "Other",
           namespaceName: "Example",

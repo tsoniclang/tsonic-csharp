@@ -114,7 +114,7 @@ import { createCsharpSourceProfileCallableAliasQuery } from "../../policy/operat
 import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-demands.js";
 import { createSourceStorageQuery, type SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../../policy/operations/source-profiles/source-storage-effects.js";
-import { analyzeCsharpPromiseResults } from "../callables/promise-results.js";
+import { analyzeCsharpPromiseResults, analyzeCsharpRefLikePlacements } from "../callables/promise-results.js";
 import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/project/binary-execution-drivers.js";
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
@@ -340,6 +340,13 @@ export function analyzeCsharpTargetProgram(
     objectShapes: analysis.objectShapes, compileTimeMetadata: analysis.sourceEvidence.compileTimeMetadata,
     requiredRecords: analysis.requiredRecords,
   });
+  const refLikeDiagnostics = analyzeCsharpRefLikePlacements({
+    source, nodes: sourceStorage.nodes, callables: analysis.callables, captureFrames: captureStorage.frames,
+    generatorFor: declaration => analysis.sourceEvidence.generator.get(declaration) !== undefined,
+    bindingCarrierFor: declaration => analysis.storage.storageType.get(declaration),
+    expressionCarrierFor: expression => analysis.valueReads.valueRead.get(expression)?.value,
+  });
+  if (refLikeDiagnostics.length > 0) return rejectedTargetStage(refLikeDiagnostics);
   const typeDefinitions = analysis.typeDefinitions.seal();
   const classInitialization = analyzeCsharpClassInitialization(source, classFactories);
   const numericRepresentations = analyzeCsharpNumericRepresentations({ source, sourceFiles,

@@ -9,9 +9,9 @@ const parameter = { kind: "type-parameter", identity: "Fixture:0", name: "T" };
 const signature = { kind: "function", id: "Fixture::Selector.Invoke", parameters: [
   { name: "value", type: parameter, passingMode: "by-value" },
 ], returnType: parameter };
-const delegate = { kind: "named", targetId: "Fixture::Selector`1", metadataName: "Selector`1",
+const delegate = { kind: "named", isByRefLike: false, allowsRefLikeTypeArguments: [false], targetId: "Fixture::Selector`1", metadataName: "Selector`1",
   callableRepresentation: "delegate", typeArguments: [parameter], sourceShape: signature };
-const quotation = { kind: "named", targetId: "Fixture::Quotation`1", metadataName: "Quotation`1",
+const quotation = { kind: "named", isByRefLike: false, allowsRefLikeTypeArguments: [false], targetId: "Fixture::Quotation`1", metadataName: "Quotation`1",
   callableRepresentation: "expression-tree", typeArguments: [structuredClone(delegate)], sourceShape: structuredClone(signature) };
 const model = type => ({ moduleSpecifier: "@fixture/native/Test.js", namespaceName: "Fixture", exports: [
   { kind: "value", sourceName: "selected", targetId: "Fixture::selected", metadataName: "selected", type },

@@ -112,6 +112,8 @@ export function csharpTargetMetadataFromDotnetTypeDeclaration(
   const delegateSignature = declaration.typeKind === "delegate"
     ? dotnetDelegateSignatureFromSourceShape(declaration.sourceShape) : undefined;
   return {
+    ...(declaration.isByRefLike ? { byRefLike: true as const } : {}),
+    allowsRefLikeTypeArguments: declaration.allowsRefLikeTypeArguments,
     ...(declaration.typeKind === "struct" || declaration.typeKind === "enum" ? { valueType: true as const } : {}),
     ...(declaration.typeKind === "class" || declaration.typeKind === "interface" || declaration.typeKind === "enum"
       ? { sourceDeclarationKind: declaration.typeKind }
@@ -151,6 +153,8 @@ function csharpTargetMetadataFromDotnetTypeRef(
     : undefined;
   const arrayLiteralElementType = elementType === undefined ? undefined : dotnetTypeRefToTargetTypeRef(elementType);
   return {
+    ...(type.isByRefLike ? { byRefLike: true as const, valueType: true as const } : {}),
+    allowsRefLikeTypeArguments: type.allowsRefLikeTypeArguments,
     ...(arrayLiteralElementType !== undefined ? { arrayLiteralElementType } : {}),
     ...(arrayLiteralElementType !== undefined && type.implicitArrayInput === true
       ? { implicitArrayInputElementType: arrayLiteralElementType }

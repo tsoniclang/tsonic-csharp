@@ -23,6 +23,8 @@ test(".NET target binding provider preserves requested-export slices through dec
           namespaceName: "System",
           exports: (context.requestedExports ?? []).map((sourceName) => ({
             kind: "type",
+            isByRefLike: false,
+            allowsRefLikeTypeArguments: [],
             typeKind: "class",
             sourceName,
             namespaceName: "System",

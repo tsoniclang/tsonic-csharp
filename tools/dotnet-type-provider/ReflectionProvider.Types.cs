@@ -24,6 +24,10 @@ sealed partial class ReflectionProvider
         {
             kind = "type",
             typeKind = TypeKind(type),
+            isByRefLike = type.IsByRefLike,
+            allowsRefLikeTypeArguments = type.IsGenericTypeDefinition
+                ? type.GetGenericArguments().Select(parameter => (parameter.GenericParameterAttributes & GenericParameterAttributes.AllowByRefLike) != 0).ToArray()
+                : Array.Empty<bool>(),
             sourceName = ProviderSourceTypeName(type),
             sourceTypeFamily = ProviderSourceTypeFamilyObject(type),
             namespaceName = activeNamespaceName,

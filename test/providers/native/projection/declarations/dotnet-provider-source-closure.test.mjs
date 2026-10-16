@@ -14,6 +14,8 @@ test(".NET provider source closure excludes target-only metadata dependencies", 
   });
   const type = (sourceName, extra = {}) => ({
     kind: "type",
+    isByRefLike: false,
+    allowsRefLikeTypeArguments: [],
     typeKind: "class",
     sourceName,
     namespaceName: "Example",
@@ -40,6 +42,8 @@ test(".NET provider source closure excludes target-only metadata dependencies", 
             parameters: [],
             returnType: {
               kind: "named",
+              isByRefLike: false,
+              allowsRefLikeTypeArguments: [],
               targetId: "Example::SourceDependency",
               metadataName: "Example.SourceDependency",
               sourceShape: providerRef("SourceDependency"),
