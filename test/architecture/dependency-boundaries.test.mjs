@@ -180,6 +180,15 @@ test("sealed C# classification queries cannot delegate to analysis policy", () =
   assert.doesNotMatch(nameQuery, /\bhost\./u);
 });
 
+test("binding rendering has no superseded source or carrier hint API", () => {
+  for (const file of ["binding-patterns.ts", "binding-array-patterns.ts", "binding-object-patterns.ts",
+    "binding-pattern-contracts.ts", "destructuring-assignment/planning.ts"]) {
+    const source = readFileSync(resolve(repositoryRoot, "src/backend/planner/bindings", file), "utf8");
+    assert.doesNotMatch(source, /\b(?:getObjectShapeForBindingSource|_sourceNode|_sourceCarrier|_sourceCarrierOverride|_sourceFile|projectedCarrier)\b/u,
+      `${file}: only sealed projection evidence determines the binding representation`);
+  }
+});
+
 test("expected-result specializations are classified by exact target use", () => {
   const analysis = readFileSync(
     resolve(repositoryRoot, "src/analysis/expected-types/analyze.ts"),

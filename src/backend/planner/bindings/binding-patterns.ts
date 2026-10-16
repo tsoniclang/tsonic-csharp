@@ -11,7 +11,6 @@ import {
 import type { Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
@@ -42,12 +41,10 @@ export interface CsharpEntryBinding {
 export function planBindingPatternFromExpression(
   patternNode: Node,
   sourceExpression: CsharpExpression,
-  sourceNode: Node | undefined,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-  sourceCarrier?: TargetTypeRef,
   planExpression?: ExpressionPlanner,
   retainBinding?: (binding: CsharpEntryBinding, declaration: Node) => void,
 ): readonly CsharpStatement[] {
@@ -60,7 +57,6 @@ export function planBindingPatternFromExpression(
     projectionInput,
     projectionDiagnostics,
     projectionState,
-    projectedCarrier,
   ) => planBindingNameFromProjection(
     name,
     projected,
@@ -70,15 +66,14 @@ export function planBindingPatternFromExpression(
     projectionInput,
     projectionDiagnostics,
     projectionState,
-    projectedCarrier,
     planExpression,
     retainBinding,
   );
   if (HasSourceKind(input.program.source.ast, patternNode, KindArrayBindingPattern)) {
-    return planArrayBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, projectionPlanner, planExpression, sourceCarrier);
+    return planArrayBindingPattern(patternNode, sourceExpression, sourceFile, input, diagnostics, state, projectionPlanner, planExpression);
   }
   if (HasSourceKind(input.program.source.ast, patternNode, KindObjectBindingPattern)) {
-    return planObjectBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, projectionPlanner, planExpression);
+    return planObjectBindingPattern(patternNode, sourceExpression, sourceFile, input, diagnostics, state, projectionPlanner, planExpression);
   }
   diagnostics.push(unsupportedNodeDiagnostic(patternNode, "Binding pattern is outside the current C# planning surface."));
   return [];
@@ -93,7 +88,6 @@ function planBindingNameFromProjection(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-  projectedCarrier?: TargetTypeRef,
   planExpression?: ExpressionPlanner,
   retainBinding?: (binding: CsharpEntryBinding, declaration: Node) => void,
 ): readonly CsharpStatement[] {
@@ -138,7 +132,7 @@ function planBindingNameFromProjection(
         type: nestedType,
         initializer: projected,
       },
-      ...planBindingPatternFromExpression(name, nestedSource, projectionNode, sourceFile, input, diagnostics, state, projectedCarrier, planExpression, retainBinding),
+      ...planBindingPatternFromExpression(name, nestedSource, sourceFile, input, diagnostics, state, planExpression, retainBinding),
     ];
   }
   diagnostics.push(unsupportedNodeDiagnostic(name, "Destructuring target binding name is outside the current C# planning surface."));
@@ -147,7 +141,6 @@ function planBindingNameFromProjection(
 
 export function getCsharpTypeForExpressionCarrier(
   expression: Node,
-  _sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   diagnosticNode: Node,

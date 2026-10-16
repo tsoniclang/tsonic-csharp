@@ -80,8 +80,7 @@ function planDestructuringAssignmentCore(node: Node, sourceFile: SourceFile, inp
   }
   if (sourceExpression.completion.kind === "never") return sourceExpression;
   if (sourceExpression.completion.kind !== "value") return undefined;
-  const sourceType = getCsharpTypeForExpressionCarrier(right, sourceFile, input, diagnostics, left, "Destructuring assignment source");
-  const sourceCarrier = sourceExpression.completion.carrier;
+  const sourceType = getCsharpTypeForExpressionCarrier(right, input, diagnostics, left, "Destructuring assignment source");
   const tempName = allocateDestructuringTemp(state);
   const tempReference: CsharpExpression = { kind: "IdentifierName", name: tempName };
   return csharpPlannedValue(sourceExpression.completion.carrier, tempReference, [
@@ -95,12 +94,10 @@ function planDestructuringAssignmentCore(node: Node, sourceFile: SourceFile, inp
     ...planAssignmentPatternFromExpression(
       pattern,
       tempReference,
-      right,
       sourceFile,
       input,
       diagnostics,
       state,
-      sourceCarrier,
       planExpression,
     ),
     ]);

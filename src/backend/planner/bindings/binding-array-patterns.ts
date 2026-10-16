@@ -30,14 +30,12 @@ import { planCsharpBindingDefaultValue } from "./optional-values.js";
 export function planArrayBindingPattern(
   patternNode: Node,
   sourceExpression: CsharpExpression,
-  _sourceNode: Node | undefined,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
   planExpression: ExpressionPlanner | undefined,
-  _sourceCarrierOverride?: TargetTypeRef,
 ): readonly CsharpStatement[] {
   const source = input.program.records.bindingPatternProjection.get(patternNode)?.source;
   if (source?.kind !== "array-source") return failCsharpPlannerInvariant(
@@ -125,10 +123,9 @@ function planArrayBindingElement(
           input,
           diagnostics,
           state,
-          defaultedElementCarrier,
         ));
       }
-      return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
+      return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
     }
     if (planExpression === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Array destructuring defaults require the active expression planner before C# emission."));
@@ -142,9 +139,9 @@ function planArrayBindingElement(
       return [];
     }
     return consumeCsharpPlannedValue(defaultedProjection.value, expression =>
-      planBindingNameFromProjection(name, expression, defaultedProjection.type, elementNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier));
+      planBindingNameFromProjection(name, expression, defaultedProjection.type, elementNode, sourceFile, input, diagnostics, state));
   }
-  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
+  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
 }
 
 function planArrayBindingProjection(
@@ -179,7 +176,7 @@ function planArrayRestBindingElement(
   planBindingNameFromProjection: BindingProjectionPlanner,
 ): readonly CsharpStatement[] {
   if (sourceCarrier.kind !== "array") {
-    return planTupleRestBindingElement(elementNode, name, sourceExpression, index, sourceCarrier, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
+    return planTupleRestBindingElement(elementNode, name, sourceExpression, index, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
   }
   if (name === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array rest destructuring requires a target binding name."));
@@ -191,7 +188,7 @@ function planArrayRestBindingElement(
     return [];
   }
   const projected = planArrayRestProjection(sourceExpression, index, sourceCarrier);
-  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, sourceCarrier.restCarrier);
+  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
 }
 
 function planTupleRestBindingElement(
@@ -199,7 +196,6 @@ function planTupleRestBindingElement(
   name: Node | undefined,
   sourceExpression: CsharpExpression,
   index: number,
-  _sourceCarrier: Extract<CsharpArrayBindingCarrier, { readonly kind: "tuple" }>,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
@@ -225,7 +221,7 @@ function planTupleRestBindingElement(
       name: `Item${index + offset + 1}`,
     }));
   const projected = csharpTupleExpression(projectedElements, projectedType);
-  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, restCarrier);
+  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
 }
 
 function planArrayRestProjection(

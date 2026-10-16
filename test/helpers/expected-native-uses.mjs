@@ -1,5 +1,6 @@
 import { analyzeSourceLiteralValues, createTargetSourceProgram } from "@tsonic/target-api/source";
 import { analyzeCsharpExpectedTypes } from "../../dist/analysis/expected-types/analyze.js";
+import { createCsharpProviderRelationResolver } from "../../dist/providers/native/relations/resolver.js";
 
 export function createExpectedNativeUseOwner(compiled) {
   const program = compiled.result.program;
@@ -19,6 +20,8 @@ export function createExpectedNativeUseOwner(compiled) {
     return returnType === undefined ? [] : [{ sourceDeclaration: node, returnType }];
   });
   const policy = { ast, sourceFiles: program.sourceFiles, navigation: source.navigation,
+    target: compiled.target, providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
+    objectShapes: program.objectShapes, projectTypes: program.projectTypes,
     literalValues: analyzeSourceLiteralValues(ast, program.sourceFiles),
     semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode,
     typeDefinitions: program.typeDefinitions };

@@ -33,7 +33,8 @@ function context({ baseline, eligible, contextual }) {
       IsSatisfiesExpression: () => false, IsConditionalExpression: () => false } };
   const operations = {
     binaryOperation: { get: node => node === binary && baseline !== undefined ? { target: baseline } : undefined },
-    operatorForm: { usesExpectedResultType: node => node === binary ? eligible : undefined },
+    operatorForm: { get: node => node === binary ? "selected" : undefined,
+      usesExpectedResultType: node => node === binary ? eligible : undefined },
   };
   const propagation = createCsharpExpectedTypePropagation({ policy: { ast }, operations },
     { record: (node, target) => operands.push({ node, target }) }, (node, target) => {

@@ -47,7 +47,7 @@ export function planObjectShapeBindingPattern(
           name: objectShapeStorageMemberName(objectShape, source) },
       }));
       return planBindingNameFromProjection(element.name, { kind: "ObjectCreationExpression", type, assignments }, type,
-        elementNode, sourceFile, input, diagnostics, state, projection.restShape.targetType);
+        elementNode, sourceFile, input, diagnostics, state);
     }
     if (projection.kind !== "object-shape-member") return failCsharpPlannerInvariant(
       "Object member binding requires its admitted native member.", elementNode);
@@ -56,7 +56,7 @@ export function planObjectShapeBindingPattern(
     if (type === undefined) return failCsharpPlannerInvariant("An admitted binding member must be renderable.", elementNode);
     const value: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: sourceExpression, name: member.targetName };
     if (element.Initializer === undefined) return planBindingNameFromProjection(element.name, value, type,
-      elementNode, sourceFile, input, diagnostics, state, member.type);
+      elementNode, sourceFile, input, diagnostics, state);
     const contract = input.program.records.bindingPatternProjection.get(elementNode)?.defaultValue;
     if (contract === undefined) return failCsharpPlannerInvariant(
       "Object default requires its admitted native default contract.", elementNode);
@@ -64,6 +64,6 @@ export function planObjectShapeBindingPattern(
       diagnostics, state, planExpression);
     return defaulted === undefined ? [] : consumeCsharpPlannedValue(defaulted.value, expression =>
       planBindingNameFromProjection(element.name!, expression, defaulted.type, elementNode,
-        sourceFile, input, diagnostics, state, defaulted.carrier));
+        sourceFile, input, diagnostics, state));
   });
 }

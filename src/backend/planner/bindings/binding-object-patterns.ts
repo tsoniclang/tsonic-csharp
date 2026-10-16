@@ -9,9 +9,7 @@ import type {
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
-import { getCsharpObjectShapeFactForNode } from "../objects/fact-queries.js";
 import { csharpTypeFromObjectShapeFact } from "../objects/index.js";
-import type { CsharpObjectShapeFact } from "../../../target-model/types/index.js";
 import { planObjectBindingElement } from "./binding-object-source-patterns.js";
 import {
   planObjectShapeBindingPattern,
@@ -23,7 +21,6 @@ import {
 export function planObjectBindingPattern(
   patternNode: Node,
   sourceExpression: CsharpExpression,
-  _sourceNode: Node | undefined,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
@@ -46,12 +43,4 @@ export function planObjectBindingPattern(
     }
     return planObjectBindingElement(elementNode, sourceExpression, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
   });
-}
-
-export function getObjectShapeForBindingSource(
-  sourceNode: Node | undefined,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-): CsharpObjectShapeFact | undefined {
-  return getCsharpObjectShapeFactForNode(sourceNode, sourceFile, input);
 }

@@ -22,12 +22,10 @@ import { qualifiedCsharpType } from "../../types/index.js";
 export function planAssignmentPatternFromExpression(
   pattern: DestructuringAssignmentPattern,
   sourceExpression: CsharpExpression,
-  _sourceNode: Node | undefined,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-  _sourceCarrier: TargetTypeRef | undefined,
   planExpression: ExpressionPlanner,
 ): readonly CsharpStatement[] {
   const source = input.program.records.bindingPatternProjection.get(pattern.sourceNode)?.source;
@@ -44,8 +42,8 @@ export function planAssignmentPatternFromExpression(
     }
     const name = allocateDestructuringTemp(state);
     return [{ kind: "LocalDeclarationStatement", name, type, initializer: value },
-      ...planAssignmentPatternFromExpression(selected.pattern, { kind: "IdentifierName", name }, subject, sourceFile,
-        input, diagnostics, state, carrier, planExpression)];
+      ...planAssignmentPatternFromExpression(selected.pattern, { kind: "IdentifierName", name }, sourceFile,
+        input, diagnostics, state, planExpression)];
   };
   if (pattern.kind === "array") {
     if (source.kind !== "array-source") return failCsharpPlannerInvariant("Array assignment requires its admitted array source.", pattern.sourceNode);

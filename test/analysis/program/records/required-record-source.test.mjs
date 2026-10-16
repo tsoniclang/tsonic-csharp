@@ -128,7 +128,11 @@ for (const surface of ["native", "js"]) {
     const callables = Object.freeze({ contracts: Object.freeze([...declarations.values()]),
       declarationContracts: Object.freeze([...declarations.values()]), closedInputType: () => undefined,
       get: identity => identity.kind === "declaration" ? declarations.get(identity.declaration) : undefined });
-    const storage = analyzeCsharpStorage(policy, records, records, program.objectShapes, expected, records, records,
+    const operations = Object.freeze({ ...records, typedLocation: Object.freeze({ get: node => {
+      const selected = records.nativeHandler.get(node);
+      return selected?.kind === "typed-location" ? selected.selection : undefined;
+    } }) });
+    const storage = analyzeCsharpStorage(policy, records, operations, program.objectShapes, expected, records, records,
       callables, records, rows);
     assert.equal(storage.issues.length === 0, true, "the owner closes this source without issues");
     assert.equal(nodes.every(node => sameType(storage.lambdaParameterType.get(node), records.lambdaParameterType.get(node)) &&
