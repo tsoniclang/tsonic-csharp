@@ -12,7 +12,7 @@ export function make(): Closed { return { value: 5, tag: "t" }; }`, /required in
 interface Middle<U> extends Box<U> { tag: string; }
 interface Closed extends Middle<int64> {}
 export function read(value: Closed): int64 { return value.value; }
-export function make(): Closed { return { value: 5, tag: "t" }; }`, /required long value\b/u],
+export function make(): Closed { return { value: 5n, tag: "t" }; }`, /required long value\b/u],
   ["readonly alias property", `type Counter = int32;
 interface Box<T> { readonly value: T; }
 interface Closed extends Box<Counter> { tag: string; }
@@ -49,8 +49,9 @@ for (const surface of ["native", "js"]) {
   for (const base of ["Error", "Base"]) {
     test(`class implements ${base} is refused as native non-interface heritage (${surface})`, () => {
       const source = base === "Base" ? "export class Base { value: int32 = 1; }\n" : "";
+      const fields = base === "Error" ? 'name: string = "error"; message: string = "message";' : "";
       const compiled = compileCsharpSource({ surface, sourceText: header + source +
-        `export class Derived implements ${base} { value: int32 = 1; }` });
+        `export class Derived implements ${base} { value: int32 = 1; ${fields} }` });
       const issues = compiled.result.diagnostics;
       assert.equal(compiled.result.artifacts.length, 0, "invalid native heritage produces no artifact");
       assert.equal(issues.length, 1, "one source admission rejection");
