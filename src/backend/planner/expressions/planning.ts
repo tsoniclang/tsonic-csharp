@@ -103,6 +103,10 @@ import {
 import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedArgument, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
+import { captureCsharpPlannedValue } from "./planned-value-composition.js";
+import { qualifiedCsharpType } from "../types/index.js";
+import type { CsharpPromiseDiscard } from "../../../target-model/records/promise-results.js";
+import type { CsharpStatement } from "../../target-ast/syntax/index.js";
 
 function requireExpressionPlan<T>(
   node: Node,
@@ -124,7 +128,34 @@ export function planExpression(
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
-  return requireExpressionPlan(node, diagnostics, () => planExpressionCore(node, sourceFile, input, diagnostics, state));
+  return requireExpressionPlan(node, diagnostics, () => {
+    const planned = planExpressionCore(node, sourceFile, input, diagnostics, state);
+    const discard = input.program.promiseResults.get(node)?.discard;
+    if (planned === undefined || planned.completion.kind !== "value" || discard === undefined) return planned;
+    const captured = captureCsharpPlannedValue(node, input, diagnostics, planned.completion.carrier);
+    if (captured === undefined) return undefined;
+    const expression: CsharpExpression = { kind: "IdentifierName", name: captured.name };
+    return csharpPlannedValue(planned.completion.carrier, expression, [...planned.prelude,
+      { kind: "LocalDeclarationStatement", name: captured.name, type: captured.type, initializer: planned.completion.expression },
+      ...planCsharpPromiseObservation(discard, expression),
+    ]);
+  });
+}
+
+function planCsharpPromiseObservation(selection: CsharpPromiseDiscard, expression: CsharpExpression): readonly CsharpStatement[] {
+  if (selection.kind === "task") return [{ kind: "ExpressionStatement", expression: {
+    kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
+      receiver: qualifiedCsharpType("Tsonic", "CSharp", "Js", "PromiseRuntime"), name: "ObserveDiscarded" },
+    arguments: [{ kind: "Argument", expression }],
+  } }];
+  if (selection.kind === "optional") return [{ kind: "IfStatement", condition: { kind: "BinaryExpression",
+    left: expression, operatorToken: { kind: "ExclamationEqualsToken" }, right: { kind: "LiteralExpression", value: null } },
+    thenBody: { kind: "Block", statements: planCsharpPromiseObservation(selection.present, selection.valueType
+      ? { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Value" } : expression) } }];
+  return selection.arms.map(arm => ({ kind: "IfStatement", condition: { kind: "InvocationExpression",
+    callee: { kind: "SimpleMemberAccessExpression", receiver: expression, name: `Is${arm.index + 1}` }, arguments: [] },
+    thenBody: { kind: "Block", statements: planCsharpPromiseObservation(arm.selection, { kind: "InvocationExpression",
+      callee: { kind: "SimpleMemberAccessExpression", receiver: expression, name: `As${arm.index + 1}` }, arguments: [] }) } }));
 }
 
 function planExpressionCore(

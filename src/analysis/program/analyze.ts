@@ -114,6 +114,7 @@ import { createCsharpSourceProfileCallableAliasQuery } from "../../policy/operat
 import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-demands.js";
 import { createSourceStorageQuery, type SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../../policy/operations/source-profiles/source-storage-effects.js";
+import { analyzeCsharpPromiseResults } from "../callables/promise-results.js";
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
 
@@ -352,9 +353,13 @@ export function analyzeCsharpTargetProgram(
     expectedTypes: analysis.expectedTypes, storage: analysis.storage,
     sourceModuleConstructions: sourceModuleConstructions.index, moduleInitialization: moduleInitialization.index,
   }, analysis.requiredRecords);
+  const promiseResults = analyzeCsharpPromiseResults({ source, nodes: sourceStorage.nodes, records,
+    definitions: typeDefinitions, sourceCarrier: (type, file) => analysis.policy.types.resolveType(type, file) });
+  if (promiseResults.diagnostics.length > 0) return rejectedTargetStage(promiseResults.diagnostics);
   const program: CsharpTargetProgram = Object.freeze({
     typeDefinitions,
     records,
+    promiseResults: promiseResults.results,
     classFactories: classFactories.factories,
     captureFrames: captureStorage.frames,
     host: Object.freeze({
