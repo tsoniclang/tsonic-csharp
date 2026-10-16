@@ -33,6 +33,7 @@ test("C# source name resolution retains authored case across declarations and re
     navigation: source.navigation,
     sourceFiles: [file],
     sourceIdentities: { node: () => undefined },
+    semanticsFor: source.semantics.forNode,
   });
   const observed = new Set();
   const visit = node => {

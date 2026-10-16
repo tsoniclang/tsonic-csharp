@@ -11,7 +11,7 @@ export function resolveObjectShapeSourceMemberKey(
   declarations: readonly Node[],
   fallbackName: string,
   ast: AstReader,
-  semantics: SourceFileSemantics,
+  semanticsFor: (node: Node) => SourceFileSemantics,
 ): CsharpSourceMemberKey | undefined {
   if (declarations.length === 0) {
     return csharpPropertySourceMemberKey(fallbackName);
@@ -21,11 +21,10 @@ export function resolveObjectShapeSourceMemberKey(
     if (name === undefined) {
       return undefined;
     }
-    if (ast.is.IsComputedPropertyName(name)) {
-      const selected = semantics.operations.wellKnownSymbol(name);
-      return selected === undefined
-        ? undefined
-        : csharpWellKnownSymbolSourceMemberKey(selected.kind);
+    if (ast.is.IsComputedPropertyName(name) || ast.is.IsNumericLiteral(name)) {
+      const selected = semanticsFor(declaration).propertyNames.get(name);
+      return selected?.kind === "resolved" ? csharpPropertySourceMemberKey(selected.name)
+        : selected?.kind === "well-known-symbol" ? csharpWellKnownSymbolSourceMemberKey(selected.symbol) : undefined;
     }
     return csharpPropertySourceMemberKey(fallbackName);
   });

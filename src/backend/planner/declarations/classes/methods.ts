@@ -173,6 +173,9 @@ function planMethodDeclarationName(
   diagnostics: TargetDiagnostic[],
 ): string {
   if (nameNode !== undefined && input.program.source.ast.is.IsComputedPropertyName(nameNode)) {
+    const name = input.program.source.propertyNames.get(nameNode);
+    if (name?.kind === "resolved") return planIdentifierName(
+      nameNode, "MethodDeclaration", input, diagnostics, "Method name");
     const selected = input.program.records.wellKnownSymbol.get(nameNode);
     if (selected !== undefined) {
       const targetName = csharpWellKnownSymbolTargetMemberName(selected.kind);

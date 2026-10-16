@@ -119,7 +119,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       declarations,
       sourcePropertyName,
       host.ast,
-      queries,
+      host.semanticsFor,
     );
     const targetName = sourceKey === undefined
       ? undefined

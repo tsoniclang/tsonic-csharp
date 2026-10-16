@@ -118,6 +118,7 @@ import { analyzeCsharpPromiseResults } from "../callables/promise-results.js";
 import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/project/binary-execution-drivers.js";
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
+import { analyzeCsharpComputedFieldNames } from "../objects/computed-field-names.js";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -139,6 +140,8 @@ export function analyzeCsharpTargetProgram(
     return rejectedTargetStage(project.diagnostics);
   }
   const source = input.source;
+  const computedFieldIssues = analyzeCsharpComputedFieldNames(source);
+  if (computedFieldIssues.length !== 0) return rejectedTargetStage(computedFieldIssues);
   const nativeControlIssues = analyzeCsharpNativeControlFlow(source);
   if (nativeControlIssues.length !== 0) return rejectedTargetStage(nativeControlIssues);
   const memoryBindings = createTsonicMemoryBindingIndex(source);
@@ -167,6 +170,7 @@ export function analyzeCsharpTargetProgram(
     navigation: source.navigation,
     sourceFiles,
     sourceIdentities,
+    semanticsFor: source.semantics.forNode,
   });
   const typeHost = {
     literalValues,
