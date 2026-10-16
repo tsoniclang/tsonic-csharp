@@ -42,6 +42,7 @@ export interface CsharpPlanningHost {
 export interface CsharpTargetProgram {
   readonly typeDefinitions: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
   readonly records: CsharpProgramRecords;
+  readonly promiseResults: import("../../target-model/records/promise-results.js").CsharpPromiseResults;
   readonly classFactories: readonly CsharpClassFactory[];
   readonly captureFrames: readonly CsharpCaptureFrame[];
   readonly host: CsharpPlanningHost;
