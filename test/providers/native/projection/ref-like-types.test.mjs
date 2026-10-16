@@ -158,3 +158,30 @@ export function fail(): boolean { return new Box<Lease>().Value === 11; }
   assert.equal(compiled.result.diagnostics[0].code, "CSHARP_REFLIKE_GENERIC_ARGUMENT", "the native anti-constraint is authoritative");
   assert.equal(compiled.result.program === undefined, true, "no invalid native generic is published");
 });
+
+for (const [name, sourceText, expected] of [
+  ["named native async result and parameter", `
+import type { Lease } from "@fixture/ref-like/RefLikeProof.js";
+export async function keep(value: Lease, pending: Promise<void>): Promise<Lease> {
+  await pending; return value;
+}`, ["CSHARP_REFLIKE_ASYNC_PARAMETER", "CSHARP_REFLIKE_ASYNC_RESULT"]],
+  ["named native callable capture", `
+import type { int32 } from "@tsonic/core/types.js";
+import type { Lease } from "@fixture/ref-like/RefLikeProof.js";
+export function keep(value: Lease): () => int32 { return () => value.Value; }
+`, ["CSHARP_REFLIKE_FRAME_CAPTURE"]],
+  ["named native ordinary field", `
+import type { Lease } from "@fixture/ref-like/RefLikeProof.js";
+export class Holder { constructor(public readonly value: Lease) {} }
+`, ["CSHARP_REFLIKE_FRAME_CAPTURE"]],
+]) {
+  test(`native ref-like admission does not depend on BCL spelling: ${name}`, () => {
+    const { capability } = nativeFixture();
+    const compiled = compileCsharpSource({ capabilities: [capability], sourceText });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the actual named native placement reaches target admission");
+    const codes = compiled.result.diagnostics.map(value => value.code).sort();
+    assert.equal(JSON.stringify(codes), JSON.stringify([...expected].sort()), "one native placement owner rejects exactly the impossible storage");
+    assert.equal(compiled.result.program === undefined && compiled.result.artifacts.length === 0, true,
+      "no ref-like value escapes into an impossible native representation");
+  });
+}
