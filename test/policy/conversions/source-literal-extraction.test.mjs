@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { compileCsharpTarget } from "../../../dist/backend/compile.js";
 
 function literals(sourceText, surface = "native") {
   const compiled = compileCsharpSource({ surface, sourceText });
@@ -105,5 +106,68 @@ export function withDefault(value: float32 = -1.5): float32 { return value; }
     assert.equal(/9007199254740992M|\b1\.0000000596046448F/u.test(output), false,
       `${surface}: the native token never uses the lossy double summary`);
     assert.doesNotThrow(() => JSON.stringify(compiled.result.plan), `${surface}: every native token remains JSON-safe`);
+  }
+});
+
+test("numeric syntax follows the sealed operand carrier rather than the enclosing expected type", () => {
+  const sourceText = `import type { float64, int32, int16, uint32 } from "@tsonic/core/types.js";
+export function arithmetic(): number { return (1 + 2) / 4; }
+export function scalar(): int32 { return 1; }
+export function narrow(): int16 { return 7; }
+export function unsigned(): uint32 { return 4294967295; }
+export function preciseDouble(): float64 { return 9007199254740992; }
+`;
+  for (const surface of ["native", "js"]) {
+    const { compiled, program, found } = literals(sourceText, surface);
+    assert.equal(compiled.result.diagnostics.length, 0, `${surface}: selected scalar and arithmetic controls compile`);
+    const output = [...compiled.artifacts.values()].join("\n");
+    const arithmetic = found.find(entry => entry.kind === "KindBinaryExpression" && entry.datum.integerConstant === 0n);
+    assert.equal(arithmetic !== undefined, true, `${surface}: the selected operation remains an operation`);
+    const source = program.records.valueRead.get(arithmetic.node)?.source;
+    assert.equal(source?.kind === "source-primitive" && source.name === (surface === "native" ? "int32" : "float64"), true,
+      `${surface}: the intrinsic carrier is separate from the enclosing number context`);
+    assert.equal(output.includes(surface === "native" ? "return (1 + 2) / 4;" : "return (1D + 2D) / 4D;"), true,
+      `${surface}: arithmetic is not folded or retyped from the destination`);
+    assert.equal(output.includes("return 9007199254740992D;"), true, `${surface}: the actual double is a native double at its producer`);
+    assert.equal(output.includes("return (short)7;") && output.includes("return (uint)4294967295;"), true,
+      `${surface}: scalar integer adaptation uses native constant casts`);
+    assert.doesNotThrow(() => JSON.stringify(compiled.result.plan), `${surface}: the completed native AST contains no bigint payload`);
+  }
+});
+
+test("checked float64 provenance keeps genuine native conversion operations and their value domain", () => {
+  for (const surface of ["native", "js"]) {
+    for (const [target, literal, accepted, syntax] of [
+      ["float32", "1.00000005960464477539062500000001", true, "(float)1.0000000596046448D"],
+      ["float32", "1e40", true, "(float)1e+40D"],
+      ["decimal", "9007199254740992", true, "(decimal)9007199254740992D"],
+      ["decimal", "1e30", false, undefined],
+    ]) {
+      const compiled = compileCsharpSource({ surface,
+        sourceText: `import type { ${target} } from "@tsonic/core/types.js"; export function value(): ${target} { return ${literal}; }`,
+        compileTarget(request) {
+          const ast = request.input.source.ast;
+          const source = { ...request.input.source, ast: { ...ast, authoredRange(node) {
+            return node !== undefined && ast.is.IsNumericLiteral(node) ? { kind: "synthetic" } : ast.authoredRange(node);
+          } } };
+          return compileCsharpTarget({ ...request, input: { ...request.input, source } });
+        } });
+      const label = `${surface} ${target} ${literal}`;
+      assert.equal(compiled.sourceDiagnosticsText, "", `${label}: checked source is valid`);
+      assert.equal(compiled.result.diagnostics.length === 0, accepted, `${label}: actual conversion has its own native domain`);
+      if (!accepted) continue;
+      const output = [...compiled.artifacts.values()].join("\n");
+      assert.equal(output.includes(syntax), true, `${label}: the cast consumes the actual double expression`);
+      assert.equal(output.includes(`${Number(literal)}${target === "float32" ? "F" : "M"}`), false,
+        `${label}: the value is not reinterpreted as an authored token`);
+    }
+    const variable = compileCsharpSource({ surface, sourceText: `import type { float32, float64 } from "@tsonic/core/types.js";
+export function negativeZero(): float32 { const value: float64 = -0; return value as float32; }
+export function overflow(): float32 { const value: float64 = 1e40; return value as float32; }
+` });
+    assert.equal(variable.result.diagnostics.length, 0, `${surface}: actual variable casts remain valid`);
+    const output = [...variable.artifacts.values()].join("\n");
+    assert.equal(output.includes("-0D") && output.includes("return (float)value;"), true,
+      `${surface}: negative zero stays a real native conversion`);
   }
 });

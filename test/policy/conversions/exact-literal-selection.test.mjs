@@ -17,10 +17,13 @@ test("exact literal selection keeps the four outcomes and their precedence", () 
     "a non-primitive target keeps the classified source literal");
   assert.deepEqual(select(datum("binary", { integerConstant: 7n }), csharpStringTargetType()), { kind: "not-applicable" },
     "a binary constant has no source literal representation at a non-primitive target");
-  assert.deepEqual(select(seven, primitive("int32")), { kind: "source-representation" }, "a narrow primitive keeps the source literal");
+  assert.deepEqual(select(seven, primitive("int32")),
+    { kind: "resolved", recipe: { kind: "integer", target: primitive("int32"), width: "int32", value: 7n } },
+    "a small native integer uses its selected native recipe");
   const parenthesizedZero = datum("parenthesized", { number: -0, integer: 0n, integerConstant: 0n });
-  assert.deepEqual(select(parenthesizedZero, primitive("int32")), { kind: "source-representation" },
-    "a fitting parenthesized constant precedes the zero recipe");
+  assert.deepEqual(select(parenthesizedZero, primitive("int32")),
+    { kind: "resolved", recipe: { kind: "integer", target: primitive("int32"), width: "int32", value: 0n } },
+    "parentheses preserve a scalar's exact integer evidence");
   assert.deepEqual(select(parenthesizedZero, primitive("float64")),
     { kind: "resolved", recipe: { kind: "signed-zero", target: primitive("float64"), precision: "float64" } },
     "an integer constant never fits a floating target, so signed zero applies");
@@ -30,7 +33,7 @@ test("exact literal selection keeps the four outcomes and their precedence", () 
     "a binary constant outside the target is not a literal conversion");
 });
 
-test("exact literal selection publishes signed-zero, zero, char and floating recipes", () => {
+test("exact literal selection publishes signed-zero, integer, char and floating recipes", () => {
   const negativeZero = checkedSourceLiteralValues(["-0"])[0];
   for (const name of ["float64", "float16"]) {
     assert.deepEqual(select(negativeZero, primitive(name)),
@@ -39,7 +42,9 @@ test("exact literal selection publishes signed-zero, zero, char and floating rec
   assert.deepEqual(select(negativeZero, csharpNullableTargetType(primitive("float32"))),
     { kind: "resolved", recipe: { kind: "float", target: primitive("float32"), precision: "float32", token: { significand: "0" }, negative: true } },
     "a nullable target selects at its element");
-  assert.deepEqual(select(negativeZero, primitive("int32")), { kind: "resolved", recipe: { kind: "zero" } }, "-0 at an integer is 0");
+  assert.deepEqual(select(negativeZero, primitive("int32")),
+    { kind: "resolved", recipe: { kind: "integer", target: primitive("int32"), width: "int32", value: 0n } },
+    "-0 at an integer is the canonical integer zero");
   assert.deepEqual(select(negativeZero, primitive("decimal")),
     { kind: "resolved", recipe: { kind: "float", target: primitive("decimal"), precision: "decimal", token: { significand: "0" }, negative: true } },
     "decimal keeps the floating recipe for -0");
@@ -64,6 +69,29 @@ test("exact literal selection publishes wide integer recipes and range refusals"
       { kind: "rejected", reason: `Source bigint literal is outside the exact '${name}' range.` }, `${name} above maximum`);
   }
   assert.deepEqual(select(datum("numeric", { number: 1.5 }), primitive("int64")), { kind: "not-applicable" }, "no exact integer");
+});
+
+test("small native integer recipes use exact scalar evidence without folding selected operations", () => {
+  const ranges = [["int8", -128n, 127n], ["uint8", 0n, 255n], ["int16", -32768n, 32767n],
+    ["uint16", 0n, 65535n], ["int32", -2147483648n, 2147483647n], ["uint32", 0n, 4294967295n]];
+  for (const [name, minimum, maximum] of ranges) {
+    for (const value of [minimum, 0n, maximum]) {
+      const target = primitive(name);
+      const literal = datum("numeric", { number: Number(value), integer: value });
+      assert.deepEqual(select(literal, target),
+        { kind: "resolved", recipe: { kind: "integer", target, width: name, value } }, `${name} ${value}`);
+      assert.equal(csharpLiteralIsRepresentableAs(literal, target), true, `${name}: exact bounds agree`);
+    }
+    for (const value of [minimum - 1n, maximum + 1n]) {
+      assert.equal(select(datum("numeric", { number: Number(value), integer: value }), primitive(name)).kind,
+        "rejected", `${name} ${value}: not an admitted constant`);
+    }
+    assert.equal(select(datum("numeric", { number: 0.5 }), primitive(name)).kind, "not-applicable", `${name}: no rounding`);
+  }
+  for (const form of ["binary", "parenthesized"]) {
+    assert.deepEqual(select(datum(form, { integerConstant: 30n }), primitive("int32")),
+      { kind: "source-representation" }, `${form}: a selected operation is never replaced by its integer summary`);
+  }
 });
 
 test("exact literal selections and recipes are frozen data", () => {

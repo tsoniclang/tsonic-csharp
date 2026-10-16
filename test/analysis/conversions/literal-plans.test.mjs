@@ -170,7 +170,8 @@ test("a compiled program publishes exact literal selections at its actual reques
 test("a provider argument adapter's literal input step is requested by the selected call and rendered from its record", () => {
   const planned = Object.freeze({ kind: "LiteralExpression", value: 30 });
   const cases = [
-    ["int32", "int16", { kind: "source-representation" }, planned],
+    ["int32", "int16", { kind: "resolved", recipe: { kind: "integer", target: primitive("int16"), width: "int16", value: 30n } },
+      { kind: "CastExpression", type: { kind: "PredefinedType", name: "short" }, expression: { kind: "LiteralExpression", value: 30 } }],
     ["float64", "int64", { kind: "resolved", recipe: { kind: "integer", target: primitive("int64"), width: "int64", value: 30n } },
       { kind: "IntegerLiteralExpression", digits: "30", suffix: "L" }],
   ];
