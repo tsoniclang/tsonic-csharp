@@ -354,7 +354,7 @@ export function analyzeCsharpTargetProgram(
     expectedTypes: analysis.expectedTypes, storage: analysis.storage,
     sourceModuleConstructions: sourceModuleConstructions.index, moduleInitialization: moduleInitialization.index,
   }, analysis.requiredRecords);
-  const promiseResults = analyzeCsharpPromiseResults({ source, nodes: sourceStorage.nodes, records,
+  const promiseResults = analyzeCsharpPromiseResults({ source, storage: sourceStorage, nodes: sourceStorage.nodes, records,
     definitions: typeDefinitions, sourceCarrier: (type, file) => analysis.policy.types.resolveType(type, file) });
   if (promiseResults.diagnostics.length > 0) return rejectedTargetStage(promiseResults.diagnostics);
   const binaryExecutionDriver = composeCsharpBinaryExecutionDriver(prerequisiteBinaryExecutionDriver,

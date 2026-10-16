@@ -28,7 +28,7 @@ test("C# rejects a discarded native async call before publishing a program", () 
     async function leaf(): Promise<number> { return 1; }
     export function outer(): void { leaf(); }
   ` });
-  assert.deepEqual(compiled.targetDiagnostics.map(diagnostic => diagnostic.code), ["CSHARP_DISCARDED_NATIVE_ASYNC_CALL"]);
+  assert.deepEqual(compiled.targetDiagnostics.map(diagnostic => diagnostic.code), ["TSONIC_NATIVE_ASYNC_RESULT_DISCARDED"]);
   assert.equal(compiled.result.program === undefined, true);
   assert.equal(compiled.result.artifacts.length, 0);
 });
