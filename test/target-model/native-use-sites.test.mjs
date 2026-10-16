@@ -40,4 +40,6 @@ test("requested native target and conversion mode remain independent context key
   assert.equal(identity(csharpNativeUseSite(owner, argument, { target: integer })),
     identity(csharpNativeUseSite(owner, argument, { target: csharpSourcePrimitiveTargetType("int32"), mode: "implicit" })),
     "equivalent explicit/default implicit requests have one identity");
+  assert.equal(identity(csharpNativeUseSite(owner, argument)), identity(csharpNativeUseSite(owner, argument, { mode: "implicit" })),
+    "an explicit default mode does not invent another un-specialized site");
 });
