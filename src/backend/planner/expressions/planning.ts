@@ -222,87 +222,98 @@ function planExpressionCore(
     expectedArgumentPassingMode,
     selectedTargetParameter,
   );
-  const memoryBinding = tryPlanCsharpMemoryBinding(node, sourceFile, input, diagnostics, scopedPlanExpression);
-  if (memoryBinding.handled) return memoryBinding.expression;
-  const explicitSafety = tryPlanCsharpExplicitSafetyExpression(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    state,
-    planExpression,
-  );
-  if (explicitSafety.handled) {
-    return explicitSafety.expression;
-  }
-  const jsStringConversion = tryPlanCsharpJsStringConversion(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    scopedPlanExpression,
-  );
-  if (jsStringConversion.handled) {
-    return jsStringConversion.expression;
-  }
-  const nativePointerOperation = tryPlanCsharpNativePointerOperation(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    scopedPlanExpression,
-    (
-      expressionNode,
-      expressionSourceFile,
-      expressionInput,
-      expressionDiagnostics,
-      expressionExpectedType,
-      expectedTypeSubject,
-      expectedTargetType,
-      nestedState,
-    ) => planExpressionWithExpectedType(
-      expressionNode,
-      expressionSourceFile,
-      expressionInput,
-      expressionDiagnostics,
-      expressionExpectedType,
-      expectedTypeSubject,
-      nestedState ?? state,
-      expectedTargetType,
-    ),
-    state,
-  );
-  if (nativePointerOperation.handled) {
-    return nativePointerOperation.expression;
-  }
-  const typedLocationOperation = tryPlanCsharpTypedLocationOperation(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    scopedPlanExpression,
-    (
-      expressionNode,
-      expressionSourceFile,
-      expressionInput,
-      expressionDiagnostics,
-      expressionExpectedType,
-      expectedTypeSubject,
-      expectedTargetType,
-    ) => planExpressionWithExpectedType(
-      expressionNode,
-      expressionSourceFile,
-      expressionInput,
-      expressionDiagnostics,
-      expressionExpectedType,
-      expectedTypeSubject,
-      state,
-      expectedTargetType,
-    ),
-    state,
-  );
-  if (typedLocationOperation.handled) {
-    return typedLocationOperation.expression;
+  switch (input.program.records.nativeHandler.get(node)) {
+    case "memory-binding":
+      {
+        const plan = tryPlanCsharpMemoryBinding(node, sourceFile, input, diagnostics, scopedPlanExpression);
+        return plan.handled ? plan.expression : undefined;
+      }
+    case "explicit-safety":
+      {
+        const plan = tryPlanCsharpExplicitSafetyExpression(
+          node,
+          sourceFile,
+          input,
+          diagnostics,
+          state,
+          planExpression,
+        );
+        return plan.handled ? plan.expression : undefined;
+      }
+    case "js-string-conversion":
+      {
+        const plan = tryPlanCsharpJsStringConversion(
+          node,
+          sourceFile,
+          input,
+          diagnostics,
+          scopedPlanExpression,
+        );
+        return plan.handled ? plan.expression : undefined;
+      }
+    case "native-pointer":
+      {
+        const plan = tryPlanCsharpNativePointerOperation(
+          node,
+          sourceFile,
+          input,
+          diagnostics,
+          scopedPlanExpression,
+          (
+            expressionNode,
+            expressionSourceFile,
+            expressionInput,
+            expressionDiagnostics,
+            expressionExpectedType,
+            expectedTypeSubject,
+            expectedTargetType,
+            nestedState,
+          ) => planExpressionWithExpectedType(
+            expressionNode,
+            expressionSourceFile,
+            expressionInput,
+            expressionDiagnostics,
+            expressionExpectedType,
+            expectedTypeSubject,
+            nestedState ?? state,
+            expectedTargetType,
+          ),
+          state,
+        );
+        return plan.handled ? plan.expression : undefined;
+      }
+    case "typed-location":
+      {
+        const plan = tryPlanCsharpTypedLocationOperation(
+          node,
+          sourceFile,
+          input,
+          diagnostics,
+          scopedPlanExpression,
+          (
+            expressionNode,
+            expressionSourceFile,
+            expressionInput,
+            expressionDiagnostics,
+            expressionExpectedType,
+            expectedTypeSubject,
+            expectedTargetType,
+          ) => planExpressionWithExpectedType(
+            expressionNode,
+            expressionSourceFile,
+            expressionInput,
+            expressionDiagnostics,
+            expressionExpectedType,
+            expectedTypeSubject,
+            state,
+            expectedTargetType,
+          ),
+          state,
+        );
+        return plan.handled ? plan.expression : undefined;
+      }
+    case undefined:
+      break;
   }
   const sourceSyntaxDiagnosticsStart = diagnostics.length;
   const sourceSyntax = tryPlanSourceSyntaxExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
