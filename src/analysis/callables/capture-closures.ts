@@ -5,7 +5,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpStorageIssue } from "../../target-model/records/storage.js";
 import { selectCsharpNamedSelfBinding } from "./named-self.js";
-import { type CsharpNamedSelfBinding } from "../../target-model/records/capture-storage.js";
+import { type CsharpCaptureStorage, type CsharpNamedSelfBinding } from "../../target-model/records/capture-storage.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
@@ -26,7 +26,7 @@ export function selectCsharpFrameClosures(
     readonly expectedTypes: Pick<CsharpExpectedTypeClassifications, "callableTarget">;
   },
 ): { readonly closures: readonly CsharpFrameClosure[]; readonly namedSelfBindings: readonly CsharpNamedSelfBinding[];
-  readonly captureFreeDeclarations: readonly Node[] } {
+  readonly captureFreeDeclarations: readonly Node[]; readonly lexicalCaptures: CsharpCaptureStorage["lexicalCaptures"] } {
   const candidates: Node[] = [];
   const visit = (node: Node): void => {
     if (evidence.compileTimeMetadata.get(node)) return;
@@ -141,6 +141,18 @@ export function selectCsharpFrameClosures(
     }
   }
   return Object.freeze({ closures: Object.freeze([...selected.values()]),
+    lexicalCaptures: Object.freeze(captures.map(candidate => Object.freeze({ owner: candidate.declaration,
+      values: Object.freeze(candidate.selected.captures.map(capture => {
+        const logical = evidence.storageTargetType.get(capture.declaration) ?? evidence.nodeTargetType.get(capture.declaration);
+        return Object.freeze({ declaration: capture.declaration,
+          type: logical === undefined ? undefined : physicalType(capture.declaration, logical) });
+      })),
+      receivers: Object.freeze(candidate.selected.receivers.map(receiver => {
+        const reference = receiver.references[0];
+        return Object.freeze({ owner: receiver.owner,
+          type: reference === undefined ? undefined : evidence.nodeTargetType.get(reference) });
+      })),
+    }))),
     namedSelfBindings: Object.freeze(captures.flatMap(candidate => candidate.namedSelf === undefined ? [] : [candidate.namedSelf])),
     captureFreeDeclarations: Object.freeze(captures.filter(candidate =>
       candidate.selected.captures.length === 0 && candidate.selected.receivers.length === 0).map(candidate => candidate.declaration)),

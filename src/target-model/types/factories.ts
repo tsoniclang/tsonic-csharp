@@ -35,6 +35,8 @@ export function csharpTargetNamedType(
     readonly throwable?: true;
     readonly typeofRuntimeKind?: CsharpTypeofRuntimeKind;
     readonly valueType?: true;
+    readonly byRefLike?: true;
+    readonly allowsRefLikeTypeArguments?: readonly boolean[];
     readonly absorbsNullish?: true;
     readonly jsValueCarrier?: true;
     readonly jsStringCarrier?: true;
@@ -77,6 +79,10 @@ export function csharpTargetNamedType(
     ...(metadata.throwable === true ? { csharpThrowable: true } : {}),
     ...(metadata.typeofRuntimeKind !== undefined ? { csharpTypeofRuntimeKind: metadata.typeofRuntimeKind } : {}),
     ...(metadata.valueType === true ? { csharpValueType: true } : {}),
+    ...(metadata.byRefLike === true ? { csharpByRefLike: true } : {}),
+    ...(metadata.allowsRefLikeTypeArguments !== undefined && metadata.allowsRefLikeTypeArguments.length > 0
+      ? { csharpAllowsRefLikeTypeArguments: Object.freeze([...metadata.allowsRefLikeTypeArguments]) }
+      : {}),
     ...(metadata.absorbsNullish === true ? { csharpAbsorbsNullish: true } : {}),
     ...(metadata.jsValueCarrier === true
       ? { csharpJsValueCarrier: true }

@@ -11,6 +11,8 @@ import {
 test(".NET delegate target facts preserve exact optional parameter positions", () => {
   const targetType = dotnetTypeRefToTargetTypeRef({
     kind: "named",
+    isByRefLike: false,
+    allowsRefLikeTypeArguments: [],
     targetId: "Example.Callback",
     metadataName: "Example.Callback",
     callableRepresentation: "delegate",

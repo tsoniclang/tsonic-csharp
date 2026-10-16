@@ -48,6 +48,14 @@ export function validateDotnetTypeRef(
       return;
     case "named":
       validateDotnetTargetIdentity(type.targetId, type.metadataName, `${path}.targetId`, `${path}.metadataName`, collector);
+      if (typeof type.isByRefLike !== "boolean") {
+        collector.add(`${path}.isByRefLike`, "A named CLR type requires its exact native by-ref-like boolean.", type.isByRefLike);
+      }
+      if (!Array.isArray(type.allowsRefLikeTypeArguments) ||
+        type.allowsRefLikeTypeArguments.length !== (type.typeArguments?.length ?? 0) ||
+        type.allowsRefLikeTypeArguments.some(allowed => typeof allowed !== "boolean")) {
+        collector.add(`${path}.allowsRefLikeTypeArguments`, "A named CLR type requires the exact native allows-ref-struct flag for each generic parameter.", type.allowsRefLikeTypeArguments);
+      }
       validateOptionalDotnetRenderShape(type.renderShape, `${path}.renderShape`, collector);
       validateDotnetTypeRefs(type.typeArguments ?? [], `${path}.typeArguments`, collector, options);
       validateOptionalDotnetTypeRef(type.sourceShape, `${path}.sourceShape`, collector, { allowLiteral: true, allowProviderRef: true });

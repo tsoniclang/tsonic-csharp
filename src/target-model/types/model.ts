@@ -199,6 +199,8 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpSourceDeclarationKind?: "class" | "interface" | "enum" | "struct";
   readonly csharpBaseType?: TargetTypeRef;
   readonly csharpValueType?: true;
+  readonly csharpByRefLike?: true;
+  readonly csharpAllowsRefLikeTypeArguments?: readonly boolean[];
   readonly csharpAbsorbsNullish?: true;
   readonly csharpJsValueCarrier?: true;
   readonly csharpJsStringCarrier?: true;

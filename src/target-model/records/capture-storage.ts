@@ -28,6 +28,11 @@ export interface CsharpCapturedBinding {
 export interface CsharpCaptureStorage {
   readonly issues: readonly CsharpStorageIssue[];
   readonly frames: readonly CsharpCaptureFrame[];
+  readonly lexicalCaptures: readonly {
+    readonly owner: Node;
+    readonly values: readonly { readonly declaration: Node; readonly type: TargetTypeRef | undefined }[];
+    readonly receivers: readonly { readonly owner: Node; readonly type: TargetTypeRef | undefined }[];
+  }[];
   readonly captureFrame: { readonly get: (scope: Node) => CsharpCaptureFrame | undefined };
   readonly capturedBinding: { readonly get: (declaration: Node) => CsharpCapturedBinding | undefined };
   readonly physicalStorageType: { readonly get: (declaration: Node, logicalType: TargetTypeRef) => TargetTypeRef };

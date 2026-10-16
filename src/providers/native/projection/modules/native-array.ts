@@ -81,6 +81,8 @@ function dotnetNativeArrayDeclaration(complete: boolean): DotnetTypeDeclaration 
   return {
     kind: "type",
     typeKind: "class",
+    isByRefLike: false,
+    allowsRefLikeTypeArguments: [false],
     sourceName: "Array",
     namespaceName: "System",
     targetId: dotnetNativeArrayTypeId,

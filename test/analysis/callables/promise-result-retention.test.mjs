@@ -1,0 +1,102 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+
+const cases = [
+  ["owned-capture", `
+async function keep(value: number, pending: Promise<void>): Promise<number> {
+  const read = () => value;
+  await pending;
+  return read();
+}
+export async function run(): Promise<boolean> {
+  const stored = keep(7, Promise.resolve(undefined));
+  return await stored === 7;
+}`],
+  ["forward-native-callback", `
+export function forward<Value>(callback: () => Promise<Value>): Promise<Value> { return callback(); }
+export async function invoke<Value>(callback: () => Promise<Value>): Promise<Value> {
+  return await forward(callback);
+}
+async function read(): Promise<number> { return 7; }
+export async function run(): Promise<boolean> { return await invoke(read) === 7; }
+`],
+  ["optional-native-callback", `
+function fail(): never { throw new Error("absent"); }
+async function read(): Promise<number> { return 7; }
+export async function call(callback: (() => Promise<number>) | undefined): Promise<number> {
+  return await (callback ?? fail())();
+}
+export async function run(): Promise<boolean> {
+  if (await call(read) !== 7) return false;
+  try { await call(undefined); return false; } catch { return true; }
+}`],
+  ["generic-stored-completion", `
+export async function source<Value>(callback: () => Promise<Value>): Promise<Value> { return await callback(); }
+export function retain<Other>(callback: () => Promise<Other>): Promise<Other> { return source(callback); }
+export async function consumer<Actual>(callback: () => Promise<Actual>): Promise<Actual> {
+  return await retain(callback);
+}
+async function read(): Promise<number> { return 7; }
+export async function run(): Promise<boolean> { return await consumer(read) === 7; }
+`],
+  ["recursive-owned-completion", `
+async function left(value: number, count: number, pending: Promise<void>): Promise<number> {
+  if (count > 0) return await right(value, count - 1, pending);
+  await pending; return value;
+}
+async function right(value: number, count: number, pending: Promise<void>): Promise<number> {
+  if (count > 0) return await left(value, count - 1, pending);
+  await pending; return value;
+}
+export async function run(): Promise<boolean> {
+  const stored = left(7, 3, Promise.resolve(undefined));
+  return await stored === 7;
+}`],
+  ["class-native-completion", `
+class Work {
+  completion: Promise<void> = Promise.resolve(undefined);
+  async wait(): Promise<void> { await this.completion; }
+}
+export async function run(): Promise<boolean> { const work = new Work(); await work.wait(); return true; }
+`],
+  ["exact-int64-native-callback", `
+import type { int64 } from "@tsonic/core/types.js";
+async function read(value: int64): Promise<int64> { return value; }
+export async function invoke(callback: (value: int64) => Promise<int64>, value: int64): Promise<int64> {
+  return await callback(value);
+}
+export async function run(): Promise<boolean> {
+  const value: int64 = 9007199254740993n;
+  const stored = invoke(read, value);
+  return await stored === value;
+}`],
+];
+
+for (const [name, source] of cases) {
+  test(`C# native Task retention preserves ${name}`, { timeout: 240_000 }, () => {
+    const compiled = compileCsharpSource({ surface: "js", sourceText: source });
+    assert.equal(compiled.targetDiagnostics.length, 0,
+      JSON.stringify(compiled.targetDiagnostics.map(({ code, message }) => ({ code, message }))));
+    assert.equal(compiled.result.program !== undefined, true, "native-admitted Task/delegate values remain publishable");
+    assert.equal(compiled.result.program.promiseResults instanceof Map, true, "one result-use owner publishes the decisions");
+    executeCsharpConstruction(compiled, `promise-retention-${name}`, true, false, [],
+      "Tsonic.CSharp.Js.JsEventLoop.Run(async () => { if (!await Tsonic.Generated.Index.run()) throw new System.Exception(\"native Task retention\"); });");
+  });
+}
+
+test("C# native discarded results retain both actual failing call sites", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+async function leaf(): Promise<number> { return 1; }
+export function reject(): void { leaf(); leaf(); }
+` });
+  const issues = compiled.result.diagnostics;
+  assert.equal(issues.length, 2, "two independent source demands survive the same admission window");
+  assert.equal(issues.every(issue => issue.code === "TSONIC_NATIVE_ASYNC_RESULT_DISCARDED"), true,
+    "native observation remains the same shared rule");
+  assert.equal(issues[0].sourceNode !== undefined && issues[1].sourceNode !== undefined &&
+    issues[0].sourceNode !== issues[1].sourceNode, true, "each diagnostic retains its own actual checked call");
+  assert.equal(compiled.result.program === undefined && compiled.result.artifacts.length === 0, true,
+    "the rejected program is never sealed into output");
+});

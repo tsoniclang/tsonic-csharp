@@ -115,7 +115,7 @@ import { createCsharpSourceProfileCallableAliasQuery } from "../../policy/operat
 import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-demands.js";
 import { createSourceStorageQuery, type SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../../policy/operations/source-profiles/source-storage-effects.js";
-import { analyzeCsharpPromiseResults } from "../callables/promise-results.js";
+import { analyzeCsharpPromiseResults, analyzeCsharpRefLikePlacements } from "../callables/promise-results.js";
 import { analyzeCsharpCallableCreations } from "../callables/creation.js";
 import { analyzeCsharpBindingPatterns, admitCsharpBindingPatterns } from "../control-flow/binding-patterns.js";
 import { admitCsharpExpectedNativeUses } from "../expected-types/native-uses.js";
@@ -395,6 +395,14 @@ export function analyzeCsharpTargetProgram(
   }
   const conversions = analysis.conversionAnalysis.seal(nativeDemand, analysis.requiredRecords);
   if (conversions.issues.length > 0) return rejectCsharpAnalysisIssues(conversions.issues);
+  const refLikeDiagnostics = analyzeCsharpRefLikePlacements({
+    source, nodes: sourceStorage.nodes, callables: analysis.callables, captureStorage,
+    classFactories: classFactories.factories, nativeParticipation,
+    generatorFor: declaration => analysis.sourceEvidence.generator.get(declaration) !== undefined,
+    bindingCarrierFor: declaration => analysis.storage.storageType.get(declaration),
+    expressionCarrierFor: expression => analysis.valueReads.valueRead.get(expression)?.value,
+  });
+  if (refLikeDiagnostics.length > 0) return rejectedTargetStage(refLikeDiagnostics);
   const typeDefinitions = analysis.typeDefinitions.seal();
   const records = createCsharpProgramRecords({
     nativeValueCarriers,
