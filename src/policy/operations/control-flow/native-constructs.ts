@@ -4,7 +4,7 @@ import type { CsharpAttributeApplicationIndex } from "../../../target-model/reco
 import type { CsharpClassInitializationIndex } from "../../../target-model/records/class-initialization.js";
 import type { CsharpNativeParticipationInput } from "../../../target-model/records/native-demand.js";
 import type { CsharpProjectTypeClassifications } from "../../../target-model/records/project-types.js";
-import { csharpNativeChildUses, isCsharpNativeExpression, type CsharpNativeOperandInput, type CsharpNativeOperandStep } from "./operands.js";
+import { csharpNativeChildUses, isCsharpNativeExpression, type CsharpNativeOperandInput, type CsharpNativeOperandStep } from "./native-operands.js";
 
 export interface CsharpNativeConstructInput extends CsharpNativeOperandInput, CsharpNativeParticipationInput {
   readonly sourceFiles: readonly SourceFile[];

@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import { selectCsharpNativeUseRepresentation, type CsharpNativeRepresentationChild } from "../../policy/operations/native-demand/representation.js";
+import { selectCsharpNativeUseRepresentation, type CsharpNativeRepresentationChild } from "../../policy/conversions/native-use-representation.js";
 import type { CsharpExpectedNativeUse } from "../../target-model/records/native-demand.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { CsharpExpectedNativeUseAdmission, CsharpExpectedNativeUseFinalInput, CsharpExpectedNativeUsePendingReason,

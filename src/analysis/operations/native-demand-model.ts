@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
-import type { CsharpNativeConstructInput } from "../../policy/operations/native-demand/constructs.js";
-import type { CsharpNativeOperandInput } from "../../policy/operations/native-demand/operands.js";
+import type { CsharpNativeConstructInput } from "../../policy/operations/control-flow/native-constructs.js";
+import type { CsharpNativeOperandInput } from "../../policy/operations/control-flow/native-operands.js";
 import type { CsharpNativeUse, CsharpNativeUseClassifications } from "../../target-model/records/native-demand.js";
 import type { CsharpExpectedNativeUseAdmission } from "../expected-types/model.js";
 

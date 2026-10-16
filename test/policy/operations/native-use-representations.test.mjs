@@ -3,7 +3,7 @@ import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { targetUseSiteIdentity } from "@tsonic/target-api/analysis";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { selectCsharpNativeUseRepresentation } from "../../../dist/policy/operations/native-demand/representation.js";
+import { selectCsharpNativeUseRepresentation } from "../../../dist/policy/conversions/native-use-representation.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
