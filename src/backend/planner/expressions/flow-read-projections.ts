@@ -1,9 +1,9 @@
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { failTargetPlannerInvariant } from "@tsonic/target-api/artifacts";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -29,8 +29,7 @@ export function planFlowReadUseSiteProjection(
   }
   if (projection?.kind !== "conversion" || projection.source === undefined || projection.target === undefined ||
     projection.selection === undefined || projection.selection.kind === "rejected" || projection.selection.kind === "ambiguous") {
-    return failTargetPlannerInvariant(
-      "tsonic-csharp",
+    return failCsharpPlannerInvariant(
       "C# planning received a source value without a valid sealed storage-read projection.",
       node,
     );
