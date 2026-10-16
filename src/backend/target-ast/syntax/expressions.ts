@@ -153,9 +153,23 @@ export interface CsharpArgument {
   readonly passing?: "in" | "out" | "ref";
 }
 
-export function csharpExpressionIsSignedNumericLiteral(expression: CsharpExpression): boolean {
-  return expression.kind === "PrefixUnaryExpression" &&
-    (expression.operatorToken.kind === "PlusToken" || expression.operatorToken.kind === "MinusToken") &&
-    expression.operand.kind === "NumericLiteralExpression" &&
-    (expression.operand.suffix === "F" || expression.operand.suffix === "M");
+export function csharpExpressionIsNativeNumericConstant(expression: CsharpExpression): boolean {
+  if (expression.kind === "PrefixUnaryExpression") {
+    return (expression.operatorToken.kind === "PlusToken" || expression.operatorToken.kind === "MinusToken") &&
+      expression.operand.kind === "NumericLiteralExpression" &&
+      (expression.operand.suffix === "F" || expression.operand.suffix === "M");
+  }
+  if (expression.kind !== "CastExpression" || expression.type.kind !== "PredefinedType" ||
+    expression.expression.kind !== "LiteralExpression" || typeof expression.expression.value !== "number" ||
+    !Number.isFinite(expression.expression.value) || !Number.isInteger(expression.expression.value)) return false;
+  switch (expression.type.name) {
+    case "sbyte":
+    case "byte":
+    case "short":
+    case "ushort":
+    case "uint":
+      return true;
+    default:
+      return false;
+  }
 }
