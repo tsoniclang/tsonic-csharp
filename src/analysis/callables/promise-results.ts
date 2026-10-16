@@ -2,7 +2,7 @@ import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { createSourceStorageBudget, defaultSourceStorageLimits, decideSourceAsyncResultUse, createSourceControlFlow,
   solveSourceFlow, type SourceStorageQueries } from "@tsonic/target-api/analysis";
-import { sourceEnclosingCallable, sourceExpressionResultDisposition, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { sourceEnclosingCallable, sourceExpressionResultDisposition, sourceParameterIsProperty, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { classifyCsharpSourceProfileType } from "../../policy/types/resolution/source-profile.js";
 import type { CsharpProgramRecords } from "../../target-model/records/program.js";
 import type { CsharpPromiseDiscard, CsharpPromiseResult, CsharpPromiseResults } from "../../target-model/records/promise-results.js";
@@ -98,7 +98,13 @@ export function analyzeCsharpRefLikePlacements(input: {
   for (const contract of input.callables.declarationContracts) {
     const declaration = contract.sourceDeclaration;
     inspect(contract.returnType, declaration);
-    for (const parameter of contract.parameters) inspect(parameter.targetParameter.type, parameter.sourceParameter);
+    for (const parameter of contract.parameters) {
+      inspect(parameter.targetParameter.type, parameter.sourceParameter);
+      if (isRefLike(parameter.targetParameter.type) && sourceParameterIsProperty(ast, parameter.sourceParameter)) {
+        reject(parameter.sourceParameter, "CSHARP_REFLIKE_FRAME_CAPTURE",
+          "A native ref-like value cannot be stored in an ordinary source object field.");
+      }
+    }
     const generator = input.generatorFor(declaration);
     if (!ast.hasModifierKind(declaration, "async") && !generator || ast.body(declaration) === undefined) continue;
     for (const parameter of contract.parameters) {
