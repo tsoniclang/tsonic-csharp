@@ -499,6 +499,10 @@ export function directProviderHost(options = {}) {
       }),
       projectTypes: Object.freeze({
         catalog: Object.freeze({
+          definitions: Object.freeze([...(options.projectTypeDefinitions?.values() ?? [])]),
+          targetTypeForDeclaration(declaration) {
+            return options.projectTargetTypes?.get(declaration);
+          },
           definitionForTarget(target) {
             return options.projectTypeDefinitions?.get(target.id);
           },

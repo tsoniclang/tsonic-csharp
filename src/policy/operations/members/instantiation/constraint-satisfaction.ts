@@ -34,9 +34,9 @@ import {
 } from "../../../constraints/index.js";
 import type { CsharpSelectedTargetMethodTypeArgument } from "../../../../target-model/records/members.js";
 import {
+  implementedConstraintType,
   namedTargetTypeImplicitlyAccepts,
 } from "../../../conversions/carriers.js";
-import { csharpTargetTypeFromBinding } from "../../../types/storage/bindings.js";
 import type {
   CsharpProjectTypePolicy,
   CsharpTypePolicy,
@@ -199,8 +199,7 @@ function targetTypeFailsConstraint(
   }
   switch (constraint.kind) {
     case "implements": {
-      const binding = csharpTargetBindingFact(host.providers.findTargetBindingByTargetId(constraint.contract));
-      const contract = binding === undefined ? undefined : csharpTargetTypeFromBinding(binding, constraint.typeArguments);
+      const contract = implementedConstraintType(host, constraint, new Map());
       if (contract === undefined) return "The required native contract has no exact registered target carrier metadata.";
       return namedTargetTypeImplicitlyAccepts(
           host,
@@ -362,8 +361,7 @@ function sourceConstraintsImplyTargetConstraint(
 ): boolean {
   switch (targetConstraint.kind) {
     case "implements": {
-      const binding = csharpTargetBindingFact(host.providers.findTargetBindingByTargetId(targetConstraint.contract));
-      const targetType = binding === undefined ? undefined : csharpTargetTypeFromBinding(binding, targetConstraint.typeArguments);
+      const targetType = implementedConstraintType(host, targetConstraint, new Map());
       if (targetType === undefined) return false;
       return sourceConstraints.some((constraint) =>
         constraint.kind === "type" &&
@@ -516,8 +514,7 @@ function isCsharpUnmanagedType(
 
 function constraintDescription(host: CsharpConstraintSatisfactionHost, constraint: TargetConstraint): string {
   if (constraint.kind === "implements") {
-    const binding = csharpTargetBindingFact(host.providers.findTargetBindingByTargetId(constraint.contract));
-    const carrier = binding === undefined ? undefined : csharpTargetTypeFromBinding(binding, constraint.typeArguments);
+    const carrier = implementedConstraintType(host, constraint, new Map());
     return carrier === undefined ? constraint.contract : targetTypeRefKey(carrier);
   }
   return constraint.kind === "target-specific" ? `${constraint.target}:${constraint.name}` : constraint.kind;

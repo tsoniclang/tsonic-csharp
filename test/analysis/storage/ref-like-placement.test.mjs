@@ -43,6 +43,9 @@ for (const [name, body, expected] of [
   ["iterator element", `export function* fail(values: int32[]): Generator<Span<int32>, void, unknown> {
     yield new Span<int32>(values);
   }`, "CSHARP_REFLIKE_ITERATOR_ELEMENT"],
+  ["async iterator element", `export async function* fail(values: int32[]): AsyncGenerator<Span<int32>, void, unknown> {
+    yield new Span<int32>(values);
+  }`, "CSHARP_REFLIKE_ITERATOR_ELEMENT"],
 ]) {
   test(`native ref-like placement rejects ${name} before publication`, () => {
     const compiled = compileCsharpSource({ sourceText: `${imports}\n${body}` });
@@ -110,6 +113,41 @@ test("native method and type parameter boundaries require an actual allows-ref-s
       assert.equal(issues[0].message, "A CLR generic parameter requires its native allows-ref-struct flag.", name);
     }
   }
+});
+
+test("constraint carriers use their single exact source or native producer without missing-proof fallthrough", async () => {
+  const { implementedConstraintType } = await import("../../../dist/policy/conversions/carriers.js");
+  const integer = { kind: "source-primitive", name: "int32" };
+  const parameter = { kind: "type-parameter", identity: "Proof.Contract:0", name: "Value" };
+  const declaration = {};
+  const sourceCarrier = csharpTargetNamedType("Proof.SourceContract", [integer], undefined,
+    { allowsRefLikeTypeArguments: [false] });
+  const sourceDefinition = { id: sourceCarrier.id, declaration };
+  let nativeLookups = 0;
+  const providers = { findTargetBindingByTargetId() { nativeLookups += 1; return undefined; } };
+  const arguments_ = new Map([[parameter.identity, integer]]);
+  const constraint = { kind: "implements", contract: sourceCarrier.id, typeArguments: [parameter] };
+  const catalog = { definitions: [sourceDefinition], targetTypeForDeclaration(selected, types) {
+    assert.equal(selected === declaration, true, "the source declaration identity is exact");
+    assert.equal(types.length === 1 && types[0] === integer, true, "the canonical producer receives substituted arguments");
+    return sourceCarrier;
+  } };
+  assert.equal(implementedConstraintType({ providers, projectTypes: { catalog } }, constraint, arguments_) === sourceCarrier,
+    true, "source generic metadata is retained from its real carrier producer");
+  const missing = { definitions: [sourceDefinition], targetTypeForDeclaration() { return undefined; } };
+  assert.equal(implementedConstraintType({ providers, projectTypes: { catalog: missing } }, constraint, arguments_) === undefined,
+    true, "missing known-source proof is not native metadata");
+  assert.equal(nativeLookups, 0, "a known source identity never falls through to a native provider");
+  const nativeCarrier = csharpTargetNamedType("Proof.NativeContract", [parameter], undefined,
+    { allowsRefLikeTypeArguments: [true] });
+  const binding = { target: "csharp", id: nativeCarrier.id, kind: "interface", csharpType: nativeCarrier,
+    typeParameters: [{ ...parameter, csharpAllowsRefLike: true }] };
+  const selected = implementedConstraintType({ projectTypes: { catalog: { definitions: [] } },
+    providers: { findTargetBindingByTargetId: id => id === nativeCarrier.id ? binding : undefined } },
+  { kind: "implements", contract: nativeCarrier.id, typeArguments: [integer] }, new Map());
+  assert.equal(selected?.kind, "target-named", "native constraints retain their real named carrier");
+  assert.equal(selected.typeArguments[0] === integer, true, "native argument substitution is exact");
+  assert.equal(selected.csharpAllowsRefLikeTypeArguments[0], true, "actual native permission is never guessed false");
 });
 
 for (const [name, expression] of [

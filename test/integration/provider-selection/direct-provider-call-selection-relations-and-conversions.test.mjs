@@ -610,8 +610,11 @@ test("provider constructor and interface constraints use exact project type fact
   const concreteType = csharpTargetNamedType("Fixture.Concrete", undefined, undefined, { allowsRefLikeTypeArguments: [],});
   const abstractType = csharpTargetNamedType("Fixture.Abstract", undefined, undefined, { allowsRefLikeTypeArguments: [],});
   const contractType = csharpTargetNamedType("Fixture.IContract", undefined, undefined, { allowsRefLikeTypeArguments: [],});
+  const contractDeclaration = {};
+  const projectTargetTypes = new Map([[contractDeclaration, contractType]]);
   const implementingType = csharpTargetNamedType("Fixture.Implementation", undefined, undefined, { allowsRefLikeTypeArguments: [],});
   const definitions = new Map([
+    [contractType.id, { id: contractType.id, declaration: contractDeclaration, kind: "interface" }],
     [
       concreteType.id,
       {
@@ -679,6 +682,7 @@ test("provider constructor and interface constraints use exact project type fact
     {
       projectTypeDefinitions: definitions,
       projectDirectSupertypes: directSupertypes,
+      projectTargetTypes,
     },
   );
   assert.equal(
@@ -698,6 +702,7 @@ test("provider constructor and interface constraints use exact project type fact
     {
       projectTypeDefinitions: definitions,
       projectDirectSupertypes: directSupertypes,
+      projectTargetTypes,
     },
   );
   const unrelatedSelection = selectCsharpProviderCall(
@@ -715,6 +720,7 @@ test("provider constructor and interface constraints use exact project type fact
 test("static-interface dispatch validates the exact selected invocation type", () => {
   const selectedType = {};
   const contract = csharpTargetNamedType("Fixture.IStaticContract", undefined, undefined, { allowsRefLikeTypeArguments: [],});
+  const contractDeclaration = {};
   const implementation = csharpTargetNamedType("Fixture.StaticImplementation", undefined, undefined, { allowsRefLikeTypeArguments: [],});
   const member = providerMethod({
     id: "Fixture.IStaticContract.Create()",
@@ -744,7 +750,7 @@ test("static-interface dispatch validates the exact selected invocation type", (
     }],
     selectedTypeParameterCount: 1,
     additionalSemanticTypes: [[selectedType, implementation]],
-    projectTypeDefinitions: new Map([[
+    projectTypeDefinitions: new Map([[contract.id, { id: contract.id, declaration: contractDeclaration, kind: "interface" }], [
       implementation.id,
       {
         kind: "class",
@@ -756,6 +762,7 @@ test("static-interface dispatch validates the exact selected invocation type", (
       implementation.id,
       [contract],
     ]]),
+    projectTargetTypes: new Map([[contractDeclaration, contract]]),
   });
   const selection = selectCsharpProviderCall(
     fixture.host,
@@ -908,6 +915,9 @@ function createCallFixture(options = {}) {
     ...(options.projectTypeDefinitions === undefined
       ? {}
       : { projectTypeDefinitions: options.projectTypeDefinitions }),
+    ...(options.projectTargetTypes === undefined
+      ? {}
+      : { projectTargetTypes: options.projectTargetTypes }),
     ...(options.projectDirectSupertypes === undefined
       ? {}
       : { projectDirectSupertypes: options.projectDirectSupertypes }),
