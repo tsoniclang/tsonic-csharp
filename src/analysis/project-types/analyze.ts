@@ -10,11 +10,14 @@ import type { CsharpProjectTypeClassifications } from "../../target-model/record
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { snapshotCsharpTargetTypes } from "../../target-model/types/snapshot.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpObjectShapeClassifications } from "../objects/model.js";
+import { completeCsharpDeclarationHeritage } from "./heritage.js";
 
 export function sealCsharpProjectTypeClassifications(
   policy: CsharpProjectTypePolicy,
   ast: AstReader,
   sourceNodes: readonly Node[],
+  objectShapes: Pick<CsharpObjectShapeClassifications, "resolveNode">,
 ): CsharpProjectTypeClassifications {
   const containingDefinitions = createSourceDeclarationMembership(ast, sourceNodes,
     new Map(policy.catalog.definitions.map(definition => [definition.declaration, definition])));
@@ -31,7 +34,10 @@ export function sealCsharpProjectTypeClassifications(
   >();
 
   for (const definition of policy.catalog.definitions) {
-    const heritage = policy.heritageForDeclaration(definition.declaration);
+    const authoredHeritage = policy.heritageForDeclaration(definition.declaration);
+    const heritage = authoredHeritage === undefined ? undefined : completeCsharpDeclarationHeritage(
+      authoredHeritage, objectShapes.resolveNode(definition.declaration),
+    );
     if (heritage !== undefined) {
       heritageByDeclaration.set(definition.declaration, heritage);
       heritageById.set(definition.id, heritage);

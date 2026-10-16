@@ -21,6 +21,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapePolicy } from "../objects/object-shape-policy.js";
+import type { CsharpObjectMethodSources } from "../../../target-model/records/native-value-carriers.js";
 
 export type ResolvedSourceCallInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["call"]>
@@ -41,6 +42,7 @@ export interface CsharpPlanningRepresentationQueries {
 }
 
 export interface CsharpTypePolicyBaseHost {
+  readonly objectMethodSources: CsharpObjectMethodSources;
   readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
   readonly sourceStorage: import("@tsonic/target-api/analysis").SourceStorageQueries;
   readonly errorStorageDemands: import("@tsonic/target-api/analysis").SourceErrorStorageDemandQueries;

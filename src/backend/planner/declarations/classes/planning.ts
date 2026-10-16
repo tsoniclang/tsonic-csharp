@@ -39,7 +39,7 @@ export function planClassDeclaration(
   const className = declaration.name === undefined && factory !== undefined ? factory.instanceName
     : planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
-  const heritage = planClassHeritage(node, objectShape, input, diagnostics);
+  const heritage = planClassHeritage(node, input, diagnostics);
   const interfaces = [...heritage.interfaces, csharpClosedValueCarrierInterfaceType()];
   if (factory?.identity !== undefined) interfaces.push(csharpTypeFromTargetTypeRef(factory.identity.type, input.scope.typeParameterNames)!);
   if (objectShape !== undefined) {

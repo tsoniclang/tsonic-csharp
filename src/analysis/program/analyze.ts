@@ -118,6 +118,7 @@ import { analyzeCsharpPromiseResults } from "../callables/promise-results.js";
 import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/project/binary-execution-drivers.js";
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
+import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -168,11 +169,13 @@ export function analyzeCsharpTargetProgram(
     sourceFiles,
     sourceIdentities,
   });
+  const callOnlyAlias = createCsharpSourceProfileCallableAliasQuery(source);
   const typeHost = {
     literalValues,
     sourceStorage,
     errorStorageDemands: createCsharpErrorStorageDemandQuery(source, sourceStorage),
-    callOnlyAlias: createCsharpSourceProfileCallableAliasQuery(source),
+    callOnlyAlias,
+    objectMethodSources: analyzeCsharpObjectMethodSources(source.ast, sourceStorage.nodes, source.navigation, callOnlyAlias),
     ast: source.ast,
     sourceFiles,
     sourceFacts: source.sourceFacts,
@@ -260,7 +263,11 @@ export function analyzeCsharpTargetProgram(
     }]);
   }
   const callableAdapters = analyzeCsharpProjectCallableAdapters(analysis.policy, analysis.callables);
+  const nativeValueCarriers = analyzeCsharpNativeValueCarriers(
+    source.ast, sourceStorage.nodes, analysis.sourceEvidence, analysis.valueReads, analysis.objectShapes,
+  );
   const analysisIssues = [
+    ...nativeValueCarriers.issues,
     ...callableAdapters.issues,
     ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
     ...analysis.sourceEvidence.memoryMetadataIssues,
@@ -346,6 +353,7 @@ export function analyzeCsharpTargetProgram(
     evidence: analysis.sourceEvidence, operations: analysis.operations });
   const exactLiterals = analyzeCsharpExactLiteralSelections(literalValues, analysis.conversions.exactLiteralRequests);
   const records = createCsharpProgramRecords({
+    nativeValueCarriers,
     literalValues, exactLiterals, nativeParticipation,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
@@ -378,6 +386,7 @@ export function analyzeCsharpTargetProgram(
       analysis.typeSystem.projectTypes,
       source.ast,
       sourceStorage.nodes,
+      analysis.objectShapes,
     ),
     objectShapes: analysis.objectShapes,
     names: names.seal(),

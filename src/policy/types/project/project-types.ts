@@ -508,13 +508,17 @@ function heritageKindError(
       : `Project interface '${definition.sourceName}' cannot inherit the non-interface C# type '${csharpHeritageTargetName(target)}'.`;
   }
   if (relation === "extends") {
+    if (target.kind !== "target-named") {
+      return `Project class '${definition.sourceName}' cannot extend the non-class C# type '${csharpHeritageTargetName(target)}'.`;
+    }
     return targetKind !== undefined && targetKind !== "class"
       ? `Project class '${definition.sourceName}' cannot extend the selected non-class C# type.`
       : undefined;
   }
-  return targetKind !== undefined && targetKind !== "interface"
-    ? `Project class '${definition.sourceName}' cannot implement the selected non-interface C# type.`
-    : undefined;
+  if (targetKind === "interface" || targetKind === undefined && isCsharpStructuralInterfaceTarget(target)) return undefined;
+  return targetKind === undefined
+    ? `Project class '${definition.sourceName}' cannot implement the C# type '${csharpHeritageTargetName(target)}' without an exact native interface declaration.`
+    : `Project class '${definition.sourceName}' cannot implement the non-interface C# type '${csharpHeritageTargetName(target)}'.`;
 }
 
 function csharpHeritageTargetName(type: TargetTypeRef): string {
@@ -550,7 +554,9 @@ function targetDeclarationKind(
       ? "interface"
       : binding?.kind === "enum"
         ? "enum"
-        : undefined;
+        : binding?.kind === "struct"
+          ? "struct"
+          : (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind;
 }
 
 export function projectDefinitionTargetType(

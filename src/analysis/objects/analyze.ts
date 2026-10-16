@@ -374,7 +374,7 @@ export function analyzeCsharpObjectShapes(
       return Object.freeze({
         propertyOrder: propertyOrders.propertyOrder,
         assignmentSourceOrder: propertyOrders.assignmentSourceOrder,
-        structuralImplementations,
+        structuralImplementations: sealedStructuralImplementation,
         knownShapes: () => knownShapes,
         methodImplementationHasCopies: classifications.methodImplementationHasCopies,
         resolveCopyShape: (shape: CsharpObjectShapeFact) => copies.get(targetTypeRefKey(shape.targetType)),

@@ -3,6 +3,7 @@ import test from "node:test";
 import { planClassHeritage, planInterfaceHeritage } from "../../../../dist/backend/planner/declarations/classes/heritage.js";
 import { renderCsharpStructuralInterfaceMembers, shadowCsharpInheritedInterfaceMembers } from "../../../../dist/backend/planner/objects/declarations/structural-interfaces.js";
 import { csharpDelegateTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
+import { completeCsharpDeclarationHeritage } from "../../../../dist/analysis/project-types/heritage.js";
 
 function type(argument, id = "Native.View") {
   return { kind: "target-named", id, name: "View", typeArguments: [argument], csharpRender: { kind: "named", name: "View" } };
@@ -15,11 +16,12 @@ test("classes and interfaces consume one deduplicated exact sealed heritage cont
   const repeated = { ...authored };
   const closed = type({ kind: "source-primitive", name: "int64" });
   const shape = { implements: [repeated, type(second), closed] };
+  const heritage = completeCsharpDeclarationHeritage({ interfaces: [authored] }, shape);
   const input = { scope: { typeParameterNames: new Map([["first", "First"], ["second", "Second"]]) },
-    types: { projectTypes: { heritageForDeclaration: () => ({ interfaces: [authored] }) } } };
+    types: { projectTypes: { heritageForDeclaration: () => heritage } } };
   for (const owner of [planClassHeritage, planInterfaceHeritage]) {
     const diagnostics = [];
-    const result = owner({}, shape, input, diagnostics);
+    const result = owner({}, input, diagnostics);
     const interfaces = Array.isArray(result) ? result : result.interfaces;
     assert.deepEqual(interfaces.map(contract => contract.typeArguments[0]), [
       { kind: "IdentifierName", name: "First" }, { kind: "IdentifierName", name: "Second" }, { kind: "PredefinedType", name: "long" },
@@ -30,14 +32,19 @@ test("classes and interfaces consume one deduplicated exact sealed heritage cont
 
 test("heritage rejects unavailable owner and unrenderable sealed contracts", () => {
   for (const owner of [planClassHeritage, planInterfaceHeritage]) {
-    for (const heritage of [undefined, { interfaces: [] }]) {
-      const diagnostics = [];
-      const result = owner({}, { implements: [{ kind: "opaque", id: "missing" }] }, {
-        scope: {}, types: { projectTypes: { heritageForDeclaration: () => heritage } },
-      }, diagnostics);
-      assert.equal((Array.isArray(result) ? result : result.interfaces).length, 0, "no alternative native contract");
-      assert.equal(diagnostics.length, 1, "exact owner or carrier is mandatory");
-    }
+    const diagnostics = [];
+    assert.throws(() => owner({}, {
+      scope: {}, types: { projectTypes: { heritageForDeclaration: () => undefined } },
+    }, diagnostics), error => error.message.includes("admitted canonical C# project-type model"),
+    "an absent admitted owner never emits an alternative native contract");
+    assert.equal(diagnostics.length, 0, "absent internal evidence is not a source rejection");
+    const result = owner({}, {
+      scope: {}, types: { projectTypes: { heritageForDeclaration: () => ({
+        interfaces: [{ kind: "opaque", id: "missing" }],
+      }) } },
+    }, diagnostics);
+    assert.equal((Array.isArray(result) ? result : result.interfaces).length, 0, "no alternative native contract");
+    assert.equal(diagnostics.length, 1, "an unrenderable native carrier is still refused until C03 proves total rendering");
   }
 });
 

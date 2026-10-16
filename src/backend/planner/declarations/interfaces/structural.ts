@@ -5,7 +5,7 @@ import { getCsharpDelegateSignature } from "../../../../target-model/types/carri
 import type { CsharpExpression, CsharpTypeMember } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { planParametersWithPrelude } from "../callables/parameters.js";
 
 export function planCsharpStructuralInterfaceMembers(
@@ -36,14 +36,16 @@ export function planCsharpStructuralInterfaceMembers(
     for (const method of implementation.methods) {
       const sourceFile = input.program.source.ast.getSourceFile(method.declaration);
       if (sourceFile === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "An analyzed interface method lost its source declaration file."));
-        continue;
+        return failCsharpPlannerInvariant("An admitted structural interface method lost its checked source declaration file.",
+          method.declaration);
       }
       const original = planParametersWithPrelude(input.program.source.ast.parameters(method.declaration),
         sourceFile, input, diagnostics);
       const signature = getCsharpDelegateSignature(method.member.type);
-      const returnType = signature === undefined ? undefined : csharpTypeFromTargetTypeRef(signature.returnType, input.scope.typeParameterNames);
-      const parameters = signature?.parameters.map((type, index) => ({ name: `argument${index}`, type: csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames) }));
+      if (signature === undefined) return failCsharpPlannerInvariant(
+        "An admitted structural interface method requires its selected native delegate signature.", method.declaration);
+      const returnType = csharpTypeFromTargetTypeRef(signature.returnType, input.scope.typeParameterNames);
+      const parameters = signature.parameters.map((type, index) => ({ name: `argument${index}`, type: csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames) }));
       if (explicitInterface === undefined || returnType === undefined || parameters === undefined || original.prelude.length !== 0 ||
         parameters.some(parameter => parameter.type === undefined) || original.parameters.length !== parameters.length ||
         method.defaultArguments.some(index => original.parameters[index]?.defaultValue === undefined)) {
