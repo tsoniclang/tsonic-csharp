@@ -83,6 +83,27 @@ export function make(): number { const value: Holder = { value: 7 }; return valu
     assertCsharpCompilationSucceeded(compiled);
   });
 
+  test(`C# ${surface ?? "native"} computed method overloads keep their checked implementation`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+const key = "read";
+class Holder {
+  [key](value: number): number;
+  [key](value: number): number { return value; }
+}
+export function make(): number { return new Holder()[key](7); }
+` });
+    assertCsharpCompilationSucceeded(compiled);
+  });
+
+  test(`C# ${surface ?? "native"} constructor-spelled computed methods remain ordinary methods`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+const key = "constructor";
+class Holder { [key](): number { return 7; } }
+export function make(): number { return new Holder()[key](); }
+` });
+    assertCsharpCompilationSucceeded(compiled);
+  });
+
   test(`C# ${surface ?? "native"} inferred objects retain exact large computed keys`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 export function make(): number {
