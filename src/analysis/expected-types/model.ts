@@ -10,7 +10,7 @@ import type { CsharpDeclarationClassifications } from "../../target-model/record
 import type { CsharpExpectedNativeUse, CsharpExpectedNativeUseInput, CsharpNativeCallableCreation, CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
 import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpNativeRepresentationPending } from "../../policy/operations/native-demand/representation.js";
+import type { CsharpNativeRepresentationPending } from "../../policy/conversions/native-use-representation.js";
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 import type { CsharpObjectShapeClassifications } from "../objects/index.js";
 import type { CsharpCallableContractIndex } from "../callables/index.js";
