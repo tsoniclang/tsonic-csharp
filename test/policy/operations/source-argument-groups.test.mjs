@@ -116,6 +116,12 @@ test("unresolved source grouping remains distinct from refusal and contradiction
   assert.equal(select(input).kind, "grouped", "final evidence admits all arguments");
 });
 
+test("missing final argument types do not erase the distinction between pending and inconsistent bindings", () => {
+  const input = fixture(["value", "value"], [required, required]);
+  assert.equal(select({ ...input, types: [scalar, undefined] }).kind, "unresolved");
+  assert.equal(select(alterBinding(input, 1, { sourceParameterIndex: 0 })).kind, "inconsistent");
+});
+
 test("grouping builds exact indices once instead of repeated source/effective lookups", () => {
   for (const count of [64, 1024]) {
     const input = fixture(Array(count).fill("value"), Array(count).fill(required));

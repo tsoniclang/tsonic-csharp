@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { selectCsharpSourceArgumentGrouping } from "../../../dist/policy/operations/members/selection/source-argument-groups.js";
 
 function calls(compiled) {
   const program = compiled.result.program;
@@ -76,23 +75,6 @@ test("tuple spreads preserve exact per-call refusal without admitting a prefix",
       diagnostic.code === "CSHARP_UNSUPPORTED_AST" && diagnostic.message === "Source-owned arguments have no exact native parameter grouping."), true,
     `${call.text}: original refusal on original call`);
   }
-});
-
-test("missing final argument types do not erase the distinction between pending and inconsistent bindings", () => {
-  const compiled = compileCsharpSource({ sourceText: `function pair(first: number, second: number): number { return first + second; }
-    export function run(): number { return pair(1, 2); }` });
-  assert.equal(compiled.result.diagnostics.length, 0);
-  const classification = calls(compiled)[0].classification;
-  const source = classification.source;
-  const parameters = classification.sourceArgumentGrouping.arguments.map(entry => entry.parameter);
-  const slots = source.sourceSelectedSignatureParameters.map(parameter => ({ sourceParameterIndex: parameter.parameterIndex,
-    sourceParameterName: parameter.parameterName, form: "required" }));
-  assert.equal(selectCsharpSourceArgumentGrouping(source, parameters, [classification.sourceArgumentParameterTypes[0], undefined], slots).kind,
-    "unresolved");
-  const wrong = { ...source, sourceArgumentBindings: source.sourceArgumentBindings.map((binding, index) => index === 1 ?
-    { ...binding, sourceParameterIndex: 0 } : binding) };
-  assert.equal(selectCsharpSourceArgumentGrouping(wrong, parameters, classification.sourceArgumentParameterTypes, slots).kind,
-    "inconsistent");
 });
 
 test("native grouping preserves receiver, sequence and argument evaluation once in source order", () => {
