@@ -70,3 +70,12 @@ test("rest projections preserve native member correspondence and every mismatch"
   assert.equal(invalid.kind === "unresolved" && invalid.reasons.length === 2 &&
     invalid.reasons.every(reason => reason.includes("matching finalized")), true, "all invalid members remain reported");
 });
+
+test("the target policy owns missing source-owned rest and default correspondence without inventing a carrier", () => {
+  const rest = selectCsharpBindingPatternProjection({ kind: "source-owned-member", sourceName: "tail", stringLiteral: false, rest: true });
+  const defaulted = selectCsharpBindingPatternProjection({ kind: "source-owned-member", sourceName: "value", stringLiteral: false, hasDefault: true });
+  assert.equal(rest.kind === "unresolved" && rest.reasons.length === 1 && rest.reasons[0] ===
+    "Object rest destructuring requires finalized provider object-spread semantics before C# emission.", true);
+  assert.equal(defaulted.kind === "unresolved" && defaulted.reasons.length === 1 && defaulted.reasons[0] ===
+    "Destructuring defaults require finalized undefined/default-value semantics before C# emission.", true);
+});

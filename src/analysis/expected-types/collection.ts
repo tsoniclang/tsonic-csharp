@@ -99,7 +99,8 @@ export function createCsharpExpectedUseCollection(policy: Pick<CsharpPolicyConte
         failTargetAnalysisInvariant("tsonic-csharp", "One exact expected-use site names different expressions.", demand.owner);
       }
       if (previous === undefined || previous.strength !== "required" && strength === "required" ||
-        exactInteger && !previous.exactInteger || previous.kind === "pending" && reason === undefined) {
+        exactInteger && !previous.exactInteger || previous.kind === "pending" &&
+          (reason === undefined || previous.reason !== reason)) {
         const base = { site: entry.site, mode, strength: previous?.strength === "required" ? "required" as const : strength,
           exactInteger: exactInteger || previous?.exactInteger === true, ...(parent === undefined ? {} : { forwardedFrom: parent }) };
         request = expression !== undefined && targetType !== undefined && reason === undefined

@@ -341,23 +341,18 @@ export function analyzeCsharpBindingPatterns(
     for (const elementNode of elements) {
       const element = elementNode === undefined ? undefined : AsBindingElement(ast, elementNode);
       if (elementNode === undefined || element === undefined) continue;
-      if (element.DotDotDotToken !== undefined) {
-        issue(elementNode, "Object rest destructuring requires finalized provider object-spread semantics before C# emission.");
-        continue;
-      }
-      if (element.Initializer !== undefined) {
-        issue(element.Initializer, "Destructuring defaults require finalized undefined/default-value semantics before C# emission.");
-        continue;
-      }
       const name = element.name;
       if (name === undefined) continue;
       const propertyName = element.PropertyName ?? name;
       const identifier = HasSourceKind(ast, propertyName, KindIdentifier);
       const sourceName = identifier ? Node_Text(ast, propertyName)
         : HasSourceKind(ast, propertyName, KindStringLiteral) ? Node_Text(ast, AsStringLiteral(ast, propertyName)) : undefined;
-      const selected = selectCsharpBindingPatternProjection({ kind: "source-owned-member", sourceName, stringLiteral: !identifier });
+      const selected = selectCsharpBindingPatternProjection({ kind: "source-owned-member", sourceName, stringLiteral: !identifier,
+        rest: element.DotDotDotToken !== undefined, hasDefault: element.Initializer !== undefined });
       if (selected.kind !== "element") {
-        issue(propertyName, "Object destructuring from source-owned declarations supports only identifier property names until provider object-shape facts supply target member names.");
+        if (selected.kind === "unresolved" && selected.reasons.length > 0) {
+          for (const reason of selected.reasons) issue(element.DotDotDotToken !== undefined ? elementNode : element.Initializer ?? propertyName, reason);
+        } else issue(propertyName, "Object destructuring from source-owned declarations supports only identifier property names until provider object-shape facts supply target member names.");
         continue;
       }
       recordElement(elementNode, selected.element);

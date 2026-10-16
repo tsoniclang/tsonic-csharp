@@ -96,3 +96,15 @@ test("pending work keeps exact sites, skips superseded versions and publishes ma
   assert.equal(projection.expectedType(foreign).length, 0);
   assert.equal(collectCsharpExpectedNativeUseSites(projection.requests).requestsOf(foreign).length, 0);
 });
+
+test("a pending exact request can refine its reason and become requested without a second site", () => {
+  const values = collection();
+  const owner = {};
+  const expression = {};
+  const demand = { owner, slot: { kind: "initializer" } };
+  values.record(expression, integer, "required", { ...demand, withheld: "argument-unresolved" });
+  values.record(expression, integer, "required", { ...demand, withheld: "argument-inconsistent" });
+  values.record(expression, integer, "required", demand);
+  const sites = collectCsharpExpectedNativeUseSites(values.seal().requests);
+  assert.equal(sites.requests.length === 1 && sites.pending.length === 0 && sites.requests[0].kind === "requested", true);
+});
