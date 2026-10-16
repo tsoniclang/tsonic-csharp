@@ -1,11 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { finalizeCsharpStructuralInterfaceForwarding } from "../../../dist/analysis/objects/structural-forwarding.js";
 import { selectCsharpStructuralInterface } from "../../../dist/analysis/objects/structural-interfaces.js";
 import { planCsharpStructuralInterfaceMembers } from "../../../dist/backend/planner/declarations/interfaces/structural.js";
+import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
+import { printCsharpCompilationUnit } from "../../../dist/print/source/index.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 
@@ -215,3 +221,182 @@ for (const surface of ["native", "js"]) {
     });
   }
 }
+
+const nativeModes = [
+  { name: "Ref", modes: ["byref-readwrite"], signature: "ref int value", arguments: "ref value",
+    implementation: "value += 3; return value;" },
+  { name: "In", modes: ["byref-readonly"], signature: "in int value", arguments: "in value",
+    implementation: "return value + 9;" },
+  { name: "Out", modes: ["byref-writeonly-must-init"], signature: "out int value", arguments: "out value",
+    implementation: "value = 23; return value;" },
+  { name: "Mixed", modes: ["by-value", "byref-readwrite", "byref-readonly", "byref-writeonly-must-init"],
+    signature: "int first, ref int second, in int third, out int fourth", arguments: "first, ref second, in third, out fourth",
+    implementation: "second += first; fourth = second + third; return fourth;" },
+];
+
+function adaptedNativeForwarder(control) {
+  const declaration = Object.freeze({});
+  const sourceType = csharpTargetNamedType(`Proof.Generated${control.name}`);
+  const interfaceType = csharpTargetNamedType(`Proof.I${control.name}`, undefined,
+    { kind: "named", namespace: ["Proof"], name: `I${control.name}` }, { sourceDeclarationKind: "interface" });
+  const widened = Object.freeze({ kind: "source-primitive", name: "int64" });
+  const signature = csharpTargetNamedType(`Proof.${control.name}Signature`, undefined,
+    { kind: "named", namespace: ["Proof"], name: `${control.name}Signature` },
+    { delegateSignature: { parameters: Object.freeze(control.modes.map(() => integer)),
+      parameterPassingModes: Object.freeze([...control.modes]), returnType: widened } });
+  const implementation = Object.freeze({ sourceDeclaration: declaration, methodTypeParameterIdentities: Object.freeze([]),
+    parameters: Object.freeze(control.modes.map((passingMode, index) => Object.freeze({ sourceParameter: Object.freeze({}),
+      targetParameter: Object.freeze({ name: `value${index}`, type: integer, passingMode }) }))), returnType: integer });
+  const member = Object.freeze({ sourceName: "read", targetName: "read", memberKind: "method", type: signature });
+  const selected = Object.freeze({ sourceType, interfaceType, properties: Object.freeze([]), methods: Object.freeze([
+    Object.freeze({ sourceName: "read", declaration, member, defaultArguments: Object.freeze([]) }),
+  ]) });
+  const policy = { ast: { parent: () => undefined, parameters: () => assert.fail("native forwarding cannot re-plan source parameters") },
+    projectTypes: { catalog: { definitionForDeclaration: () => undefined }, directSupertypes: () => [] },
+    providers: { findTargetBindingByTargetId: () => undefined }, target: {} };
+  const finalized = finalizeCsharpStructuralInterfaceForwarding(policy,
+    { structuralImplementationTypes: Object.freeze([sourceType]), structuralImplementations: () => Object.freeze([selected]) },
+    { callableDispatch: { get: node => node === declaration ? { implementation } : undefined } },
+    { runtimeDefault: { get: () => undefined } });
+  assert.equal(finalized.issues.length, 0, `${control.name}: canonical native admission accepts exact byref parameters and an adapted result`);
+  const forwarding = finalized.objectShapes.structuralImplementations(sourceType)[0]?.methods[0]?.forwarding;
+  assert.equal(forwarding?.implementation === implementation, true, `${control.name}: exact canonical physical method identity`);
+  assert.equal(forwarding?.result.conversion.kind, "implicit", `${control.name}: the result is genuinely adapted, not identity`);
+  assert.equal(forwarding?.result.conversion.proof, "numeric", `${control.name}: native int32-to-int64 widening`);
+  assert.equal(forwarding?.parameters.every(adapter => adapter.kind === "value" && adapter.adapter.conversion.kind === "identity"), true,
+    `${control.name}: byref values never convert, copy or acquire a temporary`);
+  const diagnostics = [];
+  const planned = planCsharpStructuralInterfaceMembers({ targetType: sourceType }, declaration, {
+    program: { objectShapes: finalized.objectShapes, source: { ast: { getSourceFile: () => ({}),
+      parameters: () => assert.fail("native rendering cannot re-read parameter/default syntax") } } },
+    names: { temporaryName: () => assert.fail("identity byref forwarding cannot allocate a native temporary") }, scope: {},
+  }, diagnostics);
+  assert.equal(diagnostics.length, 0, `${control.name}: selected native arguments and result render without rejection`);
+  assert.equal(planned.length, 1, `${control.name}: one explicit interface adapter`);
+  const method = planned[0];
+  assert.equal(method.parameters.length, control.modes.length, `${control.name}: every native declaration slot is retained`);
+  assert.equal(method.returnType.name, "long", `${control.name}: the explicit interface retains its adapted native return width`);
+  assert.equal(method.body.statements.length, 1, `${control.name}: one direct call, no local copies or default/body duplication`);
+  const call = method.body.statements[0].expression;
+  assert.equal(call.kind, "InvocationExpression", `${control.name}: result widening does not wrap or replace the invocation`);
+  assert.equal(call.arguments.length, control.modes.length, `${control.name}: every native invocation argument is retained`);
+  for (const [index, mode] of control.modes.entries()) {
+    const passing = mode === "by-value" ? undefined : mode === "byref-readonly" ? "in"
+      : mode === "byref-readwrite" ? "ref" : "out";
+    assert.equal(method.parameters[index].passing, passing, `${control.name}: declaration passing ${index}`);
+    assert.equal(call.arguments[index].passing, passing, `${control.name}: invocation passing ${index}`);
+    assert.equal(call.arguments[index].expression.kind, "IdentifierName", `${control.name}: argument ${index} retains its native location`);
+    assert.equal(call.arguments[index].expression.name, method.parameters[index].name, `${control.name}: argument ${index} identity`);
+  }
+  return method;
+}
+
+for (const control of nativeModes) {
+  test(`structural ${control.name} forwarding preserves every passing slot with an adapted native result`, () => {
+    adaptedNativeForwarder(control);
+  });
+}
+
+function nativeProofSource(omitModes = []) {
+  const generated = printCsharpCompilationUnit({ kind: "CompilationUnit", usings: [], members: [
+    { kind: "NamespaceDeclaration", name: "Proof", members: nativeModes.map(control => {
+      const original = adaptedNativeForwarder(control);
+      const call = original.body.statements[0].expression;
+      const method = !omitModes.includes(control.name) ? original : { ...original, body: { kind: "Block", statements: [
+        { ...original.body.statements[0], expression: { ...call,
+          arguments: call.arguments.map(({ passing: _passing, ...argument }) => argument) } },
+      ] } };
+      return { kind: "ClassDeclaration", name: `Generated${control.name}`, modifiers: ["public", "sealed"],
+        baseType: { kind: "IdentifierName", name: `Body${control.name}` },
+        interfaces: [{ kind: "IdentifierName", name: `I${control.name}` }], members: [method] };
+    }) },
+  ] });
+  const native = nativeModes.map(control => `
+public delegate long ${control.name}Signature(${control.signature});
+public interface I${control.name} { long read(${control.signature}); }
+public class Body${control.name} {
+    public int Calls { get; private set; }
+    public int read(${control.signature}) { Calls++; ${control.implementation} }
+    ${control.name === "In" ? "public int read(int value) { Calls++; return -9001; }" : ""}
+}
+public sealed class Native${control.name} : Body${control.name}, I${control.name} {
+    long I${control.name}.read(${control.signature}) { return this.read(${control.arguments}); }
+}`).join("\n");
+  return `${generated}\nnamespace Proof { ${native}
+public static class Entry {
+    public static void Main() {
+        var generatedRef = new GeneratedRef(); var nativeRef = new NativeRef();
+        int generatedValue = 5, nativeValue = 5;
+        long generatedResult = ((IRef)generatedRef).read(ref generatedValue);
+        long nativeResult = ((IRef)nativeRef).read(ref nativeValue);
+        if (generatedResult != 8L || nativeResult != generatedResult || generatedValue != 8 || nativeValue != generatedValue || generatedRef.Calls != 1 || nativeRef.Calls != 1)
+            throw new System.Exception("ref adapted native forwarding");
+        var generatedIn = new GeneratedIn(); var nativeIn = new NativeIn();
+        generatedValue = 5; nativeValue = 5;
+        generatedResult = ((IIn)generatedIn).read(in generatedValue);
+        nativeResult = ((IIn)nativeIn).read(in nativeValue);
+        if (generatedResult != 14L || nativeResult != generatedResult || generatedValue != 5 || nativeValue != generatedValue || generatedIn.Calls != 1 || nativeIn.Calls != 1)
+            throw new System.Exception("in adapted native forwarding");
+        var generatedOut = new GeneratedOut(); var nativeOut = new NativeOut();
+        generatedResult = ((IOut)generatedOut).read(out generatedValue);
+        nativeResult = ((IOut)nativeOut).read(out nativeValue);
+        if (generatedResult != 23L || nativeResult != generatedResult || generatedValue != 23 || nativeValue != generatedValue || generatedOut.Calls != 1 || nativeOut.Calls != 1)
+            throw new System.Exception("out adapted native forwarding");
+        var generatedMixed = new GeneratedMixed(); var nativeMixed = new NativeMixed();
+        generatedValue = 5; nativeValue = 5; int generatedReadonly = 11, nativeReadonly = 11;
+        generatedResult = ((IMixed)generatedMixed).read(2, ref generatedValue, in generatedReadonly, out int generatedOutput);
+        nativeResult = ((IMixed)nativeMixed).read(2, ref nativeValue, in nativeReadonly, out int nativeOutput);
+        if (generatedResult != 18L || nativeResult != generatedResult || generatedValue != 7 || nativeValue != generatedValue || generatedReadonly != 11 || nativeReadonly != generatedReadonly || generatedOutput != 18 || nativeOutput != generatedOutput || generatedMixed.Calls != 1 || nativeMixed.Calls != 1)
+            throw new System.Exception("mixed adapted native forwarding");
+        System.Console.Write("ref,in,out,mixed: native-equivalent");
+    }
+} }\n`;
+}
+
+function buildNativeProof(name, omitModes = []) {
+  const scratch = fileURLToPath(new URL("../../../.temp/structural-forwarding-native/", import.meta.url));
+  mkdirSync(scratch, { recursive: true });
+  const root = mkdtempSync(join(scratch, `${name}-`));
+  writeFileSync(join(root, "Program.cs"), nativeProofSource(omitModes));
+  writeFileSync(join(root, "Proof.csproj"), `<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup>
+<TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><LangVersion>14.0</LangVersion>
+<Nullable>enable</Nullable><ImplicitUsings>disable</ImplicitUsings><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+</PropertyGroup></Project>\n`);
+  const child = { cwd: root, encoding: "utf8", timeout: 240_000, maxBuffer: 1_048_576,
+    env: { ...process.env, DOTNET_PROCESSOR_COUNT: String(process.env.TSONIC_TEST_CHILD_JOBS ?? "1"),
+      DOTNET_CLI_USE_MSBUILD_SERVER: "0", MSBUILDDISABLENODEREUSE: "1" } };
+  const build = spawnSync("dotnet", ["build", join(root, "Proof.csproj"), "-c", "Release", "--nologo", "--verbosity", "quiet",
+    "-m:1", "-nr:false", "-p:UseSharedCompilation=false", "-p:BuildInParallel=false"], child);
+  writeFileSync(join(root, "build.log"), `${build.stdout ?? ""}\n${build.stderr ?? ""}`);
+  process.stdout.write(`C19 native proof ${name}: ${root}\n`);
+  return { root, build, run: () => {
+    const result = spawnSync("dotnet", ["run", "--project", join(root, "Proof.csproj"), "-c", "Release", "--no-build", "--no-restore"], child);
+    writeFileSync(join(root, "run.log"), `${result.stdout ?? ""}\n${result.stderr ?? ""}`);
+    return result;
+  } };
+}
+
+test("real .NET structural ref, in, out and mixed forwarding match handwritten adapted-return implementations", () => {
+  const proof = buildNativeProof("adapted-return");
+  assert.equal(proof.build.status, 0, `native build: ${String(proof.build.stdout).slice(-4096)} ${proof.build.error ?? ""}`);
+  const executed = proof.run();
+  assert.equal(executed.status, 0, `native execution: ${String(executed.stderr).slice(-4096)} ${executed.error ?? ""}`);
+  assert.equal(executed.stdout, "ref,in,out,mixed: native-equivalent", "exact by-reference effects, call counts and widened native results");
+});
+
+test("native structural countercontrol rejects missing ref and out invocation modifiers", () => {
+  const proof = buildNativeProof("missing-ref-out", ["Ref", "Out"]);
+  assert.equal(proof.build.status === 0, false, "native compilation rejects both missing required argument modifiers");
+  const diagnostics = `${proof.build.stdout}\n${proof.build.stderr}`;
+  assert.equal(diagnostics.includes("error CS1620") && diagnostics.includes("'ref'") && diagnostics.includes("'out'"), true,
+    "Roslyn proves the ref/out native argument contract is actually required");
+});
+
+test("native structural countercontrol observes omitted in selecting a different valid overload", () => {
+  const proof = buildNativeProof("missing-in", ["In"]);
+  assert.equal(proof.build.status, 0, "C# legally permits an omitted in modifier and selects the by-value overload");
+  const executed = proof.run();
+  assert.equal(executed.status === 0, false, "the observer detects incorrect native overload selection");
+  assert.equal(String(executed.stderr).includes("in adapted native forwarding"), true,
+    "the failure is the native in-overload observation, not an unrelated compile or process failure");
+});
