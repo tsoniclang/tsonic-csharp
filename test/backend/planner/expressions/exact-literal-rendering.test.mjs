@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { planCsharpExactLiteralConversion } from "../../../../dist/backend/planner/expressions/literal-conversions.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
+import { csharpPlannedExpressionIsStable } from "../../../../dist/backend/planner/expressions/planned-values.js";
+import { evaluatedConstant } from "../../../../dist/backend/planner/expressions/csharp-expression-builders.js";
 
 const primitive = name => csharpSourcePrimitiveTargetType(name);
 const node = Object.freeze({});
@@ -69,5 +71,27 @@ test("the literal planner renders each selected recipe without deciding it", () 
   for (const [recipe, expression] of cases) {
     const { result } = plan(Object.freeze({ kind: "resolved", recipe: Object.freeze(recipe) }));
     assert.deepEqual(result, { kind: "resolved", expression }, recipe.kind);
+  }
+});
+
+test("signed native numeric token syntax stays a stable scalar without admitting effectful or overloaded prefixes", () => {
+  for (const precision of ["float32", "decimal"]) {
+    const { result } = plan({ kind: "resolved", recipe: { kind: "float", target: primitive(precision), precision,
+      token: { significand: "1.5" }, negative: true } });
+    const expression = result.expression;
+    const old = { kind: "NumericLiteralExpression", value: -1.5, suffix: precision === "float32" ? "F" : "M" };
+    assert.equal(csharpPlannedExpressionIsStable(expression), csharpPlannedExpressionIsStable(old), `${precision}: stability unchanged`);
+    assert.deepEqual(evaluatedConstant(expression, "number"), { kind: "LiteralExpression", value: "number" },
+      `${precision}: replacing an already classified constant does not add a switch`);
+    const positive = { ...expression, operatorToken: { kind: "PlusToken" } };
+    assert.equal(csharpPlannedExpressionIsStable(positive), true, `${precision}: builtin positive sign`);
+    for (const operand of [{ kind: "IdentifierName", name: "overloaded" },
+      { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "effect" }, arguments: [] }]) {
+      const unsafe = { ...expression, operand };
+      assert.equal(csharpPlannedExpressionIsStable(unsafe), false, `${precision}: no value or callable inference`);
+      assert.equal(evaluatedConstant(unsafe, "number").kind, "SwitchExpression", `${precision}: evaluation remains observable`);
+    }
+    const update = { ...expression, operatorToken: { kind: "MinusMinusToken" } };
+    assert.equal(csharpPlannedExpressionIsStable(update), false, `${precision}: an update never becomes a scalar literal`);
   }
 });

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCompilerSessionFromFiles } from "@tsonic/tsts";
-import { analyzeSourceLiteralValues, createTargetSourceProgram } from "@tsonic/target-api/source";
+import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.mjs";
 import { csharpLiteralIsRepresentableAs, selectCsharpExactLiteralConversion } from "../../../dist/policy/conversions/literals.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
@@ -32,7 +31,7 @@ test("exact literal selection keeps the four outcomes and their precedence", () 
 });
 
 test("exact literal selection publishes signed-zero, zero, char and floating recipes", () => {
-  const negativeZero = authoredLiterals(["-0"])[0];
+  const negativeZero = checkedSourceLiteralValues(["-0"])[0];
   for (const name of ["float64", "float16"]) {
     assert.deepEqual(select(negativeZero, primitive(name)),
       { kind: "resolved", recipe: { kind: "signed-zero", target: primitive(name), precision: name } }, `${name} signed zero`);
@@ -81,25 +80,6 @@ test("exact literal selections and recipes are frozen data", () => {
   }
 });
 
-function authoredLiterals(spellings) {
-  const checked = createCompilerSessionFromFiles({ currentDirectory: "/literal-proof", files: {
-    "/literal-proof/index.ts": spellings.map((text, index) => `export const value${index} = ${text};`).join("\n"),
-  }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
-  assert.equal(checked.diagnostics.length, 0, "the native token fixtures check");
-  const source = createTargetSourceProgram(checked);
-  const file = checked.getSourceFile("/literal-proof/index.ts");
-  assert.equal(file !== undefined, true, "the fixture file exists");
-  const initializers = [];
-  const visit = node => {
-    const initializer = source.ast.as.AsVariableDeclaration(node)?.Initializer;
-    if (initializer !== undefined) initializers.push(initializer);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-  };
-  visit(file);
-  const records = analyzeSourceLiteralValues(source.ast, [file]);
-  return initializers.map(node => records.literalValue.get(node));
-}
-
 test("authored native float32 and decimal recipes preserve the exact token rather than its double summary", () => {
   const midpoint = (1n << 128n) - (1n << 103n);
   const decimalMax = (1n << 96n) - 1n;
@@ -107,7 +87,7 @@ test("authored native float32 and decimal recipes preserve the exact token rathe
     "1.00000005960464477539062582718061255302767487140869206996285356581211090087890625",
     "9007199254740993", "-9007199254740993", `${decimalMax}.4`, `${decimalMax}.5`,
     "-0", "1e-9999999999999999999999", "(-(+1.5))"];
-  const values = authoredLiterals(spellings);
+  const values = checkedSourceLiteralValues(spellings);
   assert.equal(values[0].number === values[1].number && values[1].number === values[2].number, true,
     "all three f32 boundary tokens share the same double summary");
   for (const [index, precision, accepted] of [[0, "float32", true], [1, "float32", false], [2, "float32", false],

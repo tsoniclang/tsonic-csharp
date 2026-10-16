@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.mjs";
 import { csharpLiteralIsRepresentableAs } from "../../../dist/policy/conversions/literals.js";
 import { csharpNumericLiteralFitsSourcePrimitive } from "../../../dist/target-model/syntax/numeric-literals.js";
 import * as numericRules from "../../../dist/target-model/syntax/numeric-literals.js";
@@ -37,9 +38,9 @@ test("native integer literal rules decide from exact bigint data at every bound"
 });
 
 test("floating, signed-zero, char, boolean, string and array literal rules keep their exact results", () => {
-  const negativeZero = Object.freeze({ form: "prefix-unary", number: -0, integer: 0n });
+  const [floating, negativeZero] = checkedSourceLiteralValues(["1.5", "-0"]);
   for (const name of ["float16", "float32", "float64", "decimal"]) {
-    assert.equal(csharpLiteralIsRepresentableAs(numeric(1.5), primitive(name)), true, `${name} finite`);
+    assert.equal(csharpLiteralIsRepresentableAs(floating, primitive(name)), true, `${name} finite`);
     assert.equal(csharpLiteralIsRepresentableAs(negativeZero, primitive(name)), true, `${name} signed zero`);
     assert.equal(csharpLiteralIsRepresentableAs(Object.freeze({ form: "prefix-unary" }), primitive(name)), false, `${name} non-literal`);
   }

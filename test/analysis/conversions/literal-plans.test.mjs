@@ -134,7 +134,8 @@ test("a compiled program publishes exact literal selections at its actual reques
     { kind: "resolved", recipe: { kind: "integer", target: primitive("int128"), width: "int128", value: 5n } });
   assert.deepEqual(records.exactLiteral.get(text, csharpStringTargetType()), { kind: "source-representation" });
   assert.deepEqual(records.exactLiteral.get(zero, primitive("float32")),
-    { kind: "resolved", recipe: { kind: "signed-zero", target: primitive("float32"), precision: "float32" } });
+    { kind: "resolved", recipe: { kind: "float", target: primitive("float32"), precision: "float32",
+      token: { significand: "0" }, negative: true } });
   for (const node of [wide, asserted, text, zero]) {
     assert.deepEqual(records.exactLiteral.get(node, undefined), { kind: "not-applicable" }, "the intrinsic request of a visited literal");
   }
