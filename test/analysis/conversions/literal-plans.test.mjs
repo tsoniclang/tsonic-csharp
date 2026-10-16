@@ -205,6 +205,40 @@ test("Record<int64, int32> retains its distinct checked source key constraint", 
     "the source Record constraint is not evidence of native key rounding or a new bigint Record capability");
 });
 
+for (const surface of ["native", "js"]) {
+  test(`${surface} checked computed string keys preserve the actual dictionary lookup`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { int32 } from "@tsonic/core/types.js";
+      const selected = "fixed" as const;
+      export function create(): Record<string, int32> { return { [selected]: 7 }; }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    executeCsharpConstruction(compiled, `${surface}-checked-native-string-dictionary-key`, false, false, [], `
+      var values = Tsonic.Generated.Index.create();
+      if (values.Count != 1 || !values.TryGetValue("fixed", out int value) || value != 7)
+        throw new System.Exception("checked native string key");
+    `);
+  });
+
+  test(`${surface} decimal dictionary keys retain their authored scale in native execution`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { decimal, int32 } from "@tsonic/core/types.js";
+      export function create(): Record<decimal, int32> { return { 1.0: 7 }; }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const output = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
+    assert.equal(output.includes("1.0M"), true, `${surface}: native decimal syntax retains the exact source scale`);
+    executeCsharpConstruction(compiled, `${surface}-checked-native-decimal-dictionary-scale`, false, false, [], `
+      var values = Tsonic.Generated.Index.create();
+      if (values.Count != 1) throw new System.Exception("native decimal key count");
+      foreach (decimal key in values.Keys) {
+        if (key != 1.0M || ((decimal.GetBits(key)[3] >> 16) & 255) != 1)
+          throw new System.Exception("authored native decimal key scale");
+      }
+    `);
+  });
+}
+
 test("exact literal selections exist only at requested keys and equal the native rule", () => {
   const wide = Object.freeze({});
   const text = Object.freeze({});
