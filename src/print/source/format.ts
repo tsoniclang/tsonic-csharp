@@ -1,3 +1,5 @@
+import type { CsharpNumericLiteralToken } from "../../target-model/syntax/numeric-literals.js";
+
 export function indentLines(lines: readonly string[]): string[] {
   return lines.flatMap((line) =>
     line.split("\n").map((part) => part.length === 0 ? part : `    ${part}`));
@@ -165,5 +167,3 @@ function escapeCsharpCharLiteral(value: string): string {
     }
   }
 }
-import type { CsharpNumericLiteralToken } from "../../target-model/syntax/numeric-literals.js";
-
