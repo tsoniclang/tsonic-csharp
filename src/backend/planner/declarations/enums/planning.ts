@@ -9,12 +9,12 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpEnumDeclaration,
   CsharpEnumMember,
-  CsharpExpression,
 } from "../../../target-ast/syntax/index.js";
 import { planAttributesForSubject } from "../attributes.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../modifiers.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
+import { planIntegerLiteral } from "../../expressions/literal-conversions.js";
 
 export function planEnumDeclaration(
   node: Node,
@@ -52,15 +52,8 @@ function planEnumMember(
   return {
     kind: "EnumMemberDeclaration",
     name: planIdentifierName(member.name ?? Node_Name(input.program.source.ast, node), "AnonymousMember", input, diagnostics, "Enum member name"),
-    value: integerWidth === 32 ? { kind: "LiteralExpression", value: Number(enumValue) } : enumIntegerLiteral(enumValue),
+    value: planIntegerLiteral(input.scope.typeParameterNames, enumValue,
+      { kind: "source-primitive", name: integerWidth === 32 ? "int32" : "int64" }) ??
+        failCsharpPlannerInvariant("An admitted enum integer requires its native literal syntax.", node),
   };
-}
-
-function enumIntegerLiteral(value: bigint): CsharpExpression {
-  if (value === -(1n << 63n)) return {
-    kind: "SimpleMemberAccessExpression", receiver: { kind: "PredefinedType", name: "long" }, name: "MinValue",
-  };
-  const literal = { kind: "IntegerLiteralExpression" as const,
-    digits: (value < 0n ? -value : value).toString(10), suffix: "L" as const };
-  return value < 0n ? { kind: "PrefixUnaryExpression", operatorToken: { kind: "MinusToken" }, operand: literal } : literal;
 }

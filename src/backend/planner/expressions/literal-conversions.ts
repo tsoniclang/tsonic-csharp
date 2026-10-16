@@ -105,7 +105,7 @@ function renderRecipe(
   }
 }
 
-function planIntegerLiteral(
+export function planIntegerLiteral(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   value: bigint,
   target: CsharpExactLiteralPrimitive,
