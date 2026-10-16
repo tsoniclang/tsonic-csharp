@@ -19,12 +19,14 @@ export function csharpSelectedTargetArgumentBindings(call: CsharpSelectedTargetC
     sequences.set(sequence.sourceArgumentIndex, sequence);
   }
   const boundSequences = new Set<number>();
-  const effective = new Set<number>();
+  const effectiveBySource = new Map<number, Set<number>>();
   const bindings: CsharpNativeArgumentBinding[] = [];
   for (const selected of call.arguments) {
+    const effective = effectiveBySource.get(selected.sourceArgumentIndex) ?? new Set<number>();
     if (effective.has(selected.effectiveArgumentIndex)) return inconsistent(selected.sourceArgumentIndex,
-      "Selected argument uses require distinct effective identities.");
+      "Selected argument uses require distinct source/effective identities.");
     effective.add(selected.effectiveArgumentIndex);
+    effectiveBySource.set(selected.sourceArgumentIndex, effective);
     const sequence = sequences.get(selected.sourceArgumentIndex);
     if (sequence !== undefined && sequence.targetParameterIndex !== selected.targetParameterIndex) {
       return inconsistent(selected.sourceArgumentIndex, "A selected sequence and argument name different native parameters.");

@@ -52,7 +52,7 @@ export function csharpNativeUseSite(owner: Node, slot: CsharpNativeUseSlot, cont
   const target = context.target === undefined ? "" : targetTypeRefKey(context.target);
   const mode = context.mode ?? "implicit";
   return targetUseSiteRef(owner, role, csharpTargetRepresentationContractId,
-    context.target === undefined && context.mode === undefined ? undefined : `${target.length}:${target}|${mode}`);
+    context.target === undefined && mode === "implicit" ? undefined : `${target.length}:${target}|${mode}`);
 }
 
 export type CsharpNativeParticipation = "erased" | "frame-body" | "body" | "signature";
