@@ -61,6 +61,28 @@ test("structural forwarding publishes canonical completed contracts and pure imm
     /no sealed record/u, "an unadmitted generic instantiation cannot trigger late analysis");
 });
 
+for (const missing of ["canonical method contract", "native parameter passing correspondence"]) {
+  test(`structural forwarding refuses incomplete ${missing} before a backend method can be published`, () => {
+    const value = fixture();
+    if (missing === "canonical method contract") value.callables.callableDispatch.get = () => undefined;
+    else {
+      const selected = value.shapes.structuralImplementations(value.sourceType)[0];
+      const method = selected.methods[0];
+      const member = { ...method.member, type: { ...method.member.type,
+        csharpDelegateSignature: { ...method.member.type.csharpDelegateSignature, parameterPassingModes: [] },
+      } };
+      value.shapes.structuralImplementations = () => [{ ...selected, methods: [{ ...method, member }] }];
+    }
+    const finalized = finalizeCsharpStructuralInterfaceForwarding(value.policy, value.shapes, value.callables, value.declarations);
+    assert.equal(finalized.issues.length, 1, "one precise incomplete native contract diagnostic");
+    assert.equal(finalized.issues[0]?.node === value.declaration, true, "the exact implementation declaration owns the failure");
+    assert.equal(finalized.issues[0]?.message, "An analyzed interface method has no exact native forwarding signature.",
+      "the existing refusal is not replaced by a fallback or guessed parameter mode");
+    assert.equal(finalized.objectShapes.structuralImplementations(value.sourceType)[0]?.methods.length, 0,
+      "no partial native method is supplied to the backend");
+  });
+}
+
 for (const passingMode of ["by-value", "byref-readonly", "byref-readwrite", "byref-writeonly-must-init"]) {
   test(`structural forwarding preserves the canonical ${passingMode} incoming parameter without a body prelude`, () => {
     const value = fixture(passingMode);
@@ -115,10 +137,21 @@ for (const surface of ["native", "js"]) {
       assert.equal((generated.match(/\b700123\b/gu) ?? []).length, literalCount,
         "the authored initializer/value is emitted once, not copied into a forwarding body");
       if (name === "unused incoming parameter") {
-        const shape = compiled.result.program.objectShapes.knownShapes().find(candidate => candidate.targetType.csharpSourceDeclarationKind === "class");
-        const method = shape === undefined ? undefined
-          : compiled.result.program.objectShapes.structuralImplementations(shape.targetType)[0]?.methods[0];
-        assert.equal(method?.forwarding.implementation.parameters.length, 2, "unused and omittable native parameters are not dropped");
+        const { program } = compiled.result;
+        const ast = program.source.ast;
+        let declaration;
+        const visit = node => {
+          if (ast.is.IsMethodDeclaration(node) && ast.text(ast.name(node)) === "read") declaration = node;
+          ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+        };
+        program.sourceFiles.forEach(visit);
+        assert.equal(declaration !== undefined, true, "the exact authored method remains in the sealed source domain");
+        const method = program.records.callableDispatch.get(declaration)?.implementation;
+        assert.equal(method?.parameters.length, 2, "unused and omittable native parameters are not dropped");
+        assert.equal(method?.parameters.every(parameter => parameter.targetParameter.optional === true), true,
+          "both native omission contracts are retained");
+        assert.equal(/public int read\(int\? [^,\n]+, int\? /u.test(generated), true,
+          "the actual native method, whether directly satisfying the interface or forwarded, retains both incoming slots");
       }
     });
   }
