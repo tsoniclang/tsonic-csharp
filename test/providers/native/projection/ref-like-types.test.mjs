@@ -174,6 +174,22 @@ export function keep(value: Lease): () => int32 { return () => value.Value; }
 import type { Lease } from "@fixture/ref-like/RefLikeProof.js";
 export class Holder { constructor(public readonly value: Lease) {} }
 `, ["CSHARP_REFLIKE_FRAME_CAPTURE"]],
+  ["named native local function capture", `
+import type { int32 } from "@tsonic/core/types.js";
+import type { Lease } from "@fixture/ref-like/RefLikeProof.js";
+export function keep(value: Lease): int32 {
+  function read(): int32 { return value.Value; }
+  return read();
+}
+`, ["CSHARP_REFLIKE_FRAME_CAPTURE"]],
+  ["named native class environment capture", `
+import type { int32 } from "@tsonic/core/types.js";
+import type { Lease } from "@fixture/ref-like/RefLikeProof.js";
+export function keep(value: Lease): int32 {
+  class Captured { read(): int32 { return value.Value; } }
+  return new Captured().read();
+}
+`, ["CSHARP_REFLIKE_FRAME_CAPTURE"]],
 ]) {
   test(`native ref-like admission does not depend on BCL spelling: ${name}`, () => {
     const { capability } = nativeFixture();
@@ -185,3 +201,19 @@ export class Holder { constructor(public readonly value: Lease) {} }
       "no ref-like value escapes into an impossible native representation");
   });
 }
+
+test("erased callable bodies do not impose native ref-like storage requirements", { timeout: 240_000 }, () => {
+  const { capability } = nativeFixture();
+  const compiled = compileCsharpSource({ capabilities: [capability], sourceText: `
+import type { int32 } from "@tsonic/core/types.js";
+import { Lease } from "@fixture/ref-like/RefLikeProof.js";
+export function run(): boolean {
+  function unused(value: Lease): () => int32 { return () => value.Value; }
+  (() => { const value = new Lease(7); return () => value.Value; });
+  return true;
+}
+` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the erased bodies remain fully source-checked");
+  assert.equal(compiled.result.diagnostics.length, 0, "actual native participation excludes their impossible storage");
+  executeCsharpConstruction(compiled, "erased-native-ref-like-captures", false, false, [project]);
+});

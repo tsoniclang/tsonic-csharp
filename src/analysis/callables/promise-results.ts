@@ -13,13 +13,17 @@ import { isCsharpValueTypeTargetType } from "../../target-model/types/identity.j
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
 import type { CsharpCallableContractIndex } from "./model.js";
-import type { CsharpCaptureFrame } from "../../target-model/records/capture-storage.js";
+import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
+import type { CsharpClassFactory } from "../../target-model/records/class-factories.js";
+import type { CsharpNativeParticipationInput } from "../../target-model/records/native-demand.js";
 
 export function analyzeCsharpRefLikePlacements(input: {
   readonly source: TargetSourceProgram;
   readonly nodes: readonly Node[];
   readonly callables: CsharpCallableContractIndex;
-  readonly captureFrames: readonly CsharpCaptureFrame[];
+  readonly captureStorage: CsharpCaptureStorage;
+  readonly classFactories: readonly CsharpClassFactory[];
+  readonly nativeParticipation: CsharpNativeParticipationInput;
   readonly generatorFor: (declaration: Node) => boolean;
   readonly bindingCarrierFor: (declaration: Node) => TargetTypeRef | undefined;
   readonly expressionCarrierFor: (expression: Node) => TargetTypeRef | undefined;
@@ -28,6 +32,23 @@ export function analyzeCsharpRefLikePlacements(input: {
   const rejected = new Map<Node, Set<string>>();
   const scopedBindings = new Map<Node, Set<Node>>();
   const { ast } = input.source;
+  const participating = new Map<Node, boolean>();
+  const participates = (node: Node): boolean => {
+    const cached = participating.get(node);
+    if (cached !== undefined) return cached;
+    const owners: Node[] = [];
+    let current: Node | undefined = node;
+    let selected = true;
+    while (current !== undefined) {
+      const completed = participating.get(current);
+      if (completed !== undefined) { selected = completed; break; }
+      owners.push(current);
+      if (input.nativeParticipation.participation.get(current) === "erased") { selected = false; break; }
+      current = ast.parent(current);
+    }
+    for (const owner of owners) participating.set(owner, selected);
+    return selected;
+  };
   const reject = (node: Node, code: string, message: string): void => {
     const codes = rejected.get(node) ?? new Set<string>();
     if (codes.has(code)) return;
@@ -66,7 +87,29 @@ export function analyzeCsharpRefLikePlacements(input: {
       }
     }
   };
-  for (const frame of input.captureFrames) {
+  for (const lexical of input.captureStorage.lexicalCaptures) {
+    if (!participates(lexical.owner)) continue;
+    for (const capture of lexical.values) {
+      if (isRefLike(capture.type)) reject(capture.declaration, "CSHARP_REFLIKE_FRAME_CAPTURE",
+        "A native ref-like value cannot be captured by a native callable body.");
+      inspect(capture.type, capture.declaration);
+    }
+    for (const receiver of lexical.receivers) {
+      if (isRefLike(receiver.type)) reject(receiver.owner, "CSHARP_REFLIKE_FRAME_CAPTURE",
+        "A native ref-like receiver cannot be captured by a native callable body.");
+    }
+  }
+  for (const factory of input.classFactories) {
+    if (!participates(factory.declaration)) continue;
+    for (const capture of factory.captures) {
+      const type = input.captureStorage.physicalStorageType.get(capture.declaration, capture.type);
+      if (isRefLike(type)) reject(capture.declaration, "CSHARP_REFLIKE_FRAME_CAPTURE",
+        "A native ref-like value cannot be captured in a source class environment.");
+      inspect(type, capture.declaration);
+    }
+  }
+  for (const frame of input.captureStorage.frames) {
+    if (!participates(frame.scope)) continue;
     for (const binding of frame.bindings) {
       if (isRefLike(binding.type)) reject(binding.declaration, "CSHARP_REFLIKE_FRAME_CAPTURE",
         "A native ref-like value cannot be captured in a retained callable frame.");
@@ -78,6 +121,7 @@ export function analyzeCsharpRefLikePlacements(input: {
     }
   }
   for (const node of input.nodes) {
+    if (!participates(node)) continue;
     if (ast.is.IsVariableDeclaration(node) || ast.is.IsPropertyDeclaration(node)) {
       const type = input.bindingCarrierFor(node);
       inspect(type, node);
@@ -97,6 +141,7 @@ export function analyzeCsharpRefLikePlacements(input: {
   }
   for (const contract of input.callables.declarationContracts) {
     const declaration = contract.sourceDeclaration;
+    if (!participates(declaration)) continue;
     inspect(contract.returnType, declaration);
     for (const parameter of contract.parameters) {
       inspect(parameter.targetParameter.type, parameter.sourceParameter);

@@ -268,7 +268,7 @@ export function analyzeCsharpCaptureStorage(
   }
   const frames = Object.freeze([...byScope.values(), ...valueFrames]);
   const helperMembers = csharpCapturedMemberAccess(source, frames);
-  return Object.freeze({ issues: Object.freeze(issues), frames,
+  return Object.freeze({ issues: Object.freeze(issues), frames, lexicalCaptures: frameClosures.lexicalCaptures,
     captureFrame: Object.freeze({ get: (scope: Node) => byScope.get(scope) }), capturedBinding: Object.freeze({ get: (declaration: Node) => byBinding.get(declaration) }),
     physicalStorageType: Object.freeze({ get(declaration: Node, logicalType: TargetTypeRef): TargetTypeRef {
       const selected = physicalTypes.get(declaration);

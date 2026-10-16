@@ -341,7 +341,8 @@ export function analyzeCsharpTargetProgram(
     requiredRecords: analysis.requiredRecords,
   });
   const refLikeDiagnostics = analyzeCsharpRefLikePlacements({
-    source, nodes: sourceStorage.nodes, callables: analysis.callables, captureFrames: captureStorage.frames,
+    source, nodes: sourceStorage.nodes, callables: analysis.callables, captureStorage,
+    classFactories: classFactories.factories, nativeParticipation,
     generatorFor: declaration => analysis.sourceEvidence.generator.get(declaration) !== undefined,
     bindingCarrierFor: declaration => analysis.storage.storageType.get(declaration),
     expressionCarrierFor: expression => analysis.valueReads.valueRead.get(expression)?.value,
