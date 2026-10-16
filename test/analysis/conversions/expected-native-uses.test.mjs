@@ -142,3 +142,37 @@ for (const surface of ["native", "js"]) test(`${surface} numeric request evidenc
   assert.equal(typed.expected.includes(targetTypeRefKey(csharpSourcePrimitiveTargetType("int32"))), true,
     "the authored integer use remains explicit, not reconstructed from generated syntax");
 });
+
+for (const surface of ["native", "js"]) test(`${surface} explicitly typed operand controls expose native policy separately from the result use`, () => {
+  const value = owners(`
+    import type { int32, float64 } from "@tsonic/core/types.js";
+    export const asserted = (7 as int32) / (2 as int32);
+    export function integerOperands(left: int32, right: int32): int32 { return left / right; }
+    export function floatingOperands(left: float64, right: float64): float64 { return left / right; }
+    export function mixedOperands(left: int32, right: float64): float64 { return left / right; }
+    export function numberOperands(left: number, right: number): number { return left / right; }
+  `, surface);
+  const sites = collect(value);
+  const carrier = type => type === undefined ? null : targetTypeRefKey(type);
+  const rows = value.nodes.filter(node => value.ast.is.IsVariableDeclaration(node) && value.ast.text(value.ast.name(node)) === "asserted" ||
+    value.ast.is.IsFunctionDeclaration(node) && value.ast.body(node) !== undefined).map(node => {
+    const returned = value.ast.is.IsFunctionDeclaration(node) ? value.ast.statements(value.ast.body(node))[0] : undefined;
+    const expression = returned === undefined ? value.ast.as.AsVariableDeclaration(node).Initializer
+      : value.ast.as.AsReturnStatement(returned).Expression;
+    const selected = value.program.records.binaryOperation.get(expression)?.target;
+    assert.equal(selected?.kind === "resolved", true);
+    return { name: value.ast.text(value.ast.name(node)), source: value.text(expression), left: carrier(selected.leftInputType),
+      right: carrier(selected.rightInputType), result: carrier(selected.resultType),
+      readSource: carrier(value.program.records.valueRead.get(expression)?.source),
+      expected: value.program.records.requiredExpectedType.get(expression).map(carrier),
+      requests: sites.requestsOf(expression).map(request => ({ role: request.site.role, kind: request.kind,
+        target: carrier(request.targetType), exactInteger: request.exactInteger, mode: request.mode })) };
+  });
+  assert.equal(rows.length, 5);
+  const integers = rows.find(row => row.name === "integerOperands");
+  assert.equal(integers.left === "source:int32" && integers.right === "source:int32" && integers.result === "source:int32", true,
+    "an explicitly integer operation stays integer on both surfaces");
+  const floating = rows.find(row => row.name === "floatingOperands");
+  assert.equal(floating.left === "source:float64" && floating.right === "source:float64" && floating.result === "source:float64", true);
+  console.log(JSON.stringify({ numericTypedOperandEvidence: surface, rows }));
+});
