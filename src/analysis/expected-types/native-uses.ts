@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { selectCsharpNativeUseRepresentation, type CsharpNativeRepresentationChild } from "../../policy/operations/native-demand/representation.js";
 import type { CsharpExpectedNativeUse } from "../../target-model/records/native-demand.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
@@ -78,6 +79,7 @@ export function admitCsharpExpectedNativeUses(
   const inactive: TargetUseSiteRef[] = [];
   const admitted = new Map<AdmissionGroup, CsharpExpectedNativeUse>();
   const stages = new Map<object, Map<string, CsharpExpectedNativeUse>>();
+  const stagePositions = new Map<CsharpExpectedNativeUse, number>();
   for (const group of groups) {
     const state = group.state ?? { kind: "pending", reason: "forwarding-cycle" };
     if (state.kind === "pending") { pending.push(Object.freeze({ site: group.site, reason: state.reason })); continue; }
@@ -89,10 +91,25 @@ export function admitCsharpExpectedNativeUses(
     let sites = stages.get(stage.site.subject);
     if (sites === undefined) { sites = new Map(); stages.set(stage.site.subject, sites); }
     const identity = targetUseSiteIdentity(stage.site);
-    if (sites.has(identity)) continue;
     const use = Object.freeze({ ...state.use, target: stage.carrier, carrier: stage.carrier, representation: "construct" as const,
       children: stage.children, construction: undefined });
+    const existing = sites.get(identity);
+    if (existing !== undefined) {
+      if (!targetTypeRefEquals(existing.carrier, use.carrier) || existing.children.length !== use.children.length ||
+        existing.children.some((child, index) => child.subject !== use.children[index]!.subject ||
+          targetUseSiteIdentity(child) !== targetUseSiteIdentity(use.children[index]!))) {
+        failTargetAnalysisInvariant("tsonic-csharp", "A physical construction site requires one finalized carrier and child set.", use.expression);
+      }
+      const merged = Object.freeze({ ...use, strength: existing.strength === "required" || use.strength === "required" ? "required" as const : "contextual" as const,
+        exactInteger: existing.exactInteger || use.exactInteger });
+      const position = stagePositions.get(existing)!;
+      entries[position] = Object.freeze({ site: stage.site, use: merged });
+      sites.set(identity, merged);
+      stagePositions.delete(existing); stagePositions.set(merged, position);
+      continue;
+    }
     sites.set(identity, use);
+    stagePositions.set(use, entries.length);
     entries.push(Object.freeze({ site: stage.site, use }));
   }
   return Object.freeze({ entries: Object.freeze(entries), pending: Object.freeze(pending), inactive: Object.freeze(inactive),

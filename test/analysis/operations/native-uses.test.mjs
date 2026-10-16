@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { createTargetSourceProgram, analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpBindingPatterns } from "../../../dist/analysis/control-flow/binding-patterns.js";
 import { analyzeCsharpNativeDemand } from "../../../dist/analysis/operations/native-demand.js";
+import { analyzeCsharpExpectedTypes } from "../../../dist/analysis/expected-types/analyze.js";
+import { admitCsharpExpectedNativeUses } from "../../../dist/analysis/expected-types/native-uses.js";
+import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
 
 function owners(sourceText, surface = "native") {
   const compiled = compileCsharpSource({ sourceText, surface });
@@ -26,6 +29,20 @@ function owners(sourceText, surface = "native") {
     } }, attributeApplications: records, classInitialization: records, projectTypes: program.projectTypes,
     classFactories: { classFactory: records.classFactory, factories: program.classFactories },
     expected: { entries: [], pending: [], inactive: [], expectedUse: { get: () => undefined } } };
+  const contracts = nodes.filter(node => ast.is.IsFunctionDeclaration(node) && ast.body(node) !== undefined).flatMap(node => {
+    const declared = records.returnContract.get(node);
+    return declared?.kind === "resolved" ? [{ sourceDeclaration: node, returnType: declared.type }] : [];
+  });
+  const literalValues = analyzeSourceLiteralValues(ast, program.sourceFiles);
+  const expected = analyzeCsharpExpectedTypes({ ast, sourceFiles: program.sourceFiles, literalValues,
+    semantics: source.semantics.forFile, typeDefinitions: program.typeDefinitions }, records, records, program.objectShapes,
+    { declarationContracts: contracts, closedInputType: () => undefined, get: () => undefined },
+    { get: node => { const read = records.valueRead.get(node); return read === undefined ? undefined
+      : { literalTarget: read.selectedOperation ?? read.source, operationValue: read.selectedOperation ?? read.source }; } }, records);
+  const exact = analyzeCsharpExactLiteralSelections(literalValues, expected.nativeUseSites.requests.flatMap(request =>
+    request.expression === undefined ? [] : [{ expression: request.expression, target: request.targetType }]));
+  input.expected = admitCsharpExpectedNativeUses(expected, { ast, exactLiteral: exact.exactLiteral, callableCreation: input.callableCreation,
+    valueRead: records.valueRead, absentValue: { get: () => false }, operations: records });
   const text = node => String(ast.getSourceText(ast.getSourceFile(node))).slice(ast.pos(node), ast.end(node)).trim().replace(/\s+/gu, " ");
   return { program, records, nodes, ast, input, text };
 }
@@ -69,9 +86,15 @@ test("class initialization, base constructor arguments and callable defaults eac
 });
 
 test("erased and frame-body participation are consumed as recorded, not rescanned from source declarations", () => {
-  const value = owners(`import type { int32 } from "@tsonic/core/types.js";
-    export function run(value: int32): int32 { function nested(): int32 { return value; } return nested(); }`);
-  const nested = value.nodes.find(node => value.ast.is.IsFunctionDeclaration(node) && value.ast.text(value.ast.name(node)) === "nested");
+  const value = owners(`export function run(): number {
+    let total = 0;
+    for (let index = 0; index < 3; index++) {
+      function add(): void { total += index; }
+      add();
+    }
+    return total;
+  }`);
+  const nested = value.nodes.find(node => value.ast.is.IsFunctionDeclaration(node) && value.ast.text(value.ast.name(node)) === "add");
   assert.equal(value.records.nativeParticipation.get(nested), "frame-body");
   const demand = analyzeCsharpNativeDemand(value.input);
   assert.equal(demand.nativeUse.order(nested) !== undefined, true, "frame methods still compile their body");
