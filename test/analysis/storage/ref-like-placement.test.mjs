@@ -5,15 +5,18 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { nativeRefLikeFixture } from "../../helpers/native-ref-like-fixture.mjs";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { isCsharpTargetTypeRef, snapshotCsharpTargetTypes } from "../../../dist/target-model/types/snapshot.js";
+import { validateDotnetTypeParameters } from "../../../dist/providers/native/model/contract/dotnet-signatures.js";
 
 const imports = `import type { int32 } from "@tsonic/core/types.js";
 import { Span } from "@tsonic/dotnet/System.js";`;
 
 for (const [name, body, expected] of [
-  ["nullable native ref-like", `export function fail(values: int32[]): int32 {
+  ["nullable native ref-like return", `export function fail(): Span<int32> | undefined { return undefined; }`,
+    "CSHARP_REFLIKE_GENERIC_ARGUMENT"],
+  ["nullable native ref-like initialization", `export function fail(values: int32[]): int32 {
     let view: Span<int32> | undefined = new Span<int32>(values);
     return view === undefined ? 0 : view.Length;
-  }`, "CSHARP_REFLIKE_GENERIC_ARGUMENT"],
+  }`, "CSHARP_REFLIKE_BOXING"],
   ["source generic class", `class Box<Value> { value: Value; constructor(value: Value) { this.value = value; } }
     export function fail(values: int32[]): int32 { return new Box<Span<int32>>(new Span<int32>(values)).value.Length; }`,
     "CSHARP_REFLIKE_GENERIC_ARGUMENT"],
@@ -28,7 +31,7 @@ for (const [name, body, expected] of [
   ["ordinary field", `export class Holder { value: Span<int32>; constructor(value: Span<int32>) { this.value = value; } }`,
     "CSHARP_REFLIKE_FIELD"],
   ["ordinary object member", `export function fail(values: int32[]): int32 {
-    const holder = { value: new Span<int32>(values) }; return holder.value.Length;
+    const holder: { value: Span<int32> } = { value: new Span<int32>(values) }; return holder.value.Length;
   }`, "CSHARP_REFLIKE_FIELD"],
   ["inline ordinary object member", `export function fail(values: int32[]): int32 {
     return ({ value: new Span<int32>(values) }).value.Length;
@@ -50,6 +53,19 @@ for (const [name, body, expected] of [
     assert.equal(compiled.result.artifacts.length, 0, `${name}: no invalid native artifacts`);
   });
 }
+
+test("an inferred ref-like object cannot bypass an earlier exact native carrier refusal", () => {
+  const compiled = compileCsharpSource({ sourceText: `${imports}
+export function fail(values: int32[]): int32 {
+  const holder = { value: new Span<int32>(values) }; return holder.value.Length;
+}` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the inferred object is checked source");
+  assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    issue.message.includes("System.Span") && issue.message.includes("int32") && issue.message.includes("float64")), true,
+    "the existing inferred-container numeric mismatch remains an exact early refusal");
+  assert.equal(compiled.result.program === undefined, true, "no mismatched native program is published");
+  assert.equal(compiled.result.artifacts.length, 0, "no mismatched native source is emitted");
+});
 
 test("native named-carrier boundaries require exact immutable generic-slot facts", () => {
   const integer = { kind: "source-primitive", name: "int32" };
@@ -77,6 +93,25 @@ test("native named-carrier boundaries require exact immutable generic-slot facts
     /exact native generic-slot permissions/u, "a sparse slot array does not prove permission");
 });
 
+test("native method and type parameter boundaries require an actual allows-ref-struct boolean", () => {
+  for (const [name, metadata, expectedIssues] of [
+    ["missing", {}, 1],
+    ["undefined", { allowsRefLike: undefined }, 1],
+    ["non-boolean", { allowsRefLike: 1 }, 1],
+    ["allowed", { allowsRefLike: true }, 0],
+    ["ordinary", { allowsRefLike: false }, 0],
+  ]) {
+    const issues = [];
+    validateDotnetTypeParameters([{ identity: "Fixture.Method:0", name: "Value", ...metadata }], "$.parameters",
+      { add: (path, message) => issues.push({ path, message }) });
+    assert.equal(issues.length, expectedIssues, `${name}: missing metadata cannot become permission or false`);
+    if (expectedIssues !== 0) {
+      assert.equal(issues[0].path, "$.parameters[0].allowsRefLike", `${name}: the actual absent native fact is named`);
+      assert.equal(issues[0].message, "A CLR generic parameter requires its native allows-ref-struct flag.", name);
+    }
+  }
+});
+
 for (const [name, expression] of [
   ["explicit", "Methods.Ordinary<Lease>(new Lease(7))"],
   ["inferred", "Methods.Ordinary(new Lease(7))"],
@@ -93,6 +128,19 @@ export function fail(): boolean { return ${expression} === 7; }` });
     assert.equal(compiled.result.artifacts.length, 0, `${name}: no invalid method artifact`);
   });
 }
+
+test("native ref-like fields are refused on an inferred reflected object without numeric carrier inference", () => {
+  const { capability } = nativeRefLikeFixture();
+  const compiled = compileCsharpSource({ capabilities: [capability], sourceText: `
+import { Lease } from "@fixture/ref-like/RefLikeProof.js";
+export function fail(): boolean { const holder = { value: new Lease(7) }; return holder.value.Value === 7; }
+` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the reflected inferred object is checked source");
+  assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_REFLIKE_FIELD"), true,
+    JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
+  assert.equal(compiled.result.program === undefined, true, "the actual physical object cannot store a reflected ref struct");
+  assert.equal(compiled.result.artifacts.length, 0, "no native-invalid reflected storage is emitted");
+});
 
 test("native method allows-ref-struct anti-constraints preserve actual Span-style borrowing", { timeout: 240_000 }, () => {
   const { capability, project } = nativeRefLikeFixture();

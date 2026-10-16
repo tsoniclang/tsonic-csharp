@@ -9,7 +9,7 @@ import type { CsharpClassFactory } from "../../target-model/records/class-factor
 import type { CsharpClassPropertyStorage } from "../../target-model/records/class-property-storage.js";
 import type { CsharpNativeParticipationInput } from "../../target-model/records/native-demand.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
 import { getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpGeneratorProtocol } from "../../target-model/types/carriers/generators.js";
@@ -64,12 +64,11 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
       message, evidence: ["target.capability=csharp.native.ref-like-placement"] }));
   };
   const fieldHasStorage = (declaration: Node): boolean => {
-    if (ast.is.IsGetAccessorDeclaration(declaration) || ast.is.IsSetAccessorDeclaration(declaration) ||
-      ast.is.IsPropertySignatureDeclaration(declaration)) return false;
+    if (ast.is.IsGetAccessorDeclaration(declaration) || ast.is.IsSetAccessorDeclaration(declaration)) return false;
     const selection = input.classPropertyStorage.get(declaration);
     return !(selection?.kind === "property" && ast.hasModifierKind(declaration, "abstract"));
   };
-  const inspect = (type: TargetTypeRef | undefined, node: Node): void => {
+  const inspect = (type: TargetTypeRef | undefined, node: Node, physicalShape?: CsharpObjectShapeFact): void => {
     if (type === undefined) return;
     const pending = [type];
     const visited = new Set<TargetTypeRef>();
@@ -109,8 +108,9 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
             "An ordinary source union cannot store a native ref-like payload.");
           pending.push(...arms);
         }
-        const shape = input.objectShapes.resolveTarget(current);
-        if (shape !== undefined && named.csharpStructuralContract !== true && !isCsharpRefLikeTargetType(current)) {
+        const shape = current === type && physicalShape !== undefined ? physicalShape : input.objectShapes.resolveTarget(current);
+        if (shape !== undefined && named.csharpStructuralContract !== true && named.csharpSourceDeclarationKind !== "interface" &&
+          !isCsharpRefLikeTargetType(current)) {
           for (const member of shape.members) {
             if (member.memberKind !== "property" || member.sourceDeclarations !== undefined && member.sourceDeclarations.length > 0 &&
               member.sourceDeclarations.every(declaration => !fieldHasStorage(declaration))) continue;
@@ -227,7 +227,9 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
     if (owned !== undefined && owned.size > 0) analyzeCsharpRefLikeLiveness(input.source, declaration, owned, reject);
   }
   for (const { use } of input.nativeDemand.entries) {
-    if (use.kind === "constructed") inspect(use.carrier, use.expression);
+    if (use.kind === "erased") continue;
+    if (use.objectShape !== undefined) inspect(use.objectShape.targetType, use.expression, use.objectShape);
+    else if (use.kind === "constructed") inspect(use.carrier, use.expression);
   }
   analyzeCsharpRefLikeEvaluation(input.source, input.nativeDemand, reject);
   return Object.freeze(diagnostics);
