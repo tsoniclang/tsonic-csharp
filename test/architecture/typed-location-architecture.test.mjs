@@ -94,9 +94,14 @@ test("C# backend consumes only resolved C# typed-location operations", () => {
     join(sourceRoot, "analysis/operations/analyze.ts"),
     "utf8",
   );
+  const planning = readFileSync(join(sourceRoot, "backend/planner/expressions/planning.ts"), "utf8");
 
   assert.match(analysis, /selectCsharpTypedLocationOperation/u);
-  assert.match(planner, /input\.program\.records\.typedLocation\.get/u);
+  assert.equal([...planning.matchAll(/input\.program\.records\.nativeHandler\.get\(node\)/gu)].length === 1, true,
+    "the expression root reads one admitted native handler");
+  assert.match(planning, /case "typed-location":[\s\S]*?planCsharpTypedLocationOperation\(\s*node,\s*nativeHandler\.selection/u);
+  assert.match(planner, /operation: Extract<CsharpNativeHandler, \{ readonly kind: "typed-location" \}>\["selection"\]/u);
+  assert.doesNotMatch(planner, /input\.program\.records\.(?:memoryBinding|nativePointer|typedLocation|jsStringConversion)\.get/u);
   assert.doesNotMatch(
     planner,
     /selectCsharpTypedLocationOperation|pointerOperationFactKey|PointerOperationFact|sourceFacts|getResolvedStorageInfo|getResolvedPropertyAccessInfo|getResolvedElementAccessInfo/u,
