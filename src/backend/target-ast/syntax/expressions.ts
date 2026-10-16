@@ -1,5 +1,6 @@
 import type { CsharpBlock } from "./statements.js";
 import type { CsharpTypeNode } from "./types.js";
+import type { CsharpNumericLiteralToken } from "../../../target-model/syntax/numeric-literals.js";
 
 export type CsharpExpression =
   | CsharpTypeNode
@@ -8,7 +9,8 @@ export type CsharpExpression =
       readonly value: string | number | boolean | null;
       readonly stringStyle?: "raw";
     }
-  | { readonly kind: "NumericLiteralExpression"; readonly value: number; readonly suffix?: "F" | "D" | "M" }
+  | { readonly kind: "NumericLiteralExpression"; readonly token: CsharpNumericLiteralToken; readonly suffix: "F" | "M"; readonly value?: never }
+  | { readonly kind: "NumericLiteralExpression"; readonly value: number; readonly suffix?: "D"; readonly token?: never }
   | { readonly kind: "IntegerLiteralExpression"; readonly digits: string; readonly suffix: "L" | "UL" }
   | { readonly kind: "CharacterLiteralExpression"; readonly value: string }
   | { readonly kind: "InterpolatedStringExpression"; readonly parts: readonly CsharpInterpolatedStringPart[] }
