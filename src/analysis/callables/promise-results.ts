@@ -55,7 +55,8 @@ export function analyzeCsharpPromiseResults(input: {
     let remaining = 4096;
     const inspect = (selected: Type, depth: number): void => {
       if (--remaining < 0 || depth > 128) { native = true; return; }
-      const parts = semantics.types.unionOrIntersectionTypes(selected);
+      const parts = semantics.types.isUnion(selected) || semantics.types.isIntersection(selected)
+        ? semantics.types.unionOrIntersectionTypes(selected) : [];
       if (parts.length > 0) { for (const part of parts) inspect(part, depth + 1); return; }
       const profile = classifyCsharpSourceProfileType(selected, semantics, ast);
       if (profile?.kind === "promise") {
