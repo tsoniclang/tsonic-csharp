@@ -29,10 +29,12 @@ function literals(entries) {
 
 function checkedPropertyKeys() {
   const checked = checkCsharpSource({ surface: "js", sourceText: `
+    import type { decimal } from "@tsonic/core/types.js";
     enum NumericKey { Wide = 9007199254740993 }
     const selected = "fixed" as const;
-    export const keys = { plain: "a", [selected]: "b", 9007199254740993: "c", 1.0: "e" };
-    export const enumKeys = { [NumericKey.Wide]: "d" };
+    export const keys = { plain: "a", [selected]: "b", 1.0: "e" };
+    export const wideKeys: Record<decimal, string> = { 9007199254740993: "c" };
+    export const enumKeys: Record<decimal, string> = { [NumericKey.Wide]: "d" };
   ` });
   assert.equal(checked.sourceDiagnosticsText === "" && checked.extensionDiagnostics.length === 0, true,
     `the full source key control passes checked admission: ${checked.sourceDiagnosticsText}; ${checked.extensionDiagnostics.map(({ message }) => message).join("; ")}`);
@@ -43,9 +45,12 @@ function checkedPropertyKeys() {
   const object = nodes.find(node => source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "keys");
   const expression = source.ast.as.AsVariableDeclaration(object).Initializer;
   const ordinary = source.ast.properties(expression).map(property => source.ast.name(property));
+  const wideObject = nodes.find(node => source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "wideKeys");
+  const wideExpression = source.ast.as.AsVariableDeclaration(wideObject).Initializer;
   const enumObject = nodes.find(node => source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "enumKeys");
   const enumExpression = source.ast.as.AsVariableDeclaration(enumObject).Initializer;
-  const names = [...ordinary.slice(0, 3), source.ast.name(source.ast.properties(enumExpression)[0]), ordinary[3]];
+  const names = [ordinary[0], ordinary[1], source.ast.name(source.ast.properties(wideExpression)[0]),
+    source.ast.name(source.ast.properties(enumExpression)[0]), ordinary[2]];
   const selections = names.map(name => source.semantics.forNode(name).propertyNames.get(name));
   assert.equal(selections.every(selection => selection?.kind === "resolved"), true, "every original name has one canonical constant");
   return { source, nodes, names, selections };

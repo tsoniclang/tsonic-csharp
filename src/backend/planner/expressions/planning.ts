@@ -93,19 +93,7 @@ import { captureCsharpPlannedValue } from "./planned-value-composition.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import type { CsharpPromiseDiscard } from "../../../target-model/records/promise-results.js";
 import type { CsharpStatement } from "../../target-ast/syntax/index.js";
-
-function requireExpressionPlan<T>(
-  node: Node,
-  diagnostics: TargetDiagnostic[],
-  plan: () => T | undefined,
-): T | undefined {
-  const initialDiagnosticCount = diagnostics.length;
-  const selected = plan();
-  if (selected === undefined && !diagnostics.slice(initialDiagnosticCount).some(diagnostic => diagnostic.category === "error")) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Required C# expression planning produced neither a native completion nor an error."));
-  }
-  return selected;
-}
+import { requireExpressionPlan } from "./required-plan.js";
 
 export function planExpression(
   node: Node,

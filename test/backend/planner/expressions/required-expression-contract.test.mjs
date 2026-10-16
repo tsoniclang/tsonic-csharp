@@ -12,6 +12,7 @@ import { planCsharpOutput } from "../../../../dist/backend/planner/program/plann
 import { printCsharpCompilationUnit } from "../../../../dist/print/source/printer.js";
 import { csharpAbsenceTargetType, csharpSourcePrimitiveTargetType, targetTypeRefEquals } from "../../../../dist/target-model/types/index.js";
 import { selectCsharpConversion } from "../../../../dist/policy/conversions/core.js";
+import { requireExpressionPlan } from "../../../../dist/backend/planner/expressions/required-plan.js";
 
 function fixture() {
   const checked = checkCsharpSource({ surface: "js", sourceText: `
@@ -76,7 +77,7 @@ function fixture() {
         && targetTypeRefEquals(from, absence) && targetTypeRefEquals(to, number)
         ? rejection : program.records.expressionConversion.get(node, from, to, mode) }) }),
   });
-  return { source, program, changed, call, radix, number };
+  return { source, program, changed, call, radix, number, rejection };
 }
 
 test("required expression boundaries diagnose silent rejected conversions without accepting omitted source", () => {
@@ -97,12 +98,42 @@ test("required expression boundaries diagnose silent rejected conversions withou
     assert.equal(plan(diagnostics) === undefined, true, `${name}: rejected plan remains absent`);
     assert.equal(diagnostics.length === prior.length + 1, true, `${name}: exactly one new owning error`);
     assert.equal(diagnostics.at(-1).category === "error"
-      && /Required C# expression planning/.test(diagnostics.at(-1).message), true,
+      && diagnostics.at(-1).message === current.rejection.reason, true,
     `${name}: prior errors cannot hide a missing current completion (${diagnostics.at(-1).message})`);
   }
   const rejected = planCsharpOutput(createCsharpPlanningContext(current.changed));
   assert.equal(rejected.kind === "rejected" && rejected.diagnostics.some(diagnostic => diagnostic.category === "error"), true,
     "complete output rejects instead of publishing an empty boolean method");
+});
+
+test("the required-expression guard preserves undefined, specific and prior-error predicates", () => {
+  const current = fixture();
+  const priorError = Object.freeze({ code: "PRIOR", category: "error", source: "test", message: "Unrelated existing error." });
+  const specificError = Object.freeze({ code: "SPECIFIC", category: "error", source: "test", message: "Exact owning rejection." });
+  const warning = Object.freeze({ code: "WARNING", category: "warning", source: "test", message: "Warning is not a rejection." });
+  for (const [name, prior] of [["no prior error", []], ["prior error", [priorError]]]) {
+    const missing = [...prior];
+    assert.equal(requireExpressionPlan(current.radix, missing, () => undefined) === undefined, true, `${name}: absent completion stays absent`);
+    assert.equal(missing.length, prior.length + 1, `${name}: exactly one new guard diagnostic`);
+    assert.equal(missing.at(-1).category === "error" && missing.at(-1).sourceNode === current.radix, true,
+      `${name}: the guard names the exact required expression`);
+    assert.equal(/Required C# expression planning/.test(missing.at(-1).message), true,
+      `${name}: the original required-expression assertion remains at its guard owner`);
+    const specific = [...prior];
+    const rejected = requireExpressionPlan(current.radix, specific, () => { specific.push(specificError); return undefined; });
+    assert.equal(rejected === undefined, true, `${name}: a specific rejection has no completion`);
+    assert.equal(specific.length === prior.length + 1 && specific.at(-1) === specificError, true,
+      `${name}: the specific owning error is retained without duplication`);
+    const valid = [...prior];
+    assert.equal(requireExpressionPlan(current.radix, valid, () => 7), 7, `${name}: a valid native completion is preserved`);
+    assert.equal(valid.length, prior.length, `${name}: a valid completion adds no diagnostic`);
+    const warnings = [...prior];
+    const warned = requireExpressionPlan(current.radix, warnings, () => { warnings.push(warning); return undefined; });
+    assert.equal(warned === undefined, true, `${name}: a warning cannot fabricate a completion`);
+    assert.equal(warnings.length === prior.length + 2 && warnings[prior.length] === warning
+      && warnings.at(-1).category === "error" && /Required C# expression planning/.test(warnings.at(-1).message), true,
+    `${name}: warnings and prior errors cannot mask the missing current completion`);
+  }
 });
 
 test("required planning retains specific errors and valid value, void and never completions", () => {

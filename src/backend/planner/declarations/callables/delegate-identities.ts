@@ -27,7 +27,8 @@ export function planCsharpDelegateAdapterDeclarations(block: Node, sourceFile: S
     const name = input.scope.delegateAdapters?.get(identity);
     const signature = getCsharpDelegateSignature(identity.target);
     const returnType = signature === undefined ? undefined : csharpTypeFromTargetTypeRef(signature.returnType, input.scope.typeParameterNames);
-    const callee = identifier === undefined ? undefined : planIdentifierExpression(identifier, sourceFile, input, diagnostics, state);
+    const callee = identifier === undefined ? undefined : planIdentifierExpression(identifier, sourceFile,
+      { ...input, storageExpression: identifier }, diagnostics, state);
     if (name === undefined || callee === undefined || returnType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(identity.declaration, "A retained native delegate adapter requires its exact lexical binding, name and return signature."));
       continue;

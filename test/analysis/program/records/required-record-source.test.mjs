@@ -9,6 +9,8 @@ import { analyzeCsharpStorage } from "../../../../dist/analysis/storage/analyze.
 import { createCsharpSourceProfileStorageEffects } from "../../../../dist/policy/operations/source-profiles/source-storage-effects.js";
 import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
 import { compileCsharpRequiredRecordSource, csharpRequiredRecordFailure } from "../../../helpers/required-records.mjs";
+import { createExpectedNativeUseOwner } from "../../../helpers/expected-native-uses.mjs";
+import { getCsharpLambdaSignature } from "../../../../dist/target-model/types/carriers/delegates.js";
 
 const sourceText = `
   import type { int32 } from "@tsonic/core/types.js";
@@ -49,7 +51,7 @@ function classFactoryInputs(source, program) {
 }
 
 for (const surface of ["native", "js"]) {
-  const { source, program, nodes } = compileCsharpRequiredRecordSource(sourceText, surface);
+  const { compiled, source, program, nodes } = compileCsharpRequiredRecordSource(sourceText, surface);
   const { ast } = source;
   const records = program.records;
 
@@ -109,8 +111,25 @@ for (const surface of ["native", "js"]) {
       ast, sourceFiles: program.sourceFiles, sourceFacts: source.sourceFacts, navigation: source.navigation,
       typeDefinitions: program.typeDefinitions, semanticsFor: source.semantics.forNode,
     });
-    const storage = analyzeCsharpStorage(policy, records, records, program.objectShapes, records, records, records,
-      Object.freeze({ closedInputType: () => undefined }), records, rows);
+    const expected = createExpectedNativeUseOwner(compiled).analysis;
+    const declarations = new Map(nodes.filter(node => ast.is.IsArrowFunction(node)).map(declaration => {
+      const signature = getCsharpLambdaSignature(records.callableTarget.get(declaration));
+      assert.equal(signature !== undefined, true, "each adapted lambda has its exact published signature");
+      const parameters = Object.freeze(ast.parameters(declaration).map((parameter, index) => {
+        const type = records.lambdaParameterType.get(parameter);
+        assert.equal(type !== undefined && targetTypeRefEquals(type, signature.parameters[index]), true,
+          "the callable contract carries the published parameter correspondence");
+        return Object.freeze({ sourceParameter: parameter,
+          targetParameter: Object.freeze({ type, passingMode: signature.parameterPassingModes[index] }) });
+      }));
+      return [declaration, Object.freeze({ sourceDeclaration: declaration,
+        methodTypeParameterIdentities: Object.freeze([]), parameters, returnType: signature.returnType })];
+    }));
+    const callables = Object.freeze({ contracts: Object.freeze([...declarations.values()]),
+      declarationContracts: Object.freeze([...declarations.values()]), closedInputType: () => undefined,
+      get: identity => identity.kind === "declaration" ? declarations.get(identity.declaration) : undefined });
+    const storage = analyzeCsharpStorage(policy, records, records, program.objectShapes, expected, records, records,
+      callables, records, rows);
     assert.equal(storage.issues.length === 0, true, "the owner closes this source without issues");
     assert.equal(nodes.every(node => sameType(storage.lambdaParameterType.get(node), records.lambdaParameterType.get(node)) &&
       sameType(storage.requiredStorageType.get(node), records.requiredStorageType.get(node))), true,
