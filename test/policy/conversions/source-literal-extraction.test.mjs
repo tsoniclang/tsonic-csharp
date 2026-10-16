@@ -109,6 +109,7 @@ export function decimalDefault(value: decimal = -1.50): decimal { return value; 
     assert.doesNotThrow(() => JSON.stringify(compiled.result.plan), `${surface}: every native token remains JSON-safe`);
     const program = compiled.result.program;
     const defaults = program.sourceFiles.flatMap(file => program.source.ast.statements(file))
+      .filter(node => node !== undefined && program.source.ast.is.IsFunctionDeclaration(node))
       .flatMap(node => program.source.ast.parameters(node))
       .filter(node => program.source.ast.as.AsParameterDeclaration(node)?.Initializer !== undefined);
     assert.equal(defaults.length === 2 && defaults.every(node => program.records.runtimeDefault.get(node) !== undefined), true,
