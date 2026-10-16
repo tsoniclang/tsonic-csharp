@@ -18,16 +18,16 @@ function owners(sourceText, surface) {
   const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
   for (const file of program.sourceFiles) walk(file);
   const records = program.records;
+  const literalValues = analyzeSourceLiteralValues(ast, program.sourceFiles);
   const contracts = nodes.filter(node => ast.is.IsFunctionDeclaration(node) && ast.body(node) !== undefined).flatMap(node => {
     const declared = records.returnContract.get(node);
     return declared?.kind === "resolved" ? [{ sourceDeclaration: node, returnType: declared.type }] : [];
   });
-  const expected = analyzeCsharpExpectedTypes({ ast, sourceFiles: program.sourceFiles,
+  const expected = analyzeCsharpExpectedTypes({ ast, sourceFiles: program.sourceFiles, literalValues,
     semantics: source.semantics.forFile, typeDefinitions: program.typeDefinitions }, records, records, program.objectShapes,
     { declarationContracts: contracts, closedInputType: () => undefined, get: () => undefined },
     { get: node => { const read = records.valueRead.get(node); return read === undefined ? undefined
       : { literalTarget: read.selectedOperation ?? read.source, operationValue: read.selectedOperation ?? read.source }; } }, records);
-  const literalValues = analyzeSourceLiteralValues(ast, program.sourceFiles);
   const exact = analyzeCsharpExactLiteralSelections(literalValues, expected.nativeUseSites.requests.flatMap(request =>
     request.expression === undefined ? [] : [{ expression: request.expression, target: request.targetType }]));
   const final = { ast, exactLiteral: exact.exactLiteral, callableCreation: { get: () => undefined }, valueRead: records.valueRead,
