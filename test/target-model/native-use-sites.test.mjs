@@ -15,6 +15,7 @@ test("native use identity preserves actual owner, role, exact argument keys and 
   assert.equal(identity(same), identity(csharpNativeUseSite(owner, { ...argument })));
   assert.equal(Object.isFrozen(same) && same.subject === owner, true);
   const slots = [argument, { ...argument, sourceIndex: 1 }, { ...argument, effectiveIndex: 1 }, { ...argument, parameterIndex: 1 },
+    { kind: "argument", sourceIndex: 0, effectiveIndex: 0 },
     { ...argument, sourceParameterIndex: 0 }, { ...argument, sourceParameterIndex: 1 },
     { kind: "receiver" }, { kind: "callee" }, { kind: "return" }, { kind: "constructed-result" },
     { kind: "operand", position: "left" }, { kind: "operand", position: "right" },

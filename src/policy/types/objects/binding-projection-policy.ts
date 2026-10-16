@@ -41,7 +41,8 @@ type BindingPatternProjectionRequest =
   | { readonly kind: "object-member"; readonly shape: CsharpObjectShapeFact; readonly sourceName: string; readonly description: string }
   | { readonly kind: "object-rest"; readonly source: CsharpObjectShapeFact; readonly rest: CsharpObjectShapeFact;
       readonly extractedNames: ReadonlySet<string>; readonly description: string }
-  | { readonly kind: "source-owned-member"; readonly sourceName: string | undefined; readonly stringLiteral: boolean };
+  | { readonly kind: "source-owned-member"; readonly sourceName: string | undefined; readonly stringLiteral: boolean;
+      readonly rest?: boolean; readonly hasDefault?: boolean };
 
 type BindingPatternProjectionSelection =
   | { readonly kind: "source"; readonly source: CsharpBindingPatternSource }
@@ -109,6 +110,8 @@ export function selectCsharpBindingPatternProjection(input: BindingPatternProjec
       return element({ kind: "object-shape-rest", restShape: input.rest, members: Object.freeze(members) });
     }
     case "source-owned-member":
+      if (input.rest) return unresolved("Object rest destructuring requires finalized provider object-spread semantics before C# emission.");
+      if (input.hasDefault) return unresolved("Destructuring defaults require finalized undefined/default-value semantics before C# emission.");
       return input.sourceName === undefined || input.stringLiteral && tryCsharpIdentifier(input.sourceName) !== input.sourceName
         ? unresolved() : element({ kind: "source-owned-member", propertyName: input.sourceName,
           propertyNameKind: input.stringLiteral ? "string-literal" : "identifier" });
