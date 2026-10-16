@@ -7,8 +7,8 @@ import type { CsharpSourceCallContract } from "../../target-model/records/source
 import type { CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
-import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
-import { selectCsharpCallableParameterAdapters, selectCsharpCallableResultAdapter, selectCsharpCallableValueAdapter } from "../callables/adapters.js";
+import { targetTypeRefKey } from "../../target-model/types/equality.js";
+import { admitCsharpCallableParameterAdapters, admitCsharpCallableResultAdapter } from "../callables/adapters.js";
 import { instantiateCsharpInheritedCallable } from "../callables/instantiation.js";
 
 const noImplementations: readonly CsharpFinalStructuralInterfaceImplementation[] = Object.freeze([]);
@@ -50,21 +50,15 @@ export function finalizeCsharpStructuralInterfaceForwarding(
           returnType: signature.returnType,
         });
         const incoming = implementation.parameters.map(parameter => parameter.targetParameter);
-        const same = parameters.length === incoming.length && parameters.every((parameter, index) =>
-          parameter.passingMode === incoming[index]!.passingMode && parameter.paramsArray === incoming[index]!.paramsArray &&
-          targetTypeRefEquals(parameter.type, incoming[index]!.type));
-        const adapters = same ? parameters.map((parameter, index) => {
-          const adapter = selectCsharpCallableValueAdapter(policy, parameter.type, incoming[index]!.type);
-          return adapter === undefined ? undefined : Object.freeze({ kind: "value" as const, parameterIndex: index, adapter });
-        }) : selectCsharpCallableParameterAdapters(policy, parameters, incoming);
-        const result = selectCsharpCallableResultAdapter(policy, implementation, signature.returnType);
-        if (adapters === undefined || adapters.some(adapter => adapter === undefined) || result === undefined) {
+        const adapters = admitCsharpCallableParameterAdapters(policy, parameters, incoming);
+        const result = admitCsharpCallableResultAdapter(policy, implementation, signature.returnType);
+        if (adapters === undefined || result === undefined) {
           refuse(method.declaration);
           continue;
         }
         const forwarding: CsharpStructuralMethodForwarding = Object.freeze({ contract, implementation,
           parameterDefaults: Object.freeze(implementation.parameters.map(parameter => declarations.runtimeDefault.get(parameter.sourceParameter))),
-          parameters: Object.freeze(adapters as CsharpStructuralMethodForwarding["parameters"]), result,
+          parameters: adapters, result,
         });
         methods.push(Object.freeze({ ...method, forwarding }));
       }
