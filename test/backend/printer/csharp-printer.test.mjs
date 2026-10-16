@@ -151,6 +151,113 @@ test("a cast to a type that is also an expression keeps a signed or dereferenced
   assert.deepEqual(mismatches, [], "a parenthesized type that is also an expression is a cast only before a token that cannot continue a binary expression");
 });
 
+test("a cast to a tuple type keeps a signed or dereferenced operand in parentheses", () => {
+  const name = text => ({ kind: "IdentifierName", name: text });
+  const predefined = text => ({ kind: "PredefinedType", name: text });
+  const types = [
+    ["(int, int)", { kind: "TupleType", elements: [predefined("int"), predefined("int")] }],
+    ["(Half, double)", { kind: "TupleType", elements: [name("Half"), predefined("double")] }],
+    ["(Point, Point)", { kind: "TupleType", elements: [name("Point"), name("Point")] }],
+  ];
+  const prefix = (token, operand) => ({ kind: "PrefixUnaryExpression", operatorToken: { kind: token }, operand: name(operand) });
+  const operands = [
+    ["-1.5", { kind: "LiteralExpression", value: -1.5 }, true], ["-x", prefix("MinusToken", "x"), true], ["+x", prefix("PlusToken", "x"), true],
+    ["--x", prefix("MinusMinusToken", "x"), true], ["++x", prefix("PlusPlusToken", "x"), true], ["*p", prefix("AsteriskToken", "p"), true],
+    ["~x", prefix("TildeToken", "x"), false], ["!b", prefix("ExclamationToken", "b"), false], ["x", name("x"), false],
+    ["1.5", { kind: "LiteralExpression", value: 1.5 }, false],
+  ];
+  const mismatches = types.flatMap(([typeText, type]) => operands.flatMap(([operandText, operand, signed]) => {
+    const expected = signed ? `(${typeText})(${operandText})` : `(${typeText})${operandText}`;
+    const printed = printCsharpExpression({ kind: "CastExpression", type, expression: operand });
+    return printed === expected ? [] : [`${printed} != ${expected}`];
+  }));
+  assert.deepEqual(mismatches, [], "tuple casts keep signs, updates and dereferences inside their operands");
+});
+
+test("a negative numeric literal used as a receiver or callee is parenthesized", () => {
+  const name = text => ({ kind: "IdentifierName", name: text });
+  const receivers = [
+    ["-1.5", { kind: "LiteralExpression", value: -1.5 }, true],
+    ["-1.5F", { kind: "NumericLiteralExpression", value: -1.5, suffix: "F" }, true],
+    ["-0D", { kind: "LiteralExpression", value: -0 }, true],
+    ["-18446744073709552000D", { kind: "NumericLiteralExpression", value: -18446744073709551616 }, true],
+    ["1.5", { kind: "LiteralExpression", value: 1.5 }, false],
+    ["2F", { kind: "NumericLiteralExpression", value: 2, suffix: "F" }, false],
+    ["\"-1\"", { kind: "LiteralExpression", value: "-1" }, false],
+    ["value", name("value"), false],
+  ];
+  const forms = [
+    [receiver => ({ kind: "SimpleMemberAccessExpression", receiver, name: "ToString" }), text => `${text}.ToString`],
+    [receiver => ({ kind: "ConditionalAccessExpression", receiver, name: "ToString" }), text => `${text}?.ToString`],
+    [receiver => ({ kind: "ElementAccessExpression", receiver, arguments: [name("index")] }), text => `${text}[index]`],
+    [receiver => ({ kind: "ConditionalElementAccessExpression", receiver, arguments: [name("index")] }), text => `${text}?[index]`],
+    [callee => ({ kind: "InvocationExpression", callee, arguments: [] }), text => `${text}()`],
+  ];
+  const mismatches = forms.flatMap(([build, expectedFor]) => receivers.flatMap(([text, receiver, negative]) => {
+    const expected = expectedFor(negative ? `(${text})` : text);
+    const printed = printCsharpExpression(build(receiver));
+    return printed === expected ? [] : [`${printed} != ${expected}`];
+  }));
+  assert.deepEqual(mismatches, [], "a postfix receiver keeps its complete signed value");
+});
+
+test("unary minus preserves its operand rather than forming a decrement or negating an unsigned token", () => {
+  const minus = operand => ({ kind: "PrefixUnaryExpression", operatorToken: { kind: "MinusToken" }, operand });
+  const literal = value => ({ kind: "LiteralExpression", value });
+  const rows = [
+    [minus(literal(9223372036854777856)), "-9223372036854778000D"],
+    [minus({ kind: "NumericLiteralExpression", value: 1e19 }), "-10000000000000000000D"],
+    [minus(literal(2 ** 63)), "-9223372036854776000D"],
+    [minus(literal(2 ** 64)), "-18446744073709552000D"],
+    [minus(literal(9223372036854774784)), "-9223372036854775000"],
+    [minus(literal(1e18)), "-1000000000000000000"],
+    [minus({ kind: "NumericLiteralExpression", value: 1e19, suffix: "F" }), "-10000000000000000000F"],
+    [minus(literal(-1.5)), "-(-1.5)"],
+    [minus(literal(-0)), "-(-0D)"],
+    [minus({ kind: "NumericLiteralExpression", value: -2, suffix: "F" }), "-(-2F)"],
+    [minus(literal(1.5)), "-1.5"],
+    [minus({ kind: "IdentifierName", name: "x" }), "-x"],
+    [minus(minus({ kind: "IdentifierName", name: "x" })), "-(-x)"],
+    [{ kind: "PrefixUnaryExpression", operatorToken: { kind: "TildeToken" }, operand: literal(-1) }, "~-1"],
+  ];
+  const mismatches = rows.flatMap(([expression, expected]) => {
+    const printed = printCsharpExpression(expression);
+    return printed === expected ? [] : [`${printed} != ${expected}`];
+  });
+  assert.deepEqual(mismatches, [], "unary token spelling retains the selected operand and numeric representation");
+});
+
+test("Number-backed literals and exact signed or unsigned integer literals retain their distinct token paths", () => {
+  const literal = value => ({ kind: "LiteralExpression", value });
+  const parenthesized = expression => ({ kind: "ParenthesizedExpression", expression });
+  const minus = operand => ({ kind: "PrefixUnaryExpression", operatorToken: { kind: "MinusToken" }, operand });
+  const binary = (left, operator, right) => ({ kind: "BinaryExpression", left, operatorToken: { kind: operator }, right });
+  const rows = [
+    [literal(1e19), "10000000000000000000D"],
+    [{ kind: "NumericLiteralExpression", value: 2 ** 63 }, "9223372036854776000D"],
+    [literal(9223372036854774784), "9223372036854775000"],
+    [literal(-9223372036854774784), "-9223372036854775000"],
+    [literal(-(2 ** 63)), "-9223372036854776000D"],
+    [literal(4294967296), "4294967296"],
+    [minus(parenthesized(literal(1e19))), "-(10000000000000000000D)"],
+    [minus(parenthesized(literal(9223372036854777856))), "-(9223372036854778000D)"],
+    [binary(literal(0), "MinusToken", literal(1e19)), "0 - 10000000000000000000D"],
+    [binary(literal(1e19), "AsteriskToken", literal(2)), "10000000000000000000D * 2"],
+    [{ kind: "IntegerLiteralExpression", digits: "9223372036854775807", suffix: "L" }, "9223372036854775807L"],
+    [{ kind: "IntegerLiteralExpression", digits: "9223372036854775808", suffix: "UL" }, "9223372036854775808UL"],
+    [{ kind: "IntegerLiteralExpression", digits: "18446744073709551615", suffix: "UL" }, "18446744073709551615UL"],
+    [minus({ kind: "IntegerLiteralExpression", digits: "9223372036854775808", suffix: "L" }), "-9223372036854775808L"],
+    [{ kind: "NumericLiteralExpression", value: 1e19, suffix: "F" }, "10000000000000000000F"],
+    [{ kind: "NumericLiteralExpression", value: 1e19, suffix: "D" }, "10000000000000000000D"],
+    [{ kind: "NumericLiteralExpression", value: 1e19, suffix: "M" }, "10000000000000000000M"],
+  ];
+  const mismatches = rows.flatMap(([expression, expected]) => {
+    const printed = printCsharpExpression(expression);
+    return printed === expected ? [] : [`${printed} != ${expected}`];
+  });
+  assert.deepEqual(mismatches, [], "native L and UL digits and explicit floating suffixes are not retargeted by Number formatting");
+});
+
 test("numeric tokens retain floating values beyond the native integer literal range", () => {
   for (const kind of ["LiteralExpression", "NumericLiteralExpression"]) {
     for (const [value, expected] of [

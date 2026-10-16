@@ -185,6 +185,13 @@ export interface CsharpOperatorFormClassification {
   readonly usesExpectedResultType?: boolean;
 }
 
+export type CsharpNativeHandler =
+  | "memory-binding"
+  | "explicit-safety"
+  | "js-string-conversion"
+  | "native-pointer"
+  | "typed-location";
+
 export interface CsharpTargetOperationClassifications {
   readonly issues: readonly CsharpOperationIssue[];
   readonly awaitCompletion: { readonly get: (node: Node) => import("../types/await-completions.js").CsharpAwaitCompletion | undefined };
@@ -193,6 +200,7 @@ export interface CsharpTargetOperationClassifications {
   readonly nativeGuardResult: { readonly get: (expression: Node) => boolean | undefined };
   readonly nativeUnreachable: { readonly get: (node: Node) => boolean };
   readonly erasedStatement: { readonly get: (statement: Node) => boolean };
+  readonly nativeHandler: { readonly get: (expression: Node) => CsharpNativeHandler | undefined };
   readonly operatorForm: {
     readonly get: (expression: Node) => CsharpOperatorForm | undefined;
     readonly usesExpectedResultType: (expression: Node) => boolean | undefined;
