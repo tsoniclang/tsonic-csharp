@@ -4,7 +4,7 @@ import type {
   CsharpStatement,
   CsharpTypeNode,
 } from "../../target-ast/syntax/index.js";
-import { csharpExpressionIsSignedNumericLiteral } from "../../target-ast/syntax/expressions.js";
+import { csharpExpressionIsNativeNumericConstant } from "../../target-ast/syntax/expressions.js";
 
 export function callStatic(type: CsharpTypeNode, name: string, args: readonly CsharpExpression[]): CsharpExpression {
   return {
@@ -69,7 +69,7 @@ export function evaluatedConstant(expression: CsharpExpression, value: string | 
   const literal: CsharpExpression = { kind: "LiteralExpression", value };
   return expression.kind === "LiteralExpression" || expression.kind === "IntegerLiteralExpression" ||
     expression.kind === "NumericLiteralExpression" || expression.kind === "CharacterLiteralExpression" ||
-    csharpExpressionIsSignedNumericLiteral(expression) ? literal
+    csharpExpressionIsNativeNumericConstant(expression) ? literal
     : { kind: "SwitchExpression", expression, arms: [{ pattern: { kind: "DiscardPattern" }, expression: literal }] };
 }
 

@@ -122,6 +122,11 @@ export function realDouble(): float32 {
   const value: float64 = 1.00000005960464477539062500000001;
   return value as float32;
 }
+export function actualDecimal(): decimal {
+  const value: float64 = 9007199254740992;
+  return value as decimal;
+}
+export function decimalCast(value: float64): decimal { return value as decimal; }
 export function cast(value: float64): float32 { return value as float32; }
 export function explicitLiteral(): float32 { return 1e40 as float32; }
 export function defaultFloat(value: float32 = -1.5): float32 { return value; }
@@ -144,9 +149,15 @@ if (Subject.scaled().ToString(System.Globalization.CultureInfo.InvariantCulture)
     throw new System.Exception("native decimal formatted scale");
 if (System.BitConverter.SingleToUInt32Bits(Subject.direct()) != 0x3F800001 ||
     System.BitConverter.SingleToUInt32Bits(Subject.realDouble()) != 0x3F800000 ||
+    System.BitConverter.SingleToUInt32Bits(Subject.cast(-0D)) != 0x80000000 ||
     !float.IsPositiveInfinity(Subject.cast(1e40D)) || !float.IsNegativeInfinity(Subject.cast(-1e40D)) ||
     !float.IsPositiveInfinity(Subject.explicitLiteral()) || Subject.readDefault() != -1.5F)
     throw new System.Exception("authored versus actual double native conversion");
+if (Subject.actualDecimal() != (decimal)9007199254740992D ||
+    Subject.decimalCast(-0D) != (decimal)(-0D))
+    throw new System.Exception("actual double to decimal is a native conversion, not token reinterpretation");
+try { Subject.decimalCast(79228162514264337593543950336D); throw new System.Exception("native decimal overflow was lost"); }
+catch (System.OverflowException) { }
 System.Console.WriteLine("exact native numeric values and scale: correct");
 `);
     assert.equal(output.trim(), "exact native numeric values and scale: correct");
@@ -170,7 +181,7 @@ if (Subject.largestHalf() != System.Half.MaxValue || Subject.roundedHalf() != Sy
 System.Console.WriteLine("floating literal ranges: correct");
 `);
     assert.equal(output.trim(), "floating literal ranges: correct");
-    assert.equal(generatedIndex(compiled).includes("return x < 1e+39;"), true,
+    assert.equal(generatedIndex(compiled).includes("return x < 1e+39D;"), true,
       "a float32 operand compared with a literal outside the float32 range is compared as double");
   });
 

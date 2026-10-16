@@ -101,3 +101,26 @@ test("signed native numeric token syntax stays a stable scalar without admitting
     assert.equal(csharpPlannedExpressionIsStable(update), false, `${precision}: an update never becomes a scalar literal`);
   }
 });
+
+test("native small integer constant casts retain scalar stability and elision without admitting user conversions", () => {
+  for (const [name, value] of [["int8", -128n], ["uint8", 255n], ["int16", -32768n], ["uint16", 65535n], ["uint32", 4294967295n]]) {
+    const { result } = plan({ kind: "resolved", recipe: { kind: "integer", target: primitive(name), width: name, value } });
+    const expression = result.expression;
+    assert.equal(expression.kind, "CastExpression", `${name}: the selected native carrier is explicit`);
+    assert.equal(csharpPlannedExpressionIsStable(expression), true, `${name}: a primitive constant cast requires no capture`);
+    assert.deepEqual(evaluatedConstant(expression, "number"), { kind: "LiteralExpression", value: "number" },
+      `${name}: replacing a native constant requires no switch`);
+    const excluded = [
+      { ...expression, type: { kind: "IdentifierName", name: expression.type.name } },
+      { ...expression, type: { kind: "PredefinedType", name: "float" } },
+      { ...expression, expression: { kind: "IdentifierName", name: "value" } },
+      { ...expression, expression: { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "effect" }, arguments: [] } },
+      { ...expression, expression: { kind: "LiteralExpression", value: 0.5 } },
+      { ...expression, expression: { kind: "LiteralExpression", value: Number.POSITIVE_INFINITY } },
+    ];
+    for (const [index, invalid] of excluded.entries()) {
+      assert.equal(csharpPlannedExpressionIsStable(invalid), false, `${name}: excluded grammar ${index}`);
+      assert.equal(evaluatedConstant(invalid, "number").kind, "SwitchExpression", `${name}: excluded operand ${index} is not elided`);
+    }
+  }
+});
