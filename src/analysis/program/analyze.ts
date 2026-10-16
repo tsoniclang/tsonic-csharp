@@ -115,6 +115,10 @@ import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-de
 import { createSourceStorageQuery, type SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../../policy/operations/source-profiles/source-storage-effects.js";
 import { analyzeCsharpPromiseResults } from "../callables/promise-results.js";
+import { analyzeCsharpCallableCreations } from "../callables/creation.js";
+import { analyzeCsharpBindingPatterns, admitCsharpBindingPatterns } from "../control-flow/binding-patterns.js";
+import { admitCsharpExpectedNativeUses } from "../expected-types/native-uses.js";
+import { analyzeCsharpNativeDemand } from "../operations/native-demand.js";
 import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/project/binary-execution-drivers.js";
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
@@ -332,6 +336,10 @@ export function analyzeCsharpTargetProgram(
   if (captureStorage.issues.length > 0) return rejectedTargetStage(captureStorage.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));
+  const callableCreations = analyzeCsharpCallableCreations({
+    ast: source.ast, nodes: sourceStorage.nodes, captures: captureStorage, contracts: analysis.callables,
+    expectedTypes: analysis.expectedTypes, storage: analysis.storage, evidence: analysis.sourceEvidence, conversions: analysis.conversions,
+  });
   const flowReads = analyzeCsharpFlowReadProjections(analysis.policy, analysis.sourceEvidence, analysis.operations, analysis.valueReads);
   if (flowReads.issues.length > 0) return rejectCsharpAnalysisIssues(flowReads.issues);
   const nativeParticipation = analyzeCsharpNativeParticipation({
@@ -340,17 +348,43 @@ export function analyzeCsharpTargetProgram(
     objectShapes: analysis.objectShapes, compileTimeMetadata: analysis.sourceEvidence.compileTimeMetadata,
     requiredRecords: analysis.requiredRecords,
   });
-  const typeDefinitions = analysis.typeDefinitions.seal();
   const classInitialization = analyzeCsharpClassInitialization(source, classFactories);
   const numericRepresentations = analyzeCsharpNumericRepresentations({ source, sourceFiles,
     evidence: analysis.sourceEvidence, operations: analysis.operations });
-  const exactLiterals = analyzeCsharpExactLiteralSelections(literalValues, analysis.conversions.exactLiteralRequests);
+  const exactLiterals = analyzeCsharpExactLiteralSelections(literalValues, [
+    ...analysis.conversions.exactLiteralRequests,
+    ...analysis.expectedTypes.nativeUseSites.requests.flatMap(request => request.kind === "requested"
+      ? [{ expression: request.expression, target: request.targetType }] : []),
+  ]);
+  const bindingCandidates = analyzeCsharpBindingPatterns({
+    ast: source.ast, sourceFiles, participation: nativeParticipation.participation, evidence: analysis.sourceEvidence,
+    operations: analysis.operations, valueReads: analysis.valueReads, objectShapes: analysis.objectShapes,
+  });
+  const expectedUse = admitCsharpExpectedNativeUses(analysis.expectedTypes, {
+    ast: source.ast, exactLiteral: exactLiterals.exactLiteral, callableCreation: callableCreations.callableCreation,
+    valueRead: analysis.valueReads.valueRead, operations: analysis.operations,
+  });
+  const nativeDemand = analyzeCsharpNativeDemand({
+    ast: source.ast, sourceFiles, navigation: source.navigation, evidence: analysis.sourceEvidence,
+    operations: analysis.operations, valueReads: analysis.valueReads, participation: nativeParticipation.participation,
+    bindingPatterns: bindingCandidates, callableCreation: callableCreations.callableCreation, attributeApplications,
+    classInitialization, projectTypes: analysis.typeSystem.projectTypes.catalog, classFactories, expected: expectedUse,
+  }, analysis.requiredRecords);
+  const bindingPatterns = admitCsharpBindingPatterns(bindingCandidates, nativeDemand.requiredBindingRoots, analysis.requiredRecords);
+  if (nativeDemand.unadmitted.length > 0 || bindingPatterns.issues.length > 0) return rejectCsharpAnalysisIssues([
+    ...bindingPatterns.issues,
+    ...nativeDemand.unadmitted.map(use => ({ node: use.expression, code: "CSHARP_NATIVE_USE_NOT_PROVEN",
+      message: `Native consumption '${use.site.role}' has no completed representation: ${use.reason}.` })),
+  ]);
+  const conversions = analysis.conversionAnalysis.seal(nativeDemand, analysis.requiredRecords);
+  if (conversions.issues.length > 0) return rejectCsharpAnalysisIssues(conversions.issues);
+  const typeDefinitions = analysis.typeDefinitions.seal();
   const records = createCsharpProgramRecords({
-    literalValues, exactLiterals, nativeParticipation,
+    literalValues, exactLiterals, nativeParticipation, nativeDemand, bindingPatterns,
     flowReads, valueReads: analysis.valueReads,
-    callableAdapters, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
+    callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
     numericRepresentations, attributeApplications, safetyApplications, operations: analysis.operations,
-    sourceEvidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions: analysis.conversions,
+    sourceEvidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions,
     expectedTypes: analysis.expectedTypes, storage: analysis.storage,
     sourceModuleConstructions: sourceModuleConstructions.index, moduleInitialization: moduleInitialization.index,
   }, analysis.requiredRecords);
@@ -504,7 +538,7 @@ function analyzeIteration(
     requiredRecords,
   );
   const valueReads = valueReadStages.seal(storageRepresentations);
-  const conversions = conversionAnalysis.seal({
+  const conversions = conversionAnalysis.prepare({
     operations,
     expectedTypes,
     valueReads,
@@ -525,6 +559,7 @@ function analyzeIteration(
     callables,
     expectedTypes,
     conversions,
+    conversionAnalysis,
     storage,
     valueReads,
     requiredRecords,

@@ -17,6 +17,7 @@ import { planCsharpPresentValueGuard } from "../optional-storage.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { csharpPlannedEffect } from "../planned-values.js";
 import type { CsharpArraySpreadInput } from "./spread-source.js";
+import { requireCsharpNativeExpressionUse } from "../native-uses.js";
 
 export function planCsharpBorrowedSequenceConsumption(
   node: Node,
@@ -33,14 +34,12 @@ export function planCsharpBorrowedSequenceConsumption(
   const spread = input.program.source.ast.parent(fact.expression);
   const array = spread === undefined ? undefined : input.program.source.ast.parent(spread);
   const sourceCarrier = array === undefined ? undefined : input.types.classifications.resolveNode(array, sourceFile);
-  const constructions = array === undefined ? [] : [sourceCarrier, ...input.program.records.expectedType.get(array)
-    .map(target => input.program.records.arrayLiteralCarrier.get(array, target))];
+  const construction = array === undefined ? undefined : requireCsharpNativeExpressionUse(input, array).use;
+  const constructionCarrier = construction?.kind === "erased" ? undefined : construction?.carrier;
+  const constructionElement = getCsharpArrayLiteralElementTargetType(constructionCarrier);
   if (choice === undefined || choice.inputs.length !== fact.inputs.length ||
     array !== fact.array || sourceCarrier === undefined || !targetTypeRefEquals(sourceCarrier, fact.sourceCarrier) ||
-    !constructions.some(carrier => {
-      const element = getCsharpArrayLiteralElementTargetType(carrier);
-      return element !== undefined && targetTypeRefEquals(element, elementTarget);
-    }) ||
+    constructionElement === undefined || !targetTypeRefEquals(constructionElement, elementTarget) ||
     choice.inputs.some((expression, index) => expression !== fact.inputs[index]?.expression) ||
     choice.controlNodes.length !== fact.controlNodes.length ||
     choice.controlNodes.some((expression, index) => expression !== fact.controlNodes[index])) {

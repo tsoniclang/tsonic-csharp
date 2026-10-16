@@ -43,6 +43,7 @@ export interface CsharpExpectedTypeUse {
 export interface CsharpExpectedTypePending extends CsharpExpectedTypeUse {
   readonly expression: Node;
   readonly site?: TargetUseSiteRef;
+  readonly mode?: CsharpConversionMode;
 }
 
 export type CsharpExpectedUseWithholding =
@@ -83,8 +84,7 @@ export interface CsharpExpectedNativeUseFinalInput {
   readonly exactLiteral: CsharpExactLiteralSelectionIndex["exactLiteral"];
   readonly callableCreation: { readonly get: (expression: Node) => CsharpNativeCallableCreation | undefined };
   readonly valueRead: CsharpValueReadClassifications["valueRead"];
-  readonly absentValue: { readonly get: (expression: Node) => boolean };
-  readonly operations: Pick<CsharpTargetOperationClassifications, "binaryOperation">;
+  readonly operations: Pick<CsharpTargetOperationClassifications, "binaryOperation" | "operatorForm">;
 }
 
 export type CsharpExpectedNativeUsePendingReason = CsharpNativeRepresentationPending | CsharpExpectedUseWithholding

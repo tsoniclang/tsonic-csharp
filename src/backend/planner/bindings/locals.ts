@@ -102,10 +102,7 @@ export function planLocalDeclaration(
   const inferredLambdaType = lambdaInitializer
     ? getLambdaTargetContext(
         variable.Initializer!,
-        sourceFile,
         input,
-        explicitType,
-        variable.Type === undefined ? undefined : expectedTargetType,
       )?.type
     : undefined;
   const inferredTargetType = input.program.records.storageTargetType.get(

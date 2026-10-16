@@ -59,10 +59,10 @@ export function renderCsharpCaptureFrameMethods(
     }
     const planned = input.program.source.ast.is.IsArrowFunction(method.declaration)
       ? planArrowFunctionExpression(method.declaration, file, context, diagnostics, planExpression,
-        undefined, undefined, method.type,
+        undefined,
         (node, file, input, diagnostics, type, subject, target, state) =>
           planExpressionWithExpectedType(node, file, input, diagnostics, type, subject, state, target))
-      : planFunctionExpression(method.declaration, file, context, diagnostics, undefined, undefined, method.type);
+      : planFunctionExpression(method.declaration, file, context, diagnostics);
     const lambda = planned?.completion.kind === "value" ? planned.completion.expression : undefined;
     if (planned === undefined || planned.prelude.length !== 0 || lambda?.kind !== "LambdaExpression") return undefined;
     if (quotation) {

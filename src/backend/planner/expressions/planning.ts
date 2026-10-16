@@ -56,7 +56,7 @@ import {
   planElementAccessExpression,
   planPropertyAccessExpression,
 } from "./target-members/index.js";
-import { planExpressionWithExpectedTypeCore } from "./expression-expected-types.js";
+import { planCsharpNativeExpression } from "./expression-expected-types.js";
 import {
   planCallArgumentCore,
 } from "./expression-call-arguments.js";
@@ -84,10 +84,6 @@ import {
   tryPlanDestructuringAssignmentExpression,
 } from "../bindings/destructuring-assignment.js";
 import {
-  applyCsharpConversionSelection,
-  readCsharpExpressionConversionClassification,
-} from "./conversions.js";
-import {
   planCsharpTypedLocationOperation,
   planCsharpProjectedFieldWrite,
 } from "./expression-typed-locations.js";
@@ -100,8 +96,7 @@ import {
 import {
   planCsharpJsStringConversion,
 } from "./expression-js-string-conversion.js";
-import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedArgument, type CsharpPlannedValue } from "./planned-values.js";
-import { planCsharpAbsentValue } from "./optional-storage.js";
+import { csharpPlannedValue, type CsharpPlannedArgument, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { captureCsharpPlannedValue } from "./planned-value-composition.js";
 import { qualifiedCsharpType } from "../types/index.js";
@@ -129,7 +124,7 @@ export function planExpression(
   state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
   return requireExpressionPlan(node, diagnostics, () => {
-    const planned = planExpressionCore(node, sourceFile, input, diagnostics, state);
+    const planned = planSelectedExpression(node, sourceFile, input, diagnostics, state);
     const discard = input.program.promiseResults.get(node)?.discard;
     if (planned === undefined || planned.completion.kind !== "value" || discard === undefined) return planned;
     const captured = captureCsharpPlannedValue(node, input, diagnostics, planned.completion.carrier);
@@ -440,14 +435,12 @@ function planExpressionCore(
         input,
         diagnostics,
         scopedPlanExpression,
-        undefined,
         state,
-        undefined,
         (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, expectedTargetType, nestedState) =>
           planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, nestedState ?? state, expectedTargetType),
       );
     case KindFunctionExpression:
-      return planFunctionExpression(node, sourceFile, input, diagnostics, undefined, state);
+      return planFunctionExpression(node, sourceFile, input, diagnostics, state);
     case KindCallExpression:
       return planCallExpression(
         node,
@@ -536,68 +529,26 @@ export function planExpressionWithExpectedType(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-  expectedType: CsharpTypeNode,
-  expectedTypeSubject?: Node,
+  _expectedType: CsharpTypeNode,
+  _expectedTypeSubject?: Node,
   state?: DestructuringPlannerState,
-  expectedTargetType?: TargetTypeRef,
+  _expectedTargetType?: TargetTypeRef,
 ): CsharpPlannedValue | undefined {
-  return requireExpressionPlan(node, diagnostics, () => planExpectedExpression(
-    node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, state, expectedTargetType,
-  ));
+  return planExpression(node, sourceFile, input, diagnostics, state);
 }
 
-function planExpectedExpression(
+function planSelectedExpression(
   node: Node,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-  expectedType: CsharpTypeNode,
-  expectedTypeSubject?: Node,
   state?: DestructuringPlannerState,
-  expectedTargetType?: TargetTypeRef,
 ): CsharpPlannedValue | undefined {
-  const effectiveExpectedTargetType = expectedTargetType ??
-    (
-      expectedTypeSubject === undefined
-        ? undefined
-        : input.types.classifications.resolveNode(expectedTypeSubject, sourceFile)
-    );
-  const plan = planExpressionWithExpectedTypeCore(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, {
+  return planCsharpNativeExpression(node, sourceFile, input, diagnostics, {
+    planSourceExpression: planExpressionCore,
     planExpression: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState) =>
       planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState ?? state),
     planExpressionWithExpectedType: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, nestedExpectedTargetType, nestedState) =>
       planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, nestedState ?? state, nestedExpectedTargetType),
-  }, state, effectiveExpectedTargetType);
-  if (plan === undefined || effectiveExpectedTargetType === undefined) {
-    return plan?.expression;
-  }
-  if (plan.representation === "expected") {
-    return plan.expression;
-  }
-  const sourceType = plan.expression.completion.carrier;
-  const selection = readCsharpExpressionConversionClassification(
-    node,
-    input,
-    diagnostics,
-    sourceType,
-    effectiveExpectedTargetType,
-    "implicit",
-  );
-  if (selection === undefined) {
-    return undefined;
-  }
-  if (plan.expression?.completion.kind === "void" && selection.kind === "absence") {
-    const absent = planCsharpAbsentValue(effectiveExpectedTargetType, input.scope.typeParameterNames);
-    return absent === undefined ? undefined : csharpPlannedValue(effectiveExpectedTargetType, absent, plan.expression.prelude);
-  }
-  return mapCsharpPlannedValue(plan.expression, effectiveExpectedTargetType, expression => applyCsharpConversionSelection(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    sourceType,
-    effectiveExpectedTargetType,
-    selection,
-    expression,
-  ));
+  }, state);
 }

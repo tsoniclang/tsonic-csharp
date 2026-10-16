@@ -6,6 +6,9 @@ import { analyzeCsharpExpectedTypes } from "../../../dist/analysis/expected-type
 import { admitCsharpExpectedNativeUses, collectCsharpExpectedNativeUseSites } from "../../../dist/analysis/expected-types/native-uses.js";
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
+import { analyzeCsharpCallableCreations } from "../../../dist/analysis/callables/creation.js";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
 function owners(sourceText, surface) {
   const compiled = compileCsharpSource({ sourceText, surface });
@@ -99,4 +102,64 @@ test("a required pending request and a cycle stay explicit rather than publishin
   const admission = admitCsharpExpectedNativeUses(expected, value.final);
   assert.equal(admission.entries.length, 0, "native-use-admission:100: admission.entries.length");
   assert.deepEqual(admission.pending.map(entry => entry.reason), ["argument-unresolved", "forwarding-cycle", "forwarding-cycle"], "native-use-admission:101: admission.pending.map(entry => entry.reason)");
+});
+
+function nativeCreations(value, overrides = {}) {
+  const records = value.program.records;
+  const contract = declaration => {
+    const result = records.returnContract.get(declaration);
+    if (result?.kind !== "resolved") return undefined;
+    const parameters = value.ast.parameters(declaration).map(parameter => {
+      const type = records.lambdaParameterType.get(parameter) ?? records.valueRead.get(parameter)?.value;
+      return type === undefined ? undefined : { sourceParameter: parameter, targetParameter: { type, passingMode: "by-value" } };
+    });
+    return parameters.some(parameter => parameter === undefined) ? undefined : {
+      sourceDeclaration: declaration, methodTypeParameterIdentities: [], parameters, returnType: result.type,
+    };
+  };
+  return analyzeCsharpCallableCreations({ ast: value.ast, nodes: value.nodes,
+    captures: records, contracts: { get: identity => contract(identity.declaration), closedInputType: () => undefined }, expectedTypes: records,
+    storage: records, evidence: records, conversions: records, ...overrides });
+}
+
+for (const surface of ["native", "js"]) {
+  test(`${surface} actual callable creation consumes closed native parameters rather than an unrelated requested delegate`, () => {
+    const value = owners(`import type { int32 } from "@tsonic/core/types.js";
+      export const callback: (value: int32) => int32 = value => value;`, surface);
+    const expression = value.initializer("callback");
+    const actual = nativeCreations(value);
+    const selected = actual.callableCreation.get(expression);
+    assert.equal(selected?.kind === "selected", true, "the completed callable has one selected creation");
+    assert.equal(actual.callableTarget.get(expression) === selected.carrier, true, "publication reads the canonical creation object");
+    assert.equal(Object.isFrozen(selected) && Object.isFrozen(actual), true, "creation evidence is immutable");
+    const unrelated = csharpDelegateTargetType("System.Func", [csharpSourcePrimitiveTargetType("float64")],
+      csharpSourcePrimitiveTargetType("float64"));
+    const mismatched = nativeCreations(value, { expectedTypes: { callableTarget: { get: () => unrelated } } });
+    assert.equal(mismatched.callableCreation.get(expression)?.kind, "selected", "actual native creation remains available independently of an unrelated destination");
+    assert.equal(mismatched.callableTarget.get(expression) !== unrelated, true, "an unproved requested carrier never replaces actual creation");
+    const unproven = nativeCreations(value, { contracts: { get: () => undefined, closedInputType: () => undefined }, storage: { lambdaParameterType: { get: () => undefined } } });
+    assert.equal(unproven.callableCreation.get(expression)?.kind, "pending", "known contextual demand alone is not physical creation proof");
+  });
+}
+
+test("frame callable creation retains the selected implementation carrier before contextual conversion", () => {
+  const value = owners(`export function create(): () => number {
+    let value = 0; const increment = () => ++value; const read = () => value; increment(); return read;
+  }`, "native");
+  const expression = value.nodes.find(node => value.ast.is.IsArrowFunction(node) &&
+    value.program.records.captureClosure.get(node) !== undefined);
+  assert.equal(expression !== undefined, true, "the real capture owner publishes a shared-frame method");
+  const closure = value.program.records.captureClosure.get(expression);
+  const selected = nativeCreations(value).callableCreation.get(expression);
+  assert.equal(selected?.kind === "selected" && selected.carrier === closure.method.type, true,
+    "actual frame method identity is authoritative, not the consumer's delegate request");
+});
+
+test("discarded callable definitions do not manufacture a carrier or a runtime value", () => {
+  const value = owners("export function run(): void { (() => 1); }", "native");
+  const expression = value.nodes.find(node => value.ast.is.IsArrowFunction(node));
+  assert.equal(expression !== undefined, true, "one checked discarded definition");
+  const actual = nativeCreations(value);
+  assert.equal(actual.callableCreation.get(expression)?.kind, "discarded", "completed allocation decision is retained");
+  assert.equal(actual.callableTarget.get(expression) === undefined, true, "no delegate carrier for an erased definition");
 });

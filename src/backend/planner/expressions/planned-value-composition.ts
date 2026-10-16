@@ -16,6 +16,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { planCsharpAbsentValue, planCsharpPresentValueGuard } from "./optional-storage.js";
 import { convertCsharpPlannedValue } from "./planned-value-conversions.js";
+import { requireCsharpNativeExpressionUse } from "./native-uses.js";
 import {
   csharpPlannedValue, csharpPlannedEffect, sequenceCsharpPlannedValues,
   planCsharpPlannedBranch, type CsharpPlannedValue, type CsharpPlannedOperand, type CsharpPlannedCapture, type CsharpPlannedLocationCapture,
@@ -23,11 +24,11 @@ import {
 
 export function planCsharpExpressionCompletion(
   node: Node,
-  sourceFile: SourceFile,
+  _sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   expression: CsharpExpression | undefined,
-  carrier = input.types.classifications.resolveNode(node, sourceFile),
+  carrier = nativeCarrier(node, input),
   prelude: readonly CsharpStatement[] = [],
 ): CsharpPlannedValue | undefined {
   if (expression === undefined) return undefined;
@@ -82,7 +83,7 @@ export function projectCsharpPlannedValue(
   diagnostics: TargetDiagnostic[],
   planned: CsharpPlannedValue | undefined,
   project: (expression: CsharpExpression) => CsharpExpression | undefined,
-  carrier = input.types.classifications.resolveNode(node, sourceFile),
+  carrier = nativeCarrier(node, input),
 ): CsharpPlannedValue | undefined {
   if (planned === undefined) return undefined;
   if (planned.completion.kind === "never") return planned;
@@ -98,7 +99,7 @@ export function buildCsharpPlannedValue(
   diagnostics: TargetDiagnostic[],
   operands: readonly (CsharpPlannedValue | undefined)[],
   build: (expressions: readonly CsharpExpression[]) => CsharpExpression | undefined,
-  carrier = input.types.classifications.resolveNode(node, sourceFile),
+  carrier = nativeCarrier(node, input),
 ): CsharpPlannedValue | undefined {
   return composeCsharpPlannedValues(node, sourceFile, input, diagnostics, operands, values =>
     planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, build(values), carrier));
@@ -106,13 +107,13 @@ export function buildCsharpPlannedValue(
 
 export function planCsharpValueBranch(
   node: Node,
-  sourceFile: SourceFile,
+  _sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   condition: CsharpPlannedValue | undefined,
   consequent: CsharpPlannedValue | undefined,
   alternative: CsharpPlannedValue | undefined,
-  carrier = input.types.classifications.resolveNode(node, sourceFile),
+  carrier = nativeCarrier(node, input),
 ): CsharpPlannedValue | undefined {
   if (condition === undefined || consequent === undefined || alternative === undefined || carrier === undefined) return undefined;
   const statements = consequent.prelude.length > 0 || alternative.prelude.length > 0 ||
@@ -164,7 +165,7 @@ export function planCsharpOptionalReceiverValue(
   diagnostics: TargetDiagnostic[],
   receiver: CsharpPlannedValue | undefined,
   present: (expression: CsharpExpression) => CsharpPlannedValue | undefined,
-  carrier = input.types.classifications.resolveNode(node, sourceFile),
+  carrier = nativeCarrier(node, input),
 ): CsharpPlannedValue | undefined {
   if (receiver === undefined || carrier === undefined) return undefined;
   if (receiver.completion.kind === "never") return receiver;
@@ -185,4 +186,9 @@ export function planCsharpOptionalReceiverValue(
     csharpPlannedValue(csharpSourcePrimitiveTargetType("bool"), guard.condition, receiver.prelude),
     selected === undefined ? undefined : convertCsharpPlannedValue(node, sourceFile, input, diagnostics, selected, carrier, "implicit"),
     absent, carrier);
+}
+
+function nativeCarrier(node: Node, input: CsharpPlanningContext): TargetTypeRef | undefined {
+  const use = requireCsharpNativeExpressionUse(input, node).use;
+  return use.kind === "erased" ? undefined : use.carrier;
 }

@@ -4,6 +4,7 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { selectCsharpNativeUseRepresentation, type CsharpNativeRepresentationChild } from "../../policy/conversions/native-use-representation.js";
 import type { CsharpExpectedNativeUse } from "../../target-model/records/native-demand.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpExpectedNativeUseAdmission, CsharpExpectedNativeUseFinalInput, CsharpExpectedNativeUsePendingReason,
   CsharpExpectedTypeAnalysis, CsharpExpectedUseRequest } from "./model.js";
 
@@ -138,11 +139,13 @@ export function admitCsharpExpectedNativeUses(
         return { kind: "pending", reason: "inconsistent-request" };
       }
     }
+    const source = final.valueRead.get(request.expression)?.value;
     const selection = selectCsharpNativeUseRepresentation({ ast: final.ast, expression: request.expression, target: request.targetType,
-      mode: request.mode, source: final.valueRead.get(request.expression)?.value, absent: final.absentValue.get(request.expression),
+      mode: request.mode, source, absent: source !== undefined && isCsharpAbsenceTargetType(source),
       literal: final.exactLiteral.get(request.expression, request.targetType), callable: final.callableCreation.get(request.expression),
       constructionCarrier: expected.constructions.constructionCarrier(request.expression, request.targetType),
-      binary: expected.expectedBinary.get(request.expression, request.targetType) ?? final.operations.binaryOperation.get(request.expression)?.target,
+      binary: final.operations.operatorForm.usesExpectedResultType(request.expression)
+        ? expected.expectedBinary.get(request.expression, request.targetType) : final.operations.binaryOperation.get(request.expression)?.target,
       children: group.childData });
     if (selection.kind === "pending") return selection;
     const forwarded = selection.construction?.children ?? selection.children;
@@ -153,6 +156,9 @@ export function admitCsharpExpectedNativeUses(
     }
     const use: CsharpExpectedNativeUse = Object.freeze({ expression: request.expression, target: request.targetType, carrier: selection.carrier,
       representation: selection.representation, children: selection.children, construction: selection.construction, mode: request.mode,
+      ...(selection.literal === undefined ? {} : { literal: selection.literal }),
+      ...(selection.binary === undefined ? {} : { binary: selection.binary }),
+      objectShape: expected.constructions.objectShape(request.expression, request.targetType),
       strength: active.some(entry => entry.strength === "required") ? "required" : "contextual", exactInteger: active.some(entry => entry.exactInteger) });
     return { kind: "admitted", use, children };
   }

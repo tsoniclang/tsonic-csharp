@@ -55,6 +55,7 @@ import {
   isCsharpVoidTargetType,
 } from "../../target-model/types/index.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/index.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 
 export interface CsharpBindingPatternAnalysisInput {
   readonly ast: AstReader;
@@ -72,6 +73,26 @@ export interface CsharpBindingPatternCandidate extends CsharpBindingPatternIssue
 
 export interface CsharpBindingPatternAnalysis extends CsharpBindingPatternClassifications {
   readonly candidates: readonly CsharpBindingPatternCandidate[];
+  readonly entries: readonly { readonly node: Node; readonly root: Node; readonly fact: CsharpBindingProjectionFact }[];
+}
+
+export function admitCsharpBindingPatterns(
+  patterns: CsharpBindingPatternAnalysis,
+  requiredRoots: readonly Node[],
+  requiredRecords: CsharpRequiredRecord[],
+): CsharpBindingPatternClassifications & { readonly issues: readonly CsharpBindingPatternIssue[] } {
+  const required = new Set(requiredRoots);
+  const published = new Map<Node, CsharpBindingProjectionFact>();
+  for (const entry of patterns.entries) {
+    if (!required.has(entry.root)) continue;
+    requireCsharpRecord(requiredRecords, { family: "bindingPatternProjection", subject: entry.node,
+      construct: "consumed native binding pattern", producer: "admitCsharpBindingPatterns" });
+    published.set(entry.node, entry.fact);
+  }
+  return Object.freeze({
+    bindingPatternProjection: Object.freeze({ get: (node: Node) => published.get(node) }),
+    issues: Object.freeze(patterns.candidates.filter(candidate => required.has(candidate.root))),
+  });
 }
 
 export function isCsharpUnusedTupleDefault(
@@ -93,7 +114,8 @@ export function analyzeCsharpBindingPatterns(
   input: CsharpBindingPatternAnalysisInput,
 ): CsharpBindingPatternAnalysis {
   const { ast } = input;
-  const facts = new WeakMap<Node, CsharpBindingProjectionFact>();
+  const facts = new Map<Node, CsharpBindingProjectionFact>();
+  const roots = new Map<Node, Node>();
   const lookup = Object.freeze({ get: (node: Node) => facts.get(node) });
   const candidates: CsharpBindingPatternCandidate[] = [];
   const assignmentDefaults = new WeakSet<Node>();
@@ -102,6 +124,7 @@ export function analyzeCsharpBindingPatterns(
   return Object.freeze({
     bindingPatternProjection: lookup,
     candidates: Object.freeze(candidates),
+    entries: Object.freeze([...facts].map(([node, fact]) => Object.freeze({ node, fact, root: roots.get(node)! }))),
   });
 
   function visit(node: Node, sourceFile: SourceFile): void {
@@ -164,10 +187,14 @@ export function analyzeCsharpBindingPatterns(
   }
 
   function recordSource(node: Node, source: CsharpBindingPatternSource): void {
+    if (root === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A binding projection requires its checked root.", node);
+    roots.set(node, root);
     facts.set(node, Object.freeze({ ...facts.get(node), source: Object.freeze(source) }));
   }
 
   function recordElement(node: Node, element: CsharpBindingElementProjection): void {
+    if (root === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A binding element requires its checked root.", node);
+    roots.set(node, root);
     facts.set(node, Object.freeze({ ...facts.get(node), element: Object.freeze(element) }));
   }
 
@@ -368,6 +395,8 @@ export function analyzeCsharpBindingPatterns(
       issue(selected.pattern, "Destructuring assignment target is outside the current C# planning surface.");
       return;
     }
+    if (root === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A destructuring assignment requires its checked root.", node);
+    roots.set(node, root);
     facts.set(node, Object.freeze({ ...facts.get(node), assignmentPattern: pattern }));
     if (!completesWithValue(selected.source)) return;
     admitSource(selected.pattern, selected.source, sourceFile, "Destructuring assignment source");
@@ -380,6 +409,9 @@ export function analyzeCsharpBindingPatterns(
     sourceFile: SourceFile,
     sourceCarrier: TargetTypeRef | undefined,
   ): void {
+    if (root === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An assignment projection requires its checked root.", pattern.sourceNode);
+    roots.set(pattern.sourceNode, root);
+    facts.set(pattern.sourceNode, Object.freeze({ ...facts.get(pattern.sourceNode), assignmentPattern: pattern }));
     if (pattern.kind === "array") {
       analyzeArrayAssignmentPattern(pattern, sourceNode, sourceFile, sourceCarrier);
     } else {

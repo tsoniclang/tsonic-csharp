@@ -38,6 +38,13 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
   }
 
   function recordOperationUses(node: Node, sourceFile: SourceFile): boolean {
+    if (!policy.ast.isConstAssertion(node) && (policy.ast.is.IsAsExpression(node) || policy.ast.is.IsTypeAssertion(node) ||
+      policy.ast.is.IsNonNullExpression(node))) {
+      const operand = policy.ast.is.IsNonNullExpression(node) ? policy.ast.as.AsNonNullExpression(node)?.Expression
+        : policy.ast.is.IsAsExpression(node) ? policy.ast.as.AsAsExpression(node)?.Expression : policy.ast.as.AsTypeAssertion(node)?.Expression;
+      record(operand, evidence.nodeTargetType.get(policy.ast.is.IsNonNullExpression(node) ? node : policy.ast.typeNode(node)!), "required",
+        { owner: node, slot: { kind: "operand", position: "only" }, mode: "explicit" });
+    }
     const handler = operations.nativeHandler.get(node);
     const pointer = handler?.kind === "native-pointer" ? handler.selection : undefined;
     const location = handler?.kind === "typed-location" ? handler.selection : undefined;

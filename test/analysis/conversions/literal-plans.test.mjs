@@ -180,7 +180,7 @@ test("a provider argument adapter's literal input step is requested by the selec
     const mapping = fixture.selected.call.argumentMappings[0];
     assert.equal(mapping.conversion.kind === "provider-argument-adapter" && mapping.conversion.sourceToInput.proof === "literal" &&
       mapping.conversion.resultToTarget.kind === "identity", true, `${readName} to ${inputName}: policy selects the adapter with a literal input step`);
-    const requests = sealedProviderCallConversions(fixture).conversions.exactLiteralRequests
+    const requests = sealedProviderCallConversions(fixture).prepared.exactLiteralRequests
       .filter(request => request.expression === fixture.literal);
     assert.deepEqual(requests.map(request => request.target === undefined ? "intrinsic" : targetTypeRefKey(request.target)),
       [primitive(inputName), "intrinsic", primitive(readName), fixture.counter].map(type => type === "intrinsic" ? type : targetTypeRefKey(type)),
@@ -198,11 +198,12 @@ test("a provider argument adapter's literal input step is requested by the selec
   }
 });
 
-test("exact literal requests are published only on the sealed conversion classifications, frozen", () => {
-  const { analysis, conversions } = sealedProviderCallConversions(providerAdapterCall(primitive("int32"), primitive("int16")));
+test("exact literal requests are private frozen preparation data, not sealed conversion readers", () => {
+  const { analysis, conversions, prepared } = sealedProviderCallConversions(providerAdapterCall(primitive("int32"), primitive("int16")));
   assert.equal(Object.hasOwn(analysis.classifications, "exactLiteralRequests"), false, "open classifications publish no request list");
-  assert.equal(Array.isArray(conversions.exactLiteralRequests) && Object.isFrozen(conversions.exactLiteralRequests), true,
-    "the sealed request list is frozen");
+  assert.equal(Array.isArray(prepared.exactLiteralRequests) && Object.isFrozen(prepared.exactLiteralRequests), true,
+    "the private completed request list is frozen");
+  assert.equal(Object.hasOwn(conversions, "exactLiteralRequests"), false, "the final conversion port carries no preparation state");
 });
 
 function providerAdapterCall(read, inputType) {
@@ -245,7 +246,7 @@ function sealedProviderCallConversions(fixture) {
   const evidence = { compileTimeMetadata: Object.freeze({ get: () => false }), storageTargetType: none, yield: none };
   const shapes = { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false };
   const analysis = analyzeCsharpConversions(policy, evidence, shapes);
-  const conversions = analysis.seal({
+  const prepared = analysis.prepare({
     operations: { nativeUnreachable: Object.freeze({ get: () => false }), borrowedSequence: none, selectedConstruction: none,
       unaryOperation: none, selectedCall: Object.freeze({ get: node => node === call ? { target: selected } : undefined }) },
     expectedTypes: { expectedType: Object.freeze({ get: node => node === literal ? [counter] : [] }),
@@ -253,6 +254,7 @@ function sealedProviderCallConversions(fixture) {
       exactIntegerConversion: Object.freeze({ get: () => false }) },
     valueReads: { valueRead: Object.freeze({ get: node => node === literal ? { source: read } : undefined }) },
   });
+  const conversions = analysis.seal({ entries: Object.freeze([]) }, []);
   assert.equal(conversions.issues.length, 0, "conversion analysis seals without issues");
-  return { analysis, conversions };
+  return { analysis, conversions, prepared };
 }

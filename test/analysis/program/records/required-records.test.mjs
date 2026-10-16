@@ -3,6 +3,7 @@ import test from "node:test";
 import { resolvedTargetStage, runTargetCompilationStages } from "@tsonic/target-api/artifacts";
 import { createCsharpProgramRecords } from "../../../../dist/analysis/program/records/create.js";
 import { assertCsharpRequiredRecords, requireCsharpRecord } from "../../../../dist/analysis/program/records/required-records.js";
+import { targetUseSiteRef } from "@tsonic/target-api/analysis";
 import {
   compileCsharpRequiredRecordSource,
   csharpRecordInput,
@@ -26,7 +27,10 @@ const sourceText = `
     }
     const first = new First(seed);
     const second = new Second(seed);
-    return apply((left, right) => left + right + first.value + second.value, seed);
+    const [left] = [seed];
+    const [right] = [seed];
+    const identity: (value: int32) => int32 = value => value;
+    return apply((left, right) => left + right + first.value + second.value, seed) + identity(left) + right;
   }
 `;
 const construct = "checked selected construct";
@@ -34,17 +38,21 @@ const producer = "selected native owner";
 const { source, program, nodes } = compileCsharpRequiredRecordSource(sourceText, "native");
 const { ast } = source;
 const records = program.records;
-const families = ["classFactory", "requiredStorageType", "nativeParticipation"];
+const families = ["classFactory", "requiredStorageType", "nativeParticipation", "callableTarget", "bindingPatternProjection", "sourceArgument"];
 const subjects = Object.freeze({
   classFactory: nodes.filter(node => ast.is.IsClassDeclaration(node)),
   requiredStorageType: nodes.filter(node => ast.is.IsParameterDeclaration(node) && records.lambdaParameterType.get(node) !== undefined),
   nativeParticipation: nodes.filter(node => ast.is.IsFunctionDeclaration(node)),
+  callableTarget: nodes.filter(node => records.callableTarget.get(node) !== undefined),
+  bindingPatternProjection: nodes.filter(node => ast.is.IsArrayBindingPattern(node) && records.bindingPatternProjection.get(node) !== undefined),
+  sourceArgument: nodes.filter(node => records.sourceArgument.get(node) !== undefined).slice(0, 2),
 });
 const ordinaryParameters = nodes.filter(node => ast.is.IsParameterDeclaration(node) &&
   (ast.is.IsFunctionDeclaration(ast.parent(node)) || ast.is.IsConstructorDeclaration(ast.parent(node))));
 for (const family of families) {
-  assert.equal(subjects[family].length === 2 && subjects[family].every(subject => records[family].get(subject) !== undefined), true,
-    `${family}: two exact checked subjects carry their published plan`);
+  const count = family === "requiredStorageType" ? 3 : 2;
+  assert.equal(subjects[family].length === count && subjects[family].every(subject => records[family].get(subject) !== undefined), true,
+    `${family}: every exact checked subject carries its published plan`);
 }
 assert.equal(ordinaryParameters.length === 5, true, "five ordinary function and constructor parameters");
 
@@ -66,7 +74,7 @@ function readingRecords(base, reads) {
 test("the record input fixture is the exact inverse of the mandatory assembly", () => {
   const assembled = createCsharpProgramRecords(csharpRecordInput(records), []);
   const names = Object.keys(records);
-  assert.equal(Object.isFrozen(assembled) && Object.keys(assembled).length === 120 && names.length === 120, true,
+  assert.equal(Object.isFrozen(assembled) && Object.keys(assembled).length === 117 && names.length === 117, true,
     "the assembly returns every current record family, frozen");
   assert.equal(names.every(family => assembled[family] === records[family]), true, "every assembled reader is the published reader");
 });
@@ -74,6 +82,34 @@ test("the record input fixture is the exact inverse of the mandatory assembly", 
 test("the assembly has no optional requirement list", () => {
   assert.throws(() => createCsharpProgramRecords(csharpRecordInput(records)), TypeError, "the removed one-argument form fails");
   assert.throws(() => createCsharpProgramRecords(csharpRecordInput(records), undefined), TypeError, "an absent list is not an empty list");
+});
+
+test("native-use requirements preserve owner, semantic slot and context, not just the expression", () => {
+  const entry = nodes.map(node => records.nativeUse.expression(node)).find(entry => entry?.use.kind !== "erased" &&
+    entry?.use.completion.kind === "value");
+  assert.equal(entry !== undefined, true, "the real program has an admitted exact native conversion use");
+  const row = { family: "nativeUse", subject: entry.use.expression, site: entry.site, construct, producer };
+  assertCsharpRequiredRecords(records, [row]);
+  const other = targetUseSiteRef(entry.site.subject, entry.site.role, entry.site.enclosingContract, "different native context");
+  assert.equal(records.nativeUse.get(other) === undefined && records.nativeUse.get(entry.site) === entry.use, true,
+    "the published sibling does not satisfy another exact context");
+  assert.throws(() => assertCsharpRequiredRecords(records, [{ ...row, site: other }]), failure("nativeUse", row.subject));
+});
+
+test("exact conversion requirements cannot fall back to another expression or conversion mode", () => {
+  const entry = nodes.map(node => records.nativeUse.expression(node)).find(entry => entry?.use.kind !== "erased" &&
+    entry?.use.completion.kind === "value");
+  assert.equal(entry !== undefined, true, "the real program contains a completing native conversion use");
+  const use = entry.use;
+  const row = { family: "expressionConversion", subject: use.expression, source: use.carrier,
+    target: use.kind === "converted" ? use.target : use.carrier, mode: use.kind === "converted" ? use.mode : "implicit", construct, producer };
+  assertCsharpRequiredRecords(records, [row]);
+  assert.equal(records.conversion.get(row.source, row.target, row.mode) !== undefined, true, "the corresponding type pair remains present");
+  const omitted = csharpRecordsOmitting(records, "expressionConversion", row.subject);
+  assert.throws(() => assertCsharpRequiredRecords(omitted, [row]), failure("expressionConversion", row.subject),
+    "a pair is not exact expression evidence");
+  assert.throws(() => assertCsharpRequiredRecords(records, [{ ...row, subject: program.sourceFiles[0] }]),
+    failure("expressionConversion", program.sourceFiles[0]), "an unrelated source subject cannot borrow the published pair");
 });
 
 for (const family of families) {

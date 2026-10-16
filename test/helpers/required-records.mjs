@@ -26,6 +26,8 @@ export function csharpRecordInput(records) {
   return Object.freeze({
     literalValues: group,
     nativeParticipation: Object.freeze({ participation: records.nativeParticipation }),
+    nativeDemand: group,
+    bindingPatterns: group,
     sourceEvidence: group,
     flowReads: group,
     valueReads: group,
@@ -38,6 +40,7 @@ export function csharpRecordInput(records) {
     classFactories: group,
     classInitialization: group,
     captureStorage: group,
+    callableCreations: group,
     numericRepresentations: group,
     typeProjections: group,
     callableAdapters: group,
@@ -51,9 +54,9 @@ export function csharpRecordInput(records) {
 export function csharpRecordsOmitting(records, family, subject, reads) {
   const reader = records[family];
   assert.equal(typeof reader?.get === "function", true, `${family}: an assembled record family`);
-  return Object.freeze({ ...records, [family]: Object.freeze({ get(node) {
+  return Object.freeze({ ...records, [family]: Object.freeze({ get(node, ...context) {
     reads?.push(family);
-    return node === subject ? undefined : reader.get(node);
+    return node === subject ? undefined : reader.get(node, ...context);
   } }) });
 }
 

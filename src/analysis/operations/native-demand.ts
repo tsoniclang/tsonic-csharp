@@ -10,6 +10,7 @@ import { csharpConstructorBaseCall } from "../callables/constructor-entry.js";
 import { isCsharpUnusedTupleDefault } from "../control-flow/binding-patterns.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { CsharpNativeDemandAnalysis, CsharpNativeDemandAnalysisInput, CsharpNativeUnadmittedReason } from "./native-demand-model.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 
 interface VisitedUse {
   readonly site: TargetUseSiteRef;
@@ -28,7 +29,10 @@ interface ExpectedSlot {
   pending: boolean;
 }
 
-export function analyzeCsharpNativeDemand(input: CsharpNativeDemandAnalysisInput): CsharpNativeDemandAnalysis {
+export function analyzeCsharpNativeDemand(
+  input: CsharpNativeDemandAnalysisInput,
+  requiredRecords: CsharpRequiredRecord[],
+): CsharpNativeDemandAnalysis {
   const { ast } = input;
   const baseCalls = new WeakMap<Node, Node>();
   const unusedDefaults = new WeakSet<Node>();
@@ -47,8 +51,10 @@ export function analyzeCsharpNativeDemand(input: CsharpNativeDemandAnalysisInput
   const unadmitted: { readonly site: TargetUseSiteRef; readonly expression: Node; readonly reason: CsharpNativeUnadmittedReason }[] = [];
   const states = new Map<object, Map<string, UseState>>();
   const published = new Map<object, Map<string, CsharpNativeUse>>();
+  const emissions = new Map<Node, { readonly site: TargetUseSiteRef; readonly use: CsharpNativeUse }>();
   const orders = new Map<Node, readonly CsharpNativeOrderStep[]>();
   const constructs = new Set<Node>();
+  const requiredBindingRoots = new Set<Node>();
   const slots = new Map<object, Map<string, ExpectedSlot>>();
   const slot = (site: TargetUseSiteRef): ExpectedSlot => {
     let owner = slots.get(site.subject);
@@ -70,8 +76,9 @@ export function analyzeCsharpNativeDemand(input: CsharpNativeDemandAnalysisInput
   }
   for (const file of input.sourceFiles) visitConstruct(file);
   return Object.freeze({ entries: Object.freeze(entries), unadmitted: Object.freeze(unadmitted),
+    requiredBindingRoots: Object.freeze([...requiredBindingRoots]),
     nativeUse: Object.freeze({ get: (site: TargetUseSiteRef) => published.get(site.subject)?.get(targetUseSiteIdentity(site)),
-      order: (construct: Node) => orders.get(construct) }) });
+      order: (construct: Node) => orders.get(construct), expression: (node: Node) => emissions.get(node) }) });
 
   function publish(site: TargetUseSiteRef, use: CsharpNativeUse): VisitedUse {
     let owner = published.get(site.subject);
@@ -79,8 +86,19 @@ export function analyzeCsharpNativeDemand(input: CsharpNativeDemandAnalysisInput
     const identity = targetUseSiteIdentity(site);
     if (owner.has(identity)) failTargetAnalysisInvariant("tsonic-csharp", `A native use is published twice for '${site.role}'.`, use.expression);
     const frozen = Object.freeze(use);
+    requireCsharpRecord(requiredRecords, { family: "nativeUse", subject: use.expression, site,
+      construct: "admitted native consumption", producer: "analyzeCsharpNativeDemand" });
     owner.set(identity, frozen);
-    entries.push(Object.freeze({ site, use: frozen }));
+    const entry = Object.freeze({ site, use: frozen });
+    entries.push(entry);
+    if (site.role !== "constructed-result" && site.role !== "present-payload") {
+      const previous = emissions.get(use.expression);
+      if (previous !== undefined && (previous.site.subject !== site.subject ||
+        targetUseSiteIdentity(previous.site) !== identity)) {
+        failTargetAnalysisInvariant("tsonic-csharp", "A source expression has more than one native emission context.", use.expression);
+      }
+      emissions.set(use.expression, entry);
+    }
     return Object.freeze({ site, expression: use.expression, completion: use.kind === "erased" ? undefined : use.completion });
   }
 
@@ -92,6 +110,10 @@ export function analyzeCsharpNativeDemand(input: CsharpNativeDemandAnalysisInput
   function visitConstruct(node: Node): void {
     if (constructs.has(node)) return;
     constructs.add(node);
+    const participation = input.participation.get(node);
+    if (participation === "body" || participation === "frame-body" || participation === "signature") {
+      for (const parameter of ast.parameters(node)) if (parameter !== undefined) requiredBindingRoots.add(parameter);
+    }
     const steps: CsharpNativeOrderStep[] = [];
     if (ast.is.IsExpressionStatement(node) && input.operations.erasedStatement.get(node)) {
       const expression = ast.as.AsExpressionStatement(node)?.Expression;
@@ -117,7 +139,7 @@ export function analyzeCsharpNativeDemand(input: CsharpNativeDemandAnalysisInput
   function visitUse(child: CsharpNativeChildUse, exact?: TargetUseSiteRef): VisitedUse {
     let site = exact ?? csharpNativeUseSite(child.owner, child.slot, child.context);
     const expression = child.expression;
-    if (exact === undefined && child.context?.target === undefined) {
+    if (exact === undefined) {
       const candidates = slots.get(site.subject)?.get(site.role);
       const matching = candidates?.expressions.get(expression) ?? [];
       if (matching.length > 1) return pending(site, expression, "use-context-unresolved");
@@ -136,6 +158,16 @@ export function analyzeCsharpNativeDemand(input: CsharpNativeDemandAnalysisInput
     owner.set(identity, { expression, state: "visiting", visited: unresolved });
     const result = evaluate(child, site);
     owner.set(identity, { expression, state: "closed", visited: result });
+    if (result.completion?.kind === "value") {
+      if (child.slot.kind === "initializer" && ast.is.IsVariableDeclaration(child.owner) ||
+        child.slot.kind === "operand" && child.slot.position === "only" &&
+          (ast.is.IsForOfStatement(child.owner) || ast.is.IsForInStatement(child.owner))) requiredBindingRoots.add(child.owner);
+      if (child.slot.kind === "operand" && child.slot.position === "right") {
+        const operation = input.operations.binaryOperation.get(child.owner)?.target;
+        if (operation?.kind === "resolved" && operation.sourceOperator === "=" ||
+          input.operations.operatorForm.get(child.owner) === "destructuring-assignment") requiredBindingRoots.add(child.owner);
+      }
+    }
     return result;
   }
 
@@ -146,7 +178,18 @@ export function analyzeCsharpNativeDemand(input: CsharpNativeDemandAnalysisInput
     }
     const expected = input.expected.expectedUse.get(site);
     if (exactPending.get(site.subject)?.has(targetUseSiteIdentity(site))) return pending(site, expression, "expected-use-pending");
-    const selected = selectCsharpNativeOperandUses(policyInput, expression, child.access);
+    requireCsharpRecord(requiredRecords, { family: "sourceArgument", subject: expression,
+      construct: "native expression passing", producer: "analyzeCsharpNativeDemand" });
+    if (ast.is.IsArrowFunction(expression) || ast.is.IsFunctionExpression(expression)) requireCsharpRecord(requiredRecords, {
+      family: "callableTarget", subject: expression, construct: "native callable creation", producer: "analyzeCsharpNativeDemand",
+    });
+    if (expected?.literal !== undefined) requireCsharpRecord(requiredRecords, {
+      family: "exactLiteral", subject: expression, target: expected.target,
+      construct: "native literal construction", producer: "analyzeCsharpNativeDemand",
+    });
+    const selected: CsharpNativeOperandSelection = expected?.literal === undefined
+      ? selectCsharpNativeOperandUses(policyInput, expression, child.access)
+      : Object.freeze({ runtime: Object.freeze([]), planning: Object.freeze([]), flow: "sequence", carrier: expected.carrier });
     const expectedChildren = new Map<string, TargetUseSiteRef[]>();
     for (const reference of expected?.construction?.children ?? expected?.children ?? []) {
       const matching = expectedChildren.get(reference.role) ?? [];
@@ -184,14 +227,18 @@ export function analyzeCsharpNativeDemand(input: CsharpNativeDemandAnalysisInput
     const children = Object.freeze(runtime.map(entry => entry.visited.site));
     if (expected?.construction !== undefined) {
       publish(expected.construction.site, { kind: "constructed", expression, carrier: expected.construction.carrier,
-        children, evaluation, completion: inputCompletion });
+        children, evaluation, completion: inputCompletion, objectShape: expected.objectShape });
       const stage = expected.construction.site;
       const completion = selectCsharpNativeCompletion(expected.target, { kind: "sequence", children: [{ completion: inputCompletion }] });
       if (completion === undefined) return pending(site, expression, "completion-unresolved");
       return publish(site, { kind: "converted", expression, carrier: physical, input: inputCompletion, target: expected.target, mode: expected.mode,
-        children: Object.freeze([stage]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([Object.freeze({ site: stage })]) }), completion });
+        children: Object.freeze([stage]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([Object.freeze({ site: stage })]) }),
+        objectShape: expected.objectShape, completion });
     }
-    const common = { expression, carrier: physical, children, evaluation, completion: inputCompletion };
+    const common = { expression, carrier: physical, children, evaluation, completion: inputCompletion,
+      ...(expected?.literal === undefined ? {} : { literal: expected.literal }),
+      ...(expected?.binary === undefined ? {} : { binary: expected.binary }),
+      ...(expected?.objectShape === undefined ? {} : { objectShape: expected.objectShape }) };
     if (expected?.representation === "convert") {
       const completion = selectCsharpNativeCompletion(expected.target, { kind: "sequence", children: [{ completion: inputCompletion }] });
       return completion === undefined ? pending(site, expression, "completion-unresolved")

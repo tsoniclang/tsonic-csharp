@@ -86,7 +86,7 @@ export function planTopLevelVariableStatement(
     if (callableVisibility !== undefined) {
       const initializer = variable.Initializer;
       const carrier = initializer === undefined ? undefined
-        : getLambdaTargetContext(initializer, sourceFile, input)?.carrier;
+        : getLambdaTargetContext(initializer, input)?.carrier;
       if (initializer === undefined || carrier === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(declaration,
           "Direct callable planning requires its sealed implementation signature."));

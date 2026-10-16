@@ -1,40 +1,16 @@
-import type { CsharpPlanningContext } from "../context.js";
-import {
-  AsBindingElement,
-  AsBindingPattern,
-  HasSourceKind,
-  KindIdentifier,
-  KindStringLiteral,
-  Node_Text,
-} from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type {
-  CsharpExpression,
-  CsharpObjectInitializerAssignment,
-  CsharpStatement,
-} from "../../target-ast/syntax/index.js";
+import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
+import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
+import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.js";
-import { getCsharpObjectShapeFactForNode } from "../objects/fact-queries.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
-import { planObjectShapeDefaultProjection } from "../objects/object-shape-defaults.js";
-import {
-  csharpConstructibleTypeFromObjectShapeFact,
-  objectShapeStorageMemberName,
-} from "../objects/index.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import {
-  targetTypeRefEquals,
-} from "../../../target-model/types/index.js";
-import type { CsharpObjectShapeFact } from "../../../target-model/types/index.js";
+import { csharpConstructibleTypeFromObjectShapeFact, objectShapeStorageMemberName } from "../objects/index.js";
+import { planObjectShapeDefaultProjection } from "../objects/object-shape-defaults.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
-import {
-  csharpObjectShapeMemberLookupFailureMessage,
-  resolveCsharpObjectShapeMemberBySourceContract,
-  resolveCsharpObjectShapeMemberBySourceKey,
-} from "../../../target-model/types/index.js";
 
 export function planObjectShapeBindingPattern(
   patternNode: Node,
@@ -47,200 +23,35 @@ export function planObjectShapeBindingPattern(
   planBindingNameFromProjection: BindingProjectionPlanner,
   planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
-  const elements = AsBindingPattern(input.program.source.ast, patternNode)?.Elements?.Nodes ?? [];
-  const explicitlyExtractedSourceNames = collectObjectShapeExtractedSourceNames(elements, input);
-  return elements.flatMap((elementNode) => {
-    if (elementNode === undefined) {
-      return [];
+  return input.program.source.ast.elements(patternNode).flatMap(elementNode => {
+    if (elementNode === undefined) return [];
+    const element = input.program.source.ast.as.AsBindingElement(elementNode);
+    const projection = input.program.records.bindingPatternProjection.get(elementNode)?.element;
+    if (element?.name === undefined || projection === undefined) return failCsharpPlannerInvariant(
+      "Object binding requires its admitted native element projection.", elementNode);
+    if (projection.kind === "object-shape-rest") {
+      const type = csharpConstructibleTypeFromObjectShapeFact(input, projection.restShape, diagnostics, elementNode);
+      if (type === undefined) return [];
+      const assignments = projection.members.map(({ rest, source }) => ({
+        kind: "AssignmentExpression" as const, name: objectShapeStorageMemberName(projection.restShape, rest),
+        expression: { kind: "SimpleMemberAccessExpression" as const, receiver: sourceExpression,
+          name: objectShapeStorageMemberName(objectShape, source) },
+      }));
+      return planBindingNameFromProjection(element.name, { kind: "ObjectCreationExpression", type, assignments }, type,
+        elementNode, sourceFile, input, diagnostics, state, projection.restShape.targetType);
     }
-    return planObjectShapeBindingElement(elementNode, sourceExpression, objectShape, explicitlyExtractedSourceNames, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planDefaultExpressionWithExpectedType);
+    if (projection.kind !== "object-shape-member") return failCsharpPlannerInvariant(
+      "Object member binding requires its admitted native member.", elementNode);
+    const member = projection.member;
+    const type = csharpTypeFromTargetTypeRef(member.type, input.scope.typeParameterNames);
+    if (type === undefined) return failCsharpPlannerInvariant("An admitted binding member must be renderable.", elementNode);
+    const value: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: sourceExpression, name: member.targetName };
+    if (element.Initializer === undefined) return planBindingNameFromProjection(element.name, value, type,
+      elementNode, sourceFile, input, diagnostics, state, member.type);
+    const defaulted = planObjectShapeDefaultProjection(value, member, element.Initializer, sourceFile, input,
+      diagnostics, state, planDefaultExpressionWithExpectedType);
+    return defaulted === undefined ? [] : consumeCsharpPlannedValue(defaulted.value, expression =>
+      planBindingNameFromProjection(element.name!, expression, defaulted.type, elementNode,
+        sourceFile, input, diagnostics, state, defaulted.carrier));
   });
-}
-
-function planObjectShapeBindingElement(
-  elementNode: Node,
-  sourceExpression: CsharpExpression,
-  objectShape: CsharpObjectShapeFact,
-  explicitlyExtractedSourceNames: ReadonlySet<string>,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
-  planBindingNameFromProjection: BindingProjectionPlanner,
-  planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
-): readonly CsharpStatement[] {
-  const element = AsBindingElement(input.program.source.ast, elementNode);
-  if (element === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object binding pattern element must be a binding element."));
-    return [];
-  }
-  if (element.DotDotDotToken !== undefined) {
-    return planObjectShapeRestBindingElement(elementNode, sourceExpression, objectShape, explicitlyExtractedSourceNames, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
-  }
-  const name = element.name;
-  if (name === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object binding element must have a target binding name."));
-    return [];
-  }
-  const sourceName = getObjectShapeBindingPropertySourceName(elementNode, input, diagnostics);
-  if (sourceName === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object destructuring property must match a finalized provider object-shape member."));
-    return [];
-  }
-  const memberLookup = resolveCsharpObjectShapeMemberBySourceContract(
-    objectShape,
-    sourceName,
-    "checked-object-binding-property",
-  );
-  if (memberLookup.kind !== "resolved") {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, csharpObjectShapeMemberLookupFailureMessage(memberLookup, "Object destructuring property")));
-    return [];
-  }
-  const member = memberLookup.member;
-  const projectedType = csharpTypeFromTargetTypeRef(member.type, input.scope.typeParameterNames);
-  if (projectedType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, `Object-shape member '${member.sourceName}' must carry a renderable target type before C# emission.`));
-    return [];
-  }
-  const projected: CsharpExpression = {
-    kind: "SimpleMemberAccessExpression",
-    receiver: sourceExpression,
-    name: member.targetName,
-  };
-  if (element.Initializer === undefined) {
-    return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, member.type);
-  }
-  const defaultedProjection = planObjectShapeDefaultProjection(projected, member, element.Initializer, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
-  if (defaultedProjection === undefined) {
-    return [];
-  }
-  return consumeCsharpPlannedValue(defaultedProjection.value, expression =>
-    planBindingNameFromProjection(name, expression, defaultedProjection.type, elementNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier));
-}
-
-function planObjectShapeRestBindingElement(
-  elementNode: Node,
-  sourceExpression: CsharpExpression,
-  sourceShape: CsharpObjectShapeFact,
-  explicitlyExtractedSourceNames: ReadonlySet<string>,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
-  planBindingNameFromProjection: BindingProjectionPlanner,
-): readonly CsharpStatement[] {
-  const element = AsBindingElement(input.program.source.ast, elementNode);
-  const name = element?.name;
-  if (name === undefined || !HasSourceKind(input.program.source.ast, name, KindIdentifier)) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object rest destructuring requires an identifier binding name."));
-    return [];
-  }
-  const restContract = getCsharpObjectShapeFactForNode(name, sourceFile, input);
-  const restShape = restContract === undefined ? undefined : input.types.objectShapes.resolveCopyShape(restContract);
-  if (restShape === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object rest destructuring requires finalized provider object-shape facts for the rest binding."));
-    return [];
-  }
-  const restType = csharpConstructibleTypeFromObjectShapeFact(
-    input,
-    restShape,
-    diagnostics,
-    elementNode,
-  );
-  if (restType === undefined) {
-    return [];
-  }
-  for (const sourceName of explicitlyExtractedSourceNames) {
-    const staleRestMember = resolveCsharpObjectShapeMemberBySourceContract(
-      restShape,
-      sourceName,
-      "finalized-object-rest-member",
-    );
-    if (staleRestMember.kind === "resolved") {
-      diagnostics.push(unsupportedNodeDiagnostic(elementNode, `Object rest destructuring rest shape must exclude explicitly extracted member '${staleRestMember.member.sourceName}'.`));
-      return [];
-    }
-  }
-  const assignments = restShape.members.map((restMember): CsharpObjectInitializerAssignment | undefined => {
-    const sourceMemberLookup = resolveCsharpObjectShapeMemberBySourceKey(
-      sourceShape,
-      restMember.sourceKey,
-      "finalized-object-rest-member",
-    );
-    if (sourceMemberLookup.kind !== "resolved") {
-      diagnostics.push(unsupportedNodeDiagnostic(elementNode, csharpObjectShapeMemberLookupFailureMessage(sourceMemberLookup, "Object rest destructuring source shape")));
-      return undefined;
-    }
-    const sourceMember = sourceMemberLookup.member;
-    if (sourceMember.memberKind === "method") {
-      const required = input.artifacts.requireObjectShapeCapability(undefined, sourceShape.targetType,
-        sourceFile, "method-values", "object-shape");
-      if (required.kind === "rejected") {
-        diagnostics.push(unsupportedNodeDiagnostic(elementNode, required.reason));
-        return undefined;
-      }
-    }
-    if (!targetTypeRefEquals(sourceMember.type, restMember.type)) {
-      diagnostics.push(unsupportedNodeDiagnostic(elementNode, `Object rest destructuring member '${restMember.sourceName}' requires matching finalized source and rest member carriers.`));
-      return undefined;
-    }
-    return {
-      kind: "AssignmentExpression",
-      name: objectShapeStorageMemberName(restShape, restMember),
-      expression: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: sourceExpression,
-        name: objectShapeStorageMemberName(sourceShape, sourceMember),
-      } satisfies CsharpExpression,
-    };
-  });
-  if (assignments.some((assignment) => assignment === undefined)) {
-    return [];
-  }
-  return planBindingNameFromProjection(name, {
-    kind: "ObjectCreationExpression",
-    type: restType,
-    assignments: assignments as readonly CsharpObjectInitializerAssignment[],
-  }, restType, elementNode, sourceFile, input, diagnostics, state, restShape.targetType);
-}
-
-function collectObjectShapeExtractedSourceNames(
-  elements: readonly (Node | undefined)[],
-  input: CsharpPlanningContext,
-): ReadonlySet<string> {
-  const sourceNames = new Set<string>();
-  for (const elementNode of elements) {
-    if (elementNode === undefined) {
-      continue;
-    }
-    const element = AsBindingElement(input.program.source.ast, elementNode);
-    if (element === undefined || element.DotDotDotToken !== undefined) {
-      continue;
-    }
-    const sourceName = getObjectShapeBindingPropertySourceName(elementNode, input);
-    if (sourceName !== undefined) {
-      sourceNames.add(sourceName);
-    }
-  }
-  return sourceNames;
-}
-
-function getObjectShapeBindingPropertySourceName(
-  elementNode: Node,
-  input: CsharpPlanningContext,
-  diagnostics?: TargetDiagnostic[],
-): string | undefined {
-  const element = AsBindingElement(input.program.source.ast, elementNode);
-  if (element === undefined) {
-    return undefined;
-  }
-  const propertyName = element.PropertyName ?? element.name;
-  if (propertyName === undefined) {
-    return undefined;
-  }
-  if (!HasSourceKind(input.program.source.ast, propertyName, KindIdentifier) && !HasSourceKind(input.program.source.ast, propertyName, KindStringLiteral)) {
-    diagnostics?.push(unsupportedNodeDiagnostic(propertyName, "Object destructuring from object-shape facts supports only identifier or string-literal property names."));
-    return undefined;
-  }
-  return Node_Text(input.program.source.ast, propertyName);
 }

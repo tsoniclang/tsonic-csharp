@@ -18,4 +18,5 @@ export type CsharpNativeUnadmittedReason =
 export interface CsharpNativeDemandAnalysis extends CsharpNativeUseClassifications {
   readonly entries: readonly { readonly site: TargetUseSiteRef; readonly use: CsharpNativeUse }[];
   readonly unadmitted: readonly { readonly site: TargetUseSiteRef; readonly expression: Node; readonly reason: CsharpNativeUnadmittedReason }[];
+  readonly requiredBindingRoots: readonly Node[];
 }

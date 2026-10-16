@@ -218,7 +218,14 @@ test("C# conversion analysis seals sparse exact uses without a type Cartesian pr
   );
   assert.match(analysis, /classifyExpression\(/u);
   assert.match(analysis, /classifyPair\(/u);
-  assert.match(analysis, /seal\(\{ operations, expectedTypes, storage \}\)/u);
+  assert.match(analysis, /prepare\(\{ operations, expectedTypes, valueReads \}\)/u);
+  assert.match(analysis, /seal\(nativeDemand, requiredRecords\)/u);
+  assert.equal((analysis.match(/sealCsharpConversionUses\(nativeDemand,/gu) ?? []).length, 1,
+    "one final conversion-use admission owner");
+  const admission = readFileSync(resolve(repositoryRoot, "src/analysis/conversions/use-admission.ts"), "utf8");
+  assert.match(admission, /export function sealCsharpConversionUses\(/u);
+  assert.match(admission, /for \(const entry of demand\.entries\)/u);
+  assert.doesNotMatch(analysis, /return admitted\.expressions[^;]+\?\?[^;]+pairSelections/u);
   assert.doesNotMatch(analysis, /types\.size\s*\*\s*types\.size/u);
   assert.doesNotMatch(
     analysis,

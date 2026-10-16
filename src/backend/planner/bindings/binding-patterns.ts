@@ -26,24 +26,13 @@ import { getCsharpTypeForNode, invalidCsharpType } from "../types/index.js";
 import { getCsharpTypeFromSemanticType } from "../types/csharp-semantic-types.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
-import {
-  getObjectShapeForBindingSource,
-  planObjectBindingPattern,
-} from "./binding-object-patterns.js";
-import { csharpTypeFromObjectShapeFact } from "../objects/index.js";
-import {
-  probeCarrierFromResolution,
-  missingCarrierDiagnosticDetail,
-  resolveRuntimeCarrierForExpression,
-} from "../types/runtime-carriers.js";
+import { planObjectBindingPattern } from "./binding-object-patterns.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import {
-  getArrayBoundaryCoreCarrierForExpression,
-} from "../expressions/arrays/boundary-facts.js";
-import {
   planCsharpTypedLocationIdentityDeclaration,
 } from "./typed-location-identities.js";
+import { requireCsharpNativeExpressionUse } from "../expressions/native-uses.js";
 
 export interface CsharpEntryBinding {
   readonly name: string;
@@ -158,27 +147,19 @@ function planBindingNameFromProjection(
 
 export function getCsharpTypeForExpressionCarrier(
   expression: Node,
-  sourceFile: SourceFile,
+  _sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   diagnosticNode: Node,
   description: string,
 ): CsharpTypeNode {
-  const carrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
-  const carrier = getArrayBoundaryCoreCarrierForExpression(input, expression, sourceFile) ??
-    probeCarrierFromResolution(carrierResolution);
+  const selected = requireCsharpNativeExpressionUse(input, expression).use;
+  const carrier = selected.kind === "erased" ? undefined : selected.completion.kind === "value"
+    ? selected.completion.type : selected.carrier;
   const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
   if (type !== undefined) {
     return type;
   }
-  const objectShape = getObjectShapeForBindingSource(expression, sourceFile, input);
-  if (objectShape !== undefined) {
-    const objectShapeType = csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, diagnosticNode);
-    if (objectShapeType !== undefined) {
-      return objectShapeType;
-    }
-  }
-  const detail = missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the destructuring source expression.");
-  diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, `${description} requires a finalized runtime carrier fact before C# emission. ${detail.reason}`, detail.evidence));
+  diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, `${description} requires its admitted native source carrier before C# emission.`));
   return invalidCsharpType("missing destructuring source carrier");
 }

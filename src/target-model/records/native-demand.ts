@@ -3,8 +3,10 @@ import { targetUseSiteRef, type TargetUseSiteRef } from "@tsonic/target-api/anal
 import type { CsharpConversionMode } from "../conversions/selection.js";
 import { csharpTargetRepresentationContractId } from "../identities/identities.js";
 import { targetTypeRefKey } from "../types/equality.js";
-import type { TargetTypeRef } from "../types/model.js";
+import type { CsharpObjectShapeFact, TargetTypeRef } from "../types/model.js";
 import type { CsharpNativeHandler } from "./native-handlers.js";
+import type { CsharpExactLiteralRecipe } from "../conversions/exact-literals.js";
+import type { CsharpResolvedBinaryOperation } from "./operator-selection.js";
 
 export type CsharpNativeUseSlot =
   | { readonly kind: "effect" | "initializer" | "return" | "thrown" | "condition" | "receiver" | "callee" | "key" |
@@ -82,6 +84,9 @@ export interface CsharpExpectedNativeUse {
   readonly representation: "construct" | "forward" | "convert";
   readonly mode: CsharpConversionMode;
   readonly children: readonly TargetUseSiteRef[];
+  readonly literal?: CsharpExactLiteralRecipe;
+  readonly binary?: CsharpResolvedBinaryOperation;
+  readonly objectShape?: CsharpObjectShapeFact;
   readonly construction?: {
     readonly site: TargetUseSiteRef;
     readonly carrier: TargetTypeRef;
@@ -118,6 +123,9 @@ interface CsharpNativeEvaluatedUse {
   readonly completion: CsharpNativeCompletion;
   readonly children: readonly TargetUseSiteRef[];
   readonly evaluation: CsharpNativeEvaluation;
+  readonly literal?: CsharpExactLiteralRecipe;
+  readonly binary?: CsharpResolvedBinaryOperation;
+  readonly objectShape?: CsharpObjectShapeFact;
 }
 
 export type CsharpNativeUse =
@@ -132,5 +140,6 @@ export interface CsharpNativeUseClassifications {
   readonly nativeUse: {
     readonly get: (site: TargetUseSiteRef) => CsharpNativeUse | undefined;
     readonly order: (construct: Node) => readonly CsharpNativeOrderStep[] | undefined;
+    readonly expression: (node: Node) => { readonly site: TargetUseSiteRef; readonly use: CsharpNativeUse } | undefined;
   };
 }

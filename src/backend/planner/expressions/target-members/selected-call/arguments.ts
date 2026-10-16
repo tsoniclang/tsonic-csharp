@@ -20,6 +20,7 @@ import type { CsharpPlannedArgument } from "../../planned-values.js";
 import { csharpPlannedValue, mapCsharpPlannedValue } from "../../planned-values.js";
 import { captureCsharpPlannedValue } from "../../planned-value-composition.js";
 import { csharpPlannedArgumentSyntax, type CsharpPlannedCallArguments } from "./planned-arguments.js";
+import { requireCsharpNativeExpressionUse } from "../../native-uses.js";
 
 export function translateSelectedTargetArguments(
   node: Node,
@@ -238,13 +239,7 @@ export function translateCallArgument(
     selectedMapping?.kind === "by-value" &&
     selectedMapping.conversion.kind === "delegate-adapter"
   ) {
-    if (
-      nativeDelegateBindingIsDirectlyTargetTypable(
-        expression,
-        selectedMapping,
-        input,
-      )
-    ) {
+    if (selectedMapping.conversion.strategy === "native-binding") {
       return planCallArgument(
         expression,
         sourceFile,
@@ -296,19 +291,6 @@ export function translateCallArgument(
   );
 }
 
-function nativeDelegateBindingIsDirectlyTargetTypable(
-  expression: Node,
-  mapping: Extract<CsharpProviderArgumentMapping, { readonly kind: "by-value" }>,
-  input: CsharpPlanningContext,
-): boolean {
-  return (
-    input.program.source.ast.is.IsArrowFunction(expression) ||
-    input.program.source.ast.is.IsFunctionExpression(expression)
-  ) &&
-    mapping.conversion.kind === "delegate-adapter" &&
-    mapping.conversion.strategy === "native-binding";
-}
-
 function translateEcmascriptArgumentVectorCallback(
   expression: Node,
   parameter: CsharpTargetParameter,
@@ -330,16 +312,16 @@ function translateEcmascriptArgumentVectorCallback(
     ));
     return undefined;
   }
-  const effectiveSourceCallableType =
-    input.program.records.callableTarget.get(expression) ??
-      adapter.sourceCallableType;
+  const nativeUse = requireCsharpNativeExpressionUse(input, expression).use;
+  const effectiveSourceCallableType = nativeUse.kind === "erased" || nativeUse.completion.kind !== "value"
+    ? undefined : nativeUse.completion.type;
   const sourceSignature = getCsharpDelegateSignature(
     effectiveSourceCallableType,
   );
   const targetSignature = getCsharpDelegateSignature(parameter.type);
   const vectorType = targetSignature?.parameters[0];
   if (
-    sourceSignature === undefined ||
+    effectiveSourceCallableType === undefined || sourceSignature === undefined ||
     targetSignature === undefined ||
     targetSignature.parameters.length !== 1 ||
     vectorType === undefined ||

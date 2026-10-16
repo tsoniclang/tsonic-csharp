@@ -27,7 +27,7 @@ function fixture(text) {
     if (source.ast.is.IsCallExpression(node)) {
       const argument = source.ast.as.AsCallExpression(node)?.Arguments?.Nodes?.[0];
       if (argument !== undefined) expressions.set(argument, new Map([["exact", Object.freeze({
-        source: sourceType, target: targetType, selection: conversion, runtimeDemand: true, identityRequired: true,
+        source: sourceType, target: targetType, selection: conversion, identityRequired: true,
       })]]));
     }
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
@@ -55,9 +55,8 @@ test("sealing reuses exact immutable binding and alias identities without creati
 test("contextual queries cannot demand an adapter or contribute a second identity use", () => {
   for (const demanded of [0, 1]) {
     const input = fixture("function consume(callback: (value: number) => void): void {} export function use(callback: (value: number) => void): void { consume(callback); consume(callback); }");
-    for (const [index, classifications] of [...input.expressions.values()].entries()) {
-      classifications.set("exact", Object.freeze({ ...classifications.get("exact"),
-        runtimeDemand: index < demanded, identityRequired: index < demanded }));
+    for (const [index, [expression]] of [...input.expressions].entries()) {
+      if (index >= demanded) input.expressions.delete(expression);
     }
     const selected = input.seal();
     assert.equal(selected.scopes.size, 0);

@@ -56,7 +56,7 @@ for (const surface of ["native", "js"]) test(`${surface} finite native uses cove
       if (result > 0) result = value;
       return result > 1 ? result : value;
     }`, surface);
-  const demand = analyzeCsharpNativeDemand(value.input);
+  const demand = analyzeCsharpNativeDemand(value.input, []);
   assert.equal(demand.unadmitted.length, 0, demand.unadmitted.map(entry => `${entry.reason}: ${value.text(entry.expression)}`).join("; "));
   assert.equal(demand.entries.some(entry => entry.site.role.includes("argument:source=0:effective=0:parameter=0:source-parameter=0") &&
     value.text(entry.use.expression) === "value"), true, "U4 exact grouping is retained");
@@ -77,7 +77,7 @@ test("class initialization, base constructor arguments and callable defaults eac
       constructor(value: int32) { super(value); }
       method(value: int32 = 5): int32 { return value; }
     }`);
-  const demand = analyzeCsharpNativeDemand(value.input);
+  const demand = analyzeCsharpNativeDemand(value.input, []);
   const counts = role => demand.entries.filter(entry => entry.site.role === role).length;
   assert.equal(counts("base-argument:source=0"), 1, "super arguments are not visited again through the constructor body");
   assert.equal(demand.entries.filter(entry => entry.site.role === "initializer" && ["3", "4"].includes(value.text(entry.use.expression))).length, 2, "native-uses:83: demand.entries.filter(entry => entry.site.role === \"initializer\" && [\"3\", \"4\"].includes(va");
@@ -96,8 +96,8 @@ test("erased and frame-body participation are consumed as recorded, not rescanne
   }`);
   const nested = value.nodes.find(node => value.ast.is.IsFunctionDeclaration(node) && value.ast.text(value.ast.name(node)) === "add");
   assert.equal(value.records.nativeParticipation.get(nested), "frame-body", "native-uses:98: value.records.nativeParticipation.get(nested)");
-  const demand = analyzeCsharpNativeDemand(value.input);
+  const demand = analyzeCsharpNativeDemand(value.input, []);
   assert.equal(demand.nativeUse.order(nested) !== undefined, true, "frame methods still compile their body");
-  const erased = analyzeCsharpNativeDemand({ ...value.input, participation: { get: node => node === nested ? "erased" : value.records.nativeParticipation.get(node) } });
+  const erased = analyzeCsharpNativeDemand({ ...value.input, participation: { get: node => node === nested ? "erased" : value.records.nativeParticipation.get(node) } }, []);
   assert.equal(erased.nativeUse.order(nested)?.length, 0, "the same finite source observes the supplied final participation");
 });

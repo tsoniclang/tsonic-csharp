@@ -32,7 +32,7 @@ export function planCsharpExactLiteralConversion(
     return failCsharpPlannerInvariant(
       "C# literal planning requires the sealed exact-literal selection of its requested target.", node);
   }
-  return selection.kind === "resolved" ? renderRecipe(input.scope.typeParameterNames, selection.recipe) : selection;
+  return selection.kind === "resolved" ? planCsharpExactLiteralRecipe(input.scope.typeParameterNames, selection.recipe) : selection;
 }
 
 export type CsharpExactLiteralConversionPlan =
@@ -41,7 +41,7 @@ export type CsharpExactLiteralConversionPlan =
   | { readonly kind: "resolved"; readonly expression: CsharpExpression }
   | { readonly kind: "rejected"; readonly reason: string };
 
-function renderRecipe(
+export function planCsharpExactLiteralRecipe(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   recipe: CsharpExactLiteralRecipe,
 ): CsharpExactLiteralConversionPlan {
