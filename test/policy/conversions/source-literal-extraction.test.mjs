@@ -80,3 +80,30 @@ test("literals in type-only declarations, overload sets and abstract signatures 
   assert.equal(/abstract double area\(double scale\);/u.test(output) && /return 2;/u.test(output), true,
     "the abstract signature and the concrete body keep their native output");
 });
+
+test("selected float and decimal literal recipes preserve source precision, scale, zero sign and native defaults", () => {
+  const sourceText = `import type { decimal, float32, float64 } from "@tsonic/core/types.js";
+export function direct(): float32 { return 1.00000005960464477539062500000001; }
+export function exact(): decimal { return 9007199254740993; }
+export function whole(): decimal { return 1; }
+export function scaled(): decimal { return 1.00; }
+export function zero(): decimal { return 0.000; }
+export function negativeZero(): decimal { return -0.000; }
+export function exponent(): decimal { return 1.00e1; }
+export function zeroExponent(): decimal { return 0.000e2; }
+export function nativeCast(value: float64): float32 { return value as float32; }
+export function withDefault(value: float32 = -1.5): float32 { return value; }
+`;
+  for (const surface of ["native", "js"]) {
+    const compiled = compileCsharpSource({ surface, sourceText });
+    assert.equal(compiled.sourceDiagnosticsText === "" && compiled.result.diagnostics.length === 0, true,
+      `${surface}: exact native literal and explicit cast controls compile`);
+    const output = [...compiled.artifacts.values()].join("\n");
+    const required = ["1.00000005960464477539062500000001F", "9007199254740993M", "return 1M;", "return 1.00M;",
+      "return 0.000M;", "return -0.000M;", "return 1.00e+1M;", "return 0.000e+2M;", "return (float)value;", "-1.5F"];
+    assert.deepEqual(required.filter(text => !output.includes(text)), [], `${surface}: exact syntax follows the selected native use`);
+    assert.equal(/9007199254740992M|\b1\.0000000596046448F/u.test(output), false,
+      `${surface}: the native token never uses the lossy double summary`);
+    assert.doesNotThrow(() => JSON.stringify(compiled.result.plan), `${surface}: every native token remains JSON-safe`);
+  }
+});
