@@ -21,6 +21,7 @@ import { selectCsharpRawAddress } from "./raw-addresses.js";
 
 import { selectCsharpLayoutObservation } from "./layout-observations.js";
 import { selectCsharpRawLocation } from "./native-memory.js";
+import { selectTargetNativePointerOperation } from "@tsonic/target-api/analysis";
 
 export function selectCsharpNativePointerOperation(
   input: CsharpPolicyContext,
@@ -28,11 +29,14 @@ export function selectCsharpNativePointerOperation(
   sourceFile: SourceFile,
 ): CsharpNativePointerOperationSelection {
   const rawLocation = selectCsharpRawLocation(input, node, sourceFile);
-  if (rawLocation !== undefined) return rawLocation;
   const layout = selectCsharpLayoutObservation(input.sourceFacts, node);
-  if (layout !== undefined) return layout;
   const address = selectCsharpRawAddress(input, node, sourceFile);
-  if (address !== undefined) return address;
+  return selectTargetNativePointerOperation(rawLocation, layout, address,
+    selectRawIdentity(input, node, sourceFile), selectNativePointer(input, node, sourceFile)) ?? { kind: "not-native-pointer" };
+}
+
+function selectRawIdentity(input: CsharpPolicyContext, node: Node, sourceFile: SourceFile):
+  Exclude<CsharpNativePointerOperationSelection, { readonly kind: "not-native-pointer" }> | undefined {
   const identity = readCsharpSourceRawPointerIdentity(input.sourceFacts, node);
   if (identity !== undefined) {
     const arguments_ = input.ast.arguments(node);
@@ -52,12 +56,17 @@ export function selectCsharpNativePointerOperation(
       arguments: Object.freeze(identity.arguments.map(argument => argument.expression)), carrier,
       parameterType: csharpNullableReferenceTargetType(carrier) };
   }
+  return undefined;
+}
+
+function selectNativePointer(input: CsharpPolicyContext, node: Node, sourceFile: SourceFile):
+  Exclude<CsharpNativePointerOperationSelection, { readonly kind: "not-native-pointer" }> | undefined {
   const source = readCsharpSourceNativePointerOperation(
     input.sourceFacts,
     node,
   );
   if (source === undefined) {
-    return { kind: "not-native-pointer" };
+    return undefined;
   }
   const pointerType = input.types.resolveSelectedValue(
     source.pointerExpression,
@@ -140,6 +149,6 @@ export function selectCsharpNativePointerOperation(
 function rejected(
   operation: CsharpNativePointerOperationKind,
   reason: string,
-): CsharpNativePointerOperationSelection {
+): Extract<CsharpNativePointerOperationSelection, { readonly kind: "rejected" }> {
   return { kind: "rejected", operation, reason };
 }

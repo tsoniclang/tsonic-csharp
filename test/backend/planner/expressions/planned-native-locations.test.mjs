@@ -5,7 +5,7 @@ import { captureCsharpPlannedLocation } from "../../../../dist/backend/planner/e
 import { csharpPlannedValue, sequenceCsharpPlannedValues } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { composeCsharpPlannedCall } from "../../../../dist/backend/planner/expressions/target-members/selected-call/planned-arguments.js";
 import { planSelectedCsharpBinaryOperation } from "../../../../dist/backend/planner/expressions/operators/selected-binary.js";
-import { tryPlanCsharpTypedLocationOperation } from "../../../../dist/backend/planner/expressions/expression-typed-locations.js";
+import { planCsharpTypedLocationOperation } from "../../../../dist/backend/planner/expressions/expression-typed-locations.js";
 import { csharpRuntimeLocationTargetType } from "../../../../dist/target-model/types/index.js";
 import { csharpVoidTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 
@@ -178,11 +178,11 @@ test("typed ref stores retain original managed storage before a later non-suspen
   const value = {};
   selections.set(source, location(source));
   input.types = { classifications: { resolveNode: () => csharpVoidTargetType() } };
-  input.program.records.typedLocation = { get: () => ({ kind: "location-store", pointeeType: integer,
-    locationType: csharpRuntimeLocationTargetType(integer), location: { kind: "native-ref-return", expression: source }, valueExpression: value }) };
+  const selected = { kind: "location-store", pointeeType: integer,
+    locationType: csharpRuntimeLocationTargetType(integer), location: { kind: "native-ref-return", expression: source }, valueExpression: value };
   const plan = subject => subject === source ? csharpPlannedValue(integer, call("reference"))
     : csharpPlannedValue(integer, identifier("completed"), [effect("valueRegion")]);
-  const planned = tryPlanCsharpTypedLocationOperation({}, {}, input, diagnostics, plan, plan).expression;
+  const planned = planCsharpTypedLocationOperation({}, selected, {}, input, diagnostics, plan, plan);
   assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned.completion.kind, "void");
   assert.equal(planned.prelude[0].refKind, "ref");

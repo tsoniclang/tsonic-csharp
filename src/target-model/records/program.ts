@@ -69,7 +69,6 @@ export interface CsharpProgramRecords {
   readonly erasedStatement: CsharpTargetOperationClassifications["erasedStatement"];
   readonly nativeHandler: CsharpTargetOperationClassifications["nativeHandler"];
   readonly operatorForm: CsharpTargetOperationClassifications["operatorForm"];
-  readonly memoryBinding: CsharpTargetOperationClassifications["memoryBinding"];
   readonly operationResultType: CsharpTargetOperationClassifications["operationResultType"];
   readonly selectedCall: CsharpTargetOperationClassifications["selectedCall"];
   readonly selectedConstruction: CsharpTargetOperationClassifications["selectedConstruction"];
@@ -81,8 +80,6 @@ export interface CsharpProgramRecords {
   readonly unaryOperation: CsharpTargetOperationClassifications["unaryOperation"];
   readonly iteration: CsharpTargetOperationClassifications["iteration"];
   readonly resource: CsharpTargetOperationClassifications["resource"];
-  readonly nativePointer: CsharpTargetOperationClassifications["nativePointer"];
-  readonly typedLocation: CsharpTargetOperationClassifications["typedLocation"];
   readonly nativeRefReturn: CsharpTargetOperationClassifications["nativeRefReturn"];
   readonly jsCondition: CsharpTargetOperationClassifications["jsCondition"];
   readonly jsTypeof: CsharpTargetOperationClassifications["jsTypeof"];
@@ -91,7 +88,6 @@ export interface CsharpProgramRecords {
   readonly jsObjectLiteral: CsharpTargetOperationClassifications["jsObjectLiteral"];
   readonly jsArrayMutation: CsharpTargetOperationClassifications["jsArrayMutation"];
   readonly elementDeletion: CsharpTargetOperationClassifications["elementDeletion"];
-  readonly jsStringConversion: CsharpTargetOperationClassifications["jsStringConversion"];
   readonly providerValue: CsharpTargetOperationClassifications["providerValue"];
   readonly regularExpression: CsharpTargetOperationClassifications["regularExpression"];
   readonly throwable: CsharpTargetOperationClassifications["throwable"];

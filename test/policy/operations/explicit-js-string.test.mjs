@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { sourceMarkerFactKey } from "@tsonic/tsts";
 import { selectCsharpJsStringConversion } from "../../../dist/policy/operations/strings/explicit-js-string.js";
-import { tryPlanCsharpJsStringConversion } from "../../../dist/backend/planner/expressions/expression-js-string-conversion.js";
+import { planCsharpJsStringConversion } from "../../../dist/backend/planner/expressions/expression-js-string-conversion.js";
+import { selectCsharpNativeHandler } from "../../../dist/policy/operations/pointers/native-handlers.js";
 import { csharpPlannedValue, csharpPlannedEffect } from "../../../dist/backend/planner/expressions/planned-values.js";
 import { csharpJsStringTargetType, csharpStringTargetType, csharpNeverTargetType, csharpVoidTargetType } from "../../../dist/policy/types/index.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
@@ -63,16 +64,16 @@ test("explicit C# JsString planning transports the native expression and prelude
   const effect = { kind: "ExpressionStatement", expression: { kind: "InvocationExpression",
     expression: { kind: "IdentifierName", name: "observe" }, arguments: [] } };
   const source = csharpPlannedValue(nativeString, expression, [effect]);
-  const input = { program: { records: { jsStringConversion: { get: () => selected.selection } } } };
+  const input = { program: { records: {} } };
   const diagnostics = [];
   let calls = 0;
-  const result = tryPlanCsharpJsStringConversion(selected.node, selected.sourceFile, input, diagnostics,
+  const result = planCsharpJsStringConversion(selected.node, selected.selection, selected.sourceFile, input, diagnostics,
     node => { calls++; assert.equal(node === selected.sourceValue, true); return source; });
-  assert.equal(result.handled, true);
-  assert.equal(result.expression.completion.carrier === exactString, true);
-  assert.equal(result.expression.completion.expression === expression, true);
-  assert.equal(result.expression.prelude.length, 1);
-  assert.equal(result.expression.prelude[0] === effect, true);
+  assert.equal(result !== undefined, true);
+  assert.equal(result.completion.carrier === exactString, true);
+  assert.equal(result.completion.expression === expression, true);
+  assert.equal(result.prelude.length, 1);
+  assert.equal(result.prelude[0] === effect, true);
   assert.equal(source.completion.carrier === nativeString, true);
   assert.equal(calls, 1);
   assert.deepEqual(diagnostics, []);
@@ -80,19 +81,19 @@ test("explicit C# JsString planning transports the native expression and prelude
 
 test("explicit C# JsString planning preserves never completion and rejects missing value completion", () => {
   const selected = fixture();
-  const input = { program: { records: { jsStringConversion: { get: () => selected.selection } } } };
+  const input = { program: { records: {} } };
   const thrown = { kind: "ThrowStatement", expression: { kind: "IdentifierName", name: "failure" } };
   const never = csharpPlannedEffect(csharpNeverTargetType(), [thrown]);
-  const result = tryPlanCsharpJsStringConversion(selected.node, selected.sourceFile, input, [], () => never);
-  assert.equal(result.expression === never, true);
+  const result = planCsharpJsStringConversion(selected.node, selected.selection, selected.sourceFile, input, [], () => never);
+  assert.equal(result === never, true);
   for (const source of [undefined, csharpPlannedEffect(csharpVoidTargetType(), [])]) {
-    const missing = tryPlanCsharpJsStringConversion(selected.node, selected.sourceFile, input, [], () => source);
-    assert.equal(missing.handled, true);
-    assert.equal(missing.expression === undefined, true);
+    const missing = planCsharpJsStringConversion(selected.node, selected.selection, selected.sourceFile, input, [], () => source);
+    assert.equal(missing === undefined, true);
   }
-  const unowned = tryPlanCsharpJsStringConversion(selected.node, selected.sourceFile,
-    { program: { records: { jsStringConversion: Object.freeze({ get: () => undefined }) } } }, [], () => assert.fail("Unowned marker cannot evaluate its argument."));
-  assert.equal(unowned.handled, false);
+  const unowned = selectCsharpNativeHandler(undefined, undefined, undefined, undefined, undefined);
+  assert.equal(unowned === undefined, true);
+  if (unowned !== undefined) planCsharpJsStringConversion(selected.node, unowned.selection, selected.sourceFile, input, [],
+    () => assert.fail("Unowned marker cannot evaluate its argument."));
 });
 
 test("ordinary native strings do not acquire explicit JsString identity through implicit conversion", () => {

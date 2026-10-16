@@ -450,7 +450,7 @@ function analyzeIteration(
     policy,
   );
   const sourceEvidence = evidence.index;
-  const operations = analyzeCsharpTargetOperations(policy, sourceEvidence, statementErasure);
+  const operations = analyzeCsharpTargetOperations(policy, sourceEvidence, statementErasure, sourceStorage.nodes, requiredRecords);
   const valueReadStages = analyzeCsharpValueReadStages(policy, sourceEvidence, operations);
   const typeProjections = analyzeCsharpTypeProjections(input.source, sourceEvidence, operations);
   const declarations = analyzeCsharpDeclarations(
