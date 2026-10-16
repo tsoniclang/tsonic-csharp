@@ -20,7 +20,7 @@ export const callablesCarrierRegistry: readonly TargetCarrierRegistryEntry<Targe
     id: "src/target-model/types/carriers/delegates.ts#csharpTaskTargetType",
     kinds: ["target-named"],
     declaration: { module: "src/target-model/types/carriers/delegates.ts", symbol: "csharpTaskTargetType" },
-    counterpart: { module: "src/target-model/types/carriers/js.ts", symbol: "rustJsPromiseTargetType" },
+    counterpart: { module: "src/target-model/types/carriers/promises.ts", symbol: "rustJsPromiseTargetType" },
     frozen: false,
   },
   {
