@@ -1,6 +1,7 @@
 import type { CsharpBlock } from "./statements.js";
 import type { CsharpTypeNode } from "./types.js";
 import type { CsharpNumericLiteralToken } from "../../../target-model/syntax/numeric-literals.js";
+import { csharpBigIntFitsSourcePrimitive } from "../../../target-model/syntax/numeric-literals.js";
 
 export type CsharpExpression =
   | CsharpTypeNode
@@ -164,11 +165,15 @@ export function csharpExpressionIsNativeNumericConstant(expression: CsharpExpres
     !Number.isFinite(expression.expression.value) || !Number.isInteger(expression.expression.value)) return false;
   switch (expression.type.name) {
     case "sbyte":
+      return csharpBigIntFitsSourcePrimitive(BigInt(expression.expression.value), "int8");
     case "byte":
+      return csharpBigIntFitsSourcePrimitive(BigInt(expression.expression.value), "uint8");
     case "short":
+      return csharpBigIntFitsSourcePrimitive(BigInt(expression.expression.value), "int16");
     case "ushort":
+      return csharpBigIntFitsSourcePrimitive(BigInt(expression.expression.value), "uint16");
     case "uint":
-      return true;
+      return csharpBigIntFitsSourcePrimitive(BigInt(expression.expression.value), "uint32");
     default:
       return false;
   }
