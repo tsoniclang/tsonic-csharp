@@ -73,6 +73,7 @@ for (const [name, expression] of [
 
 for (const [name, declarations, expression, parameter, expected] of [
   ["source enum member", "enum Level { Low = 0, High = 1 }", "Level.Low", "Level", "Level.Low"],
+  ["wide source enum member", "enum Level { High = 9007199254740993 }", "Level.High", "Level", "Level.High"],
   ["native numeric cast", "", "1.9 as int32", "int32", "(int)1.9"],
   ["native numeric promotion", "", "true ? Int32.MaxValue : 1.9", "number", "true ? System.Int32.MaxValue : 1.9"],
 ]) {

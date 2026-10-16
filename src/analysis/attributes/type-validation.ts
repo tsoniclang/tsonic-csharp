@@ -149,7 +149,7 @@ export function admitCsharpAttributeArguments(
         const declaration = source.navigation.referenceFor(node)?.declaration;
         const constant = declaration === undefined ? undefined : sourceEvidence.constantValue.get(declaration)?.value;
         if (declaration === undefined || ast.kindName(declaration) !== "KindEnumMember" ||
-          typeof constant !== "number" || !Number.isInteger(constant)) return false;
+          typeof constant !== "bigint") return false;
         break;
       }
       case "KindArrayLiteralExpression": {

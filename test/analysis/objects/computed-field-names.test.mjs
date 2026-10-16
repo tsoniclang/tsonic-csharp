@@ -19,15 +19,43 @@ const staticKeys = [
   { name: "parenthesized const", prelude: 'const key = "value";', key: "((key))", declarationKey: "key", ordinary: "value" },
   { name: "nonidentifier string", prelude: 'const key = "x-y";', key: "key", ordinary: '"x-y"' },
   { name: "empty string", prelude: 'const key = "";', key: "key", ordinary: '""' },
-  { name: "exact large integer literal", prelude: "", key: "9007199254740993", ordinary: "9007199254740993" },
-  { name: "exact large const integer", prelude: "const key = 9007199254740993;", key: "key", ordinary: "9007199254740993" },
+  { name: "exact large integer literal", prelude: "", key: "9007199254740993", ordinary: "9007199254740993", refused: true },
+  { name: "exact large const integer", prelude: "const key = 9007199254740993;", key: "key", ordinary: "9007199254740993", refused: true },
   { name: "destructured const string", prelude: 'const { key } = { key: "value" } as const;', key: "key", ordinary: "value" },
-  { name: "destructured const integer", prelude: "const [key] = [9007199254740993] as const;", key: "key", ordinary: "9007199254740993" },
-  { name: "destructured spread const integer", prelude: "const prefix = [1, 9007199254740993] as const; const [, key] = [...prefix, 3] as const;", key: "key", ordinary: "9007199254740993" },
+  { name: "destructured const integer", prelude: "const [key] = [9007199254740993] as const;", key: "key", ordinary: "9007199254740993", refused: true },
+  { name: "destructured spread const integer", prelude: "const prefix = [1, 9007199254740993] as const; const [, key] = [...prefix, 3] as const;", key: "key", ordinary: "9007199254740993", refused: true },
+  { name: "coherent wide integer", prelude: "", key: "9007199254740994", ordinary: "9007199254740994" },
+  { name: "coherent rounded binary integer spelling", prelude: "", key: "1152921504606847000", ordinary: "1152921504606847000" },
+  { name: "radix exponent spelling", prelude: "", key: "0x3635c9adc5dea00000", ordinary: "1e21", expected: "1e+21" },
   { name: "reserved native identifier", prelude: 'const key = "class";', key: "key", ordinary: '"class"' },
 ];
 
 for (const surface of [undefined, "js"]) {
+  test(`C# ${surface ?? "native"} struct fields share checked computed names with finalized FieldFact evidence`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import { field, struct } from "@tsonic/core/lang.js";
+const key = "value";
+export const Shape = struct({ ["ok"]: field<number>(), [key]: field<number>() });
+export type Shape = typeof Shape;
+export function read(value: Shape): number { return value.ok + value[key]; }
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    const output = [...compiled.artifacts.values()].join("\n");
+    assert.equal(output.includes("ok") && output.includes("value"), true, "both checked field names reach native generation");
+  });
+
+  test(`C# ${surface ?? "native"} computed names do not admit a non-field struct initializer`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import { struct } from "@tsonic/core/lang.js";
+export const Shape = struct({ ["bad"]: 1 });
+` });
+    assert.equal(compiled.extensionDiagnostics.some(issue => issue.numericCode === 9901109), true,
+      "the existing source-core field marker requirement remains authoritative");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true,
+      "a static name does not manufacture FieldFact type evidence");
+    assert.equal(compiled.result.artifacts.length, 0, "an invalid struct has no native artifacts");
+  });
+
   test(`C# ${surface ?? "native"} regular string enums are refused for ordinary and computed fields`, () => {
     for (const computed of [false, true]) {
       const compiled = compileCsharpSource({ surface, sourceText: `
@@ -47,7 +75,26 @@ export function make(): number {
     }
   });
   for (const current of staticKeys) {
-    test(`C# ${surface ?? "native"} admits ${current.name} as an ordinary exact field`, () => {
+    test(`C# ${surface ?? "native"} ${current.refused ? "refuses a conflicting checker identity for" : "admits"} ${current.name} as an ordinary exact field`, () => {
+      if (current.refused) {
+        for (const computed of [false, true]) {
+          const compiled = compileCsharpSource({ surface, sourceText: `
+${current.prelude}
+interface Holder { ${computed ? `[${current.declarationKey ?? current.key}]` : current.ordinary}: number; }
+export function make(): number {
+  const value: Holder = { ${computed ? `[${current.key}]` : current.ordinary}: 7 };
+  return value[${current.key}];
+}
+` });
+          assertCsharpCheckingSucceeded(compiled);
+          const issues = compiled.targetDiagnostics.filter(issue => issue.code === "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN");
+          assert.equal(issues.length > 0 && issues.every(issue => issue.message.includes("checker key") && issue.message.includes("exact string key")), true,
+            "every conflicting named identity has the precise shared admission reason");
+          assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true, "R1 rejects before sealing and planning");
+          assert.equal(compiled.result.artifacts.length, 0, "R1 emits no incorrect native field");
+        }
+        return;
+      }
       const compiled = compileCsharpSource({ surface, sourceText: `
 ${current.prelude}
 interface Holder { [${current.declarationKey ?? current.key}]: number; }
@@ -121,18 +168,31 @@ export function make(): number { return new Holder()[key](); }
     assertCsharpCompilationSucceeded(compiled);
   });
 
-  test(`C# ${surface ?? "native"} inferred objects retain exact large computed keys`, () => {
+  test(`C# ${surface ?? "native"} inferred objects refuse disagreeing large numeric names`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 export function make(): number {
   const value = { [9007199254740993]: 7 };
   return value[9007199254740993];
 }
 ` });
-    assertCsharpCompilationSucceeded(compiled);
-    assert.equal(compiled.result.program.objectShapes.knownShapes().some(shape => shape.members.some(member =>
-      member.sourceKey.kind === "property" && member.sourceKey.name === "9007199254740993")), true,
-    "inferred source field identity stays lossless");
+    assertCsharpCheckingSucceeded(compiled);
+    assert.equal(compiled.targetDiagnostics.filter(issue => issue.code === "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN").length, 2,
+      "the inferred declaration and member access both require the same coherent name");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true, "the disagreement is rejected before sealing");
+    assert.equal(compiled.result.artifacts.length, 0, "no rounded or unselectable native field is emitted");
   });
+
+  for (const key of ["-9007199254740993", "1152921504606846976", "18446744073709551616", "1.0000000000000001", "1e-400"]) {
+    test(`C# ${surface ?? "native"} refuses numeric named key ${key} without a representability cap`, () => {
+      const compiled = compileCsharpSource({ surface, sourceText: `export function make(): number { const value = { [${key}]: 1 }; return 0; }` });
+      assertCsharpCheckingSucceeded(compiled);
+      const issues = compiled.targetDiagnostics.filter(issue => issue.code === "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN");
+      assert.equal(issues.length === 1 && issues[0].message.includes("checker key") && issues[0].message.includes("exact string key"), true,
+        "one precise exact/checker name disagreement");
+      assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true, "the numeric mismatch is a pre-seal source rejection");
+      assert.equal(compiled.result.artifacts.length, 0, "no dynamic or rounded-key fallback is emitted");
+    });
+  }
 
   for (const current of [
     { name: "dynamic argument", source: 'export function make(key: string): number { const value = { [key]: 1 }; return 0; }' },
