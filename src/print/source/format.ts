@@ -43,7 +43,7 @@ export function printNumericLiteral(value: number, suffix: "F" | "D" | "M" | und
   if (Object.is(value, -0)) return "-0D";
   if (/^-?[0-9]+$/u.test(text)) {
     const integer = BigInt(text);
-    if (integer < -(1n << 63n) || integer >= 1n << 64n) return `${text}D`;
+    if (integer < -(1n << 63n) || integer > (1n << 63n) - 1n) return `${text}D`;
   }
   return text;
 }

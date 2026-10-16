@@ -144,20 +144,8 @@ function printPrefixUnaryOperand(
   expression: Extract<CsharpExpression, { readonly kind: "PrefixUnaryExpression" }>,
   context: CsharpPrintContext,
 ): string {
-  const { operand } = expression;
-  if (expression.operatorToken.kind !== "MinusToken") return printPostfixOperand(operand, context);
-  const unsuffixedNumber = operand.kind === "NumericLiteralExpression" && operand.suffix === undefined ||
-    operand.kind === "LiteralExpression" && typeof operand.value === "number" ? operand.value as number : undefined;
-  if (unsuffixedNumber !== undefined && printsAsUnsignedLongLiteral(unsuffixedNumber)) {
-    return printNumericLiteral(unsuffixedNumber, "D");
-  }
-  const printed = printPostfixOperand(operand, context);
-  return printed.startsWith("-") ? `(${printed})` : printed;
-}
-
-function printsAsUnsignedLongLiteral(value: number): boolean {
-  const text = printNumericLiteral(value, undefined);
-  return /^[0-9]+$/u.test(text) && BigInt(text) > 9223372036854775807n;
+  const printed = printPostfixOperand(expression.operand, context);
+  return expression.operatorToken.kind === "MinusToken" && printed.startsWith("-") ? `(${printed})` : printed;
 }
 
 function printPostfixOperand(

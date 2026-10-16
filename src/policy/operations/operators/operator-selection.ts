@@ -3,6 +3,7 @@ import { validateBinaryTargetSemantics, validateUnaryTargetSemantics, isCsharpRe
 import { selectCsharpAssignmentLocation } from "./assignment-location.js";
 
 import { selectCsharpGuardedIntegerPromotion } from "../numeric/guarded.js";
+import { csharpIntegralConstantOperationRejection } from "../numeric/constant-operations.js";
 import { selectCsharpGenericNumericOperation } from "../numeric/generic.js";
 import { resolveCsharpContextualLiteralCarrier } from "../../types/resolution/contextual-literals.js";
 import { sourceBooleanShortCircuitBranch as csharpBooleanShortCircuitBranch } from "@tsonic/target-api/source";
@@ -262,7 +263,9 @@ export function selectCsharpBinaryOperands(
         operationTypes.leftInputType,
         operationTypes.rightInputType,
         input,
-      )
+      ) ?? (stringRelational === undefined
+        ? csharpIntegralConstantOperationRejection(input, sourceOperator, left, right, operationTypes)
+        : undefined)
     : undefined;
   return incompatibility === undefined
     ? {

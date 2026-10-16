@@ -25,6 +25,9 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
 import {
+  csharpFloat64BinaryNeedsFloatingLiteral,
+  csharpFloat64LiteralOperand,
+  isCsharpFloat64Operand,
   planBinaryOperand,
 } from "./operands.js";
 import {
@@ -410,8 +413,9 @@ export function planSelectedCsharpBinaryOperation(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Generic numeric zero requires its sealed native type parameter."));
     return undefined;
   }
+  const float64Operation = isCsharpFloat64Operand(selection.leftInputType) && isCsharpFloat64Operand(selection.rightInputType);
   return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [left, right], values => {
-  if (input.program.records.int32Remainder.get(node)) {
+  if (input.program.records.int32Remainder.get(node) && isCsharpFloat64Operand(selection.resultType)) {
     const integer = csharpTypeFromTargetTypeRef({ kind: "source-primitive", name: "int32" }, input.scope.typeParameterNames)!;
     const number = csharpTypeFromTargetTypeRef({ kind: "source-primitive", name: "float64" }, input.scope.typeParameterNames)!;
     return {
@@ -428,10 +432,12 @@ export function planSelectedCsharpBinaryOperation(
       },
     };
   }
+  const floatingLiteral = float64Operation && csharpFloat64BinaryNeedsFloatingLiteral(binaryToken, values[0]!, values[1]!);
   return {
         kind: "BinaryExpression",
         left: operation.kind === "generic-numeric" && operation.zeroOperand === "left" && zeroType !== undefined
-          ? { kind: "SimpleMemberAccessExpression", receiver: zeroType, name: "Zero" } : values[0]!,
+          ? { kind: "SimpleMemberAccessExpression", receiver: zeroType, name: "Zero" }
+          : floatingLiteral ? csharpFloat64LiteralOperand(values[0]!) : values[0]!,
         operatorToken: binaryToken,
         right: operation.kind === "generic-numeric" && operation.zeroOperand === "right" && zeroType !== undefined
           ? { kind: "SimpleMemberAccessExpression", receiver: zeroType, name: "Zero" } : values[1]!,

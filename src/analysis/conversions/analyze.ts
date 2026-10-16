@@ -51,7 +51,7 @@ import { csharpSourceTypeParameter } from "../../target-model/names/type-paramet
 import { selectCsharpIntegerTruncationConversion } from "../../policy/conversions/integer-truncation.js";
 import { selectCsharpExactIntegerConversion } from "../../policy/conversions/exact-integer.js";
 import { selectCsharpExplicitNumericConstantConversion } from "../../policy/conversions/literals.js";
-import { csharpExplicitNumericConstant } from "./numeric-constants.js";
+import { csharpExplicitNumericConstant, csharpExplicitTupleConstantRejection } from "./numeric-constants.js";
 import { admitCsharpConversionSelection } from "./validation.js";
 import { selectCsharpPropertyProjections } from "./property-projections.js";
 import { createCsharpExactLiteralRequestCollector } from "./literal-requests.js";
@@ -704,8 +704,11 @@ export function analyzeCsharpConversions(
       candidate = selectCsharpExactIntegerConversion(source, target) ?? candidate;
     }
     const constant = mode === "explicit" && candidate.kind === "cast" && candidate.proof === "numeric"
-      ? csharpExplicitNumericConstant(policy, typeNode => evidence.nodeTargetType.get(typeNode), expression) : undefined;
+      ? csharpExplicitNumericConstant(policy, evidence.nodeTargetType.get, expression) : undefined;
     if (constant !== undefined) candidate = selectCsharpExplicitNumericConstantConversion(constant, target) ?? candidate;
+    if (mode === "explicit" && candidate.kind === "cast" && candidate.proof === "tuple") {
+      candidate = csharpExplicitTupleConstantRejection(policy, evidence.nodeTargetType.get, expression, target) ?? candidate;
+    }
     if ((candidate.kind === "rejected" || candidate.kind === "implicit") &&
       objectShapes.registerStructuralInterface(expression, source, target)) {
       candidate = { kind: "implicit", proof: "object-shape-interface" };

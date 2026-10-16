@@ -24,6 +24,7 @@ import {
   translateCsharpJsValueInvocation,
 } from "./js-value-operations.js";
 import { planCsharpExactLiteralConversion } from "./literal-conversions.js";
+import { csharpFloat64LiteralOperand, csharpFloat64NegationNeedsFloatingLiteral, isCsharpFloat64Operand } from "./operators/operands.js";
 import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpExpressionCompletion, projectCsharpPlannedValue } from "./planned-value-composition.js";
 
@@ -122,7 +123,8 @@ export function planPrefixUnaryExpression(
     : mapCsharpPlannedValue(operand, selection.resultType, value => ({
         kind: "PrefixUnaryExpression",
         operatorToken,
-        operand: value,
+        operand: operatorToken.kind === "MinusToken" && isCsharpFloat64Operand(selection.resultType) &&
+          csharpFloat64NegationNeedsFloatingLiteral(value) ? csharpFloat64LiteralOperand(value) : value,
       }));
 }
 
