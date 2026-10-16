@@ -5,6 +5,8 @@ import { csharpBinaryOperationUsesExpectedResultType } from "../../../dist/polic
 import { sourceOperatorFromKindName } from "../../../dist/target-model/syntax/operators.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { selectCsharpCallForm } from "../../../dist/policy/operations/members/selection/call-forms.js";
+import { planCsharpOptionalReceiverChain } from "../../../dist/backend/planner/expressions/target-members/selected-call/optional-chain.js";
 
 function recordedCalls(compiled) {
   const program = compiled.result.program;
@@ -224,7 +226,8 @@ test("call forms are published from checked evidence for every real native and J
       const form = call.classification.form;
       assert.equal(Object.isFrozen(form), true, `${name} ${call.text}: frozen form`);
       assert.equal(compiled.result.program.records.selectedCall.get(call.node).form === form, true, `${name} ${call.text}: lookup identity`);
-      assert.equal("typeTest" in call.classification || "sourceFlow" in call.classification, false, `${name} ${call.text}: superseded decision fields absent`);
+      assert.equal("typeTest" in call.classification || "sourceFlow" in call.classification || "jsValue" in call.classification, false,
+        `${name} ${call.text}: superseded decision fields absent`);
       assert.equal(call.classification.source?.call === call.node, true, `${name} ${call.text}: original source call`);
       if (form.kind === "keep-alive") {
         assert.equal(form.sourceFlow.valueExpression === call.classification.source.sourceArguments[0].expression, true,
@@ -284,4 +287,48 @@ test("selected call forms preserve native argument evaluation and do not add wra
   assert.equal(output.includes("global::System.GC.KeepAlive(global::Tsonic.Generated.Index.next())"), true, "direct native keep-alive argument");
   assert.equal(output.includes("global::Tsonic.Generated.Index.move(global::Tsonic.Generated.Index.next())"), true, "ordinary direct call");
   executeCsharpConstruction(compiled, "selected-call-form-owner");
+});
+
+test("optional-chain routing reads the canonical disposition even when another form beats a resolved JS operation", () => {
+  const node = Object.freeze({ label: "call" });
+  const receiver = Object.freeze({ label: "receiver" });
+  const type = Object.freeze({ kind: "source-primitive", name: "float64" });
+  const noFlow = { kind: "not-source-flow" };
+  const noJs = { kind: "not-js-value" };
+  let checked = 0;
+  for (const [name, typeTest, flow] of [
+    ["type test", { label: "type test" }, noFlow],
+    ["keep-alive", undefined, { kind: "keep-alive", valueExpression: receiver }],
+    ["source-flow refusal", undefined, { kind: "rejected", code: "CSHARP_SOURCE_FLOW_MARKER_UNSUPPORTED", reason: "marker" }],
+    ["ordinary form", undefined, noFlow],
+  ]) for (const operation of [noJs, { kind: "resolved", resultType: type }, { kind: "rejected", reason: "JS" }]) {
+    const form = selectCsharpCallForm(typeTest, flow, operation);
+    const classification = { form, selectedResultType: type, optionalReceiver: { expression: receiver, storage: type, type, guard: true } };
+    let receiverPlans = 0;
+    const diagnostics = [];
+    const result = planCsharpOptionalReceiverChain(node, {}, {
+      program: { records: { selectedCall: { get: subject => subject === node ? classification : undefined } },
+        source: { ast: { is: { IsCallExpression: () => false } } } },
+    }, diagnostics, () => { receiverPlans += 1; return undefined; }, () => undefined, () => { throw new Error("unreachable call renderer"); });
+    assert.equal(result.handled, operation.kind !== "resolved", `${name}/${operation.kind}: exact prior chain ownership`);
+    assert.equal(receiverPlans, operation.kind === "resolved" ? 0 : 1, `${name}/${operation.kind}: exact receiver planning count`);
+    assert.equal(diagnostics.length, 0, `${name}/${operation.kind}: no new refusal`);
+    checked += 1;
+  }
+  assert.equal(checked, 12, "all winning/losing JS overlap combinations were routed");
+});
+
+test("real optional JS and native calls retain one canonical call descriptor", () => {
+  for (const [name, options, expected] of [
+    ["native", { sourceText: `import type { int } from "@tsonic/csharp/types.js";
+      export function f(invoke: ((value: int) => int) | undefined): int | undefined { return invoke?.(1); }` }, "target"],
+    ["JS", { surface: "js", sourceText: `export function f(invoke: any): unknown { return invoke?.(1); }` }, "js-value"],
+  ]) {
+    const compiled = compiledWithoutDiagnostics(options);
+    const calls = recordedCalls(compiled);
+    assert.equal(calls.length, 1, `${name}: one optional invocation`);
+    assert.equal(calls[0].classification.form.kind, expected, name);
+    assert.equal("jsValue" in calls[0].classification, false, `${name}: no alternate raw call classification`);
+    assert.equal(compiled.artifacts.size > 0, true, `${name}: generated output is present`);
+  }
 });

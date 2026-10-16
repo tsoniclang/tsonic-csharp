@@ -31,27 +31,28 @@ for (const [name, selected, inputs] of [
   const form = selectCsharpCallForm(...inputs);
   assert.equal(form.kind, selected, name);
   assert.equal(Object.isFrozen(form), true, `${name}: frozen descriptor`);
+  assert.equal(form.optionalReceiverRouting, inputs[2].kind === "resolved" ? "call" : "chain", `${name}: exact optional routing predicate`);
 });
 
 test("call forms carry only their selected descriptor and preserve source identity", () => {
   const typeForm = selectCsharpCallForm(typeTest, noFlow, noJs);
-  assert.equal(Object.keys(typeForm).join(","), "kind,typeTest");
+  assert.equal(Object.keys(typeForm).join(","), "kind,typeTest,optionalReceiverRouting");
   assert.equal(typeForm.typeTest === typeTest, true, "selected type-test identity");
   const aliveForm = selectCsharpCallForm(undefined, keepAlive, noJs);
-  assert.equal(Object.keys(aliveForm).join(","), "kind,sourceFlow");
+  assert.equal(Object.keys(aliveForm).join(","), "kind,sourceFlow,optionalReceiverRouting");
   assert.equal(aliveForm.sourceFlow !== keepAlive && Object.isFrozen(aliveForm.sourceFlow), true, "frozen owned flow descriptor");
   assert.equal(aliveForm.sourceFlow.valueExpression === value, true, "original value expression identity");
   const refusedForm = selectCsharpCallForm(undefined, rejectedFlow, noJs);
-  assert.equal(Object.keys(refusedForm).join(","), "kind,sourceFlow");
+  assert.equal(Object.keys(refusedForm).join(","), "kind,sourceFlow,optionalReceiverRouting");
   assert.equal(refusedForm.sourceFlow !== rejectedFlow && Object.isFrozen(refusedForm.sourceFlow), true, "frozen owned rejection");
   assert.equal(refusedForm.sourceFlow.code === rejectedFlow.code && refusedForm.sourceFlow.reason === rejectedFlow.reason, true,
     "exact source refusal code and reason");
   for (const operation of [resolvedJs, rejectedJs]) {
     const form = selectCsharpCallForm(undefined, noFlow, operation);
-    assert.equal(Object.keys(form).join(","), "kind,operation");
+    assert.equal(Object.keys(form).join(","), "kind,operation,optionalReceiverRouting");
     assert.equal(form.operation === operation, true, "selected JS operation identity");
   }
-  assert.equal(Object.keys(selectCsharpCallForm(undefined, noFlow, noJs)).join(","), "kind");
+  assert.equal(Object.keys(selectCsharpCallForm(undefined, noFlow, noJs)).join(","), "kind,optionalReceiverRouting");
 });
 
 test("keep-alive evidence conflicts retain their own rejection, never a JS or target fallback", () => {
