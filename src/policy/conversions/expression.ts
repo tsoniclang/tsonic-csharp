@@ -99,7 +99,15 @@ export function selectCsharpExpressionConversion(
       };
     }
   }
-  return csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(expression), target)
+  const literal = input.literalValues.literalValue.get(expression);
+  const targetPrimitive = getCsharpNullableElementTargetType(target) ?? target;
+  if (source?.kind === "source-primitive" && source.name === "float64" &&
+    targetPrimitive.kind === "source-primitive" &&
+    literal?.numeric?.kind === "checked-float64" && Number.isFinite(literal.numeric.value) &&
+    (targetPrimitive.name === "float32" || targetPrimitive.name === "decimal" && Math.abs(literal.numeric.value) < 2 ** 96)) {
+    return { kind: "implicit", proof: "checked-floating-literal" };
+  }
+  return csharpLiteralIsRepresentableAs(literal, target)
     ? { kind: "implicit", proof: "literal" }
     : selected;
 }

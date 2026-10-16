@@ -38,6 +38,7 @@ export type CsharpConversionSelection =
       readonly proof:
         | "numeric"
         | "literal"
+        | "checked-floating-literal"
         | "lambda-quotation"
         | "nullable"
         | "reference"

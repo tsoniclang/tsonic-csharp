@@ -9,6 +9,7 @@ import { csharpNullableTargetType } from "../../../dist/target-model/types/carri
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.mjs";
 import { callEvidence, directProviderHost, providerBinding, providerDeclaration, providerFact, providerMethod,
   selectCsharpProviderCall, signatureRelation, targetParameter } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
 
@@ -66,6 +67,26 @@ test("exact literal selections are materialized once per canonical key and publi
   assert.deepEqual(Object.keys(index.exactLiteral), ["get"], "get-only family");
   requests.push(Object.freeze({ expression: node, target: primitive("uint64") }));
   assert.equal(index.exactLiteral.get(node, primitive("uint64")), undefined, "requests after materialization are not read");
+});
+
+test("exact native token plans are frozen once without treating a refused candidate as an actual use", () => {
+  const [value] = checkedSourceLiteralValues(["1e39"]);
+  const node = Object.freeze({});
+  const index = analyzeCsharpExactLiteralSelections(literals([[node, value]]), [
+    { expression: node, target: primitive("float32") }, { expression: node, target: primitive("float64") },
+    { expression: node, target: primitive("float32") },
+  ]);
+  assert.deepEqual(index.exactLiteral.get(node, primitive("float32")),
+    { kind: "rejected", reason: "Source numeric literal is outside the 'float32' range." });
+  assert.deepEqual(index.exactLiteral.get(node, primitive("float64")), { kind: "source-representation" });
+  assert.equal(index.exactLiteral.get(node, primitive("float32")) === index.exactLiteral.get(node, primitive("float32")), true,
+    "duplicate requests read one materialized selection");
+  const [decimal] = checkedSourceLiteralValues(["9007199254740993"]);
+  const exact = analyzeCsharpExactLiteralSelections(literals([[node, decimal]]), [{ expression: node, target: primitive("decimal") }]);
+  const selected = exact.exactLiteral.get(node, primitive("decimal"));
+  assert.equal(selected.kind === "resolved" && selected.recipe.token.significand === "9007199254740993", true,
+    "a selected native decimal keeps its authored value above 2^53");
+  assert.equal(Object.isFrozen(selected.recipe.token), true, "the token is immutable published data");
 });
 
 test("exact literal requests come from literal reads, the unary result and every literal step of a prepared conversion", () => {
