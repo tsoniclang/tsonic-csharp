@@ -1,10 +1,10 @@
 import type { Node } from "@tsonic/tsts";
-import { failTargetPlannerInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionSelection } from "../../../analysis/conversions/index.js";
 import { getCsharpNullableElementTargetType, type TargetTypeRef } from "../../../target-model/types/index.js";
 import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
 
@@ -22,7 +22,7 @@ export function planCsharpUnionMapping(
   const sourceUnion = sourceElement ?? source;
   const targetUnion = targetElement ?? target;
   if (sourceUnion === undefined || targetUnion === undefined) {
-    return failTargetPlannerInvariant("tsonic-csharp",
+    return failCsharpPlannerInvariant(
       "Union conversion requires exact sealed arm coverage and native absence correspondence.", node);
   }
   const resultType = target === undefined ? undefined : csharpTypeFromTargetTypeRef(target, input.scope.typeParameterNames);

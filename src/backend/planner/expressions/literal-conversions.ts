@@ -1,7 +1,7 @@
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type {
   Node,
 } from "@tsonic/tsts";
-import { failTargetPlannerInvariant } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
 } from "../../target-ast/syntax/index.js";
@@ -26,7 +26,7 @@ export function planCsharpExactLiteralConversion(
 ): CsharpExactLiteralConversionPlan {
   const selection = input.program.records.exactLiteral.get(node, target);
   if (selection === undefined) {
-    return failTargetPlannerInvariant("tsonic-csharp",
+    return failCsharpPlannerInvariant(
       "C# literal planning requires the sealed exact-literal selection of its requested target.", node);
   }
   return selection.kind === "resolved" ? renderRecipe(input.scope.typeParameterNames, selection.recipe) : selection;

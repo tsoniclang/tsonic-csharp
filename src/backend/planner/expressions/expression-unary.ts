@@ -2,7 +2,7 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import { failTargetPlannerInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpResolvedUnaryOperation } from "../../../target-model/records/operator-selection.js";
 import {
   sourceOperatorFromKindName,
@@ -15,6 +15,7 @@ import {
   csharpPrefixUnaryOperatorTokenFromText,
 } from "./csharp-operator-tokens.js";
 import {
+  failCsharpPlannerInvariant,
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import type {
@@ -231,7 +232,7 @@ function planUnaryOperand(
   while (input.program.source.ast.is.IsParenthesizedExpression(storageExpression)) {
     const inner = input.program.source.ast.as.AsParenthesizedExpression(storageExpression)?.Expression;
     if (inner === undefined) {
-      failTargetPlannerInvariant("tsonic-csharp", "A selected parenthesized native update location has no operand.", storageExpression);
+      failCsharpPlannerInvariant("A selected parenthesized native update location has no operand.", storageExpression);
     }
     storageExpression = inner;
   }

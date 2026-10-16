@@ -1,12 +1,12 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { failTargetPlannerInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionSelection } from "../../../analysis/conversions/index.js";
 import type { CsharpDelegateSignatureShape, TargetTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, csharpDelegateSignaturesMatchNativeBinding, getCsharpDelegateSignature, getCsharpNullableElementTargetType, isCsharpVoidTargetType } from "../../../target-model/types/index.js";
 import type { CsharpArgument, CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planCsharpVoidReturn } from "../statements/statement-output.js";
 import type { applyCsharpConversionSelection } from "./conversions.js";
@@ -39,7 +39,7 @@ export function planCsharpDelegateAdapter(
       selection.parameterConversions.some(conversion => conversion.kind !== "identity") ||
       selection.returnConversion.kind !== "identity" && !(selection.returnConversion.kind === "void-return" &&
         isCsharpVoidTargetType(sourceSignature.returnType) && isCsharpVoidTargetType(targetSignature.returnType))) {
-      return failTargetPlannerInvariant("tsonic-csharp",
+      return failCsharpPlannerInvariant(
         "A sealed native delegate binding requires identical parameter and return passing signatures.", node);
     }
     if (expression.kind === "LambdaExpression") {
@@ -62,7 +62,7 @@ export function planCsharpDelegateAdapter(
     }] };
   }
   if (selection.strategy !== "adaptation") {
-    return failTargetPlannerInvariant("tsonic-csharp", "Delegate conversion requires a sealed native binding or adaptation strategy.", node);
+    return failCsharpPlannerInvariant("Delegate conversion requires a sealed native binding or adaptation strategy.", node);
   }
   const identity = sourceType === undefined || targetType === undefined || input.scope.delegateAdapters === undefined
     ? undefined : input.program.records.delegateAdapter.get(node, sourceType, targetType);
@@ -70,7 +70,7 @@ export function planCsharpDelegateAdapter(
     const name = input.scope.delegateAdapters?.get(identity);
     if (name === undefined ||
       !targetTypeRefEquals(identity.source, sourceType!) || !targetTypeRefEquals(identity.target, targetType!)) {
-      return failTargetPlannerInvariant("tsonic-csharp",
+      return failCsharpPlannerInvariant(
         "A retained native delegate adapter requires its exact sealed conversion and lexical declaration.", node);
     }
     return { kind: "ObjectCreationExpression", type: targetDelegateType,
@@ -192,12 +192,12 @@ function readDelegateAdapterContract(node: Node, input: CsharpPlanningContext, d
     !csharpDelegateSignatureHasSupportedPassingModes(targetSignature) ||
     sourceSignature.parameters.length > targetSignature.parameters.length ||
     selection.parameterConversions.length !== sourceSignature.parameters.length) {
-    return failTargetPlannerInvariant("tsonic-csharp", "C# delegate adaptation requires exact renderable source and target signatures.", node);
+    return failCsharpPlannerInvariant("C# delegate adaptation requires exact renderable source and target signatures.", node);
   }
   if (selection.strategy === "adaptation" && (sourceSignature.returnPassing !== undefined || targetSignature.returnPassing !== undefined ||
     sourceSignature.parameterPassingModes.some(mode => mode !== "by-value") ||
     targetSignature.parameterPassingModes.some(mode => mode !== "by-value"))) {
-    return failTargetPlannerInvariant("tsonic-csharp", "Delegate adaptation cannot change or wrap native by-reference passing.", node);
+    return failCsharpPlannerInvariant("Delegate adaptation cannot change or wrap native by-reference passing.", node);
   }
   const sourceDelegateType = csharpTypeFromTargetTypeRef(sourceType, input.scope.typeParameterNames);
   const targetDelegateType = csharpTypeFromTargetTypeRef(getCsharpNullableElementTargetType(targetType) ?? targetType, input.scope.typeParameterNames);

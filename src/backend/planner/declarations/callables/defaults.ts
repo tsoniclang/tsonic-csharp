@@ -1,5 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { failTargetPlannerInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { DestructuringPlannerState } from "../../bindings/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
@@ -10,7 +10,7 @@ import { planCsharpBindingDefaultValue } from "../../bindings/optional-values.js
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import type { CsharpDefaultParameterContract } from "../../../../target-model/records/declarations.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../../diagnostics.js";
 
 type CsharpRuntimeParameterDefaultPlan = {
   readonly valueType: CsharpTypeNode;
@@ -31,7 +31,7 @@ export function planCsharpRuntimeParameterDefault(
 ): CsharpRuntimeParameterDefaultPlan | undefined {
   const contract = input.program.records.runtimeDefault.get(node);
   if (contract === undefined) {
-    return failTargetPlannerInvariant("tsonic-csharp", "A runtime parameter default requires its sealed contract.", node);
+    return failCsharpPlannerInvariant("A runtime parameter default requires its sealed contract.", node);
   }
   const incomingType = selectedParameterType ?? contract.parameterType;
   const initialDiagnosticCount = diagnostics.length;
@@ -55,7 +55,7 @@ function planRuntimeParameterDefault(
 ): CsharpRuntimeParameterDefaultPlan | undefined {
   const declaration = input.program.source.ast.as.AsParameterDeclaration(node);
   if (declaration?.Initializer === undefined) {
-    return failTargetPlannerInvariant("tsonic-csharp",
+    return failCsharpPlannerInvariant(
       "A runtime parameter default contract requires its authored parameter initializer.", node);
   }
   const valueType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, contract.valueType, diagnostics, node);
