@@ -197,6 +197,10 @@ export function applyCsharpConversionSelection(
     case "empty-record":
       return planCsharpEmptyRecordConversion(input.scope.typeParameterNames, selection, sourceType, targetType, expression);
     case "implicit":
+      if (selection.proof === "checked-floating-literal") {
+        const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
+        return type === undefined ? undefined : { kind: "CastExpression", type, expression };
+      }
       if (selection.proof === "literal") {
         const literal = planCsharpExactLiteralConversion(input, node, targetType);
         if (literal.kind === "resolved") {
