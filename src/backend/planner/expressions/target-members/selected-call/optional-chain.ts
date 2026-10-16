@@ -37,7 +37,7 @@ export function planCsharpOptionalReceiverChain(
     if (!input.program.source.ast.is.IsCallExpression(current)) break;
   }
   const result = chain[0]?.classification.selectedResultType;
-  if (chain.length === 1 && chain[0]?.classification.jsValue.kind === "resolved") return { handled: false };
+  if (chain.length === 1 && chain[0]?.classification.form.optionalReceiverRouting === "call") return { handled: false };
   if (!chain.some(entry => entry.selected.guard)) {
     return { handled: false };
   }

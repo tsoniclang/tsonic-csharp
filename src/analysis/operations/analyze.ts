@@ -465,7 +465,6 @@ function visit(
         sourceResult: policy.types.resolveSourceCallResult(source, sourceFile,
           target?.kind === "resolved" ? target.call.targetMember.returnType : undefined),
       }),
-      jsValue,
       ...(target === undefined ? {} : { target }),
       ...(selectedResultType === undefined ? {} : { selectedResultType }),
       ...target?.kind === "resolved"
