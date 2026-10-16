@@ -14,7 +14,8 @@ test("the C# root reads its selected descriptor once and never queries a losing 
     import type { int32 } from "@tsonic/core/types.js";
     export function read(pointer: ptr<int32>): int32 { return unsafe(loadnativeptr(pointer)); }
   `, targetOptions: { languageDialect: "csharp15-preview" } });
-  assert.equal(compiled.result.diagnostics.length, 0);
+  assert.equal(compiled.result.diagnostics.length === 0, true,
+    `checked native-handler source; codes: ${compiled.result.diagnostics.map(({ code }) => code).join(", ")}`);
   const program = compiled.result.program;
   const { ast } = program.source;
   let call;
@@ -23,23 +24,25 @@ test("the C# root reads its selected descriptor once and never queries a losing 
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   program.sourceFiles.forEach(visit);
-  assert.equal(call !== undefined, true);
+  assert.equal(call !== undefined, true, "the exact unsafe call is present");
   const selected = Object.freeze({ kind: "native-pointer", selection: Object.freeze({ kind: "layout-query", value: 0 }) });
   let reads = 0;
   const records = new Proxy({ ...program.records, nativeHandler: { get(node) {
     if (node === call) { reads++; return selected; }
     return program.records.nativeHandler.get(node);
   } } }, { get(value, name) {
-    assert.equal(["memoryBinding", "nativePointer", "typedLocation", "jsStringConversion"].includes(name), false, `no raw native query: ${String(name)}`);
+    assert.equal(!["memoryBinding", "nativePointer", "typedLocation", "jsStringConversion"].includes(name), true,
+      `no raw native query: ${String(name)}`);
     return value[name];
   } });
   const diagnostics = [];
   const planned = planExpression(call, ast.getSourceFile(call), createCsharpPlanningContext({ ...program, records }), diagnostics);
-  assert.equal(planned?.completion.kind, "value");
-  assert.equal(planned.completion.expression.kind, "NumericLiteralExpression");
-  assert.equal(planned.completion.expression.value, 0);
-  assert.equal(reads, 1);
-  assert.deepEqual(diagnostics, []);
+  assert.equal(planned?.completion.kind === "value", true, "the selected layout has a value completion");
+  assert.equal(planned.completion.expression.kind === "NumericLiteralExpression", true, "the layout emits native numeric syntax");
+  assert.equal(planned.completion.expression.value === 0, true, "zero layout is retained");
+  assert.equal(reads === 1, true, "the root reads the selected descriptor exactly once");
+  assert.equal(diagnostics.length === 0, true,
+    `selected layout diagnostics; codes: ${diagnostics.map(({ code }) => code).join(", ")}`);
 });
 
 test("a selected memory operand may fail but never delegates to a second renderer", () => {
@@ -49,18 +52,21 @@ test("a selected memory operand may fail but never delegates to a second rendere
   const records = new Proxy({}, { get: (_, name) => assert.fail(`No raw applicability query: ${String(name)}`) });
   const selected = { kind: "field", expression: operand };
   const planned = planCsharpMemoryBinding({}, selected, {}, { program: { records } }, diagnostics, node => {
-    calls++; assert.equal(node === operand, true); return undefined;
+    calls++; assert.equal(node === operand, true, "the selected memory operand retains source identity"); return undefined;
   });
-  assert.equal(planned === undefined, true);
-  assert.equal(calls, 1);
-  assert.deepEqual(diagnostics, []);
+  assert.equal(planned === undefined, true, "a failed selected operand has no planned expression");
+  assert.equal(calls === 1, true, "the failed selected operand is visited once without fallback");
+  assert.equal(diagnostics.length === 0, true,
+    `failed selected operand diagnostics; codes: ${diagnostics.map(({ code }) => code).join(", ")}`);
 });
 
 test("selected safety rejection remains the original source diagnostic rather than an internal invariant", () => {
   const diagnostics = [];
   const selected = { kind: "safety-builder", fact: { kind: "builder-state" } };
   assert.equal(planCsharpExplicitSafetyExpression({}, selected, {}, {}, diagnostics, undefined,
-    () => assert.fail("a rejected safety marker has no operand")) === undefined, true);
-  assert.equal(diagnostics.length, 1);
-  assert.equal(diagnostics[0].code, "CSHARP_SAFETY_MARKER_RUNTIME_POSITION_UNSUPPORTED");
+    () => assert.fail("a rejected safety marker has no operand")) === undefined, true,
+    "the selected safety builder preserves its source rejection");
+  assert.equal(diagnostics.length === 1, true, "the selected safety builder emits exactly one diagnostic");
+  assert.equal(diagnostics[0].code === "CSHARP_SAFETY_MARKER_RUNTIME_POSITION_UNSUPPORTED", true,
+    `the original safety source code is retained: ${diagnostics[0].code}`);
 });
