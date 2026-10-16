@@ -39,14 +39,14 @@ const input = selected => ({ ast, evidence: { compileTimeMetadata: no, sourceArg
 
 test("source method runtime order differs from planning order without a copied argument binder", () => {
   const selected = selectCsharpNativeOperandUses(input(classification({ kind: "grouped", arguments: [record], groups: [] })), call);
-  assert.equal(selected.refusal === undefined, true);
-  assert.deepEqual(selected.runtime.map(use => text(use.expression)), ["receiver()", "argument()"]);
-  assert.deepEqual(selected.planning.map(step => text(step.use.expression)), ["argument()", "receiver()"]);
+  assert.equal(selected.refusal === undefined, true, "native-use-order:42: selected.refusal === undefined");
+  assert.deepEqual(selected.runtime.map(use => text(use.expression)), ["receiver()", "argument()"], "native-use-order:43: selected.runtime.map(use => text(use.expression))");
+  assert.deepEqual(selected.planning.map(step => text(step.use.expression)), ["argument()", "receiver()"], "native-use-order:44: selected.planning.map(step => text(step.use.expression))");
   const slot = selected.runtime[1].slot;
-  assert.equal(slot.sourceIndex === 0 && slot.effectiveIndex === 0 && slot.parameterIndex === 0 && slot.sourceParameterIndex === 0, true);
+  assert.equal(slot.sourceIndex === 0 && slot.effectiveIndex === 0 && slot.parameterIndex === 0 && slot.sourceParameterIndex === 0, true, "native-use-order:46: slot.sourceIndex === 0 && slot.effectiveIndex === 0 && slot.parameterIndex === 0 && slot.s");
   for (const kind of ["refused", "unresolved", "inconsistent"]) {
     const refused = selectCsharpNativeOperandUses(input(classification({ kind, reason: kind })), call);
-    assert.equal(refused.refusal, `argument-${kind}`);
+    assert.equal(refused.refusal, `argument-${kind}`, "native-use-order:49: refused.refusal");
     assert.equal(refused.runtime.length + refused.planning.length, 0, `${kind}: no accepted prefix or positional fallback`);
   }
 });
@@ -58,7 +58,7 @@ test("a selected native handler owns the runtime operands without asking the los
   value.operations.memoryBinding = { get: () => assert.fail("raw native applicability reader") };
   const selected = selectCsharpNativeOperandUses(value, call);
   assert.equal(selected.refusal === undefined && selected.runtime.length === 1 && selected.runtime[0].expression === argument &&
-    selected.runtime[0].slot.kind === "intrinsic-operand" && selected.runtime[0].slot.operand === "value", true);
+    selected.runtime[0].slot.kind === "intrinsic-operand" && selected.runtime[0].slot.operand === "value", true, "native-use-order:61: selected.refusal === undefined && selected.runtime.length === 1 && selected.runtime[0].exp");
 });
 
 test("callable bodies have compilation work but never become creation-time runtime operands", () => {
@@ -67,7 +67,7 @@ test("callable bodies have compilation work but never become creation-time runti
   value.callableCreation = { get: () => ({ kind: "selected", carrier: scalar }) };
   const selected = selectCsharpNativeOperandUses(value, arrow);
   assert.equal(selected.flow === "creation" && selected.runtime.length === 0 && selected.planning.length === 1 &&
-    selected.planning[0].kind === "construct" && selected.planning[0].node === arrow, true);
+    selected.planning[0].kind === "construct" && selected.planning[0].node === arrow, true, "native-use-order:70: selected.flow === \"creation\" && selected.runtime.length === 0 && selected.planning.length ");
 });
 
 test("completion distinguishes mandatory, alternative, guarded and creation-time dependencies", () => {

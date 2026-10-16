@@ -132,13 +132,13 @@ test("binding traversal consumes final participation and skips the complete unus
   }
   const selected = findNode(program, "KindBindingElement", "present = (() => { const [defaulted] = pair; return defaulted; })()");
   const fact = projection.get(selected);
-  assert.equal(fact?.element?.tupleDefault?.kind, "unused");
+  assert.equal(fact?.element?.tupleDefault?.kind, "unused", "binding-patterns:135: fact?.element?.tupleDefault?.kind");
   assert.equal(Object.isFrozen(fact) && Object.isFrozen(fact.element) && projection.get(selected) === fact, true,
     "final lookup retains immutable identity");
   let reads = 0;
   const foreign = Object.defineProperty({}, "kind", { get() { reads += 1; throw Error("foreign syntax read"); } });
   assert.equal(projection.get(foreign) === undefined, true, "the sealed lookup does not inspect foreign syntax");
-  assert.equal(reads, 0);
+  assert.equal(reads, 0, "binding-patterns:141: reads");
 });
 
 test("object and tuple rest facts preserve finalized member identities and nested projections", () => {
@@ -156,7 +156,7 @@ test("object and tuple rest facts preserve finalized member identities and neste
   assert.equal(rest?.kind === "object-shape-rest" && rest.members.length === 1 && rest.members[0].source.sourceName === "second" &&
     rest.members[0].rest.sourceName === "second", true, "rest uses exact source and destination members");
   const tail = analysis.bindingPatternProjection.get(findNode(program, "KindBindingElement", "...tail"))?.element;
-  assert.equal(tail?.kind === "tuple-rest" && tail.start === 1 && tail.restCarrier.elements.length === 1, true);
+  assert.equal(tail?.kind === "tuple-rest" && tail.start === 1 && tail.restCarrier.elements.length === 1, true, "binding-patterns:159: tail?.kind === \"tuple-rest\" && tail.start === 1 && tail.restCarrier.elements.length === 1");
   const head = analysis.bindingPatternProjection.get(findNode(program, "KindBindingElement", "head"))?.element;
   assert.equal(head?.kind === "array-element" && head.index === 0, true, "nested tuple projection uses its produced carrier");
 });
@@ -174,7 +174,7 @@ test("missing loop-head evidence keeps the actual for-of root private until dema
   const loop = findNode(program, "KindForOfStatement", "for (const [left, right] of rows) total += left + right;");
   const analysis = analyzeCsharpBindingPatterns({ ...input,
     valueReads: { valueRead: { get: node => node === head ? undefined : input.valueReads.valueRead.get(node) } } });
-  assert.equal(analysis.candidates.length, 1);
+  assert.equal(analysis.candidates.length, 1, "binding-patterns:177: analysis.candidates.length");
   assert.equal(analysis.candidates[0].root === loop && Object.isFrozen(analysis.candidates[0]) &&
     Object.isFrozen(analysis.candidates[0].evidence), true, "loop-root candidate is precise and private");
   assert.equal(Object.hasOwn(analysis, "issues"), false, "candidate issues are not globally aggregated");

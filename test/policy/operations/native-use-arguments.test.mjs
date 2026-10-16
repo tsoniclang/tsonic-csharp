@@ -11,11 +11,11 @@ const targetArgument = (sourceArgumentIndex, effectiveArgumentIndex, targetParam
 test("selected target bindings retain tuple expansion, mapped parameters and each distinct effective use", () => {
   const selected = csharpSelectedTargetArgumentBindings({ arguments: [
     targetArgument(0, 0, 2), targetArgument(1, 1, 0, "spread-element"), targetArgument(1, 2, 1, "spread-element") ] });
-  assert.equal(selected.kind, "bound");
+  assert.equal(selected.kind, "bound", "native-use-arguments:14: selected.kind");
   assert.deepEqual(selected.bindings.map(entry => [entry.sourceArgumentIndex, entry.slot.effectiveIndex, entry.slot.parameterIndex, entry.sequence]),
-    [[0, 0, 2, false], [1, 1, 0, false], [1, 2, 1, false]]);
+    [[0, 0, 2, false], [1, 1, 0, false], [1, 2, 1, false]], "native-use-arguments:16: selected.bindings.map(entry => [entry.sourceArgumentIndex, entry.slot.effectiveIndex, entr");
   assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.bindings) &&
-    selected.bindings.every(entry => Object.isFrozen(entry) && Object.isFrozen(entry.slot)), true);
+    selected.bindings.every(entry => Object.isFrozen(entry) && Object.isFrozen(entry.slot)), true, "native-use-arguments:18: Object.isFrozen(selected) && Object.isFrozen(selected.bindings) && selected.bindings.every");
 });
 
 test("sequence bindings retain one operand without overlooking a contradictory later element or missing tail", () => {
@@ -23,7 +23,7 @@ test("sequence bindings retain one operand without overlooking a contradictory l
   const selected = csharpSelectedTargetArgumentBindings({ sequenceArguments,
     arguments: [targetArgument(0, 0, 1, "spread-element"), targetArgument(0, 1, 1, "spread-element")] });
   assert.equal(selected.kind === "bound" && selected.bindings.length === 1 && selected.bindings[0].sequence &&
-    selected.bindings[0].slot.effectiveIndex === 0, true);
+    selected.bindings[0].slot.effectiveIndex === 0, true, "native-use-arguments:26: selected.kind === \"bound\" && selected.bindings.length === 1 && selected.bindings[0].sequen");
   for (const [name, call] of [
     ["contradictory later element", { sequenceArguments, arguments: [targetArgument(0, 0, 1), targetArgument(0, 1, 2)] }],
     ["duplicate exact source/effective", { arguments: [targetArgument(0, 0, 1), targetArgument(0, 0, 2)] }],
@@ -40,7 +40,7 @@ test("an admitted empty sequence and the following value retain distinct source 
     sequenceArguments: [{ sourceArgumentIndex: 0, targetParameterIndex: 0, elements: [] }],
     arguments: [targetArgument(0, 0, 0, "spread-sequence"), targetArgument(1, 0, 0)],
   });
-  assert.equal(selected.kind === "bound" && selected.bindings.length === 2, true);
+  assert.equal(selected.kind === "bound" && selected.bindings.length === 2, true, "native-use-arguments:43: selected.kind === \"bound\" && selected.bindings.length === 2");
   assert.deepEqual(selected.bindings.map(binding => [binding.slot.sourceIndex, binding.slot.effectiveIndex, binding.sequence]),
     [[0, 0, true], [1, 0, false]], "selected rest-sequence producer's empty-tuple sentinel does not collide with the value");
 });
@@ -59,9 +59,9 @@ test("source use projection consumes the actual U4 grouping with no second bindi
   const input = sourceInput();
   const grouping = selectCsharpSourceArgumentGrouping(input.source, input.parameters, input.types, input.slots);
   const selected = csharpSourceOwnedArgumentBindings(grouping);
-  assert.equal(selected.kind, "bound");
+  assert.equal(selected.kind, "bound", "native-use-arguments:62: selected.kind");
   assert.deepEqual(selected.bindings.map(entry => entry.slot), [0, 1].map(index => ({ kind: "argument", sourceIndex: index,
-    effectiveIndex: index, parameterIndex: index, sourceParameterIndex: index })));
+    effectiveIndex: index, parameterIndex: index, sourceParameterIndex: index })), "native-use-arguments:64: selected.bindings.map(entry => entry.slot)");
   for (const [name, parameters, types] of [["missing type", input.parameters, [scalar, undefined]],
     ["native arity refusal", input.parameters.slice(0, 1), input.types]]) {
     const refused = selectCsharpSourceArgumentGrouping(input.source, parameters, types, input.slots);
@@ -70,8 +70,8 @@ test("source use projection consumes the actual U4 grouping with no second bindi
   }
   const invalidSource = { ...input.source, sourceArgumentBindings: input.source.sourceArgumentBindings.slice(0, 1) };
   const inconsistent = selectCsharpSourceArgumentGrouping(invalidSource, input.parameters, [scalar], input.slots);
-  assert.equal(csharpSourceOwnedArgumentBindings(inconsistent) === inconsistent && inconsistent.kind === "inconsistent", true);
-  assert.equal(csharpSourceOwnedArgumentBindings(undefined).kind, "unresolved");
+  assert.equal(csharpSourceOwnedArgumentBindings(inconsistent) === inconsistent && inconsistent.kind === "inconsistent", true, "native-use-arguments:73: csharpSourceOwnedArgumentBindings(inconsistent) === inconsistent && inconsistent.kind === ");
+  assert.equal(csharpSourceOwnedArgumentBindings(undefined).kind, "unresolved", "native-use-arguments:74: csharpSourceOwnedArgumentBindings(undefined).kind");
 });
 
 test("a source rest sequence is projected from its admitted sourceForm rather than an invented spread field", () => {
@@ -81,5 +81,5 @@ test("a source rest sequence is projected from its admitted sourceForm rather th
   ]) });
   const selected = csharpSourceOwnedArgumentBindings(grouping);
   assert.equal(selected.kind === "bound" && selected.bindings[0].sequence && selected.bindings[0].slot.sourceParameterIndex === 0 &&
-    selected.bindings[0].slot.parameterIndex === 1, true);
+    selected.bindings[0].slot.parameterIndex === 1, true, "native-use-arguments:84: selected.kind === \"bound\" && selected.bindings[0].sequence && selected.bindings[0].slot.so");
 });

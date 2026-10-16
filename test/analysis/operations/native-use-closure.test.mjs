@@ -55,13 +55,13 @@ test("an alternative never does not erase the other branch or a callable creatio
     export const callback: () => never = () => fail();`);
   const arrow = value.nodes.find(node => value.ast.is.IsArrowFunction(node));
   const carrier = value.records.valueRead.get(arrow)?.value;
-  assert.equal(carrier !== undefined, true);
+  assert.equal(carrier !== undefined, true, "native-use-closure:58: carrier !== undefined");
   const demand = analyzeCsharpNativeDemand({ ...value.input, callableCreation: { get: node => node === arrow ? { kind: "selected", carrier } : undefined } });
   const conditional = demand.entries.find(entry => entry.use.kind !== "erased" && entry.use.evaluation.kind === "conditional");
-  assert.equal(conditional !== undefined && conditional.use.completion.kind === "value", true);
+  assert.equal(conditional !== undefined && conditional.use.completion.kind === "value", true, "native-use-closure:61: conditional !== undefined && conditional.use.completion.kind === \"value\"");
   const creation = demand.entries.find(entry => entry.use.expression === arrow);
   assert.equal(creation !== undefined && creation.use.kind !== "erased" && creation.use.evaluation.kind === "creation" &&
-    creation.use.completion.kind === "value" && creation.use.children.length === 0, true);
+    creation.use.completion.kind === "value" && creation.use.children.length === 0, true, "native-use-closure:64: creation !== undefined && creation.use.kind !== \"erased\" && creation.use.evaluation.kind =");
   assert.equal(demand.nativeUse.order(arrow)?.length > 0, true, "the body is still in compilation order");
 });
 
@@ -80,8 +80,8 @@ test("a physical collection carrier survives a never completion before its outer
   const demand = analyzeCsharpNativeDemand({ ...value.input, expected });
   const constructed = demand.nativeUse.get(stage);
   const converted = demand.nativeUse.get(site);
-  assert.equal(constructed?.kind === "constructed" && constructed.carrier === carrier && constructed.completion.kind === "never", true);
-  assert.equal(converted?.kind === "converted" && converted.carrier === carrier && converted.target === target && converted.completion.kind === "never", true);
+  assert.equal(constructed?.kind === "constructed" && constructed.carrier === carrier && constructed.completion.kind === "never", true, "native-use-closure:83: constructed?.kind === \"constructed\" && constructed.carrier === carrier && constructed.comp");
+  assert.equal(converted?.kind === "converted" && converted.carrier === carrier && converted.target === target && converted.completion.kind === "never", true, "native-use-closure:84: converted?.kind === \"converted\" && converted.carrier === carrier && converted.target === t");
 });
 
 test("different finalized contexts and pending data remain private, not a first-target fallback", () => {
@@ -95,5 +95,5 @@ test("different finalized contexts and pending data remain private, not a first-
   });
   const demand = analyzeCsharpNativeDemand({ ...value.input, expected: { entries, pending: [], inactive: [], expectedUse: { get: () => undefined } } });
   assert.equal(demand.entries.some(entry => entry.use.expression === expression), false, "neither target is silently selected");
-  assert.equal(demand.unadmitted.some(entry => entry.expression === expression && entry.reason === "use-context-unresolved"), true);
+  assert.equal(demand.unadmitted.some(entry => entry.expression === expression && entry.reason === "use-context-unresolved"), true, "native-use-closure:98: demand.unadmitted.some(entry => entry.expression === expression && entry.reason === \"use-c");
 });

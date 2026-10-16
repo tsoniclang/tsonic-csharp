@@ -54,10 +54,10 @@ test("forwarding requires the exact child, target and mode", () => {
   const input = base(initializer("wrapped"));
   const child = ast.as.AsParenthesizedExpression(input.expression).Expression;
   edge(input, child, { kind: "operand", position: "only" }, floating);
-  assert.equal(selectCsharpNativeUseRepresentation(input).reason, "forwarding-child-unresolved");
+  assert.equal(selectCsharpNativeUseRepresentation(input).reason, "forwarding-child-unresolved", "native-use-representations:57: selectCsharpNativeUseRepresentation(input).reason");
   const expected = edge(input, child, { kind: "operand", position: "only" }, integer);
   const selected = selectCsharpNativeUseRepresentation(input);
-  assert.equal(selected.kind === "selected" && selected.representation === "forward" && selected.children[0] === expected, true);
+  assert.equal(selected.kind === "selected" && selected.representation === "forward" && selected.children[0] === expected, true, "native-use-representations:60: selected.kind === \"selected\" && selected.representation === \"forward\" && selected.children");
 });
 
 test("constructing C then converting to T retains the physical carrier independently", () => {
@@ -68,8 +68,8 @@ test("constructing C then converting to T retains the physical carrier independe
   const site = edge(input, element, { kind: "element", index: 0 }, integer);
   const selected = selectCsharpNativeUseRepresentation(input);
   assert.equal(selected.kind === "selected" && selected.representation === "convert" && selected.carrier === carrier &&
-    selected.construction.carrier === carrier && selected.construction.children[0] === site && selected.children[0] === selected.construction.site, true);
-  assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.construction) && Object.isFrozen(selected.children), true);
+    selected.construction.carrier === carrier && selected.construction.children[0] === site && selected.children[0] === selected.construction.site, true, "native-use-representations:71: selected.kind === \"selected\" && selected.representation === \"convert\" && selected.carrier ");
+  assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.construction) && Object.isFrozen(selected.children), true, "native-use-representations:72: Object.isFrozen(selected) && Object.isFrozen(selected.construction) && Object.isFrozen(sel");
 });
 
 test("unrequested, rejected and callable physical data never acquire the requested carrier by inference", () => {
@@ -79,9 +79,9 @@ test("unrequested, rejected and callable physical data never acquire the request
     [{ kind: "rejected", reason: "range" }, undefined, "literal-rejected"],
     [{ kind: "not-applicable" }, undefined, "callable-creation"],
     [{ kind: "not-applicable" }, { kind: "discarded" }, "callable-discarded"],
-  ]) assert.equal(selectCsharpNativeUseRepresentation({ ...base(expression), literal, callable }).reason, reason);
+  ]) assert.equal(selectCsharpNativeUseRepresentation({ ...base(expression), literal, callable }).reason, reason, "native-use-representations:82: selectCsharpNativeUseRepresentation({ ...base(expression), literal, callable }).reason");
   const selected = selectCsharpNativeUseRepresentation({ ...base(expression), callable: { kind: "selected", carrier: floating } });
-  assert.equal(selected.kind === "selected" && selected.carrier === floating && selected.representation === "convert", true);
+  assert.equal(selected.kind === "selected" && selected.carrier === floating && selected.representation === "convert", true, "native-use-representations:84: selected.kind === \"selected\" && selected.carrier === floating && selected.representation =");
 });
 
 test("conditional result forwarding retains both alternative uses without treating either as an unconditional evaluation", () => {
@@ -91,5 +91,5 @@ test("conditional result forwarding retains both alternative uses without treati
   const whenFalse = edge(input, conditional.WhenFalse, { kind: "branch", branch: "false" }, integer);
   const selected = selectCsharpNativeUseRepresentation(input);
   assert.equal(selected.kind === "selected" && selected.representation === "forward" && selected.children[0] === whenTrue &&
-    selected.children[1] === whenFalse && selected.children.length === 2, true);
+    selected.children[1] === whenFalse && selected.children.length === 2, true, "native-use-representations:94: selected.kind === \"selected\" && selected.representation === \"forward\" && selected.children");
 });
