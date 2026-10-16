@@ -32,11 +32,37 @@ export interface CsharpMethodTypeArgumentProjectionClassification {
 
 export interface CsharpSourceCallArgumentClassification {
   readonly sourceCall?: import("../operations/source-callees.js").CsharpSourceCalleeSelection;
-  readonly sourceNativeParameters?: readonly import("../types/model.js").CsharpTargetParameter[];
   readonly sourceMethodValue?: NonNullable<import("../types/model.js").CsharpTargetNamedTypeRef["csharpMethodValue"]>;
   readonly sourceParameterTypes?: readonly (TargetTypeRef | undefined)[];
   readonly sourceArgumentParameterTypes?: readonly (TargetTypeRef | undefined)[];
+  readonly sourceArgumentGrouping?: CsharpSourceArgumentGrouping;
 }
+
+export interface CsharpSourceArgumentGroupingEntry {
+  readonly binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number];
+  readonly expression: Node;
+  readonly sourceArgumentIndex: number;
+  readonly effectiveArgumentIndex: number;
+  readonly sourceParameterIndex: number;
+  readonly parameterIndex: number;
+  readonly sourceForm: ResolvedSourceCallInfo["sourceArgumentBindings"][number]["sourceForm"];
+  readonly type: TargetTypeRef;
+  readonly parameter: import("../types/model.js").CsharpTargetParameter;
+}
+
+export interface CsharpSourceArgumentGroup {
+  readonly parameterIndex: number;
+  readonly type: TargetTypeRef;
+  readonly collect: boolean;
+  readonly arguments: readonly { readonly index: number; readonly spread: boolean }[];
+}
+
+export type CsharpSourceArgumentGrouping =
+  | { readonly kind: "grouped"; readonly arguments: readonly CsharpSourceArgumentGroupingEntry[];
+      readonly groups: readonly CsharpSourceArgumentGroup[] }
+  | { readonly kind: "refused"; readonly reason: string }
+  | { readonly kind: "unresolved"; readonly reason: string }
+  | { readonly kind: "inconsistent"; readonly reason: string };
 
 export type CsharpCallForm = { readonly optionalReceiverRouting: "call" | "chain" } & (
   | { readonly kind: "type-test"; readonly typeTest: import("../operations/type-tests.js").CsharpClosedTypeTest }

@@ -43,6 +43,7 @@ for (const surface of [undefined, "js"]) test(`source argument owner publishes e
     const classification = call.classification;
     const grouping = classification?.sourceArgumentGrouping;
     assert.equal(grouping?.kind, "grouped", call.text);
+    assert.equal("sourceNativeParameters" in classification, false, `${call.text}: no alternate raw parameter path`);
     assert.equal(grouping.arguments.length, classification.source.sourceArgumentBindings.length, `${call.text}: complete binding count`);
     for (const entry of grouping.arguments) {
       assert.equal(entry.binding === classification.source.sourceArgumentBindings[entry.effectiveArgumentIndex], true, `${call.text}: binding identity`);
@@ -83,13 +84,14 @@ test("missing final argument types do not erase the distinction between pending 
   assert.equal(compiled.result.diagnostics.length, 0);
   const classification = calls(compiled)[0].classification;
   const source = classification.source;
+  const parameters = classification.sourceArgumentGrouping.arguments.map(entry => entry.parameter);
   const slots = source.sourceSelectedSignatureParameters.map(parameter => ({ sourceParameterIndex: parameter.parameterIndex,
     sourceParameterName: parameter.parameterName, form: "required" }));
-  assert.equal(selectCsharpSourceArgumentGrouping(source, classification.sourceNativeParameters, [classification.sourceArgumentParameterTypes[0], undefined], slots).kind,
+  assert.equal(selectCsharpSourceArgumentGrouping(source, parameters, [classification.sourceArgumentParameterTypes[0], undefined], slots).kind,
     "unresolved");
   const wrong = { ...source, sourceArgumentBindings: source.sourceArgumentBindings.map((binding, index) => index === 1 ?
     { ...binding, sourceParameterIndex: 0 } : binding) };
-  assert.equal(selectCsharpSourceArgumentGrouping(wrong, classification.sourceNativeParameters, classification.sourceArgumentParameterTypes, slots).kind,
+  assert.equal(selectCsharpSourceArgumentGrouping(wrong, parameters, classification.sourceArgumentParameterTypes, slots).kind,
     "inconsistent");
 });
 

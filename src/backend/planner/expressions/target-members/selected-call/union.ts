@@ -1,7 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCallClassification } from "../../../../../target-model/records/operations.js";
-import type { ResolvedSourceCallInfo } from "../../../../../target-model/records/members.js";
 import { isCsharpVoidTargetType } from "../../../../../target-model/types/identity.js";
 import type { CsharpArgument, CsharpExpression, CsharpStatement } from "../../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
@@ -14,7 +13,6 @@ import { csharpSourceArgumentGroups } from "./source-argument-groups.js";
 
 export function planCsharpUnionDispatcherCall(
   node: Node,
-  source: ResolvedSourceCallInfo,
   classification: CsharpCallClassification,
   receiver: CsharpExpression,
   arguments_: readonly CsharpArgument[],
@@ -28,7 +26,7 @@ export function planCsharpUnionDispatcherCall(
   const resultType = csharpTypeFromTargetTypeRef(union.resultType, input.scope.typeParameterNames);
   const selectedTypeArguments = classification.sourceTypeArguments === undefined ? undefined
     : renderCsharpTargetTypeArguments(input.scope.typeParameterNames, classification.sourceTypeArguments, node, diagnostics);
-  const groups = csharpSourceArgumentGroups(source, classification);
+  const groups = csharpSourceArgumentGroups(classification);
   const argumentTypes = groups?.map(group => csharpTypeFromTargetTypeRef(group.type, input.scope.typeParameterNames));
   if (methods === undefined || receiverType === undefined || resultType === undefined ||
     selectedTypeArguments === undefined || argumentTypes === undefined || arguments_.length !== argumentTypes.length || argumentTypes.some(type => type === undefined)) {

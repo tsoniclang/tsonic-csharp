@@ -8,23 +8,6 @@ import type { Node } from "@tsonic/tsts";
 import type { ResolvedSourceCallInfo } from "../../../../../target-model/records/members.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
-export function sourceCalleeRequiresExactTargetArity(
-  source: ResolvedSourceCallInfo,
-  input: CsharpPlanningContext,
-): boolean {
-  const declaration = input.program.sourceNavigation.sourceReferenceFor(source.sourceCallee.expression)?.declaration ?? source.sourceCallee.declaration;
-  return declaration !== undefined &&
-    (
-      input.program.source.ast.is.IsVariableDeclaration(declaration) ||
-      input.program.source.ast.is.IsParameterDeclaration(declaration) ||
-      input.program.source.ast.is.IsPropertyDeclaration(declaration) ||
-      input.program.source.ast.is.IsPropertySignatureDeclaration(declaration) ||
-      input.program.source.ast.is.IsBindingElement(declaration) ||
-      input.program.source.ast.is.IsArrowFunction(declaration) ||
-      input.program.source.ast.is.IsFunctionExpression(declaration)
-    );
-}
-
 export function applyCalleeTypeArguments(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   callee: CsharpExpression,

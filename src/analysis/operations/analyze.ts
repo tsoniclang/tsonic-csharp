@@ -1,4 +1,5 @@
 import { classifyCsharpJsValueCallShape } from "./js-value-calls.js";
+import { classifyCsharpSourceCallArguments } from "./source-call-arguments.js";
 import { classifyCsharpUnionCall } from "./union-calls.js";
 import { classifyCsharpSourceCallee } from "../../policy/types/callables/source-callees.js";
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
@@ -483,23 +484,7 @@ function visit(
         : {
             sourceTypeArguments:
               policy.types.resolveSourceCallTypeArguments(source, sourceFile),
-            sourceNativeParameters: policy.types.resolveSourceCallParameters(source, sourceFile),
-            sourceParameterTypes: Object.freeze(
-              source.sourceSelectedSignatureParameters.map((_, index) =>
-                policy.types.resolveSourceCallParameter(
-                  source,
-                  index,
-                  sourceFile,
-                )),
-            ),
-            sourceArgumentParameterTypes: Object.freeze(
-              source.sourceArgumentBindings.map((binding) =>
-                policy.types.resolveSourceCallArgumentParameter(
-                  source,
-                  binding,
-                  sourceFile,
-                )),
-            ),
+            ...classifyCsharpSourceCallArguments(policy, source, sourceFile, sourceCall, sourceMethodValue),
           }),
     }));
   } else if (ast.is.IsNewExpression(node)) {
@@ -540,23 +525,7 @@ function visit(
         : {},
       ...target?.kind === "source-owned"
         ? {
-            sourceNativeParameters: policy.types.resolveSourceCallParameters(target.source, sourceFile),
-            sourceParameterTypes: Object.freeze(
-              target.source.sourceSelectedSignatureParameters.map((_, index) =>
-                policy.types.resolveSourceCallParameter(
-                  target.source,
-                  index,
-                  sourceFile,
-                )),
-            ),
-            sourceArgumentParameterTypes: Object.freeze(
-              target.source.sourceArgumentBindings.map((binding) =>
-                policy.types.resolveSourceCallArgumentParameter(
-                  target.source,
-                  binding,
-                  sourceFile,
-                )),
-            ),
+            ...classifyCsharpSourceCallArguments(policy, target.source, sourceFile),
           }
         : {},
     }));

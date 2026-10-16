@@ -6,7 +6,6 @@ import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
-import type { CsharpTargetParameter } from "../../../../../target-model/types/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { ResolvedSourceCallInfo } from "../../../../../target-model/records/members.js";
 import type { CsharpCallClassification } from "../../../../../target-model/records/operations.js";
@@ -18,7 +17,6 @@ import type { CsharpPlannedArgument, CsharpPlannedValue } from "../../planned-va
 import { csharpPlannedValue } from "../../planned-values.js";
 import { composeCsharpPlannedValues, planCsharpExpressionCompletion, planCsharpOptionalReceiverValue } from "../../planned-value-composition.js";
 import { composeCsharpPlannedCall, csharpPlannedArgumentSyntax, type CsharpPlannedCallArguments } from "./planned-arguments.js";
-import { sourceCalleeRequiresExactTargetArity } from "./helpers.js";
 import { planCsharpNativeFunctionCallee, planCsharpNativeMethodCallee } from "./native-callees.js";
 import type { DestructuringPlannerState } from "../../../bindings/binding-state.js";
 
@@ -44,7 +42,7 @@ export function translateSourceOwnedCall(
     return receiver === undefined || arguments_ === undefined ? undefined
       : composeCsharpPlannedCall(node, sourceFile, input, diagnostics, receiver, arguments_, (value, args) =>
         planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
-          planCsharpUnionDispatcherCall(node, source, classification, value!, args, input, diagnostics), union.resultType));
+          planCsharpUnionDispatcherCall(node, classification, value!, args, input, diagnostics), union.resultType));
   }
   const selected = classification.sourceCall;
   if (selected === undefined || selected.kind === "rejected" || selected.kind === "union-method") {
@@ -122,74 +120,16 @@ export function translateSourceOwnedArguments(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpPlannedCallArguments | undefined {
-  const exactTargetArity = classification.sourceMethodValue === undefined && (classification.sourceCall?.kind === "value" || sourceCalleeRequiresExactTargetArity(source, input));
-  const nativeParameters = classification.sourceNativeParameters;
-  const groups = csharpSourceArgumentGroups(source, classification, exactTargetArity);
-  if (nativeParameters === undefined || groups === undefined) {
+  const grouping = classification.sourceArgumentGrouping;
+  const groups = csharpSourceArgumentGroups(classification);
+  if (grouping?.kind !== "grouped" || groups === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Source-owned arguments have no exact native parameter grouping."));
     return undefined;
   }
-  const restIndex = nativeParameters.findIndex(parameter => parameter.paramsArray === true);
-  const bindingsBySourceArgument = new Map<
-    number,
-    ResolvedSourceCallInfo["sourceArgumentBindings"]
-  >();
-  for (const binding of source.sourceArgumentBindings) {
-    const existing = bindingsBySourceArgument.get(binding.sourceArgumentIndex) ??
-      [];
-    bindingsBySourceArgument.set(
-      binding.sourceArgumentIndex,
-      [...existing, binding],
-    );
-  }
   const planned: CsharpPlannedArgument[] = [];
-  for (
-    let sourceArgumentIndex = 0;
-    sourceArgumentIndex < source.sourceArguments.length;
-    sourceArgumentIndex += 1
-  ) {
-    const argument = source.sourceArguments[sourceArgumentIndex]?.expression;
-    const bindings = bindingsBySourceArgument.get(sourceArgumentIndex) ?? [];
-    if (argument === undefined || bindings.length === 0) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        `Source-owned call argument ${sourceArgumentIndex} has no exact selected parameter binding.`,
-      ));
-      return undefined;
-    }
-    const first = bindings[0]!;
-    if (
-      bindings.some((binding) =>
-        binding.sourceParameterIndex !== first.sourceParameterIndex ||
-        binding.sourceForm !== first.sourceForm)
-    ) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        "Source-owned tuple-spread arguments require an explicit expansion plan.",
-      ));
-      return undefined;
-    }
-    const parameterIndex = restIndex < 0 ? first.effectiveArgumentIndex : Math.min(first.effectiveArgumentIndex, restIndex);
-    const parameter = nativeParameters[parameterIndex];
-    const bindingIndex = source.sourceArgumentBindings.indexOf(first);
-    const targetType = bindingIndex < 0
-      ? undefined
-      : classification.sourceArgumentParameterTypes?.[bindingIndex];
-    if (parameter === undefined || targetType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        `Source-owned selected parameter ${first.sourceParameterIndex} has no closed C# type.`,
-      ));
-      return undefined;
-    }
-    const targetParameter: CsharpTargetParameter = {
-      name: parameter.name,
-      type: targetType,
-      passingMode: "by-value",
-      ...(parameter.optional === true ? { optional: true } : {}),
-      ...(parameter.paramsArray === true && first.sourceForm === "spread-sequence" ? { paramsArray: true } : {}),
-    };
-    const value = first.sourceForm === "spread-sequence"
+  for (const entry of grouping.arguments) {
+    const argument = entry.expression;
+    const value = entry.sourceForm === "spread-sequence"
       ? input.program.source.ast.as.AsSpreadElement(argument)?.Expression : argument;
     if (value === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(argument, "A selected sequence spread has no exact source operand."));
@@ -197,8 +137,8 @@ export function translateSourceOwnedArguments(
     }
     const plannedArgument = translateCallArgument(
       value,
-      targetParameter,
-      first.sourceForm,
+      entry.parameter,
+      entry.sourceForm,
       sourceFile,
       input,
       diagnostics,
