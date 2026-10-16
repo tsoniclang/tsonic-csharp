@@ -5,13 +5,12 @@ import type { CsharpObjectShapeMemberLookupResult } from "../types/object-shape-
 import type { CsharpTypeofResult } from "../types/runtime-kind.js";
 import type { CsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 import type { CsharpElementDeletionSelection } from "./element-deletion.js";
-import type { CsharpJsStringConversionSelection } from "./explicit-js-string.js";
+import type { CsharpNativeHandler } from "./native-handlers.js";
 import type { CsharpJsArrayMutationSelection } from "./js-array-mutations.js";
 import type { CsharpJsValueObjectShapePropertyResolution } from "./js-value-object-shape-property.js";
 import type { CsharpResolvedResourceManagement } from "./management.js";
 import type { CsharpTargetCallSelection, CsharpTargetElementSelection, CsharpTargetPropertySelection } from "./member-selections.js";
 import type { ResolvedSourceCallInfo } from "./members.js";
-import type { CsharpMemoryBindingSelection } from "./memory-bindings.js";
 import type { CsharpNativePointerOperationSelection } from "./native-pointers.js";
 import type { CsharpProjectConstructibleTypeProjection } from "./object-shapes.js";
 import type { CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpResolvedDestructuringAssignmentOperation, CsharpResolvedUnaryOperation } from "./operator-selection.js";
@@ -185,13 +184,6 @@ export interface CsharpOperatorFormClassification {
   readonly usesExpectedResultType?: boolean;
 }
 
-export type CsharpNativeHandler =
-  | "memory-binding"
-  | "explicit-safety"
-  | "js-string-conversion"
-  | "native-pointer"
-  | "typed-location";
-
 export interface CsharpTargetOperationClassifications {
   readonly issues: readonly CsharpOperationIssue[];
   readonly awaitCompletion: { readonly get: (node: Node) => import("../types/await-completions.js").CsharpAwaitCompletion | undefined };
@@ -205,7 +197,6 @@ export interface CsharpTargetOperationClassifications {
     readonly get: (expression: Node) => CsharpOperatorForm | undefined;
     readonly usesExpectedResultType: (expression: Node) => boolean | undefined;
   };
-  readonly memoryBinding: { readonly get: (node: Node) => CsharpMemoryBindingSelection | undefined };
   binaryExecutionDriver(): CsharpTargetBinaryExecutionDriver | undefined;
   readonly operationResultType: { readonly get: (node: Node) => TargetTypeRef | undefined };
   readonly selectedCall: { readonly get: (node: Node) => CsharpCallClassification | undefined };
@@ -228,7 +219,6 @@ export interface CsharpTargetOperationClassifications {
   readonly jsObjectLiteral: { readonly get: (node: Node) => CsharpJsValueOperationSelection | undefined };
   readonly jsArrayMutation: { readonly get: (node: Node) => CsharpJsArrayMutationSelection | undefined };
   readonly elementDeletion: { readonly get: (node: Node) => CsharpElementDeletionSelection | undefined };
-  readonly jsStringConversion: { readonly get: (node: Node) => CsharpJsStringConversionSelection | undefined };
   readonly providerValue: { readonly get: (node: Node) => CsharpProviderValueSelection | undefined };
   readonly regularExpression: { readonly get: (node: Node) => CsharpRegularExpressionLiteralSelection | undefined };
   readonly throwable: { readonly get: (node: Node) => boolean | undefined };

@@ -8,36 +8,25 @@ import { targetPolicyDiagnostic } from "../diagnostics.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { mapCsharpPlannedValue } from "./planned-values.js";
+import type { CsharpNativeHandler } from "../../../target-model/records/native-handlers.js";
 
-export type CsharpJsStringConversionPlan =
-  | { readonly handled: false }
-  | { readonly handled: true; readonly expression?: CsharpPlannedValue };
-
-export function tryPlanCsharpJsStringConversion(
+export function planCsharpJsStringConversion(
   node: Node,
+  selection: Extract<CsharpNativeHandler, { readonly kind: "js-string-conversion" }>["selection"],
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpJsStringConversionPlan {
-  const selection = input.program.records.jsStringConversion.get(node);
-  if (
-    selection === undefined ||
-    selection.kind === "not-js-string-conversion"
-  ) {
-    return { handled: false };
-  }
+): CsharpPlannedValue | undefined {
   if (selection.kind === "rejected") {
     diagnostics.push(targetPolicyDiagnostic(
       node,
       "CSHARP_JS_STRING_CONVERSION_REJECTED",
       selection.reason,
     ));
-    return { handled: true };
+    return undefined;
   }
-  return {
-    handled: true,
-    expression: mapCsharpPlannedValue(
+  return mapCsharpPlannedValue(
       planExpression(
         selection.sourceValue,
         sourceFile,
@@ -46,6 +35,5 @@ export function tryPlanCsharpJsStringConversion(
       ),
       selection.resultType,
       (expression) => expression,
-    ),
-  };
+    );
 }

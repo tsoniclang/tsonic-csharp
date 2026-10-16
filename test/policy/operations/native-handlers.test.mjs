@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const policy = await import("../../../dist/policy/operations/pointers/native-handlers.js").catch(error => {
-  if (error?.code === "ERR_MODULE_NOT_FOUND") return {};
-  throw error;
-});
+import { selectCsharpNativeHandler } from "../../../dist/policy/operations/pointers/native-handlers.js";
+import { selectCsharpNativePointerOperation } from "../../../dist/policy/operations/pointers/native-pointers.js";
+import { rawPointerOperationFactKey } from "@tsonic/tsts";
+import { tsonicNativePointerOperationFactKey } from "@tsonic/source-core/facts";
+import { csharpRuntimeRawPointerTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 
 const binding = Object.freeze({ kind: "field" });
 const rejectedBinding = Object.freeze({ kind: "rejected", reason: "binding" });
@@ -53,11 +54,42 @@ const precedence = [
 
 for (const [row, handler, cases] of precedence) {
   test(`native handler precedence row: ${row}`, () => {
-    assert.equal(typeof policy.selectCsharpNativeHandler === "function", true,
+    assert.equal(typeof selectCsharpNativeHandler === "function", true,
       "policy/operations/pointers/native-handlers.js exports selectCsharpNativeHandler");
     for (const [name, inputs] of cases) {
-      const selected = policy.selectCsharpNativeHandler(...inputs);
-      assert.equal(selected === handler, true, `${row}, ${name}: expected ${handler ?? "none"}, selected ${selected ?? "none"}`);
+      const selected = selectCsharpNativeHandler(...inputs);
+      assert.equal(selected?.kind === handler, true, `${row}, ${name}: expected ${handler ?? "none"}, selected ${selected?.kind ?? "none"}`);
+      if (handler !== undefined) {
+        const index = ["memory-binding", "explicit-safety", "js-string-conversion", "native-pointer", "typed-location"].indexOf(handler);
+        assert.equal(selected.selection === inputs[index], true, `${row}, ${name}: exact native selection`);
+        assert.equal(Object.isFrozen(selected), true);
+      }
     }
   });
 }
+
+test("unchosen native pointer candidates do no carrier-resolution work on exact checked identities", () => {
+  const node = {};
+  const operand = {};
+  const sourceType = {};
+  const scalar = { kind: "source-primitive", name: "int32" };
+  const raw = csharpRuntimeRawPointerTargetType();
+  const pointer = { kind: "pointer", pointee: scalar };
+  const native = { operation: "load", pointerExpression: operand, pointerType: sourceType };
+  const identity = { call: node, operation: "hash-raw-pointer", pointerExpression: operand, pointerType: sourceType };
+  for (const [name, facts, carrier, expected, queries] of [
+    ["ordinary", new Map(), undefined, "not-native-pointer", 0],
+    ["native load", new Map([[tsonicNativePointerOperationFactKey, native]]), pointer, "load", 1],
+    ["raw identity", new Map([[rawPointerOperationFactKey, identity]]), raw, "raw-identity", 1],
+  ]) {
+    let reads = 0;
+    const policy = { sourceFacts: { getFact: (subject, key) => subject === node ? facts.get(key) : undefined },
+      ast: { is: { IsCallExpression: subject => subject === node }, arguments: () => [operand] },
+      types: { resolveSelectedValue(subject, selectedType) {
+        reads++; assert.equal(subject === operand && selectedType === sourceType, true, name); return carrier;
+      } } };
+    const selected = selectCsharpNativePointerOperation(policy, node, {});
+    assert.equal(selected.kind, expected, name);
+    assert.equal(reads, queries, `${name}: only its native answer resolves carriers`);
+  }
+});
