@@ -47,15 +47,15 @@ export function printCsharpExpression(
     case "ParenthesizedExpression":
       return `(${context.printExpression(expression.expression)})`;
     case "SimpleMemberAccessExpression":
-      return `${printPostfixOperand(expression.receiver, context)}.${printMemberName(expression.name, expression.typeArguments, context)}`;
+      return `${printReceiver(expression.receiver, context)}.${printMemberName(expression.name, expression.typeArguments, context)}`;
     case "ConditionalAccessExpression":
-      return `${printPostfixOperand(expression.receiver, context)}?.${printMemberName(expression.name, expression.typeArguments, context)}`;
+      return `${printReceiver(expression.receiver, context)}?.${printMemberName(expression.name, expression.typeArguments, context)}`;
     case "ElementAccessExpression":
-      return `${printPostfixOperand(expression.receiver, context)}[${expression.arguments.map(context.printExpression).join(", ")}]`;
+      return `${printReceiver(expression.receiver, context)}[${expression.arguments.map(context.printExpression).join(", ")}]`;
     case "ConditionalElementAccessExpression":
-      return `${printPostfixOperand(expression.receiver, context)}?[${expression.arguments.map(context.printExpression).join(", ")}]`;
+      return `${printReceiver(expression.receiver, context)}?[${expression.arguments.map(context.printExpression).join(", ")}]`;
     case "InvocationExpression":
-      return `${printPostfixOperand(expression.callee, context)}(${expression.arguments.map(context.printArgument).join(", ")})`;
+      return `${printReceiver(expression.callee, context)}(${expression.arguments.map(context.printArgument).join(", ")})`;
     case "AwaitExpression":
       return `await ${printPostfixOperand(expression.expression, context)}`;
     case "UnsafeExpression":
@@ -87,7 +87,7 @@ export function printCsharpExpression(
     case "NullPatternExpression":
       return `${printOperand(expression.expression, 10, false, context)} is ${expression.negated ? "not " : ""}null`;
     case "PrefixUnaryExpression":
-      return `${printCsharpPrefixUnaryOperatorToken(expression.operatorToken)}${printPostfixOperand(expression.operand, context)}`;
+      return `${printCsharpPrefixUnaryOperatorToken(expression.operatorToken)}${printPrefixUnaryOperand(expression, context)}`;
     case "PostfixUnaryExpression":
       return `${printPostfixOperand(expression.operand, context)}${printCsharpPostfixUnaryOperatorToken(expression.operatorToken)}`;
     case "ConditionalExpression":
@@ -130,7 +130,22 @@ function printOperand(expression: CsharpExpression, precedence: number, equal: b
 
 function castOperandRequiresParentheses(type: CsharpTypeNode, expression: CsharpExpression, printedExpression: string): boolean {
   return csharpExpressionPrecedence(expression) < 14 || expression.kind === "SwitchExpression" ||
-    isCsharpTypeSyntaxAlsoAnExpression(type) && /^[-+*]/u.test(printedExpression);
+    (isCsharpTypeSyntaxAlsoAnExpression(type) || type.kind === "TupleType") && /^[-+*]/u.test(printedExpression);
+}
+
+function printReceiver(expression: CsharpExpression, context: CsharpPrintContext): string {
+  const value = expression.kind === "NumericLiteralExpression" || expression.kind === "LiteralExpression" ? expression.value : undefined;
+  return typeof value === "number" && (value < 0 || Object.is(value, -0))
+    ? `(${context.printExpression(expression)})`
+    : printPostfixOperand(expression, context);
+}
+
+function printPrefixUnaryOperand(
+  expression: Extract<CsharpExpression, { readonly kind: "PrefixUnaryExpression" }>,
+  context: CsharpPrintContext,
+): string {
+  const printed = printPostfixOperand(expression.operand, context);
+  return expression.operatorToken.kind === "MinusToken" && printed.startsWith("-") ? `(${printed})` : printed;
 }
 
 function printPostfixOperand(
