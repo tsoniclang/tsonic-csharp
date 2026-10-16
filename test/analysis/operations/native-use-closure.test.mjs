@@ -19,7 +19,7 @@ function owners(sourceText, surface = "js") {
   const nodes = [];
   const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
   for (const file of program.sourceFiles) walk(file);
-  const bindingPatterns = analyzeCsharpBindingPatterns({ ast, sourceFiles: program.sourceFiles, participation: records.nativeParticipation,
+  const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: program.sourceFiles, participation: records.nativeParticipation,
     evidence: records, operations: records, valueReads: records, objectShapes: program.objectShapes });
   const input = { ast, sourceFiles: program.sourceFiles, navigation: program.sourceNavigation, evidence: records, operations: records,
     valueReads: records, participation: records.nativeParticipation, bindingPatterns, callableCreation: { get: () => undefined },

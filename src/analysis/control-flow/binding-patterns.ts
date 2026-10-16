@@ -1,4 +1,5 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
+import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import {
   AsBinaryExpression,
@@ -11,7 +12,6 @@ import {
   AsShorthandPropertyAssignment,
   AsSpreadAssignment,
   AsSpreadElement,
-  AsStringLiteral,
   AsVariableDeclaration,
   HasSourceKind,
   KindArrayBindingPattern,
@@ -58,6 +58,7 @@ import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/ty
 
 export interface CsharpBindingPatternAnalysisInput {
   readonly ast: AstReader;
+  readonly semanticsFor: (node: Node) => SourceFileSemantics;
   readonly sourceFiles: readonly SourceFile[];
   readonly participation: CsharpNativeParticipationInput["participation"];
   readonly evidence: CsharpSourceEvidenceIndex;
@@ -256,9 +257,16 @@ export function analyzeCsharpBindingPatterns(
     const element = AsBindingElement(ast, elementNode);
     const propertyName = element?.PropertyName ?? element?.name;
     if (propertyName === undefined) return undefined;
+    return { node: propertyName, sourceName: bindingPropertySourceName(propertyName) };
+  }
+
+  function bindingPropertySourceName(propertyName: Node): string | undefined {
+    if (ast.is.IsComputedPropertyName(propertyName) || ast.is.IsNumericLiteral(propertyName)) {
+      const selected = input.semanticsFor(propertyName).propertyNames.get(propertyName);
+      return selected?.kind === "resolved" ? selected.name : undefined;
+    }
     return HasSourceKind(ast, propertyName, KindIdentifier) || HasSourceKind(ast, propertyName, KindStringLiteral)
-      ? { node: propertyName, sourceName: Node_Text(ast, propertyName) }
-      : { node: propertyName };
+      ? Node_Text(ast, propertyName) : undefined;
   }
 
   function analyzeObjectShapePattern(pattern: Node, shape: CsharpObjectShapeFact, sourceFile: SourceFile): void {
@@ -345,8 +353,7 @@ export function analyzeCsharpBindingPatterns(
       if (name === undefined) continue;
       const propertyName = element.PropertyName ?? name;
       const identifier = HasSourceKind(ast, propertyName, KindIdentifier);
-      const sourceName = identifier ? Node_Text(ast, propertyName)
-        : HasSourceKind(ast, propertyName, KindStringLiteral) ? Node_Text(ast, AsStringLiteral(ast, propertyName)) : undefined;
+      const sourceName = bindingPropertySourceName(propertyName);
       const selected = selectCsharpBindingPatternProjection({ kind: "source-owned-member", sourceName, stringLiteral: !identifier,
         rest: element.DotDotDotToken !== undefined, hasDefault: element.Initializer !== undefined });
       if (selected.kind !== "element") {
@@ -479,9 +486,7 @@ export function analyzeCsharpBindingPatterns(
   ): { readonly node: Node; readonly sourceName?: string } | undefined {
     const propertyName = element.propertyName ?? (element.target.kind === "node" ? element.target.node : undefined);
     if (propertyName === undefined) return undefined;
-    return HasSourceKind(ast, propertyName, KindIdentifier) || HasSourceKind(ast, propertyName, KindStringLiteral)
-      ? { node: propertyName, sourceName: Node_Text(ast, propertyName) }
-      : { node: propertyName };
+    return { node: propertyName, sourceName: bindingPropertySourceName(propertyName) };
   }
 
   function analyzeObjectAssignmentRest(

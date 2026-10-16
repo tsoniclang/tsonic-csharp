@@ -1,22 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpBindingPatterns, isCsharpUnusedTupleDefault } from "../../../dist/analysis/control-flow/binding-patterns.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 
 const arrayMessage = "Array destructuring requires a finalized provider array or tuple runtime-carrier fact for the source expression. Runtime carrier fact is missing for the array destructuring source expression.";
+const bindingSemanticsByProgram = new WeakMap();
 
 function publishedProgram(sourceText, surface) {
   const compiled = compileCsharpSource({ sourceText, surface });
   assert.equal(compiled.sourceDiagnosticsText, "", "the source checks without diagnostics");
   assert.equal(compiled.result.program !== undefined, true, "the analysis publishes a program");
+  bindingSemanticsByProgram.set(compiled.result.program, createTargetSourceProgram(compiled.source).semantics.forNode);
   return compiled.result.program;
 }
 
 function factsInput(program) {
   return {
     ast: program.source.ast,
+    semanticsFor: bindingSemanticsByProgram.get(program),
     sourceFiles: program.sourceFiles,
     participation: program.records.nativeParticipation,
     evidence: program.records,

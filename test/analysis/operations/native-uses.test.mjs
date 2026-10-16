@@ -20,7 +20,7 @@ function owners(sourceText, surface = "native") {
   const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
   for (const file of program.sourceFiles) walk(file);
   const participation = records.nativeParticipation;
-  const bindingPatterns = analyzeCsharpBindingPatterns({ ast, sourceFiles: program.sourceFiles, participation, evidence: records,
+  const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: program.sourceFiles, participation, evidence: records,
     operations: records, valueReads: records, objectShapes: program.objectShapes });
   const input = { ast, sourceFiles: program.sourceFiles, navigation: program.sourceNavigation, evidence: records, operations: records,
     valueReads: records, participation, bindingPatterns, callableCreation: { get: node => {

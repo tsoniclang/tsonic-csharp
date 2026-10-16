@@ -9,17 +9,22 @@ import {
 const staticKeys = [
   { name: "string literal", prelude: "", key: '"value"', ordinary: "value" },
   { name: "numeric literal", prelude: "", key: "0x10", ordinary: "16" },
+  { name: "negative numeric literal", prelude: "", key: "-1", ordinary: '"-1"' },
+  { name: "zero numeric literal", prelude: "", key: "-0", ordinary: "0", declarationKey: "0" },
+  { name: "fractional numeric literal", prelude: "", key: "1.5", ordinary: "1.5" },
+  { name: "exponent numeric literal", prelude: "", key: "1e21", ordinary: "1e21", expected: "1e+21" },
   { name: "const string", prelude: 'const key = "value";', key: "key", ordinary: "value" },
   { name: "const numeric", prelude: "const key = 16;", key: "key", ordinary: "16" },
   { name: "string enum", prelude: 'enum Key { Value = "value" }', key: "Key.Value", ordinary: "value" },
   { name: "numeric enum", prelude: "enum Key { Value = 16 }", key: "Key.Value", ordinary: "16" },
-  { name: "parenthesized const", prelude: 'const key = "value";', key: "((key))", ordinary: "value" },
+  { name: "parenthesized const", prelude: 'const key = "value";', key: "((key))", declarationKey: "key", ordinary: "value" },
   { name: "nonidentifier string", prelude: 'const key = "x-y";', key: "key", ordinary: '"x-y"' },
   { name: "empty string", prelude: 'const key = "";', key: "key", ordinary: '""' },
   { name: "exact large integer literal", prelude: "", key: "9007199254740993", ordinary: "9007199254740993" },
   { name: "exact large const integer", prelude: "const key = 9007199254740993;", key: "key", ordinary: "9007199254740993" },
   { name: "destructured const string", prelude: 'const { key } = { key: "value" } as const;', key: "key", ordinary: "value" },
   { name: "destructured const integer", prelude: "const [key] = [9007199254740993] as const;", key: "key", ordinary: "9007199254740993" },
+  { name: "destructured spread const integer", prelude: "const prefix = [1, 9007199254740993] as const; const [, key] = [...prefix, 3] as const;", key: "key", ordinary: "9007199254740993" },
   { name: "reserved native identifier", prelude: 'const key = "class";', key: "key", ordinary: '"class"' },
 ];
 
@@ -28,7 +33,7 @@ for (const surface of [undefined, "js"]) {
     test(`C# ${surface ?? "native"} admits ${current.name} as an ordinary exact field`, () => {
       const compiled = compileCsharpSource({ surface, sourceText: `
 ${current.prelude}
-interface Holder { [${current.key}]: number; }
+interface Holder { [${current.declarationKey ?? current.key}]: number; }
 export function make(): number {
   const value: Holder = { [${current.key}]: 7 };
   return value[${current.key}];
@@ -47,7 +52,7 @@ export function make(): number {
       assert.equal(compiled.result.program !== undefined, true, "analyzed computed-field program exists");
       assert.equal(compiled.result.plan !== undefined, true, "computed-field program reaches planning");
       assert.equal(compiled.result.artifacts.length > 0, true, "computed-field program emits native artifacts");
-      const expectedName = current.ordinary.startsWith('"') ? JSON.parse(current.ordinary) : current.ordinary;
+      const expectedName = current.expected ?? (current.ordinary.startsWith('"') ? JSON.parse(current.ordinary) : current.ordinary);
       assert.equal(compiled.result.program.objectShapes.knownShapes().some(shape => shape.members.some(member =>
         member.sourceKey.kind === "property" && member.sourceKey.name === expectedName)), true,
       "sealed native member preserves the exact source key, not a rounded checked spelling");
