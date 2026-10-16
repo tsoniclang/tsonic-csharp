@@ -62,8 +62,6 @@ function renderRecipe(
             kind: "CastExpression", type: halfType, expression: zero,
           } };
     }
-    case "zero":
-      return { kind: "resolved", expression: { kind: "LiteralExpression", value: 0 } };
     case "char":
       return {
         kind: "resolved",
@@ -96,7 +94,7 @@ function renderRecipe(
         : literal };
     }
     case "integer": {
-      const expression = planWideIntegerLiteral(typeParameterNames, recipe.value, recipe.target);
+      const expression = planIntegerLiteral(typeParameterNames, recipe.value, recipe.target);
       return expression === undefined
         ? {
             kind: "rejected",
@@ -107,16 +105,28 @@ function renderRecipe(
   }
 }
 
-function planWideIntegerLiteral(
+function planIntegerLiteral(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   value: bigint,
   target: CsharpExactLiteralPrimitive,
 ): CsharpExpression | undefined {
   switch (target.name) {
+    case "int32":
+      return { kind: "LiteralExpression", value: Number(value) };
+    case "int8":
+    case "uint8":
+    case "int16":
+    case "uint16":
+    case "uint32": {
+      const type = csharpTypeFromTargetTypeRef(target, typeParameterNames);
+      return type === undefined ? undefined : {
+        kind: "CastExpression", type, expression: { kind: "LiteralExpression", value: Number(value) },
+      };
+    }
     case "native-int":
     case "native-uint": {
       const type = csharpTypeFromTargetTypeRef(target, typeParameterNames);
-      const literal = planWideIntegerLiteral(typeParameterNames, value, {
+      const literal = planIntegerLiteral(typeParameterNames, value, {
         kind: "source-primitive", name: target.name === "native-int" ? "int64" : "uint64",
       });
       return type === undefined || literal === undefined ? undefined : {

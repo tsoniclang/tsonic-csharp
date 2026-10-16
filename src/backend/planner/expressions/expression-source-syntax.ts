@@ -1,6 +1,6 @@
 import type { CsharpPlanningContext } from "../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { failTargetPlannerInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import {
   AsAsExpression,
@@ -9,7 +9,6 @@ import {
   AsConditionalExpression,
   AsNoSubstitutionTemplateLiteral,
   AsNonNullExpression,
-  AsNumericLiteral,
   AsParenthesizedExpression,
   AsSatisfiesExpression,
   AsStringLiteral,
@@ -39,7 +38,6 @@ import type {
 } from "./expression-planner-types.js";
 import {
   parseBigIntLiteral,
-  parseFiniteNumberLiteral,
 } from "@tsonic/target-api/source";
 import {
   csharpBigIntegerTargetType,
@@ -92,12 +90,25 @@ export function tryPlanSourceSyntaxExpression(
       }
       return value({ kind: "LiteralExpression", value: Node_Text(input.program.source.ast, AsNoSubstitutionTemplateLiteral(input.program.source.ast, node)) });
     case KindNumericLiteral: {
-      const literal = parseFiniteNumberLiteral(Node_Text(input.program.source.ast, AsNumericLiteral(input.program.source.ast, node)));
+      const literal = input.program.records.literalValue.get(node)?.number;
       if (literal === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "Numeric literal emission requires parseable finite source literal text from TSTS."));
         return undefined;
       }
-      return value({ kind: "LiteralExpression", value: literal });
+      const carrier = input.program.records.valueRead.get(node)?.source;
+      if (carrier === undefined) {
+        return failTargetPlannerInvariant("tsonic-csharp",
+          "Numeric literal emission requires its sealed native source carrier.", node);
+      }
+      if (carrier.kind === "source-primitive" && carrier.name === "float64") {
+        return value({ kind: "NumericLiteralExpression", value: literal, suffix: "D" });
+      }
+      const selected = planCsharpExactLiteralConversion(input, node, carrier);
+      if (selected.kind !== "resolved") {
+        return failTargetPlannerInvariant("tsonic-csharp",
+          "Numeric literal emission requires the selected native scalar representation.", node);
+      }
+      return value(selected.expression);
     }
     case KindBigIntLiteral: {
       const literal = parseBigIntLiteral(Node_Text(input.program.source.ast, AsBigIntLiteral(input.program.source.ast, node)));
