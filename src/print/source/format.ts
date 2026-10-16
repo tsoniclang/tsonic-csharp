@@ -1,4 +1,4 @@
-import type { CsharpNumericLiteralToken } from "../../target-model/syntax/numeric-literals.js";
+import type { CsharpExpression } from "../../backend/target-ast/syntax/expressions.js";
 
 export function indentLines(lines: readonly string[]): string[] {
   return lines.flatMap((line) =>
@@ -50,7 +50,7 @@ export function printNumericLiteral(value: number, suffix: "D" | undefined): str
   return text;
 }
 
-export function printExactNumericLiteral(token: CsharpNumericLiteralToken, suffix: "F" | "M"): string {
+export function printExactNumericLiteral(token: Extract<CsharpExpression, { readonly kind: "NumericLiteralExpression"; readonly suffix: "F" | "M" }>["token"], suffix: "F" | "M"): string {
   return `${token.significand}${token.exponent === undefined ? "" : `e${token.exponent}`}${suffix}`;
 }
 
