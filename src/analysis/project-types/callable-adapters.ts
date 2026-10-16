@@ -6,7 +6,7 @@ import { isCsharpSourceCallableArtifactDeclaration } from "../../policy/types/ca
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 
 import type { CsharpCallableContractIndex } from "../callables/model.js";
-import { selectCsharpCallableParameterAdapters, selectCsharpCallableResultAdapter } from "../callables/adapters.js";
+import { admitCsharpCallableParameterAdapters, admitCsharpCallableResultAdapter } from "../callables/adapters.js";
 
 import type { CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
 import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } from "../callables/instantiation.js";
@@ -63,7 +63,7 @@ export function analyzeCsharpProjectCallableAdapters(
       if (seen.has(key)) continue;
       seen.add(key);
       const sameParameters = csharpCallableParametersEqual(contract, implementation);
-      const result = selectCsharpCallableResultAdapter(policy, implementation, contract.returnType);
+      const result = admitCsharpCallableResultAdapter(policy, implementation, contract.returnType);
       if (sameParameters && (selectedInterface === undefined || targetTypeRefEquals(contract.returnType, implementation.returnType))) {
         const nativeReturn = result?.conversion.kind === "identity" || result?.conversion.kind === "implicit" &&
           result.conversion.proof === "reference";
@@ -71,7 +71,7 @@ export function analyzeCsharpProjectCallableAdapters(
         else if (selectedInterface === undefined) overridesBase = true;
         continue;
       }
-      const parameters = selectCsharpCallableParameterAdapters(policy, contract.parameters.map(parameter => parameter.targetParameter),
+      const parameters = admitCsharpCallableParameterAdapters(policy, contract.parameters.map(parameter => parameter.targetParameter),
         implementation.parameters.map(parameter => parameter.targetParameter));
       if (parameters === undefined || result === undefined) {
         reject(declaration, "An inherited callable requires an exact logical-argument and native-result adaptation.");

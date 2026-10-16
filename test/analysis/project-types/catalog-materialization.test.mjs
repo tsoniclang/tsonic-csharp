@@ -25,7 +25,7 @@ test("project classification uses one checked declaration-membership inventory b
   }, {
     parent(node) { assert.equal(open, true); parentReads += 1; return parents.get(node); },
     forEachChild() { assert.fail("the existing checked inventory must replace a second source walk"); },
-  }, [leaf, parameter, unrelated, method, erased, nested, outer, root]);
+  }, [leaf, parameter, unrelated, method, erased, nested, outer, root], { resolveNode: () => undefined });
   const completedReads = parentReads;
   open = false;
   for (let repeat = 0; repeat < 8; repeat += 1) {

@@ -31,7 +31,8 @@ function fixture() {
     },
     heritageForDeclaration: query,
     implicitConstructorsForDeclaration: () => [],
-  }, { parent() { assert.equal(sealed, false, "membership cannot navigate after publication"); } }, [sourceFile, declaration]);
+  }, { parent() { assert.equal(sealed, false, "membership cannot navigate after publication"); } }, [sourceFile, declaration],
+  { resolveNode() { assert.equal(sealed, false, "heritage cannot query mutable shapes after publication"); return undefined; } });
   sealed = true;
   return { classifications, definition, declaration, parameter };
 }

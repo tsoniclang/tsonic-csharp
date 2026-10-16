@@ -3,14 +3,12 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type {
-  CsharpObjectShapeFact,
   TargetTypeRef,
 } from "../../../../target-model/types/index.js";
-import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../../diagnostics.js";
 
 export interface CsharpClassHeritage {
   readonly baseType?: CsharpTypeNode;
@@ -19,17 +17,15 @@ export interface CsharpClassHeritage {
 
 export function planClassHeritage(
   classDeclaration: Node,
-  objectShape: CsharpObjectShapeFact | undefined,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpClassHeritage {
   const heritage = input.types.projectTypes.heritageForDeclaration(classDeclaration);
   if (heritage === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
+    return failCsharpPlannerInvariant(
+      "Project class is absent from the admitted canonical C# project-type model.",
       classDeclaration,
-      "Project class is absent from the canonical C# project-type model.",
-    ));
-    return { interfaces: [] };
+    );
   }
   const baseType = heritage.baseType === undefined
     ? undefined
@@ -42,7 +38,6 @@ export function planClassHeritage(
   const interfaces = planHeritageTypes(
     input.scope.typeParameterNames,
     heritage.interfaces,
-    objectShape,
     classDeclaration,
     diagnostics,
   );
@@ -51,7 +46,6 @@ export function planClassHeritage(
 
 export function planInterfaceHeritage(
   interfaceDeclaration: Node,
-  objectShape: CsharpObjectShapeFact | undefined,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeNode[] {
@@ -59,16 +53,14 @@ export function planInterfaceHeritage(
     interfaceDeclaration,
   );
   if (heritage === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
+    return failCsharpPlannerInvariant(
+      "Project interface is absent from the admitted canonical C# project-type model.",
       interfaceDeclaration,
-      "Project interface is absent from the canonical C# project-type model.",
-    ));
-    return [];
+    );
   }
   return planHeritageTypes(
     input.scope.typeParameterNames,
     heritage.interfaces,
-    objectShape,
     interfaceDeclaration,
     diagnostics,
   );
@@ -77,12 +69,10 @@ export function planInterfaceHeritage(
 function planHeritageTypes(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   types: readonly TargetTypeRef[],
-  objectShape: CsharpObjectShapeFact | undefined,
   declaration: Node,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeNode[] {
-  const contracts = [...types, ...objectShape?.implements ?? []];
-  return [...new Map(contracts.map(type => [targetTypeRefKey(type), type])).values()].flatMap((type) => {
+  return types.flatMap((type) => {
     const planned = planHeritageType(
       typeParameterNames,
       type,

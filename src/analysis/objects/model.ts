@@ -6,11 +6,11 @@ import type {
   TargetTypeRef,
 } from "../../policy/types/index.js";
 
-export interface CsharpObjectShapeClassifications {
+export interface CsharpObjectShapeClassifications<StructuralImplementation = import("../../target-model/types/model.js").CsharpStructuralInterfaceImplementation> {
   propertyOrder(shape: CsharpObjectShapeFact, sourceValue: Node | undefined,
     projection: CsharpObjectShapeProjectionKind): CsharpObjectShapePropertyOrderSelection;
   assignmentSourceOrder(shape: CsharpObjectShapeFact): CsharpObjectShapePropertyOrderSelection;
-  structuralImplementations(type: TargetTypeRef): readonly import("../../target-model/types/model.js").CsharpStructuralInterfaceImplementation[];
+  structuralImplementations(type: TargetTypeRef): readonly StructuralImplementation[];
   knownShapes(): readonly CsharpObjectShapeFact[];
   methodImplementationHasCopies(shape: CsharpObjectShapeFact): boolean;
   resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;
@@ -27,6 +27,10 @@ export interface CsharpObjectShapeClassifications {
     objectLiteral: Node,
     sourceFile?: SourceFile,
   ): CsharpObjectLiteralTargetShapeResolution | undefined;
+}
+
+export interface CsharpObjectShapeAnalysis extends CsharpObjectShapeClassifications {
+  readonly structuralImplementationTypes: readonly TargetTypeRef[];
 }
 
 export type CsharpObjectShapePropertyOrderSelection =

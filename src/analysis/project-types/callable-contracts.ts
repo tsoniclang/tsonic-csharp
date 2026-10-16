@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
-import { selectCsharpCallableValueAdapter } from "../callables/adapters.js";
+import { admitCsharpCallableValueAdapter } from "../callables/adapters.js";
 import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } from "../callables/instantiation.js";
 
 export function closeCsharpProjectCallableContracts(
@@ -30,7 +30,7 @@ export function closeCsharpProjectCallableContracts(
       if (baseOwner?.kind !== "class" || base === undefined) continue;
       const contract = instantiateCsharpInheritedCallable(policy, resolve(base), implementation, receiver);
       if (contract === undefined || !csharpCallableParametersEqual(contract, implementation)) continue;
-      const result = selectCsharpCallableValueAdapter(policy, selected.returnType, contract.returnType);
+      const result = admitCsharpCallableValueAdapter(policy, selected.returnType, contract.returnType);
       if (result !== undefined && result.conversion.kind !== "identity" &&
         !(result.conversion.kind === "implicit" && result.conversion.proof === "reference")) {
         selected = Object.freeze({ ...selected, sourceReturnType: implementation.returnType, returnType: contract.returnType });

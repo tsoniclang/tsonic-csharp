@@ -146,6 +146,7 @@ export function csharpBigIntegerTargetType(): CsharpTargetNamedTypeRef {
 
 export function csharpExceptionTargetType(): CsharpTargetNamedTypeRef {
   return csharpTargetNamedType("System.Exception", undefined, csharpQualifiedTypeRenderShape("System", "Exception"), {
+    sourceDeclarationKind: "class",
     throwable: true,
     typeofRuntimeKind: "object",
   });
@@ -156,7 +157,8 @@ export function csharpRuntimeErrorTargetType(name: CsharpSourceErrorName = "Erro
     `Tsonic.CSharp.Runtime.${name}`,
     undefined,
     csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", name),
-    { throwable: true, typeofRuntimeKind: "object", baseType: name === "Error" ? csharpExceptionTargetType() : csharpRuntimeErrorTargetType() },
+    { sourceDeclarationKind: "class", throwable: true, typeofRuntimeKind: "object",
+      baseType: name === "Error" ? csharpExceptionTargetType() : csharpRuntimeErrorTargetType() },
   );
 }
 

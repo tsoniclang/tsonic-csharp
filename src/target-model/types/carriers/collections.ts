@@ -18,6 +18,7 @@ export function csharpEnumerableTargetType(elementType: TargetTypeRef): CsharpTa
     [elementType],
     csharpQualifiedTypeRenderShape("System.Collections.Generic", "IEnumerable"),
     {
+      sourceDeclarationKind: "interface",
       arrayLiteralElementType: elementType,
       arrayLiteralConstructionType: constructionType,
       implicitArrayInputElementType: elementType,
@@ -33,6 +34,7 @@ export function csharpReadOnlyListTargetType(elementType: TargetTypeRef): Csharp
     [elementType],
     csharpQualifiedTypeRenderShape("System.Collections.Generic", "IReadOnlyList"),
     {
+      sourceDeclarationKind: "interface",
       arrayLiteralElementType: elementType,
       arrayLiteralConstructionType: constructionType,
       implicitArrayInputElementType: elementType,
@@ -50,6 +52,7 @@ export function csharpListTargetType(elementType: TargetTypeRef): CsharpTargetNa
     Object.freeze([elementType]),
     csharpQualifiedTypeRenderShape("System.Collections.Generic", "List"),
     {
+      sourceDeclarationKind: "class",
       arrayLiteralElementType: elementType,
       enumerableElementType: elementType,
       readOnlyIndexableElementType: elementType,

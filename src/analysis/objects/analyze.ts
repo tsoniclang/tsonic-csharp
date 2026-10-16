@@ -16,7 +16,7 @@ import {
 import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDeclarations } from "../../policy/types/objects/object-shape-policy/union-construction.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpObjectShapeClassifications } from "./model.js";
+import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "./model.js";
 import { selectCsharpStructuralInterface, type CsharpStructuralInterfaceRegistration } from "./structural-interfaces.js";
 import { mergeCsharpObjectShapeSubjects } from "../../policy/types/objects/object-shape-policy/construction.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
@@ -34,7 +34,7 @@ export function analyzeCsharpObjectShapes(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
   operations: CsharpTargetOperationClassifications,
-): CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration & { seal(): CsharpObjectShapeClassifications } {
+): CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration & { seal(): CsharpObjectShapeAnalysis } {
   const byNode = new Map<Node, CsharpObjectShapeFact>();
   const byTarget = new Map<string, CsharpObjectShapeFact>();
   const templates = new Map<string, CsharpObjectShapeFact>();
@@ -208,7 +208,7 @@ export function analyzeCsharpObjectShapes(
     return result;
   }
 
-  const classifications: CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration & { seal(): CsharpObjectShapeClassifications } = {
+  const classifications: CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration & { seal(): CsharpObjectShapeAnalysis } = {
     propertyOrder: propertyOrders.propertyOrder,
     assignmentSourceOrder: propertyOrders.assignmentSourceOrder,
     structuralImplementations,
@@ -361,12 +361,14 @@ export function analyzeCsharpObjectShapes(
         shapeQueue.push(instance);
       }
       const returnedShapes = [...publishedShapes, ...instantiatedShapes.values()];
+      const structuralImplementationTypes: TargetTypeRef[] = [];
       for (const shape of returnedShapes) {
         const type = shape.targetType;
         const key = targetTypeRefKey(type);
         if (type.kind !== "target-named" || (structuralInterfaces.get(type.id)?.size ?? 0) === 0 || sealedStructuralImplementations.has(key)) continue;
         reserveClassification();
         sealedStructuralImplementations.set(key, Object.freeze(structuralImplementations(type)));
+        structuralImplementationTypes.push(type);
       }
       knownShapes = Object.freeze([...byTarget.values()].map(completeShape));
       admittedShapes.clear();
@@ -374,7 +376,8 @@ export function analyzeCsharpObjectShapes(
       return Object.freeze({
         propertyOrder: propertyOrders.propertyOrder,
         assignmentSourceOrder: propertyOrders.assignmentSourceOrder,
-        structuralImplementations,
+        structuralImplementations: sealedStructuralImplementation,
+        structuralImplementationTypes: Object.freeze(structuralImplementationTypes),
         knownShapes: () => knownShapes,
         methodImplementationHasCopies: classifications.methodImplementationHasCopies,
         resolveCopyShape: (shape: CsharpObjectShapeFact) => copies.get(targetTypeRefKey(shape.targetType)),

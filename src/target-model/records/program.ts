@@ -17,8 +17,10 @@ import type { CsharpFlowReadClassifications } from "./source-evidence.js";
 import type { CsharpSourceModuleConstructionIndex } from "./source-modules.js";
 import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications } from "./storage.js";
 import type { CsharpGenericProjectionIndex } from "./type-projections.js";
+import type { CsharpNativeValueCarriers } from "./native-value-carriers.js";
 
 export interface CsharpProgramRecords {
+  readonly nativeValueDeclaration: CsharpNativeValueCarriers["nativeValueDeclaration"];
   readonly literalValue: import("@tsonic/target-api/source").SourceLiteralIndex["literalValue"];
   readonly nativeParticipation: CsharpNativeParticipationInput["participation"];
   readonly attributeApplication: CsharpAttributeApplicationIndex["attributeApplication"];

@@ -119,6 +119,8 @@ import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/proje
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
 import { analyzeCsharpComputedFieldNames } from "../objects/computed-field-names.js";
+import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
+import { finalizeCsharpStructuralInterfaceForwarding } from "../objects/structural-forwarding.js";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -172,12 +174,14 @@ export function analyzeCsharpTargetProgram(
     sourceIdentities,
     semanticsFor: source.semantics.forNode,
   });
+  const callOnlyAlias = createCsharpSourceProfileCallableAliasQuery(source);
   const typeHost = {
     enumConstants: source.semantics.enumConstants,
     literalValues,
     sourceStorage,
     errorStorageDemands: createCsharpErrorStorageDemandQuery(source, sourceStorage),
-    callOnlyAlias: createCsharpSourceProfileCallableAliasQuery(source),
+    callOnlyAlias,
+    objectMethodSources: analyzeCsharpObjectMethodSources(source.ast, sourceStorage.nodes, source.navigation, callOnlyAlias),
     ast: source.ast,
     sourceFiles,
     sourceFacts: source.sourceFacts,
@@ -265,7 +269,15 @@ export function analyzeCsharpTargetProgram(
     }]);
   }
   const callableAdapters = analyzeCsharpProjectCallableAdapters(analysis.policy, analysis.callables);
+  const structuralForwarding = finalizeCsharpStructuralInterfaceForwarding(
+    analysis.policy, analysis.objectShapes, callableAdapters, analysis.declarations,
+  );
+  const nativeValueCarriers = analyzeCsharpNativeValueCarriers(
+    source.ast, sourceStorage.nodes, analysis.sourceEvidence, analysis.valueReads, analysis.objectShapes, analysis.requiredRecords,
+  );
   const analysisIssues = [
+    ...nativeValueCarriers.issues,
+    ...structuralForwarding.issues,
     ...callableAdapters.issues,
     ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
     ...analysis.sourceEvidence.memoryMetadataIssues,
@@ -351,6 +363,7 @@ export function analyzeCsharpTargetProgram(
     evidence: analysis.sourceEvidence, operations: analysis.operations });
   const exactLiterals = analyzeCsharpExactLiteralSelections(literalValues, analysis.conversions.exactLiteralRequests);
   const records = createCsharpProgramRecords({
+    nativeValueCarriers,
     literalValues, exactLiterals, nativeParticipation,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
@@ -383,8 +396,9 @@ export function analyzeCsharpTargetProgram(
       analysis.typeSystem.projectTypes,
       source.ast,
       sourceStorage.nodes,
+      analysis.objectShapes,
     ),
-    objectShapes: analysis.objectShapes,
+    objectShapes: structuralForwarding.objectShapes,
     names: names.seal(),
     sourceModuleConstructions: Object.freeze({
       entries: sourceModuleConstructions.index.entries,
