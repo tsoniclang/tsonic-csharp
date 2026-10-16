@@ -281,7 +281,7 @@ test("selected call forms preserve native argument evaluation and do not add wra
   ` });
   const output = compiled.artifacts.get("src/Index.cs");
   assert.equal(typeof output === "string", true, "native source was emitted");
-  assert.equal(output.includes("global::System.GC.KeepAlive(next())"), true, "direct native keep-alive argument");
-  assert.equal(output.includes("move(next())"), true, "ordinary direct call");
+  assert.equal(output.includes("global::System.GC.KeepAlive(global::Tsonic.Generated.Index.next())"), true, "direct native keep-alive argument");
+  assert.equal(output.includes("global::Tsonic.Generated.Index.move(global::Tsonic.Generated.Index.next())"), true, "ordinary direct call");
   executeCsharpConstruction(compiled, "selected-call-form-owner");
 });

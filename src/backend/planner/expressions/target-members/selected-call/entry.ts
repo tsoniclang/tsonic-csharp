@@ -55,49 +55,55 @@ function translateCsharpCallExpressionCore(
     return undefined;
   }
   const sourceCall = classification.source;
-  if (classification.typeTest !== undefined) {
-    const fact = classification.typeTest;
-    const argument = sourceCall?.sourceArguments[0];
-    const carrier = argument === undefined ? undefined : input.types.classifications.resolveNode(argument.expression, sourceFile);
-    const targetType = csharpTypeFromTargetTypeRef(fact.sourceCarrier, input.scope.typeParameterNames);
-    const value = sourceCall?.sourceArguments.length !== 1 || argument === undefined || carrier === undefined ||
-      targetType === undefined || !targetTypeRefEquals(carrier, fact.sourceCarrier) ? undefined
-      : planCallArgument(argument.expression, sourceFile, input, diagnostics, targetType, undefined, fact.sourceCarrier);
-    const result = projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
-      selected => planCsharpClosedTypeTest(selected, fact, input,
-        createDestructuringPlannerState(sourceFile, input.program.source.ast)));
-    if (result === undefined) diagnostics.push(targetPolicyDiagnostic(node, "CSHARP_CLOSED_TYPE_TEST_INVALID",
-      "Array predicate requires its exact sealed native argument and payload test."));
-    return result;
-  }
-  const sourceFlow = classification.sourceFlow;
-  if (sourceFlow.kind === "keep-alive") {
-    const value = planExpression(sourceFlow.valueExpression, sourceFile, input, diagnostics);
-    return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [value], values => ({
-      kind: "InvocationExpression",
-      callee: { kind: "SimpleMemberAccessExpression", receiver: {
-        kind: "AliasQualifiedName", alias: "global", name: {
-          kind: "QualifiedName", left: { kind: "IdentifierName", name: "System" }, name: "GC",
-        },
-      }, name: "KeepAlive" },
-      arguments: [{ kind: "Argument", expression: values[0]! }],
-    }));
-  }
-  if (sourceFlow.kind === "rejected") {
-    diagnostics.push(targetPolicyDiagnostic(
-      node,
-      sourceFlow.code,
-      sourceFlow.reason,
-    ));
-    return undefined;
-  }
-  const jsValueOperation = classification.jsValue;
-  if (jsValueOperation.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
-    return undefined;
-  }
-  if (jsValueOperation.kind === "resolved") {
-    return planCsharpJsValueCall(node, sourceFile, input, diagnostics, jsValueOperation, sourceCall, planExpression);
+  const form = classification.form;
+  switch (form.kind) {
+    case "type-test": {
+      const fact = form.typeTest;
+      const argument = sourceCall?.sourceArguments[0];
+      const carrier = argument === undefined ? undefined : input.types.classifications.resolveNode(argument.expression, sourceFile);
+      const targetType = csharpTypeFromTargetTypeRef(fact.sourceCarrier, input.scope.typeParameterNames);
+      const value = sourceCall?.sourceArguments.length !== 1 || argument === undefined || carrier === undefined ||
+        targetType === undefined || !targetTypeRefEquals(carrier, fact.sourceCarrier) ? undefined
+        : planCallArgument(argument.expression, sourceFile, input, diagnostics, targetType, undefined, fact.sourceCarrier);
+      const result = projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
+        selected => planCsharpClosedTypeTest(selected, fact, input,
+          createDestructuringPlannerState(sourceFile, input.program.source.ast)));
+      if (result === undefined) diagnostics.push(targetPolicyDiagnostic(node, "CSHARP_CLOSED_TYPE_TEST_INVALID",
+        "Array predicate requires its exact sealed native argument and payload test."));
+      return result;
+    }
+    case "keep-alive": {
+      const sourceFlow = form.sourceFlow;
+      const value = planExpression(sourceFlow.valueExpression, sourceFile, input, diagnostics);
+      return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [value], values => ({
+        kind: "InvocationExpression",
+        callee: { kind: "SimpleMemberAccessExpression", receiver: {
+          kind: "AliasQualifiedName", alias: "global", name: {
+            kind: "QualifiedName", left: { kind: "IdentifierName", name: "System" }, name: "GC",
+          },
+        }, name: "KeepAlive" },
+        arguments: [{ kind: "Argument", expression: values[0]! }],
+      }));
+    }
+    case "source-flow-rejected": {
+      const sourceFlow = form.sourceFlow;
+      diagnostics.push(targetPolicyDiagnostic(
+        node,
+        sourceFlow.code,
+        sourceFlow.reason,
+      ));
+      return undefined;
+    }
+    case "js-value": {
+      const jsValueOperation = form.operation;
+      if (jsValueOperation.kind === "rejected") {
+        diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
+        return undefined;
+      }
+      return planCsharpJsValueCall(node, sourceFile, input, diagnostics, jsValueOperation, sourceCall, planExpression);
+    }
+    case "target":
+      break;
   }
   const selection = classification.target;
   if (selection === undefined) {

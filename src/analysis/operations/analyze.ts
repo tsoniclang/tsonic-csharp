@@ -20,6 +20,7 @@ import { resolveCsharpInstanceType } from "../../policy/types/resolution/instanc
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
 import { selectCsharpOperatorForm } from "../../policy/operations/operators/operator-forms.js";
 import { selectCsharpArrayTypeTest } from "../../policy/operations/source-profiles/js/type-tests.js";
+import { selectCsharpCallForm } from "../../policy/operations/members/selection/call-forms.js";
 import { getCsharpTypeofResult, type CsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { getCsharpClassFactory } from "../../target-model/types/carriers/class-factories.js";
@@ -420,6 +421,7 @@ function visit(
       expression?.QuestionDotToken !== undefined,
     ));
     const typeTest = selectCsharpArrayTypeTest(policy, source, sourceFile);
+    const form = selectCsharpCallForm(typeTest, selectCsharpSourceFlowCall(policy, node), jsValue);
     const selectedTarget = jsValue.kind === "not-js-value" && typeTest === undefined
       ? selectCsharpTargetCall(policy, node, sourceFile)
       : undefined;
@@ -443,7 +445,7 @@ function visit(
     const sourceMethodValue = source === undefined || sourceCall?.kind !== "value" ? undefined
       : getCsharpMethodValue(policy.types.resolveNode(source.sourceCallee.expression, sourceFile));
     setClassification(builder, node, callKey, Object.freeze({
-      ...(typeTest === undefined ? {} : { typeTest }),
+      form,
       ...(sourceMethodValue === undefined ? {} : { sourceMethodValue }),
       ...(optionalReceiver === undefined ? {} : { optionalReceiver }),
       ...(optionalCallee === undefined ? {} : { optionalCallee }),
@@ -456,7 +458,6 @@ function visit(
         sourceResult: policy.types.resolveSourceCallResult(source, sourceFile,
           target?.kind === "resolved" ? target.call.targetMember.returnType : undefined),
       }),
-      sourceFlow: selectCsharpSourceFlowCall(policy, node),
       jsValue,
       ...(target === undefined ? {} : { target }),
       ...(selectedResultType === undefined ? {} : { selectedResultType }),
