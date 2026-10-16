@@ -3,35 +3,31 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpResolvedBinaryOperation } from "../../../../target-model/records/operator-selection.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
-import type { ExpectedExpressionPlanner, ExpressionPlanner } from "../expression-planner-types.js";
+import type { ExpressionPlanner } from "../expression-planner-types.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { csharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";
+import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";
 import { planCsharpValueBranch } from "../planned-value-composition.js";
 import { planCsharpPlannedDiscard } from "../../statements/statement-output.js";
 import { applyCsharpConversionSelection, readCsharpExpressionConversionClassification } from "../conversions.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 
-export function planCsharpConditionalValue(
-  node: Node,
-  selection: CsharpResolvedBinaryOperation,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
-  planExpressionWithExpectedType: ExpectedExpressionPlanner,
-  state?: DestructuringPlannerState,
+export function planCsharpConditionalValue(node: Node, selection: CsharpResolvedBinaryOperation, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState
 ): CsharpPlannedValue | undefined {
   const operation = selection.targetOperation;
   if (operation.kind !== "conditional-value") return undefined;
   const type = csharpTypeFromTargetTypeRef(selection.resultType, input.scope.typeParameterNames);
   if (type === undefined) return undefined;
-  if (operation.branch === "left") return planExpressionWithExpectedType(
-    selection.left, sourceFile, input, diagnostics, type, undefined, selection.resultType, state);
   const left = planExpression(selection.left, sourceFile, input, diagnostics, state);
   if (left === undefined || left.completion.kind === "never") return left;
-  const right = planExpressionWithExpectedType(
-    selection.right, sourceFile, input, diagnostics, type, undefined, selection.resultType, state);
+  if (operation.branch === "left") {
+    const conversion = readCsharpExpressionConversionClassification(selection.left, input, diagnostics,
+      selection.leftType, selection.resultType, "implicit");
+    return conversion === undefined ? undefined : mapCsharpPlannedValue(left, selection.resultType, value =>
+      applyCsharpConversionSelection(selection.left, sourceFile, input, diagnostics,
+        selection.leftType, selection.resultType, conversion, value));
+  }
+  const right = planExpression(selection.right, sourceFile, input, diagnostics, state);
   if (right === undefined) return undefined;
   if (operation.branch === "right") return {
     prelude: [...planCsharpPlannedDiscard(left), ...right.prelude], completion: right.completion,

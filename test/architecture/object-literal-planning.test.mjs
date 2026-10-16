@@ -11,7 +11,7 @@ const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
 const domain = "src/backend/planner/objects/object-literals/";
 const entrypoint = `${domain}planning.ts`;
 const owners = new Map([
-  ["planObjectLiteralExpressionWithExpectedType", entrypoint],
+  ["planObjectLiteralExpression", entrypoint],
   ["planObjectShapeLiteralAssignment", `${domain}assignments.ts`],
   ["planObjectShapeAccessorMemberAssignment", `${domain}accessors.ts`],
   ["planObjectShapeMethodMemberAssignment", `${domain}methods.ts`],
@@ -72,7 +72,7 @@ function canonicalSources() {
     ...[...owners].map(([symbol, file]) => [file, `export function ${symbol}() {}`]),
     [
       "src/backend/planner/expressions/consumer.ts",
-      'import { planObjectLiteralExpressionWithExpectedType } from "../objects/object-literals/planning.js";',
+      'import { planObjectLiteralExpression } from "../objects/object-literals/planning.js";',
     ],
   ]);
 }

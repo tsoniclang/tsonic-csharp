@@ -6,12 +6,12 @@ import { analyzeCsharpTargetProgram } from "../../../../dist/analysis/program/in
 import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/relations/resolver.js";
 import { createCsharpTargetConfiguration } from "../../../../dist/options/csharp-target-options.js";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
-import { planExpression, planExpressionWithExpectedType, planCallArgument } from "../../../../dist/backend/planner/expressions/index.js";
+import { planExpression, planCallArgument } from "../../../../dist/backend/planner/expressions/index.js";
+import * as expressionEntry from "../../../../dist/backend/planner/expressions/index.js";
 import { planCsharpOutput } from "../../../../dist/backend/planner/program/planning.js";
 import { printCsharpCompilationUnit } from "../../../../dist/print/source/printer.js";
 import { csharpAbsenceTargetType, csharpSourcePrimitiveTargetType, targetTypeRefEquals } from "../../../../dist/target-model/types/index.js";
 import { selectCsharpConversion } from "../../../../dist/policy/conversions/core.js";
-import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/target-types.js";
 
 function fixture() {
   const checked = checkCsharpSource({ surface: "js", sourceText: `
@@ -60,8 +60,15 @@ function fixture() {
     arguments: Object.freeze(selected.arguments.map(argument => argument.sourceArgumentIndex === 1
       ? Object.freeze({ ...argument, targetParameter: parameter }) : argument)),
   });
+  const actual = program.records.nativeUse.expression(radix);
+  assert.equal(actual !== undefined && actual.use.kind !== "erased", true, "the original argument has its exact native context");
+  const wrongUse = Object.freeze({ ...actual.use, kind: "converted", carrier: absence,
+    input: Object.freeze({ kind: "value", type: absence }), target: number, mode: "implicit", literal: undefined });
   const changed = Object.freeze({ ...program,
     records: Object.freeze({ ...program.records,
+      nativeUse: Object.freeze({ ...program.records.nativeUse,
+        expression: node => node === radix ? Object.freeze({ site: actual.site, use: wrongUse }) : program.records.nativeUse.expression(node),
+        get: site => site === actual.site ? wrongUse : program.records.nativeUse.get(site) }),
       selectedCall: Object.freeze({ get: node => node === call ? Object.freeze({ ...classification,
         target: Object.freeze({ ...classification.target, call: wrongCall }) }) : program.records.selectedCall.get(node) }),
       expressionConversion: Object.freeze({ get: (node, from, to, mode) => node === radix && mode === "implicit"
@@ -75,13 +82,12 @@ test("required expression boundaries diagnose silent rejected conversions withou
   const current = fixture();
   const file = current.source.ast.getSourceFile(current.radix);
   const context = createCsharpPlanningContext(current.changed);
-  const type = csharpTypeFromTargetTypeRef(current.number);
+  assert.equal(Object.hasOwn(expressionEntry, "planExpressionWithExpectedType"), false, "the superseded hint-based API is absent");
   const planners = [
     ["untyped", diagnostics => planExpression(current.call, file, context, diagnostics)],
-    ["expected", diagnostics => planExpressionWithExpectedType(current.radix, file, context, diagnostics,
-      type, current.radix, undefined, current.number)],
+    ["exact native expression", diagnostics => planExpression(current.radix, file, context, diagnostics)],
     ["argument", diagnostics => planCallArgument(current.radix, file, context, diagnostics,
-      type, current.radix, current.number)],
+      current.number)],
   ];
   for (const [name, plan] of planners) for (const prior of [[], [
     { code: "PRIOR", category: "error", source: "test", message: "Unrelated existing error." },

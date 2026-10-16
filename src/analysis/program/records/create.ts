@@ -19,10 +19,12 @@ import type { CsharpSourceModuleConstructionIndex } from "../../../target-model/
 import type { CsharpStorageClassifications } from "../../../target-model/records/storage.js";
 import type { CsharpGenericProjectionIndex } from "../../../target-model/records/type-projections.js";
 import type { CsharpProgramRecords } from "../../../target-model/records/program.js";
+import type { CsharpNativeValueCarriers } from "../../../target-model/records/native-value-carriers.js";
 import { assertCsharpRequiredRecords, type CsharpRequiredRecord } from "./required-records.js";
 import type { CsharpCallableCreationIndex } from "../../callables/model.js";
 
 export interface CsharpProgramRecordInput {
+  readonly nativeValueCarriers: CsharpNativeValueCarriers;
   readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
   readonly nativeParticipation: CsharpNativeParticipationInput;
   readonly nativeDemand: CsharpNativeUseClassifications;
@@ -54,6 +56,7 @@ export function createCsharpProgramRecords(
   required: readonly CsharpRequiredRecord[],
 ): CsharpProgramRecords {
   const records: CsharpProgramRecords = Object.freeze({
+    nativeValueDeclaration: input.nativeValueCarriers.nativeValueDeclaration,
     literalValue: input.literalValues.literalValue,
     nativeParticipation: input.nativeParticipation.participation,
     nativeUse: input.nativeDemand.nativeUse,
@@ -87,7 +90,6 @@ export function createCsharpProgramRecords(
     methodWrite: input.declarations.methodWrite,
     returnContext: input.expectedTypes.returnContext,
     callableTarget: input.callableCreations.callableTarget,
-    expectedBinary: input.expectedTypes.expectedBinary,
     moduleInitializationDependencies: input.moduleInitialization.moduleInitializationDependencies,
     requiresModuleInitializer: input.moduleInitialization.requiresModuleInitializer,
     asyncModuleInitializer: input.moduleInitialization.asyncModuleInitializer,

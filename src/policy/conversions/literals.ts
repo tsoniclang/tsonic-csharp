@@ -1,4 +1,5 @@
-import { compareSourceNumericLiteralMagnitude, type SourceLiteralValue, type SourceNumericLiteralToken } from "@tsonic/target-api/source";
+import { compareSourceNumericLiteralMagnitude, type SourceLiteralValue, type SourceNumericLiteralToken,
+  type SourcePropertyNameSelection } from "@tsonic/target-api/source";
 import type { CsharpExactLiteralRecipe, CsharpExactLiteralSelection } from "../../target-model/conversions/exact-literals.js";
 import {
   csharpBigIntFitsSourcePrimitive,
@@ -156,7 +157,56 @@ export function selectCsharpExactLiteralConversion(
 }
 
 const float32OverflowThreshold = (1n << 128n) - (1n << 103n);
+const float64OverflowThreshold = (1n << 1024n) - (1n << 970n);
 const decimalOverflowThresholdTwice = (((1n << 96n) - 1n) << 1n) + 1n;
+
+export function selectCsharpExactPropertyKeyConversion(
+  key: SourcePropertyNameSelection,
+  target: TargetTypeRef | undefined,
+): CsharpExactLiteralSelection {
+  if (key.kind === "rejected") return rejected(key.reason);
+  if (key.kind !== "resolved" || target === undefined) return rejected(
+    "Record dictionary object literal keys require an exact string or numeric native constant.");
+  const physical = getCsharpNullableElementTargetType(target) ?? target;
+  if (isCsharpStringTargetType(physical)) return resolved({ kind: "string", value: key.name });
+  if (physical.kind !== "source-primitive") return rejected(
+    "Record dictionary object literal keys require a renderable native scalar carrier.");
+  const constant = key.constant;
+  if (physical.name === "char") {
+    const text = constant.kind === "string" ? constant.value
+      : constant.kind === "enum-member" && typeof constant.entry.value === "string" ? constant.entry.value : undefined;
+    return text !== undefined && text.length === 1 ? resolved({ kind: "char", value: text })
+      : rejected("C# char property keys require exactly one UTF-16 code unit from a checked string constant.");
+  }
+  const token = constant.kind === "numeric" ? constant.token : undefined;
+  const enumInteger = constant.kind === "enum-member" && typeof constant.entry.value === "bigint" ? constant.entry.value : undefined;
+  if (token === undefined && enumInteger === undefined) return rejected(
+    "A native numeric dictionary key requires a checked numeric constant, not a string-to-number conversion.");
+  const magnitude = enumInteger === undefined ? undefined : enumInteger < 0n ? -enumInteger : enumInteger;
+  const compare = (limit: bigint) => token === undefined
+    ? magnitude! < limit ? -1 : magnitude! > limit ? 1 : 0
+    : compareSourceNumericLiteralMagnitude(token, limit);
+  const negative = token === undefined ? enumInteger! < 0n : token.negative;
+  if (physical.name === "float16" || physical.name === "float32" || physical.name === "float64" || physical.name === "decimal") {
+    const fits = physical.name === "decimal" ? token === undefined
+      ? magnitude! * 2n < decimalOverflowThresholdTwice
+      : compareSourceNumericLiteralMagnitude({ coefficient: token.coefficient * 2n, exponent: token.exponent }, decimalOverflowThresholdTwice) < 0
+      : compare(physical.name === "float16" ? 65520n : physical.name === "float32" ? float32OverflowThreshold : float64OverflowThreshold) < 0;
+    if (!fits) return rejected(`Source numeric property key is outside the '${physical.name}' range.`);
+    return resolved({ kind: "float", target: physical, precision: physical.name,
+      token: createCsharpNumericLiteralToken(token === undefined ? magnitude!.toString() : token.decimalText), negative });
+  }
+  if (physical.name === "bool") return rejected("A native dictionary key cannot convert a numeric constant into a boolean.");
+  let integer = enumInteger;
+  if (integer === undefined && token !== undefined) {
+    if (token.coefficient !== 0n && (token.exponent < 0n || compare(1n << 128n) >= 0)) return rejected(
+      `Source numeric property key has no exact '${physical.name}' integer representation.`);
+    integer = token.coefficient === 0n ? 0n : token.coefficient * 10n ** token.exponent * (negative ? -1n : 1n);
+  }
+  if (integer === undefined || !csharpBigIntFitsSourcePrimitive(integer, physical.name)) return rejected(
+    `Source numeric property key is outside the exact '${physical.name}' range.`);
+  return resolved({ kind: "integer", target: physical, width: physical.name, value: integer });
+}
 
 function authoredFloatingLiteralFits(token: SourceNumericLiteralToken, target: "float32" | "decimal"): boolean {
   switch (target) {

@@ -1,4 +1,5 @@
-import type { CsharpSelectedTargetCall } from "../../../../target-model/records/members.js";
+import type { CsharpSelectedTargetCall, CsharpProviderArgumentMapping } from "../../../../target-model/records/members.js";
+import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpSourceArgumentGrouping } from "../../../../target-model/records/operations.js";
 import type { CsharpNativeArgumentBinding, CsharpNativeArgumentBindings } from "../../../../target-model/records/native-demand.js";
 
@@ -49,4 +50,15 @@ export function csharpSourceOwnedArgumentBindings(grouping: CsharpSourceArgument
   return Object.freeze({ kind: "bound", bindings: Object.freeze(grouping.arguments.map(entry =>
     argumentBinding(entry.sourceArgumentIndex, entry.effectiveArgumentIndex, entry.parameterIndex,
       entry.sourceForm === "spread-sequence", entry.sourceParameterIndex))) });
+}
+
+export function csharpProviderArgumentSourceCarrier(mapping: CsharpProviderArgumentMapping | undefined): TargetTypeRef | undefined {
+  if (mapping?.kind !== "by-value") return undefined;
+  switch (mapping.conversion.kind) {
+    case "provider-argument-adapter":
+    case "lifted-provider-argument-adapter":
+    case "checked-native-integer": return mapping.sourceType;
+    case "delegate-adapter": return mapping.conversion.strategy === "adaptation" ? mapping.sourceType : undefined;
+    default: return undefined;
+  }
 }

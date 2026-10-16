@@ -44,10 +44,7 @@ import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type {
   CsharpDelegateSignatureShape,
 } from "../../../target-model/types/index.js";
-import type {
-  ExpressionPlanner,
-  ExpectedExpressionPlanner,
-} from "./expression-planner-types.js";
+import type { ExpressionPlanner } from "./expression-planner-types.js";
 import {
   getCsharpTaskResultTargetType,
   csharpVoidReturnCompletion,
@@ -84,14 +81,7 @@ export interface LambdaTargetContext {
   };
 }
 
-export function planArrowFunctionExpression(
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
-  state?: DestructuringPlannerState,
-  planExpressionWithExpectedType?: ExpectedExpressionPlanner,
+export function planArrowFunctionExpression(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState
 ): CsharpPlannedValue | undefined {
   const creationPolicy = input.program.records.lambdaCreation.get(node);
   if (creationPolicy.kind === "discarded") return csharpPlannedEffect(csharpVoidTargetType(), []);
@@ -179,18 +169,7 @@ export function planArrowFunctionExpression(
   ];
   const completion = expression.Body === undefined ? undefined : csharpVoidReturnCompletion(
     input.types.classifications.resolveNode(expression.Body, sourceFile), returnContext?.returnExpressionTargetType);
-  const body = completion === undefined && returnContext !== undefined && planExpressionWithExpectedType !== undefined
-    ? planExpressionWithExpectedType(
-      expression.Body!,
-      sourceFile,
-      scopedInput,
-      diagnostics,
-      returnContext.returnExpressionType,
-      returnContext.returnExpressionTypeSubject,
-      returnContext.returnExpressionTargetType,
-      plannerState,
-    )
-    : planExpression(expression.Body!, sourceFile, scopedInput, diagnostics, plannerState);
+  const body = planExpression(expression.Body!, sourceFile, scopedInput, diagnostics, plannerState);
   if (body === undefined) {
     return undefined;
   }

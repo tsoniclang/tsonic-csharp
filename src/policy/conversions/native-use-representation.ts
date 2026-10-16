@@ -25,6 +25,7 @@ export interface CsharpNativeRepresentationInput {
   readonly mode: CsharpConversionMode;
   readonly source?: TargetTypeRef;
   readonly absent: boolean;
+  readonly projection?: "present-payload";
   readonly literal: CsharpExactLiteralSelection | undefined;
   readonly callable: CsharpNativeCallableCreation | undefined;
   readonly constructionCarrier?: TargetTypeRef;
@@ -61,6 +62,9 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
     const site = child(node, { kind: "operand", position: "only" }, target);
     return site === undefined ? pending("forwarding-child-unresolved") : selected("forward", target, [site]);
   };
+
+  if (input.projection === "present-payload") return input.source === undefined ? pending("source-unresolved")
+    : selected(targetTypeRefEquals(input.source, target) ? "forward" : "convert", input.source);
 
   if (ast.is.IsBinaryExpression(expression) && input.binary?.kind === "resolved") {
     const binary = input.binary;

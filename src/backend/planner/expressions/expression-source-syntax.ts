@@ -5,20 +5,14 @@ import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import {
   AsAwaitExpression,
   AsBigIntLiteral,
-  AsConditionalExpression,
   AsNoSubstitutionTemplateLiteral,
-  AsParenthesizedExpression,
-  AsSatisfiesExpression,
   AsStringLiteral,
   KindAwaitExpression,
   KindBigIntLiteral,
-  KindConditionalExpression,
   KindFalseKeyword,
   KindNoSubstitutionTemplateLiteral,
   KindNullKeyword,
   KindNumericLiteral,
-  KindParenthesizedExpression,
-  KindSatisfiesExpression,
   KindStringLiteral,
   KindSuperKeyword,
   KindThisKeyword,
@@ -43,9 +37,6 @@ import {
   requireCsharpStringRuntimeCarrier,
 } from "./expression-literal-carriers.js";
 import {
-  planCsharpConditionExpression,
-} from "./expression-bool-carriers.js";
-import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
 import {
@@ -60,8 +51,8 @@ import {
   planThisExpression,
 } from "./expression-this.js";
 import { planCsharpAwaitCompletion } from "./await-completions.js";
-import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
-import { planCsharpExpressionCompletion, planCsharpValueBranch } from "./planned-value-composition.js";
+import type { CsharpPlannedValue } from "./planned-values.js";
+import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 
 export function tryPlanSourceSyntaxExpression(
   node: Node,
@@ -145,16 +136,6 @@ export function tryPlanSourceSyntaxExpression(
       return value(planThisExpression(node, sourceFile, input, diagnostics));
     case KindSuperKeyword:
       return value({ kind: "IdentifierName", name: "base" });
-    case KindSatisfiesExpression:
-      return planExpression(AsSatisfiesExpression(input.program.source.ast, node)!.Expression!, sourceFile, input, diagnostics);
-    case KindParenthesizedExpression: {
-      const expression = AsParenthesizedExpression(input.program.source.ast, node)!;
-      const inner = planExpression(expression.Expression!, sourceFile, input, diagnostics);
-      if (inner === undefined) {
-        return undefined;
-      }
-      return mapCsharpPlannedValue(inner, inner.completion.carrier, expression => ({ kind: "ParenthesizedExpression", expression }));
-    }
     case KindAwaitExpression: {
       const expression = AsAwaitExpression(input.program.source.ast, node)!;
       if (expression.Expression === undefined) {
@@ -185,27 +166,6 @@ export function tryPlanSourceSyntaxExpression(
         return undefined;
       }
       return planCsharpAwaitCompletion(node, awaitedCarrier, completion, awaited, input, diagnostics);
-    }
-    case KindConditionalExpression: {
-      const expression = AsConditionalExpression(input.program.source.ast, node)!;
-      if (expression.Condition === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Conditional expression requires a condition expression."));
-        return undefined;
-      }
-      const condition = planCsharpConditionExpression(
-        expression.Condition,
-        "Conditional expression condition",
-        sourceFile,
-        input,
-        diagnostics,
-        planExpression,
-      );
-      const whenTrue = planExpression(expression.WhenTrue!, sourceFile, input, diagnostics);
-      const whenFalse = planExpression(expression.WhenFalse!, sourceFile, input, diagnostics);
-      if (condition === undefined || whenTrue === undefined || whenFalse === undefined) {
-        return undefined;
-      }
-      return planCsharpValueBranch(node, sourceFile, input, diagnostics, condition, whenTrue, whenFalse);
     }
     default:
       return undefined;

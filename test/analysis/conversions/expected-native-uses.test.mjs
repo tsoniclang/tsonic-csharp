@@ -10,6 +10,7 @@ import { collectCsharpExpectedNativeUseSites } from "../../../dist/analysis/expe
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
 
 function owners(sourceText, surface = "native", targetOptions) {
   const compiled = compileCsharpSource({ sourceText, surface, targetOptions });
@@ -27,8 +28,9 @@ function owners(sourceText, surface = "native", targetOptions) {
     const returnType = records.generatorTargetType.get(node) ?? (declared?.kind === "resolved" ? declared.type : undefined);
     return returnType === undefined ? [] : [{ sourceDeclaration: node, returnType }];
   });
+  const privateOwner = createExpectedNativeUseOwner(compiled);
   const input = {
-    policy: { ast, sourceFiles: program.sourceFiles, semantics: source.semantics.forFile, typeDefinitions: program.typeDefinitions },
+    policy: privateOwner.input.policy,
     evidence: records,
     operations: { ...records, nativePointer: { get() { assert.fail("losing raw pointer reader"); } },
       typedLocation: { get() { assert.fail("losing raw location reader"); } } },
@@ -41,7 +43,7 @@ function owners(sourceText, surface = "native", targetOptions) {
   const collection = createCsharpExpectedUseCollection(input.policy);
   const constructs = createCsharpExpectedConstructUses(input, collection);
   const returns = createCsharpExpectedReturnTargets(input, collection);
-  const propagation = createCsharpExpectedTypePropagation(input, collection, (node, target) => records.expectedBinary.get(node, target));
+  const propagation = createCsharpExpectedTypePropagation(input, collection, (node, target) => privateOwner.analysis.expectedBinary.get(node, target));
   const text = node => String(ast.getSourceText(ast.getSourceFile(node))).slice(ast.pos(node), ast.end(node)).trim().replace(/\s+/gu, " ");
   return { compiled, program, ast, nodes, input, collection, constructs, returns, propagation, text };
 }
@@ -56,7 +58,8 @@ function collect(value) {
   }
   value.returns.recordReturnDemands();
   for (let pending = value.collection.takePending(); pending !== undefined; pending = value.collection.takePending()) value.propagation.propagate(pending);
-  return collectCsharpExpectedNativeUseSites(value.collection.seal().requests);
+  value.projection = value.collection.seal();
+  return collectCsharpExpectedNativeUseSites(value.projection.requests);
 }
 
 for (const surface of ["native", "js"]) test(`${surface} actual selected calls and wrapper forwarding preserve exact source/effective/parameter sites`, () => {
@@ -132,7 +135,7 @@ for (const surface of ["native", "js"]) test(`${surface} numeric request evidenc
     return { name: value.ast.text(value.ast.name(node)), source: value.text(expression),
       left: carrier(selected.leftInputType), right: carrier(selected.rightInputType), result: carrier(selected.resultType),
       readSource: carrier(value.program.records.valueRead.get(expression)?.source),
-      expected: value.program.records.requiredExpectedType.get(expression).map(carrier),
+      expected: value.projection.requiredExpectedType(expression).map(carrier),
       requests: sites.requestsOf(expression).map(request => ({ role: request.site.role, kind: request.kind,
         target: carrier(request.targetType), exactInteger: request.exactInteger, mode: request.mode })) };
   });
@@ -164,7 +167,7 @@ for (const surface of ["native", "js"]) test(`${surface} explicitly typed operan
     return { name: value.ast.text(value.ast.name(node)), source: value.text(expression), left: carrier(selected.leftInputType),
       right: carrier(selected.rightInputType), result: carrier(selected.resultType),
       readSource: carrier(value.program.records.valueRead.get(expression)?.source),
-      expected: value.program.records.requiredExpectedType.get(expression).map(carrier),
+      expected: value.projection.requiredExpectedType(expression).map(carrier),
       requests: sites.requestsOf(expression).map(request => ({ role: request.site.role, kind: request.kind,
         target: carrier(request.targetType), exactInteger: request.exactInteger, mode: request.mode })) };
   });

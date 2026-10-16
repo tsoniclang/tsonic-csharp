@@ -23,6 +23,7 @@ import { createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from
 import {
   rejectedTargetStage,
   resolvedTargetStage,
+  failTargetAnalysisInvariant,
 } from "@tsonic/target-api/artifacts";
 import {
   resolveTargetContractFixedPoint,
@@ -122,6 +123,7 @@ import { analyzeCsharpNativeDemand } from "../operations/native-demand.js";
 import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/project/binary-execution-drivers.js";
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
+import { analyzeCsharpNativeValueCarriers } from "../objects/value-carriers.js";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -264,7 +266,11 @@ export function analyzeCsharpTargetProgram(
     }]);
   }
   const callableAdapters = analyzeCsharpProjectCallableAdapters(analysis.policy, analysis.callables);
+  const nativeValueCarriers = analyzeCsharpNativeValueCarriers(
+    source.ast, sourceStorage.nodes, analysis.sourceEvidence, analysis.valueReads, analysis.objectShapes, analysis.requiredRecords,
+  );
   const analysisIssues = [
+    ...nativeValueCarriers.issues,
     ...callableAdapters.issues,
     ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
     ...analysis.sourceEvidence.memoryMetadataIssues,
@@ -340,6 +346,7 @@ export function analyzeCsharpTargetProgram(
     ast: source.ast, nodes: sourceStorage.nodes, captures: captureStorage, contracts: analysis.callables,
     expectedTypes: analysis.expectedTypes, storage: analysis.storage, evidence: analysis.sourceEvidence, conversions: analysis.conversions,
   });
+  if (analysis.conversions.issues.length > 0) return rejectCsharpAnalysisIssues(analysis.conversions.issues);
   const flowReads = analyzeCsharpFlowReadProjections(analysis.policy, analysis.sourceEvidence, analysis.operations, analysis.valueReads);
   if (flowReads.issues.length > 0) return rejectCsharpAnalysisIssues(flowReads.issues);
   const nativeParticipation = analyzeCsharpNativeParticipation({
@@ -353,11 +360,12 @@ export function analyzeCsharpTargetProgram(
     evidence: analysis.sourceEvidence, operations: analysis.operations });
   const exactLiterals = analyzeCsharpExactLiteralSelections(literalValues, [
     ...analysis.conversions.exactLiteralRequests,
+    ...analysis.expectedTypes.constructions.propertyKeyRequests,
     ...analysis.expectedTypes.nativeUseSites.requests.flatMap(request => request.kind === "requested"
       ? [{ expression: request.expression, target: request.targetType }] : []),
   ]);
   const bindingCandidates = analyzeCsharpBindingPatterns({
-    ast: source.ast, sourceFiles, participation: nativeParticipation.participation, evidence: analysis.sourceEvidence,
+    ast: source.ast, semanticsFor: source.semantics.forNode, sourceFiles, participation: nativeParticipation.participation, evidence: analysis.sourceEvidence,
     operations: analysis.operations, valueReads: analysis.valueReads, objectShapes: analysis.objectShapes,
   });
   const expectedUse = admitCsharpExpectedNativeUses(analysis.expectedTypes, {
@@ -367,19 +375,29 @@ export function analyzeCsharpTargetProgram(
   const nativeDemand = analyzeCsharpNativeDemand({
     ast: source.ast, sourceFiles, navigation: source.navigation, evidence: analysis.sourceEvidence,
     operations: analysis.operations, valueReads: analysis.valueReads, participation: nativeParticipation.participation,
+    declarations: analysis.declarations, objectShapes: analysis.objectShapes,
     bindingPatterns: bindingCandidates, callableCreation: callableCreations.callableCreation, attributeApplications,
+    propertyKeyBindings: analysis.expectedTypes.constructions.propertyKeys, exactLiteral: exactLiterals.exactLiteral,
     classInitialization, projectTypes: analysis.typeSystem.projectTypes.catalog, classFactories, expected: expectedUse,
   }, analysis.requiredRecords);
   const bindingPatterns = admitCsharpBindingPatterns(bindingCandidates, nativeDemand.requiredBindingRoots, analysis.requiredRecords);
-  if (nativeDemand.unadmitted.length > 0 || bindingPatterns.issues.length > 0) return rejectCsharpAnalysisIssues([
-    ...bindingPatterns.issues,
-    ...nativeDemand.unadmitted.map(use => ({ node: use.expression, code: "CSHARP_NATIVE_USE_NOT_PROVEN",
-      message: `Native consumption '${use.site.role}' has no completed representation: ${use.reason}.` })),
-  ]);
+  if (nativeDemand.unadmitted.length > 0) {
+    const refusals = nativeDemand.unadmitted.filter(use =>
+      use.reason === "argument-refused" || use.reason === "source-argument-rejected" || use.reason === "property-key-refused");
+    if (refusals.length > 0) return rejectCsharpAnalysisIssues(refusals.map(use => ({
+      node: use.expression, code: "CSHARP_UNSUPPORTED_AST", message: use.message ?? failTargetAnalysisInvariant(
+        "tsonic-csharp", "A native source refusal requires its exact admitted reason.", use.expression),
+    })));
+    const incomplete = nativeDemand.unadmitted[0]!;
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
+  }
   const conversions = analysis.conversionAnalysis.seal(nativeDemand, analysis.requiredRecords);
   if (conversions.issues.length > 0) return rejectCsharpAnalysisIssues(conversions.issues);
+  if (bindingPatterns.issues.length > 0) return rejectCsharpAnalysisIssues(bindingPatterns.issues);
   const typeDefinitions = analysis.typeDefinitions.seal();
   const records = createCsharpProgramRecords({
+    nativeValueCarriers,
     literalValues, exactLiterals, nativeParticipation, nativeDemand, bindingPatterns,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,

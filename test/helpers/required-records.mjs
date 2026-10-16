@@ -24,6 +24,7 @@ export function compileCsharpRequiredRecordSource(sourceText, surface) {
 export function csharpRecordInput(records) {
   const group = Object.freeze({ ...records });
   return Object.freeze({
+    nativeValueCarriers: group,
     literalValues: group,
     nativeParticipation: Object.freeze({ participation: records.nativeParticipation }),
     nativeDemand: group,

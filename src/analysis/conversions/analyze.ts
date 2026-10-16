@@ -78,6 +78,7 @@ export function analyzeCsharpConversions(
   let classificationCount = 0;
   let closed = false;
   let preparedClassifications: CsharpPreparedConversionClassifications | undefined;
+  let preparedOperations: CsharpTargetOperationClassifications | undefined;
   let sealedClassifications: CsharpConversionClassifications | undefined;
   const literalRequests = createCsharpExactLiteralRequestCollector(policy.literalValues);
 
@@ -118,23 +119,30 @@ export function analyzeCsharpConversions(
     classifications,
     prepare({ operations, expectedTypes, valueReads }) {
       if (preparedClassifications !== undefined) return preparedClassifications;
+      preparedOperations = operations;
       for (const sourceFile of policy.sourceFiles) {
         visit(sourceFile, sourceFile, operations, expectedTypes, valueReads);
       }
-      preparedClassifications = Object.freeze({ ...classifications, exactLiteralRequests: literalRequests.requests });
+      preparedClassifications = Object.freeze({ ...classifications, exactLiteralRequests: Object.freeze([...literalRequests.requests]) });
       return preparedClassifications;
     },
     seal(nativeDemand, requiredRecords) {
       if (sealedClassifications !== undefined) return sealedClassifications;
-      if (preparedClassifications === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Native conversion uses require completed preparation.");
-      const admitted = sealCsharpConversionUses(nativeDemand, (expression, source, target, mode) => {
-        const selected = classifyExpression(expression, source, target, mode);
+      if (preparedClassifications === undefined || preparedOperations === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Native conversion uses require completed preparation.");
+      const admitted = sealCsharpConversionUses(nativeDemand, preparedOperations, (expression, source, target, mode, boundary) => {
+        const selected = boundary === undefined ? classifyExpression(expression, source, target, mode) : boundary.selection;
         if (selected === undefined) return undefined;
-        classifyPair(source, target, mode, expression);
+        if (boundary === undefined) classifyPair(source, target, mode, expression);
         const key = pairKey(source, target, mode);
+        if (boundary !== undefined) {
+          const selections = expressionSelections.get(expression) ?? new Map();
+          selections.set(key, Object.freeze({ source, target, selection: selected,
+            ...(boundary.identityRequired === true ? { identityRequired: true } : {}) }));
+          expressionSelections.set(expression, selections);
+        }
         const classification = expressionSelections.get(expression)?.get(key);
         return classification === undefined ? undefined : Object.freeze({ key, classification });
-      }, requiredRecords);
+      }, (expression, source, target) => classifyPair(source, target, "implicit", expression), requiredRecords, issues);
       issues.push(...admitted.issues);
       delegateAdapters = sealCsharpDelegateAdapterIdentities(policy, admitted.expressions, issues);
       closed = true;
@@ -509,26 +517,7 @@ export function analyzeCsharpConversions(
         const expression = argument === undefined ? undefined
           : selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
         if (expression !== undefined) {
-          classifyExpression(expression, mapping.sourceType, mapping.targetType, "implicit");
           literalRequests.requestConversion(expression, mapping.sourceType, mapping.targetType, mapping.conversion);
-          let source = mapping.sourceType;
-          let target = mapping.targetType;
-          let conversion = mapping.conversion;
-          while (conversion.kind === "nullable-map") {
-            source = conversion.sourceElement;
-            target = conversion.targetElement;
-            conversion = conversion.conversion;
-          }
-          if (conversion.kind === "delegate-adapter") {
-            classifyExpression(expression, source, target, "implicit");
-            const key = pairKey(source, target, "implicit");
-            const selections = expressionSelections.get(expression);
-            const previous = selections?.get(key);
-            if (previous !== undefined) selections!.set(key, Object.freeze({ ...previous, selection: conversion,
-              ...(selection.call.targetMember.csharpInvocation?.kind === "native-event-remove" &&
-                conversion.strategy === "adaptation" ? { identityRequired: true } : {}),
-            }));
-          }
         }
       }
     }
@@ -758,7 +747,7 @@ export function analyzeCsharpConversions(
     if (classificationCount <= maximumConversionClassifications) {
       return true;
     }
-    if (issues.length === 0) {
+    if (!issues.some(issue => issue.code === "CSHARP_CONVERSION_CLASSIFICATION_LIMIT_EXCEEDED")) {
       const issueNode = node ?? policy.sourceFiles[0];
       if (issueNode !== undefined) {
         issues.push(Object.freeze({

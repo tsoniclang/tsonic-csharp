@@ -1,4 +1,5 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
+import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import {
   AsBinaryExpression,
@@ -11,7 +12,6 @@ import {
   AsShorthandPropertyAssignment,
   AsSpreadAssignment,
   AsSpreadElement,
-  AsStringLiteral,
   AsVariableDeclaration,
   HasSourceKind,
   KindArrayBindingPattern,
@@ -48,7 +48,7 @@ import type {
   CsharpDestructuringAssignmentPattern,
   CsharpDestructuringAssignmentTarget,
 } from "../../target-model/records/value-projections.js";
-import { selectCsharpBindingPatternProjection } from "../../policy/types/objects/binding-projection-policy.js";
+import { selectCsharpBindingPatternProjection, selectCsharpDefaultValueContract } from "../../policy/types/objects/binding-projection-policy.js";
 import { csharpBindingDefaultCarrier } from "../../target-model/types/binding-normalization.js";
 import {
   isCsharpNeverTargetType,
@@ -59,6 +59,7 @@ import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/recor
 
 export interface CsharpBindingPatternAnalysisInput {
   readonly ast: AstReader;
+  readonly semanticsFor: (node: Node) => SourceFileSemantics;
   readonly sourceFiles: readonly SourceFile[];
   readonly participation: CsharpNativeParticipationInput["participation"];
   readonly evidence: CsharpSourceEvidenceIndex;
@@ -192,10 +193,19 @@ export function analyzeCsharpBindingPatterns(
     facts.set(node, Object.freeze({ ...facts.get(node), source: Object.freeze(source) }));
   }
 
-  function recordElement(node: Node, element: CsharpBindingElementProjection): void {
+  function recordElement(node: Node, element: CsharpBindingElementProjection, initializer?: Node, presence = false): void {
     if (root === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A binding element requires its checked root.", node);
     roots.set(node, root);
-    facts.set(node, Object.freeze({ ...facts.get(node), element: Object.freeze(element) }));
+    const source = element.kind === "array-element" ? element.elementCarrier
+      : element.kind === "object-shape-member" ? element.member.type : undefined;
+    const tupleDefault = element.kind === "array-element" ? element.tupleDefault : undefined;
+    const initialType = initializer === undefined ? undefined : input.evidence.nodeTargetType.get(initializer);
+    const target = tupleDefault?.kind === "planned" ? tupleDefault.carrier
+      : source === undefined || initialType === undefined ? undefined : csharpBindingDefaultCarrier(source, initialType);
+    const defaultValue = source === undefined || target === undefined || initializer === undefined || tupleDefault?.kind === "unused"
+      ? undefined : selectCsharpDefaultValueContract(source, target, presence);
+    facts.set(node, Object.freeze({ ...facts.get(node), element: Object.freeze(element),
+      ...(defaultValue === undefined ? {} : { defaultValue }) }));
   }
 
   function carrierDetail(sourceNode: Node, defaultReason: string): { readonly reason: string; readonly evidence: readonly string[] } {
@@ -243,7 +253,7 @@ export function analyzeCsharpBindingPatterns(
       const projection = selectCsharpBindingPatternProjection({ kind: "array-element", carrier: bindingCarrier,
         index, rest: element.DotDotDotToken !== undefined, hasDefault: element.Initializer !== undefined });
       if (projection.kind !== "element") continue;
-      recordElement(elementNode, projection.element);
+      recordElement(elementNode, projection.element, element.Initializer, bindingCarrier.kind === "array");
       if (projection.element.kind === "array-rest" || projection.element.kind === "tuple-rest") {
         analyzeNested(name, elementNode, sourceFile, projection.element.restCarrier);
         continue;
@@ -256,9 +266,9 @@ export function analyzeCsharpBindingPatterns(
       } else if (tupleDefault !== undefined) {
         analyzeNested(name, elementNode, sourceFile, tupleDefault.kind === "planned" ? tupleDefault.carrier : elementCarrier);
       } else if (bindingCarrier.kind === "array") {
-        const defaultValue = input.evidence.nodeTargetType.get(element.Initializer);
+        const defaultValue = facts.get(elementNode)?.defaultValue;
         if (defaultValue !== undefined) {
-          analyzeNested(name, elementNode, sourceFile, csharpBindingDefaultCarrier(bindingCarrier.element, defaultValue));
+          analyzeNested(name, elementNode, sourceFile, defaultValue.target);
         }
       }
     }
@@ -283,9 +293,16 @@ export function analyzeCsharpBindingPatterns(
     const element = AsBindingElement(ast, elementNode);
     const propertyName = element?.PropertyName ?? element?.name;
     if (propertyName === undefined) return undefined;
+    return { node: propertyName, sourceName: bindingPropertySourceName(propertyName) };
+  }
+
+  function bindingPropertySourceName(propertyName: Node): string | undefined {
+    if (ast.is.IsComputedPropertyName(propertyName) || ast.is.IsNumericLiteral(propertyName)) {
+      const selected = input.semanticsFor(propertyName).propertyNames.get(propertyName);
+      return selected?.kind === "resolved" ? selected.name : undefined;
+    }
     return HasSourceKind(ast, propertyName, KindIdentifier) || HasSourceKind(ast, propertyName, KindStringLiteral)
-      ? { node: propertyName, sourceName: Node_Text(ast, propertyName) }
-      : { node: propertyName };
+      ? Node_Text(ast, propertyName) : undefined;
   }
 
   function analyzeObjectShapePattern(pattern: Node, shape: CsharpObjectShapeFact, sourceFile: SourceFile): void {
@@ -321,14 +338,14 @@ export function analyzeCsharpBindingPatterns(
         continue;
       }
       const { member } = selected.element;
-      recordElement(elementNode, selected.element);
+      recordElement(elementNode, selected.element, element.Initializer);
       if (element.Initializer === undefined) {
         analyzeNested(name, elementNode, sourceFile, member.type);
         continue;
       }
-      const defaultValue = input.evidence.nodeTargetType.get(element.Initializer);
+      const defaultValue = facts.get(elementNode)?.defaultValue;
       if (defaultValue !== undefined) {
-        analyzeNested(name, elementNode, sourceFile, csharpBindingDefaultCarrier(member.type, defaultValue));
+        analyzeNested(name, elementNode, sourceFile, defaultValue.target);
       }
     }
   }
@@ -372,8 +389,7 @@ export function analyzeCsharpBindingPatterns(
       if (name === undefined) continue;
       const propertyName = element.PropertyName ?? name;
       const identifier = HasSourceKind(ast, propertyName, KindIdentifier);
-      const sourceName = identifier ? Node_Text(ast, propertyName)
-        : HasSourceKind(ast, propertyName, KindStringLiteral) ? Node_Text(ast, AsStringLiteral(ast, propertyName)) : undefined;
+      const sourceName = bindingPropertySourceName(propertyName);
       const selected = selectCsharpBindingPatternProjection({ kind: "source-owned-member", sourceName, stringLiteral: !identifier,
         rest: element.DotDotDotToken !== undefined, hasDefault: element.Initializer !== undefined });
       if (selected.kind !== "element") {
@@ -438,7 +454,7 @@ export function analyzeCsharpBindingPatterns(
       const projection = selectCsharpBindingPatternProjection({ kind: "array-element", carrier: bindingCarrier,
         index, rest: element.rest, hasDefault: element.initializer !== undefined });
       if (projection.kind !== "element") continue;
-      recordElement(element.sourceNode, projection.element);
+      recordElement(element.sourceNode, projection.element, element.initializer, bindingCarrier.kind === "array");
       if (projection.element.kind === "array-rest" || projection.element.kind === "tuple-rest") {
         analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, projection.element.restCarrier);
         continue;
@@ -451,9 +467,9 @@ export function analyzeCsharpBindingPatterns(
       } else if (tupleDefault !== undefined) {
         analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, tupleDefault.kind === "planned" ? tupleDefault.carrier : elementCarrier);
       } else if (bindingCarrier.kind === "array") {
-        const defaultValue = input.evidence.nodeTargetType.get(element.initializer);
+        const defaultValue = facts.get(element.sourceNode)?.defaultValue;
         if (defaultValue !== undefined) {
-          analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, csharpBindingDefaultCarrier(bindingCarrier.element, defaultValue));
+          analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, defaultValue.target);
         }
       }
     }
@@ -494,14 +510,14 @@ export function analyzeCsharpBindingPatterns(
         continue;
       }
       const { member } = selected.element;
-      recordElement(element.sourceNode, selected.element);
+      recordElement(element.sourceNode, selected.element, element.initializer);
       if (element.initializer === undefined) {
         analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, member.type);
         continue;
       }
-      const defaultValue = input.evidence.nodeTargetType.get(element.initializer);
+      const defaultValue = facts.get(element.sourceNode)?.defaultValue;
       if (defaultValue !== undefined) {
-        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, csharpBindingDefaultCarrier(member.type, defaultValue));
+        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, defaultValue.target);
       }
     }
   }
@@ -511,9 +527,7 @@ export function analyzeCsharpBindingPatterns(
   ): { readonly node: Node; readonly sourceName?: string } | undefined {
     const propertyName = element.propertyName ?? (element.target.kind === "node" ? element.target.node : undefined);
     if (propertyName === undefined) return undefined;
-    return HasSourceKind(ast, propertyName, KindIdentifier) || HasSourceKind(ast, propertyName, KindStringLiteral)
-      ? { node: propertyName, sourceName: Node_Text(ast, propertyName) }
-      : { node: propertyName };
+    return { node: propertyName, sourceName: bindingPropertySourceName(propertyName) };
   }
 
   function analyzeObjectAssignmentRest(

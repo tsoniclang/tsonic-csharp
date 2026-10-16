@@ -1,5 +1,5 @@
 import type { CsharpBindingProjection } from "../../../target-model/records/binding-projection-policy.js";
-import type { CsharpBindingElementProjection, CsharpBindingPatternSource, CsharpTupleDefaultUse } from "../../../target-model/records/value-projections.js";
+import type { CsharpBindingElementProjection, CsharpBindingPatternSource, CsharpTupleDefaultUse, CsharpDefaultValueContract } from "../../../target-model/records/value-projections.js";
 import type {
   AstReader,
   Node,
@@ -15,6 +15,7 @@ import {
   csharpObjectShapeMemberLookupFailureMessage,
 } from "../../../target-model/types/object-shape-members.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { getCsharpGenericOptionalParts, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import type { CsharpRecursiveObjectShapePolicy } from "./object-shape-policy/model.js";
 import type {
@@ -52,6 +53,22 @@ type BindingPatternProjectionSelection =
 export function selectCsharpBindingPatternDefault(carrier: TargetTypeRef): CsharpTupleDefaultUse {
   const element = getCsharpNullableElementTargetType(carrier);
   return Object.freeze(element === undefined ? { kind: "unused" } : { kind: "planned", carrier: element });
+}
+
+export function selectCsharpDefaultValueContract(source: TargetTypeRef, target: TargetTypeRef, presence: boolean): CsharpDefaultValueContract {
+  const normalize = source.kind === "type-parameter" && getCsharpGenericOptionalParts(source) === undefined;
+  const storage = normalize ? csharpNullableTargetType(source) : source;
+  const generic = getCsharpGenericOptionalParts(storage);
+  const element = generic?.element ?? getCsharpNullableElementTargetType(storage);
+  const optional = element !== undefined || isCsharpJsValueTargetType(storage);
+  const retainStorage = generic !== undefined && targetTypeRefEquals(storage, target);
+  const guardType = element ?? storage;
+  const present = retainStorage ? storage : guardType;
+  const kind = isCsharpAbsenceTargetType(storage) ? "absence"
+    : !presence && generic === undefined && element !== undefined &&
+      (targetTypeRefEquals(element, target) || targetTypeRefEquals(storage, target)) ? "coalesce"
+    : !optional && !presence ? "value" : "guarded";
+  return Object.freeze({ kind, source, storage, present, guardType, target, normalize, optional, retainStorage, presence });
 }
 
 export function selectCsharpBindingPatternProjection(input: BindingPatternProjectionRequest): BindingPatternProjectionSelection {

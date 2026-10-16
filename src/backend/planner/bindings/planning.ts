@@ -17,7 +17,7 @@ import {
 } from "./binding-patterns.js";
 import type { CsharpEntryBinding } from "./binding-patterns.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
-import { planExpressionWithExpectedType } from "../expressions/index.js";
+import { planExpression } from "../expressions/index.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 
 export {
@@ -66,14 +66,7 @@ export function planVariableBindingStatements(
   const sourceName = allocateDestructuringTemp(state);
   const sourceExpression: CsharpExpression = { kind: "IdentifierName", name: sourceName };
   const sourceType = getCsharpTypeForExpressionCarrier(initializer, sourceFile, input, diagnostics, bindingName, "Destructuring source expression");
-  const initializerExpression = planExpressionWithExpectedType(
-    initializer,
-    sourceFile,
-    input,
-    diagnostics,
-    sourceType,
-    initializer,
-    state,
+  const initializerExpression = planExpression(initializer, sourceFile, input, diagnostics, state
   );
   if (initializerExpression === undefined) {
     return [];
@@ -85,7 +78,7 @@ export function planVariableBindingStatements(
       type: sourceType,
       initializer: expression,
     },
-    ...planBindingPatternFromExpression(bindingName, sourceExpression, initializer, sourceFile, input, diagnostics, state, undefined, planExpressionWithExpectedType, retainBinding),
+    ...planBindingPatternFromExpression(bindingName, sourceExpression, initializer, sourceFile, input, diagnostics, state, undefined, planExpression, retainBinding),
   ]);
 }
 
@@ -116,7 +109,7 @@ export function planParameterBindingPrelude(
     diagnostics,
     state,
     undefined,
-    planExpressionWithExpectedType,
+    planExpression,
     retainBinding,
   );
 }

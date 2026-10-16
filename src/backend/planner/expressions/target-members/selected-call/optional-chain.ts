@@ -76,9 +76,9 @@ export function planCsharpOptionalReceiverChain(
       }
       return planExpression(subject, file, context, errors, state);
     };
-    const arguments_: CallArgumentPlanner = (subject, file, context, errors, expected, expectedSubject, target, mode, parameter) => {
+    const arguments_: CallArgumentPlanner = (subject, file, context, errors, target, mode, parameter) => {
       if (subject !== selected.expression) {
-        return planCallArgument(subject, file, context, errors, expected, expectedSubject, target, mode, parameter);
+        return planCallArgument(subject, file, context, errors, target, mode, parameter);
       }
       if (!("conversion" in selected) || selected.conversion === undefined || selected.parameterType === undefined ||
         target === undefined || !targetTypeRefEquals(target, selected.parameterType) ||

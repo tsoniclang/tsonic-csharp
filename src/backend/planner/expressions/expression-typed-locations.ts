@@ -29,10 +29,7 @@ import {
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
-import type {
-  ExpectedExpressionPlanner,
-  ExpressionPlanner,
-} from "./expression-planner-types.js";
+import type { ExpressionPlanner } from "./expression-planner-types.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -43,15 +40,7 @@ import { translateCsharpPropertyAccess } from "./target-members/selected-propert
 import { sourceNodesEqual } from "@tsonic/target-api/source";
 import type { CsharpNativeHandler } from "../../../target-model/records/native-handlers.js";
 
-export function planCsharpTypedLocationOperation(
-  node: Node,
-  operation: Extract<CsharpNativeHandler, { readonly kind: "typed-location" }>["selection"],
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
-  planExpressionWithExpectedType: ExpectedExpressionPlanner,
-  state?: DestructuringPlannerState,
+export function planCsharpTypedLocationOperation(node: Node, operation: Extract<CsharpNativeHandler, { readonly kind: "typed-location" }>["selection"], sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState
 ): CsharpPlannedValue | undefined {
   if (operation.kind === "rejected") {
     diagnostics.push(typedLocationDiagnostic(
@@ -75,14 +64,7 @@ export function planCsharpTypedLocationOperation(
     case "location-hash": {
       const parameterType = csharpTypeFromTargetTypeRef(operation.parameterType, input.scope.typeParameterNames);
       if (parameterType === undefined) return undefined;
-      const pointer = planExpressionWithExpectedType(
-        operation.locationExpression,
-        sourceFile,
-        input,
-        diagnostics,
-        parameterType,
-        undefined,
-        operation.parameterType,
+      const pointer = planExpression(operation.locationExpression, sourceFile, input, diagnostics
       );
       return pointer === undefined ? undefined : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, pointer,
         value => invokeMember(locationType, "Hash", [value]));
@@ -92,9 +74,7 @@ export function planCsharpTypedLocationOperation(
     case "location-project": {
       const args = operation.arguments.map(argument => {
         const type = csharpTypeFromTargetTypeRef(argument.type, input.scope.typeParameterNames);
-        return type === undefined ? undefined : planExpressionWithExpectedType(
-          argument.expression, sourceFile, input, diagnostics,
-          type, undefined, argument.type,
+        return type === undefined ? undefined : planExpression(argument.expression, sourceFile, input, diagnostics
         );
       });
       const typeArguments = operation.typeArguments.map(type => csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames));
@@ -151,14 +131,7 @@ export function planCsharpTypedLocationOperation(
         );
     }
     case "location-allocate": {
-      const initial = planExpressionWithExpectedType(
-        operation.initialExpression,
-        sourceFile,
-        input,
-        diagnostics,
-        pointeeType,
-        undefined,
-        operation.pointeeType,
+      const initial = planExpression(operation.initialExpression, sourceFile, input, diagnostics
       );
       const backing = input.program.records.nativeBacking.get(node);
       if (backing !== undefined) return initial === undefined
@@ -185,14 +158,7 @@ export function planCsharpTypedLocationOperation(
           : { ...input, storageExpression: operation.location.expression },
         diagnostics,
       );
-      const value = planExpressionWithExpectedType(
-        operation.valueExpression,
-        sourceFile,
-        input,
-        diagnostics,
-        pointeeType,
-        undefined,
-        operation.pointeeType,
+      const value = planExpression(operation.valueExpression, sourceFile, input, diagnostics
       );
       if (operation.location.kind === "native-ref-return" && location !== undefined && value !== undefined &&
         (value.prelude.length !== 0 || value.completion.kind !== "value")) {
@@ -218,23 +184,9 @@ export function planCsharpTypedLocationOperation(
     case "location-equal": {
       const parameterType = csharpTypeFromTargetTypeRef(operation.parameterType, input.scope.typeParameterNames);
       if (parameterType === undefined) return undefined;
-      const left = planExpressionWithExpectedType(
-        operation.leftExpression,
-        sourceFile,
-        input,
-        diagnostics,
-        parameterType,
-        undefined,
-        operation.parameterType,
+      const left = planExpression(operation.leftExpression, sourceFile, input, diagnostics
       );
-      const right = planExpressionWithExpectedType(
-        operation.rightExpression,
-        sourceFile,
-        input,
-        diagnostics,
-        parameterType,
-        undefined,
-        operation.parameterType,
+      const right = planExpression(operation.rightExpression, sourceFile, input, diagnostics
       );
       return left === undefined || right === undefined ? undefined
         : buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [left, right],

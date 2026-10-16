@@ -7,6 +7,7 @@ import { targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { selectCsharpCallForm } from "../../../dist/policy/operations/members/selection/call-forms.js";
 import { planCsharpOptionalReceiverChain } from "../../../dist/backend/planner/expressions/target-members/selected-call/optional-chain.js";
+import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
 
 function recordedCalls(compiled) {
   const program = compiled.result.program;
@@ -170,6 +171,7 @@ test("binary expected-result eligibility is stored once from the checked operato
     const program = compiled.result.program;
     const ast = program.source.ast;
     const records = program.records;
+    const expected = createExpectedNativeUseOwner(compiled).analysis;
     let eligibleContextual = 0;
     let ineligible = 0;
     let unary = 0;
@@ -189,8 +191,8 @@ test("binary expected-result eligibility is stored once from the checked operato
             `${label}: the stored eligibility is the policy result for the checked operator`);
           const baseline = records.binaryOperation.get(node)?.target;
           assert.equal(baseline?.kind !== "resolved" || baseline.sourceOperator === checked, true, `${label}: the baseline selection carries the checked operator`);
-          for (const target of records.expectedType.get(node)) {
-            const selection = records.expectedBinary.get(node, target);
+          for (const target of expected.expectedType.get(node)) {
+            const selection = expected.expectedBinary.get(node, target);
             if (selection?.kind !== "resolved") continue;
             assert.equal(selection.sourceOperator === checked && records.operatorForm.get(node) !== undefined, true,
               `${label}: a contextual selection carries the checked operator and has a stored form`);

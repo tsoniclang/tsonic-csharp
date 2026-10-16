@@ -4,7 +4,7 @@ import type { CsharpSwitchSelection } from "../../../target-model/records/switch
 import type { CsharpExpression, CsharpStatement, CsharpSwitchSection } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
-import { planExpression, planExpressionWithExpectedType } from "../expressions/index.js";
+import { planExpression } from "../expressions/index.js";
 import { planSelectedCsharpBinaryOperation } from "../expressions/operators/selected-binary.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { CsharpPlannedValue } from "../expressions/planned-values.js";
@@ -31,11 +31,7 @@ export function planOrderedSwitch(
   try {
     for (const [index, clause] of selection.clauses.entries()) {
       if (clause.comparison === undefined) continue;
-      const condition = planSelectedCsharpBinaryOperation(clause.node, clause.comparison,
-        sourceFile, input, diagnostics,
-        (node, file, context, reports) => planExpression(node, file, context, reports, state),
-        (node, file, context, reports, expected, subject, target) =>
-          planExpressionWithExpectedType(node, file, context, reports, expected, subject, state, target), state);
+      const condition = planSelectedCsharpBinaryOperation(clause.node, clause.comparison, sourceFile, input, diagnostics, (node, file, context, reports) => planExpression(node, file, context, reports, state), state);
       if (condition === undefined) return undefined;
       tests.push({ index, condition });
     }

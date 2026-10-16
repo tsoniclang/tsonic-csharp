@@ -54,11 +54,16 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
     function matches(candidate: TargetTypeRef): boolean {
       const signature = getCsharpLambdaSignature(candidate);
       const parameters = input.ast.parameters(node);
-      if (contract === undefined || signature === undefined || parameters.length > signature.parameters.length ||
+      if (contract === undefined || signature === undefined || signature.parameterPassingModes.length !== signature.parameters.length ||
+        parameters.length > signature.parameters.length ||
+        signature.parameterPassingModes.slice(parameters.length).some(mode => mode !== "by-value") ||
         !parameters.every((parameter, index) => {
           if (parameter === undefined) return false;
-          const nativeParameter = input.storage.lambdaParameterType.get(parameter) ?? contract.parameters[index]?.targetParameter.type;
-          return nativeParameter !== undefined && targetTypeRefEquals(nativeParameter, signature.parameters[index]!);
+          const native = contract.parameters[index]?.targetParameter;
+          const nativeParameter = input.storage.lambdaParameterType.get(parameter) ?? native?.type;
+          return native !== undefined && nativeParameter !== undefined && targetTypeRefEquals(nativeParameter, signature.parameters[index]!) &&
+            native.passingMode === signature.parameterPassingModes[index] &&
+            (native.paramsArray === true) === (signature.restParameterIndex === index);
         })) return false;
       const completion = input.conversions.conversion.get(contract.returnType, signature.returnType, "implicit");
       return completion !== undefined && csharpConversionIsApplicable(completion, "implicit");

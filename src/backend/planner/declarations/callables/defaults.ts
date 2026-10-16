@@ -3,11 +3,11 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { DestructuringPlannerState } from "../../bindings/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
-import { planExpressionWithExpectedType } from "../../expressions/index.js";
+import { planExpression } from "../../expressions/index.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
 import type { CsharpPlannedValue } from "../../expressions/planned-values.js";
 import { planCsharpBindingDefaultValue } from "../../bindings/optional-values.js";
-import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";
+import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import type { CsharpDefaultParameterContract } from "../../../../target-model/records/declarations.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../../diagnostics.js";
@@ -34,13 +34,9 @@ export function planCsharpRuntimeParameterDefault(
     return failCsharpPlannerInvariant("A runtime parameter default requires its sealed contract.", node);
   }
   const incomingType = selectedParameterType ?? contract.parameterType;
-  const initialDiagnosticCount = diagnostics.length;
-  const selected = planRuntimeParameterDefault(node, contract, incomingType, incomingName, sourceFile, input, diagnostics, state);
-  if (selected === undefined && !diagnostics.slice(initialDiagnosticCount).some(diagnostic => diagnostic.category === "error")) {
-    diagnostics.push(unsupportedNodeDiagnostic(node,
-      `Required C# runtime parameter default lowering for '${targetTypeRefKey(incomingType)}' produced neither a native parameter nor an error.`));
-  }
-  return selected;
+  if (!targetTypeRefEquals(incomingType, contract.native.source)) return failCsharpPlannerInvariant(
+    "A runtime default requires its admitted native incoming parameter carrier.", node);
+  return planRuntimeParameterDefault(node, contract, incomingType, incomingName, sourceFile, input, diagnostics, state);
 }
 
 function planRuntimeParameterDefault(
@@ -60,13 +56,15 @@ function planRuntimeParameterDefault(
   }
   const valueType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, contract.valueType, diagnostics, node);
   const parameterType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, incomingType, diagnostics, node);
-  if (valueType === undefined || parameterType === undefined) return undefined;
-  const initializer = planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics,
-    valueType, declaration.Type ?? declaration.name, state, contract.valueType);
+  if (valueType === undefined || parameterType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "A runtime parameter default requires renderable sealed native value and incoming carriers."));
+    return undefined;
+  }
+  const initializer = planExpression(declaration.Initializer, sourceFile, input, diagnostics, state);
   if (initializer === undefined) return undefined;
   const incoming: CsharpExpression = { kind: "IdentifierName", name: incomingName };
   const value = planCsharpBindingDefaultValue(node, sourceFile, input, diagnostics,
-    incoming, incomingType, initializer, contract.valueType, state);
+    incoming, contract.native, initializer, state);
   if (value === undefined) return undefined;
   return {
     valueType, parameterType,

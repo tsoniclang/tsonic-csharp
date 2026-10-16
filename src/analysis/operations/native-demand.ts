@@ -9,6 +9,8 @@ import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeChi
 import { csharpConstructorBaseCall } from "../callables/constructor-entry.js";
 import { isCsharpUnusedTupleDefault } from "../control-flow/binding-patterns.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { isCsharpRecordDictionaryTargetType } from "../../target-model/types/carriers/collections.js";
+import type { CsharpNativePropertyKey } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpNativeDemandAnalysis, CsharpNativeDemandAnalysisInput, CsharpNativeUnadmittedReason } from "./native-demand-model.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 
@@ -48,7 +50,8 @@ export function analyzeCsharpNativeDemand(
   const policyInput = { ...input, baseCalls: Object.freeze({ get: (node: Node) => baseCalls.get(node) }),
     unusedDefault: Object.freeze({ get: (node: Node) => unusedDefaults.has(node) }) };
   const entries: { readonly site: TargetUseSiteRef; readonly use: CsharpNativeUse }[] = [];
-  const unadmitted: { readonly site: TargetUseSiteRef; readonly expression: Node; readonly reason: CsharpNativeUnadmittedReason }[] = [];
+  const unadmitted: { readonly site: TargetUseSiteRef; readonly expression: Node;
+    readonly reason: CsharpNativeUnadmittedReason; readonly message?: string }[] = [];
   const states = new Map<object, Map<string, UseState>>();
   const published = new Map<object, Map<string, CsharpNativeUse>>();
   const emissions = new Map<Node, { readonly site: TargetUseSiteRef; readonly use: CsharpNativeUse }>();
@@ -102,8 +105,8 @@ export function analyzeCsharpNativeDemand(
     return Object.freeze({ site, expression: use.expression, completion: use.kind === "erased" ? undefined : use.completion });
   }
 
-  function pending(site: TargetUseSiteRef, expression: Node, reason: CsharpNativeUnadmittedReason): VisitedUse {
-    unadmitted.push(Object.freeze({ site, expression, reason }));
+  function pending(site: TargetUseSiteRef, expression: Node, reason: CsharpNativeUnadmittedReason, message?: string): VisitedUse {
+    unadmitted.push(Object.freeze({ site, expression, reason, ...(message === undefined ? {} : { message }) }));
     return Object.freeze({ site, expression, completion: undefined });
   }
 
@@ -214,7 +217,7 @@ export function analyzeCsharpNativeDemand(
       visitStep(step, steps, visited);
     }
     if (!orders.has(expression)) orders.set(expression, Object.freeze(steps));
-    if (selected.refusal !== undefined) return pending(site, expression, selected.refusal);
+    if (selected.refusal !== undefined) return pending(site, expression, selected.refusal, selected.refusalMessage);
     if (expected === undefined && child.context?.target !== undefined &&
       (selected.carrier === undefined || !targetTypeRefEquals(child.context.target, selected.carrier))) return pending(site, expression, "expected-use-pending");
     const physical = expected?.carrier ?? selected.carrier;
@@ -222,23 +225,64 @@ export function analyzeCsharpNativeDemand(
     if (flow === undefined || physical === undefined) return pending(site, expression, "completion-unresolved");
     const inputCompletion = selectCsharpNativeCompletion(physical, flow);
     if (inputCompletion === undefined) return pending(site, expression, "completion-unresolved");
+    let propertyKeys: readonly CsharpNativePropertyKey[] | undefined;
+    if (ast.is.IsObjectLiteralExpression(expression) && isCsharpRecordDictionaryTargetType(physical) && inputCompletion.kind !== "never") {
+      const bindings = input.propertyKeyBindings(expression, physical);
+      if (bindings === undefined) return failTargetAnalysisInvariant("tsonic-csharp", "A native dictionary requires its exact property-key bindings.", expression);
+      const keys: CsharpNativePropertyKey[] = [];
+      for (const binding of bindings) {
+        const literal = input.exactLiteral.get(binding.name, binding.target, "property-key");
+        if (literal?.kind === "rejected") return pending(site, expression, "property-key-refused", literal.reason);
+        if (literal?.kind !== "resolved") return failTargetAnalysisInvariant("tsonic-csharp", "A native dictionary key requires its selected exact literal recipe.", binding.name);
+        requireCsharpRecord(requiredRecords, { family: "exactLiteral", subject: binding.name, target: binding.target,
+          role: "property-key",
+          construct: "native dictionary key", producer: "analyzeCsharpNativeDemand" });
+        keys.push(Object.freeze({ ...binding, literal: literal.recipe }));
+      }
+      propertyKeys = Object.freeze(keys);
+    }
     const evaluation = evaluationOf(selected, runtime);
     if (evaluation === undefined) return pending(site, expression, "completion-unresolved");
-    const children = Object.freeze(runtime.map(entry => entry.visited.site));
+    const projections: TargetUseSiteRef[] = [];
+    const operation = expected?.binary ?? input.operations.binaryOperation.get(expression)?.target;
+    if (operation?.kind === "resolved" && operation.targetOperation.kind === "conditional-value" &&
+      operation.targetOperation.branch !== "right" && runtime[0]?.visited.completion?.kind === "value") {
+      const references = expected === undefined
+        ? slots.get(expression)?.get("present-payload")?.expressions.get(operation.left)?.map(entry => entry.site) ?? []
+        : expectedChildren.get("present-payload") ?? [];
+      if (references.length !== 1) return pending(site, expression, "use-context-unresolved");
+      const reference = references[0]!;
+      const projection = input.expected.expectedUse.get(reference);
+      if (projection === undefined) return pending(reference, operation.left, "expected-use-pending");
+      const completion: CsharpNativeCompletion = Object.freeze({ kind: "value", type: projection.carrier });
+      const native = { expression: operation.left, carrier: projection.carrier, children: Object.freeze([]),
+        evaluation: Object.freeze({ kind: "sequence" as const, steps: Object.freeze([]) }) };
+      if (projection.representation === "convert") publish(reference, { ...native, kind: "converted", input: completion,
+        target: projection.target, mode: projection.mode, completion: Object.freeze({ kind: "value", type: projection.target }) });
+      else publish(reference, { ...native, kind: "forwarded", completion });
+      projections.push(reference);
+    }
+    const children = Object.freeze([...runtime.map(entry => entry.visited.site), ...projections]);
+    const defaultValue = child.slot.kind !== "default" ? undefined : ast.is.IsParameterDeclaration(child.owner)
+      ? input.declarations.runtimeDefault.get(child.owner)?.native : input.bindingPatterns.bindingPatternProjection.get(child.owner)?.defaultValue;
+    const objectShape = !ast.is.IsObjectLiteralExpression(expression) ? undefined : expected === undefined
+      ? input.objectShapes.resolveTarget(physical) : expected.objectShape;
     if (expected?.construction !== undefined) {
       publish(expected.construction.site, { kind: "constructed", expression, carrier: expected.construction.carrier,
-        children, evaluation, completion: inputCompletion, objectShape: expected.objectShape });
+        children, evaluation, completion: inputCompletion, objectShape: expected.objectShape, propertyKeys });
       const stage = expected.construction.site;
       const completion = selectCsharpNativeCompletion(expected.target, { kind: "sequence", children: [{ completion: inputCompletion }] });
       if (completion === undefined) return pending(site, expression, "completion-unresolved");
       return publish(site, { kind: "converted", expression, carrier: physical, input: inputCompletion, target: expected.target, mode: expected.mode,
         children: Object.freeze([stage]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([Object.freeze({ site: stage })]) }),
-        objectShape: expected.objectShape, completion });
+        objectShape, defaultValue, propertyKeys, completion });
     }
     const common = { expression, carrier: physical, children, evaluation, completion: inputCompletion,
       ...(expected?.literal === undefined ? {} : { literal: expected.literal }),
       ...(expected?.binary === undefined ? {} : { binary: expected.binary }),
-      ...(expected?.objectShape === undefined ? {} : { objectShape: expected.objectShape }) };
+      ...(objectShape === undefined ? {} : { objectShape }),
+      ...(propertyKeys === undefined ? {} : { propertyKeys }),
+      ...(defaultValue === undefined ? {} : { defaultValue }) };
     if (expected?.representation === "convert") {
       const completion = selectCsharpNativeCompletion(expected.target, { kind: "sequence", children: [{ completion: inputCompletion }] });
       return completion === undefined ? pending(site, expression, "completion-unresolved")

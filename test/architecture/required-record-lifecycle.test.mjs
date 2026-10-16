@@ -20,6 +20,7 @@ const paths = Object.freeze({
   conversions: "src/analysis/conversions/analyze.ts",
   conversionModel: "src/analysis/conversions/model.ts",
   conversionUses: "src/analysis/conversions/use-admission.ts",
+  nativeValues: "src/analysis/objects/value-carriers.ts",
 });
 const checked = createCompilerSessionFromFiles({
   currentDirectory: "/csharp",
@@ -192,8 +193,11 @@ test("the late producers and the assembly receive the stable attempt's list", ()
   assert.equal(ast.arguments(assembly).length === 2 && text(ast.arguments(assembly)[1]) === "analysis.requiredRecords", true,
     "stable attempt: createCsharpProgramRecords receives analysis.requiredRecords");
   const reads = descendants(program).filter(node => ast.is.IsPropertyAccessExpression(node) && text(node) === "analysis.requiredRecords");
-  assert.equal(reads.length === 6 && identifiers(program, "requiredRecords").length === 7, true,
-    "stable attempt: the list is read by five late producers and the assembly");
+  assert.equal(reads.length === 7 && identifiers(program, "requiredRecords").length === 8, true,
+    "stable attempt: the list is read by six late producers and the assembly");
+  const nativeValues = composedCall("analyzeCsharpNativeValueCarriers", program, "stable attempt");
+  assert.equal(text(ast.arguments(nativeValues).at(-1)) === "analysis.requiredRecords", true,
+    "the actual native-value producer receives the same stable requirement list");
   const demand = composedCall("analyzeCsharpNativeDemand", program, "stable attempt");
   const bindings = composedCall("admitCsharpBindingPatterns", program, "stable attempt");
   const conversions = composedCall("analysis.conversionAnalysis.seal", program, "stable attempt");
@@ -207,6 +211,7 @@ test("owning issues reject before the late registrations finish and before the o
     descendants(ast.as.AsIfStatement(statement).ThenStatement).some(node => ast.is.IsReturnStatement(node));
   const calling = callee => statement => callsTo(statement, callee).length === 1;
   const steps = [
+    ["native values", calling("analyzeCsharpNativeValueCarriers")],
     ["analysis issues", rejection("analysisIssues.length > 0")],
     ["source-module constructions", rejection("sourceModuleConstructions.issues.length > 0")],
     ["attributes", rejection("attributes.diagnostics.length > 0")],
@@ -262,6 +267,8 @@ for (const [label, path, producer, list, family, guard, publications] of [
     "selected === undefined", ["participation.set"]],
   ["native handlers", paths.nativeHandlers, "analyzeCsharpNativeHandlers", "requirements", "nativeHandler",
     "selected === undefined", ["builder.set"]],
+  ["native values", paths.nativeValues, "analyzeCsharpNativeValueCarriers", "requiredRecords", "nativeValueDeclaration",
+    "source === undefined", ["declarations.set"]],
 ]) {
   test(`${label}: one registration into the producer's own list precedes its publication under the same conditions`, () => {
     const owner = functionNamed(path, producer);
@@ -312,7 +319,7 @@ test("storage and class factories take the list as a mandatory parameter and par
     "native handler input: a mandatory CsharpRequiredRecord[] list");
 });
 
-test("requirement state stays inside analysis, in exactly thirteen files", () => {
+test("requirement state stays inside analysis, in exactly fourteen files", () => {
   const users = sourceFiles(sourceRoot)
     .filter(path => /requiredRecords|CsharpRequiredRecord|requireCsharpRecord|assertCsharpRequiredRecords/u.test(readFileSync(path, "utf8")))
     .map(path => path.slice(repositoryRoot.length + 1)).sort();
@@ -330,23 +337,25 @@ test("requirement state stays inside analysis, in exactly thirteen files", () =>
     paths.conversions,
     paths.conversionModel,
     paths.conversionUses,
-  ].sort().join(), true, `requirement users: exactly the thirteen analysis files, found ${users.join(", ")}`);
+    paths.nativeValues,
+  ].sort().join(), true, `requirement users: exactly the fourteen analysis files, found ${users.join(", ")}`);
 });
 
 test("each seal name and producer is mentioned only by its owner and the composition", () => {
   const requiredRecordsModule = "src/analysis/program/records/required-records.ts";
   const inventory = [
     ["requiredRecords", [paths.participation, paths.analyze, paths.classFactories, paths.storage,
-      paths.nativeDemand, paths.bindingPatterns, paths.conversions, paths.conversionModel, paths.conversionUses]],
+      paths.nativeDemand, paths.bindingPatterns, paths.conversions, paths.conversionModel, paths.conversionUses, paths.nativeValues]],
     ["CsharpRequiredRecord", [paths.participation, paths.operations, paths.nativeHandlers, paths.analyze, paths.create, requiredRecordsModule,
-      paths.classFactories, paths.storage, paths.nativeDemand, paths.bindingPatterns, paths.conversionModel, paths.conversionUses]],
+      paths.classFactories, paths.storage, paths.nativeDemand, paths.bindingPatterns, paths.conversionModel, paths.conversionUses, paths.nativeValues]],
     ["requireCsharpRecord", [paths.participation, paths.nativeHandlers, requiredRecordsModule, paths.classFactories, paths.storage,
-      paths.nativeDemand, paths.bindingPatterns, paths.conversionUses]],
+      paths.nativeDemand, paths.bindingPatterns, paths.conversionUses, paths.nativeValues]],
     ["assertCsharpRequiredRecords", [paths.create, requiredRecordsModule]],
     ["createCsharpProgramRecords", [paths.analyze, paths.create]],
     ["analyzeCsharpClassFactories", [paths.analyze, paths.classFactories]],
     ["analyzeCsharpNativeParticipation", [paths.participation, paths.analyze]],
     ["analyzeCsharpNativeHandlers", [paths.operations, paths.nativeHandlers]],
+    ["analyzeCsharpNativeValueCarriers", [paths.analyze, paths.nativeValues]],
     ["analyzeCsharpStorage", [paths.analyze, paths.storage, "src/analysis/storage/index.ts"]],
   ];
   const files = sourceFiles(sourceRoot).map(path => [path.slice(repositoryRoot.length + 1), readFileSync(path, "utf8")]);

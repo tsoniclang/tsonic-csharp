@@ -50,7 +50,7 @@ export function printNumericLiteral(value: number, suffix: "D" | undefined): str
   return text;
 }
 
-export function printExactNumericLiteral(token: Extract<CsharpExpression, { readonly kind: "NumericLiteralExpression"; readonly suffix: "F" | "M" }>["token"], suffix: "F" | "M"): string {
+export function printExactNumericLiteral(token: NonNullable<Extract<CsharpExpression, { readonly kind: "NumericLiteralExpression" }>["token"]>, suffix: "F" | "M" | "D"): string {
   return `${token.significand}${token.exponent === undefined ? "" : `e${token.exponent}`}${suffix}`;
 }
 

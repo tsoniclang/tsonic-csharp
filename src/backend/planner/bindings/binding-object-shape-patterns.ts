@@ -5,8 +5,8 @@ import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
-import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.js";
-import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
+import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { csharpConstructibleTypeFromObjectShapeFact, objectShapeStorageMemberName } from "../objects/index.js";
 import { planObjectShapeDefaultProjection } from "../objects/object-shape-defaults.js";
@@ -21,7 +21,7 @@ export function planObjectShapeBindingPattern(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
-  planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
+  planExpression?: ExpressionPlanner,
 ): readonly CsharpStatement[] {
   return input.program.source.ast.elements(patternNode).flatMap(elementNode => {
     if (elementNode === undefined) return [];
@@ -30,6 +30,15 @@ export function planObjectShapeBindingPattern(
     if (element?.name === undefined || projection === undefined) return failCsharpPlannerInvariant(
       "Object binding requires its admitted native element projection.", elementNode);
     if (projection.kind === "object-shape-rest") {
+      for (const { source } of projection.members) {
+        if (source.memberKind !== "method") continue;
+        const required = input.artifacts.requireObjectShapeCapability(undefined, objectShape.targetType,
+          sourceFile, "method-values", "object-shape");
+        if (required.kind === "rejected") {
+          diagnostics.push(unsupportedNodeDiagnostic(elementNode, required.reason));
+          return [];
+        }
+      }
       const type = csharpConstructibleTypeFromObjectShapeFact(input, projection.restShape, diagnostics, elementNode);
       if (type === undefined) return [];
       const assignments = projection.members.map(({ rest, source }) => ({
@@ -48,8 +57,11 @@ export function planObjectShapeBindingPattern(
     const value: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: sourceExpression, name: member.targetName };
     if (element.Initializer === undefined) return planBindingNameFromProjection(element.name, value, type,
       elementNode, sourceFile, input, diagnostics, state, member.type);
-    const defaulted = planObjectShapeDefaultProjection(value, member, element.Initializer, sourceFile, input,
-      diagnostics, state, planDefaultExpressionWithExpectedType);
+    const contract = input.program.records.bindingPatternProjection.get(elementNode)?.defaultValue;
+    if (contract === undefined) return failCsharpPlannerInvariant(
+      "Object default requires its admitted native default contract.", elementNode);
+    const defaulted = planObjectShapeDefaultProjection(value, member, contract, element.Initializer, sourceFile, input,
+      diagnostics, state, planExpression);
     return defaulted === undefined ? [] : consumeCsharpPlannedValue(defaulted.value, expression =>
       planBindingNameFromProjection(element.name!, expression, defaulted.type, elementNode,
         sourceFile, input, diagnostics, state, defaulted.carrier));

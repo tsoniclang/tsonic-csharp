@@ -24,7 +24,7 @@ import {
 } from "../../types/index.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
-import { planExpressionWithExpectedType } from "../../expressions/index.js";
+import { planExpression } from "../../expressions/index.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../modifiers.js";
 import { planCsharpRuntimeParameterDefault } from "./defaults.js";
 import { consumeCsharpPlannedValue } from "../../statements/statement-output.js";
@@ -74,7 +74,6 @@ export function planParametersWithPrelude(
     diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, parameterNode!, "parameter declaration", diagnostics,
       sourceParameterIsProperty(input.program.source.ast, parameterNode!) ? ["public", "private", "protected", "readonly"] : []);
     if (HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier)) {
-      const typeSubject = getParameterTypeSubject(parameter);
       const type = getParameterType(parameterNode, sourceFile, input, diagnostics);
       if (input.program.records.runtimeDefault.get(parameterNode!) !== undefined) {
         const sourceName = declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Parameter name", "arg");
@@ -90,7 +89,7 @@ export function planParametersWithPrelude(
         hasDefaultParameter ||= selected.defaultValue !== undefined;
         continue;
       }
-      const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, typeSubject, state);
+      const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, state);
       if (defaultValue !== undefined) {
         hasDefaultParameter = true;
       } else if (hasDefaultParameter && parameter.DotDotDotToken === undefined) {
@@ -109,7 +108,6 @@ export function planParametersWithPrelude(
     }
     const bindingName = parameter.name;
     if (bindingName !== undefined && (HasSourceKind(input.program.source.ast, bindingName, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, bindingName, KindArrayBindingPattern))) {
-      const typeSubject = getParameterTypeSubject(parameter) ?? bindingName;
       const type = getParameterType(parameterNode, sourceFile, input, diagnostics, invalidCsharpType("destructured parameter type"));
       if (input.program.records.runtimeDefault.get(parameterNode!) !== undefined) {
         const incomingName = allocateSyntheticParameter(state);
@@ -125,7 +123,7 @@ export function planParametersWithPrelude(
         hasDefaultParameter ||= selected.defaultValue !== undefined;
         continue;
       }
-      const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, typeSubject, state);
+      const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, state);
       if (defaultValue !== undefined) {
         hasDefaultParameter = true;
         diagnostics.push(unsupportedNodeDiagnostic(bindingName, "Destructured parameter defaults require target object-shape lowering before C# emission."));
@@ -142,9 +140,8 @@ export function planParametersWithPrelude(
       prelude.push(...planParameterBindingPrelude(bindingName, parameterName, sourceFile, input, diagnostics, state, retainBinding));
       continue;
     }
-    const typeSubject = getParameterTypeSubject(parameter);
     const type = getParameterType(parameterNode, sourceFile, input, diagnostics);
-    const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, typeSubject, state);
+    const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, state);
     if (defaultValue !== undefined) {
       hasDefaultParameter = true;
     } else if (hasDefaultParameter && parameter.DotDotDotToken === undefined) {
@@ -164,10 +161,6 @@ export function planParametersWithPrelude(
     prelude,
     entryBindings,
   };
-}
-
-function getParameterTypeSubject(parameter: NonNullable<ReturnType<typeof AsParameterDeclaration>>): Node | undefined {
-  return parameter.Type ?? parameter.name;
 }
 
 function getParameterType(
@@ -193,7 +186,6 @@ function planParameterDefaultValue(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
-  expectedTypeSubject: Node | undefined,
   state: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   if (initializer === undefined && questionToken !== undefined && expectedType.kind !== "InvalidType") {
@@ -204,7 +196,7 @@ function planParameterDefaultValue(
   if (initializer === undefined) {
     return undefined;
   }
-  const defaultValue = planExpressionWithExpectedType(initializer, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, state);
+  const defaultValue = planExpression(initializer, sourceFile, input, diagnostics, state);
   if (defaultValue === undefined) {
     return undefined;
   }

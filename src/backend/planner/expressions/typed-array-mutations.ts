@@ -5,7 +5,7 @@ import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import type { ExpressionPlanner, ExpectedExpressionPlanner } from "./expression-planner-types.js";
+import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { planSelectedCsharpBinaryOperation } from "./operators/selected-binary.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { type CsharpPlannedValue } from "./planned-values.js";
@@ -18,7 +18,6 @@ export function planTypedArrayMutation(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-  planExpected: ExpectedExpressionPlanner,
   state: DestructuringPlannerState | undefined,
 ): CsharpPlannedValue | undefined {
   const receiver = planExpression(selection.receiver, sourceFile, input, diagnostics);
@@ -61,8 +60,7 @@ export function planTypedArrayMutation(
   state.expressionOverrides.set(left, invoke(owner, "Get", [offset]));
   let value: CsharpPlannedValue | undefined;
   try {
-    value = planSelectedCsharpBinaryOperation(node, selection.calculation, sourceFile, input,
-      diagnostics, planExpression, planExpected, state);
+    value = planSelectedCsharpBinaryOperation(node, selection.calculation, sourceFile, input, diagnostics, planExpression, state);
   } finally {
     if (previous === undefined) state.expressionOverrides.delete(left);
     else state.expressionOverrides.set(left, previous);

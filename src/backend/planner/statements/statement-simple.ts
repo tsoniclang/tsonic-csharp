@@ -28,10 +28,7 @@ import {
   isDestructuringAssignmentExpression,
   planDestructuringAssignmentStatement,
 } from "../bindings/destructuring-assignment.js";
-import {
-  planExpression,
-  planExpressionWithExpectedType,
-} from "../expressions/index.js";
+import { planExpression } from "../expressions/index.js";
 import {
   probeCarrierFromResolution,
   missingCarrierDiagnosticDetail,
@@ -129,15 +126,7 @@ export function planReturnStatement(
           type: returnType,
           nullForgiving: true,
         }, state.generator.protocol.returnType)
-      : planExpressionWithExpectedType(
-          statement.Expression,
-          sourceFile,
-          input,
-          diagnostics,
-          returnType,
-          statement.Expression,
-          state,
-          state.generator.protocol.returnType,
+      : planExpression(statement.Expression, sourceFile, input, diagnostics, state
         );
     if (expression === undefined) {
       return [];
@@ -158,7 +147,6 @@ export function planReturnStatement(
     ])];
   }
   const expectedReturnExpressionType = state.currentReturnExpressionType ?? state.currentReturnType;
-  const expectedReturnExpressionTypeSubject = state.currentReturnExpressionTypeSubject ?? state.currentReturnTypeSubject;
   const expectedReturnExpressionTargetType = state.currentReturnExpressionTargetType;
   const completion = statement.Expression === undefined ? undefined : csharpVoidReturnCompletion(
     input.types.classifications.resolveNode(statement.Expression, sourceFile), expectedReturnExpressionTargetType);
@@ -173,7 +161,7 @@ export function planReturnStatement(
     ? undefined
     : expectedReturnExpressionType === undefined
       ? planExpression(statement.Expression, sourceFile, input, diagnostics, state)
-      : planExpressionWithExpectedType(statement.Expression, sourceFile, input, diagnostics, expectedReturnExpressionType, expectedReturnExpressionTypeSubject, state, expectedReturnExpressionTargetType);
+      : planExpression(statement.Expression, sourceFile, input, diagnostics, state);
   if (statement.Expression !== undefined && expression === undefined) {
     return [];
   }
@@ -275,8 +263,7 @@ export function planThrowStatement(
       `Throw statements require C# type syntax for the sealed thrown carrier '${targetTypeRefKey(thrown.targetCarrier)}' before C# emission.`));
     return [];
   }
-  const expression = planExpressionWithExpectedType(statement.Expression, sourceFile,
-    input, diagnostics, type, statement.Expression, state, thrown.targetCarrier);
+  const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
   if (expression === undefined) {
     return [];
   }
@@ -370,7 +357,7 @@ export function planExpressionStatement(
   }
   const assignmentExpression = destructuringAssignmentExpressionStatementExpression(expression, input.program.source.ast);
   if (isDestructuringAssignmentExpression(assignmentExpression, input)) {
-    return planDestructuringAssignmentStatement(assignmentExpression, sourceFile, input, diagnostics, state ?? createDestructuringPlannerState(assignmentExpression, input.program.source.ast), planExpression, planExpressionWithExpectedType) ?? [];
+    return planDestructuringAssignmentStatement(assignmentExpression, sourceFile, input, diagnostics, state ?? createDestructuringPlannerState(assignmentExpression, input.program.source.ast), planExpression) ?? [];
   }
   const planned = planExpression(expression!, sourceFile, input, diagnostics, state);
   return planned === undefined ? [] : planCsharpPlannedDiscard(planned);

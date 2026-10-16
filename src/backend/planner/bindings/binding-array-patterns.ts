@@ -12,7 +12,6 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpStatement,
-  CsharpTypeNode,
 } from "../../target-ast/syntax/index.js";
 import { runtimeArrayHelperCall } from "../expressions/arrays/helpers.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
@@ -24,7 +23,7 @@ import { planArrayDefaultProjection } from "./array-defaults.js";
 import type {
   CsharpArrayBindingCarrier,
 } from "../../../target-model/types/index.js";
-import type { CsharpPlannedValue } from "../expressions/planned-values.js";
+import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 import { planCsharpBindingDefaultValue } from "./optional-values.js";
 
@@ -37,7 +36,7 @@ export function planArrayBindingPattern(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
-  planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner | undefined,
+  planExpression: ExpressionPlanner | undefined,
   _sourceCarrierOverride?: TargetTypeRef,
 ): readonly CsharpStatement[] {
   const source = input.program.records.bindingPatternProjection.get(patternNode)?.source;
@@ -51,20 +50,11 @@ export function planArrayBindingPattern(
     }
     const selected = input.program.records.bindingPatternProjection.get(elementNode)?.element;
     const elementCarrier = selected?.kind === "array-element" ? selected.elementCarrier : undefined;
-    return planArrayBindingElement(elementNode, sourceExpression, index, elementCarrier, bindingCarrier, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planDefaultExpressionWithExpectedType);
+    return planArrayBindingElement(elementNode, sourceExpression, index, elementCarrier, bindingCarrier, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planExpression);
   });
 }
 
-export type BindingDefaultExpressionPlanner = (
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  expectedType: CsharpTypeNode,
-  expectedTypeSubject?: Node,
-  state?: DestructuringPlannerState,
-  expectedTargetType?: TargetTypeRef,
-) => CsharpPlannedValue | undefined;
+
 
 function planArrayBindingElement(
   elementNode: Node,
@@ -77,7 +67,7 @@ function planArrayBindingElement(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
-  planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner | undefined,
+  planExpression: ExpressionPlanner | undefined,
 ): readonly CsharpStatement[] {
   const element = AsBindingElement(input.program.source.ast, elementNode);
   if (element === undefined) {
@@ -99,17 +89,20 @@ function planArrayBindingElement(
   }
   if (element.Initializer !== undefined) {
     if (sourceCarrier.kind !== "array") {
-      const selected = input.program.records.bindingPatternProjection.get(elementNode)?.element;
+      const fact = input.program.records.bindingPatternProjection.get(elementNode);
+      const selected = fact?.element;
       if (selected?.kind !== "array-element") return failCsharpPlannerInvariant(
         "Tuple default requires its admitted element projection.", elementNode);
       const defaultedElementCarrier = selected.tupleDefault?.kind === "planned" ? selected.tupleDefault.carrier : undefined;
       if (defaultedElementCarrier !== undefined) {
+        if (fact?.defaultValue === undefined) return failCsharpPlannerInvariant(
+          "Tuple default requires its admitted native default contract.", elementNode);
         const defaultedElementType = csharpTypeFromTargetTypeRef(
           defaultedElementCarrier, input.scope.typeParameterNames,
         );
         if (
           defaultedElementType === undefined ||
-          planDefaultExpressionWithExpectedType === undefined
+          planExpression === undefined
         ) {
           diagnostics.push(unsupportedNodeDiagnostic(
             element.Initializer,
@@ -117,21 +110,13 @@ function planArrayBindingElement(
           ));
           return [];
         }
-        const whenNull = planDefaultExpressionWithExpectedType(
-          element.Initializer,
-          sourceFile,
-          input,
-          diagnostics,
-          defaultedElementType,
-          element.Initializer,
-          state,
-          defaultedElementCarrier,
+        const whenNull = planExpression(element.Initializer, sourceFile, input, diagnostics, state
         );
         if (whenNull === undefined) {
           return [];
         }
         const defaulted = planCsharpBindingDefaultValue(element.Initializer, sourceFile, input, diagnostics,
-          projected, elementCarrier!, whenNull, defaultedElementCarrier, state);
+          projected, fact.defaultValue, whenNull, state);
         return defaulted === undefined ? [] : consumeCsharpPlannedValue(defaulted, expression => planBindingNameFromProjection(
           name, expression,
           defaultedElementType,
@@ -145,11 +130,14 @@ function planArrayBindingElement(
       }
       return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
     }
-    if (planDefaultExpressionWithExpectedType === undefined) {
+    if (planExpression === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Array destructuring defaults require the active expression planner before C# emission."));
       return [];
     }
-    const defaultedProjection = planArrayDefaultProjection(sourceExpression, index, projected, sourceCarrier, element.Initializer, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
+    const contract = input.program.records.bindingPatternProjection.get(elementNode)?.defaultValue;
+    if (contract === undefined) return failCsharpPlannerInvariant(
+      "Array default requires its admitted native default contract.", elementNode);
+    const defaultedProjection = planArrayDefaultProjection(sourceExpression, index, projected, sourceCarrier, contract, element.Initializer, sourceFile, input, diagnostics, state, planExpression);
     if (defaultedProjection === undefined) {
       return [];
     }

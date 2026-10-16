@@ -22,8 +22,7 @@ export function planCsharpElementDeletion(
   }
   const keyType = csharpTypeFromTargetTypeRef(selection.keyType, input.scope.typeParameterNames);
   const receiver = planExpression(selection.receiver, sourceFile, input, diagnostics);
-  const argument = keyType === undefined ? undefined : planCallArgument(selection.index, sourceFile, input,
-    diagnostics, keyType, undefined, selection.keyType, "by-value");
+  const argument = keyType === undefined ? undefined : planCallArgument(selection.index, sourceFile, input, diagnostics, selection.keyType, "by-value");
   if (receiver === undefined || argument === undefined || argument.passing !== undefined) return undefined;
   return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, argument], values => ({ kind: "InvocationExpression",
     callee: { kind: "SimpleMemberAccessExpression", receiver: values[0]!, name: selection.targetMemberName },

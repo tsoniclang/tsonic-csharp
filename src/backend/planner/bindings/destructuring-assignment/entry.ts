@@ -3,11 +3,10 @@ import { csharpDestructuringAssignmentSyntax } from "../../../../target-model/sy
 import { destructuringAssignmentPattern, planAssignmentPatternFromExpression } from "./planning.js";
 import { getCsharpTypeForExpressionCarrier } from "../binding-patterns.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
-import type { BindingDefaultExpressionPlanner } from "../binding-array-patterns.js";
+import type { ExpressionPlanner } from "../../expressions/expression-planner-types.js";
 import type { CsharpExpression, CsharpStatement } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { DestructuringPlannerState } from "../binding-state.js";
-import type { ExpressionPlanner } from "../../expressions/expression-planner-types.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../../expressions/planned-values.js";
@@ -29,38 +28,17 @@ export function pushMissingDestructuringAssignmentFactsDiagnostic(
   diagnostics.push(unsupportedNodeDiagnostic(node, missingDestructuringAssignmentFactsMessage));
 }
 
-export function planDestructuringAssignmentStatement(
-  node: Node | undefined,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
-  planExpression: ExpressionPlanner,
-  planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
+export function planDestructuringAssignmentStatement(node: Node | undefined, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState, planExpression: ExpressionPlanner
 ): readonly CsharpStatement[] | undefined {
   if (!isDestructuringAssignmentExpression(node, input)) {
     return undefined;
   }
-  const planned = planDestructuringAssignmentCore(
-    node!,
-    sourceFile,
-    input,
-    diagnostics,
-    state,
-    planExpression,
-    planDefaultExpressionWithExpectedType,
+  const planned = planDestructuringAssignmentCore(node!, sourceFile, input, diagnostics, state, planExpression
   );
   return planned === undefined ? [] : planCsharpPlannedDiscard(planned);
 }
 
-export function tryPlanDestructuringAssignmentExpression(
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState | undefined,
-  planExpression: ExpressionPlanner,
-  planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
+export function tryPlanDestructuringAssignmentExpression(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState | undefined, planExpression: ExpressionPlanner
 ): CsharpPlannedValue | undefined {
   if (!isDestructuringAssignmentExpression(node, input)) {
     return undefined;
@@ -69,14 +47,7 @@ export function tryPlanDestructuringAssignmentExpression(
     pushMissingDestructuringAssignmentFactsDiagnostic(node, diagnostics);
     return undefined;
   }
-  const planned = planDestructuringAssignmentCore(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    state,
-    planExpression,
-    planDefaultExpressionWithExpectedType,
+  const planned = planDestructuringAssignmentCore(node, sourceFile, input, diagnostics, state, planExpression
   );
   if (planned === undefined) {
     return undefined;
@@ -84,14 +55,7 @@ export function tryPlanDestructuringAssignmentExpression(
   return planned;
 }
 
-function planDestructuringAssignmentCore(
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
-  planExpression: ExpressionPlanner,
-  planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
+function planDestructuringAssignmentCore(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState, planExpression: ExpressionPlanner
 ): CsharpPlannedValue | undefined {
   const selectedOperator = input.program.records.binaryOperation.get(node)
     ?.destructuring;
@@ -137,7 +101,7 @@ function planDestructuringAssignmentCore(
       diagnostics,
       state,
       sourceCarrier,
-      planDefaultExpressionWithExpectedType,
+      planExpression,
     ),
     ]);
 }

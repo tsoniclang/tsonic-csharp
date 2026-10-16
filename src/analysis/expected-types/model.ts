@@ -26,7 +26,7 @@ export interface CsharpExpectedTypeAnalysisInput {
   readonly objectShapes: CsharpObjectShapeClassifications;
   readonly callables: CsharpCallableContractIndex;
   readonly valueReadStages: CsharpValueReadStageIndex;
-  readonly declarations: Pick<CsharpDeclarationClassifications, "returnContract">;
+  readonly declarations: Pick<CsharpDeclarationClassifications, "returnContract" | "runtimeDefault">;
 }
 
 export interface CsharpExpectedTypeAnalysis extends CsharpExpectedTypeClassifications {

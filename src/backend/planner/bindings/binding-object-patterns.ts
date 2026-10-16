@@ -8,7 +8,7 @@ import type {
 } from "../../target-ast/syntax/index.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
-import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.js";
+import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
 import { getCsharpObjectShapeFactForNode } from "../objects/fact-queries.js";
 import { csharpTypeFromObjectShapeFact } from "../objects/index.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/index.js";
@@ -29,13 +29,13 @@ export function planObjectBindingPattern(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
-  planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
+  planExpression?: ExpressionPlanner,
 ): readonly CsharpStatement[] {
   const selected = input.program.records.bindingPatternProjection.get(patternNode)?.source;
   if (selected?.kind === "object-shape-source") {
     const objectShape = selected.shape;
     csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, patternNode);
-    return planObjectShapeBindingPattern(patternNode, sourceExpression, objectShape, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planDefaultExpressionWithExpectedType);
+    return planObjectShapeBindingPattern(patternNode, sourceExpression, objectShape, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planExpression);
   }
   if (selected?.kind !== "source-owned-source") return failCsharpPlannerInvariant(
     "Object binding requires its admitted native source projection.", patternNode);

@@ -61,11 +61,12 @@ export function classifyCsharpUnionCall(
     if (candidates.length !== 1) return undefined;
     const declaration = candidates[0]!;
     const name = policy.ast.name(declaration);
+    const selectedName = name === undefined ? undefined : policy.semanticsFor(name).propertyNames.get(name);
     const parameters = policy.ast.parameters(declaration);
     const file = policy.ast.getSourceFile(declaration);
     const signature = file === undefined ? undefined
       : getCsharpCallableValueSignature(policy.types.resolveNode(declaration, file));
-    if (!policy.ast.is.IsIdentifier(name) || parameters.length !== parameterTypes.length ||
+    if (selectedName?.kind !== "resolved" || parameters.length !== parameterTypes.length ||
       signature === undefined || !csharpDelegateSignatureHasSupportedPassingModes(signature) ||
       signature.parameters.length !== parameters.length || signature.returnPassing !== undefined ||
       signature.parameterPassingModes.some(mode => mode !== "by-value")) return undefined;
@@ -97,7 +98,7 @@ export function classifyCsharpUnionCall(
     const resultElement = getCsharpNullableElementTargetType(resultType);
     if (actualResult === undefined || (!targetTypeRefEquals(resultType, actualResult) &&
       (resultElement === undefined || !targetTypeRefEquals(resultElement, actualResult)))) return undefined;
-    return Object.freeze({ arm, declaration, targetName: policy.ast.text(name) });
+    return Object.freeze({ arm, declaration, targetName: selectedName.name });
   });
   return methods.some(method => method === undefined) ? reject("Each selected class-union arm must identify one method with the same exact native argument and result contract.") : {
     kind: "resolved", receiver: property.receiver.expression, receiverType, resultType,

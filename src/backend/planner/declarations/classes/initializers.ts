@@ -4,7 +4,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpStatement } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { planExpressionWithExpectedType } from "../../expressions/index.js";
+import { planExpression } from "../../expressions/index.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { planClassStaticBlockDeclaration } from "./constructors.js";
@@ -48,8 +48,7 @@ export function planClassInitializationRegion(
     if (input.program.records.sourceField.get([node, property.name, property.Type, property.Initializer]) !== undefined) continue;
     const target = input.types.classifications.resolveNode(property.Type ?? property.name, sourceFile);
     const type = target === undefined ? undefined : csharpTypeFromTargetTypeRef(target, input.scope.typeParameterNames);
-    const value = type === undefined ? undefined : planExpressionWithExpectedType(property.Initializer, sourceFile,
-      input, diagnostics, type, property.Type ?? property.name, undefined, target);
+    const value = type === undefined ? undefined : planExpression(property.Initializer, sourceFile, input, diagnostics, undefined);
     if (value === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "A class initializer requires its exact native value contract."));
       continue;

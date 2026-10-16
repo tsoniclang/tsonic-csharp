@@ -5,18 +5,19 @@ import type { CsharpNativeUse } from "../../../target-model/records/native-deman
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import type { CsharpStatement } from "../../target-ast/syntax/index.js";
-import type { ExpressionPlanner, ExpectedExpressionPlanner } from "./expression-planner-types.js";
+import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planArrayLiteralExpressionWithCarrier } from "./array-literals/index.js";
-import { planObjectLiteralExpressionWithExpectedType } from "../objects/object-literals/planning.js";
-import { tryPlanRecordDictionaryLiteralWithExpectedType } from "./expression-dictionary-literals.js";
+import { planObjectLiteralExpression } from "../objects/object-literals/planning.js";
+import { tryPlanRecordDictionaryLiteralWithCarrier } from "./expression-dictionary-literals.js";
 import { planSelectedCsharpBinaryOperation } from "./operators/selected-binary.js";
 import { planCsharpConditionExpression } from "./expression-bool-carriers.js";
 import { planCsharpExactLiteralRecipe } from "./literal-conversions.js";
 import { planVoidExpression } from "./expression-void.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
+import { isCsharpRecordDictionaryTargetType } from "../../../target-model/types/carriers/collections.js";
 import { csharpPlannedEffect, mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpExpressionCompletion, planCsharpValueBranch } from "./planned-value-composition.js";
 import { applyCsharpConversionSelection, readCsharpExpressionConversionClassification } from "./conversions.js";
@@ -26,7 +27,6 @@ import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
 export interface CsharpNativeExpressionPlanners {
   readonly planSourceExpression: ExpressionPlanner;
   readonly planExpression: ExpressionPlanner;
-  readonly planExpressionWithExpectedType: ExpectedExpressionPlanner;
 }
 
 export function planCsharpNativeExpression(
@@ -82,8 +82,7 @@ export function planCsharpNativeExpression(
       return literal.kind === "resolved" ? complete(literal.expression)
         : failCsharpPlannerInvariant("An admitted native literal requires its renderable exact recipe.", node);
     }
-    if (use.binary !== undefined) return planSelectedCsharpBinaryOperation(node, use.binary, sourceFile, input,
-      diagnostics, planners.planExpression, planners.planExpressionWithExpectedType, state);
+    if (use.binary !== undefined) return planSelectedCsharpBinaryOperation(node, use.binary, sourceFile, input, diagnostics, planners.planExpression, state);
     const ast = input.program.source.ast;
     if (ast.is.IsVoidExpression(node)) return planVoidExpression(node, sourceFile, input, diagnostics,
       planners.planExpression, use.carrier);
@@ -114,10 +113,9 @@ export function planCsharpNativeExpression(
     if (ast.is.IsObjectLiteralExpression(node)) {
       const type = csharpTypeFromTargetTypeRef(use.carrier, input.scope.typeParameterNames);
       if (type === undefined) return failCsharpPlannerInvariant("A native object construction requires a renderable carrier.", node);
-      const dictionary = tryPlanRecordDictionaryLiteralWithExpectedType(node, sourceFile, input, diagnostics,
-        undefined, planners.planExpressionWithExpectedType, use.carrier);
-      return dictionary ?? planObjectLiteralExpressionWithExpectedType(node, sourceFile, input, diagnostics, type,
-        undefined, planners.planExpression, planners.planExpressionWithExpectedType, use.carrier, state);
+      return isCsharpRecordDictionaryTargetType(use.carrier)
+        ? tryPlanRecordDictionaryLiteralWithCarrier(node, sourceFile, input, diagnostics, planners.planExpression, use.carrier)
+        : planObjectLiteralExpression(node, sourceFile, input, diagnostics, planners.planExpression, state);
     }
     return planners.planSourceExpression(node, sourceFile, input, diagnostics, state);
   }

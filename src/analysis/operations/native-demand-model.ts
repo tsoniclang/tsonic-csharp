@@ -4,19 +4,28 @@ import type { CsharpNativeConstructInput } from "../../policy/operations/control
 import type { CsharpNativeOperandInput } from "../../policy/operations/control-flow/native-operands.js";
 import type { CsharpNativeUse, CsharpNativeUseClassifications } from "../../target-model/records/native-demand.js";
 import type { CsharpExpectedNativeUseAdmission } from "../expected-types/model.js";
+import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
+import type { CsharpObjectShapeClassifications } from "../objects/model.js";
+import type { CsharpExactLiteralSelectionIndex, CsharpNativePropertyKeyBinding } from "../../target-model/conversions/exact-literals.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 export interface CsharpNativeDemandAnalysisInput extends Omit<CsharpNativeConstructInput, "baseCalls" | "unusedDefault">,
   Omit<CsharpNativeOperandInput, "unusedDefault"> {
   readonly expected: CsharpExpectedNativeUseAdmission;
+  readonly declarations: Pick<CsharpDeclarationClassifications, "runtimeDefault">;
+  readonly objectShapes: Pick<CsharpObjectShapeClassifications, "resolveTarget">;
+  readonly propertyKeyBindings: (expression: Node, carrier: TargetTypeRef) => readonly CsharpNativePropertyKeyBinding[] | undefined;
+  readonly exactLiteral: CsharpExactLiteralSelectionIndex["exactLiteral"];
 }
 
 export type CsharpNativeUnadmittedReason =
   | "argument-refused" | "argument-unresolved" | "argument-inconsistent" | "argument-expression-unresolved"
   | "expression-form-unresolved" | "operation-unresolved" | "source-argument-rejected" | "construction-unresolved"
-  | "completion-unresolved" | "use-context-unresolved" | "expected-use-pending" | "cyclic-use" | "callable-creation";
+  | "completion-unresolved" | "use-context-unresolved" | "expected-use-pending" | "cyclic-use" | "callable-creation" | "property-key-refused";
 
 export interface CsharpNativeDemandAnalysis extends CsharpNativeUseClassifications {
   readonly entries: readonly { readonly site: TargetUseSiteRef; readonly use: CsharpNativeUse }[];
-  readonly unadmitted: readonly { readonly site: TargetUseSiteRef; readonly expression: Node; readonly reason: CsharpNativeUnadmittedReason }[];
+  readonly unadmitted: readonly { readonly site: TargetUseSiteRef; readonly expression: Node;
+    readonly reason: CsharpNativeUnadmittedReason; readonly message?: string }[];
   readonly requiredBindingRoots: readonly Node[];
 }

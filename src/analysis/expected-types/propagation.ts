@@ -17,6 +17,8 @@ import type { selectCsharpBinaryOperation } from "../../policy/operations/index.
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
 import type { CsharpConversionMode } from "../../target-model/conversions/selection.js";
+import type { CsharpExactLiteralRequest, CsharpNativePropertyKeyBinding } from "../../target-model/conversions/exact-literals.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpExpectedUseCollection } from "./collection.js";
 import type {
   CsharpExpectedTypeAnalysisInput,
@@ -36,6 +38,8 @@ export interface CsharpExpectedTypePropagation {
     readonly constructionCarrier: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined;
     readonly objectShape: (expression: Node, targetType: TargetTypeRef) => CsharpObjectShapeFact | undefined;
     readonly intrinsicTarget: (expression: Node, targetType: TargetTypeRef) => boolean;
+    readonly propertyKeyRequests: readonly CsharpExactLiteralRequest[];
+    readonly propertyKeys: (expression: Node, carrier: TargetTypeRef) => readonly CsharpNativePropertyKeyBinding[] | undefined;
   };
 }
 
@@ -51,6 +55,8 @@ export function createCsharpExpectedTypePropagation(
   const objectConstructions = new WeakMap<Node, Map<string, CsharpObjectShapeFact>>();
   const intrinsicTargets = new WeakMap<Node, Set<string>>();
   const positionsByOwner = new WeakMap<Node, ReadonlyMap<Node, number>>();
+  const propertyKeys = new WeakMap<Node, Map<string, readonly CsharpNativePropertyKeyBinding[]>>();
+  const propertyKeyRequests: CsharpExactLiteralRequest[] = [];
 
   return Object.freeze({
     propagate,
@@ -65,6 +71,8 @@ export function createCsharpExpectedTypePropagation(
         objectConstructions.get(expression)?.get(targetTypeRefKey(targetType)),
       intrinsicTarget: (expression: Node, targetType: TargetTypeRef) =>
         intrinsicTargets.get(expression)?.has(targetTypeRefKey(targetType)) === true,
+      propertyKeyRequests: Object.freeze([...propertyKeyRequests]),
+      propertyKeys: (expression: Node, carrier: TargetTypeRef) => propertyKeys.get(expression)?.get(targetTypeRefKey(carrier)),
     }),
   });
 
@@ -171,7 +179,10 @@ export function createCsharpExpectedTypePropagation(
     const positions = childPositions(expression);
     const member = (property: Node) => positioned(positions, property, index => forwarded(expression, { kind: "member", index }, parent, mode));
     if (indexedValueType !== undefined) {
-      if (isCsharpRecordDictionaryTargetType(carrier)) recordObjectCarrier(expression, targetType, carrier);
+      if (isCsharpRecordDictionaryTargetType(carrier)) {
+        recordObjectCarrier(expression, targetType, carrier);
+        recordDictionaryKeys(expression, carrier);
+      }
       else {
         const source = objectShapes.resolveObjectLiteralTargetShape(objectShapes.resolveNode(expression), expression);
         const projection = source?.kind === "resolved" ? projectCsharpJsValueObjectLiteralShape(source.shape) : undefined;
@@ -251,6 +262,26 @@ export function createCsharpExpectedTypePropagation(
           selected.member.exactNumericStorage === true);
       }
     }
+  }
+
+  function recordDictionaryKeys(expression: Node, carrier: TargetTypeRef): void {
+    const key = targetTypeRefKey(carrier);
+    const targets = propertyKeys.get(expression) ?? new Map<string, readonly CsharpNativePropertyKeyBinding[]>();
+    if (targets.has(key)) return;
+    const target = carrier.kind === "target-named" ? carrier.typeArguments?.[0] : undefined;
+    if (target === undefined) return failTargetAnalysisInvariant("tsonic-csharp", "A dictionary construction requires its native key carrier.", expression);
+    const bindings: CsharpNativePropertyKeyBinding[] = [];
+    for (const property of policy.ast.properties(expression)) {
+      if (property === undefined || !policy.ast.is.IsPropertyAssignment(property) && !policy.ast.is.IsShorthandPropertyAssignment(property)) continue;
+      const name = policy.ast.name(property);
+      const propertyKey = name === undefined ? undefined : policy.semanticsFor(name).propertyNames.get(name);
+      if (name === undefined || propertyKey === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "A native dictionary key requires its canonical checked property-name selection.", property);
+      propertyKeyRequests.push(Object.freeze({ expression: name, target, propertyKey }));
+      bindings.push(Object.freeze({ property, name, target }));
+    }
+    targets.set(key, Object.freeze(bindings));
+    propertyKeys.set(expression, targets);
   }
 
   function recordObjectCarrier(expression: Node, targetType: TargetTypeRef, carrier: TargetTypeRef): void {

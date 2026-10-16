@@ -8,7 +8,6 @@ import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import {
   missingCarrierDiagnosticDetail,
-  probeCarrierFromResolution,
   resolveRuntimeCarrierForExpression,
 } from "../../types/runtime-carriers.js";
 import {
@@ -52,19 +51,6 @@ export {
 export {
   planTupleLiteralExpression,
 } from "./tuple.js";
-
-export function planArrayLiteralExpressionFromFacts(
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  planner: ArrayLiteralPlanner,
-): CsharpPlannedValue | undefined {
-  const carrierResolution = resolveRuntimeCarrierForExpression(input, node, sourceFile);
-  const carrier = probeCarrierFromResolution(carrierResolution) ??
-    input.types.classifications.resolveNode(node, sourceFile);
-  return planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, carrier, planner, carrierResolution);
-}
 
 export function planArrayLiteralExpressionWithCarrier(
   node: Node,

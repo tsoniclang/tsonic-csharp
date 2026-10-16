@@ -11,14 +11,12 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import {
   isCsharpJsValueObjectShapeTargetType,
   validateCsharpJsValueObjectShapeCarrier,
   csharpStringTargetType,
 } from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/index.js";
 import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
@@ -27,10 +25,7 @@ import { csharpConstructibleTypeFromObjectShapeFact } from "../index.js";
 import {
   translateCsharpJsValueInvocation,
 } from "../../expressions/js-value-operations.js";
-import type {
-  ExpectedExpressionPlanner,
-  ExpressionPlanner,
-} from "../../expressions/expression-planner-types.js";
+import type { ExpressionPlanner } from "../../expressions/expression-planner-types.js";
 import {
   planExplicitObjectShapeLiteralMember,
   planObjectShapeLiteralAssignment,
@@ -40,34 +35,15 @@ import { csharpPlannedValue, type CsharpPlannedValue } from "../../expressions/p
 import { buildCsharpPlannedValue } from "../../expressions/planned-value-composition.js";
 import { planCsharpObjectInitialization, type CsharpPlannedObjectInitializer } from "../../expressions/planned-initializers.js";
 
-export function planObjectLiteralExpressionWithExpectedType(
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  _expectedType: CsharpTypeNode,
-  _expectedTypeSubject: Node | undefined,
-  planExpression: ExpressionPlanner,
-  planExpressionWithExpectedType: ExpectedExpressionPlanner,
-  _expectedTargetType?: TargetTypeRef,
-  state?: DestructuringPlannerState,
+export function planObjectLiteralExpression(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState
 ): CsharpPlannedValue | undefined {
   const selected = requireCsharpNativeExpressionUse(input, node).use;
   if (selected.kind === "erased" || selected.objectShape === undefined) return failCsharpPlannerInvariant(
     "Native object construction requires its admitted physical shape.", node);
-  return planObjectLiteralExpressionWithObjectShape(node, sourceFile, input, diagnostics,
-    selected.objectShape, planExpression, planExpressionWithExpectedType, state);
+  return planObjectLiteralExpressionWithObjectShape(node, sourceFile, input, diagnostics, selected.objectShape, planExpression, state);
 }
 
-function planObjectLiteralExpressionWithObjectShape(
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  objectShape: CsharpObjectShapeFact,
-  planExpression: ExpressionPlanner,
-  planExpressionWithExpectedType: ExpectedExpressionPlanner,
-  state?: DestructuringPlannerState,
+function planObjectLiteralExpressionWithObjectShape(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], objectShape: CsharpObjectShapeFact, planExpression: ExpressionPlanner, state?: DestructuringPlannerState
 ): CsharpPlannedValue | undefined {
   if (isCsharpJsValueObjectShapeTargetType(objectShape.targetType)) {
     return planJsValueObjectLiteral(
@@ -76,7 +52,7 @@ function planObjectLiteralExpressionWithObjectShape(
       input,
       diagnostics,
       objectShape,
-      planExpressionWithExpectedType,
+      planExpression,
     );
   }
   const type = csharpConstructibleTypeFromObjectShapeFact(
@@ -96,7 +72,7 @@ function planObjectLiteralExpressionWithObjectShape(
     if (property === undefined) {
       continue;
     }
-    const planned = planObjectShapeLiteralAssignment(property, objectShape, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType);
+    const planned = planObjectShapeLiteralAssignment(property, objectShape, sourceFile, input, diagnostics, planExpression);
     if (planned === undefined) {
       return undefined;
     }
@@ -111,7 +87,7 @@ function planJsValueObjectLiteral(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   objectShape: CsharpObjectShapeFact,
-  planExpressionWithExpectedType: ExpectedExpressionPlanner,
+  planExpression: ExpressionPlanner,
 ): CsharpPlannedValue | undefined {
   const carrierRejection = validateCsharpJsValueObjectShapeCarrier(objectShape);
   if (carrierRejection !== undefined) {
@@ -143,7 +119,7 @@ function planJsValueObjectLiteral(
       sourceFile,
       input,
       diagnostics,
-      planExpressionWithExpectedType,
+      planExpression,
     );
     if (planned === undefined) {
       return undefined;

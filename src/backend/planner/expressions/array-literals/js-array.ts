@@ -53,7 +53,7 @@ export function planJsArrayLiteralExpression(
       result = appended;
       continue;
     }
-    const expression = planner.planExpressionWithExpectedType(operand, sourceFile, input, diagnostics, elementType, undefined, elementTargetType);
+    const expression = planner.planExpression(operand, sourceFile, input, diagnostics);
     if (expression === undefined) return undefined;
     const appended = buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [result, expression], values => ({
       kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: values[0]!, name: "AppendElement" },

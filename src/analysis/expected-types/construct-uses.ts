@@ -3,7 +3,7 @@ import { isSourceCallableBodyBoundary } from "@tsonic/target-api/source";
 import { csharpCallableValueType } from "../callables/value-type.js";
 import { csharpSourceArgumentExpectedType, csharpTargetParameterValueType, getCsharpGeneratorProtocol,
   resolveCsharpObjectShapeMemberBySelectedSubject } from "../../policy/types/index.js";
-import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings } from "../../policy/operations/members/selection/native-use-arguments.js";
+import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../policy/operations/members/selection/native-use-arguments.js";
 import type { CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
 import type { ResolvedSourceCallInfo } from "../../target-model/records/members.js";
@@ -13,7 +13,7 @@ import type { CsharpExpectedUseCollection } from "./collection.js";
 import type { CsharpExpectedTypeAnalysisInput, CsharpExpectedUseSiteDemand, CsharpExpectedUseWithholding } from "./model.js";
 
 export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnalysisInput, collection: CsharpExpectedUseCollection) {
-  const { policy, evidence, operations, objectShapes, callables } = input;
+  const { policy, evidence, operations, objectShapes, callables, declarations } = input;
   const record = collection.record;
   const at = (owner: Node, slot: CsharpNativeUseSlot): CsharpExpectedUseSiteDemand => ({ owner, slot });
   return Object.freeze({ recordThrownValue, recordInitializer, recordOperationUses });
@@ -33,7 +33,8 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     const slot: CsharpNativeUseSlot | undefined = policy.ast.is.IsVariableDeclaration(node) || policy.ast.is.IsPropertyDeclaration(node)
       ? { kind: "initializer" } : policy.ast.is.IsParameterDeclaration(node) || policy.ast.is.IsBindingElement(node) ? { kind: "default" } : undefined;
     if (initializer === undefined) return;
-    record(initializer, typeNode === undefined ? evidence.storageTargetType.get(node) : evidence.nodeTargetType.get(typeNode),
+    const target = policy.ast.is.IsParameterDeclaration(node) ? declarations.runtimeDefault.get(node)?.valueType : undefined;
+    record(initializer, target ?? (typeNode === undefined ? evidence.storageTargetType.get(node) : evidence.nodeTargetType.get(typeNode)),
       typeNode === undefined ? "contextual" : "required", slot === undefined ? undefined : at(node, slot));
   }
 
@@ -126,8 +127,9 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     parameterTypes: readonly (TargetTypeRef | undefined)[] | undefined, grouping: CsharpSourceArgumentGrouping | undefined): void {
     const projected = csharpSourceOwnedArgumentBindings(grouping);
     if (grouping?.kind === "grouped" && projected.kind === "bound") {
-      for (const [index, entry] of grouping.arguments.entries()) record(entry.expression, entry.type, "required",
-        { owner, slot: projected.bindings[index]!.slot, ...(entry.sourceForm === "spread-sequence" ? { withheld: "argument-sequence" as const } : {}) });
+      for (const [index, entry] of grouping.arguments.entries()) record(entry.sourceForm === "spread-sequence"
+        ? policy.ast.as.AsSpreadElement(entry.expression)?.Expression : entry.expression, entry.type, "required",
+        { owner, slot: projected.bindings[index]!.slot });
       return;
     }
     const withheld: CsharpExpectedUseWithholding = projected.kind === "refused" ? "argument-refused"
@@ -160,14 +162,13 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
       if (sequence !== undefined) recordedSequences.add(argument.sourceArgumentIndex);
       const expression = sequence?.expression ?? selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
       const mapping = mappings?.get(argument.effectiveArgumentIndex);
-      const target = sequence?.sourceType ?? (mapping?.kind === "by-value" && mapping.conversion.kind === "delegate-adapter" &&
-        mapping.conversion.strategy === "adaptation" ? mapping.sourceType : sourceArgumentExpectedType(expression, argument.targetParameter, argument.sourceForm));
+      const target = sequence?.sourceType ?? csharpProviderArgumentSourceCarrier(mapping) ??
+        sourceArgumentExpectedType(expression, argument.targetParameter, argument.sourceForm);
       const binding = bySource.get(argument.sourceArgumentIndex)?.get(argument.effectiveArgumentIndex);
       record(expression, target, "required", { owner,
         slot: binding?.slot ?? { kind: "argument", sourceIndex: argument.sourceArgumentIndex, effectiveIndex: argument.effectiveArgumentIndex,
           parameterIndex: argument.targetParameterIndex },
-        ...(bindings.kind !== "bound" || binding === undefined ? { withheld: "argument-inconsistent" as const }
-          : sequence === undefined ? {} : { withheld: "argument-sequence" as const }) });
+        ...(bindings.kind !== "bound" || binding === undefined ? { withheld: "argument-inconsistent" as const } : {}) });
     }
   }
 

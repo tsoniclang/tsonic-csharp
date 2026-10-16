@@ -20,7 +20,7 @@ import { getCsharpTypeForNode } from "../types/index.js";
 import {
   getTargetTypeRefForNode,
 } from "../types/runtime-carriers.js";
-import { planExpressionWithExpectedType } from "../expressions/index.js";
+import { planExpression } from "../expressions/index.js";
 import { planCsharpNativeMemoryCall } from "../expressions/native-memory.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getLambdaTargetContext } from "../expressions/expression-lambdas.js";
@@ -132,17 +132,7 @@ export function planLocalDeclaration(
       "A supplied local initializer requires its finalized native storage carrier."));
     else initializer = csharpPlannedValue(initializerCarrier, initializerOverride);
   } else if (variable.Initializer !== undefined) {
-    initializer = planExpressionWithExpectedType(
-      variable.Initializer,
-      sourceFile,
-      input,
-      diagnostics,
-      type,
-      variable.Type ?? variable.name,
-      state,
-      lambdaInitializer && variable.Type === undefined
-        ? undefined
-        : nativeRefTargetType ?? storageType ?? expectedTargetType,
+    initializer = planExpression(variable.Initializer, sourceFile, input, diagnostics, state
     );
   } else if (inferredTargetType !== undefined) {
     const undefinedValue = planCsharpSourceUndefinedValue(

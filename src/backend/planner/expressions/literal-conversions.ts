@@ -62,6 +62,8 @@ export function planCsharpExactLiteralRecipe(
             kind: "CastExpression", type: halfType, expression: zero,
           } };
     }
+    case "string":
+      return { kind: "resolved", expression: { kind: "LiteralExpression", value: recipe.value } };
     case "char":
       return {
         kind: "resolved",
@@ -71,7 +73,7 @@ export function planCsharpExactLiteralRecipe(
         },
       };
     case "float": {
-      if (recipe.precision === "float16") {
+      if ("value" in recipe) {
         const type = csharpTypeFromTargetTypeRef(recipe.target, typeParameterNames);
         return type === undefined
           ? {
@@ -88,10 +90,14 @@ export function planCsharpExactLiteralRecipe(
             };
       }
       const literal: CsharpExpression = { kind: "NumericLiteralExpression", token: recipe.token,
-        suffix: recipe.precision === "float32" ? "F" : "M" };
-      return { kind: "resolved", expression: recipe.negative
+        suffix: recipe.precision === "float32" ? "F" : recipe.precision === "decimal" ? "M" : "D" };
+      const expression: CsharpExpression = recipe.negative
         ? { kind: "PrefixUnaryExpression", operatorToken: { kind: "MinusToken" }, operand: literal }
-        : literal };
+        : literal;
+      if (recipe.precision !== "float16") return { kind: "resolved", expression };
+      const type = csharpTypeFromTargetTypeRef(recipe.target, typeParameterNames);
+      return type === undefined ? { kind: "rejected", reason: "C# Half property key requires its exact renderable target type." }
+        : { kind: "resolved", expression: { kind: "CastExpression", type, expression } };
     }
     case "integer": {
       const expression = planIntegerLiteral(typeParameterNames, recipe.value, recipe.target);

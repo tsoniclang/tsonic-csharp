@@ -6,7 +6,6 @@ import type {
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { CsharpTargetParameter } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
@@ -28,20 +27,7 @@ export type CallArgumentPlanner = (
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-  expectedType?: CsharpTypeNode,
-  expectedTypeSubject?: Node,
   conversionExpectedTargetType?: TargetTypeRef,
   expectedArgumentPassingMode?: CsharpTargetParameter["passingMode"],
   selectedTargetParameter?: CsharpTargetParameter,
 ) => PlannedArgument;
-
-export type ExpectedExpressionPlanner = (
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  expectedType: CsharpTypeNode,
-  expectedTypeSubject?: Node,
-  expectedTargetType?: TargetTypeRef,
-  state?: DestructuringPlannerState,
-) => PlannedExpression;

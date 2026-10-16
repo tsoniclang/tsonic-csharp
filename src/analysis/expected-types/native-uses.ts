@@ -142,6 +142,7 @@ export function admitCsharpExpectedNativeUses(
     const source = final.valueRead.get(request.expression)?.value;
     const selection = selectCsharpNativeUseRepresentation({ ast: final.ast, expression: request.expression, target: request.targetType,
       mode: request.mode, source, absent: source !== undefined && isCsharpAbsenceTargetType(source),
+      ...(request.site.role === "present-payload" ? { projection: "present-payload" as const } : {}),
       literal: final.exactLiteral.get(request.expression, request.targetType), callable: final.callableCreation.get(request.expression),
       constructionCarrier: expected.constructions.constructionCarrier(request.expression, request.targetType),
       binary: final.operations.operatorForm.usesExpectedResultType(request.expression)
