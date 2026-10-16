@@ -106,6 +106,52 @@ function reportedNode(ast, sourceText, node) {
 }
 
 for (const surface of ["native", "js"]) {
+  test(`${surface} authored native numeric tokens retain exact values, decimal scale and actual float64 casts`, { timeout: 300_000 }, () => {
+    const sourceText = `import type { decimal, float32, float64 } from "@tsonic/core/types.js";
+export function exact(): decimal { return 9007199254740993; }
+export function whole(): decimal { return 1; }
+export function scaled(): decimal { return 1.00; }
+export function zero(): decimal { return 0.000; }
+export function negativeZero(): decimal { return -0.000; }
+export function exponent(): decimal { return 1.00e1; }
+export function zeroExponent(): decimal { return 0.000e2; }
+export function maximum(): decimal { return 79228162514264337593543950335.4; }
+export function rounded(): decimal { return 1.00000000000000000000000000015; }
+export function direct(): float32 { return 1.00000005960464477539062500000001; }
+export function realDouble(): float32 {
+  const value: float64 = 1.00000005960464477539062500000001;
+  return value as float32;
+}
+export function cast(value: float64): float32 { return value as float32; }
+export function explicitLiteral(): float32 { return 1e40 as float32; }
+export function defaultFloat(value: float32 = -1.5): float32 { return value; }
+export function readDefault(): float32 { return defaultFloat(); }
+`;
+    const compiled = compileCsharpSource({ surface, sourceText });
+    assertCsharpCompilationSucceeded(compiled);
+    const output = executeCsharpConstruction(compiled, `exact-native-numeric-${surface}`, false, false, [], `
+using Subject = Tsonic.Generated.Index;
+static int Flags(decimal value) => decimal.GetBits(value)[3];
+if (Subject.exact() != 9007199254740993M || Subject.maximum() != decimal.MaxValue ||
+    Subject.rounded() != 1.0000000000000000000000000002M)
+    throw new System.Exception("exact native decimal value");
+if (Flags(Subject.whole()) != 0 || Flags(Subject.scaled()) != 0x00020000 ||
+    Flags(Subject.zero()) != 0x00030000 || Flags(Subject.negativeZero()) != unchecked((int)0x80030000) ||
+    Flags(Subject.exponent()) != 0x00010000 || Flags(Subject.zeroExponent()) != 0x00010000)
+    throw new System.Exception("authored decimal scale");
+if (Subject.scaled().ToString(System.Globalization.CultureInfo.InvariantCulture) != "1.00" ||
+    Subject.zeroExponent().ToString(System.Globalization.CultureInfo.InvariantCulture) != "0.0")
+    throw new System.Exception("native decimal formatted scale");
+if (System.BitConverter.SingleToUInt32Bits(Subject.direct()) != 0x3F800001 ||
+    System.BitConverter.SingleToUInt32Bits(Subject.realDouble()) != 0x3F800000 ||
+    !float.IsPositiveInfinity(Subject.cast(1e40D)) || !float.IsNegativeInfinity(Subject.cast(-1e40D)) ||
+    !float.IsPositiveInfinity(Subject.explicitLiteral()) || Subject.readDefault() != -1.5F)
+    throw new System.Exception("authored versus actual double native conversion");
+System.Console.WriteLine("exact native numeric values and scale: correct");
+`);
+    assert.equal(output.trim(), "exact native numeric values and scale: correct");
+  });
+
   test(`${surface} literals inside the float32, decimal and float16 ranges compile and keep the values C# and Half give them`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: acceptedSource });
     assertCsharpCompilationSucceeded(compiled);
