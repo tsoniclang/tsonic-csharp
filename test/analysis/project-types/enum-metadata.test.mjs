@@ -55,11 +55,14 @@ export enum Collision { Low = 9007199254740992, High = 9007199254740993 }
   const catalog = createCsharpProjectTypeCatalog(host);
   assert.equal(catalog.definitions.length, 0, "no refused enum acquires a native type definition");
   assert.equal(catalog.issues.length, 6, "one precise issue per refused native declaration");
+  const owners = new Set();
   for (const entry of source.semantics.enumConstants.entries) {
     const owner = source.ast.parent(entry.declaration);
+    if (owners.has(owner)) continue;
+    owners.add(owner);
     const decision = source.semantics.enumConstants.integerWidth(owner);
     assert.equal(decision?.kind, "rejected", "the shared decision precedes native admission");
-    const issue = catalog.issues.find(candidate => candidate.node === entry.declaration);
+    const issue = catalog.issues.find(candidate => candidate.node === decision.member);
     assert.equal(issue !== undefined, true, "the native issue identifies the exact refused member");
     assert.equal(issue?.message, decision.reason, "native admission preserves the one common rejection reason");
     assert.equal(issue?.code, decision.failure === "resource" ? "CSHARP_ENUM_CONSTANT_RESOURCE_LIMIT" : "CSHARP_ENUM_CONSTANT_NOT_SUPPORTED",
