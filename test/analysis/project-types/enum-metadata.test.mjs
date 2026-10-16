@@ -18,7 +18,7 @@ test("the early C# project catalog publishes the one common exact enum width", (
   const { source, host } = fixture(`
 export enum Empty {}
 export enum Small { Low = -2147483648, High = 2147483647 }
-export enum Wide { Exact = 9007199254740993, Next, Same = 9007199254740993 }
+export enum Wide { Exact = 9007199254740993, Next = 9007199254740994, Same = 9007199254740993 }
 export enum Bounds { Low = -9223372036854775808, High = 9223372036854775807 }
 export class Ordinary {}
 `);
@@ -49,10 +49,12 @@ export enum Text { Value = "value" }
 export enum Fraction { Value = 7 / 2 }
 export enum Outside { Value = 9223372036854775808 }
 export enum Resource { Value = 2 ** 1000000000 }
+export enum Incoherent { Exact = 9007199254740993, Next }
+export enum Collision { Low = 9007199254740992, High = 9007199254740993 }
 `);
   const catalog = createCsharpProjectTypeCatalog(host);
   assert.equal(catalog.definitions.length, 0, "no refused enum acquires a native type definition");
-  assert.equal(catalog.issues.length, 4, "one precise issue per refused native declaration");
+  assert.equal(catalog.issues.length, 6, "one precise issue per refused native declaration");
   for (const entry of source.semantics.enumConstants.entries) {
     const owner = source.ast.parent(entry.declaration);
     const decision = source.semantics.enumConstants.integerWidth(owner);
