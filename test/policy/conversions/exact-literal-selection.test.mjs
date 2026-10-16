@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpExactLiteralConversion } from "../../../dist/policy/conversions/literals.js";
+import { createCompilerSessionFromFiles } from "@tsonic/tsts";
+import { analyzeSourceLiteralValues, createTargetSourceProgram } from "@tsonic/target-api/source";
+import { csharpLiteralIsRepresentableAs, selectCsharpExactLiteralConversion } from "../../../dist/policy/conversions/literals.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 
@@ -76,5 +78,67 @@ test("exact literal selections and recipes are frozen data", () => {
   for (const selection of selections) {
     assert.equal(Object.isFrozen(selection), true, selection.kind);
     if (selection.kind === "resolved") assert.equal(Object.isFrozen(selection.recipe), true, selection.recipe.kind);
+  }
+});
+
+function authoredLiterals(spellings) {
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/literal-proof", files: {
+    "/literal-proof/index.ts": spellings.map((text, index) => `export const value${index} = ${text};`).join("\n"),
+  }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
+  assert.equal(checked.diagnostics.length, 0, "the native token fixtures check");
+  const source = createTargetSourceProgram(checked);
+  const file = checked.getSourceFile("/literal-proof/index.ts");
+  assert.equal(file !== undefined, true, "the fixture file exists");
+  const initializers = [];
+  const visit = node => {
+    const initializer = source.ast.as.AsVariableDeclaration(node)?.Initializer;
+    if (initializer !== undefined) initializers.push(initializer);
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  visit(file);
+  const records = analyzeSourceLiteralValues(source.ast, [file]);
+  return initializers.map(node => records.literalValue.get(node));
+}
+
+test("authored native float32 and decimal recipes preserve the exact token rather than its double summary", () => {
+  const midpoint = (1n << 128n) - (1n << 103n);
+  const decimalMax = (1n << 96n) - 1n;
+  const spellings = [String(midpoint - 1n), String(midpoint), String(midpoint + 1n),
+    "1.00000005960464477539062582718061255302767487140869206996285356581211090087890625",
+    "9007199254740993", "-9007199254740993", `${decimalMax}.4`, `${decimalMax}.5`,
+    "-0", "1e-9999999999999999999999", "(-(+1.5))"];
+  const values = authoredLiterals(spellings);
+  assert.equal(values[0].number === values[1].number && values[1].number === values[2].number, true,
+    "all three f32 boundary tokens share the same double summary");
+  for (const [index, precision, accepted] of [[0, "float32", true], [1, "float32", false], [2, "float32", false],
+    [3, "float32", true], [4, "decimal", true], [5, "decimal", true], [6, "decimal", true], [7, "decimal", false],
+    [8, "float32", true], [8, "decimal", true], [9, "float32", true], [9, "decimal", true], [10, "float32", true]]) {
+    const value = values[index];
+    const target = primitive(precision);
+    const selected = select(value, target);
+    const label = `${precision} ${spellings[index]}`;
+    assert.equal(selected.kind === "resolved", accepted, label);
+    assert.equal(csharpLiteralIsRepresentableAs(value, target), accepted, `${label}: range selection agrees`);
+    if (!accepted) {
+      assert.equal(selected.reason, `Source numeric literal is outside the '${precision}' range.`, label);
+      continue;
+    }
+    const sourceToken = value.numeric.token;
+    assert.deepEqual(selected.recipe, { kind: "float", target, precision,
+      token: { digits: sourceToken.coefficient.toString(), exponent: sourceToken.exponent.toString() },
+      negative: sourceToken.negative }, label);
+    assert.equal(Object.isFrozen(selected.recipe.token), true, `${label}: immutable native token`);
+    assert.doesNotThrow(() => JSON.stringify(selected.recipe), `${label}: native syntax is JSON-safe`);
+  }
+});
+
+test("an actual checked float64 value selects a native conversion, not a fabricated authored F or M token", () => {
+  for (const value of [1.000000059604644775390625, -0, 0.1]) {
+    const literal = Object.freeze({ form: "numeric", number: value,
+      numeric: Object.freeze({ kind: "checked-float64", value }) });
+    for (const precision of ["float32", "decimal"]) {
+      assert.deepEqual(select(literal, primitive(precision)), { kind: "resolved",
+        recipe: { kind: "float64-conversion", target: primitive(precision), value } }, `${precision} actual double`);
+    }
   }
 });
