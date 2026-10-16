@@ -34,7 +34,7 @@ function printRawStringLiteral(value: string): string {
   return `${delimiter}\n${value}\n${delimiter}`;
 }
 
-export function printNumericLiteral(value: number, suffix: "F" | "D" | "M" | undefined): string {
+export function printNumericLiteral(value: number, suffix: "D" | undefined): string {
   if (!Number.isFinite(value)) {
     throw new Error("C# numeric literals require finite values.");
   }
@@ -46,6 +46,10 @@ export function printNumericLiteral(value: number, suffix: "F" | "D" | "M" | und
     if (integer < -(1n << 63n) || integer > (1n << 63n) - 1n) return `${text}D`;
   }
   return text;
+}
+
+export function printExactNumericLiteral(token: CsharpNumericLiteralToken, suffix: "F" | "M"): string {
+  return `${token.significand}${token.exponent === undefined ? "" : `e${token.exponent}`}${suffix}`;
 }
 
 export function printIntegerLiteral(value: string, suffix: "L" | "UL"): string {
@@ -161,3 +165,5 @@ function escapeCsharpCharLiteral(value: string): string {
     }
   }
 }
+import type { CsharpNumericLiteralToken } from "../../target-model/syntax/numeric-literals.js";
+

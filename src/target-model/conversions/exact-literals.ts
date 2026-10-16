@@ -1,17 +1,25 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../types/model.js";
+import type { CsharpNumericLiteralToken } from "../syntax/numeric-literals.js";
 
 export type CsharpExactLiteralPrimitive = Extract<TargetTypeRef, { readonly kind: "source-primitive" }>;
 
 export type CsharpExactLiteralRecipe =
-  | { readonly kind: "signed-zero"; readonly target: CsharpExactLiteralPrimitive; readonly precision: "float64" | "float32" | "float16" }
+  | { readonly kind: "signed-zero"; readonly target: CsharpExactLiteralPrimitive; readonly precision: "float64" | "float16" }
   | { readonly kind: "zero" }
   | { readonly kind: "char"; readonly value: string }
   | {
       readonly kind: "float";
       readonly target: CsharpExactLiteralPrimitive;
-      readonly precision: "float16" | "float32" | "decimal";
+      readonly precision: "float16";
       readonly value: number;
+    }
+  | {
+      readonly kind: "float";
+      readonly target: CsharpExactLiteralPrimitive;
+      readonly precision: "float32" | "decimal";
+      readonly token: CsharpNumericLiteralToken;
+      readonly negative: boolean;
     }
   | {
       readonly kind: "integer";
