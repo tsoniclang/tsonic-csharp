@@ -38,7 +38,7 @@ test("a runtime default whose sealed storage has no C# type syntax is reported, 
   const { program, ast, withDefault } = compiledParameters();
   const contract = program.records.runtimeDefault.get(withDefault);
   assert.equal(contract !== undefined, true, "analysis seals the runtime default contract");
-  const unrendered = csharpTargetNamedType("example.Unrendered");
+  const unrendered = csharpTargetNamedType("example.Unrendered", undefined, undefined, { allowsRefLikeTypeArguments: [],});
   const changed = withRuntimeDefault(program, withDefault, { ...contract, valueType: unrendered, parameterType: unrendered,
     native: selectCsharpDefaultValueContract(unrendered, unrendered, false) });
   const context = { ...createCsharpPlanningContext(program), program: changed };
@@ -56,7 +56,7 @@ test("a runtime default whose sealed storage has no C# type syntax is reported, 
 test("a parameter list never loses a runtime-default parameter without a diagnostic", () => {
   const { program, ast, withDefault } = compiledParameters();
   const contract = program.records.runtimeDefault.get(withDefault);
-  const unrendered = csharpTargetNamedType("example.Unrendered");
+  const unrendered = csharpTargetNamedType("example.Unrendered", undefined, undefined, { allowsRefLikeTypeArguments: [],});
   const changed = withRuntimeDefault(program, withDefault, { ...contract, valueType: unrendered, parameterType: unrendered,
     native: selectCsharpDefaultValueContract(unrendered, unrendered, false) });
   const context = { ...createCsharpPlanningContext(program), program: changed };

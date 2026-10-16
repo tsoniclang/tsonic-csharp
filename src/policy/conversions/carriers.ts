@@ -1,5 +1,6 @@
 import {
   csharpBaseTargetTypeFromBinding,
+  csharpTargetTypeFromBinding,
 } from "../types/storage/bindings.js";
 import {
   csharpVoidReturnCompletion,
@@ -366,14 +367,12 @@ export function namedTargetTypeImplicitlyAccepts(
   ) {
     return true;
   }
-  return (sourceBinding.implementedContracts ?? []).some((constraint) =>
-    constraint.kind === "implements" &&
-    namedTargetTypeImplicitlyAccepts(
-      input,
-      implementedConstraintType(constraint, substitutions),
-      target,
-      visited,
-    ));
+  return (sourceBinding.implementedContracts ?? []).some((constraint) => {
+    if (constraint.kind !== "implements") return false;
+    const implemented = implementedConstraintType(input, constraint, substitutions);
+    return implemented !== undefined &&
+      namedTargetTypeImplicitlyAccepts(input, implemented, target, visited);
+  });
 }
 
 function targetTypeImplicitlyConvertsToObject(source: TargetTypeRef): boolean {
@@ -443,17 +442,11 @@ function typeArgumentImplicitlyAccepts(
 }
 
 function implementedConstraintType(
+  input: Pick<CsharpPolicyContext, "providers">,
   constraint: Extract<TargetConstraint, { readonly kind: "implements" }>,
   substitutions: ReadonlyMap<string, TargetTypeRef>,
-): TargetTypeRef {
-  return {
-    kind: "target-named",
-    id: constraint.contract,
-    ...(constraint.typeArguments === undefined
-      ? {}
-      : {
-          typeArguments: constraint.typeArguments.map((argument) =>
-            substituteTargetTypeParameters(argument, substitutions)),
-        }),
-  };
+): TargetTypeRef | undefined {
+  const binding = csharpTargetBindingFact(input.providers.findTargetBindingByTargetId(constraint.contract));
+  return binding === undefined ? undefined : csharpTargetTypeFromBinding(binding,
+    constraint.typeArguments?.map(argument => substituteTargetTypeParameters(argument, substitutions)));
 }

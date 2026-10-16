@@ -16,7 +16,7 @@ import { csharpObjectShapesEqual } from "../../../dist/target-model/types/object
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 const parameter = (identity, name = identity) => ({ kind: "type-parameter", identity, name });
 const resolved = constraints => ({ kind: "resolved", constraints });
-const container = element => ({ kind: "target-named", id: "Container", typeArguments: [element],
+const container = element => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "Container", typeArguments: [element],
   csharpRender: { kind: "named", name: "Container" } });
 const field = type => ({ sourceKey: { kind: "property", name: "value" }, sourceName: "value", targetName: "value", memberKind: "property", type });
 const typeConstraint = type => ({ kind: "type", type });
@@ -74,7 +74,7 @@ test("carrier identity remains binder identity while contradictory native owner 
     /conflicting constraint evidence/u);
   assert.throws(() => csharpObjectShapeTypeParameters([field({ kind: "tuple", elements: [left, right] })], []),
     /conflicting constraint evidence/u);
-  const shape = type => ({ targetType: { kind: "target-named", id: "tsonic.shape:same", typeArguments: [type] },
+  const shape = type => ({ targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "tsonic.shape:same", typeArguments: [type] },
     members: [field(type)] });
   assert.equal(csharpObjectShapesEqual(shape(left), shape(right)), false, "owner fact conflict is not merged");
   assert.notEqual(csharpObjectShapeContractKey(shape(left)), csharpObjectShapeContractKey(shape(right)));

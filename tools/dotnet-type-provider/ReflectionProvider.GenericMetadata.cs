@@ -158,6 +158,7 @@ sealed partial class ReflectionProvider
         {
             identity = GenericParameterIdentity(parameter),
             name = genericParameters.SourceName(parameter),
+            allowsRefLike = (parameter.GenericParameterAttributes & GenericParameterAttributes.AllowByRefLike) != 0,
             constraints = constraints.Count == 0 ? null : constraints,
             unsupportedConstraints = unsupportedConstraints.Count == 0 ? null : unsupportedConstraints,
             variance = Variance(parameter),

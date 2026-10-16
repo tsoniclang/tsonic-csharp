@@ -345,7 +345,7 @@ test(".NET provider model contract rejects metadata-name fallback identities and
         metadataName: "ProviderContractFixtures.EventSource",
         assembly: { name: "" },
         typeParameters: [
-          {
+          { allowsRefLike: false,
             name: "T",
             variance: "sideways",
           },

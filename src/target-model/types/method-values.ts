@@ -40,10 +40,12 @@ export function csharpMethodValueType(
   const allowed = new Set([...csharpFreeTypeParameterIdentities([owner]), ...typeParameters]);
   if ([...csharpFreeTypeParameterIdentities([contract])].some(identity => !allowed.has(identity))) return undefined;
   return Object.freeze({ kind: "target-named", id: `tsonic.method-value:${JSON.stringify([owner.id, identity])}`,
+    csharpAllowsRefLikeTypeArguments: selected.csharpAllowsRefLikeTypeArguments,
     ...(owner.typeArguments === undefined ? {} : { typeArguments: owner.typeArguments }),
     csharpRender: selected.csharpRender,
     csharpTypeofRuntimeKind: "function",
-    csharpMethodValue: Object.freeze({ owner, method, identity, contract, typeParameters: Object.freeze([...typeParameters]) }),
+    csharpMethodValue: Object.freeze({ owner, method, identity, contract, typeParameters: Object.freeze([...typeParameters]),
+      allowsRefLikeTypeArguments: Object.freeze(typeParameters.map(() => false)) }),
   });
 }
 
@@ -61,6 +63,7 @@ export function csharpMethodValueContractsEqual(left: TargetTypeRef, right: Targ
   const target = getCsharpMethodValue(right);
   return source !== undefined && target !== undefined && source.identity === target.identity &&
     source.typeParameters.length === target.typeParameters.length &&
+    source.allowsRefLikeTypeArguments.every((allowed, index) => allowed === target.allowsRefLikeTypeArguments[index]) &&
     scopedTargetTypeRefKey(source.contract, new Map(source.typeParameters.map((name, index) => [name, index]))) ===
     scopedTargetTypeRefKey(target.contract, new Map(target.typeParameters.map((name, index) => [name, index])));
 }

@@ -21,7 +21,7 @@ test("a sealed thrown carrier without C# type syntax is reported, never emitted 
   assert.equal(classification !== undefined && classification.targetCarrier !== undefined, true,
     "analysis seals the thrown carrier");
   const context = createCsharpPlanningContext(program);
-  const unrendered = csharpTargetNamedType("example.Unrendered");
+  const unrendered = csharpTargetNamedType("example.Unrendered", undefined, undefined, { allowsRefLikeTypeArguments: [],});
   const changed = { ...program, records: { ...program.records,
     throwValue: { get: node => node === statement ? { ...classification, targetCarrier: unrendered } : undefined } } };
   const diagnostics = [];

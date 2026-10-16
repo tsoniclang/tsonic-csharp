@@ -6,7 +6,7 @@ const parameter = Object.freeze({ kind: "type-parameter", identity: "outer", nam
 const declaration = {};
 const subject = {};
 const fact = {
-  targetType: { kind: "target-named", id: "tsonic.shape:owner", typeArguments: [parameter] },
+  targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "tsonic.shape:owner", typeArguments: [parameter] },
   members: [{ sourceKey: { kind: "property", name: "value" }, sourceName: "value", targetName: "value",
     memberKind: "property", type: parameter }],
 };
@@ -45,7 +45,7 @@ test("missing and unsupported native constraints reject before owner emission", 
 test("an undeclared generic constraint dependency never becomes an unbound native identifier", () => {
   const foreign = { kind: "type-parameter", identity: "foreign", name: "Foreign" };
   const selected = render({ kind: "resolved", constraints: [{ kind: "type",
-    type: { kind: "target-named", id: "Container", typeArguments: [foreign], csharpRender: { kind: "named", name: "Container" } },
+    type: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "Container", typeArguments: [foreign], csharpRender: { kind: "named", name: "Container" } },
   }] });
   assert.equal(selected.result === undefined, true, "exact declared dependency guard");
   assert.equal(selected.diagnostics.some(diagnostic => diagnostic.message.includes("undeclared native generic dependency")), true);
@@ -60,7 +60,7 @@ test("finalized transitive constraint dependencies render their exact physical b
   const foreign = { kind: "type-parameter", identity: "foreign", name: "Foreign",
     csharpConstraints: { kind: "resolved", constraints: [] } };
   const selected = render({ kind: "resolved", constraints: [{ kind: "type",
-    type: { kind: "target-named", id: "Container", typeArguments: [foreign], csharpRender: { kind: "named", name: "Container" } },
+    type: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "Container", typeArguments: [foreign], csharpRender: { kind: "named", name: "Container" } },
   }] }, { ...fact, targetType: { ...fact.targetType, typeArguments: [parameter, foreign] } });
   assert.equal(selected.diagnostics.length, 0, "closed native owner dependencies");
   assert.deepEqual(selected.result.map(parameter => parameter.name), ["OuterNative", "Foreign"]);

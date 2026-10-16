@@ -9,7 +9,7 @@ function fixture() {
   const first = {};
   const second = {};
   const ordinary = {};
-  const type = { kind: "target-named", id: "tsonic.shape:activation", csharpRender: { kind: "named", name: "Activation" } };
+  const type = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "tsonic.shape:activation", csharpRender: { kind: "named", name: "Activation" } };
   const frame = { scope, shape: { targetType: type, members: [] }, bindings: [
     { declaration: first, fieldName: "first" }, { declaration: second, fieldName: "second" },
   ] };

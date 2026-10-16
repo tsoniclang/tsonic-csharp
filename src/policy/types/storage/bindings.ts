@@ -40,7 +40,7 @@ export function csharpTargetTypeFromBinding(
   const renderShape = (binding as CsharpTargetBindingFact).csharpRender;
   return renderShape === undefined
     ? undefined
-    : csharpTargetNamedType(binding.id, typeArguments, renderShape);
+    : csharpTargetNamedType(binding.id, typeArguments, renderShape, { allowsRefLikeTypeArguments: (binding as CsharpTargetBindingFact).typeParameters?.map(parameter => parameter.csharpAllowsRefLike) ?? [],});
 }
 
 export function csharpTargetTypePatternFromBinding(
@@ -57,6 +57,7 @@ export function csharpTargetTypePatternFromBinding(
   return {
     kind: "target-named",
     id: binding.id,
+    csharpAllowsRefLikeTypeArguments: Object.freeze((binding as CsharpTargetBindingFact).typeParameters?.map(parameter => parameter.csharpAllowsRefLike) ?? []),
     ...(typeArguments === undefined || typeArguments.length === 0
       ? {}
       : { typeArguments }),

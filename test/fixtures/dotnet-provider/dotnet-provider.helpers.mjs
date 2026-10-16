@@ -341,7 +341,7 @@ export function typeFact(type) {
       return { kind: "string" };
     case "target-named":
       return {
-        kind: "target-named",
+        kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
         id: stripAssemblyQualifiers(type.id),
       };
     case "provider-ref":

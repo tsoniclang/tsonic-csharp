@@ -87,7 +87,8 @@ export interface CsharpStructuralInterfaceImplementation {
 
 export type TargetTypeRef =
   | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind }
-  | { readonly kind: "target-named"; readonly id: string; readonly typeArguments?: readonly TargetTypeRef[] }
+  | { readonly kind: "target-named"; readonly id: string; readonly typeArguments?: readonly TargetTypeRef[];
+      readonly csharpAllowsRefLikeTypeArguments: readonly boolean[] }
   | { readonly kind: "type-parameter"; readonly identity: string; readonly name: string;
       readonly csharpDeclaration?: Node;
       readonly csharpConstraints?: import("./generic-constraints.js").CsharpTypeParameterConstraintResolution;
@@ -200,7 +201,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpBaseType?: TargetTypeRef;
   readonly csharpValueType?: true;
   readonly csharpByRefLike?: true;
-  readonly csharpAllowsRefLikeTypeArguments?: readonly boolean[];
+  readonly csharpAllowsRefLikeTypeArguments: readonly boolean[];
   readonly csharpAbsorbsNullish?: true;
   readonly csharpJsValueCarrier?: true;
   readonly csharpJsStringCarrier?: true;
@@ -232,6 +233,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
     readonly identity: string;
     readonly contract: TargetTypeRef;
     readonly typeParameters: readonly string[];
+    readonly allowsRefLikeTypeArguments: readonly boolean[];
   };
   readonly csharpTaskResultType?: TargetTypeRef;
   readonly csharpGeneratorProtocol?: CsharpGeneratorProtocol;
@@ -399,12 +401,14 @@ export interface CsharpMethodTypeArgumentProjection {
 }
 
 export interface CsharpTargetTypeParameter extends TargetTypeParameter {
+  readonly csharpAllowsRefLike: boolean;
   readonly unsupportedConstraints?: readonly unknown[];
 }
 
 export interface CsharpTargetMember extends Omit<TargetMember, "parameters" | "typeParameters"> {
   readonly parameters: readonly CsharpTargetParameter[];
   readonly typeParameters?: readonly CsharpTargetTypeParameter[];
+  readonly csharpInvocationAllowsRefLikeTypeArguments?: readonly boolean[];
   readonly declaringType?: TargetTypeRef;
   readonly receiverPassing?: "instance" | "target-parameter";
   readonly readonly?: boolean;

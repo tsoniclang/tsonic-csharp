@@ -27,6 +27,7 @@ import {
   targetTypeRefKey,
 } from "../../policy/types/index.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
+import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
 import {
   directCsharpSourceYieldExpression,
 } from "../../target-model/syntax/yield-expression.js";
@@ -697,7 +698,7 @@ export function analyzeCsharpConversions(
     if (exactInteger && mode === "implicit" && candidate.kind === "rejected") {
       candidate = selectCsharpExactIntegerConversion(source, target) ?? candidate;
     }
-    if ((candidate.kind === "rejected" || candidate.kind === "implicit") &&
+    if (!isCsharpRefLikeTargetType(source) && (candidate.kind === "rejected" || candidate.kind === "implicit") &&
       objectShapes.registerStructuralInterface(expression, source, target)) {
       candidate = { kind: "implicit", proof: "object-shape-interface" };
     }

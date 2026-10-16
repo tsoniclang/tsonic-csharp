@@ -52,7 +52,7 @@ test("read-only-list conversion rejects changed elements and unrelated collectio
   for (const candidate of [
     csharpJsArrayTargetType(primitive("float64")),
     csharpJsArrayTargetType(primitive("int64")),
-    { kind: "target-named", id: "unrelated.Collection", typeArguments: [primitive("uint64")] },
+    { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "unrelated.Collection", typeArguments: [primitive("uint64")] },
   ]) {
     for (const mode of ["implicit", "explicit"]) {
       assert.equal(selectCsharpConversion(conversionContext, candidate, target, mode).kind, "rejected");
@@ -82,7 +82,7 @@ test("exact storage requires numeric evidence and remains part of shape identity
   }
   assert.equal(selectCsharpExactIntegerConversion(primitive("float64"), primitive("float32")), undefined);
   const field = { sourceKey: { kind: "property", name: "count" }, sourceName: "count", targetName: "count", memberKind: "property", type: primitive("int32") };
-  const shape = { targetType: { kind: "target-named", id: "native.Options" }, members: [field] };
+  const shape = { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "native.Options" }, members: [field] };
   assert.equal(csharpObjectShapesEqual(shape, { ...shape, members: [{ ...field, exactNumericStorage: true }] }), false);
   assert.equal(csharpObjectShapesEqual(shape, shape), true);
 });

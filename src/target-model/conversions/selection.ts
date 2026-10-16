@@ -111,6 +111,7 @@ export type CsharpConversionSelection =
   | {
       readonly kind: "rejected";
       readonly reason: string;
+      readonly code?: string;
     };
 
 export type CsharpConversionTargetPreference =

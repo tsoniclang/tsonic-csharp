@@ -86,7 +86,7 @@ const broad = { kind: "source-primitive", name: "object" };
 
 function shape(input, selected, field = "value", options = {}) {
   const evidence = input.members.get(field);
-  const carrier = { kind: "target-named", id: "Physical.Holder", typeArguments: [selected] };
+  const carrier = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "Physical.Holder", typeArguments: [selected] };
   const member = { sourceName: field, sourceKey: { kind: "property", name: field }, targetName: field,
     sourceSubjects: evidence.declarations, sourceTypes: [evidence.property.type], memberKind: "property",
     type: selected, optional: field === "optional", ...options };

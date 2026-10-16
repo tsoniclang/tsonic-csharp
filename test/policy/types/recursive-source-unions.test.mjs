@@ -84,7 +84,7 @@ test("type snapshots preserve exact source identities without executing nested m
   const identity = Object.create({ compilerOwned: true });
   identity.self = identity;
   let reads = 0;
-  const carrier = { kind: "target-named", id: "test.Factory", csharpClassFactory: { declaration: identity, instance: integer } };
+  const carrier = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "test.Factory", csharpClassFactory: { declaration: identity, instance: integer } };
   const [snapshot] = snapshotCsharpTargetTypes([carrier]);
   assert.equal(snapshot.csharpClassFactory.declaration, identity);
   assert.notEqual(snapshot.csharpClassFactory, carrier.csharpClassFactory);

@@ -42,7 +42,7 @@ test(".NET provider declaration model preserves generic base arguments on herita
     namespaceName: "ProviderModelFixtures",
     targetId: testTargetId("ProviderModelFixtures.GenericBase`1"),
     metadataName: "ProviderModelFixtures.GenericBase`1",
-    typeParameters: [{ identity: "T", name: "T" }],
+    typeParameters: [{ allowsRefLike: false, identity: "T", name: "T" }],
     members: [
       {
         kind: "property",
@@ -105,7 +105,7 @@ test(".NET target refs do not promote any or unknown to CLR object", () => {
   assert.deepEqual(dotnetTypeRefToTargetTypeRef({ kind: "any" }), { kind: "opaque", id: "any" });
   assert.deepEqual(dotnetTypeRefToTargetTypeRef({ kind: "unknown" }), { kind: "opaque", id: "unknown" });
   assert.deepEqual(dotnetTypeRefToTargetTypeRef({ kind: "object" }), {
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
     id: "System.Object",
     csharpRender: { kind: "predefined", name: "object" },
   });
@@ -775,7 +775,7 @@ test(".NET provider model preserves overlap-like receiver and out parameter fact
           {
             id: testTargetId("Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)"),
             sourceId: testTargetId("Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)"),
-            typeParameters: [{ identity: "T", name: "T" }],
+            typeParameters: [{ allowsRefLike: false, identity: "T", name: "T" }],
             parameters: [
               { name: "span", type: spanOfT, passingMode: "by-value" },
               { name: "other", type: readOnlySpanOfT, passingMode: "by-value" },

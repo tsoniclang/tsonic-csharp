@@ -63,7 +63,7 @@ test("finite await rejects open carriers and recursive union definitions", () =>
   assert.equal(selectCsharpAwaitCompletion(undefined), undefined);
   assert.equal(selectCsharpAwaitCompletion(csharpTsValueTargetType()), undefined);
   assert.equal(selectCsharpAwaitCompletion({ kind: "type-parameter", name: "T", identity: "T" }), undefined);
-  const carrier = { kind: "target-named", id: "Cycle" };
+  const carrier = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Cycle" };
   assert.equal(selectCsharpAwaitCompletion(carrier, {
     sourceUnionArms: selected => selected.id === "Cycle" ? [carrier] : undefined,
   }), undefined);

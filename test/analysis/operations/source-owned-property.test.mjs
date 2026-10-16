@@ -8,7 +8,7 @@ const declaration = {};
 const sourceType = {};
 const sourceFile = {};
 const integer = { kind: "source-primitive", name: "int32" };
-const carrier = { kind: "target-named", id: "Project.Owner" };
+const carrier = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Project.Owner" };
 const member = {
   sourceKey: { kind: "property", name: "value" }, sourceName: "value", targetName: "value",
   sourceSubjects: [declaration], sourceTypes: [sourceType], memberKind: "property", type: integer,

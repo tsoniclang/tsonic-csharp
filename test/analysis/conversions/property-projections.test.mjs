@@ -4,7 +4,7 @@ import { selectCsharpPropertyProjections } from "../../../dist/analysis/conversi
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType } from "../../../dist/target-model/types/index.js";
 
 function fixture() {
-  const source = { kind: "target-named", id: "Options" };
+  const source = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Options" };
   const sourceType = {};
   const destination = {};
   const symbol = {};
@@ -64,14 +64,14 @@ test("selected property projection accepts genuinely absent optional destination
 test("native dictionary slots need no nominal field projection and unrelated carriers still reject", () => {
   const destination = {};
   const policy = { semanticsFor: () => ({ types: { nonNullableType: type => type } }) };
-  const dictionary = { kind: "target-named", id: "NativeDictionary", csharpCollectionSurface: "record",
+  const dictionary = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false, false], id: "NativeDictionary", csharpCollectionSurface: "record",
     typeArguments: [csharpStringTargetType(), csharpTsValueTargetType()] };
   const exact = selectCsharpPropertyProjections({}, dictionary, destination, policy, {
     resolveTarget() { assert.fail("dictionary properties already belong to the native dictionary"); },
   });
   assert.deepEqual(exact, []);
   assert.equal(Object.isFrozen(exact), true);
-  for (const source of [undefined, { kind: "target-named", id: "NativeDictionary" },
+  for (const source of [undefined, { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "NativeDictionary" },
     { ...dictionary, csharpCollectionSurface: "array" }, { ...dictionary, typeArguments: undefined },
     { ...dictionary, typeArguments: [csharpSourcePrimitiveTargetType("uint64"), csharpTsValueTargetType()] },
     { ...dictionary, typeArguments: [csharpStringTargetType(), csharpSourcePrimitiveTargetType("int64")] }]) {

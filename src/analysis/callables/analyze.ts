@@ -193,6 +193,9 @@ function sourceCallableContract(
     methodTypeParameterIdentities: Object.freeze(
       [...methodTypeParameterIdentities as string[], ...projections.genericProjection.get(declaration).map(parameter => parameter.identity)],
     ),
+    methodAllowsRefLikeTypeArguments: Object.freeze([
+      ...methodTypeParameterIdentities.map(() => false), ...projections.genericProjection.get(declaration).map(() => false),
+    ]),
     ...(owner === undefined ? {} : { receiverTypeOwner: owner }),
     parameters: Object.freeze(parameters),
     returnType,
@@ -296,6 +299,7 @@ function projectConstructorContract(
     sourceDeclaration:
       constructor.source.declaration ?? constructor.definition.declaration,
     methodTypeParameterIdentities: Object.freeze([]),
+    methodAllowsRefLikeTypeArguments: Object.freeze([]),
     receiverTypeOwner: constructor.definition.declaration,
     parameters: Object.freeze(constructor.source.parameters.map(
       (parameter, index) => Object.freeze({

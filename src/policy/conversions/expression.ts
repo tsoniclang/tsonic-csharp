@@ -25,6 +25,7 @@ import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 import { selectCsharpUnionArmMapping } from "../../target-model/types/union-relations.js";
 import { selectCsharpRuntimeUnionProjection, selectDelegateConversion } from "./carriers.js";
 import { selectCsharpGuardedIntegerConversion } from "./integer-refinement.js";
+import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
 
 export function selectCsharpExpressionConversion(
   input: Pick<
@@ -40,7 +41,7 @@ export function selectCsharpExpressionConversion(
     return { kind: "absence" };
   }
   const selected = selectCsharpConversion(input, source, target, mode);
-  if (selected.kind !== "rejected" || target === undefined) {
+  if (selected.kind !== "rejected" || target === undefined || isCsharpRefLikeTargetType(source)) {
     return selected;
   }
   const quotationDelegate = getCsharpExpressionTreeDelegateType(getCsharpNullableElementTargetType(target) ?? target);

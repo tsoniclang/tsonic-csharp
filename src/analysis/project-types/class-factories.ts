@@ -77,8 +77,7 @@ export function analyzeCsharpClassFactories(
       contract, captures: Object.freeze(captures as CsharpClassCapture[]), retainsEnvironment, requiresInstanceTest,
       ...(requiresInstanceTest && definition.sourceTypeParameterCount > 0 ? { identity: Object.freeze({
         name: definition.factoryIdentityName!,
-        type: csharpTargetNamedType(`${definition.id}:factory-identity`, type.typeArguments,
-          { kind: "named", name: definition.factoryIdentityName! }),
+        type: csharpTargetNamedType(`${definition.id}:factory-identity`, type.typeArguments, { kind: "named", name: definition.factoryIdentityName! }, { allowsRefLikeTypeArguments: (type.typeArguments ?? []).map(() => false),}),
       }) } : {}),
     }));
   }

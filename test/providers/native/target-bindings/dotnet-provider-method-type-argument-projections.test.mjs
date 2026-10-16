@@ -85,7 +85,7 @@ function deserializeMember({ id, metadataName, returnType }) {
     signatures: [{
       id,
       sourceId: id,
-      typeParameters: [{ identity: `${id}:0`, name: "TValue" }],
+      typeParameters: [{ allowsRefLike: false, identity: `${id}:0`, name: "TValue" }],
       parameters: [{
         name: "json",
         type: { kind: "string" },

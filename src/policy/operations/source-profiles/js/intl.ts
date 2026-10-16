@@ -239,11 +239,7 @@ function isIntlIntegerCarrier(type: TargetTypeRef | undefined): type is TargetTy
 
 function intlConstructorCarrier(name: CsharpJsIntlCarrierName): TargetTypeRef {
   const carrierName = `${name}Constructor`;
-  return csharpTargetNamedType(
-    `Tsonic.CSharp.Js.${carrierName}`,
-    undefined,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", carrierName),
-  );
+  return csharpTargetNamedType(`Tsonic.CSharp.Js.${carrierName}`, undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", carrierName), { allowsRefLikeTypeArguments: [],});
 }
 
 function dateTimeFormatMember(

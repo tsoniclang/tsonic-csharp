@@ -33,8 +33,8 @@ test("union equality covers nested leaf pairs without inventing operations for o
 });
 
 test("nullable union equality selects native presence and absence independently of source typeof", () => {
-  const base = csharpTargetNamedType("fixture.Base", [], { kind: "named", name: "Base" }, { sourceDeclarationKind: "class" });
-  const derived = csharpTargetNamedType("fixture.Derived", [], { kind: "named", name: "Derived" }, { sourceDeclarationKind: "class" });
+  const base = csharpTargetNamedType("fixture.Base", [], { kind: "named", name: "Base" }, { allowsRefLikeTypeArguments: [], sourceDeclarationKind: "class" });
+  const derived = csharpTargetNamedType("fixture.Derived", [], { kind: "named", name: "Derived" }, { allowsRefLikeTypeArguments: [], sourceDeclarationKind: "class" });
   const text = csharpStringTargetType();
   const absent = csharpAbsenceTargetType();
   const registry = createCsharpTypeDefinitionRegistry();

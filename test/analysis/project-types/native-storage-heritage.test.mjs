@@ -14,9 +14,9 @@ function fixture() {
   });
   const heritage = Object.freeze({
     definition,
-    baseType: Object.freeze({ kind: "target-named", id: "owner:Base", typeArguments: Object.freeze([parameter]) }),
+    baseType: Object.freeze({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "owner:Base", typeArguments: Object.freeze([parameter]) }),
     interfaces: Object.freeze([Object.freeze({
-      kind: "target-named", id: "owner:Interface", typeArguments: Object.freeze([parameter]),
+      kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "owner:Interface", typeArguments: Object.freeze([parameter]),
     })]),
   });
   let sealed = false;
@@ -41,7 +41,7 @@ test("sealed native storage heritage instantiates exact outer binders without po
   assert.equal(classifications.definitionContainingDeclaration(declaration) === definition, true, "inclusive exact declaration membership");
   const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
   const selection = classifications.heritageForTarget({
-    kind: "target-named", id: definition.id, typeArguments: [integer],
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments: [integer],
   });
   assert.equal(selection === undefined, false, "instantiated heritage");
   assert.equal(selection.definition === definition, true, "declaration identity");
@@ -63,9 +63,9 @@ test("native storage heritage rejects absent identities and malformed generic se
   const integer = { kind: "source-primitive", name: "int32" };
   for (const selected of [
     { kind: "source-primitive", name: "int32" },
-    { kind: "target-named", id: "other:Derived", typeArguments: [integer] },
-    { kind: "target-named", id: definition.id },
-    { kind: "target-named", id: definition.id, typeArguments: [integer, integer] },
+    { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "other:Derived", typeArguments: [integer] },
+    { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id },
+    { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false, false], id: definition.id, typeArguments: [integer, integer] },
   ]) {
     assert.equal(classifications.heritageForTarget(selected) === undefined, true, "unproven heritage");
   }
@@ -78,17 +78,17 @@ test("native storage heritage rejects malformed arguments before substituting na
     ["null selection", null],
     ["non-data selection", "owner:Derived"],
     ["array selection", []],
-    ["empty argument", { kind: "target-named", id: definition.id, typeArguments: [undefined] }],
-    ["null argument", { kind: "target-named", id: definition.id, typeArguments: [null] }],
-    ["non-carrier argument", { kind: "target-named", id: definition.id, typeArguments: [1] }],
-    ["unknown carrier", { kind: "target-named", id: definition.id, typeArguments: [{ kind: "unknown" }] }],
-    ["unknown integer width", { kind: "target-named", id: definition.id, typeArguments: [{ kind: "source-primitive", name: "int53" }] }],
-    ["empty native identity", { kind: "target-named", id: definition.id, typeArguments: [{ kind: "target-named", id: "" }] }],
-    ["empty binder identity", { kind: "target-named", id: definition.id, typeArguments: [{ kind: "type-parameter", identity: "", name: "T" }] }],
-    ["missing array element", { kind: "target-named", id: definition.id, typeArguments: [{ kind: "array" }] }],
-    ["invalid array rank", { kind: "target-named", id: definition.id, typeArguments: [{ kind: "array", element: { kind: "source-primitive", name: "int32" }, rank: 0 }] }],
-    ["invalid pointer permission", { kind: "target-named", id: definition.id, typeArguments: [{ kind: "pointer", pointee: { kind: "source-primitive", name: "int32" }, mutability: "unchecked" }] }],
-    ["array-like arguments", { kind: "target-named", id: definition.id, typeArguments: { 0: { kind: "source-primitive", name: "int32" }, length: 1 } }],
+    ["empty argument", { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments: [undefined] }],
+    ["null argument", { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments: [null] }],
+    ["non-carrier argument", { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments: [1] }],
+    ["unknown carrier", { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments: [{ kind: "unknown" }] }],
+    ["unknown integer width", { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments: [{ kind: "source-primitive", name: "int53" }] }],
+    ["empty native identity", { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments: [{ kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "" }] }],
+    ["empty binder identity", { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments: [{ kind: "type-parameter", identity: "", name: "T" }] }],
+    ["missing array element", { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments: [{ kind: "array" }] }],
+    ["invalid array rank", { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments: [{ kind: "array", element: { kind: "source-primitive", name: "int32" }, rank: 0 }] }],
+    ["invalid pointer permission", { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments: [{ kind: "pointer", pointee: { kind: "source-primitive", name: "int32" }, mutability: "unchecked" }] }],
+    ["array-like arguments", { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments: { 0: { kind: "source-primitive", name: "int32" }, length: 1 } }],
   ];
   for (const [caseName, selected] of selections) {
     assert.equal(classifications.heritageForTarget(selected) === undefined, true, caseName);
@@ -119,14 +119,14 @@ test("native storage heritage rejects sparse and accessor argument arrays withou
     ["accessor outer argument", accessor],
     ["accessor extra property", extraAccessor],
     ["inherited accessor argument", inheritedAccessor],
-    ["nested sparse arguments", [{ kind: "target-named", id: "owner:Nested", typeArguments: new Array(1) }]],
-    ["nested accessor argument", [{ kind: "target-named", id: "owner:Nested", typeArguments: accessor }]],
+    ["nested sparse arguments", [{ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "owner:Nested", typeArguments: new Array(1) }]],
+    ["nested accessor argument", [{ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "owner:Nested", typeArguments: accessor }]],
     ["nested sparse tuple", [{ kind: "tuple", elements: new Array(1) }]],
     ["nested accessor tuple", [{ kind: "tuple", elements: accessor }]],
     ["nested sparse function argument", [{ kind: "function-pointer", args: new Array(1), result: integer }]],
     ["nested accessor function argument", [{ kind: "function-pointer", args: accessor, result: integer }]],
   ]) {
-    assert.equal(classifications.heritageForTarget({ kind: "target-named", id: definition.id, typeArguments }) === undefined,
+    assert.equal(classifications.heritageForTarget({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments }) === undefined,
       true, caseName);
     assert.equal(getterReads, 0, caseName);
   }
@@ -138,7 +138,7 @@ test("native storage heritage rejects accessor selection and carrier records wit
   let getterReads = 0;
   const selections = [];
   for (const key of ["kind", "id", "typeArguments"]) {
-    const selected = { kind: "target-named", id: definition.id, typeArguments: [integer] };
+    const selected = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments: [integer] };
     Object.defineProperty(selected, key, {
       enumerable: true,
       get() { getterReads += 1; throw new Error("native selection getter executed"); },
@@ -151,7 +151,7 @@ test("native storage heritage rejects accessor selection and carrier records wit
       enumerable: true,
       get() { getterReads += 1; throw new Error("native carrier getter executed"); },
     });
-    selections.push([`carrier accessor ${key}`, { kind: "target-named", id: definition.id, typeArguments: [carrier] }]);
+    selections.push([`carrier accessor ${key}`, { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments: [carrier] }]);
   }
   for (const [caseName, selected] of selections) {
     assert.equal(classifications.heritageForTarget(selected) === undefined, true, caseName);
@@ -181,7 +181,7 @@ test("native storage heritage rejects non-data argument metadata and independent
     ["excessive carrier depth", [deep]],
     ["excessive sparse array length", new Array(1_048_577)],
   ]) {
-    assert.equal(classifications.heritageForTarget({ kind: "target-named", id: definition.id, typeArguments }) === undefined,
+    assert.equal(classifications.heritageForTarget({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments }) === undefined,
       true, caseName);
   }
 });
@@ -190,7 +190,7 @@ test("native storage heritage isolates mutable carrier metadata while retaining 
   const { classifications, definition, declaration, parameter } = fixture();
   const integer = { kind: "source-primitive", name: "int64" };
   const arguments_ = [{ kind: "pointer", pointee: integer, mutability: "mut" }];
-  const selected = { kind: "target-named", id: definition.id, typeArguments: arguments_ };
+  const selected = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments: arguments_ };
   const selection = classifications.heritageForTarget(selected);
   assert.equal(selection === undefined, false, "accepted dense carriers");
   const baseArgument = selection.baseType.typeArguments[0];
@@ -231,7 +231,7 @@ test("native storage heritage preserves AST-backed projection identities in vali
     },
   };
   const selection = classifications.heritageForTarget({
-    kind: "target-named", id: definition.id, typeArguments: [projected],
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: definition.id, typeArguments: [projected],
   });
   assert.equal(selection === undefined, false, "accepted projected carrier");
   const result = selection.baseType.typeArguments[0];

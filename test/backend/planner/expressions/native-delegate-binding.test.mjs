@@ -19,9 +19,7 @@ const context = { scope: {}, program: { records: { directCallableReference: { ge
   captureClosure: { get: () => undefined } } }, names: { temporaryName: () => assert.fail("Native bindings must not allocate wrapper temporaries") } };
 
 function nativeDelegate(name, mode = "by-value", returnPassing) {
-  return csharpTargetNamedType(`Fixture.${name}`, undefined,
-    { kind: "named", name, usingNamespace: ["Fixture"] },
-    { delegateSignature: { parameters: [integer], parameterPassingModes: [mode], returnType: integer,
+  return csharpTargetNamedType(`Fixture.${name}`, undefined, { kind: "named", name, usingNamespace: ["Fixture"] }, { allowsRefLikeTypeArguments: [], delegateSignature: { parameters: [integer], parameterPassingModes: [mode], returnType: integer,
       ...(returnPassing === undefined ? {} : { returnPassing }) } });
 }
 

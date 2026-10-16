@@ -6,8 +6,7 @@ import { targetTypeRefEquals } from "../equality.js";
 import type { CsharpTypeDefinitions } from "../source-union-definitions.js";
 
 export function csharpArrayLikeTargetType(element: TargetTypeRef): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("Tsonic.CSharp.Js.IArrayLike`1", [element],
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "IArrayLike"));
+  return csharpTargetNamedType("Tsonic.CSharp.Js.IArrayLike`1", [element], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "IArrayLike"), { allowsRefLikeTypeArguments: [false],});
 }
 
 export function csharpArrayLikeElement(type: TargetTypeRef | undefined, definitions?: CsharpTypeDefinitions): TargetTypeRef | undefined {

@@ -14,7 +14,7 @@ import {
 import { csharpOptionalStorageProjection, getCsharpGenericOptionalParts } from "../projections.js";
 
 export function csharpNullableValueTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("System.Nullable`1", [elementType], { kind: "nullable" }, {
+  return csharpTargetNamedType("System.Nullable`1", [elementType], { kind: "nullable" }, { allowsRefLikeTypeArguments: [false],
     specialType: "nullable",
     valueType: true,
   });

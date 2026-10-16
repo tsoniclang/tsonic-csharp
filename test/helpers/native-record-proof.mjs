@@ -50,8 +50,7 @@ export function nativeRecordProvider({ missingField = false, wrongField = false,
   const byte = { kind: "source-primitive", name: "uint8" };
   const word = { kind: "source-primitive", name: "uint32" };
   const reference = name => ({ kind: "provider-ref", moduleSpecifier, exportName: name });
-  const native = name => csharpTargetNamedType(`NativeMemoryProof.${name}`, undefined,
-    csharpQualifiedTypeRenderShape("NativeMemoryProof", name), { valueType: true });
+  const native = name => csharpTargetNamedType(`NativeMemoryProof.${name}`, undefined, csharpQualifiedTypeRenderShape("NativeMemoryProof", name), { allowsRefLikeTypeArguments: [], valueType: true });
   const header = native("Header");
   const envelope = native("Envelope");
   const records = [["Header", header, [["tag", "TagByte", byte, byte], ["count", "Units", word, word]]],
@@ -65,7 +64,7 @@ export function nativeRecordProvider({ missingField = false, wrongField = false,
     ...(missingContract ? {} : { csharpNativeMemoryFieldIds: fields.filter(([field]) => !missingField || field !== "count")
       .map(([, targetName]) => `native.${name}.${targetName}`) }),
   }));
-  const owner = csharpTargetNamedType("NativeMemoryProof.Provider", undefined, csharpQualifiedTypeRenderShape("NativeMemoryProof", "Provider"));
+  const owner = csharpTargetNamedType("NativeMemoryProof.Provider", undefined, csharpQualifiedTypeRenderShape("NativeMemoryProof", "Provider"), { allowsRefLikeTypeArguments: [],});
   const parameters = [{ name: "prefix", type: byte }, { name: "tag", type: byte }, { name: "count", type: word }];
   const relations = records.flatMap(([name, , fields], index) => [
     { kind: "type", source: { kind: "type", ...source(name) }, targetBinding: bindings[index], bindingTypeParameters: [] },

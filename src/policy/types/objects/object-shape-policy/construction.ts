@@ -60,13 +60,9 @@ export function createStructuralObjectShapeTarget(
       canonicalImplemented,
     );
   const jsValueType = csharpTsValueTargetType();
-  return Object.freeze(csharpTargetNamedType(
-    `${csharpStructuralObjectShapeIdPrefix}${identity}`,
-    typeParameters.length === 0 ? undefined : typeParameters,
-    jsValueCarrier && jsValueType.kind === "target-named"
+  return Object.freeze(csharpTargetNamedType(`${csharpStructuralObjectShapeIdPrefix}${identity}`, typeParameters.length === 0 ? undefined : typeParameters, jsValueCarrier && jsValueType.kind === "target-named"
       ? jsValueType.csharpRender
-      : { kind: "named", name },
-    jsValueCarrier
+      : { kind: "named", name }, { ...(jsValueCarrier
       ? {
           valueType: true,
           absorbsNullish: true,
@@ -74,8 +70,7 @@ export function createStructuralObjectShapeTarget(
           jsObjectShape: true,
           typeofRuntimeKind: "object",
         }
-      : { typeofRuntimeKind: "object", ...(contract ? { structuralContract: true } : {}) },
-  ));
+      : { typeofRuntimeKind: "object", ...(contract ? { structuralContract: true } : {}) }), allowsRefLikeTypeArguments: ((typeParameters.length === 0 ? undefined : typeParameters) ?? []).map(() => false) }));
 }
 
 export function objectShapeMemberTargetName(sourceName: string): string {

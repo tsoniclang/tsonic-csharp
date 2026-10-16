@@ -65,7 +65,7 @@ test("object rest projection consumes exact checked binding identity and retains
   assert.equal(rest !== undefined, true, "one authored rest binding");
   const type = source.semantics.forFile(file).declarations.declaredValueType(rest);
   assert.equal(type !== undefined, true, "exact checked rest type");
-  const targetType = { kind: "target-named", id: "Rest" };
+  const targetType = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Rest" };
   const subject = {};
   const state = { depth: 2, sourceStorageSubject: subject };
   let calls = 0;
@@ -160,7 +160,7 @@ test("non-nullish broad values do not become empty object identities", () => {
   const optionalEmpty = csharpNullableReferenceTargetType(empty);
   assert.equal(retainCsharpBroadValueCarrier(broad, optionalEmpty), broad);
   assert.equal(reconcileCsharpSelectedTargetType(broad, optionalEmpty, "unrelated"), broad);
-  for (const selected of [int32, string, { kind: "target-named", id: "source.Record", csharpSourceDeclarationKind: "class" }]) {
+  for (const selected of [int32, string, { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "source.Record", csharpSourceDeclarationKind: "class" }]) {
     assert.equal(retainCsharpBroadValueCarrier(broad, selected), undefined);
     assert.equal(reconcileCsharpSelectedTargetType(broad, selected, "unrelated"), selected);
   }
@@ -286,17 +286,17 @@ test("array binding policy publishes the dense native list rest frozen around th
 
 test("selected type reconciliation preserves closed authored aliases only for the same source declaration", () => {
   const authored = {
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
     id: "Example.Box`1",
     typeArguments: [int32],
   };
   const erased = {
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
     id: "Example.Box`1",
     typeArguments: [csharpSourcePrimitiveTargetType("float64")],
   };
   const open = {
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
     id: "Example.Box`1",
     typeArguments: [{ kind: "type-parameter", identity: "T", name: "T" }],
   };

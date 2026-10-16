@@ -18,7 +18,7 @@ test(".NET target parameters preserve MaybeNull output flow as explicit C# metad
     namespaceName: "System.Collections.Generic",
     targetId: testTargetId("System.Collections.Generic.Dictionary`2"),
     metadataName: "System.Collections.Generic.Dictionary`2",
-    typeParameters: [{ identity: "TKey", name: "TKey" }, { identity: "TValue", name: "TValue" }],
+    typeParameters: [{ allowsRefLike: false, identity: "TKey", name: "TKey" }, { allowsRefLike: false, identity: "TValue", name: "TValue" }],
     members: [{
       kind: "method",
       sourceName: "TryGetValue",

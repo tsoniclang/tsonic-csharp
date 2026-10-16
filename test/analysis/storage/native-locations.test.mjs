@@ -5,7 +5,7 @@ import { classifyCsharpClassPropertyStorage } from "../../../dist/analysis/opera
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 
 const integer = { kind: "source-primitive", name: "int32" };
-const owner = { kind: "target-named", id: "Project.Owner" };
+const owner = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Project.Owner" };
 const sourceFile = { kind: "file" };
 const physical = { nativeBacking: { get: () => undefined }, nativeField: { get: () => undefined },
   nativeArray: { get: () => undefined }, nativeModuleField: { get: () => false }, storageType: { get: () => undefined } };
@@ -202,7 +202,7 @@ test("value-type setters capture their receiver storage rather than a nonexisten
 
 test("managed address proof uses sealed physical storage rather than a narrower source read", () => {
   const input = fixture();
-  const optional = { kind: "target-named", id: "System.Nullable", typeArguments: [integer], csharpValueType: true };
+  const optional = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "System.Nullable", typeArguments: [integer], csharpValueType: true };
   const selected = select(input, "field", { ...physical, storageType: { get: node => node === input.declaration ? optional : undefined } });
   assert.equal(selected.storageType, optional);
   assert.equal(selected.address.passing, "byref-readwrite");

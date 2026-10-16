@@ -121,8 +121,7 @@ function classForwarder(control) {
     `${control.name}: the canonical owner admits native locations without copies`);
   assert.equal(result?.conversion.kind === "implicit" && result.conversion.proof === "numeric", true,
     `${control.name}: the native result is genuinely widened`);
-  const interfaceType = csharpTargetNamedType(`Proof.I${control.name}`, undefined,
-    { kind: "named", namespace: ["Proof"], name: `I${control.name}` }, { sourceDeclarationKind: "interface" });
+  const interfaceType = csharpTargetNamedType(`Proof.I${control.name}`, undefined, { kind: "named", namespace: ["Proof"], name: `I${control.name}` }, { allowsRefLikeTypeArguments: [], sourceDeclarationKind: "interface" });
   const dispatch = Object.freeze({ implementation, overridesBase: false, hasDerivedOverride: false,
     adapters: Object.freeze([Object.freeze({ contract, parameters, result, interfaceType })]) });
   const selected = Object.freeze({ ...program, records: Object.freeze({ ...program.records,

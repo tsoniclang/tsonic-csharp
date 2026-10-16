@@ -96,7 +96,7 @@ test("callable results establish their own storage owner rather than retaining t
   const enclosing = subject({}, "input", [{ kind: "array-element" }]);
   const state = { depth: 2, sourceStorageSubject: enclosing,
     sourceBindings: bindings };
-  const carrier = { kind: "target-named", id: "System.String" };
+  const carrier = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "System.String" };
   const callable = { parameters: [], result: { declaration: owner, selectedType: {} } };
   const resolved = resolveCallableEvidence({
     host: { ast: { typeParameters: node => { assert.equal(node === owner, true); return []; }, is: typeOnlyPredicates },

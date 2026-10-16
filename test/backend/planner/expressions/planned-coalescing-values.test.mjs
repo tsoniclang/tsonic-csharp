@@ -87,7 +87,7 @@ test("coalescing reuses sealed present-to-optional conversion without manufactur
 });
 
 test("native reference, generic optional and closed broad guards keep their canonical physical storage", () => {
-  const reference = csharpTargetNamedType("fixture:Record", [], { kind: "named", name: "Record" });
+  const reference = csharpTargetNamedType("fixture:Record", [], { kind: "named", name: "Record" }, { allowsRefLikeTypeArguments: [],});
   const parameter = { kind: "type-parameter", identity: "Source::Value", name: "Value" };
   const broad = csharpTsValueTargetType();
   for (const [storage, present, guardKind] of [

@@ -3,9 +3,9 @@ import test from "node:test";
 import { selectCsharpSourceCallResult } from "../../../dist/policy/types/resolution/call-results.js";
 import { csharpTsValueTargetType, csharpEmptyObjectTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 
-const base = { kind: "target-named", id: "fixture.Base" };
-const child = { kind: "target-named", id: "fixture.Child" };
-const unrelated = { kind: "target-named", id: "fixture.Other" };
+const base = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Base" };
+const child = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Child" };
+const unrelated = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Other" };
 const scalar = { kind: "source-primitive", name: "uint64" };
 const host = {
   projectTypeCatalog: { definitionForTarget: carrier => carrier === base || carrier === child ? { kind: "class" } : undefined },

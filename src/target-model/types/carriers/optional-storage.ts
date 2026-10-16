@@ -38,10 +38,5 @@ export function resolveCsharpOptionalStorage(
     arguments_ = [nullable !== undefined && valueType ? nullable : element];
   }
   const arity = arguments_.length === 0 ? "" : "`" + arguments_.length;
-  return csharpTargetNamedType(
-    `Tsonic.CSharp.Runtime.${name}${arity}`,
-    arguments_,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", name),
-    { valueType: true },
-  );
+  return csharpTargetNamedType(`Tsonic.CSharp.Runtime.${name}${arity}`, arguments_, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", name), { allowsRefLikeTypeArguments: arguments_.map(() => false), valueType: true });
 }

@@ -13,7 +13,7 @@ import { csharpStringTargetType } from "../../../dist/target-model/types/carrier
 const byte = { kind: "source-primitive", name: "uint8" };
 const integer = { kind: "source-primitive", name: "int32" };
 const parameter = { kind: "type-parameter", identity: "Element", name: "Element" };
-const arm = (name, argument) => ({ kind: "target-named", id: name, typeArguments: [argument] });
+const arm = (name, argument) => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: name, typeArguments: [argument] });
 
 test("union literal construction requires one total declaration-identity match", () => {
   const firstDeclaration = {};
@@ -43,7 +43,7 @@ test("union literal construction requires one total declaration-identity match",
 test("indexed record union construction retains exact carriers and rejects ambiguous or unavailable arms", () => {
   const string = csharpStringTargetType();
   const integer = { kind: "source-primitive", name: "int64" };
-  const record = { kind: "target-named", id: "System.Collections.Generic.Dictionary`2",
+  const record = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false, false], id: "System.Collections.Generic.Dictionary`2",
     typeArguments: [string, integer], csharpCollectionSurface: "record" };
   const alternate = { ...record, typeArguments: [string, byte] };
   const root = csharpSourceUnionTargetType("record-root", "RecordRoot", []);
@@ -64,7 +64,7 @@ test("indexed record union construction retains exact carriers and rejects ambig
 
 test("record and declaration-shaped literal matches cannot select an arbitrary union constructor", () => {
   const declaration = {};
-  const record = { kind: "target-named", id: "System.Collections.Generic.Dictionary`2",
+  const record = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false, false], id: "System.Collections.Generic.Dictionary`2",
     typeArguments: [csharpStringTargetType(), byte], csharpCollectionSurface: "record" };
   const shape = { targetType: arm("Declared", byte), members: [{ type: byte, sourceDeclarations: [declaration] }] };
   const union = csharpRuntimeUnionTargetType([record, shape.targetType]);

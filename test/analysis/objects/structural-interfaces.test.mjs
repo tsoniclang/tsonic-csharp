@@ -14,7 +14,7 @@ const expression = {};
 const sourceType = {};
 const destinationType = {};
 const optional = type => csharpNullableTargetType(type);
-const slot = type => ({ kind: "target-named", id: "test.Slot", csharpSourceDeclarationKind: "interface",
+const slot = type => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false, false, false], id: "test.Slot", csharpSourceDeclarationKind: "interface",
   typeArguments: [type, resolveCsharpOptionalStorage({ kind: "optional", part: "operations", arguments: [element] }, type), optional(type)] });
 const field = (symbol, type) => ({ sourceName: "value", targetName: "value", sourceKey: { kind: "property", name: "value" },
   sourceSubjects: [symbol], memberKind: "property", type });
@@ -30,9 +30,9 @@ const policy = { semanticsFor: () => ({ types: { expressionType: () => sourceTyp
 
 test("structural optional interfaces bind their payload and every dependent native argument", () => {
   for (const generic of [false, true]) {
-    const template = { targetType: { kind: "target-named", id: "test.Record", typeArguments: generic ? [captured] : [] },
+    const template = { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: generic ? [false] : [], id: "test.Record", typeArguments: generic ? [captured] : [] },
       members: [field(sourceSymbol, optional(generic ? captured : integer))] };
-    const source = { targetType: { kind: "target-named", id: "test.Record", typeArguments: generic ? [integer] : [] },
+    const source = { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: generic ? [false] : [], id: "test.Record", typeArguments: generic ? [integer] : [] },
       members: [field(sourceSymbol, optional(integer))], declarationTemplate: template };
     const selected = selectCsharpStructuralInterface(policy, expression, source, destination);
     assert.deepEqual(selected, { sourceType: template.targetType, interfaceType: slot(generic ? captured : integer), methods: [],
@@ -50,8 +50,8 @@ test("structural optional interfaces bind their payload and every dependent nati
 
 test("structural interface property forwarding preserves writes and direct native accessors", () => {
   const memberType = optional(integer);
-  const source = { targetType: { kind: "target-named", id: "test.Record" }, members: [field(sourceSymbol, memberType)] };
-  const target = { targetType: { kind: "target-named", id: "test.ReadView", csharpSourceDeclarationKind: "interface" },
+  const source = { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "test.Record" }, members: [field(sourceSymbol, memberType)] };
+  const target = { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "test.ReadView", csharpSourceDeclarationKind: "interface" },
     sourceType: destinationType, members: [{ ...field(destinationSymbol, memberType), readonly: true }] };
   const readonly = selectCsharpStructuralInterface(policy, expression, source, target);
   assert.equal(readonly?.properties.length, 1);

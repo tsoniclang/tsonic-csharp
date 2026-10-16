@@ -10,8 +10,8 @@ import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsRegExpTargetTy
   csharpJsTypedArrayTargetType } from "../../../../dist/target-model/types/carriers/js.js";
 
 test("closed array tests distinguish generated structural carriers from open native references", () => {
-  const structural = csharpTargetNamedType("tsonic.shape:fixture", [], { kind: "named", name: "Record" });
-  const native = csharpTargetNamedType("Fixture.Unknown", [], { kind: "named", name: "Unknown" });
+  const structural = csharpTargetNamedType("tsonic.shape:fixture", [], { kind: "named", name: "Record" }, { allowsRefLikeTypeArguments: [],});
+  const native = csharpTargetNamedType("Fixture.Unknown", [], { kind: "named", name: "Unknown" }, { allowsRefLikeTypeArguments: [],});
   assert.deepEqual(selectCsharpClosedTypeTestPlan(structural, { kind: "array" }), { kind: "constant", value: false });
   assert.deepEqual(selectCsharpClosedTypeTestPlan(native, { kind: "array" }), { kind: "runtime-array" });
   assert.equal(csharpClosedTypeTestMatches({ sourceCarrier: structural, predicate: { kind: "array" },
@@ -29,13 +29,13 @@ test("closed profile nonarrays are excluded without guessing about open native r
   }
   assert.deepEqual(selectCsharpClosedTypeTestPlan(csharpJsArrayTargetType(element), { kind: "array" }),
     { kind: "constant", value: true });
-  const open = csharpTargetNamedType("Fixture.Unknown", [], { kind: "named", name: "Unknown" });
+  const open = csharpTargetNamedType("Fixture.Unknown", [], { kind: "named", name: "Unknown" }, { allowsRefLikeTypeArguments: [],});
   const categoryOnly = { ...open, csharpTypeofRuntimeKind: "object" };
   assert.deepEqual(selectCsharpClosedTypeTestPlan(categoryOnly, { kind: "array" }), { kind: "runtime-array" });
 });
 
 for (const kind of ["nominal", "array"]) test(`closed ${kind} tests reject missing, forged and reordered test evidence`, () => {
-  const object = csharpTargetNamedType("Fixture.Item", [], { kind: "named", name: "Item" }, { sourceDeclarationKind: "class" });
+  const object = csharpTargetNamedType("Fixture.Item", [], { kind: "named", name: "Item" }, { allowsRefLikeTypeArguments: [], sourceDeclarationKind: "class" });
   const sourceCarrier = csharpNullableTargetType(csharpRuntimeUnionTargetType([
     csharpStringTargetType(), object, { kind: "array", element: csharpStringTargetType() },
   ]));

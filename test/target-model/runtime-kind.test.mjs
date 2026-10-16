@@ -53,6 +53,5 @@ test("native profile producer facts retain exact object and symbol categories", 
   for (const kind of ["class", "interface", "struct"]) {
     assert.equal(getCsharpTypeofResult(projectDefinitionTargetType({ id: `owned-${kind}`, sourceName: "Entry", kind }, [])), "object");
   }
-  assert.equal(getCsharpTypeofResult(csharpTargetNamedType("external-interface", undefined,
-    { kind: "named", name: "External" }, { sourceDeclarationKind: "interface" })), undefined);
+  assert.equal(getCsharpTypeofResult(csharpTargetNamedType("external-interface", undefined, { kind: "named", name: "External" }, { allowsRefLikeTypeArguments: [], sourceDeclarationKind: "interface" })), undefined);
 });

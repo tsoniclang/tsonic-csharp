@@ -10,7 +10,7 @@ const field = {
 };
 const layout = { kind: "scalar", pointeeType: integer, size: 4, alignment: 4, width: 64, littleEndian: true, fields: [] };
 const shape = (name, bases = [], members = [field]) => ({
-  targetType: { kind: "target-named", id: `tsonic.shape:${name}` }, members, implements: bases,
+  targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: `tsonic.shape:${name}` }, members, implements: bases,
 });
 
 test("native field requirements reach transitive and diamond implementations without storage-name collisions", () => {

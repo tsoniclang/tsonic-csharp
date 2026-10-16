@@ -29,7 +29,7 @@ function fixture(names = ["tail", "10", "2", "01"]) {
       IsSetAccessorDeclaration: node => node.kind === "set",
     },
   };
-  return { owner, ast, shape: { targetType: { kind: "target-named", id: "CheckedShape" }, members } };
+  return { owner, ast, shape: { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "CheckedShape" }, members } };
 }
 
 test("exact source occurrences preserve order independently of equal native carrier names", () => {

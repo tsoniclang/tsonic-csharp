@@ -5,7 +5,7 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { selectCsharpFrameClosures } from "../../../dist/analysis/callables/capture-closures.js";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
-const callable = Object.freeze({ kind: "target-named", id: "System.Func", typeArguments: [scalar] });
+const callable = Object.freeze({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [true], id: "System.Func", typeArguments: [scalar] });
 
 function fixture(text) {
   const checked = createCompilerSessionFromFiles({
@@ -401,7 +401,7 @@ test("loop captures retain selected physical storage rather than a read-refined 
     for (let index = 0; index < 3; index++) { const read = () => index; return read; }
   }`);
   const index = input.declaration("index");
-  const storage = Object.freeze({ kind: "target-named", id: "Native.Location", typeArguments: [scalar] });
+  const storage = Object.freeze({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "Native.Location", typeArguments: [scalar] });
   const logical = Object.freeze({ kind: "source-primitive", name: "int32" });
   input.storageTypes.set(index, logical);
   const selected = input.select(new Map(), (declaration, type) => {

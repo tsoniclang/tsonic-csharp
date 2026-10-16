@@ -1,56 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { buildDotnetFixture } from "../../../helpers/dotnet-fixtures.mjs";
+import { nativeRefLikeFixture, nativeRefLikeProject } from "../../../helpers/native-ref-like-fixture.mjs";
 import { compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 import { createDotnetReflectionTypeDataProvider } from "../../../helpers/dotnet-reflection-provider.mjs";
-import { completeDotnetProviderContext, createDotnetModuleSpecifierPolicy, csharpDotnetProviderContributionKind,
+import { completeDotnetProviderContext,
   validateDotnetModuleModelContract } from "../../../../dist/public/provider-dotnet.js";
 import { dotnetExportToTargetBinding } from "../../../../dist/providers/native/model/index.js";
-
-const root = fileURLToPath(new URL("../../../../", import.meta.url));
-const directory = join(root, ".temp/ref-like-native-owner");
-const project = join(directory, "RefLikeProof.csproj");
-let fixture;
-
-function nativeFixture() {
-  if (fixture !== undefined) return fixture;
-  mkdirSync(directory, { recursive: true });
-  writeFileSync(project, `<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup>
-<TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-</PropertyGroup></Project>`);
-  writeFileSync(join(directory, "Native.cs"), `namespace RefLikeProof;
-public readonly ref struct Lease {
-    public Lease(int value) { Value = value; }
-    public int Value { get; }
-}
-public readonly ref struct Envelope<T> where T : allows ref struct {
-    public Envelope(int value) { Value = value; }
-    public int Value { get; }
-}
-public sealed class Box<T> {
-    public Box() { }
-    public int Value => 11;
-}
-`);
-  const assembly = buildDotnetFixture({ project, projectDirectory: directory,
-    outputDirectory: join(directory, "bin"), intermediateDirectory: join(directory, "obj/"),
-    outputAssemblyName: "RefLikeProof.dll" });
-  const packageName = "@fixture/ref-like";
-  const moduleSpecifierPolicy = createDotnetModuleSpecifierPolicy(packageName);
-  const capability = { kind: "target-capability", id: packageName, targetId: "csharp", displayName: "Native ref-like owner proof",
-    moduleOwnership: [{ specifierPrefix: moduleSpecifierPolicy.modulePrefix }], createTargetContributions: () => [{
-      kind: csharpDotnetProviderContributionKind,
-      providerIdentity: { id: "fixture.ref-like", version: "1.0.0", target: "csharp", displayName: "Native ref-like owner proof" },
-      moduleSpecifierPolicy, referenceDirectoryUrl: pathToFileURL(`${dirname(assembly)}/`).href,
-      assemblySourcePackages: [{ assemblyName: "RefLikeProof", packageName }], targetFramework: "net10.0",
-    }] };
-  fixture = { assembly, capability };
-  return fixture;
-}
 
 function requireModule(provider, specifier, requestedExports) {
   const result = provider.getModule(specifier, completeDotnetProviderContext({ requestedExports }));
@@ -66,11 +22,11 @@ function requireType(module, metadataName) {
 }
 
 test("native reflection preserves BCL and named ref-like traits and actual generic anti-constraints", { timeout: 240_000 }, () => {
-  const { assembly } = nativeFixture();
+  const { assembly } = nativeRefLikeFixture();
   const provider = createDotnetReflectionTypeDataProvider({ references: [assembly], disablePersistentCache: true });
   const system = requireModule(provider, "@tsonic/dotnet/System.js", ["Span"]);
   const tasks = requireModule(provider, "@tsonic/dotnet/System.Threading.Tasks.js", ["Task", "ValueTask"]);
-  const native = requireModule(provider, "@tsonic/dotnet/RefLikeProof.js", ["Lease", "Envelope", "Box"]);
+  const native = requireModule(provider, "@tsonic/dotnet/RefLikeProof.js", ["Lease", "Envelope", "Box", "Methods"]);
   for (const [module, name, byRefLike, allowed] of [
     [system, "System.Span`1", true, false],
     [tasks, "System.Threading.Tasks.Task`1", false, false],
@@ -96,6 +52,24 @@ test("native reflection preserves BCL and named ref-like traits and actual gener
   delete omitted.allowsRefLikeTypeArguments;
   assert.equal(validateDotnetModuleModelContract({ ...native, exports: [omitted] }) !== undefined, true,
     "native generic permissions cannot be silently defaulted");
+  const methods = requireType(native, "RefLikeProof.Methods");
+  for (const [name, allowed] of [["Allowed", true], ["Ordinary", false]]) {
+    const member = methods.members.find(value => value.targetName === name);
+    assert.equal(member !== undefined, true, `${name}: the actual native generic method is acquired`);
+    const parameter = member.signatures[0].typeParameters[0];
+    assert.equal(parameter.allowsRefLike, allowed, `${name}: native method permission is not inferred from its name`);
+    const invalid = { ...parameter };
+    delete invalid.allowsRefLike;
+    const invalidSignature = { ...member.signatures[0], typeParameters: [invalid] };
+    const invalidMember = { ...member, signatures: [invalidSignature] };
+    const invalidType = { ...methods, members: [invalidMember] };
+    assert.equal(validateDotnetModuleModelContract({ ...native, exports: [invalidType] }) !== undefined, true,
+      `${name}: absent native method-slot facts are rejected at the existing metadata boundary`);
+    const malformed = { ...invalid, allowsRefLike: 1 };
+    assert.equal(validateDotnetModuleModelContract({ ...native, exports: [{ ...invalidType,
+      members: [{ ...invalidMember, signatures: [{ ...invalidSignature, typeParameters: [malformed] }] }],
+    }] }) !== undefined, true, `${name}: malformed native method-slot facts are rejected`);
+  }
 });
 
 for (const [name, sourceText, expected] of [
@@ -138,17 +112,17 @@ export async function run(pending: Promise<void>): Promise<boolean> {
 });
 
 test("a named native ref-like type and an allows-ref-struct generic stay natively valid", { timeout: 240_000 }, () => {
-  const { capability } = nativeFixture();
+  const { capability } = nativeRefLikeFixture();
   const compiled = compileCsharpSource({ capabilities: [capability], sourceText: `
 import { Lease, Envelope } from "@fixture/ref-like/RefLikeProof.js";
 export function keep(value: Lease): boolean { return value.Value === 7; }
 export function run(): boolean { return keep(new Lease(7)) && new Envelope<Lease>(9).Value === 9; }
 ` });
-  executeCsharpConstruction(compiled, "named-ref-like-allowed-native-generic", false, false, [project]);
+  executeCsharpConstruction(compiled, "named-ref-like-allowed-native-generic", false, false, [nativeRefLikeProject]);
 });
 
 test("a native generic without allows-ref-struct refuses the actual named ref-like argument", () => {
-  const { capability } = nativeFixture();
+  const { capability } = nativeRefLikeFixture();
   const compiled = compileCsharpSource({ capabilities: [capability], sourceText: `
 import { Lease, Box } from "@fixture/ref-like/RefLikeProof.js";
 export function fail(): boolean { return new Box<Lease>().Value === 11; }
@@ -173,7 +147,7 @@ export function keep(value: Lease): () => int32 { return () => value.Value; }
   ["named native ordinary field", `
 import type { Lease } from "@fixture/ref-like/RefLikeProof.js";
 export class Holder { constructor(public readonly value: Lease) {} }
-`, ["CSHARP_REFLIKE_FRAME_CAPTURE"]],
+`, ["CSHARP_REFLIKE_FIELD"]],
   ["named native local function capture", `
 import type { int32 } from "@tsonic/core/types.js";
 import type { Lease } from "@fixture/ref-like/RefLikeProof.js";
@@ -192,7 +166,7 @@ export function keep(value: Lease): int32 {
 `, ["CSHARP_REFLIKE_FRAME_CAPTURE"]],
 ]) {
   test(`native ref-like admission does not depend on BCL spelling: ${name}`, () => {
-    const { capability } = nativeFixture();
+    const { capability } = nativeRefLikeFixture();
     const compiled = compileCsharpSource({ capabilities: [capability], sourceText });
     assert.equal(compiled.sourceDiagnosticsText, "", "the actual named native placement reaches target admission");
     const codes = compiled.result.diagnostics.map(value => value.code).sort();
@@ -203,7 +177,7 @@ export function keep(value: Lease): int32 {
 }
 
 test("erased callable bodies do not impose native ref-like storage requirements", { timeout: 240_000 }, () => {
-  const { capability } = nativeFixture();
+  const { capability } = nativeRefLikeFixture();
   const compiled = compileCsharpSource({ capabilities: [capability], sourceText: `
 import type { int32 } from "@tsonic/core/types.js";
 import { Lease } from "@fixture/ref-like/RefLikeProof.js";
@@ -215,5 +189,5 @@ export function run(): boolean {
 ` });
   assert.equal(compiled.sourceDiagnosticsText, "", "the erased bodies remain fully source-checked");
   assert.equal(compiled.result.diagnostics.length, 0, "actual native participation excludes their impossible storage");
-  executeCsharpConstruction(compiled, "erased-native-ref-like-captures", false, false, [project]);
+  executeCsharpConstruction(compiled, "erased-native-ref-like-captures", false, false, [nativeRefLikeProject]);
 });

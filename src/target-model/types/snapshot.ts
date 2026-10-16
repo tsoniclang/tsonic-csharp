@@ -71,7 +71,11 @@ export function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
         break;
       case "target-named":
         valid = string(type.id) &&
-          (type.typeArguments === undefined || list(type.typeArguments, depth));
+          (type.typeArguments === undefined || list(type.typeArguments, depth)) &&
+          Array.isArray(type.csharpAllowsRefLikeTypeArguments) && data(type.csharpAllowsRefLikeTypeArguments) &&
+          type.csharpAllowsRefLikeTypeArguments.length === (Array.isArray(type.typeArguments) ? type.typeArguments.length : 0) &&
+          Object.keys(type.csharpAllowsRefLikeTypeArguments).length === type.csharpAllowsRefLikeTypeArguments.length &&
+          type.csharpAllowsRefLikeTypeArguments.every(allowed => typeof allowed === "boolean");
         break;
       case "type-parameter": valid = string(type.identity) && string(type.name) &&
         (type.csharpDeclaration === undefined || typeof type.csharpDeclaration === "object" && type.csharpDeclaration !== null) &&

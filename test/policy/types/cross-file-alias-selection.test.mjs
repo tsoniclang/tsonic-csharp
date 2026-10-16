@@ -27,7 +27,7 @@ function fixture(alias = "export type View<Value> = { readonly [Key in keyof Val
   const queries = source.semantics.forFile(file);
   const selectedType = queries.types.authoredType(node);
   const sourceArguments = source.ast.typeArguments(node).map(argument => queries.types.authoredType(argument));
-  const targets = sourceArguments.map((argument, index) => ({ kind: "target-named", id: `Native.Argument${index}`, name: `Argument${index}` }));
+  const targets = sourceArguments.map((argument, index) => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: `Native.Argument${index}`, name: `Argument${index}` }));
   return { source, file, node, typeName, reference, parameters, queries, selectedType, sourceArguments, targets };
 }
 

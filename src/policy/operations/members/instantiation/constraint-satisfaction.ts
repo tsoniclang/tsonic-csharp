@@ -36,6 +36,7 @@ import type { CsharpSelectedTargetMethodTypeArgument } from "../../../../target-
 import {
   namedTargetTypeImplicitlyAccepts,
 } from "../../../conversions/carriers.js";
+import { csharpTargetTypeFromBinding } from "../../../types/storage/bindings.js";
 import type {
   CsharpProjectTypePolicy,
   CsharpTypePolicy,
@@ -167,7 +168,7 @@ function validateTypeParameterArguments(
         sourceFile,
       );
       if (reason !== undefined) {
-        return `C# ${owner} type argument '${targetTypeRefKey(argument.targetType)}' for '${parameter.name}' does not satisfy '${constraintDescription(substituted)}'. ${reason}`;
+        return `C# ${owner} type argument '${targetTypeRefKey(argument.targetType)}' for '${parameter.name}' does not satisfy '${constraintDescription(host, substituted)}'. ${reason}`;
       }
     }
   }
@@ -198,13 +199,9 @@ function targetTypeFailsConstraint(
   }
   switch (constraint.kind) {
     case "implements": {
-      const contract: TargetTypeRef = {
-        kind: "target-named",
-        id: constraint.contract,
-        ...(constraint.typeArguments === undefined
-          ? {}
-          : { typeArguments: constraint.typeArguments }),
-      };
+      const binding = csharpTargetBindingFact(host.providers.findTargetBindingByTargetId(constraint.contract));
+      const contract = binding === undefined ? undefined : csharpTargetTypeFromBinding(binding, constraint.typeArguments);
+      if (contract === undefined) return "The required native contract has no exact registered target carrier metadata.";
       return namedTargetTypeImplicitlyAccepts(
           host,
           target,
@@ -365,13 +362,9 @@ function sourceConstraintsImplyTargetConstraint(
 ): boolean {
   switch (targetConstraint.kind) {
     case "implements": {
-      const targetType: TargetTypeRef = {
-        kind: "target-named",
-        id: targetConstraint.contract,
-        ...(targetConstraint.typeArguments === undefined
-          ? {}
-          : { typeArguments: targetConstraint.typeArguments }),
-      };
+      const binding = csharpTargetBindingFact(host.providers.findTargetBindingByTargetId(targetConstraint.contract));
+      const targetType = binding === undefined ? undefined : csharpTargetTypeFromBinding(binding, targetConstraint.typeArguments);
+      if (targetType === undefined) return false;
       return sourceConstraints.some((constraint) =>
         constraint.kind === "type" &&
         namedTargetTypeImplicitlyAccepts(
@@ -521,16 +514,11 @@ function isCsharpUnmanagedType(
   }
 }
 
-function constraintDescription(constraint: TargetConstraint): string {
-  return constraint.kind === "implements"
-    ? targetTypeRefKey({
-        kind: "target-named",
-        id: constraint.contract,
-        ...(constraint.typeArguments === undefined
-          ? {}
-          : { typeArguments: constraint.typeArguments }),
-      })
-    : constraint.kind === "target-specific"
-      ? `${constraint.target}:${constraint.name}`
-      : constraint.kind;
+function constraintDescription(host: CsharpConstraintSatisfactionHost, constraint: TargetConstraint): string {
+  if (constraint.kind === "implements") {
+    const binding = csharpTargetBindingFact(host.providers.findTargetBindingByTargetId(constraint.contract));
+    const carrier = binding === undefined ? undefined : csharpTargetTypeFromBinding(binding, constraint.typeArguments);
+    return carrier === undefined ? constraint.contract : targetTypeRefKey(carrier);
+  }
+  return constraint.kind === "target-specific" ? `${constraint.target}:${constraint.name}` : constraint.kind;
 }

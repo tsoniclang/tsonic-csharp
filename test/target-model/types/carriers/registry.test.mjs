@@ -34,7 +34,7 @@ test("C# registry is metadata only and does not widen native Task or imported pa
   const pending = csharpTaskTargetType(value);
   assert.equal(pending.csharpTaskResultType === value, true);
   assert.equal(pending.typeArguments[0] === value, true);
-  const imported = csharpTargetNamedType("checked.native.Type`1", [value], undefined, { valueType: true });
+  const imported = csharpTargetNamedType("checked.native.Type`1", [value], undefined, { allowsRefLikeTypeArguments: [false], valueType: true });
   assert.equal(imported.typeArguments[0] === value, true);
   assert.equal(imported.csharpValueType, true);
   assert.equal(csharpJsMapTargetType(imported, value).typeArguments[0] === imported, true);
@@ -68,7 +68,7 @@ test("unproduced native type vocabulary is rejected at the owning metadata bound
   ]) {
     assert.equal(current.vocabulary.kinds.includes(ghost.kind), false, ghost.kind);
     for (const type of [ghost, { kind: "array", element: ghost },
-      { kind: "target-named", id: "checked:Wrapper", typeArguments: [ghost] },
+      { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "checked:Wrapper", typeArguments: [ghost] },
       { kind: "tuple", elements: [ghost] }, { kind: "pointer", pointee: ghost },
       { kind: "function-pointer", args: [ghost], result: scalar },
       { kind: "function-pointer", args: [scalar], result: ghost }]) {

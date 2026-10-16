@@ -18,7 +18,7 @@ export function csharpClassFactoryTargetType(
   createMethodName: string,
   instanceTestMethodName: string,
 ): CsharpTargetNamedTypeRef {
-  return { ...csharpTargetNamedType(`${instance.id}:factory`, instance.typeArguments?.slice(0, outerTypeParameterCount), { kind: "named", name }),
+  return { ...csharpTargetNamedType(`${instance.id}:factory`, instance.typeArguments?.slice(0, outerTypeParameterCount), { kind: "named", name }, { allowsRefLikeTypeArguments: (instance.typeArguments?.slice(0, outerTypeParameterCount) ?? []).map(() => false),}),
     csharpClassFactory: Object.freeze({ declaration, instance, outerTypeParameterCount, createMethodName, instanceTestMethodName }) };
 }
 

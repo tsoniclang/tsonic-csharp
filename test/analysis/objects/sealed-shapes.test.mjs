@@ -9,10 +9,10 @@ test("sealed shape catalogs retain actual generic instances and read undemanded 
   const parameter = { kind: "type-parameter", name: "Value", identity: "test.Shape.Value" };
   const integer = { kind: "source-primitive", name: "int64" };
   const string = { kind: "source-primitive", name: "string" };
-  const template = { targetType: { kind: "target-named", id: "Shape", typeArguments: [parameter] },
+  const template = { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "Shape", typeArguments: [parameter] },
     members: [{ sourceKey: { kind: "property", name: "value" }, sourceName: "value", targetName: "value",
       memberKind: "property", type: parameter }] };
-  const demanded = { kind: "target-named", id: "Shape", typeArguments: [integer] };
+  const demanded = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "Shape", typeArguments: [integer] };
   const file = {};
   let closed = false;
   let nativeQueries = 0;
@@ -46,14 +46,14 @@ test("sealed shape catalogs retain actual generic instances and read undemanded 
   assert.equal(shapes.resolveNode(file) === shapes.resolveNode(file), true, "node DTO does not get reconstructed");
   assert.equal(targetTypeRefEquals(current.members[0].type, integer), true, "exact native generic substitution before publication");
   for (const argument of [string, { kind: "array", element: integer }]) {
-    const target = { kind: "target-named", id: "Shape", typeArguments: [argument] };
+    const target = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "Shape", typeArguments: [argument] };
     for (let index = 0; index < 32; index += 1) {
       assert.equal(shapes.resolveTarget(target) === undefined, true, "an undemanded instance is a negative lookup, not a late substitution");
       assert.equal(shapes.knownShapes() === catalog, true, "reads never populate the catalog");
     }
   }
-  assert.equal(shapes.resolveTarget({ kind: "target-named", id: "Other", typeArguments: [integer] }) === undefined, true);
-  assert.equal(shapes.resolveTarget({ kind: "target-named", id: "Shape", typeArguments: [integer, string] }) === undefined, true);
+  assert.equal(shapes.resolveTarget({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "Other", typeArguments: [integer] }) === undefined, true);
+  assert.equal(shapes.resolveTarget({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false, false], id: "Shape", typeArguments: [integer, string] }) === undefined, true);
   assert.equal(nativeQueries, queries, "no final reader selects or validates native types");
   assert.throws(() => builder.seal(), /sealed/u, "the closed producer cannot run a second analysis");
 });

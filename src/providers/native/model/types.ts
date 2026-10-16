@@ -351,6 +351,7 @@ export interface DotnetUnsupportedDefaultValueDeclaration {
 export interface DotnetTypeParameterDeclaration {
   readonly identity: string;
   readonly name: string;
+  readonly allowsRefLike: boolean;
   readonly constraints?: readonly DotnetConstraint[];
   readonly defaultType?: DotnetTypeRef;
   readonly unsupportedConstraints?: readonly DotnetUnsupportedConstraintDeclaration[];

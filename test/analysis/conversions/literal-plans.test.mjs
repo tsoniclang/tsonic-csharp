@@ -463,7 +463,7 @@ test("exact literal requests are private frozen preparation data, not sealed con
 });
 
 function providerAdapterCall(read, inputType) {
-  const counter = Object.freeze({ kind: "target-named", id: "MyLib.Counter",
+  const counter = Object.freeze({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "MyLib.Counter",
     csharpRender: Object.freeze({ kind: "named", namespace: Object.freeze(["MyLib"]), name: "Counter" }) });
   const adapter = Object.freeze({ kind: "static-method", id: `MyLib.Counter.From(${inputType.name})`,
     declaringType: counter, targetName: "From", inputType, resultType: counter });
@@ -476,7 +476,7 @@ function providerAdapterCall(read, inputType) {
     sourceParameterIndex: 0, targetParameterIndex: 0, sourcePassingMode: "by-value", targetPassingMode: "by-value",
     sourceAcceptsOmission: false, targetAcceptsOmission: false, sourceRest: false, targetParamsArray: false,
     argumentAdapter: adapter }] });
-  const receiver = { kind: "target-named", id: binding.id };
+  const receiver = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: binding.id };
   const direct = directProviderHost({
     relations: [relation],
     facts: [providerFact(source.signatureDeclaration, declaration)],

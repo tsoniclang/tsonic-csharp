@@ -34,6 +34,6 @@ test("native arrays and unregistered indexers cannot inherit source-array locati
   const native = select(csharpJsArrayElementPolicies[0], { kind: "array", element });
   assert.equal(native.kind, "resolved");
   assert.equal(native.invocation.indexedLocationMethod, undefined);
-  const unknown = select(csharpJsArrayElementPolicies[0], { kind: "target-named", id: "fixture.Indexer" });
+  const unknown = select(csharpJsArrayElementPolicies[0], { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Indexer" });
   assert.equal(unknown.kind, "rejected");
 });

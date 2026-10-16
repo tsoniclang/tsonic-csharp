@@ -143,14 +143,10 @@ function resolveConstraint(
       kind: "resolved",
       constraints: [{
         kind: "type",
-        type: csharpTargetNamedType(
-          "System.Numerics.INumber`1",
-          [parameter],
-          csharpQualifiedTypeRenderShape(
+        type: csharpTargetNamedType("System.Numerics.INumber`1", [parameter], csharpQualifiedTypeRenderShape(
             "System.Numerics",
             "INumber",
-          ),
-        ),
+          ), { allowsRefLikeTypeArguments: [false],}),
       }],
     };
   }

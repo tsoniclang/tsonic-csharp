@@ -323,7 +323,7 @@ test(".NET target binding facts preserve unsupported target-only constraint evid
     targetId: testTargetId("ProviderModelFixtures.Constrained`1"),
     metadataName: "ProviderModelFixtures.Constrained`1",
     typeParameters: [
-      {
+      { allowsRefLike: false,
         name: "T",
         constraints: [{ kind: "reference-type" }],
         unsupportedConstraints: [

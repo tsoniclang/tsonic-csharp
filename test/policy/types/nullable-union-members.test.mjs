@@ -15,7 +15,7 @@ import {
 
 const boolean = csharpSourcePrimitiveTargetType("bool");
 const integer = csharpSourcePrimitiveTargetType("uint64");
-const reference = csharpTargetNamedType("fixture.Record");
+const reference = csharpTargetNamedType("fixture.Record", undefined, undefined, { allowsRefLikeTypeArguments: [],});
 
 test("nullable union leaves share one native absence without changing payloads", () => {
   for (const second of [integer, reference]) {

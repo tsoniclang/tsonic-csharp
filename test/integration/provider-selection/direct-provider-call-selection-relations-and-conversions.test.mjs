@@ -73,7 +73,7 @@ test("project-owned implicit constructors adapt an exact inherited provider sign
     ...baseMember,
     id: "tsonic.source:project::forward-constructor",
     declaringType: {
-      kind: "target-named",
+      kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
       id: "tsonic.source:project",
     },
   };
@@ -607,10 +607,10 @@ test("provider generic constraints accept only exactly proven target categories"
 });
 
 test("provider constructor and interface constraints use exact project type facts", () => {
-  const concreteType = csharpTargetNamedType("Fixture.Concrete");
-  const abstractType = csharpTargetNamedType("Fixture.Abstract");
-  const contractType = csharpTargetNamedType("Fixture.IContract");
-  const implementingType = csharpTargetNamedType("Fixture.Implementation");
+  const concreteType = csharpTargetNamedType("Fixture.Concrete", undefined, undefined, { allowsRefLikeTypeArguments: [],});
+  const abstractType = csharpTargetNamedType("Fixture.Abstract", undefined, undefined, { allowsRefLikeTypeArguments: [],});
+  const contractType = csharpTargetNamedType("Fixture.IContract", undefined, undefined, { allowsRefLikeTypeArguments: [],});
+  const implementingType = csharpTargetNamedType("Fixture.Implementation", undefined, undefined, { allowsRefLikeTypeArguments: [],});
   const definitions = new Map([
     [
       concreteType.id,
@@ -714,8 +714,8 @@ test("provider constructor and interface constraints use exact project type fact
 
 test("static-interface dispatch validates the exact selected invocation type", () => {
   const selectedType = {};
-  const contract = csharpTargetNamedType("Fixture.IStaticContract");
-  const implementation = csharpTargetNamedType("Fixture.StaticImplementation");
+  const contract = csharpTargetNamedType("Fixture.IStaticContract", undefined, undefined, { allowsRefLikeTypeArguments: [],});
+  const implementation = csharpTargetNamedType("Fixture.StaticImplementation", undefined, undefined, { allowsRefLikeTypeArguments: [],});
   const member = providerMethod({
     id: "Fixture.IStaticContract.Create()",
     static: true,
@@ -850,7 +850,7 @@ function createCallFixture(options = {}) {
   const relations = options.relations ?? [relation];
   const sourceArgumentTargets = options.sourceArgumentTargets ?? [];
   const receiverTarget = options.receiverTarget ?? {
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: (binding.typeParameters ?? []).map(() => false),
     id: binding.id,
     ...(binding.typeParameters === undefined
       ? {}
@@ -956,7 +956,7 @@ function int32ProviderAdapter() {
     nativeIntegerConversion: "checked",
     id: "System.Convert.ToInt32(System.Double)",
     declaringType: {
-      kind: "target-named",
+      kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
       id: "System.Convert",
       csharpRender: {
         kind: "named",

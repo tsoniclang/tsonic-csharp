@@ -135,7 +135,7 @@ test("inferred compound results retain native numeric elements without collectio
     [nativeArray, numericArray],
     [{ kind: "array", element: nativeArray }, { kind: "array", element: numericArray }],
     [{ kind: "tuple", elements: [int32, string] }, { kind: "tuple", elements: [float64, string] }],
-    [csharpTargetNamedType("Fixture.Values", [int32]), csharpTargetNamedType("Fixture.Values", [float64])],
+    [csharpTargetNamedType("Fixture.Values", [int32], undefined, { allowsRefLikeTypeArguments: [false],}), csharpTargetNamedType("Fixture.Values", [float64], undefined, { allowsRefLikeTypeArguments: [false],})],
   ]) {
     assert.deepEqual(reconcileInferredReturnTargetContract(host, baseline, [source], false),
       { kind: "resolved", type: source });
@@ -145,15 +145,15 @@ test("inferred compound results retain native numeric elements without collectio
   for (const baseline of [
     { ...numericArray, rank: 2 },
     { kind: "array", element: string },
-    csharpTargetNamedType("Other.Values", [float64]),
+    csharpTargetNamedType("Other.Values", [float64], undefined, { allowsRefLikeTypeArguments: [false],}),
   ]) assert.equal(reconcileInferredReturnTargetContract(host, baseline, [nativeArray], false).kind, "rejected");
   assert.deepEqual(reconcileInferredReturnTargetContract(host,
-    { ...csharpTargetNamedType("Fixture.Values", [float64]), csharpNullableReference: true },
-    [csharpTargetNamedType("Fixture.Values", [int32])], false),
-    { kind: "resolved", type: csharpNullableTargetType(csharpTargetNamedType("Fixture.Values", [int32])) });
+    { ...csharpTargetNamedType("Fixture.Values", [float64], undefined, { allowsRefLikeTypeArguments: [false],}), csharpNullableReference: true },
+    [csharpTargetNamedType("Fixture.Values", [int32], undefined, { allowsRefLikeTypeArguments: [false],})], false),
+    { kind: "resolved", type: csharpNullableTargetType(csharpTargetNamedType("Fixture.Values", [int32], undefined, { allowsRefLikeTypeArguments: [false],})) });
   assert.equal(reconcileInferredReturnTargetContract(host,
-    csharpNullableTargetType(csharpTargetNamedType("Other.Values", [float64])),
-    [csharpTargetNamedType("Fixture.Values", [int32])], false).kind, "rejected");
+    csharpNullableTargetType(csharpTargetNamedType("Other.Values", [float64], undefined, { allowsRefLikeTypeArguments: [false],})),
+    [csharpTargetNamedType("Fixture.Values", [int32], undefined, { allowsRefLikeTypeArguments: [false],})], false).kind, "rejected");
 });
 
 test("tuple conversions apply exact element conversions at equal arity", () => {
@@ -182,12 +182,7 @@ test("tuple conversions apply exact element conversions at equal arity", () => {
 });
 
 test("native arrays convert only through explicit target input capability", () => {
-  const target = csharpTargetNamedType(
-    "Fixture.Assembly::Fixture.Sequence`1",
-    [int32],
-    undefined,
-    { implicitArrayInputElementType: int32 },
-  );
+  const target = csharpTargetNamedType("Fixture.Assembly::Fixture.Sequence`1", [int32], undefined, { allowsRefLikeTypeArguments: [false], implicitArrayInputElementType: int32 });
   assert.deepEqual(
     selectCsharpConversion(
       host,
@@ -210,10 +205,7 @@ test("native arrays convert only through explicit target input capability", () =
     selectCsharpConversion(
       host,
       { kind: "array", element: int32 },
-      csharpTargetNamedType(
-        "Fixture.Assembly::Fixture.Sequence`1",
-        [int32],
-      ),
+      csharpTargetNamedType("Fixture.Assembly::Fixture.Sequence`1", [int32], undefined, { allowsRefLikeTypeArguments: [false],}),
       "implicit",
     ).kind,
     "rejected",

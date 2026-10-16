@@ -586,7 +586,7 @@ test(".NET reflection provider preserves selected parameter-mode facts per signa
     ],
   );
   assert.deepEqual(parameterFacts(targetOptionalDefaults.parameters), [
-    { name: "required", type: { kind: "target-named", id: "System.String" }, passingMode: "by-value" },
+    { name: "required", type: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "System.String" }, passingMode: "by-value" },
     {
       name: "count",
       type: { kind: "source-primitive", name: "int32" },
@@ -596,14 +596,14 @@ test(".NET reflection provider preserves selected parameter-mode facts per signa
     },
     {
       name: "mode",
-      type: { kind: "target-named", id: "ProviderSignatureFixtures.SignatureMode" },
+      type: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "ProviderSignatureFixtures.SignatureMode" },
       passingMode: "by-value",
       optional: true,
       defaultValue: { kind: "enum", value: "2", fieldName: "Enabled" },
     },
     {
       name: "label",
-      type: { kind: "target-named", id: "System.String" },
+      type: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "System.String" },
       passingMode: "by-value",
       optional: true,
       defaultValue: { kind: "null" },
@@ -632,7 +632,7 @@ test(".NET reflection provider preserves selected parameter-mode facts per signa
     ],
   );
   assert.deepEqual(parameterFacts(targetParamsRest.parameters), [
-    { name: "label", type: { kind: "target-named", id: "System.String" }, passingMode: "by-value" },
+    { name: "label", type: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "System.String" }, passingMode: "by-value" },
     {
       name: "values",
       type: { kind: "array", element: { kind: "source-primitive", name: "int32" } },

@@ -11,7 +11,7 @@ const ast = {
   kindName: node => node.kind,
   children: node => node.kind === "KindBlock" && node.usesThis ? [{ kind: "KindThisKeyword" }] : [],
 };
-const owner = csharpTargetNamedType("fixture:NativeReceiver", [], { kind: "named", name: "NativeReceiver" });
+const owner = csharpTargetNamedType("fixture:NativeReceiver", [], { kind: "named", name: "NativeReceiver" }, { allowsRefLikeTypeArguments: [],});
 const method = { sourceKey: { kind: "property", name: "identity" }, sourceName: "identity", targetName: "identity",
   memberKind: "method", type: csharpDelegateTargetType("System.Func", [integer], integer),
   methodValueContract: owner, sourceDeclarations: [declaration] };
@@ -32,7 +32,7 @@ test("C# receiver-preserving copies reuse only one exact closed native implement
     assert.equal(selectCsharpCopiedMethodReceiver(members, [source], ast).kind, "rejected");
   }
   assert.equal(selectCsharpCopiedMethodReceiver(source.members, [source, { ...source,
-    targetType: csharpTargetNamedType("fixture:OtherReceiver", [], { kind: "named", name: "OtherReceiver" }) }], ast).kind, "rejected");
+    targetType: csharpTargetNamedType("fixture:OtherReceiver", [], { kind: "named", name: "OtherReceiver" }, { allowsRefLikeTypeArguments: [],}) }], ast).kind, "rejected");
   assert.equal(selectCsharpCopiedMethodReceiver(source.members, [source, { ...source,
     methodImplementation: { ...source.methodImplementation, identity: "other" } }], ast).kind, "rejected");
   assert.equal(selectCsharpCopiedMethodReceiver(source.members, [{ ...source, methodImplementation: undefined }], ast).kind, "none");

@@ -57,6 +57,7 @@ export function resolveSourceCallContract(
   }
   const contract: CsharpSourceCallContract = Object.freeze({ ...(declaration === undefined ? {} : { sourceDeclaration: declaration }),
     methodTypeParameterIdentities: getCsharpMethodValue(type)?.typeParameters ?? Object.freeze([]),
+    methodAllowsRefLikeTypeArguments: getCsharpMethodValue(type)?.allowsRefLikeTypeArguments ?? Object.freeze([]),
     parameters: Object.freeze(parameters), returnType: signature.returnType });
   return sourceCallableTypeParametersMatch(source, contract, "value")
     ? Object.freeze({ kind: "value", contract }) : reject();

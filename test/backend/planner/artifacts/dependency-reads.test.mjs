@@ -20,7 +20,7 @@ function fixture() {
 test("artifact closure includes exact generic declaration-template parents alongside concrete components", () => {
   const integer = { kind: "source-primitive", name: "int32" };
   const parameter = { kind: "type-parameter", identity: "Root:Property", name: "Property" };
-  const target = (id, argument) => ({ kind: "target-named", id, typeArguments: [argument] });
+  const target = (id, argument) => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id, typeArguments: [argument] });
   const parent = { targetType: target("Parent", parameter), members: [] };
   const concreteParent = { targetType: target("Parent", integer), members: [] };
   const template = { targetType: target("Root", parameter), members: [], implements: [parent.targetType] };
@@ -113,7 +113,7 @@ test("publication after an explicit absent-facet snapshot requires reconstructio
 test("unavailable object-shape capabilities fail at their exact owner without publication", () => {
   const artifacts = artifactFixture();
   const captured = artifacts.captureDependencies("source", [], () =>
-    artifacts.requireObjectShapeCapability(undefined, { kind: "target-named", id: "MissingShape" }, {},
+    artifacts.requireObjectShapeCapability(undefined, { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "MissingShape" }, {},
       "json-serialization", "object-shape"));
   assert.equal(captured.value.kind, "rejected");
   assert.equal(captured.value.reason,

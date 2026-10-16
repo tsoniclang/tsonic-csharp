@@ -3,8 +3,8 @@ import test from "node:test";
 import { selectCsharpExpressionConversion } from "../../../dist/policy/conversions/expression.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 
-const source = { kind: "target-named", id: "source.Constructed" };
-const target = { kind: "target-named", id: "source.Contract" };
+const source = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "source.Constructed" };
+const target = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "source.Contract" };
 const expression = {};
 const policy = {
   ast: { is: { IsArrayLiteralExpression: () => false } },
@@ -17,7 +17,7 @@ const policy = {
 test("constructed object conversions use the exact produced shape before contextual source-node shape", () => {
   const input = { ...policy, objectShapes: {
     resolveTarget: carrier => carrier === source ? { targetType: source, implements: [target] } : undefined,
-    resolveNode: () => ({ targetType: { kind: "target-named", id: "source.Contextual" }, implements: [] }),
+    resolveNode: () => ({ targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "source.Contextual" }, implements: [] }),
   } };
   const selected = selectCsharpExpressionConversion(input, expression, source, target, "implicit");
   assert.equal(selected.kind, "implicit");

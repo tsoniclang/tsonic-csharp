@@ -13,26 +13,17 @@ import {
 
 export function csharpEnumerableTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
   const constructionType = csharpListTargetType(elementType);
-  return csharpTargetNamedType(
-    "System.Collections.Generic.IEnumerable`1",
-    [elementType],
-    csharpQualifiedTypeRenderShape("System.Collections.Generic", "IEnumerable"),
-    {
+  return csharpTargetNamedType("System.Collections.Generic.IEnumerable`1", [elementType], csharpQualifiedTypeRenderShape("System.Collections.Generic", "IEnumerable"), { allowsRefLikeTypeArguments: [true],
       arrayLiteralElementType: elementType,
       arrayLiteralConstructionType: constructionType,
       implicitArrayInputElementType: elementType,
       enumerableElementType: elementType,
-    },
-  );
+    });
 }
 
 export function csharpReadOnlyListTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
   const constructionType = csharpListTargetType(elementType);
-  return csharpTargetNamedType(
-    "System.Collections.Generic.IReadOnlyList`1",
-    [elementType],
-    csharpQualifiedTypeRenderShape("System.Collections.Generic", "IReadOnlyList"),
-    {
+  return csharpTargetNamedType("System.Collections.Generic.IReadOnlyList`1", [elementType], csharpQualifiedTypeRenderShape("System.Collections.Generic", "IReadOnlyList"), { allowsRefLikeTypeArguments: [false],
       arrayLiteralElementType: elementType,
       arrayLiteralConstructionType: constructionType,
       implicitArrayInputElementType: elementType,
@@ -40,16 +31,11 @@ export function csharpReadOnlyListTargetType(elementType: TargetTypeRef): Csharp
       readOnlyIndexableElementType: elementType,
       indexableLengthMemberName: "Count",
       collectionSemantics: "dense",
-    },
-  );
+    });
 }
 
 export function csharpListTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
-  const type = Object.freeze(csharpTargetNamedType(
-    "System.Collections.Generic.List`1",
-    Object.freeze([elementType]),
-    csharpQualifiedTypeRenderShape("System.Collections.Generic", "List"),
-    {
+  const type = Object.freeze(csharpTargetNamedType("System.Collections.Generic.List`1", Object.freeze([elementType]), csharpQualifiedTypeRenderShape("System.Collections.Generic", "List"), { allowsRefLikeTypeArguments: [false],
       arrayLiteralElementType: elementType,
       enumerableElementType: elementType,
       readOnlyIndexableElementType: elementType,
@@ -57,8 +43,7 @@ export function csharpListTargetType(elementType: TargetTypeRef): CsharpTargetNa
       arrayLiteralBuilder: Object.freeze({ appendElementMethod: "Add", capacityConstructor: true }),
       indexableLengthMemberName: "Count",
       collectionSemantics: "dense",
-    },
-  ));
+    }));
   return Object.freeze({
     ...type,
     csharpArrayLiteralConstructionType: type,

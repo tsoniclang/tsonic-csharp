@@ -800,15 +800,15 @@ test("printer fails closed for invalid or foreign raw syntax nodes", () => {
 test("target type rendering requires explicit C# render shape for non-predefined target IDs", () => {
   assert.equal(
     csharpTypeFromTargetTypeRef({
-      kind: "target-named",
+      kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
       id: "System.Collections.Generic.List`1",
-      typeArguments: [{ kind: "target-named", id: "System.Int32" }],
+      typeArguments: [{ kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "System.Int32" }],
     }),
     undefined,
   );
 
   const rendered = csharpTypeFromTargetTypeRef({
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
     id: "System.Collections.Generic.List`1",
     csharpRender: {
       kind: "named",
@@ -826,12 +826,12 @@ test("source-global evidence is rejected at the native metadata boundary while n
   const promiseOfString = {
     kind: "source-global",
     name: "Promise",
-    typeArguments: [{ kind: "target-named", id: "System.String" }],
+    typeArguments: [{ kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "System.String" }],
   };
   const promiseOfNumber = {
     kind: "source-global",
     name: "Promise",
-    typeArguments: [{ kind: "target-named", id: "System.Double" }],
+    typeArguments: [{ kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "System.Double" }],
   };
 
   for (const type of [promiseOfString, promiseOfNumber]) {
@@ -840,7 +840,7 @@ test("source-global evidence is rejected at the native metadata boundary while n
   }
 
   const rendered = csharpTypeFromTargetTypeRef({
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
     id: "System.Threading.Tasks.Task`1",
     typeArguments: [{ kind: "source-primitive", name: "int32" }],
     csharpRender: {
@@ -870,7 +870,7 @@ test("target bindings require explicit C# render shape", () => {
     kind: "class",
     csharpRender: { kind: "named", namespace: ["Example"], name: "Widget" },
   }), {
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
     id: "Example.Widget",
     csharpRender: { kind: "named", namespace: ["Example"], name: "Widget" },
   });
@@ -878,14 +878,14 @@ test("target bindings require explicit C# render shape", () => {
 
 test("object shape methods require explicit delegate signature metadata", () => {
   const rawDelegateShape = {
-    targetType: { kind: "target-named", id: "__Shape" },
+    targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "__Shape" },
     members: [{
       sourceKey: csharpPropertySourceMemberKey("visit"),
       sourceName: "visit",
       targetName: "Visit",
       memberKind: "method",
       type: {
-        kind: "target-named",
+        kind: "target-named", csharpAllowsRefLikeTypeArguments: [true],
         id: "System.Action`1",
         csharpRender: { kind: "named", namespace: ["System"], name: "Action" },
         typeArguments: [{ kind: "source-primitive", name: "int32" }],
@@ -961,20 +961,20 @@ test("object shape methods require explicit delegate signature metadata", () => 
 
 test("object shape declarations enforce required members while leaving optional members optional", () => {
   const shape = {
-    targetType: { kind: "target-named", id: "__Shape" },
+    targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "__Shape" },
     members: [{
       sourceKey: csharpPropertySourceMemberKey("requiredValue"),
       sourceName: "requiredValue",
       targetName: "requiredValue",
       memberKind: "property",
-      type: { kind: "target-named", id: "System.String", csharpRender: { kind: "predefined", name: "string" } },
+      type: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "System.String", csharpRender: { kind: "predefined", name: "string" } },
     }, {
       sourceKey: csharpPropertySourceMemberKey("optionalValue"),
       sourceName: "optionalValue",
       targetName: "optionalValue",
       memberKind: "property",
       type: {
-        kind: "target-named",
+        kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
         id: "System.String",
         csharpRender: { kind: "predefined", name: "string" },
         csharpNullableReference: true,

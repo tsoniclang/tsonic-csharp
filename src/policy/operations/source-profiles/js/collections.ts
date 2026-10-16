@@ -237,9 +237,9 @@ function mapGetMember(
     result,
     {
       typeParameters: [
-        { name: "TKey" },
+        { name: "TKey", csharpAllowsRefLike: false },
         {
-          name: "TValue",
+          name: "TValue", csharpAllowsRefLike: false,
           ...(valueType ? { constraints: [{ kind: "value-type" as const }] } : {}),
         },
       ],

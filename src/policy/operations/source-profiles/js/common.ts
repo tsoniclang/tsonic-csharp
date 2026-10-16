@@ -263,11 +263,7 @@ export function jsElementPolicy(
 }
 
 export function jsRuntimeTargetType(name: string): TargetTypeRef {
-  return csharpTargetNamedType(
-    `Tsonic.CSharp.Js.${name}`,
-    undefined,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name),
-  );
+  return csharpTargetNamedType(`Tsonic.CSharp.Js.${name}`, undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name), { allowsRefLikeTypeArguments: [],});
 }
 
 export function targetParameter(

@@ -194,6 +194,10 @@ function dotnetSignatureToTargetMember(
                 }
               : signature.targetInvocation,
         }),
+    ...(signature.sourceTypeParameterRoles === undefined ? {} : {
+      csharpInvocationAllowsRefLikeTypeArguments: Object.freeze(signature.sourceTypeParameterRoles.invocation.map(index =>
+        (signature.sourceTypeParameters ?? signature.typeParameters)![index]!.allowsRefLike)),
+    }),
     ...(signature.targetInvocation?.kind !== "array-creation" &&
         signature.typeParameters !== undefined &&
         signature.typeParameters.length > 0

@@ -36,11 +36,7 @@ export function csharpProjectedType(projection: CsharpTypeProjection): CsharpPro
   const name = projection.kind === "conditional" ? `${projection.sourceName}Result_${identity}`
     : `Optional${projection.part === "storage" ? "Storage" : "Operations"}_${identity}`;
   const constraints: readonly CsharpTypeParameterConstraint[] = projection.kind === "optional" && projection.part === "operations"
-    ? [{ kind: "keyword", keyword: "struct" }, { kind: "type", type: csharpTargetNamedType(
-      "Tsonic.CSharp.Runtime.IOptionalStorage`2",
-      [projection.arguments[0], csharpProjectedType({ ...projection, part: "storage" })],
-      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "IOptionalStorage"),
-    ) }]
+    ? [{ kind: "keyword", keyword: "struct" }, { kind: "type", type: csharpTargetNamedType("Tsonic.CSharp.Runtime.IOptionalStorage`2", [projection.arguments[0], csharpProjectedType({ ...projection, part: "storage" })], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "IOptionalStorage"), { allowsRefLikeTypeArguments: [false, false],}) }]
     : [];
   const contract = projection.kind === "conditional" ? Object.freeze({ ...projection,
     sourceArguments: Object.freeze([...projection.sourceArguments]), arguments: Object.freeze([...projection.arguments]),

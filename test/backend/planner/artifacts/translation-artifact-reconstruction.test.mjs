@@ -12,8 +12,8 @@ import {
 } from "../../../../dist/backend/planner/artifacts/index.js";
 
 test("target-owned object shapes reconstruct from canonical artifact state", () => {
-  const innerType = { kind: "target-named", id: "Example.Inner" };
-  const outerType = { kind: "target-named", id: "Example.Outer" };
+  const innerType = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Example.Inner" };
+  const outerType = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Example.Outer" };
   const inner = {
     targetType: innerType,
     members: [{
@@ -97,7 +97,7 @@ test("object-shape receiver requirements strengthen one exact generated type sur
     ),
   };
   const shape = {
-    targetType: { kind: "target-named", id: "Example.Counter" },
+    targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Example.Counter" },
     members: [method],
   };
   const artifacts = createCsharpArtifactGraph({

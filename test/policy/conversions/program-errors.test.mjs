@@ -8,8 +8,8 @@ import { csharpExceptionTargetType, csharpRuntimeErrorTargetType, csharpRuntimeU
 
 const native = csharpExceptionTargetType();
 const source = csharpRuntimeErrorTargetType();
-const derived = csharpTargetNamedType("Project.Failure", undefined, { kind: "named", name: "Failure" });
-const unrelated = csharpTargetNamedType("Project.Value", undefined, { kind: "named", name: "Value" });
+const derived = csharpTargetNamedType("Project.Failure", undefined, { kind: "named", name: "Failure" }, { allowsRefLikeTypeArguments: [],});
+const unrelated = csharpTargetNamedType("Project.Value", undefined, { kind: "named", name: "Value" }, { allowsRefLikeTypeArguments: [],});
 const host = {
   projectTypes: { directSupertypes: carrier => carrier === derived ? [source] : [] },
   providers: { findTargetBindingByTargetId: () => undefined },
@@ -31,7 +31,7 @@ test("native error alternatives share one exact reference projection without box
 });
 
 test("throw selection rejects absence, non-errors and value-type admission", () => {
-  const value = csharpTargetNamedType("Project.Record", undefined, { kind: "named", name: "Record" }, { valueType: true });
+  const value = csharpTargetNamedType("Project.Record", undefined, { kind: "named", name: "Record" }, { allowsRefLikeTypeArguments: [], valueType: true });
   for (const carrier of [undefined, unrelated, csharpSourcePrimitiveTargetType("uint64"),
     csharpRuntimeUnionTargetType([source, unrelated]),
     csharpRuntimeUnionTargetType([source, value]), csharpRuntimeUnionTargetType([source, csharpNullableTargetType(native)])]) {
@@ -40,7 +40,7 @@ test("throw selection rejects absence, non-errors and value-type admission", () 
 });
 
 test("throw selection requires the native hierarchy instead of a same-spelled source name", () => {
-  const local = csharpTargetNamedType("Project.Error", undefined, { kind: "named", name: "Error" });
+  const local = csharpTargetNamedType("Project.Error", undefined, { kind: "named", name: "Error" }, { allowsRefLikeTypeArguments: [],});
   const cyclic = { ...host, projectTypes: { directSupertypes: carrier => carrier === local ? [unrelated] : [local] } };
   assert.equal(selectCsharpProgramErrorCarrier(cyclic, local), undefined);
   assert.equal(selectCsharpProgramErrorCarrier(cyclic, csharpRuntimeUnionTargetType([native, local])), undefined);

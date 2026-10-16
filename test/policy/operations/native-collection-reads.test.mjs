@@ -7,10 +7,10 @@ import { planCsharpCollectionElementRead, planCsharpCollectionIndexedIteration }
 import { planCsharpSequenceAppendStatements } from "../../../dist/backend/planner/expressions/sequence-conversions.js";
 
 const element = csharpStringTargetType();
-const physical = csharpTargetNamedType("example.NativeValues", undefined, csharpQualifiedTypeRenderShape("example", "NativeValues"), {
+const physical = csharpTargetNamedType("example.NativeValues", undefined, csharpQualifiedTypeRenderShape("example", "NativeValues"), { allowsRefLikeTypeArguments: [],
   valueType: true, readOnlyIndexableElementType: element, enumerableElementType: element, indexableLengthMemberName: "Count",
 });
-const owner = csharpTargetNamedType("example.NativeReads", undefined, csharpQualifiedTypeRenderShape("example", "NativeReads"));
+const owner = csharpTargetNamedType("example.NativeReads", undefined, csharpQualifiedTypeRenderShape("example", "NativeReads"), { allowsRefLikeTypeArguments: [],});
 const member = {
   id: "example.NativeReads.read(example.NativeValues,System.Int32)", sourceName: "read", targetName: "read",
   kind: "method", static: true, readonly: true, declaringType: owner,
@@ -49,7 +49,7 @@ test("native read signatures fail closed for wrong physical receiver, width, res
     { ...member, parameters: member.parameters.slice(0, 1) },
     { ...member, csharpInvocation: { kind: "numeric-conversion" } },
     { ...member, csharpReturnPassing: "byref-readwrite" },
-    { ...member, typeParameters: [{ identity: "T", name: "T" }] },
+    { ...member, typeParameters: [{ csharpAllowsRefLike: false, identity: "T", name: "T" }] },
   ]) {
     const selected = { ...carrier, csharpIndexableReadMember: changed };
     assert.equal(csharpCollectionElementRead(selected).kind, "invalid", JSON.stringify(changed));

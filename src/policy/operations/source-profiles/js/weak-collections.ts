@@ -130,9 +130,9 @@ function weakMapGet(
     csharpNullableTargetType(shape.value),
     {
       typeParameters: [
-        { name: "TKey", constraints: [{ kind: "reference-type" }] },
+        { name: "TKey", csharpAllowsRefLike: false, constraints: [{ kind: "reference-type" }] },
         {
-          name: "TValue",
+          name: "TValue", csharpAllowsRefLike: false,
           ...(valueType ? { constraints: [{ kind: "value-type" as const }] } : {}),
         },
       ],

@@ -5,7 +5,7 @@ import { renderCsharpStructuralInterfaceMembers, shadowCsharpInheritedInterfaceM
 import { csharpDelegateTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
 
 function type(argument, id = "Native.View") {
-  return { kind: "target-named", id, name: "View", typeArguments: [argument], csharpRender: { kind: "named", name: "View" } };
+  return { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id, name: "View", typeArguments: [argument], csharpRender: { kind: "named", name: "View" } };
 }
 
 test("classes and interfaces consume one deduplicated exact sealed heritage contract", () => {

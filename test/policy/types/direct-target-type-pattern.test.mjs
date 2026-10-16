@@ -27,12 +27,12 @@ test("target type patterns close named generic bindings", () => {
   assert.deepEqual(
     resolveCsharpTargetTypePatternArguments(
       {
-        kind: "target-named",
+        kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
         id: "Example.Box`1",
         typeArguments: [parameter],
       },
       {
-        kind: "target-named",
+        kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
         id: "Example.Box`1",
         typeArguments: [string],
       },
@@ -74,12 +74,12 @@ test("target type patterns reject incompatible concrete structure", () => {
   assert.equal(
     resolveCsharpTargetTypePatternArguments(
       {
-        kind: "target-named",
+        kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
         id: "Example.Box`1",
         typeArguments: [parameter],
       },
       {
-        kind: "target-named",
+        kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
         id: "Example.Other`1",
         typeArguments: [int32],
       },
@@ -102,12 +102,12 @@ test("target type patterns preserve nullability and require complete bindings", 
   assert.equal(
     resolveCsharpTargetTypePatternArguments(
       csharpNullableReferenceTargetType({
-        kind: "target-named",
+        kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
         id: "Example.Box`1",
         typeArguments: [parameter],
       }),
       {
-        kind: "target-named",
+        kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
         id: "Example.Box`1",
         typeArguments: [string],
       },
@@ -117,8 +117,8 @@ test("target type patterns preserve nullability and require complete bindings", 
   );
   assert.equal(
     resolveCsharpTargetTypePatternArguments(
-      { kind: "target-named", id: "Example.Closed" },
-      { kind: "target-named", id: "Example.Closed" },
+      { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Example.Closed" },
+      { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Example.Closed" },
       parameters,
     ),
     undefined,

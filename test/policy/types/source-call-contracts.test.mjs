@@ -29,7 +29,7 @@ function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], in
     sourceSelectedSignatureParameters: [{ parameterDeclaration: sourceParameter, parameterName: "value", parameterIndex: 0,
       selectedType: integer, acceptsOmission: false, rest: false }] };
   if (direct) source.sourceCallee.selectedDeclaration = declaration;
-  const openContract = { sourceDeclaration: signatureDeclaration, methodTypeParameterIdentities: [],
+  const openContract = { sourceDeclaration: signatureDeclaration, methodTypeParameterIdentities: [], methodAllowsRefLikeTypeArguments: [],
     parameters: [{ sourceParameter, targetParameter: { name: "value", type: outer, passingMode: "by-value" } }], returnType: outer };
   const scope = { host: {
     ast: { is: { IsNewExpression: () => false, IsFunctionDeclaration: node => node?.kind === "function",
@@ -311,7 +311,7 @@ test("wide optional signatures collect optional indexes once rather than scannin
 
 test("super construction obtains its exact selected native base environment", () => {
   const expression = {};
-  const base = { kind: "target-named", id: "fixture.Base", typeArguments: [integer] };
+  const base = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "fixture.Base", typeArguments: [integer] };
   const source = { sourceCallee: { expression } };
   const selected = resolveSourceCallReceiverTargetType({ host: { ast: { kindName: () => "KindSuperKeyword" } },
     resolveNodeWithState: node => { assert.equal(node === expression, true); return base; },

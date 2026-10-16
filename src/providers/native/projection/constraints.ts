@@ -12,6 +12,7 @@ import {
 } from "./type-ref.js";
 
 export type DotnetTargetTypeParameter = TargetTypeParameter & {
+  readonly csharpAllowsRefLike: boolean;
   readonly unsupportedConstraints?: readonly DotnetUnsupportedConstraintDeclaration[];
 };
 
@@ -54,6 +55,7 @@ export function dotnetTypeParameterToTargetTypeParameter(parameter: DotnetTypePa
   return {
     identity: parameter.identity,
     name: parameter.name,
+    csharpAllowsRefLike: parameter.allowsRefLike,
     ...(supportedConstraints.length > 0 || unsupportedConstraints.length > 0
       ? { constraints: [...supportedConstraints, ...unsupportedConstraints] }
       : {}),

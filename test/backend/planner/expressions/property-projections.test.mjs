@@ -6,7 +6,7 @@ import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueT
 import { requireObjectShapeProjection } from "../../../../dist/backend/planner/artifacts/graph/object-shapes/requests.js";
 
 function fixture() {
-  const source = { kind: "target-named", id: "Options", csharpSourceDeclarationKind: "class" };
+  const source = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Options", csharpSourceDeclarationKind: "class" };
   const count = { sourceKey: { kind: "property", name: "count" }, sourceName: "count", targetName: "storedCount",
     memberKind: "property", type: csharpSourcePrimitiveTargetType("uint64"), optional: true };
   const grouping = { sourceKey: { kind: "property", name: "useGrouping" }, sourceName: "useGrouping", targetName: "grouping",

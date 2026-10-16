@@ -8,7 +8,7 @@ import {
 
 test("target representation components include finalized object-shape members", () => {
   const int32 = { kind: "source-primitive", name: "int32" };
-  const shapeType = csharpTargetNamedType("tsonic.shape:payload");
+  const shapeType = csharpTargetNamedType("tsonic.shape:payload", undefined, undefined, { allowsRefLikeTypeArguments: [],});
   const shape = {
     targetType: shapeType,
     members: [{
@@ -24,12 +24,7 @@ test("target representation components include finalized object-shape members", 
 
 test("target representation components include C# carrier metadata", () => {
   const int32 = { kind: "source-primitive", name: "int32" };
-  const carrier = csharpTargetNamedType(
-    "Example.Collection`1",
-    [int32],
-    undefined,
-    { enumerableElementType: int32 },
-  );
+  const carrier = csharpTargetNamedType("Example.Collection`1", [int32], undefined, { allowsRefLikeTypeArguments: [false], enumerableElementType: int32 });
 
   assert.deepEqual(csharpTargetTypeComponents(carrier), [int32]);
 });

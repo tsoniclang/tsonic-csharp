@@ -5,8 +5,8 @@ import { csharpDelegateTargetType } from "../../../dist/target-model/types/carri
 import { reconcileInferredReturnTargetContract } from "../../../dist/analysis/declarations/analyze.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 
-const owner = { kind: "target-named", id: "tsonic.shape:environment", csharpRender: { kind: "named", name: "Environment" } };
-const protocol = { kind: "target-named", id: "tsonic.shape:protocol", csharpRender: { kind: "named", name: "Protocol" } };
+const owner = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "tsonic.shape:environment", csharpRender: { kind: "named", name: "Environment" } };
+const protocol = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "tsonic.shape:protocol", csharpRender: { kind: "named", name: "Protocol" } };
 const parameter = { kind: "type-parameter", name: "Value", identity: "original-source-binder" };
 const signature = csharpDelegateTargetType("System.Func", [parameter], parameter);
 const method = csharpMethodValueType(owner, "identity", "source.identity", signature, [parameter.identity]);

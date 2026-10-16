@@ -54,7 +54,7 @@ test("explicit C# JsString selection rejects malformed syntax and wrong carrier 
     { sourceType: exactString },
     { sourceType: { kind: "source-primitive", name: "int32" } },
     { resultType: nativeString },
-    { resultType: { kind: "target-named", id: "Foreign.JsString" } },
+    { resultType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Foreign.JsString" } },
   ]) assert.equal(fixture(options).selection.kind, "rejected");
 });
 
