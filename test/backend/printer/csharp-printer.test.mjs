@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createCsharpNumericLiteralToken } from "../../../dist/target-model/syntax/numeric-literals.js";
 import { isCsharpTargetTypeRef, snapshotCsharpTargetTypes } from "../../../dist/target-model/types/snapshot.js";
 import {
   csharpTypeFromTargetTypeRef,
@@ -178,11 +179,12 @@ test("a negative numeric literal used as a receiver or callee is parenthesized",
   const name = text => ({ kind: "IdentifierName", name: text });
   const receivers = [
     ["-1.5", { kind: "LiteralExpression", value: -1.5 }, true],
-    ["-1.5F", { kind: "NumericLiteralExpression", value: -1.5, suffix: "F" }, true],
+    ["-1.5F", { kind: "PrefixUnaryExpression", operatorToken: { kind: "MinusToken" },
+      operand: { kind: "NumericLiteralExpression", token: createCsharpNumericLiteralToken("1.5"), suffix: "F" } }, true],
     ["-0D", { kind: "LiteralExpression", value: -0 }, true],
     ["-18446744073709552000D", { kind: "NumericLiteralExpression", value: -18446744073709551616 }, true],
     ["1.5", { kind: "LiteralExpression", value: 1.5 }, false],
-    ["2F", { kind: "NumericLiteralExpression", value: 2, suffix: "F" }, false],
+    ["2F", { kind: "NumericLiteralExpression", token: createCsharpNumericLiteralToken("2"), suffix: "F" }, false],
     ["\"-1\"", { kind: "LiteralExpression", value: "-1" }, false],
     ["value", name("value"), false],
   ];
@@ -211,10 +213,10 @@ test("unary minus preserves its operand rather than forming a decrement or negat
     [minus(literal(2 ** 64)), "-18446744073709552000D"],
     [minus(literal(9223372036854774784)), "-9223372036854775000"],
     [minus(literal(1e18)), "-1000000000000000000"],
-    [minus({ kind: "NumericLiteralExpression", value: 1e19, suffix: "F" }), "-10000000000000000000F"],
+    [minus({ kind: "NumericLiteralExpression", token: createCsharpNumericLiteralToken("10000000000000000000"), suffix: "F" }), "-10000000000000000000F"],
     [minus(literal(-1.5)), "-(-1.5)"],
     [minus(literal(-0)), "-(-0D)"],
-    [minus({ kind: "NumericLiteralExpression", value: -2, suffix: "F" }), "-(-2F)"],
+    [minus(minus({ kind: "NumericLiteralExpression", token: createCsharpNumericLiteralToken("2"), suffix: "F" })), "-(-2F)"],
     [minus(literal(1.5)), "-1.5"],
     [minus({ kind: "IdentifierName", name: "x" }), "-x"],
     [minus(minus({ kind: "IdentifierName", name: "x" })), "-(-x)"],
@@ -247,9 +249,9 @@ test("Number-backed literals and exact signed or unsigned integer literals retai
     [{ kind: "IntegerLiteralExpression", digits: "9223372036854775808", suffix: "UL" }, "9223372036854775808UL"],
     [{ kind: "IntegerLiteralExpression", digits: "18446744073709551615", suffix: "UL" }, "18446744073709551615UL"],
     [minus({ kind: "IntegerLiteralExpression", digits: "9223372036854775808", suffix: "L" }), "-9223372036854775808L"],
-    [{ kind: "NumericLiteralExpression", value: 1e19, suffix: "F" }, "10000000000000000000F"],
+    [{ kind: "NumericLiteralExpression", token: createCsharpNumericLiteralToken("10000000000000000000"), suffix: "F" }, "10000000000000000000F"],
     [{ kind: "NumericLiteralExpression", value: 1e19, suffix: "D" }, "10000000000000000000D"],
-    [{ kind: "NumericLiteralExpression", value: 1e19, suffix: "M" }, "10000000000000000000M"],
+    [{ kind: "NumericLiteralExpression", token: createCsharpNumericLiteralToken("10000000000000000000"), suffix: "M" }, "10000000000000000000M"],
   ];
   const mismatches = rows.flatMap(([expression, expected]) => {
     const printed = printCsharpExpression(expression);
@@ -273,7 +275,26 @@ test("numeric tokens retain floating values beyond the native integer literal ra
       assert.throws(() => printCsharpExpression({ kind, value }), /finite values/u);
     }
   }
-  assert.equal(printCsharpExpression({ kind: "NumericLiteralExpression", value: 1e20, suffix: "M" }), "100000000000000000000M");
+  assert.equal(printCsharpExpression({ kind: "NumericLiteralExpression", token: createCsharpNumericLiteralToken("100000000000000000000"), suffix: "M" }), "100000000000000000000M");
+});
+
+test("exact native numeric tokens validate grammar once and preserve decimal scale without double conversion", () => {
+  for (const text of ["9007199254740993", "1", "1.0", "1.00", "0.000", "0.000e+2", "1e-999999999999999999999"]) {
+    const token = createCsharpNumericLiteralToken(text);
+    assert.equal(Object.isFrozen(token), true, text);
+    for (const suffix of ["F", "M"]) {
+      const expression = { kind: "NumericLiteralExpression", token, suffix };
+      assert.equal(printCsharpExpression(expression), `${text}${suffix}`, `${suffix} ${text}`);
+      assert.doesNotThrow(() => JSON.stringify(expression), text);
+    }
+  }
+  for (const text of ["-1", "+1", "1F", "1M", "1; throw x;", "1 // comment", "01", "1_0", "NaN", "Infinity", "1e", "1e+01"]) {
+    assert.throws(() => createCsharpNumericLiteralToken(text), /unsigned decimal significand and exponent grammar/u, text);
+  }
+  for (const suffix of ["F", "M"]) {
+    assert.throws(() => printCsharpExpression({ kind: "NumericLiteralExpression", value: 1, suffix }), TypeError,
+      `${suffix}: the removed Number-backed native literal form has no rendering path`);
+  }
 });
 
 test("printer preserves exact 64-bit integer literal digits", () => {
