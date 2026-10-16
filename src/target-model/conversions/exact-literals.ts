@@ -6,7 +6,6 @@ export type CsharpExactLiteralPrimitive = Extract<TargetTypeRef, { readonly kind
 
 export type CsharpExactLiteralRecipe =
   | { readonly kind: "signed-zero"; readonly target: CsharpExactLiteralPrimitive; readonly precision: "float64" | "float16" }
-  | { readonly kind: "zero" }
   | { readonly kind: "char"; readonly value: string }
   | {
       readonly kind: "float";
@@ -24,7 +23,8 @@ export type CsharpExactLiteralRecipe =
   | {
       readonly kind: "integer";
       readonly target: CsharpExactLiteralPrimitive;
-      readonly width: "int64" | "uint64" | "int128" | "uint128" | "native-int" | "native-uint";
+      readonly width: "int8" | "uint8" | "int16" | "uint16" | "int32" | "uint32" |
+        "int64" | "uint64" | "int128" | "uint128" | "native-int" | "native-uint";
       readonly value: bigint;
     };
 

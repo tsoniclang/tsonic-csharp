@@ -89,7 +89,7 @@ export function selectCsharpExactLiteralConversion(
   if (targetType.kind !== "source-primitive") {
     return classifiedLiteralRepresentation(literal);
   }
-  if ((literal?.form === "binary" || literal?.form === "parenthesized") &&
+  if ((literal?.form === "binary" || literal?.form === "parenthesized" && literal.integer === undefined) &&
     literal.integerConstant !== undefined && csharpBigIntFitsSourcePrimitive(literal.integerConstant, targetType.name)) {
     return sourceRepresentation;
   }
@@ -105,9 +105,6 @@ export function selectCsharpExactLiteralConversion(
   if (Object.is(literal?.number, -0)) {
     if (targetType.name === "float64" || targetType.name === "float16") {
       return resolved({ kind: "signed-zero", target: targetType, precision: targetType.name });
-    }
-    if (csharpNumericLiteralFitsSourcePrimitive(literal, targetType.name)) {
-      return resolved({ kind: "zero" });
     }
   }
   switch (targetType.name) {
@@ -132,6 +129,12 @@ export function selectCsharpExactLiteralConversion(
       }
       return resolved({ kind: "float", target: targetType, precision: targetType.name, value });
     }
+    case "int8":
+    case "uint8":
+    case "int16":
+    case "uint16":
+    case "int32":
+    case "uint32":
     case "int64":
     case "uint64":
     case "int128":
