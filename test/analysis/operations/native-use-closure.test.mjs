@@ -105,7 +105,9 @@ test("native void completion preserves effectful absent calls and the selected c
   assert.equal(compiled.sourceDiagnosticsText === "" && compiled.targetDiagnostics.length === 0, true,
     `native void effect control: ${compiled.sourceDiagnosticsText}; ${compiled.targetDiagnostics.map(({ message }) => message).join("; ")}`);
   const output = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
-  assert.equal(/return null|default\(void\)|_ = null/u.test(output), false,
+  const voidBodies = output.match(/public static void (?:call|branch)\(\)[\s\S]*?\n        }/gu) ?? [];
+  assert.equal(voidBodies.length, 2, "both native void methods reach emission");
+  assert.equal(voidBodies.some(body => /return null/u.test(body)) || /default\(void\)|_ = null/u.test(output), false,
     "the native completion never fabricates a void value or a null effect");
   executeCsharpConstruction(compiled, "native-void-absent-effect-order");
 });

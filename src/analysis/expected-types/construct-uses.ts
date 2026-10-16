@@ -84,7 +84,7 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
       record(clause.comparison.left, clause.comparison.leftInputType, "required", at(node, { kind: "operand", position: "left" }));
       record(clause.comparison.right, clause.comparison.rightInputType, "required", at(node, { kind: "case", index }));
     }
-    const binary = operations.binaryOperation.get(node)?.target;
+    const binary = operations.operatorForm.get(node) === "selected" ? operations.binaryOperation.get(node)?.target : undefined;
     if (binary?.kind === "resolved") {
       record(binary.left, binary.leftInputType, "required", at(node, { kind: "operand", position: "left" }));
       if (binary.targetOperation.kind === "conditional-value" && binary.targetOperation.branch !== "right") {

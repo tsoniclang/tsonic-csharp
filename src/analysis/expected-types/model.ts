@@ -92,6 +92,7 @@ export type CsharpExpectedNativeUsePendingReason = CsharpNativeRepresentationPen
 
 export interface CsharpExpectedNativeUseAdmission extends CsharpExpectedNativeUseInput {
   readonly entries: readonly { readonly site: TargetUseSiteRef; readonly use: CsharpExpectedNativeUse }[];
-  readonly pending: readonly { readonly site: TargetUseSiteRef; readonly reason: CsharpExpectedNativeUsePendingReason }[];
+  readonly pending: readonly { readonly site: TargetUseSiteRef; readonly reason: CsharpExpectedNativeUsePendingReason;
+    readonly expression?: Node; readonly message?: string }[];
   readonly inactive: readonly TargetUseSiteRef[];
 }

@@ -60,7 +60,7 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
         !parameters.every((parameter, index) => {
           if (parameter === undefined) return false;
           const native = contract.parameters[index]?.targetParameter;
-          const nativeParameter = input.storage.lambdaParameterType.get(parameter) ?? native?.type;
+          const nativeParameter = input.storage.lambdaParameterType.get(parameter);
           return native !== undefined && nativeParameter !== undefined && targetTypeRefEquals(nativeParameter, signature.parameters[index]!) &&
             native.passingMode === signature.parameterPassingModes[index] &&
             (native.paramsArray === true) === (signature.restParameterIndex === index);

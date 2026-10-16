@@ -206,6 +206,22 @@ test("Record<int64, int32> retains its distinct checked source key constraint", 
 });
 
 for (const surface of ["native", "js"]) {
+  test(`${surface} decimal dictionary keys retain a source integer above the float64 precision boundary`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { decimal, int32 } from "@tsonic/core/types.js";
+      export function create(): Record<decimal, int32> { return { 9007199254740993: 7 }; }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const output = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
+    assert.equal(output.includes("9007199254740993M") && !output.includes("9007199254740992"), true,
+      `${surface}: the exact native decimal value never rounds through double`);
+    executeCsharpConstruction(compiled, `${surface}-checked-wide-native-decimal-dictionary-key`, false, false, [], `
+      var values = Tsonic.Generated.Index.create();
+      if (values.Count != 1 || !values.TryGetValue(9007199254740993M, out int value) || value != 7 || values.ContainsKey(9007199254740992M))
+        throw new System.Exception("exact native wide decimal key");
+    `);
+  });
+
   test(`${surface} checked computed string keys preserve the actual dictionary lookup`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
       import type { int32 } from "@tsonic/core/types.js";
@@ -236,6 +252,24 @@ for (const surface of ["native", "js"]) {
           throw new System.Exception("authored native decimal key scale");
       }
     `);
+  });
+}
+
+for (const surface of ["native", "js"]) for (const [type, value] of [["int8", "128"], ["int8", "(128)"], ["float16", "65520"]]) {
+  test(`${surface} rejected ${type} literal ${value} retains its precise native refusal before sealing`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { ${type} } from "@tsonic/core/types.js";
+      export function run(): ${type} { return ${value}; }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the native literal refusal is not a source checker substitution");
+    const diagnostics = compiled.result.diagnostics;
+    assert.equal(diagnostics.length, 1, "one exact native refusal, never an internal pending invariant");
+    const source = createTargetSourceProgram(compiled.source);
+    const literal = analyzeSourceLiteralValues(source.ast, source.sourceFiles).literalValue.get(diagnostics[0].sourceNode);
+    const selected = selectCsharpExactLiteralConversion(literal, primitive(type));
+    assert.equal(selected.kind === "rejected" && diagnostics[0].code === "CSHARP_UNSUPPORTED_AST" &&
+      diagnostics[0].message === selected.reason, true, "the completed native literal owner supplies the exact retained reason");
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true, "refusal precedes publication and native planning");
   });
 }
 

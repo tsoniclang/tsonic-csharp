@@ -386,7 +386,7 @@ export function analyzeCsharpTargetProgram(
     const refusals = nativeDemand.unadmitted.filter(use =>
       use.message !== undefined || use.reason === "argument-refused" || use.reason === "source-argument-rejected" || use.reason === "property-key-refused");
     if (refusals.length > 0) return rejectCsharpAnalysisIssues(refusals.map(use => ({
-      node: use.expression, code: "CSHARP_UNSUPPORTED_AST", message: use.message ?? failTargetAnalysisInvariant(
+      node: use.expression, code: use.code ?? "CSHARP_UNSUPPORTED_AST", message: use.message ?? failTargetAnalysisInvariant(
         "tsonic-csharp", "A native source refusal requires its exact admitted reason.", use.expression),
     })));
     const incomplete = nativeDemand.unadmitted[0]!;

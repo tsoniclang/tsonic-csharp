@@ -139,8 +139,9 @@ export function createCsharpExpectedTypePropagation(
       return;
     }
     if (policy.ast.is.IsBinaryExpression(expression)) {
-      const selection = operations.operatorForm.usesExpectedResultType(expression)
-        ? expectedBinary(expression, targetType) : operations.binaryOperation.get(expression)?.target;
+      const selection = operations.operatorForm.get(expression) !== "selected" ? undefined
+        : operations.operatorForm.usesExpectedResultType(expression)
+          ? expectedBinary(expression, targetType) : operations.binaryOperation.get(expression)?.target;
       if (selection?.kind === "resolved") {
         record(selection.left, selection.leftInputType, strength, forwarded(expression, { kind: "operand", position: "left" }, pending.site, pending.mode));
         if (selection.targetOperation.kind === "conditional-value" && selection.targetOperation.branch !== "right") {

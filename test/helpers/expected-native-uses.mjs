@@ -18,7 +18,7 @@ export function createExpectedNativeUseOwner(compiled) {
     const returnType = records.generatorTargetType.get(node) ?? (declared?.kind === "resolved" ? declared.type : undefined);
     return returnType === undefined ? [] : [{ sourceDeclaration: node, returnType }];
   });
-  const policy = { ast, sourceFiles: program.sourceFiles,
+  const policy = { ast, sourceFiles: program.sourceFiles, navigation: source.navigation,
     literalValues: analyzeSourceLiteralValues(ast, program.sourceFiles),
     semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode,
     typeDefinitions: program.typeDefinitions };

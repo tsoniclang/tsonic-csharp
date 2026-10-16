@@ -120,7 +120,7 @@ test("exact conversion requirements cannot fall back to another expression or co
 
 test("the seal rejects an omitted exact literal at its own source and native target", () => {
   const literals = nodes.filter(node => ast.is.IsVariableDeclaration(node) &&
-    ["firstLiteral", "secondLiteral"].includes(ast.text(ast.name(node))))
+    ast.is.IsIdentifier(ast.name(node)) && ["firstLiteral", "secondLiteral"].includes(ast.text(ast.name(node))))
     .map(node => ast.as.AsVariableDeclaration(node).Initializer);
   assert.equal(literals.length, 2, "two real checked literal subjects");
   const rows = literals.map(subject => ({ family: "exactLiteral", subject,

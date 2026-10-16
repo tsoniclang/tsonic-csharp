@@ -8,6 +8,8 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { selectCsharpCallForm } from "../../../dist/policy/operations/members/selection/call-forms.js";
 import { planCsharpOptionalReceiverChain } from "../../../dist/backend/planner/expressions/target-members/selected-call/optional-chain.js";
 import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { selectCsharpSourceFlowCall } from "../../../dist/policy/operations/flow/source-flow.js";
 
 function recordedCalls(compiled) {
   const program = compiled.result.program;
@@ -257,13 +259,21 @@ test("source-flow rejection keeps its exact descriptor and source call through t
   assert.equal(diagnostic.message, "C# target does not implement source flow marker 'move'; this intrinsic requires an explicit target contract and cannot be erased or lowered as an identity call.");
   assert.equal(compiled.source.ast.kindName(diagnostic.sourceNode), "KindCallExpression");
   assert.equal(compiled.artifacts.size, 0);
-  const calls = recordedCalls(compiled);
+  const source = createTargetSourceProgram(compiled.source);
+  const calls = [];
+  const visit = node => {
+    if (source.ast.is.IsCallExpression(node)) calls.push(node);
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of source.sourceFiles) visit(file);
   assert.equal(calls.length, 1);
-  const form = calls[0].classification?.form;
+  const selected = selectCsharpSourceFlowCall({ ast: source.ast, sourceFacts: source.sourceFacts }, calls[0]);
+  const form = selectCsharpCallForm(undefined, selected, { kind: "not-js-value" });
   assert.equal(form?.kind === "source-flow-rejected", true, "source rejection is a selected form");
   assert.equal(Object.isFrozen(form.sourceFlow), true, "source rejection descriptor is frozen");
   assert.equal(form.sourceFlow.code === diagnostic.code && form.sourceFlow.reason === diagnostic.message, true, "rejection is preserved exactly");
-  assert.equal(diagnostic.sourceNode === calls[0].node, true, "rejection remains on the original call");
+  assert.equal(diagnostic.sourceNode === calls[0], true, "rejection remains on the original call");
+  assert.equal(compiled.result.program === undefined, true, "the owning source refusal precedes the program seal");
 });
 
 test("local functions named like core markers remain ordinary calls, including shadowing", () => {

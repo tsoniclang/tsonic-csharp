@@ -44,6 +44,7 @@ export interface CsharpNativeOperandSelection {
   readonly carrier?: TargetTypeRef;
   readonly refusal?: CsharpNativeOperandRefusal;
   readonly refusalMessage?: string;
+  readonly refusalCode?: string;
 }
 
 interface CsharpNativeArgumentRefusal {
@@ -82,8 +83,9 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
   const chosen = (runtime: readonly CsharpNativeChildUse[], flow: CsharpNativeOperandSelection["flow"] = "sequence",
     planning: readonly CsharpNativeOperandStep[] = plan(runtime), own = carrier): CsharpNativeOperandSelection =>
     Object.freeze({ runtime: Object.freeze([...runtime]), planning: Object.freeze([...planning]), flow, carrier: own });
-  const refused = (refusal: CsharpNativeOperandRefusal, refusalMessage?: string): CsharpNativeOperandSelection =>
-    Object.freeze({ ...chosen([]), refusal, ...(refusalMessage === undefined ? {} : { refusalMessage }) });
+  const refused = (refusal: CsharpNativeOperandRefusal, refusalMessage?: string, refusalCode?: string): CsharpNativeOperandSelection =>
+    Object.freeze({ ...chosen([]), refusal, ...(refusalMessage === undefined ? {} : { refusalMessage }),
+      ...(refusalCode === undefined ? {} : { refusalCode }) });
   const intrinsic = (expression: Node | undefined, operand: Extract<CsharpNativeUseSlot, { readonly kind: "intrinsic-operand" }>["operand"],
     target?: TargetTypeRef, index?: number) => use(expression, { kind: "intrinsic-operand", operand,
       ...(index === undefined ? {} : { index }) }, target);
@@ -171,7 +173,7 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     switch (call.form.kind) {
       case "type-test": return chosen(use(call.source?.sourceArguments[0]?.expression, { kind: "argument", sourceIndex: 0, effectiveIndex: 0 }));
       case "keep-alive": return chosen(use(call.form.sourceFlow.valueExpression, { kind: "argument", sourceIndex: 0, effectiveIndex: 0 }));
-      case "source-flow-rejected": return refused("operation-unresolved");
+      case "source-flow-rejected": return refused("operation-unresolved", call.form.sourceFlow.reason, call.form.sourceFlow.code);
       case "js-value": {
         if (call.form.operation.kind !== "resolved") return refused("operation-unresolved");
         const access = call.source?.sourceCalleeAccess;
@@ -338,8 +340,9 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     const template = tagged?.Template;
     const spans = template === undefined || !ast.is.IsTemplateExpression(template) ? []
       : ast.as.AsTemplateExpression(template)?.TemplateSpans?.Nodes ?? [];
-    return chosen([...use(tagged?.Tag, { kind: "callee" }), ...spans.flatMap((span, index) =>
-      span === undefined ? [] : use(ast.as.AsTemplateSpan(span)?.Expression, { kind: "span", index }))]);
+    return Object.freeze({ ...chosen([...use(tagged?.Tag, { kind: "callee" }), ...spans.flatMap((span, index) =>
+      span === undefined ? [] : use(ast.as.AsTemplateSpan(span)?.Expression, { kind: "span", index }))]),
+      refusal: "expression-form-unresolved", refusalMessage: "Expression is outside the current C# planning surface." });
   }
   if (ast.is.IsDeleteExpression(node)) {
     const expression = ast.as.AsDeleteExpression(node)?.Expression;

@@ -132,7 +132,7 @@ function nativeCreations(value, overrides = {}) {
     const result = records.returnContract.get(declaration);
     if (result?.kind !== "resolved") return undefined;
     const parameters = value.ast.parameters(declaration).map(parameter => {
-      const type = records.lambdaParameterType.get(parameter) ?? records.valueRead.get(parameter)?.value;
+      const type = records.lambdaParameterType.get(parameter);
       return type === undefined ? undefined : { sourceParameter: parameter, targetParameter: { type, passingMode: "by-value" } };
     });
     return parameters.some(parameter => parameter === undefined) ? undefined : {
@@ -153,6 +153,9 @@ for (const surface of ["native", "js"]) {
     const selected = actual.callableCreation.get(expression);
     assert.equal(selected?.kind === "selected", true, "the completed callable has one selected creation");
     assert.equal(actual.callableTarget.get(expression) === selected.carrier, true, "publication reads the canonical creation object");
+    const missingStorage = nativeCreations(value, { storage: { lambdaParameterType: { get: () => undefined } } });
+    assert.equal(missingStorage.callableCreation.get(expression)?.kind === "pending" && missingStorage.callableTarget.get(expression) === undefined,
+      true, "a callable contract cannot replace the exact parameter storage that native emission consumes");
     assert.equal(Object.isFrozen(selected) && Object.isFrozen(actual), true, "creation evidence is immutable");
     const unrelated = csharpDelegateTargetType("System.Func", [csharpSourcePrimitiveTargetType("float64")],
       csharpSourcePrimitiveTargetType("float64"));

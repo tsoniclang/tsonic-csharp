@@ -38,7 +38,7 @@ export type CsharpNativeRepresentationPending =
   | "construction-unresolved" | "operation-unresolved" | "forwarding-child-unresolved";
 
 export type CsharpNativeRepresentationSelection =
-  | { readonly kind: "pending"; readonly reason: CsharpNativeRepresentationPending }
+  | { readonly kind: "pending"; readonly reason: CsharpNativeRepresentationPending; readonly message?: string }
   | { readonly kind: "selected"; readonly representation: CsharpExpectedNativeUse["representation"];
       readonly carrier: TargetTypeRef; readonly children: readonly TargetUseSiteRef[];
       readonly literal?: CsharpExpectedNativeUse["literal"];
@@ -51,7 +51,8 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
   const selected = (representation: CsharpExpectedNativeUse["representation"], carrier: TargetTypeRef,
     children: readonly TargetUseSiteRef[] = none): CsharpNativeRepresentationSelection =>
     Object.freeze({ kind: "selected", representation, carrier, children: Object.freeze([...children]) });
-  const pending = (reason: CsharpNativeRepresentationPending): CsharpNativeRepresentationSelection => Object.freeze({ kind: "pending", reason });
+  const pending = (reason: CsharpNativeRepresentationPending, message?: string): CsharpNativeRepresentationSelection =>
+    Object.freeze({ kind: "pending", reason, ...(message === undefined ? {} : { message }) });
   const child = (node: Node | undefined, slot: CsharpNativeUseSlot, carrier: TargetTypeRef): TargetUseSiteRef | undefined => {
     if (node === undefined) return undefined;
     const site = csharpNativeUseSite(expression, slot, { target: carrier, mode: input.mode });
@@ -83,7 +84,7 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
   }
   if (!input.absent) {
     if (input.literal === undefined) return pending("literal-unrequested");
-    if (input.literal.kind === "rejected") return pending("literal-rejected");
+    if (input.literal.kind === "rejected") return pending("literal-rejected", input.literal.reason);
     if (input.literal.kind === "resolved") return Object.freeze({
       kind: "selected", representation: "construct", carrier: target, children: none, literal: input.literal.recipe,
     });
