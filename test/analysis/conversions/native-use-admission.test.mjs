@@ -54,7 +54,8 @@ for (const surface of ["native", "js"]) test(`${surface} real expected requests 
       assert.equal(use !== undefined && selected?.kind === "resolved" && use.carrier === selected.resultType, true, "actual selected physical carrier");
     }
   }
-  const binary = value.nodes.find(node => value.ast.is.IsBinaryExpression(node) && value.ast.text(value.ast.as.AsBinaryExpression(node).Left) === "left");
+  const binary = value.nodes.find(node => value.ast.is.IsBinaryExpression(node) &&
+    value.ast.is.IsIdentifier(value.ast.as.AsBinaryExpression(node).Left) && value.ast.text(value.ast.as.AsBinaryExpression(node).Left) === "left");
   const uses = admission.entries.filter(entry => entry.use.expression === binary);
   assert.equal(uses.length > 0 && uses.every(entry => entry.use.carrier.kind === "source-primitive" && entry.use.carrier.name === "int32"), true,
     "integer-operand division remains integer before its requested float conversion");
