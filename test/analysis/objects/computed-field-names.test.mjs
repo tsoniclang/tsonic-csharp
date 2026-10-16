@@ -31,6 +31,22 @@ const staticKeys = [
 ];
 
 for (const surface of [undefined, "js"]) {
+  test(`C# ${surface ?? "native"} rejects an effectful native struct key without dropping its evaluation`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import { field, struct } from "@tsonic/core/lang.js";
+function key(): "value" { return "value"; }
+export const Shape = struct({ [key()]: field<number>() });
+export type Shape = typeof Shape;
+export function accept(value: Shape): void {}
+` });
+    assertCsharpCheckingSucceeded(compiled);
+    const issues = compiled.targetDiagnostics.filter(issue => issue.code === "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN");
+    assert.equal(issues.length === 1 && issues[0].message.includes("effectful"), true,
+      "the actual native field refuses the shared effectful-key evidence once");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true, "the builder cannot erase a required key effect");
+    assert.equal(compiled.result.artifacts.length, 0, "no native field is invented from the call's singleton return type");
+  });
+
   test(`C# ${surface ?? "native"} erases checked symbolic type-family metadata without a native field obligation`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 declare const storage: unique symbol;

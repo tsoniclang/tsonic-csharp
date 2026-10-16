@@ -1,4 +1,6 @@
 import { classifyCsharpJsValueCallShape } from "./js-value-calls.js";
+import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { classifyCsharpSourceCallArguments } from "./source-call-arguments.js";
 import { classifyCsharpUnionCall } from "./union-calls.js";
 import { classifyCsharpSourceCallee } from "../../policy/types/callables/source-callees.js";
@@ -40,6 +42,7 @@ import type {
 } from "@tsonic/target-api/analysis";
 import {
   AsForInOrOfStatement,
+  sourceClassFieldIsTypeOnly,
 } from "@tsonic/target-api/source";
 import type {
   Node,
@@ -284,9 +287,33 @@ function visit(
     return;
   }
   const { ast } = policy;
+  if (sourceClassFieldIsTypeOnly(ast, node)) return;
   const issues = erasure.demandedInvocations.has(node) ? erasure.issues : scopeIssues;
   const erased = ast.is.IsExpressionStatement(node) && csharpErasedExpressionStatement(ast, node, erasure);
   if (erased) setClassification(builder, node, erasedStatementKey, true);
+  if (!erased && issues !== undefined) {
+    const members = ast.is.IsObjectLiteralExpression(node)
+      ? ast.as.AsObjectLiteralExpression(node)?.Properties?.Nodes ?? []
+      : ast.is.IsClassDeclaration(node) || ast.is.IsClassExpression(node) || ast.is.IsInterfaceDeclaration(node)
+        ? ast.members(node).filter(member => member !== undefined && !sourceClassFieldIsTypeOnly(ast, member)) : [];
+    const names = members.flatMap(member => {
+      const name = member === undefined ? undefined : ast.name(member);
+      return name === undefined ? [] : [name];
+    });
+    const argument = ast.is.IsElementAccessExpression(node) ? ast.as.AsElementAccessExpression(node)?.ArgumentExpression
+      : ast.is.IsBindingElement(node) ? ast.as.AsBindingElement(node)?.PropertyName : undefined;
+    if (argument !== undefined) names.push(argument);
+    for (const name of names) {
+      const selectedName = policy.semanticsFor(name).propertyNames.get(name);
+      if (selectedName === undefined && ast.is.IsComputedPropertyName(name)) {
+        failTargetAnalysisInvariant("tsonic-csharp", "A native computed field requires its completed checked property-name selection.", name);
+      }
+      if (selectedName !== undefined) {
+        const issue = csharpNativePropertyNameIssue(name, selectedName);
+        if (issue !== undefined) issues.push(Object.freeze({ node: name, code: issue.code, message: issue.message }));
+      }
+    }
+  }
   if (ast.is.IsAwaitExpression(node)) {
     const expression = ast.as.AsAwaitExpression(node)?.Expression;
     const completion = selectCsharpAwaitCompletion(

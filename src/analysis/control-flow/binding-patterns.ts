@@ -1,4 +1,5 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
+import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import {
@@ -253,20 +254,24 @@ export function analyzeCsharpBindingPatterns(
     issue(pattern, "Object destructuring requires an exact source-owned declaration or target object-shape policy.");
   }
 
-  function objectShapePropertyName(elementNode: Node): { readonly node: Node; readonly sourceName?: string } | undefined {
+  function objectShapePropertyName(elementNode: Node): { readonly node: Node; readonly sourceName?: string; readonly reason?: string } | undefined {
     const element = AsBindingElement(ast, elementNode);
     const propertyName = element?.PropertyName ?? element?.name;
     if (propertyName === undefined) return undefined;
-    return { node: propertyName, sourceName: bindingPropertySourceName(propertyName) };
+    return { node: propertyName, ...bindingPropertySourceName(propertyName) };
   }
 
-  function bindingPropertySourceName(propertyName: Node): string | undefined {
+  function bindingPropertySourceName(propertyName: Node): { readonly sourceName?: string; readonly reason?: string } {
     if (ast.is.IsComputedPropertyName(propertyName) || ast.is.IsNumericLiteral(propertyName)) {
       const selected = input.semanticsFor(propertyName).propertyNames.get(propertyName);
-      return selected?.kind === "resolved" ? selected.name : undefined;
+      if (selected === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+        "A native binding property requires its completed checked property-name selection.", propertyName);
+      if (selected.kind === "resolved") return { sourceName: selected.name };
+      const issue = csharpNativePropertyNameIssue(propertyName, selected);
+      return issue === undefined ? {} : { reason: issue.message };
     }
     return HasSourceKind(ast, propertyName, KindIdentifier) || HasSourceKind(ast, propertyName, KindStringLiteral)
-      ? Node_Text(ast, propertyName) : undefined;
+      ? { sourceName: Node_Text(ast, propertyName) } : {};
   }
 
   function analyzeObjectShapePattern(pattern: Node, shape: CsharpObjectShapeFact, sourceFile: SourceFile): void {
@@ -291,6 +296,10 @@ export function analyzeCsharpBindingPatterns(
       if (name === undefined) continue;
       const property = objectShapePropertyName(elementNode);
       if (property?.sourceName === undefined) {
+        if (property?.reason !== undefined) {
+          issue(property.node, property.reason);
+          continue;
+        }
         if (property !== undefined) issue(property.node, "Object destructuring from object-shape facts supports only identifier or string-literal property names.");
         issue(elementNode, "Object destructuring property must match a finalized provider object-shape member.");
         continue;
@@ -353,7 +362,12 @@ export function analyzeCsharpBindingPatterns(
       if (name === undefined) continue;
       const propertyName = element.PropertyName ?? name;
       const identifier = HasSourceKind(ast, propertyName, KindIdentifier);
-      const sourceName = bindingPropertySourceName(propertyName);
+      const property = bindingPropertySourceName(propertyName);
+      if (property.reason !== undefined) {
+        issue(propertyName, property.reason);
+        continue;
+      }
+      const sourceName = property.sourceName;
       const selected = selectCsharpBindingPatternProjection({ kind: "source-owned-member", sourceName, stringLiteral: !identifier,
         rest: element.DotDotDotToken !== undefined, hasDefault: element.Initializer !== undefined });
       if (selected.kind !== "element") {
@@ -458,6 +472,10 @@ export function analyzeCsharpBindingPatterns(
       }
       const property = assignmentPropertyName(element);
       if (property?.sourceName === undefined) {
+        if (property?.reason !== undefined) {
+          issue(property.node, property.reason);
+          continue;
+        }
         if (property !== undefined) issue(property.node, "Object destructuring assignment from object-shape facts supports only identifier or string-literal property names.");
         issue(element.sourceNode, "Object destructuring assignment property must match a finalized provider object-shape member.");
         continue;
@@ -483,10 +501,10 @@ export function analyzeCsharpBindingPatterns(
 
   function assignmentPropertyName(
     element: Extract<CsharpDestructuringAssignmentObjectElement, { readonly kind: "object-property" }>,
-  ): { readonly node: Node; readonly sourceName?: string } | undefined {
+  ): { readonly node: Node; readonly sourceName?: string; readonly reason?: string } | undefined {
     const propertyName = element.propertyName ?? (element.target.kind === "node" ? element.target.node : undefined);
     if (propertyName === undefined) return undefined;
-    return { node: propertyName, sourceName: bindingPropertySourceName(propertyName) };
+    return { node: propertyName, ...bindingPropertySourceName(propertyName) };
   }
 
   function analyzeObjectAssignmentRest(

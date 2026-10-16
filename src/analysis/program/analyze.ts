@@ -118,7 +118,6 @@ import { analyzeCsharpPromiseResults } from "../callables/promise-results.js";
 import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/project/binary-execution-drivers.js";
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
-import { analyzeCsharpComputedFieldNames } from "../objects/computed-field-names.js";
 import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
 import { finalizeCsharpStructuralInterfaceForwarding } from "../objects/structural-forwarding.js";
 
@@ -143,8 +142,6 @@ export function analyzeCsharpTargetProgram(
   }
   const source = input.source;
   if (source.semantics.enumConstants.issues.length !== 0) return rejectedTargetStage(source.semantics.enumConstants.issues);
-  const computedFieldIssues = analyzeCsharpComputedFieldNames(source);
-  if (computedFieldIssues.length !== 0) return rejectedTargetStage(computedFieldIssues);
   const nativeControlIssues = analyzeCsharpNativeControlFlow(source);
   if (nativeControlIssues.length !== 0) return rejectedTargetStage(nativeControlIssues);
   const memoryBindings = createTsonicMemoryBindingIndex(source);
@@ -478,8 +475,12 @@ function analyzeIteration(
     typeSystem.analysisTypes,
     policy,
   );
+  if (evidence.nativePropertyNameIssues.length !== 0) return rejectedTargetStage(evidence.nativePropertyNameIssues);
   const sourceEvidence = evidence.index;
   const operations = analyzeCsharpTargetOperations(policy, sourceEvidence, statementErasure, sourceStorage.nodes, requiredRecords);
+  const nativePropertyNameIssues = operations.issues.filter(issue =>
+    issue.code === "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN" || issue.code === "CSHARP_ENUM_CONSTANT_RESOURCE_LIMIT");
+  if (nativePropertyNameIssues.length !== 0) return rejectCsharpAnalysisIssues(nativePropertyNameIssues);
   const valueReadStages = analyzeCsharpValueReadStages(policy, sourceEvidence, operations);
   const typeProjections = analyzeCsharpTypeProjections(input.source, sourceEvidence, operations);
   const declarations = analyzeCsharpDeclarations(

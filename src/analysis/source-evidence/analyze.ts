@@ -14,6 +14,10 @@ import {
 import type {
   TargetSourceProgram,
 } from "@tsonic/target-api/source";
+import { sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
 import type {
   CsharpTypePolicy,
 } from "../../policy/types/index.js";
@@ -72,6 +76,8 @@ export function analyzeCsharpSourceEvidence(
   const compileTimeMetadata = new WeakSet<Node>(typeOnlyDeclarations.declarations);
   const memoryMetadataIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
   const fixedArrayIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
+  const nativePropertyNameIssues: TargetDiagnostic[] = [];
+  const requiredPropertyNames = new WeakSet<Node>();
   const rejectedFixedArrayTypes = new Set<Type>();
   const expressionTypes = new WeakMap<Node, Cached<Type>>();
   const nodeTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
@@ -232,6 +238,31 @@ export function analyzeCsharpSourceEvidence(
     if (!typeOnly) {
       const authoredType = source.ast.is.IsTypeReferenceNode(node) ? node : source.ast.typeNode(node);
       recordFixedArrayIssues(node, [node, ...(authoredType === undefined ? [] : semantics.facts.authoredTypeSubjects(authoredType))]);
+      const requiredType = authoredType === undefined ? undefined : semantics.types.authoredType(authoredType);
+      if (requiredType !== undefined) {
+        for (const property of semantics.types.propertyInfos(requiredType)) {
+          for (const symbol of new Set([property.symbol, ...property.rootSymbols])) {
+            for (const member of semantics.declarations.symbolDeclarations(symbol)) {
+              if (!source.navigation.isProjectDeclaration(member) || sourceClassFieldIsTypeOnly(source.ast, member)) continue;
+              let owner: Node | undefined = member;
+              while (owner !== undefined && !compileTimeMetadata.has(owner)) owner = source.ast.parent(owner);
+              if (owner !== undefined) continue;
+              const name = source.ast.name(member);
+              if (name === undefined || requiredPropertyNames.has(name)) continue;
+              requiredPropertyNames.add(name);
+              const selectedName = source.semantics.forNode(member).propertyNames.get(name);
+              if (selectedName === undefined) {
+                if (source.ast.is.IsComputedPropertyName(name)) failTargetAnalysisInvariant("tsonic-csharp",
+                  "A native computed field requires its completed checked property-name selection.", name);
+                continue;
+              }
+              const issue = csharpNativePropertyNameIssue(name, selectedName);
+              if (issue !== undefined) nativePropertyNameIssues.push(issue);
+            }
+          }
+        }
+        if (nativePropertyNameIssues.length !== 0) return;
+      }
     }
     arguments_.set(
       node,
@@ -565,7 +596,7 @@ export function analyzeCsharpSourceEvidence(
       return sourceOwnedProjectShapes.get(node);
     } }),
   };
-  return Object.freeze({ index: Object.freeze(index), inspectClosedArrayStorage: arrayStorage.resolve });
+  return Object.freeze({ index: Object.freeze(index), nativePropertyNameIssues: Object.freeze(nativePropertyNameIssues), inspectClosedArrayStorage: arrayStorage.resolve });
 }
 
 function isCsharpFlowReadEvidenceNode(
