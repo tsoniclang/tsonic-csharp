@@ -119,6 +119,7 @@ import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/proje
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
 import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
+import { finalizeCsharpStructuralInterfaceForwarding } from "../objects/structural-forwarding.js";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -263,11 +264,15 @@ export function analyzeCsharpTargetProgram(
     }]);
   }
   const callableAdapters = analyzeCsharpProjectCallableAdapters(analysis.policy, analysis.callables);
+  const structuralForwarding = finalizeCsharpStructuralInterfaceForwarding(
+    analysis.policy, analysis.objectShapes, callableAdapters, analysis.declarations,
+  );
   const nativeValueCarriers = analyzeCsharpNativeValueCarriers(
-    source.ast, sourceStorage.nodes, analysis.sourceEvidence, analysis.valueReads, analysis.objectShapes,
+    source.ast, sourceStorage.nodes, analysis.sourceEvidence, analysis.valueReads, analysis.objectShapes, analysis.requiredRecords,
   );
   const analysisIssues = [
     ...nativeValueCarriers.issues,
+    ...structuralForwarding.issues,
     ...callableAdapters.issues,
     ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
     ...analysis.sourceEvidence.memoryMetadataIssues,
@@ -388,7 +393,7 @@ export function analyzeCsharpTargetProgram(
       sourceStorage.nodes,
       analysis.objectShapes,
     ),
-    objectShapes: analysis.objectShapes,
+    objectShapes: structuralForwarding.objectShapes,
     names: names.seal(),
     sourceModuleConstructions: Object.freeze({
       entries: sourceModuleConstructions.index.entries,

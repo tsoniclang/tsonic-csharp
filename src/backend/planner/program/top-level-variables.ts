@@ -59,7 +59,8 @@ export function planTopLevelVariableStatement(
     if (input.program.records.compileTimeMetadata.get(declaration)) continue;
     const valueType = input.program.records.sourceStruct.get(declaration);
     if (valueType !== undefined) {
-      appendTypeDeclaration(declaration, planValueTypeDeclaration(declaration, sourceFile, input, diagnostics));
+      const planned = planValueTypeDeclaration(declaration, sourceFile, input, diagnostics);
+      if (planned !== undefined) appendTypeDeclaration(declaration, planned);
       continue;
     }
     const variable = AsVariableDeclaration(input.program.source.ast, declaration)!;

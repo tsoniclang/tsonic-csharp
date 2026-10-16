@@ -28,6 +28,14 @@ export function make(): Closed { return { value: 5, tag: "t" }; }`, /required in
 interface Closed extends Box<int32> { tag: string; }
 export function read(value: Closed): int32 { return value.read(); }
 export function make(): Closed { return { read() { return 5; }, tag: "t" }; }`, /\bint read\(/u],
+  ["native method parameter", `interface Box<T> { write(value: T): T; }
+interface Closed extends Box<int32> { tag: string; }
+export function read(value: Closed, input: int32): int32 { return value.write(input); }
+export function make(): Closed { return { write(value: int32): int32 { return value; }, tag: "t" }; }`, /\bint write\(int\b/u],
+  ["nested array property", `interface Box<T> { values: T[]; }
+interface Closed extends Box<int32> { tag: string; }
+export function read(value: Closed): int32 { return value.values[0]; }
+export function make(): Closed { return { values: [5], tag: "t" }; }`, /\bint\[\] values\b/u],
   ["optional native property", `interface Box<T> { value?: T; }
 interface Closed extends Box<int32> { tag: string; }
 export function read(value: Closed): int32 { return value.value ?? 5; }

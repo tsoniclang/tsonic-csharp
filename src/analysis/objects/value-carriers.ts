@@ -13,6 +13,7 @@ import type {
   CsharpObjectMethodSources,
 } from "../../target-model/records/native-value-carriers.js";
 import type { CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 
 export function analyzeCsharpNativeValueCarriers(
   ast: AstReader,
@@ -20,6 +21,7 @@ export function analyzeCsharpNativeValueCarriers(
   evidence: CsharpSourceEvidenceIndex,
   values: CsharpValueReadClassifications,
   shapes: CsharpObjectShapeClassifications,
+  requiredRecords: CsharpRequiredRecord[],
 ): CsharpNativeValueCarriers {
   const declarations = new WeakMap<Node, CsharpNativeValueDeclaration>();
   const issues: CsharpProjectTypeIssue[] = [];
@@ -30,6 +32,8 @@ export function analyzeCsharpNativeValueCarriers(
     if (!ast.is.IsVariableDeclaration(node)) continue;
     const source = evidence.sourceStruct.get(node);
     if (source === undefined) continue;
+    requireCsharpRecord(requiredRecords, { family: "nativeValueDeclaration", subject: node,
+      construct: "native value declaration", producer: "analyzeCsharpNativeValueCarriers" });
     if (!source.valueType) {
       refuse(node, "Struct declaration emission requires a finalized value-type struct fact.");
       continue;

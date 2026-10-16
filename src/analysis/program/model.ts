@@ -26,6 +26,7 @@ import type {
 } from "../project/index.js";
 import type { CsharpSourceModuleConstructionIndex } from "../../target-model/records/source-modules.js";
 import type { CsharpModuleInitializationIndex } from "../../target-model/records/module-initialization.js";
+import type { CsharpFinalStructuralInterfaceImplementation } from "../../target-model/records/heritage.js";
 
 export interface CsharpTargetAnalysisRequest {
   readonly input: TargetCompileInput;
@@ -52,7 +53,7 @@ export interface CsharpTargetProgram {
   readonly sourceNavigation: TargetPlanningSourceNavigation;
   readonly sourceFiles: readonly SourceFile[];
   readonly projectTypes: CsharpProjectTypeClassifications;
-  readonly objectShapes: CsharpObjectShapeClassifications;
+  readonly objectShapes: CsharpObjectShapeClassifications<CsharpFinalStructuralInterfaceImplementation>;
   readonly names: CsharpNamePlan;
   readonly sourceModuleConstructions: Omit<CsharpSourceModuleConstructionIndex, "sourceModuleConstruction">;
   readonly moduleInitialization: Pick<CsharpModuleInitializationIndex, "entrypointInitializer">;

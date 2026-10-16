@@ -21,36 +21,43 @@ export function planValueTypeDeclaration(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-): CsharpStructDeclaration {
+): CsharpStructDeclaration | undefined {
   const declaration = AsVariableDeclaration(input.program.source.ast, declarationNode)!;
   const selected = input.program.records.nativeValueDeclaration.get(declarationNode);
   if (selected === undefined) return failCsharpPlannerInvariant(
     "A value-type declaration requires its admitted native fields and storage carriers.", declarationNode);
+  const members: CsharpTypeMember[] = [];
+  for (const field of selected.fields) {
+    const type = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(
+      input, field.carrier, diagnostics, field.source.sourceType,
+    );
+    if (type === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(field.source.sourceType,
+        `Value-type field '${field.source.sourceName}' has no renderable selected native carrier.`));
+      return undefined;
+    }
+    if (field.bound !== undefined) {
+      const rendered = renderBoundRecordMember(input.scope.typeParameterNames, field.bound.owner, field.bound.member, type);
+      if (rendered.some(candidate => candidate === undefined)) {
+        diagnostics.push(unsupportedNodeDiagnostic(declarationNode, "The bound value-type member has no renderable storage contract."));
+        return undefined;
+      }
+      members.push(...rendered as readonly CsharpTypeMember[]);
+      continue;
+    }
+    members.push({
+      kind: "FieldDeclaration",
+      name: field.source.sourceName,
+      modifiers: field.source.readonly ? ["public", "readonly"] : ["public"],
+      type,
+    });
+  }
   return {
     kind: "StructDeclaration",
     name: planIdentifierName(declaration.name, "AnonymousValueType", input, diagnostics, "Value type name"),
     modifiers: ["public"],
     attributes: planAttributesForSubject(declarationNode, sourceFile, input, diagnostics),
-    members: selected.fields.flatMap((field): readonly CsharpTypeMember[] => {
-      const type = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(
-        input, field.carrier, diagnostics, field.source.sourceType,
-      );
-      if (type === undefined) return [];
-      if (field.bound !== undefined) {
-        const rendered = renderBoundRecordMember(input.scope.typeParameterNames, field.bound.owner, field.bound.member, type);
-        if (rendered.some(candidate => candidate === undefined)) {
-          diagnostics.push(unsupportedNodeDiagnostic(declarationNode, "The bound value-type member has no renderable storage contract."));
-          return [];
-        }
-        return rendered as readonly CsharpTypeMember[];
-      }
-      return [{
-      kind: "FieldDeclaration",
-      name: field.source.sourceName,
-      modifiers: field.source.readonly ? ["public", "readonly"] : ["public"],
-      type,
-    }];
-    }),
+    members,
   };
 }
 

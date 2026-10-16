@@ -9,7 +9,7 @@ export interface CsharpRequiredRecordOrigin {
 }
 
 export interface CsharpRequiredNodeRecord extends CsharpRequiredRecordOrigin {
-  readonly family: "classFactory" | "requiredStorageType" | "nativeParticipation" | "nativeHandler";
+  readonly family: "classFactory" | "requiredStorageType" | "nativeParticipation" | "nativeHandler" | "nativeValueDeclaration";
 }
 
 export type CsharpRequiredRecord = CsharpRequiredNodeRecord;
@@ -44,5 +44,7 @@ function csharpRequiredRecordPublished(records: CsharpProgramRecords, requiremen
       return records.nativeParticipation.get(requirement.subject) !== undefined;
     case "nativeHandler":
       return records.nativeHandler.get(requirement.subject) !== undefined;
+    case "nativeValueDeclaration":
+      return records.nativeValueDeclaration.get(requirement.subject) !== undefined;
   }
 }
