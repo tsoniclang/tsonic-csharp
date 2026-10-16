@@ -48,14 +48,14 @@ export const jsCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTypeRe
     id: "src/target-model/types/carriers/js.ts#csharpJsPromiseFulfilledResultTargetType",
     kinds: ["target-named"],
     declaration: { module: "src/target-model/types/carriers/js.ts", symbol: "csharpJsPromiseFulfilledResultTargetType" },
-    counterpart: { module: "src/target-model/types/carriers/js.ts", symbol: "rustJsPromiseFulfilledResultTargetType" },
+    counterpart: { module: "src/target-model/types/carriers/promises.ts", symbol: "rustJsPromiseFulfilledResultTargetType" },
     frozen: false,
   },
   {
     id: "src/target-model/types/carriers/js.ts#csharpJsPromiseRejectedResultTargetType",
     kinds: ["target-named"],
     declaration: { module: "src/target-model/types/carriers/js.ts", symbol: "csharpJsPromiseRejectedResultTargetType" },
-    counterpart: { module: "src/target-model/types/carriers/js.ts", symbol: "rustJsPromiseRejectedResultTargetType" },
+    counterpart: { module: "src/target-model/types/carriers/promises.ts", symbol: "rustJsPromiseRejectedResultTargetType" },
     frozen: false,
   },
   {
