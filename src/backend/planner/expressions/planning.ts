@@ -145,7 +145,7 @@ export function planExpression(
 function planCsharpPromiseObservation(selection: CsharpPromiseDiscard, expression: CsharpExpression): readonly CsharpStatement[] {
   if (selection.kind === "task") return [{ kind: "ExpressionStatement", expression: {
     kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
-      receiver: qualifiedCsharpType("Tsonic", "CSharp", "Js", "PromiseRuntime"), name: "ObserveDiscarded" },
+      receiver: qualifiedCsharpType("Tsonic.CSharp.Js", "PromiseRuntime"), name: "ObserveDiscarded" },
     arguments: [{ kind: "Argument", expression }],
   } }];
   if (selection.kind === "optional") return [{ kind: "IfStatement", condition: { kind: "BinaryExpression",
