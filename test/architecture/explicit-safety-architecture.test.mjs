@@ -7,9 +7,14 @@ test("explicit safety reaches the planner through target-owned policy only", () 
   const nativePointers = product(
     "src/backend/planner/expressions/expression-native-pointers.ts",
   );
+  const planning = product("src/backend/planner/expressions/planning.ts");
 
   assert.match(explicitSafety, /input\.program\.records\.safetyApplication\.get/u);
-  assert.match(nativePointers, /input\.program\.records\.nativePointer\.get/u);
+  assert.equal([...planning.matchAll(/input\.program\.records\.nativeHandler\.get\(node\)/gu)].length === 1, true,
+    "the expression root reads one admitted native handler");
+  assert.match(planning, /case "native-pointer":[\s\S]*?planCsharpNativePointerOperation\(\s*node,\s*nativeHandler\.selection/u);
+  assert.match(nativePointers, /selection: Extract<CsharpNativeHandler, \{ readonly kind: "native-pointer" \}>\["selection"\]/u);
+  assert.doesNotMatch(nativePointers, /input\.program\.records\.(?:memoryBinding|nativePointer|typedLocation|jsStringConversion)\.get/u);
   assert.doesNotMatch(nativePointers, /selectCsharpNativePointerOperation/u);
   assert.doesNotMatch(
     `${explicitSafety}\n${nativePointers}`,

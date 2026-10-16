@@ -13,6 +13,8 @@ const paths = Object.freeze({
   classFactories: "src/analysis/project-types/class-factories.ts",
   storage: "src/analysis/storage/analyze.ts",
   participation: "src/analysis/callables/participation.ts",
+  operations: "src/analysis/operations/analyze.ts",
+  nativeHandlers: "src/analysis/operations/native-handlers.ts",
 });
 const checked = createCompilerSessionFromFiles({
   currentDirectory: "/csharp",
@@ -111,17 +113,39 @@ test("the requirement list is declared once, as the first statement of analyzeIt
     "first statement: a fresh empty const CsharpRequiredRecord[] list");
 });
 
-test("analyzeIteration passes its list to storage and returns it as iteration state", () => {
+test("analyzeIteration passes its list to storage and operations and returns it as iteration state", () => {
   const storage = composedCall("analyzeCsharpStorage", iteration, "storage");
   const storageArguments = ast.arguments(storage);
   assert.equal(text(storageArguments.at(-1)) === "requiredRecords" && ast.is.IsIdentifier(storageArguments.at(-1)), true,
     "storage: the list is the last argument of analyzeCsharpStorage");
+  const operations = composedCall("analyzeCsharpTargetOperations", iteration, "operations");
+  const operationsList = ast.arguments(operations).at(-1);
+  assert.equal(ast.is.IsIdentifier(operationsList) && text(operationsList) === "requiredRecords", true,
+    "operations: the same list is the last argument of analyzeCsharpTargetOperations");
   const returned = ast.statements(ast.body(iteration)).at(-1);
   const shorthand = descendants(returned).filter(node => ast.is.IsShorthandPropertyAssignment(node) && named(node, "requiredRecords"));
   assert.equal(ast.is.IsReturnStatement(returned) && shorthand.length === 1, true,
     "iteration state: the final return carries the list as requiredRecords");
-  assert.equal(identifiers(iteration, "requiredRecords").length === 3, true,
-    "iteration state: the list is only declared, passed to storage and returned");
+  assert.equal(identifiers(iteration, "requiredRecords").length === 4, true,
+    "iteration state: the list is only declared, passed to storage and operations, and returned");
+});
+
+test("native handler finalization receives the operations producer's mandatory list before sealing", () => {
+  const operations = functionNamed(paths.operations, "analyzeCsharpTargetOperations");
+  const parameter = ast.parameters(operations).at(-1);
+  assert.equal(named(parameter, "requirements") && ast.as.AsParameterDeclaration(parameter).QuestionToken === undefined &&
+    ast.as.AsParameterDeclaration(parameter).Initializer === undefined &&
+    text(ast.as.AsParameterDeclaration(parameter).Type) === "CsharpRequiredRecord[]", true,
+    "operations: a mandatory requirements parameter");
+  const finalizers = callsTo(operations, "analyzeCsharpNativeHandlers");
+  const seals = callsTo(operations, "builder.seal");
+  assert.equal(finalizers.length === 1 && seals.length === 1, true,
+    "operations: exactly one native handler finalizer and one classification seal");
+  const forwarded = ast.arguments(finalizers[0]).at(-1);
+  assert.equal(ast.is.IsIdentifier(forwarded) && text(forwarded) === "requirements", true,
+    "native handler finalization receives the operations producer's same list");
+  assert.equal(position(finalizers[0]) < position(seals[0]), true,
+    "native handler registration finishes before operations classifications seal");
 });
 
 test("the fixed-point attempt returns only its representation contract", () => {
@@ -224,6 +248,8 @@ for (const [label, path, producer, list, family, guard, publications] of [
     "contract !== undefined", ["contract.lambdaParameterType"]],
   ["participation", paths.participation, "analyzeCsharpNativeParticipation", "input.requiredRecords", "nativeParticipation",
     "selected === undefined", ["participation.set"]],
+  ["native handlers", paths.nativeHandlers, "analyzeCsharpNativeHandlers", "requirements", "nativeHandler",
+    "selected === undefined", ["builder.set"]],
 ]) {
   test(`${label}: one registration into the producer's own list precedes its publication under the same conditions`, () => {
     const owner = functionNamed(path, producer);
@@ -268,32 +294,39 @@ test("storage and class factories take the list as a mandatory parameter and par
     named(ast.parent(node), "CsharpNativeParticipationAnalysisInput"));
   assert.equal(member.length === 1 && ast.questionToken(member[0]) === undefined && text(ast.typeNode(member[0])) === "CsharpRequiredRecord[]",
     true, "participation input: a mandatory CsharpRequiredRecord[] list");
+  const last = ast.parameters(functionNamed(paths.nativeHandlers, "analyzeCsharpNativeHandlers")).at(-1);
+  assert.equal(named(last, "requirements") && ast.as.AsParameterDeclaration(last).QuestionToken === undefined &&
+    ast.as.AsParameterDeclaration(last).Initializer === undefined && text(ast.as.AsParameterDeclaration(last).Type) === "CsharpRequiredRecord[]", true,
+    "native handler input: a mandatory CsharpRequiredRecord[] list");
 });
 
-test("requirement state stays inside analysis, in exactly six files", () => {
+test("requirement state stays inside analysis, in exactly eight files", () => {
   const users = sourceFiles(sourceRoot)
     .filter(path => /requiredRecords|CsharpRequiredRecord|requireCsharpRecord|assertCsharpRequiredRecords/u.test(readFileSync(path, "utf8")))
     .map(path => path.slice(repositoryRoot.length + 1)).sort();
   assert.equal(users.join() === [
     paths.participation,
+    paths.operations,
+    paths.nativeHandlers,
     paths.analyze,
     paths.create,
     "src/analysis/program/records/required-records.ts",
     paths.classFactories,
     paths.storage,
-  ].join(), true, `requirement users: exactly the six analysis files, found ${users.join(", ")}`);
+  ].join(), true, `requirement users: exactly the eight analysis files, found ${users.join(", ")}`);
 });
 
 test("each seal name and producer is mentioned only by its owner and the composition", () => {
   const requiredRecordsModule = "src/analysis/program/records/required-records.ts";
   const inventory = [
     ["requiredRecords", [paths.participation, paths.analyze, paths.classFactories, paths.storage]],
-    ["CsharpRequiredRecord", [paths.participation, paths.analyze, paths.create, requiredRecordsModule, paths.classFactories, paths.storage]],
-    ["requireCsharpRecord", [paths.participation, requiredRecordsModule, paths.classFactories, paths.storage]],
+    ["CsharpRequiredRecord", [paths.participation, paths.operations, paths.nativeHandlers, paths.analyze, paths.create, requiredRecordsModule, paths.classFactories, paths.storage]],
+    ["requireCsharpRecord", [paths.participation, paths.nativeHandlers, requiredRecordsModule, paths.classFactories, paths.storage]],
     ["assertCsharpRequiredRecords", [paths.create, requiredRecordsModule]],
     ["createCsharpProgramRecords", [paths.analyze, paths.create]],
     ["analyzeCsharpClassFactories", [paths.analyze, paths.classFactories]],
     ["analyzeCsharpNativeParticipation", [paths.participation, paths.analyze]],
+    ["analyzeCsharpNativeHandlers", [paths.operations, paths.nativeHandlers]],
     ["analyzeCsharpStorage", [paths.analyze, paths.storage, "src/analysis/storage/index.ts"]],
   ];
   const files = sourceFiles(sourceRoot).map(path => [path.slice(repositoryRoot.length + 1), readFileSync(path, "utf8")]);

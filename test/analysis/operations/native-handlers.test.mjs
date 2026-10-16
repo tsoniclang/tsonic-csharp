@@ -66,24 +66,25 @@ test("the native finalizer writes the finite domain once and registers obligatio
   const nativeHandler = analyzeCsharpNativeHandlers(nodes, { memoryBinding: reader(0), safetyOperation: reader(1),
     jsStringConversion: reader(2), nativePointer: reader(3), typedLocation: reader(4) }, requirements);
   const kinds = ["memory-binding", "explicit-safety", "js-string-conversion", "native-pointer", "typed-location"];
-  assert.equal(counts.size, nodes.length * kinds.length);
+  assert.equal(counts.size === nodes.length * kinds.length, true, "every candidate is read for every exact node");
   assert.equal([...counts.values()].every(count => count === 1), true, "every input is read exactly once per node");
-  assert.equal(requirements.length, 5);
+  assert.equal(requirements.length === 5, true, "all five selected roots register independent requirements");
   for (const [index, kind] of kinds.entries()) {
     const selected = nativeHandler.get(nodes[index]);
-    assert.equal(selected.kind, kind);
+    assert.equal(selected.kind === kind, true, `the selected ${kind} root is retained`);
     assert.equal(selected.selection === payloads[index], true, kind);
     assert.equal(Object.isFrozen(selected), true, kind);
     assert.equal(nativeHandler.get(nodes[index]) === selected, true, kind);
-    assert.equal(requirements[index].subject === nodes[index] && requirements[index].family === "nativeHandler", true);
+    assert.equal(requirements[index].subject === nodes[index] && requirements[index].family === "nativeHandler", true,
+      `${kind}: the exact subject is required in the canonical family`);
   }
   assert.equal(nativeHandler.get(nodes[5]) === undefined, true, "ordinary expressions are unclaimed");
   assert.equal([...counts.values()].every(count => count === 1), true, "sealed reads perform no selection");
   const omitted = { nativeHandler: { get: () => undefined } };
   assert.throws(() => assertCsharpRequiredRecords(omitted, requirements), error =>
     error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" && error.diagnostic?.sourceNode === nodes[0] &&
-    /nativeHandler/u.test(error.diagnostic.message));
-  assert.doesNotThrow(() => assertCsharpRequiredRecords({ nativeHandler }, requirements));
+    /nativeHandler/u.test(error.diagnostic.message), "a missing selected handler fails at its exact required source node");
+  assert.doesNotThrow(() => assertCsharpRequiredRecords({ nativeHandler }, requirements), "the complete selected reader satisfies every requirement");
 });
 
 test("an exact JS-string marker publishes its identity completion and leaves same-spelled local functions ordinary", () => {
@@ -98,6 +99,8 @@ test("an exact JS-string marker publishes its identity completion and leaves sam
   assert.equal(compiled.result.diagnostics.length === 0, true,
     compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
   const handlers = handlersByCallee(compiled.result.program);
-  assert.equal(handlers.some(([callee, kind]) => callee === "exactJsString" && kind === "js-string-conversion"), true);
-  assert.equal(handlers.some(([callee, kind]) => callee === "jsstr" && kind === "none"), true);
+  assert.equal(handlers.some(([callee, kind]) => callee === "exactJsString" && kind === "js-string-conversion"), true,
+    "the aliased exact JS-string marker has the selected native handler");
+  assert.equal(handlers.some(([callee, kind]) => callee === "jsstr" && kind === "none"), true,
+    "the same-spelled local jsstr remains an ordinary call");
 });
