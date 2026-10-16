@@ -15,41 +15,41 @@ const shape = members => Object.freeze({ targetType: integer, members: Object.fr
 test("final array and tuple projections retain their exact carriers and default disposition", () => {
   const arraySource = selectCsharpBindingPatternProjection({ kind: "array-source", carrier: array });
   const tupleSource = selectCsharpBindingPatternProjection({ kind: "array-source", carrier: tuple });
-  assert.equal(arraySource.kind === "source" && arraySource.source.sourceCarrier === array, true);
-  assert.equal(tupleSource.kind === "source" && tupleSource.source.bindingCarrier === tuple, true);
+  assert.equal(arraySource.kind === "source" && arraySource.source.sourceCarrier === array, true, "binding-pattern-projections:18: arraySource.kind === \"source\" && arraySource.source.sourceCarrier === array");
+  assert.equal(tupleSource.kind === "source" && tupleSource.source.bindingCarrier === tuple, true, "binding-pattern-projections:19: tupleSource.kind === \"source\" && tupleSource.source.bindingCarrier === tuple");
   const unused = selectCsharpBindingPatternProjection({ kind: "array-element", carrier: tuple, index: 0, rest: false, hasDefault: true });
   const planned = selectCsharpBindingPatternProjection({ kind: "array-element", carrier: tuple, index: 1, rest: false, hasDefault: true });
   assert.equal(unused.kind === "element" && unused.element.kind === "array-element" && unused.element.elementCarrier === integer &&
     unused.element.tupleDefault.kind === "unused", true, "present tuple element does not execute its default");
   assert.equal(planned.kind === "element" && planned.element.tupleDefault.kind === "planned" &&
     planned.element.tupleDefault.carrier === integer, true, "optional tuple default uses the present carrier");
-  assert.equal(Object.isFrozen(planned) && Object.isFrozen(planned.element) && Object.isFrozen(planned.element.tupleDefault), true);
+  assert.equal(Object.isFrozen(planned) && Object.isFrozen(planned.element) && Object.isFrozen(planned.element.tupleDefault), true, "binding-pattern-projections:26: Object.isFrozen(planned) && Object.isFrozen(planned.element) && Object.isFrozen(planned.el");
   const tupleRest = selectCsharpBindingPatternProjection({ kind: "array-element", carrier: tuple, index: 1, rest: true, hasDefault: false });
   assert.equal(tupleRest.kind === "element" && tupleRest.element.kind === "tuple-rest" &&
-    tupleRest.element.restCarrier.elements.length === 1 && tupleRest.element.restCarrier.elements[0] === tuple.elements[1], true);
+    tupleRest.element.restCarrier.elements.length === 1 && tupleRest.element.restCarrier.elements[0] === tuple.elements[1], true, "binding-pattern-projections:29: tupleRest.kind === \"element\" && tupleRest.element.kind === \"tuple-rest\" && tupleRest.eleme");
   const arrayRest = selectCsharpBindingPatternProjection({ kind: "array-element", carrier: arraySource.source.bindingCarrier,
     index: 1, rest: true, hasDefault: false });
-  assert.equal(arrayRest.kind === "element" && arrayRest.element.kind === "array-rest" && arrayRest.element.restCarrier === array, true);
-  assert.equal(selectCsharpBindingPatternDefault(integer).kind, "unused");
-  assert.equal(selectCsharpBindingPatternDefault(csharpNullableTargetType(integer)).carrier === integer, true);
+  assert.equal(arrayRest.kind === "element" && arrayRest.element.kind === "array-rest" && arrayRest.element.restCarrier === array, true, "binding-pattern-projections:32: arrayRest.kind === \"element\" && arrayRest.element.kind === \"array-rest\" && arrayRest.eleme");
+  assert.equal(selectCsharpBindingPatternDefault(integer).kind, "unused", "binding-pattern-projections:33: selectCsharpBindingPatternDefault(integer).kind");
+  assert.equal(selectCsharpBindingPatternDefault(csharpNullableTargetType(integer)).carrier === integer, true, "binding-pattern-projections:34: selectCsharpBindingPatternDefault(csharpNullableTargetType(integer)).carrier === integer");
 });
 
 test("source and object member selection never invent missing finalized evidence", () => {
   const selected = member("selected");
   const source = shape([selected]);
   const object = selectCsharpBindingPatternProjection({ kind: "object-source", shape: source, sourceOwned: true });
-  assert.equal(object.kind === "source" && object.source.kind === "object-shape-source" && object.source.shape === source, true);
+  assert.equal(object.kind === "source" && object.source.kind === "object-shape-source" && object.source.shape === source, true, "binding-pattern-projections:41: object.kind === \"source\" && object.source.kind === \"object-shape-source\" && object.source.");
   const exact = selectCsharpBindingPatternProjection({ kind: "object-member", shape: source, sourceName: "selected", description: "Property" });
-  assert.equal(exact.kind === "element" && exact.element.member === selected, true);
+  assert.equal(exact.kind === "element" && exact.element.member === selected, true, "binding-pattern-projections:43: exact.kind === \"element\" && exact.element.member === selected");
   const missing = selectCsharpBindingPatternProjection({ kind: "object-member", shape: source, sourceName: "missing", description: "Property" });
-  assert.equal(missing.kind === "unresolved" && missing.reasons.length === 1, true);
-  assert.equal(selectCsharpBindingPatternProjection({ kind: "array-source", carrier: undefined }).kind, "unresolved");
-  assert.equal(selectCsharpBindingPatternProjection({ kind: "array-source", carrier: integer }).kind, "unresolved");
-  assert.equal(selectCsharpBindingPatternProjection({ kind: "object-source", shape: undefined, sourceOwned: false }).kind, "unresolved");
+  assert.equal(missing.kind === "unresolved" && missing.reasons.length === 1, true, "binding-pattern-projections:45: missing.kind === \"unresolved\" && missing.reasons.length === 1");
+  assert.equal(selectCsharpBindingPatternProjection({ kind: "array-source", carrier: undefined }).kind, "unresolved", "binding-pattern-projections:46: selectCsharpBindingPatternProjection({ kind: \"array-source\", carrier: undefined }).kind");
+  assert.equal(selectCsharpBindingPatternProjection({ kind: "array-source", carrier: integer }).kind, "unresolved", "binding-pattern-projections:47: selectCsharpBindingPatternProjection({ kind: \"array-source\", carrier: integer }).kind");
+  assert.equal(selectCsharpBindingPatternProjection({ kind: "object-source", shape: undefined, sourceOwned: false }).kind, "unresolved", "binding-pattern-projections:48: selectCsharpBindingPatternProjection({ kind: \"object-source\", shape: undefined, sourceOwne");
   const owned = selectCsharpBindingPatternProjection({ kind: "object-source", shape: undefined, sourceOwned: true });
-  assert.equal(owned.kind === "source" && owned.source.kind === "source-owned-source", true);
-  assert.equal(selectCsharpBindingPatternProjection({ kind: "source-owned-member", sourceName: "$invalid", stringLiteral: true }).kind, "unresolved");
-  assert.equal(selectCsharpBindingPatternProjection({ kind: "source-owned-member", sourceName: "valid", stringLiteral: true }).kind, "element");
+  assert.equal(owned.kind === "source" && owned.source.kind === "source-owned-source", true, "binding-pattern-projections:50: owned.kind === \"source\" && owned.source.kind === \"source-owned-source\"");
+  assert.equal(selectCsharpBindingPatternProjection({ kind: "source-owned-member", sourceName: "$invalid", stringLiteral: true }).kind, "unresolved", "binding-pattern-projections:51: selectCsharpBindingPatternProjection({ kind: \"source-owned-member\", sourceName: \"$invalid\"");
+  assert.equal(selectCsharpBindingPatternProjection({ kind: "source-owned-member", sourceName: "valid", stringLiteral: true }).kind, "element", "binding-pattern-projections:52: selectCsharpBindingPatternProjection({ kind: \"source-owned-member\", sourceName: \"valid\", s");
 });
 
 test("rest projections preserve native member correspondence and every mismatch", () => {
@@ -60,11 +60,11 @@ test("rest projections preserve native member correspondence and every mismatch"
   const selected = selectCsharpBindingPatternProjection({ kind: "object-rest", source, rest: shape([restMember]),
     extractedNames: new Set(["first"]), description: "Object rest" });
   assert.equal(selected.kind === "element" && selected.element.members.length === 1 &&
-    selected.element.members[0].source === second && selected.element.members[0].rest === restMember, true);
-  assert.equal(Object.isFrozen(selected.element.members) && Object.isFrozen(selected.element.members[0]), true);
+    selected.element.members[0].source === second && selected.element.members[0].rest === restMember, true, "binding-pattern-projections:63: selected.kind === \"element\" && selected.element.members.length === 1 && selected.element.m");
+  assert.equal(Object.isFrozen(selected.element.members) && Object.isFrozen(selected.element.members[0]), true, "binding-pattern-projections:64: Object.isFrozen(selected.element.members) && Object.isFrozen(selected.element.members[0])");
   const stale = selectCsharpBindingPatternProjection({ kind: "object-rest", source, rest: shape([first]),
     extractedNames: new Set(["first"]), description: "Object rest" });
-  assert.equal(stale.kind === "unresolved" && stale.reasons[0].includes("must exclude"), true);
+  assert.equal(stale.kind === "unresolved" && stale.reasons[0].includes("must exclude"), true, "binding-pattern-projections:67: stale.kind === \"unresolved\" && stale.reasons[0].includes(\"must exclude\")");
   const invalid = selectCsharpBindingPatternProjection({ kind: "object-rest", source,
     rest: shape([member("first", floating), member("second", floating)]), extractedNames: new Set(), description: "Object rest" });
   assert.equal(invalid.kind === "unresolved" && invalid.reasons.length === 2 &&
@@ -75,7 +75,7 @@ test("the target policy owns missing source-owned rest and default correspondenc
   const rest = selectCsharpBindingPatternProjection({ kind: "source-owned-member", sourceName: "tail", stringLiteral: false, rest: true });
   const defaulted = selectCsharpBindingPatternProjection({ kind: "source-owned-member", sourceName: "value", stringLiteral: false, hasDefault: true });
   assert.equal(rest.kind === "unresolved" && rest.reasons.length === 1 && rest.reasons[0] ===
-    "Object rest destructuring requires finalized provider object-spread semantics before C# emission.", true);
+    "Object rest destructuring requires finalized provider object-spread semantics before C# emission.", true, "binding-pattern-projections:78: rest.kind === \"unresolved\" && rest.reasons.length === 1 && rest.reasons[0] === \"Object res");
   assert.equal(defaulted.kind === "unresolved" && defaulted.reasons.length === 1 && defaulted.reasons[0] ===
-    "Destructuring defaults require finalized undefined/default-value semantics before C# emission.", true);
+    "Destructuring defaults require finalized undefined/default-value semantics before C# emission.", true, "binding-pattern-projections:80: defaulted.kind === \"unresolved\" && defaulted.reasons.length === 1 && defaulted.reasons[0] ");
 });

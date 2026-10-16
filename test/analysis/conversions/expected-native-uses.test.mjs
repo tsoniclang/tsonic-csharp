@@ -67,12 +67,12 @@ for (const surface of ["native", "js"]) test(`${surface} actual selected calls a
   `, surface);
   const sites = collect(value);
   const call = value.nodes.find(node => value.ast.is.IsCallExpression(node) && value.text(node) === "identity((value))");
-  assert.equal(call !== undefined, true);
+  assert.equal(call !== undefined, true, "expected-native-uses:70: call !== undefined");
   const callRequests = sites.requests.filter(request => request.site.subject === call && request.site.role.startsWith("argument:"));
-  assert.equal(callRequests.length, 1);
+  assert.equal(callRequests.length, 1, "expected-native-uses:72: callRequests.length");
   const [request] = callRequests;
   assert.equal(request.kind === "requested" && request.site.role.includes("effective=0") && request.site.role.includes("parameter=0") &&
-    value.text(request.expression) === "(value)", true);
+    value.text(request.expression) === "(value)", true, "expected-native-uses:75: request.kind === \"requested\" && request.site.role.includes(\"effective=0\") && request.site.");
   const children = sites.requests.filter(child => child.forwardedFrom === request.site);
   assert.equal(children.length > 0 && children.every(child => child.site.subject === request.expression), true, "explicit exact forwarding edge");
   assert.equal(sites.get(csharpNativeUseSite(call, { kind: "argument", sourceIndex: 0, effectiveIndex: 1, parameterIndex: 0 },
@@ -91,9 +91,9 @@ test("constructed pointer and ordinary source domains read the chosen RNH payloa
   `, "native", { languageDialect: "csharp15-preview" });
   const sites = collect(value);
   const pointer = value.nodes.find(node => value.program.records.nativeHandler.get(node)?.selection.kind === "offset");
-  assert.equal(pointer !== undefined, true);
+  assert.equal(pointer !== undefined, true, "expected-native-uses:94: pointer !== undefined");
   const requests = sites.requests.filter(request => request.site.subject === pointer);
-  assert.equal(requests.some(request => request.site.role === "intrinsic-operand:offset" && value.text(request.expression) === "offset"), true);
+  assert.equal(requests.some(request => request.site.role === "intrinsic-operand:offset" && value.text(request.expression) === "offset"), true, "expected-native-uses:96: requests.some(request => request.site.role === \"intrinsic-operand:offset\" && value.text(re");
   assert.equal(requests.every(request => !request.site.role.startsWith("argument:")), true, "native intrinsic never re-enters the losing call grouping");
 });
 
@@ -107,7 +107,7 @@ test("generator completion and constructor parameters remain actual pre-seal req
   const sites = collect(value);
   const constructor = value.nodes.find(node => value.ast.is.IsNewExpression(node));
   const returned = value.nodes.find(node => value.ast.is.IsReturnStatement(node) && value.text(node) === 'return "done";');
-  assert.equal(sites.requests.some(request => request.site.subject === constructor && request.site.role.startsWith("argument:")), true);
+  assert.equal(sites.requests.some(request => request.site.subject === constructor && request.site.role.startsWith("argument:")), true, "expected-native-uses:110: sites.requests.some(request => request.site.subject === constructor && request.site.role.s");
   const completion = sites.requests.filter(request => request.site.subject === returned && request.site.role === "return");
   assert.equal(completion.length === 1 && completion[0].kind === "requested" && value.text(completion[0].expression) === '"done"', true,
     "generator return completion is not dropped by the collection split");
@@ -160,7 +160,7 @@ for (const surface of ["native", "js"]) test(`${surface} explicitly typed operan
     const expression = returned === undefined ? value.ast.as.AsVariableDeclaration(node).Initializer
       : value.ast.as.AsReturnStatement(returned).Expression;
     const selected = value.program.records.binaryOperation.get(expression)?.target;
-    assert.equal(selected?.kind === "resolved", true);
+    assert.equal(selected?.kind === "resolved", true, "expected-native-uses:163: selected?.kind === \"resolved\"");
     return { name: value.ast.text(value.ast.name(node)), source: value.text(expression), left: carrier(selected.leftInputType),
       right: carrier(selected.rightInputType), result: carrier(selected.resultType),
       readSource: carrier(value.program.records.valueRead.get(expression)?.source),
@@ -168,11 +168,11 @@ for (const surface of ["native", "js"]) test(`${surface} explicitly typed operan
       requests: sites.requestsOf(expression).map(request => ({ role: request.site.role, kind: request.kind,
         target: carrier(request.targetType), exactInteger: request.exactInteger, mode: request.mode })) };
   });
-  assert.equal(rows.length, 5);
+  assert.equal(rows.length, 5, "expected-native-uses:171: rows.length");
   const integers = rows.find(row => row.name === "integerOperands");
   assert.equal(integers.left === "source:int32" && integers.right === "source:int32" && integers.result === "source:int32", true,
     "an explicitly integer operation stays integer on both surfaces");
   const floating = rows.find(row => row.name === "floatingOperands");
-  assert.equal(floating.left === "source:float64" && floating.right === "source:float64" && floating.result === "source:float64", true);
+  assert.equal(floating.left === "source:float64" && floating.right === "source:float64" && floating.result === "source:float64", true, "expected-native-uses:176: floating.left === \"source:float64\" && floating.right === \"source:float64\" && floating.resu");
   console.log(JSON.stringify({ numericTypedOperandEvidence: surface, rows }));
 });

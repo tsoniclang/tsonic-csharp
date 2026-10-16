@@ -12,8 +12,8 @@ const argument = Object.freeze({ kind: "argument", sourceIndex: 0, effectiveInde
 test("native use identity preserves actual owner, role, exact argument keys and constructed-result stage", () => {
   const owner = {};
   const same = csharpNativeUseSite(owner, argument);
-  assert.equal(identity(same), identity(csharpNativeUseSite(owner, { ...argument })));
-  assert.equal(Object.isFrozen(same) && same.subject === owner, true);
+  assert.equal(identity(same), identity(csharpNativeUseSite(owner, { ...argument })), "native-use-sites:15: identity(same)");
+  assert.equal(Object.isFrozen(same) && same.subject === owner, true, "native-use-sites:16: Object.isFrozen(same) && same.subject === owner");
   const slots = [argument, { ...argument, sourceIndex: 1 }, { ...argument, effectiveIndex: 1 }, { ...argument, parameterIndex: 1 },
     { kind: "argument", sourceIndex: 0, effectiveIndex: 0 },
     { ...argument, sourceParameterIndex: 0 }, { ...argument, sourceParameterIndex: 1 },
@@ -22,13 +22,13 @@ test("native use identity preserves actual owner, role, exact argument keys and 
     { kind: "branch", branch: "true" }, { kind: "branch", branch: "false" },
     { kind: "element", index: 0 }, { kind: "member", index: 0 },
     { kind: "intrinsic-operand", operand: "argument", index: 0 }, { kind: "base-argument", sourceIndex: 0 }];
-  assert.equal(new Set(slots.map(slot => identity(csharpNativeUseSite(owner, slot)))).size, slots.length);
+  assert.equal(new Set(slots.map(slot => identity(csharpNativeUseSite(owner, slot)))).size, slots.length, "native-use-sites:25: new Set(slots.map(slot => identity(csharpNativeUseSite(owner, slot)))).size");
   const key = createTargetClassificationKey("native-use-owner-control");
   const records = createTargetUseClassificationBuilder();
   const value = Object.freeze({ selected: true });
   records.set(same, key, value);
   const sealed = records.seal();
-  assert.equal(sealed.get(csharpNativeUseSite(owner, argument), key) === value, true);
+  assert.equal(sealed.get(csharpNativeUseSite(owner, argument), key) === value, true, "native-use-sites:31: sealed.get(csharpNativeUseSite(owner, argument), key) === value");
   assert.equal(sealed.get(csharpNativeUseSite({}, argument), key) === undefined, true, "different owner, same textual identity is not the same use");
 });
 
@@ -37,7 +37,7 @@ test("requested native target and conversion mode remain independent context key
   const contexts = [{}, { target: integer }, { target: floating }, { mode: "explicit" },
     { target: integer, mode: "explicit" }, { target: floating, mode: "explicit" }];
   assert.equal(new Set(contexts.map(context => identity(csharpNativeUseSite(owner, { kind: "constructed-result" }, context)))).size,
-    contexts.length);
+    contexts.length, "native-use-sites:40: new Set(contexts.map(context => identity(csharpNativeUseSite(owner, { kind: \"constructed-r");
   assert.equal(identity(csharpNativeUseSite(owner, argument, { target: integer })),
     identity(csharpNativeUseSite(owner, argument, { target: csharpSourcePrimitiveTargetType("int32"), mode: "implicit" })),
     "equivalent explicit/default implicit requests have one identity");

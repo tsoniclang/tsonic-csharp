@@ -59,7 +59,7 @@ for (const surface of ["native", "js"]) test(`${surface} real expected requests 
   const uses = admission.entries.filter(entry => entry.use.expression === binary);
   assert.equal(uses.length > 0 && uses.every(entry => entry.use.carrier.kind === "source-primitive" && entry.use.carrier.name === "int32"), true,
     "integer-operand division remains integer before its requested float conversion");
-  assert.equal(Object.isFrozen(admission) && Object.isFrozen(admission.entries) && admission.entries.every(entry => Object.isFrozen(entry.use)), true);
+  assert.equal(Object.isFrozen(admission) && Object.isFrozen(admission.entries) && admission.entries.every(entry => Object.isFrozen(entry.use)), true, "native-use-admission:62: Object.isFrozen(admission) && Object.isFrozen(admission.entries) && admission.entries.ever");
   assert.equal(Object.hasOwn(value.program.records, "expectedUse"), false, "private finalizer is not program publication");
 });
 
@@ -67,13 +67,13 @@ test("exact dependencies do not borrow another expression's forwarding owner or 
   const value = owners("export const wrapped = (1); export const other = 2;", "native");
   const requests = value.expected.nativeUseSites.requests;
   const parent = requests.find(request => request.kind === "requested" && request.expression === value.initializer("wrapped"));
-  assert.equal(parent !== undefined, true);
+  assert.equal(parent !== undefined, true, "native-use-admission:70: parent !== undefined");
   const orphan = { ...parent, site: csharpNativeUseSite(value.initializer("other"), { kind: "operand", position: "only" }, { target: parent.targetType }),
     forwardedFrom: csharpNativeUseSite(value.initializer("other"), { kind: "initializer" }, { target: parent.targetType }) };
   const expected = { ...value.expected, nativeUseSites: collectCsharpExpectedNativeUseSites([...requests, orphan]) };
   const admission = admitCsharpExpectedNativeUses(expected, value.final);
   assert.equal(admission.expectedUse.get(orphan.site) === undefined, true, "no expression-wide first owner fallback");
-  assert.equal(admission.pending.some(entry => entry.site === orphan.site && entry.reason === "forwarding-owner-unresolved"), true);
+  assert.equal(admission.pending.some(entry => entry.site === orphan.site && entry.reason === "forwarding-owner-unresolved"), true, "native-use-admission:76: admission.pending.some(entry => entry.site === orphan.site && entry.reason === \"forwarding");
 });
 
 test("unfinalized callable creation remains pending despite a known requested delegate", () => {
@@ -81,22 +81,22 @@ test("unfinalized callable creation remains pending despite a known requested de
     export const callback: (value: int32) => int32 = value => value;`, "native");
   const admission = admitCsharpExpectedNativeUses(value.expected, value.final);
   const requests = value.expected.nativeUseSites.requestsOf(value.initializer("callback"));
-  assert.equal(requests.length > 0, true);
-  assert.equal(requests.every(request => admission.expectedUse.get(request.site) === undefined), true);
-  assert.equal(requests.every(request => admission.pending.some(entry => entry.site === request.site && entry.reason === "callable-creation")), true);
+  assert.equal(requests.length > 0, true, "native-use-admission:84: requests.length > 0");
+  assert.equal(requests.every(request => admission.expectedUse.get(request.site) === undefined), true, "native-use-admission:85: requests.every(request => admission.expectedUse.get(request.site) === undefined)");
+  assert.equal(requests.every(request => admission.pending.some(entry => entry.site === request.site && entry.reason === "callable-creation")), true, "native-use-admission:86: requests.every(request => admission.pending.some(entry => entry.site === request.site && e");
 });
 
 test("a required pending request and a cycle stay explicit rather than publishing a partial prefix", () => {
   const value = owners("export const result = 1;", "native");
   const expression = value.initializer("result");
   const request = value.expected.nativeUseSites.requestsOf(expression).find(entry => entry.kind === "requested");
-  assert.equal(request !== undefined, true);
+  assert.equal(request !== undefined, true, "native-use-admission:93: request !== undefined");
   const first = csharpNativeUseSite(expression, { kind: "operand", position: "left" }, { target: request.targetType });
   const second = csharpNativeUseSite(expression, { kind: "operand", position: "right" }, { target: request.targetType });
   const pending = { ...request, kind: "pending", reason: "argument-unresolved" };
   const expected = { ...value.expected, nativeUseSites: collectCsharpExpectedNativeUseSites([pending,
     { ...request, site: first, forwardedFrom: second }, { ...request, site: second, forwardedFrom: first }]) };
   const admission = admitCsharpExpectedNativeUses(expected, value.final);
-  assert.equal(admission.entries.length, 0);
-  assert.deepEqual(admission.pending.map(entry => entry.reason), ["argument-unresolved", "forwarding-cycle", "forwarding-cycle"]);
+  assert.equal(admission.entries.length, 0, "native-use-admission:100: admission.entries.length");
+  assert.deepEqual(admission.pending.map(entry => entry.reason), ["argument-unresolved", "forwarding-cycle", "forwarding-cycle"], "native-use-admission:101: admission.pending.map(entry => entry.reason)");
 });

@@ -60,11 +60,11 @@ for (const surface of ["native", "js"]) test(`${surface} finite native uses cove
   assert.equal(demand.unadmitted.length, 0, demand.unadmitted.map(entry => `${entry.reason}: ${value.text(entry.expression)}`).join("; "));
   assert.equal(demand.entries.some(entry => entry.site.role.includes("argument:source=0:effective=0:parameter=0:source-parameter=0") &&
     value.text(entry.use.expression) === "value"), true, "U4 exact grouping is retained");
-  assert.equal(demand.entries.some(entry => entry.use.kind === "location" && entry.site.role === "update-target"), true);
-  assert.equal(demand.entries.some(entry => entry.use.kind === "location" && entry.site.role === "write-target"), true);
+  assert.equal(demand.entries.some(entry => entry.use.kind === "location" && entry.site.role === "update-target"), true, "native-uses:63: demand.entries.some(entry => entry.use.kind === \"location\" && entry.site.role === \"update-");
+  assert.equal(demand.entries.some(entry => entry.use.kind === "location" && entry.site.role === "write-target"), true, "native-uses:64: demand.entries.some(entry => entry.use.kind === \"location\" && entry.site.role === \"write-t");
   const conditional = demand.entries.find(entry => entry.use.kind !== "erased" && entry.use.evaluation.kind === "conditional");
   assert.equal(conditional !== undefined && conditional.use.children.length === 3, true, "condition and two alternatives are explicit");
-  assert.equal(Object.isFrozen(demand) && Object.isFrozen(demand.entries) && demand.entries.every(entry => Object.isFrozen(entry.use)), true);
+  assert.equal(Object.isFrozen(demand) && Object.isFrozen(demand.entries) && demand.entries.every(entry => Object.isFrozen(entry.use)), true, "native-uses:67: Object.isFrozen(demand) && Object.isFrozen(demand.entries) && demand.entries.every(entry =");
   assert.equal(Object.hasOwn(value.program.records, "nativeUse"), false, "no program/backend composition in N5");
 });
 
@@ -80,8 +80,8 @@ test("class initialization, base constructor arguments and callable defaults eac
   const demand = analyzeCsharpNativeDemand(value.input);
   const counts = role => demand.entries.filter(entry => entry.site.role === role).length;
   assert.equal(counts("base-argument:source=0"), 1, "super arguments are not visited again through the constructor body");
-  assert.equal(demand.entries.filter(entry => entry.site.role === "initializer" && ["3", "4"].includes(value.text(entry.use.expression))).length, 2);
-  assert.equal(demand.entries.some(entry => entry.site.role === "default" && value.text(entry.use.expression) === "5"), true);
+  assert.equal(demand.entries.filter(entry => entry.site.role === "initializer" && ["3", "4"].includes(value.text(entry.use.expression))).length, 2, "native-uses:83: demand.entries.filter(entry => entry.site.role === \"initializer\" && [\"3\", \"4\"].includes(va");
+  assert.equal(demand.entries.some(entry => entry.site.role === "default" && value.text(entry.use.expression) === "5"), true, "native-uses:84: demand.entries.some(entry => entry.site.role === \"default\" && value.text(entry.use.express");
   assert.equal(demand.unadmitted.length, 0, demand.unadmitted.map(entry => `${entry.reason}: ${value.text(entry.expression)}`).join("; "));
 });
 
@@ -95,7 +95,7 @@ test("erased and frame-body participation are consumed as recorded, not rescanne
     return total;
   }`);
   const nested = value.nodes.find(node => value.ast.is.IsFunctionDeclaration(node) && value.ast.text(value.ast.name(node)) === "add");
-  assert.equal(value.records.nativeParticipation.get(nested), "frame-body");
+  assert.equal(value.records.nativeParticipation.get(nested), "frame-body", "native-uses:98: value.records.nativeParticipation.get(nested)");
   const demand = analyzeCsharpNativeDemand(value.input);
   assert.equal(demand.nativeUse.order(nested) !== undefined, true, "frame methods still compile their body");
   const erased = analyzeCsharpNativeDemand({ ...value.input, participation: { get: node => node === nested ? "erased" : value.records.nativeParticipation.get(node) } });
