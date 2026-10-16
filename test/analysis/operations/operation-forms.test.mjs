@@ -4,6 +4,25 @@ import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { csharpBinaryOperationUsesExpectedResultType } from "../../../dist/policy/operations/operators/expected-result.js";
 import { sourceOperatorFromKindName } from "../../../dist/target-model/syntax/operators.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+
+function recordedCalls(compiled) {
+  const program = compiled.result.program;
+  assert.equal(program !== undefined, true, "analyzed program is present");
+  const ast = program.source.ast;
+  const calls = [];
+  for (const sourceFile of program.sourceFiles) {
+    if (!String(ast.getPath(sourceFile)).endsWith("/index.ts")) continue;
+    const text = String(ast.getSourceText(sourceFile));
+    const visit = node => {
+      if (ast.is.IsCallExpression(node)) calls.push({ node, text: text.slice(ast.pos(node), ast.end(node)).trim(),
+        classification: program.records.selectedCall.get(node) });
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    visit(sourceFile);
+  }
+  return calls;
+}
 
 function recordedForms(compiled) {
   const program = compiled.result.program;
@@ -184,4 +203,85 @@ test("binary expected-result eligibility is stored once from the checked operato
     assert.equal(eligibleContextual > 0 && ineligible > 0, true, `${surface}: eligible contextual results and ineligible operators are covered`);
     assert.equal(surface === "js" || unary > 0, true, `${surface}: a unary operator is covered`);
   }
+});
+
+test("call forms are published from checked evidence for every real native and JS call", () => {
+  for (const [name, options, expected] of [
+    ["native", { sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      import { keepalive } from "@tsonic/core/lang.js";
+      function use(value: int): int { return value; }
+      export function f(value: int): int { keepalive(value); return use(value); }
+    ` }, [["keepalive(value)", "keep-alive"], ["use(value)", "target"]]],
+    ["JS", { surface: "js", sourceText: `
+      export function f(value: unknown, invoke: any): unknown { return Array.isArray(value) ? invoke(1) : undefined; }
+    ` }, [["Array.isArray(value)", "type-test"], ["invoke(1)", "js-value"]]],
+  ]) {
+    const compiled = compiledWithoutDiagnostics(options);
+    const calls = recordedCalls(compiled);
+    assert.deepEqual(calls.map(call => [call.text, call.classification?.form?.kind]), expected, name);
+    for (const call of calls) {
+      const form = call.classification.form;
+      assert.equal(Object.isFrozen(form), true, `${name} ${call.text}: frozen form`);
+      assert.equal(compiled.result.program.records.selectedCall.get(call.node).form === form, true, `${name} ${call.text}: lookup identity`);
+      assert.equal("typeTest" in call.classification || "sourceFlow" in call.classification, false, `${name} ${call.text}: superseded decision fields absent`);
+      assert.equal(call.classification.source?.call === call.node, true, `${name} ${call.text}: original source call`);
+      if (form.kind === "keep-alive") {
+        assert.equal(form.sourceFlow.valueExpression === call.classification.source.sourceArguments[0].expression, true,
+          `${name} ${call.text}: original source argument`);
+      }
+    }
+    assert.equal(compiled.result.program.records.selectedCall.get({}) === undefined, true, `${name}: foreign node has no record`);
+  }
+});
+
+test("source-flow rejection keeps its exact descriptor and source call through the current rejection owner", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    import type { int } from "@tsonic/csharp/types.js";
+    import { move } from "@tsonic/core/lang.js";
+    export function f(value: int): int { return move(value); }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.equal(compiled.result.diagnostics.length, 1);
+  const diagnostic = compiled.result.diagnostics[0];
+  assert.equal(diagnostic.code, "CSHARP_SOURCE_FLOW_MARKER_UNSUPPORTED");
+  assert.equal(diagnostic.message, "C# target does not implement source flow marker 'move'; this intrinsic requires an explicit target contract and cannot be erased or lowered as an identity call.");
+  assert.equal(compiled.source.ast.kindName(diagnostic.sourceNode), "KindCallExpression");
+  assert.equal(compiled.artifacts.size, 0);
+  const calls = recordedCalls(compiled);
+  assert.equal(calls.length, 1);
+  const form = calls[0].classification?.form;
+  assert.equal(form?.kind === "source-flow-rejected", true, "source rejection is a selected form");
+  assert.equal(Object.isFrozen(form.sourceFlow), true, "source rejection descriptor is frozen");
+  assert.equal(form.sourceFlow.code === diagnostic.code && form.sourceFlow.reason === diagnostic.message, true, "rejection is preserved exactly");
+  assert.equal(diagnostic.sourceNode === calls[0].node, true, "rejection remains on the original call");
+});
+
+test("local functions named like core markers remain ordinary calls, including shadowing", () => {
+  const compiled = compiledWithoutDiagnostics({ sourceText: `
+    import type { int } from "@tsonic/csharp/types.js";
+    import { keepalive as retain } from "@tsonic/core/lang.js";
+    function move(value: int): int { return value; }
+    function keepalive(value: int): int { return value; }
+    export function f(value: int): int { retain(value); return move(keepalive(value)); }
+  ` });
+  assert.deepEqual(recordedCalls(compiled).map(call => [call.text, call.classification?.form?.kind]), [
+    ["retain(value)", "keep-alive"], ["move(keepalive(value))", "target"], ["keepalive(value)", "target"],
+  ]);
+});
+
+test("selected call forms preserve native argument evaluation and do not add wrappers", () => {
+  const compiled = compiledWithoutDiagnostics({ sourceText: `
+    import type { int } from "@tsonic/csharp/types.js";
+    import { keepalive } from "@tsonic/core/lang.js";
+    let count: int = 0;
+    function next(): int { count++; return count; }
+    function move(value: int): int { return value; }
+    export function run(): boolean { keepalive(next()); return move(next()) === 2 && count === 2; }
+  ` });
+  const output = compiled.artifacts.get("src/Index.cs");
+  assert.equal(typeof output === "string", true, "native source was emitted");
+  assert.equal(output.includes("global::System.GC.KeepAlive(next())"), true, "direct native keep-alive argument");
+  assert.equal(output.includes("move(next())"), true, "ordinary direct call");
+  executeCsharpConstruction(compiled, "selected-call-form-owner");
 });
