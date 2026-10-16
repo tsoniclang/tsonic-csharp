@@ -32,17 +32,17 @@ test("exact literal selection keeps the four outcomes and their precedence", () 
 });
 
 test("exact literal selection publishes signed-zero, zero, char and floating recipes", () => {
-  const negativeZero = datum("prefix-unary", { number: -0, integer: 0n });
-  for (const name of ["float64", "float32", "float16"]) {
+  const negativeZero = authoredLiterals(["-0"])[0];
+  for (const name of ["float64", "float16"]) {
     assert.deepEqual(select(negativeZero, primitive(name)),
       { kind: "resolved", recipe: { kind: "signed-zero", target: primitive(name), precision: name } }, `${name} signed zero`);
   }
   assert.deepEqual(select(negativeZero, csharpNullableTargetType(primitive("float32"))),
-    { kind: "resolved", recipe: { kind: "signed-zero", target: primitive("float32"), precision: "float32" } },
+    { kind: "resolved", recipe: { kind: "float", target: primitive("float32"), precision: "float32", token: { significand: "0" }, negative: true } },
     "a nullable target selects at its element");
   assert.deepEqual(select(negativeZero, primitive("int32")), { kind: "resolved", recipe: { kind: "zero" } }, "-0 at an integer is 0");
   assert.deepEqual(select(negativeZero, primitive("decimal")),
-    { kind: "resolved", recipe: { kind: "float", target: primitive("decimal"), precision: "decimal", value: -0 } },
+    { kind: "resolved", recipe: { kind: "float", target: primitive("decimal"), precision: "decimal", token: { significand: "0" }, negative: true } },
     "decimal keeps the floating recipe for -0");
   assert.deepEqual(select(datum("string", { text: "a" }), primitive("char")),
     { kind: "resolved", recipe: { kind: "char", value: "a" } }, "one code unit");
@@ -52,7 +52,7 @@ test("exact literal selection publishes signed-zero, zero, char and floating rec
   assert.deepEqual(select(datum("numeric", { number: 1.5 }), primitive("float16")),
     { kind: "resolved", recipe: { kind: "float", target: primitive("float16"), precision: "float16", value: 1.5 } });
   assert.deepEqual(select(datum("numeric"), primitive("float32")),
-    { kind: "rejected", reason: "C# numeric literal conversion requires an exact finite source value." });
+    { kind: "not-applicable" }, "a datum without authored numeric evidence cannot fabricate a float32 token");
   assert.deepEqual(select(datum("string", { text: "1" }), primitive("decimal")), { kind: "not-applicable" });
 });
 
@@ -124,21 +124,23 @@ test("authored native float32 and decimal recipes preserve the exact token rathe
       continue;
     }
     const sourceToken = value.numeric.token;
+    const [significand, exponent] = sourceToken.decimalText.split("e");
     assert.deepEqual(selected.recipe, { kind: "float", target, precision,
-      token: { digits: sourceToken.coefficient.toString(), exponent: sourceToken.exponent.toString() },
+      token: { significand, ...(exponent === undefined ? {} : { exponent }) },
       negative: sourceToken.negative }, label);
     assert.equal(Object.isFrozen(selected.recipe.token), true, `${label}: immutable native token`);
     assert.doesNotThrow(() => JSON.stringify(selected.recipe), `${label}: native syntax is JSON-safe`);
   }
 });
 
-test("an actual checked float64 value selects a native conversion, not a fabricated authored F or M token", () => {
+test("an actual checked float64 value is not an authored F or M literal conversion", () => {
   for (const value of [1.000000059604644775390625, -0, 0.1]) {
     const literal = Object.freeze({ form: "numeric", number: value,
       numeric: Object.freeze({ kind: "checked-float64", value }) });
     for (const precision of ["float32", "decimal"]) {
-      assert.deepEqual(select(literal, primitive(precision)), { kind: "resolved",
-        recipe: { kind: "float64-conversion", target: primitive(precision), value } }, `${precision} actual double`);
+      assert.deepEqual(select(literal, primitive(precision)), { kind: "not-applicable" }, `${precision} actual double`);
+      assert.equal(csharpLiteralIsRepresentableAs(literal, primitive(precision)), false,
+        `${precision}: actual float64 conversion requires its selected operation, not literal adaptation`);
     }
   }
 });
