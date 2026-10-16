@@ -1,8 +1,9 @@
-import type { SourceLiteralValue } from "@tsonic/target-api/source";
+import { compareSourceNumericLiteralMagnitude, type SourceLiteralValue, type SourceNumericLiteralToken } from "@tsonic/target-api/source";
 import type { CsharpExactLiteralRecipe, CsharpExactLiteralSelection } from "../../target-model/conversions/exact-literals.js";
 import {
   csharpBigIntFitsSourcePrimitive,
   csharpNumericLiteralFitsSourcePrimitive,
+  createCsharpNumericLiteralToken,
 } from "../../target-model/syntax/numeric-literals.js";
 import type {
   TargetTypeRef,
@@ -54,11 +55,12 @@ export function csharpLiteralIsRepresentableAs(
     case "native-uint": {
       return csharpNumericLiteralFitsSourcePrimitive(value, target.name);
     }
-    case "float16":
     case "float32":
     case "decimal": {
-      return value?.number !== undefined && Number.isFinite(value.number) &&
-        csharpFiniteNumberFitsFloatingTarget(value.number, target.name);
+      return value?.numeric?.kind === "authored" && authoredFloatingLiteralFits(value.numeric.token, target.name);
+    }
+    case "float16": {
+      return value?.number !== undefined && Number.isFinite(value.number) && Math.abs(value.number) < 65520;
     }
     case "float64": {
       return value?.number !== undefined && Number.isFinite(value.number);
@@ -91,11 +93,20 @@ export function selectCsharpExactLiteralConversion(
     literal.integerConstant !== undefined && csharpBigIntFitsSourcePrimitive(literal.integerConstant, targetType.name)) {
     return sourceRepresentation;
   }
+  if (targetType.name === "float32" || targetType.name === "decimal") {
+    const numeric = literal?.numeric;
+    if (numeric?.kind !== "authored") return notApplicable;
+    if (!authoredFloatingLiteralFits(numeric.token, targetType.name)) {
+      return rejected(`Source numeric literal is outside the '${targetType.name}' range.`);
+    }
+    return resolved({ kind: "float", target: targetType, precision: targetType.name,
+      token: createCsharpNumericLiteralToken(numeric.token.decimalText), negative: numeric.token.negative });
+  }
   if (Object.is(literal?.number, -0)) {
-    if (targetType.name === "float64" || targetType.name === "float32" || targetType.name === "float16") {
+    if (targetType.name === "float64" || targetType.name === "float16") {
       return resolved({ kind: "signed-zero", target: targetType, precision: targetType.name });
     }
-    if (targetType.name !== "decimal" && csharpNumericLiteralFitsSourcePrimitive(literal, targetType.name)) {
+    if (csharpNumericLiteralFitsSourcePrimitive(literal, targetType.name)) {
       return resolved({ kind: "zero" });
     }
   }
@@ -108,9 +119,7 @@ export function selectCsharpExactLiteralConversion(
         ? resolved({ kind: "char", value: literal.text })
         : rejected("C# char literals require exactly one UTF-16 code unit from TSTS/source primitive typing.");
     }
-    case "float16":
-    case "float32":
-    case "decimal": {
+    case "float16": {
       if (literal?.form !== "numeric" && literal?.form !== "prefix-unary") {
         return notApplicable;
       }
@@ -118,7 +127,7 @@ export function selectCsharpExactLiteralConversion(
       if (value === undefined || !Number.isFinite(value)) {
         return rejected("C# numeric literal conversion requires an exact finite source value.");
       }
-      if (!csharpFiniteNumberFitsFloatingTarget(value, targetType.name)) {
+      if (Math.abs(value) >= 65520) {
         return rejected(`Source numeric literal is outside the '${targetType.name}' range.`);
       }
       return resolved({ kind: "float", target: targetType, precision: targetType.name, value });
@@ -146,27 +155,14 @@ export function selectCsharpExactLiteralConversion(
 const float32OverflowThreshold = (1n << 128n) - (1n << 103n);
 const decimalOverflowThresholdTwice = (((1n << 96n) - 1n) << 1n) + 1n;
 
-function csharpFiniteNumberFitsFloatingTarget(value: number, target: "float16" | "float32" | "decimal"): boolean {
-  const magnitude = Math.abs(value);
+function authoredFloatingLiteralFits(token: SourceNumericLiteralToken, target: "float32" | "decimal"): boolean {
   switch (target) {
-    case "float16":
-      return magnitude < 65520;
     case "float32":
-      return magnitude < 3.4e38 || magnitude <= 3.5e38 && printedMagnitudeIsBelow(magnitude, float32OverflowThreshold, 1n);
+      return compareSourceNumericLiteralMagnitude(token, float32OverflowThreshold) < 0;
     case "decimal":
-      return magnitude < 7.9e28 || magnitude <= 8e28 && printedMagnitudeIsBelow(magnitude, decimalOverflowThresholdTwice, 2n);
+      return compareSourceNumericLiteralMagnitude({ coefficient: token.coefficient * 2n, exponent: token.exponent },
+        decimalOverflowThresholdTwice) < 0;
   }
-}
-
-function printedMagnitudeIsBelow(magnitude: number, limit: bigint, scale: bigint): boolean {
-  const parts = /^([0-9]+)(?:\.([0-9]+))?(?:e\+([0-9]+))?$/u.exec(String(magnitude));
-  if (parts === null) {
-    return false;
-  }
-  const fraction = parts[2] ?? "";
-  const exponent = Number(parts[3] ?? "0") - fraction.length;
-  const digits = BigInt(`${parts[1]}${fraction}`) * scale;
-  return exponent >= 0 ? digits * 10n ** BigInt(exponent) < limit : digits < limit * 10n ** BigInt(-exponent);
 }
 
 function classifiedLiteralRepresentation(literal: SourceLiteralValue | undefined): CsharpExactLiteralSelection {

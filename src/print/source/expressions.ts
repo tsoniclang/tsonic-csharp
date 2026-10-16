@@ -18,6 +18,7 @@ import {
   escapeCsharpInterpolatedStringText,
   indentLines,
   printCharLiteral,
+  printExactNumericLiteral,
   printIntegerLiteral,
   printLiteral,
   printNumericLiteral,
@@ -37,7 +38,9 @@ export function printCsharpExpression(
     case "LiteralExpression":
       return printLiteral(expression.value, expression.stringStyle);
     case "NumericLiteralExpression":
-      return printNumericLiteral(expression.value, expression.suffix);
+      return expression.suffix === "F" || expression.suffix === "M"
+        ? printExactNumericLiteral(expression.token, expression.suffix)
+        : printNumericLiteral(expression.value, expression.suffix);
     case "IntegerLiteralExpression":
       return printIntegerLiteral(expression.digits, expression.suffix);
     case "CharacterLiteralExpression":

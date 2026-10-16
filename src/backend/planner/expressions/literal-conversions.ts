@@ -18,6 +18,9 @@ import type {
 import type {
   CsharpPlanningContext,
 } from "../context.js";
+import { createCsharpNumericLiteralToken } from "../../../target-model/syntax/numeric-literals.js";
+
+const floatingZero = createCsharpNumericLiteralToken("0");
 
 export function planCsharpExactLiteralConversion(
   input: CsharpPlanningContext,
@@ -47,7 +50,9 @@ function renderRecipe(
       const zero: CsharpExpression = {
         kind: "PrefixUnaryExpression",
         operatorToken: { kind: "MinusToken" },
-        operand: { kind: "NumericLiteralExpression", value: 0, suffix: recipe.precision === "float64" ? "D" : "F" },
+        operand: recipe.precision === "float64"
+          ? { kind: "NumericLiteralExpression", value: 0, suffix: "D" }
+          : { kind: "NumericLiteralExpression", token: floatingZero, suffix: "F" },
       };
       if (recipe.precision !== "float16") return { kind: "resolved", expression: zero };
       const halfType = csharpTypeFromTargetTypeRef(recipe.target, typeParameterNames);
@@ -84,14 +89,11 @@ function renderRecipe(
               },
             };
       }
-      return {
-        kind: "resolved",
-        expression: {
-          kind: "NumericLiteralExpression",
-          value: recipe.value,
-          suffix: recipe.precision === "float32" ? "F" : "M",
-        },
-      };
+      const literal: CsharpExpression = { kind: "NumericLiteralExpression", token: recipe.token,
+        suffix: recipe.precision === "float32" ? "F" : "M" };
+      return { kind: "resolved", expression: recipe.negative
+        ? { kind: "PrefixUnaryExpression", operatorToken: { kind: "MinusToken" }, operand: literal }
+        : literal };
     }
     case "integer": {
       const expression = planWideIntegerLiteral(typeParameterNames, recipe.value, recipe.target);
