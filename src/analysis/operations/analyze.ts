@@ -1,5 +1,4 @@
 import { classifyCsharpJsValueCallShape } from "./js-value-calls.js";
-import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { classifyCsharpSourceCallArguments } from "./source-call-arguments.js";
 import { classifyCsharpUnionCall } from "./union-calls.js";
 import { classifyCsharpSourceCallee } from "../../policy/types/callables/source-callees.js";
