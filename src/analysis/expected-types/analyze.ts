@@ -82,7 +82,8 @@ export function analyzeCsharpExpectedTypes(
     const key = targetTypeRefKey(targetType);
     let targets = expectedBinaries.get(expression);
     if (targets === undefined) { targets = new Map(); expectedBinaries.set(expression, targets); }
-    if (targets.has(key)) return targets.get(key);
+    const existing = targets.get(key);
+    if (existing !== undefined) return existing;
     const selection = selectCsharpBinaryOperation(policy, expression, evidence.nodeTargetType.get, targetType);
     targets.set(key, selection);
     return selection;
