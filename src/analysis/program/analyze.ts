@@ -381,9 +381,10 @@ export function analyzeCsharpTargetProgram(
     classInitialization, projectTypes: analysis.typeSystem.projectTypes.catalog, classFactories, expected: expectedUse,
   }, analysis.requiredRecords);
   const bindingPatterns = admitCsharpBindingPatterns(bindingCandidates, nativeDemand.requiredBindingRoots, analysis.requiredRecords);
+  if (bindingPatterns.issues.length > 0) return rejectCsharpAnalysisIssues(bindingPatterns.issues);
   if (nativeDemand.unadmitted.length > 0) {
     const refusals = nativeDemand.unadmitted.filter(use =>
-      use.reason === "argument-refused" || use.reason === "source-argument-rejected" || use.reason === "property-key-refused");
+      use.message !== undefined || use.reason === "argument-refused" || use.reason === "source-argument-rejected" || use.reason === "property-key-refused");
     if (refusals.length > 0) return rejectCsharpAnalysisIssues(refusals.map(use => ({
       node: use.expression, code: "CSHARP_UNSUPPORTED_AST", message: use.message ?? failTargetAnalysisInvariant(
         "tsonic-csharp", "A native source refusal requires its exact admitted reason.", use.expression),
@@ -394,7 +395,6 @@ export function analyzeCsharpTargetProgram(
   }
   const conversions = analysis.conversionAnalysis.seal(nativeDemand, analysis.requiredRecords);
   if (conversions.issues.length > 0) return rejectCsharpAnalysisIssues(conversions.issues);
-  if (bindingPatterns.issues.length > 0) return rejectCsharpAnalysisIssues(bindingPatterns.issues);
   const typeDefinitions = analysis.typeDefinitions.seal();
   const records = createCsharpProgramRecords({
     nativeValueCarriers,

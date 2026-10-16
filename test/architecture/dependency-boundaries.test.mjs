@@ -150,7 +150,7 @@ test("sealed C# classification queries cannot delegate to analysis policy", () =
   const projectQueries = sourceSection(
     projectTypes,
     "const classifications: CsharpProjectTypeClassifications = {",
-    "function visit(node: Node): void",
+    "return Object.freeze(classifications);",
   );
   assert.doesNotMatch(projectQueries, /\bpolicy\./u);
 
@@ -185,9 +185,12 @@ test("expected-result specializations are classified by exact target use", () =>
     resolve(repositoryRoot, "src/analysis/expected-types/analyze.ts"),
     "utf8",
   );
-  assert.match(analysis, /createTargetUseClassificationBuilder/u);
-  assert.match(analysis, /"binary-expected-result"/u);
-  assert.match(analysis, /csharpTargetRepresentationContractId/u);
+  assert.match(analysis, /new WeakMap<Node, Map<string, CsharpExpectedBinarySelection>>/u);
+  assert.match(analysis, /expectedBinaries\.get\(expression\)\?\.get\(targetTypeRefKey\(targetType\)\)/u);
+  const nativeSites = readFileSync(resolve(repositoryRoot, "src/target-model/records/native-demand.ts"), "utf8");
+  assert.match(nativeSites, /targetUseSiteRef\(owner, role, csharpTargetRepresentationContractId,/u);
+  const finalizer = readFileSync(resolve(repositoryRoot, "src/analysis/expected-types/native-uses.ts"), "utf8");
+  assert.match(finalizer, /targetUseSiteIdentity\(entry\.site\)/u);
   assert.match(analysis, /evidence\.nodeTargetType/u);
 
   const planner = readFileSync(

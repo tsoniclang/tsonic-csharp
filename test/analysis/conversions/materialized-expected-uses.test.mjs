@@ -49,7 +49,7 @@ for (const surface of ["native", "js"]) {
   });
 
   test(`expected binary selections are materialized per contextual target in ${surface}`, () => {
-    const { expected: records, nodes } = compiled(surface);
+    const { expected: records, nodes, program } = compiled(surface);
     const binaries = nodes.filter(node => program.source.ast.is.IsBinaryExpression(node));
     let selected = 0;
     for (const node of binaries) {

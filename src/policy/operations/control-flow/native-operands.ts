@@ -13,6 +13,7 @@ import { getCsharpDelegateSignature } from "../../../target-model/types/carriers
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../members/selection/native-use-arguments.js";
+import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 
 export interface CsharpNativeOperandInput {
   readonly ast: AstReader;
@@ -237,6 +238,12 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     const left = binary?.Left;
     const right = binary?.Right;
     switch (operations.operatorForm.get(node)) {
+      case "js-value-operation": {
+        const selected = operations.binaryOperation.get(node)?.jsValue;
+        if (selected?.kind !== "resolved") return refused("operation-unresolved", selected?.kind === "rejected" ? selected.reason : undefined);
+        return chosen([...use(left, { kind: "operand", position: "left" }), ...use(right, { kind: "operand", position: "right" })],
+          selected.shortCircuit === undefined ? "sequence" : "short-circuit", undefined, selected.resultType);
+      }
       case "destructuring-assignment": {
         const pattern = input.bindingPatterns.bindingPatternProjection.get(node)?.assignmentPattern;
         return pattern === undefined ? refused("operation-unresolved")
@@ -249,7 +256,7 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       case "js-value-write": return chosen([...use(left, { kind: "write-target" }, undefined, "location"), ...use(right, { kind: "operand", position: "right" })]);
       case "selected": {
         const selected = operations.binaryOperation.get(node)?.target;
-        if (selected?.kind !== "resolved") return refused("operation-unresolved");
+        if (selected?.kind !== "resolved") return refused("operation-unresolved", selected?.kind === "rejected" ? selected.reason : undefined);
         const assignment = selected.sourceOperator === "=" || selected.sourceOperator.endsWith("=") &&
           !["==", "===", "!=", "!==", "<=", ">="].includes(selected.sourceOperator);
         const operands = [...use(selected.left, assignment ? { kind: "write-target" } : { kind: "operand", position: "left" },
@@ -265,9 +272,22 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     }
   }
   if (ast.is.IsPrefixUnaryExpression(node) || ast.is.IsPostfixUnaryExpression(node)) {
-    if (operations.operatorForm.get(node) === "js-array-mutation") return mutationUses();
+    const form = operations.operatorForm.get(node);
+    if (form === "js-array-mutation") return mutationUses();
+    const operand = ast.is.IsPrefixUnaryExpression(node) ? ast.as.AsPrefixUnaryExpression(node)?.Operand : ast.as.AsPostfixUnaryExpression(node)?.Operand;
+    if (form === "js-value-operation") {
+      const selected = operations.unaryOperation.get(node)?.jsValue;
+      return selected?.kind !== "resolved" ? refused("operation-unresolved", selected?.kind === "rejected" ? selected.reason : undefined)
+        : chosen(use(operand, { kind: "operand", position: "only" }), "sequence", undefined, selected.resultType);
+    }
+    if (form === "js-value-object-shape-update") {
+      const selected = operand === undefined ? undefined : operations.selectedProperty.get(operand)?.sourceOwned?.jsValueProperty;
+      const operator = sourceOperatorFromKindName(ast.operatorKindName(node));
+      return refused("operation-unresolved", selected === undefined ? undefined : selected.kind === "rejected" ? selected.reason
+        : `Closed JS-value object-shape update '${operator}' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden.`);
+    }
     const selected = operations.unaryOperation.get(node)?.target;
-    if (selected?.kind !== "resolved") return refused("operation-unresolved");
+    if (selected?.kind !== "resolved") return refused("operation-unresolved", selected?.kind === "rejected" ? selected.reason : undefined);
     return chosen(use(selected.operand, selected.sourceOperator === "++" || selected.sourceOperator === "--"
       ? { kind: "update-target" } : { kind: "operand", position: "only" }, selected.operandType,
       selected.sourceOperator === "++" || selected.sourceOperator === "--" ? "location" : undefined), "sequence", undefined, selected.resultType);

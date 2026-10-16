@@ -7,6 +7,7 @@ import { analyzeCsharpBindingPatterns } from "../../../dist/analysis/control-flo
 import { analyzeCsharpNativeDemand } from "../../../dist/analysis/operations/native-demand.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
 import { csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 const emissionPrograms = [
   ["class and static initializers", `
@@ -69,6 +70,44 @@ test("tagged template operands have finite contexts without changing the retaine
   assert.equal(errors.length === 1 && errors[0].code === "CSHARP_UNSUPPORTED_AST" &&
     errors[0].message === "Expression is outside the current C# planning surface.", true,
     "the unsupported tagged renderer keeps its exact source refusal, never an emission-context invariant");
+});
+
+test("transparent wrappers of discarded callable creation remain erased without a fabricated completion", () => {
+  const compiled = compileCsharpSource({ sourceText: `export function run(): number {
+    (() => 1);
+    ((() => 2));
+    (() => 3) satisfies (() => number);
+    return 4;
+  }` });
+  assert.equal(compiled.sourceDiagnosticsText === "" && compiled.result.diagnostics.length === 0, true,
+    "every discarded creation keeps its pre-existing valid source admission");
+  const program = compiled.result.program;
+  const wrappers = [];
+  const visit = node => {
+    if (program.source.ast.is.IsExpressionStatement(node)) wrappers.push(program.source.ast.as.AsExpressionStatement(node).Expression);
+    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  assert.equal(wrappers.length, 3, "all three authored creation effects are represented");
+  for (const wrapper of wrappers) assert.equal(program.records.nativeUse.expression(wrapper)?.use.kind === "erased", true,
+    "a transparent wrapper inherits only its actual discarded child, never a pending source failure");
+});
+
+test("native void completion preserves effectful absent calls and the selected conditional branch", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    let calls = 0;
+    function absent(): undefined { calls++; return undefined; }
+    function condition(): boolean { calls++; return true; }
+    function call(): void { return (absent()); }
+    function branch(): void { return condition() ? absent() : absent(); }
+    export function run(): boolean { call(); branch(); return calls === 3; }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText === "" && compiled.targetDiagnostics.length === 0, true,
+    `native void effect control: ${compiled.sourceDiagnosticsText}; ${compiled.targetDiagnostics.map(({ message }) => message).join("; ")}`);
+  const output = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
+  assert.equal(/return null|default\(void\)|_ = null/u.test(output), false,
+    "the native completion never fabricates a void value or a null effect");
+  executeCsharpConstruction(compiled, "native-void-absent-effect-order");
 });
 
 function owners(sourceText, surface = "js") {

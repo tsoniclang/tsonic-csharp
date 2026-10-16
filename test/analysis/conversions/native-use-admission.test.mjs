@@ -166,7 +166,8 @@ for (const surface of ["native", "js"]) {
 
 test("frame callable creation retains the selected implementation carrier before contextual conversion", () => {
   const value = owners(`export function create(): () => number {
-    let value = 0; const increment = () => ++value; const read = () => value; increment(); return read;
+    for (let index = 0; index < 3; index++) { const read = () => index; return read; }
+    return () => 0;
   }`, "native");
   const expression = value.nodes.find(node => value.ast.is.IsArrowFunction(node) &&
     value.program.records.captureClosure.get(node) !== undefined);

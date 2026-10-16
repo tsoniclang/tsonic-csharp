@@ -81,13 +81,13 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
     return Object.freeze({ kind: "selected", representation: targetTypeRefEquals(binary.resultType, target) ? "construct" : "convert",
       carrier: binary.resultType, children: Object.freeze(children), binary });
   }
-  if (input.absent) return input.source === undefined ? pending("source-unresolved")
-    : selected(targetTypeRefEquals(input.source, target) ? "forward" : "convert", input.source);
-  if (input.literal === undefined) return pending("literal-unrequested");
-  if (input.literal.kind === "rejected") return pending("literal-rejected");
-  if (input.literal.kind === "resolved") return Object.freeze({
-    kind: "selected", representation: "construct", carrier: target, children: none, literal: input.literal.recipe,
-  });
+  if (!input.absent) {
+    if (input.literal === undefined) return pending("literal-unrequested");
+    if (input.literal.kind === "rejected") return pending("literal-rejected");
+    if (input.literal.kind === "resolved") return Object.freeze({
+      kind: "selected", representation: "construct", carrier: target, children: none, literal: input.literal.recipe,
+    });
+  }
   if (ast.isConstAssertion(expression)) {
     const assertion = ast.is.IsAsExpression(expression) ? ast.as.AsAsExpression(expression) : ast.as.AsTypeAssertion(expression);
     return forward(assertion?.Expression);
@@ -101,6 +101,8 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
     return whenTrue === undefined || whenFalse === undefined ? pending("forwarding-child-unresolved")
       : selected("forward", target, [whenTrue, whenFalse]);
   }
+  if (input.absent) return input.source === undefined ? pending("source-unresolved")
+    : selected(targetTypeRefEquals(input.source, target) ? "forward" : "convert", input.source);
   if (ast.is.IsArrowFunction(expression) || ast.is.IsFunctionExpression(expression)) {
     if (input.callable === undefined || input.callable.kind === "pending") return pending("callable-creation");
     if (input.callable.kind === "discarded") return pending("callable-discarded");

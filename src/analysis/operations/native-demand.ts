@@ -217,6 +217,11 @@ export function analyzeCsharpNativeDemand(
       visitStep(step, steps, visited);
     }
     if (!orders.has(expression)) orders.set(expression, Object.freeze(steps));
+    if (selected.flow === "sequence" && runtime.length === 1 &&
+      (ast.is.IsParenthesizedExpression(expression) || ast.is.IsSatisfiesExpression(expression)) &&
+      published.get(runtime[0]!.visited.site.subject)?.get(targetUseSiteIdentity(runtime[0]!.visited.site))?.kind === "erased") {
+      return publish(site, { kind: "erased", expression, cause: "discarded-callable" });
+    }
     if (selected.refusal !== undefined) return pending(site, expression, selected.refusal, selected.refusalMessage);
     if (expected === undefined && child.context?.target !== undefined &&
       (selected.carrier === undefined || !targetTypeRefEquals(child.context.target, selected.carrier))) return pending(site, expression, "expected-use-pending");

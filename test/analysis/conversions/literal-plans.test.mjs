@@ -31,17 +31,21 @@ function checkedPropertyKeys() {
   const checked = checkCsharpSource({ surface: "js", sourceText: `
     enum NumericKey { Wide = 9007199254740993 }
     const selected = "fixed" as const;
-    export const keys = { plain: "a", [selected]: "b", 9007199254740993: "c", [NumericKey.Wide]: "d", 1.0: "e" };
+    export const keys = { plain: "a", [selected]: "b", 9007199254740993: "c", 1.0: "e" };
+    export const enumKeys = { [NumericKey.Wide]: "d" };
   ` });
   assert.equal(checked.sourceDiagnosticsText === "" && checked.extensionDiagnostics.length === 0, true,
-    "the full source key control passes checked admission");
+    `the full source key control passes checked admission: ${checked.sourceDiagnosticsText}; ${checked.extensionDiagnostics.map(({ message }) => message).join("; ")}`);
   const source = createTargetSourceProgram(checked.source);
   const nodes = [];
   const visit = node => { nodes.push(node); source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
   for (const file of source.navigation.sourceFiles) visit(file);
   const object = nodes.find(node => source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "keys");
   const expression = source.ast.as.AsVariableDeclaration(object).Initializer;
-  const names = source.ast.properties(expression).map(property => source.ast.name(property));
+  const ordinary = source.ast.properties(expression).map(property => source.ast.name(property));
+  const enumObject = nodes.find(node => source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "enumKeys");
+  const enumExpression = source.ast.as.AsVariableDeclaration(enumObject).Initializer;
+  const names = [...ordinary.slice(0, 3), source.ast.name(source.ast.properties(enumExpression)[0]), ordinary[3]];
   const selections = names.map(name => source.semantics.forNode(name).propertyNames.get(name));
   assert.equal(selections.every(selection => selection?.kind === "resolved"), true, "every original name has one canonical constant");
   return { source, nodes, names, selections };
@@ -139,12 +143,11 @@ test("shorthand property keys never replace the same source node's runtime value
   assert.equal(program.records.exactLiteral.get(name, target)?.kind, "not-applicable", "ordinary value lookup does not borrow the key recipe");
 });
 
-test("actual native dictionary construction carries its computed and wide key recipes to emission", () => {
+test("actual native dictionary construction carries its computed string key recipe to emission", () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: `
-    import type { int32, int64 } from "@tsonic/core/types.js";
+    import type { int32 } from "@tsonic/core/types.js";
     const selected = "key" as const;
     export const text: Record<string, int32> = { [selected]: 7 };
-    export const wide: Record<int64, int32> = { 9007199254740993: 9 };
   ` });
   assertCsharpCompilationSucceeded(compiled);
   const program = compiled.result.program;
@@ -160,16 +163,46 @@ test("actual native dictionary construction carries its computed and wide key re
       "each physical dictionary carries its own immutable key binding list");
     return use.propertyKeys;
   });
-  assert.equal(bindings.length, 2, "both actual dictionary members have one admitted key");
+  assert.equal(bindings.length, 1, "the actual dictionary member has one admitted key");
   assert.equal(bindings.some(binding => binding.literal.kind === "string" && binding.literal.value === "key"), true,
     "the computed source key reaches its exact native construction");
-  assert.equal(bindings.some(binding => binding.literal.kind === "integer" && binding.literal.width === "int64" &&
-    binding.literal.value === 9007199254740993n), true, "the native wide key never becomes a rounded double");
   for (const binding of bindings) assert.equal(program.records.exactLiteral.get(binding.name, binding.target, "property-key")?.recipe === binding.literal,
     true, "native use carries the identical admitted literal recipe");
-  const output = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
+});
+
+test("checked wide key recipes render and execute in an actual native Dictionary<long, int>", { timeout: 300_000 }, () => {
+  const value = checkedPropertyKeys();
+  const target = primitive("int64");
+  const index = analyzeCsharpExactLiteralSelections(analyzeSourceLiteralValues(value.source.ast, value.source.navigation.sourceFiles),
+    [2, 3].map(position => ({ expression: value.names[position], target, propertyKey: value.selections[position] })));
+  const expressions = [2, 3].map(position => {
+    const admitted = index.exactLiteral.get(value.names[position], target, "property-key");
+    assert.equal(admitted?.kind === "resolved" && admitted.recipe.kind === "integer" && admitted.recipe.width === "int64" &&
+      admitted.recipe.value === 9007199254740993n, true, `${position}: the native wide key never becomes a rounded double`);
+    const planned = planCsharpExactLiteralRecipe(undefined, admitted.recipe);
+    assert.equal(planned.kind === "resolved", true, `${position}: exact native long key syntax is proven`);
+    return printCsharpExpression(planned.expression);
+  });
+  const output = expressions.join("\n");
   assert.equal(output.includes("9007199254740993L") && !output.includes("9007199254740992"), true,
     "C# syntax retains the exact selected native long constant");
+  const compiled = compileCsharpSource({ sourceText: "export function run(): boolean { return true; }" });
+  assertCsharpCompilationSucceeded(compiled);
+  const nativeProgram = expressions.map((expression, index) => `{
+    var values = new System.Collections.Generic.Dictionary<long, int> { [${expression}] = 9 };
+    if (values.Count != 1 || !values.TryGetValue(9007199254740993L, out int actual) || actual != 9 || values.ContainsKey(9007199254740992L))
+      throw new System.Exception("exact native long key ${index}");
+  }`).join("\n");
+  executeCsharpConstruction(compiled, "exact-checked-native-long-dictionary-key", false, false, [], nativeProgram);
+});
+
+test("Record<int64, int32> retains its distinct checked source key constraint", () => {
+  const checked = checkCsharpSource({ surface: "js", sourceText: `
+    import type { int32, int64 } from "@tsonic/core/types.js";
+    export const wide: Record<int64, int32> = { 9007199254740993: 9 };
+  ` });
+  assert.equal(checked.sourceDiagnosticsText.includes("TS2344") && checked.sourceDiagnosticsText.includes("bigint"), true,
+    "the source Record constraint is not evidence of native key rounding or a new bigint Record capability");
 });
 
 test("exact literal selections exist only at requested keys and equal the native rule", () => {

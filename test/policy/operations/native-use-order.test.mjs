@@ -28,7 +28,8 @@ const no = { get: () => false };
 const record = { sourceArgumentIndex: 0, effectiveArgumentIndex: 0, sourceParameterIndex: 0, parameterIndex: 0,
   expression: argument, sourceForm: "value", type: scalar };
 const classification = grouping => ({ form: { kind: "target", optionalReceiverRouting: "call" },
-  target: { kind: "source-owned" }, source: { sourceCalleeAccess: { kind: "property", receiver: { expression: receiver } } },
+  target: { kind: "source-owned" }, source: { sourceCallee: { expression: member },
+    sourceCalleeAccess: { kind: "property", receiver: { expression: receiver } } },
   sourceCall: { kind: "method", receiver: { expression: receiver, type: scalar } }, unionCall: { kind: "not-union" },
   sourceArgumentGrouping: grouping });
 const input = selected => ({ ast, evidence: { compileTimeMetadata: no, sourceArgument: none, sourceDefaultValue: none },

@@ -47,6 +47,7 @@ export function planCsharpNativeExpression(
   if (physical.kind === "erased") return failCsharpPlannerInvariant("Native construction cannot be erased.", node);
   const planned = render(physical);
   if (planned === undefined || planned.completion.kind === "never" || selected.kind !== "converted") return planned;
+  if (selected.completion.kind === "void") return csharpPlannedEffect(selected.target, planCsharpPlannedDiscard(planned));
   const conversion = readCsharpExpressionConversionClassification(node, input, diagnostics,
     selected.carrier, selected.target, selected.mode);
   if (conversion === undefined) return undefined;

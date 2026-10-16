@@ -130,17 +130,21 @@ test("an assignment without a direct C# operator is a selected form even on a JS
 });
 
 test("an update of a JS-value object-shape member keeps its writable-location refusal", () => {
-  const compiled = compileCsharpSource({ surface: "js", sourceText: `
-    type T = { a: any };
-    export function f(x: T): void { x.a++; }
-  ` });
-  assert.equal(compiled.sourceDiagnosticsText, "");
-  assert.deepEqual(
-    compiled.result.diagnostics.map(({ code, message }) => ({ code, message })),
-    [{ code: "CSHARP_UNSUPPORTED_AST",
-      message: "Closed JS-value object-shape update '++' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden." }],
-  );
-  assert.equal(compiled.source.ast.kindName(compiled.result.diagnostics[0].sourceNode), "KindPostfixUnaryExpression");
+  for (const [operation, kind] of [["x.a++", "KindPostfixUnaryExpression"], ["++x.a", "KindPrefixUnaryExpression"]]) {
+    const compiled = compileCsharpSource({ surface: "js", sourceText: `
+      type T = { a: any };
+      export function f(x: T): void { ${operation}; }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "");
+    assert.deepEqual(
+      compiled.result.diagnostics.map(({ code, message }) => ({ code, message })),
+      [{ code: "CSHARP_UNSUPPORTED_AST",
+        message: "Closed JS-value object-shape update '++' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden." }],
+    );
+    assert.equal(compiled.source.ast.kindName(compiled.result.diagnostics[0].sourceNode), kind, `${operation}: the exact source update is rejected`);
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+      `${operation}: the source rejection precedes publication and native planning`);
+  }
 });
 
 test("binary expected-result eligibility is stored once from the checked operator that every selection carries", () => {

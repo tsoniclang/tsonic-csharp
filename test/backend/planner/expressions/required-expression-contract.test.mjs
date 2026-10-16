@@ -63,7 +63,8 @@ function fixture() {
   const actual = program.records.nativeUse.expression(radix);
   assert.equal(actual !== undefined && actual.use.kind !== "erased", true, "the original argument has its exact native context");
   const wrongUse = Object.freeze({ ...actual.use, kind: "converted", carrier: absence,
-    input: Object.freeze({ kind: "value", type: absence }), target: number, mode: "implicit", literal: undefined });
+    input: Object.freeze({ kind: "value", type: absence }), completion: Object.freeze({ kind: "value", type: number }),
+    target: number, mode: "implicit", literal: undefined });
   const changed = Object.freeze({ ...program,
     records: Object.freeze({ ...program.records,
       nativeUse: Object.freeze({ ...program.records.nativeUse,
@@ -97,7 +98,7 @@ test("required expression boundaries diagnose silent rejected conversions withou
     assert.equal(diagnostics.length === prior.length + 1, true, `${name}: exactly one new owning error`);
     assert.equal(diagnostics.at(-1).category === "error"
       && /Required C# expression planning/.test(diagnostics.at(-1).message), true,
-    `${name}: prior errors cannot hide a missing current completion`);
+    `${name}: prior errors cannot hide a missing current completion (${diagnostics.at(-1).message})`);
   }
   const rejected = planCsharpOutput(createCsharpPlanningContext(current.changed));
   assert.equal(rejected.kind === "rejected" && rejected.diagnostics.some(diagnostic => diagnostic.category === "error"), true,

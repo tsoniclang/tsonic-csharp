@@ -118,6 +118,7 @@ test("the one sealed native binary plans its operands in order with their select
   const native = { kind: "constructed", expression: binary, carrier: int32,
     completion: { kind: "value", type: int32 }, children: [], evaluation: { kind: "sequence", steps: [] }, binary: selected };
   const records = { nativeUse: { expression: node => node === binary ? { use: native } : undefined },
+    int32Remainder: { get: () => false },
     expectedBinary: { get: () => assert.fail("the planner cannot reselect") } };
   const input = { scope: {}, program: { source: { ast: current.ast }, records } };
   const diagnostics = [];
