@@ -245,6 +245,30 @@ test("numeric tokens retain floating values beyond the native integer literal ra
   assert.equal(printCsharpExpression({ kind: "NumericLiteralExpression", value: 1e20, suffix: "M" }), "100000000000000000000M");
 });
 
+test("an integer-valued float64 literal outside the long range prints as a double literal wherever it appears", () => {
+  const literal = (value) => ({ kind: "LiteralExpression", value });
+  const parenthesized = (expression) => ({ kind: "ParenthesizedExpression", expression });
+  const minus = (operand) => ({ kind: "PrefixUnaryExpression", operatorToken: { kind: "MinusToken" }, operand });
+  const binary = (left, operator, right) => ({ kind: "BinaryExpression", left, operatorToken: { kind: operator }, right });
+  const rows = [
+    [literal(1e19), "10000000000000000000D"],
+    [{ kind: "NumericLiteralExpression", value: 2 ** 63 }, "9223372036854776000D"],
+    [literal(9223372036854774784), "9223372036854775000"],
+    [literal(-9223372036854774784), "-9223372036854775000"],
+    [literal(-(2 ** 63)), "-9223372036854776000D"],
+    [literal(4294967296), "4294967296"],
+    [minus(parenthesized(literal(1e19))), "-(10000000000000000000D)"],
+    [minus(parenthesized(literal(9223372036854777856))), "-(9223372036854778000D)"],
+    [binary(literal(0), "MinusToken", literal(1e19)), "0 - 10000000000000000000D"],
+    [binary(literal(1e19), "AsteriskToken", literal(2)), "10000000000000000000D * 2"],
+  ];
+  const mismatches = rows.flatMap(([expression, expected]) => {
+    const printed = printCsharpExpression(expression);
+    return printed === expected ? [] : [`${printed} != ${expected}`];
+  });
+  assert.deepEqual(mismatches, [], "C# types an unsuffixed integer literal above long.MaxValue as ulong; the D suffix keeps the double");
+});
+
 test("printer preserves exact 64-bit integer literal digits", () => {
   assert.equal(
     printCsharpExpression({
