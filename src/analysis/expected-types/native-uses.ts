@@ -77,14 +77,12 @@ export function admitCsharpExpectedNativeUses(
   const entries: { readonly site: TargetUseSiteRef; readonly use: CsharpExpectedNativeUse }[] = [];
   const pending: { readonly site: TargetUseSiteRef; readonly reason: CsharpExpectedNativeUsePendingReason }[] = [];
   const inactive: TargetUseSiteRef[] = [];
-  const admitted = new Map<AdmissionGroup, CsharpExpectedNativeUse>();
   const stages = new Map<object, Map<string, CsharpExpectedNativeUse>>();
   const stagePositions = new Map<CsharpExpectedNativeUse, number>();
   for (const group of groups) {
     const state = group.state ?? { kind: "pending", reason: "forwarding-cycle" };
     if (state.kind === "pending") { pending.push(Object.freeze({ site: group.site, reason: state.reason })); continue; }
     if (state.kind === "inactive") { inactive.push(group.site); continue; }
-    admitted.set(group, state.use);
     entries.push(Object.freeze({ site: group.site, use: state.use }));
     const stage = state.use.construction;
     if (stage === undefined) continue;
@@ -112,11 +110,15 @@ export function admitCsharpExpectedNativeUses(
     stagePositions.set(use, entries.length);
     entries.push(Object.freeze({ site: stage.site, use }));
   }
+  const uses = new Map<object, Map<string, CsharpExpectedNativeUse>>();
+  for (const entry of entries) {
+    const sites = uses.get(entry.site.subject) ?? new Map();
+    const identity = targetUseSiteIdentity(entry.site);
+    if (sites.has(identity)) failTargetAnalysisInvariant("tsonic-csharp", "A native representation site is published twice.", entry.use.expression);
+    sites.set(identity, entry.use); uses.set(entry.site.subject, sites);
+  }
   return Object.freeze({ entries: Object.freeze(entries), pending: Object.freeze(pending), inactive: Object.freeze(inactive),
-    expectedUse: Object.freeze({ get: (site: TargetUseSiteRef) => {
-      const group = groupOf(site);
-      return group === undefined ? stages.get(site.subject)?.get(targetUseSiteIdentity(site)) : admitted.get(group);
-    } }) });
+    expectedUse: Object.freeze({ get: (site: TargetUseSiteRef) => uses.get(site.subject)?.get(targetUseSiteIdentity(site)) }) });
 
   function decide(group: AdmissionGroup): AdmissionState {
     const active: CsharpExpectedUseRequest[] = [];
