@@ -88,16 +88,16 @@ test("the native finalizer writes the finite domain once and registers obligatio
 
 test("an exact JS-string marker publishes its identity completion and leaves same-spelled local functions ordinary", () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: `
-    import { jsstr } from "@tsonic/js/lang.js";
+    import { jsstr as exactJsString } from "@tsonic/js/lang.js";
     import type { JsString } from "@tsonic/js/types.js";
-    export function exact(input: string): string { const value: JsString = jsstr(input); return value.toWellFormed(); }
-    function jsstrShadow(value: string): string { return value; }
-    export function ordinary(input: string): string { return jsstrShadow(input); }
+    export function exact(input: string): string { const value: JsString = exactJsString(input); return value.toWellFormed(); }
+    function jsstr(value: string): string { return value; }
+    export function ordinary(input: string): string { return jsstr(input); }
   ` });
   assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
   assert.equal(compiled.result.diagnostics.length === 0, true,
     compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
   const handlers = handlersByCallee(compiled.result.program);
-  assert.equal(handlers.some(([callee, kind]) => callee === "jsstr" && kind === "js-string-conversion"), true);
-  assert.equal(handlers.some(([callee, kind]) => callee === "jsstrShadow" && kind === "none"), true);
+  assert.equal(handlers.some(([callee, kind]) => callee === "exactJsString" && kind === "js-string-conversion"), true);
+  assert.equal(handlers.some(([callee, kind]) => callee === "jsstr" && kind === "none"), true);
 });
