@@ -56,7 +56,7 @@ export function analyzeCsharpNativeValueCarriers(
       }
       const assignment = ast.as.AsPropertyAssignment(property)!;
       if (evidence.sourceField.get([property, assignment.Initializer, ast.name(property)]) === undefined) {
-        refuse(property, `Value-type member '${ast.text(ast.name(property))}' requires a finalized field fact before C# struct emission.`);
+        refuse(property, "Value-type member requires a finalized field fact before C# struct emission.");
       }
     }
     const shape = shapes.resolveNode(node);
