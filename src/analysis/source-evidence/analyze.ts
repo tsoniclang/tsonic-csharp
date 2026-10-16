@@ -339,7 +339,11 @@ export function analyzeCsharpSourceEvidence(
     if (source.ast.is.IsEnumMember(node)) {
       const constant = source.semantics.enumConstants.get(node);
       if (constant === undefined) throw new Error("A checked enum member requires its exact completed source constant selection.");
-      if (constant.kind === "resolved") constants.set(node, Object.freeze({ value: constant.value }));
+      if (constant.kind === "resolved") {
+        constants.set(node, Object.freeze({ value: constant.value }));
+        const initializer = source.ast.as.AsEnumMember(node)?.Initializer;
+        if (initializer !== undefined) compileTimeMetadata.add(initializer);
+      }
     } else {
       const constantValue = semantics.types.constantValue(node);
       if (constantValue !== undefined) constants.set(node, Object.freeze({ value: constantValue }));
