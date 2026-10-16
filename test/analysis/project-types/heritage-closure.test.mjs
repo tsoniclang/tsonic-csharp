@@ -1,8 +1,68 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { createCsharpProjectTypePolicy } from "../../../dist/policy/types/project/project-types.js";
+import { csharpEnumerableTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 
 const header = 'import type { int32, int64 } from "@tsonic/core/types.js";\n';
+
+function selectedHeritageFixture(relation, target, binding) {
+  const declaration = Object.freeze({});
+  const heritage = Object.freeze({});
+  const selectedType = Object.freeze({});
+  const definition = Object.freeze({ id: "project:Derived", sourceName: "Derived", kind: "class", declaration,
+    sourceFile: {}, typeParameterBindings: [] });
+  const catalog = { issues: [], definitions: [definition],
+    definitionForDeclaration: node => node === declaration ? definition : undefined,
+    definitionForTarget: () => undefined };
+  let providerReads = 0;
+  const host = {
+    ast: {},
+    semanticsFor: () => ({ declarations: { typeAliasSymbol: () => undefined, typeSymbol: () => undefined },
+      types: { isTypeReference: () => false } }),
+    navigation: { declaredHeritage: () => ({ kind: "resolved", edges: [{ kind: relation, heritage,
+      selectedType, typeArguments: [], selectedTypeArguments: [] }] }) },
+    providers: { findTargetBindingByTargetId(id) {
+      providerReads += 1;
+      assert.equal(id, target.id, "provider evidence is read by the exact selected target identity");
+      return binding;
+    } },
+    types: { resolveSelectedType: (node, type) => {
+      assert.equal(node === heritage && type === selectedType, true, "the checked heritage selection is authoritative");
+      return target;
+    } },
+  };
+  const policy = createCsharpProjectTypePolicy(host, catalog);
+  return { policy, declaration, heritage, providerReads: () => providerReads };
+}
+
+for (const [name, relation, target, binding, message] of [
+  ["extends a non-named native carrier", "extends", { kind: "source-primitive", name: "int32" }, undefined, "cannot extend the non-class"],
+  ["implements an unknown non-structural carrier", "implements", { kind: "target-named", id: "provider:Unknown" }, undefined,
+    "without an exact native interface declaration"],
+  ["extends a selected provider struct", "extends", { kind: "target-named", id: "provider:Value" },
+    { kind: "struct", targetType: "provider:Value" }, "cannot extend the selected non-class"],
+]) {
+  test(`native heritage admission refuses a class that ${name}`, () => {
+    const value = selectedHeritageFixture(relation, target, binding);
+    assert.equal(value.policy.issues.length, 1, "one native heritage rejection");
+    const issue = value.policy.issues[0];
+    assert.equal(issue.node === value.heritage, true, "the exact authored heritage edge owns the diagnostic");
+    assert.equal(issue.code, "CSHARP_PROJECT_HERITAGE_KIND_UNSUPPORTED", "the native heritage owner rejects before publication");
+    assert.equal(issue.message.includes(message), true, "the actual native declaration constraint is reported");
+    assert.equal(value.policy.heritageForDeclaration(value.declaration) === undefined, true, "no partial heritage record is published");
+    assert.equal(value.providerReads(), target.kind === "target-named" ? 1 : 0, "native kinds use exact provider identity, not spelling");
+  });
+}
+
+test("native heritage admission retains class implements Iterable through the selected BCL interface", () => {
+  const target = csharpEnumerableTargetType({ kind: "source-primitive", name: "int32" });
+  const value = selectedHeritageFixture("implements", target);
+  assert.equal(value.policy.issues.length, 0, "the selected IEnumerable declaration is an interface");
+  const selected = value.policy.heritageForDeclaration(value.declaration);
+  assert.equal(selected?.interfaces.length, 1, "one selected interface");
+  assert.equal(selected?.interfaces[0] === target, true, "exact selected native interface and argument retained");
+});
 const cases = [
   ["int32 property", `interface Box<T> { value: T; }
 interface Closed extends Box<int32> { tag: string; }
@@ -43,6 +103,18 @@ export function make(): Closed { return { value: 5, tag: "t" }; }`, /\bint\? val
 ];
 
 for (const surface of ["native", "js"]) {
+  test(`class implements an object alias retains its structural interface (${surface})`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: header + `
+      type Named = { readonly value: int32 };
+      export class Derived implements Named { readonly value: int32 = 7; }
+      export function read(value: Named): int32 { return value.value; }
+    ` });
+    assert.equal(compiled.result.diagnostics.length, 0, "the valid structural object alias stays admitted");
+    assert.equal(compiled.result.artifacts.length > 0, true, "the retained program emits native artifacts");
+    const generated = [...compiled.artifacts.values()].join("\n");
+    assert.equal(/class Derived\s*:/u.test(generated), true, "the class retains its selected native interface header");
+    assert.equal(/\bint value\b/u.test(generated), true, "the interface and implementation retain native integer storage");
+  });
   for (const [name, source, carrier] of cases) {
     test(`inherited ${name} retains its authored native carrier (${surface})`, () => {
       const compiled = compileCsharpSource({ surface, sourceText: header + source });

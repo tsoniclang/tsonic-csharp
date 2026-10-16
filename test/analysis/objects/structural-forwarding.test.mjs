@@ -4,9 +4,68 @@ import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { finalizeCsharpStructuralInterfaceForwarding } from "../../../dist/analysis/objects/structural-forwarding.js";
+import { selectCsharpStructuralInterface } from "../../../dist/analysis/objects/structural-interfaces.js";
 import { planCsharpStructuralInterfaceMembers } from "../../../dist/backend/planner/declarations/interfaces/structural.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
+
+function defaultEvidenceFixture(kind) {
+  const declaration = Object.freeze({ kind });
+  const sourceSymbol = Object.freeze({});
+  const destinationSymbol = Object.freeze({});
+  const sourceType = Object.freeze({});
+  const destinationType = Object.freeze({});
+  const method = type => Object.freeze({ sourceName: "read", targetName: "read", memberKind: "method", type });
+  const sourceMember = Object.freeze({ ...method(csharpDelegateTargetType("System.Func", [integer], integer)),
+    sourceSubjects: [sourceSymbol] });
+  const destinationMember = Object.freeze({ ...method(csharpDelegateTargetType("System.Func", [csharpNullableTargetType(integer)], integer,
+    { optionalParameterIndexes: [0] })), sourceSubjects: [destinationSymbol] });
+  const source = Object.freeze({ targetType: { kind: "target-named", id: "test.Source" }, members: [sourceMember] });
+  const destination = Object.freeze({ targetType: { kind: "target-named", id: "test.View", csharpSourceDeclarationKind: "interface" },
+    sourceType: destinationType, members: [destinationMember] });
+  let parameterReads = 0;
+  const parameter = Object.freeze({});
+  const policy = {
+    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({ kind: "available",
+      destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
+        source: { property: { symbol: sourceSymbol, rootSymbols: [] }, declarations: [declaration] },
+        destination: { property: { symbol: destinationSymbol, rootSymbols: [] }, declarations: [] },
+      }],
+    }) } }),
+    ast: {
+      is: { IsMethodDeclaration: node => node.kind === "method-declaration",
+        IsMethodSignatureDeclaration: node => node.kind === "method-signature" },
+      parameters(node) {
+        parameterReads += 1;
+        assert.equal(node === declaration, true, "defaults read from the selected declaration only");
+        assert.notEqual(node.kind, "property-declaration", "property declarations have no method parameter list");
+        return [parameter];
+      },
+      as: { AsParameterDeclaration: node => node === parameter ? { Initializer: {} } : undefined },
+    },
+  };
+  return { policy, source, destination, parameterReads: () => parameterReads };
+}
+
+test("structural default evidence never reads parameters from a selected property declaration", () => {
+  const value = defaultEvidenceFixture("property-declaration");
+  value.policy.ast.parameters = () => assert.fail("a callable member symbol cannot make a property declaration a method");
+  const selected = selectCsharpStructuralInterface(value.policy, {}, value.source, value.destination);
+  assert.equal(selected === undefined, true, "a property cannot supply a method-default witness");
+  assert.equal(value.parameterReads(), 0, "the actual declaration kind gates source parameter reads");
+});
+
+for (const kind of ["method-declaration", "method-signature"]) {
+  test(`structural default evidence retains a selected ${kind} initializer witness`, () => {
+    const value = defaultEvidenceFixture(kind);
+    const selected = selectCsharpStructuralInterface(value.policy, {}, value.source, value.destination);
+    assert.equal(selected === undefined, false, "the authored method default supplies the native omission witness");
+    assert.equal(value.parameterReads(), 1, "source parameters are gathered once by the analysis owner");
+    assert.equal(selected.methods.length, 1, "one native method correspondence");
+    assert.equal(selected.methods[0].defaultArguments.length, 1, "one initialized parameter");
+    assert.equal(selected.methods[0].defaultArguments[0], 0, "the exact initialized parameter index");
+  });
+}
 
 function fixture(passingMode = "by-value") {
   const sourceType = Object.freeze({ kind: "target-named", id: "test.Source" });

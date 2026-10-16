@@ -35,7 +35,8 @@ export function selectCsharpStructuralInterface(
     members.push(Object.freeze({ source: read.member, destination: write.member, openSource: open.member,
       openDestination: destinationMember.member,
       ...(declaration === undefined ? {} : { declaration }),
-      parameterDefaults: Object.freeze(declaration === undefined || read.member.memberKind !== "method" ? [] : policy.ast.parameters(declaration).map(parameter =>
+      parameterDefaults: Object.freeze(declaration === undefined ||
+        !policy.ast.is.IsMethodDeclaration(declaration) && !policy.ast.is.IsMethodSignatureDeclaration(declaration) ? [] : policy.ast.parameters(declaration).map(parameter =>
         policy.ast.as.AsParameterDeclaration(parameter)?.Initializer !== undefined)),
     }));
   }
