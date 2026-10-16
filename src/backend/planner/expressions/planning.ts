@@ -1,5 +1,5 @@
 import type { CsharpPlanningContext } from "../context.js";
-import { tryPlanCsharpMemoryBinding } from "./memory-bindings.js";
+import { planCsharpMemoryBinding } from "./memory-bindings.js";
 import {
   KindArrowFunction,
   KindCallExpression,
@@ -88,17 +88,17 @@ import {
   readCsharpExpressionConversionClassification,
 } from "./conversions.js";
 import {
-  tryPlanCsharpTypedLocationOperation,
+  planCsharpTypedLocationOperation,
   planCsharpProjectedFieldWrite,
 } from "./expression-typed-locations.js";
 import {
-  tryPlanCsharpExplicitSafetyExpression,
+  planCsharpExplicitSafetyExpression,
 } from "../safety/explicit-safety.js";
 import {
-  tryPlanCsharpNativePointerOperation,
+  planCsharpNativePointerOperation,
 } from "./expression-native-pointers.js";
 import {
-  tryPlanCsharpJsStringConversion,
+  planCsharpJsStringConversion,
 } from "./expression-js-string-conversion.js";
 import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedArgument, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
@@ -222,39 +222,40 @@ function planExpressionCore(
     expectedArgumentPassingMode,
     selectedTargetParameter,
   );
-  switch (input.program.records.nativeHandler.get(node)) {
+  const nativeHandler = input.program.records.nativeHandler.get(node);
+  switch (nativeHandler?.kind) {
     case "memory-binding":
       {
-        const plan = tryPlanCsharpMemoryBinding(node, sourceFile, input, diagnostics, scopedPlanExpression);
-        return plan.handled ? plan.expression : undefined;
+        return planCsharpMemoryBinding(node, nativeHandler.selection, sourceFile, input, diagnostics, scopedPlanExpression);
       }
     case "explicit-safety":
       {
-        const plan = tryPlanCsharpExplicitSafetyExpression(
+        return planCsharpExplicitSafetyExpression(
           node,
+          nativeHandler.selection,
           sourceFile,
           input,
           diagnostics,
           state,
           planExpression,
         );
-        return plan.handled ? plan.expression : undefined;
       }
     case "js-string-conversion":
       {
-        const plan = tryPlanCsharpJsStringConversion(
+        return planCsharpJsStringConversion(
           node,
+          nativeHandler.selection,
           sourceFile,
           input,
           diagnostics,
           scopedPlanExpression,
         );
-        return plan.handled ? plan.expression : undefined;
       }
     case "native-pointer":
       {
-        const plan = tryPlanCsharpNativePointerOperation(
+        return planCsharpNativePointerOperation(
           node,
+          nativeHandler.selection,
           sourceFile,
           input,
           diagnostics,
@@ -280,12 +281,12 @@ function planExpressionCore(
           ),
           state,
         );
-        return plan.handled ? plan.expression : undefined;
       }
     case "typed-location":
       {
-        const plan = tryPlanCsharpTypedLocationOperation(
+        return planCsharpTypedLocationOperation(
           node,
+          nativeHandler.selection,
           sourceFile,
           input,
           diagnostics,
@@ -310,7 +311,6 @@ function planExpressionCore(
           ),
           state,
         );
-        return plan.handled ? plan.expression : undefined;
       }
     case undefined:
       break;

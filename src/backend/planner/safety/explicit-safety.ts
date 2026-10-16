@@ -3,7 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpSafetyApplication } from "../../../target-model/records/safety.js";
+import type { CsharpSafetyApplication, CsharpSafetyOperation } from "../../../target-model/records/safety.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -23,12 +23,9 @@ import {
 import { csharpPlannedValue, type CsharpPlannedValue } from "../expressions/planned-values.js";
 import { captureCsharpPlannedValue } from "../expressions/planned-value-composition.js";
 
-export type CsharpExplicitSafetyExpressionPlan =
-  | { readonly handled: false }
-  | { readonly handled: true; readonly expression?: CsharpPlannedValue };
-
-export function tryPlanCsharpExplicitSafetyExpression(
+export function planCsharpExplicitSafetyExpression(
   node: Node,
+  selected: CsharpSafetyOperation,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
@@ -40,31 +37,27 @@ export function tryPlanCsharpExplicitSafetyExpression(
     diagnostics: TargetDiagnostic[],
     state: DestructuringPlannerState,
   ) => CsharpPlannedValue | undefined,
-): CsharpExplicitSafetyExpressionPlan {
-  const selected = input.program.records.safetyOperation.get(node);
-  if (selected?.kind !== "unsafe-context") {
-    if (selected?.kind === "safety-builder") {
+): CsharpPlannedValue | undefined {
+  if (selected.kind === "safety-builder") {
       diagnostics.push(targetDiagnostic(
         "CSHARP_SAFETY_MARKER_RUNTIME_POSITION_UNSUPPORTED",
         "C# declaration safety markers must be complete standalone expression statements.",
       ));
-      return { handled: true };
-    }
-    return { handled: false };
+      return undefined;
   }
   if (selected.fact.kind !== "expression") {
     diagnostics.push(targetDiagnostic(
       "CSHARP_UNSAFE_CONTEXT_BLOCK_POSITION_INVALID",
       "The no-argument unsafe-context marker must be handled as the first direct statement of a source block.",
     ));
-    return { handled: true };
+    return undefined;
   }
   if (input.program.configuration.languageDialect !== "csharp15-preview") {
     diagnostics.push(targetDiagnostic(
       "CSHARP_UNSAFE_EXPRESSION_DIALECT_UNSUPPORTED",
       "C# unsafe expressions require target option languageDialect='csharp15-preview'.",
     ));
-    return { handled: true };
+    return undefined;
   }
   const expressionFact = selected.fact;
   const plannerState = state ?? createDestructuringPlannerState(
@@ -79,24 +72,24 @@ export function tryPlanCsharpExplicitSafetyExpression(
       diagnostics,
       plannerState,
     ));
-  if (expression === undefined) return { handled: true };
-  if (expression.completion.kind !== "value") return { handled: true, expression: {
+  if (expression === undefined) return undefined;
+  if (expression.completion.kind !== "value") return {
     prelude: [{ kind: "UnsafeStatement", body: { kind: "Block", statements: expression.prelude } }],
     completion: expression.completion,
-  } };
-  if (expression.prelude.length === 0) return { handled: true, expression: csharpPlannedValue(
+  };
+  if (expression.prelude.length === 0) return csharpPlannedValue(
     expression.completion.carrier, { kind: "UnsafeExpression", expression: expression.completion.expression },
-  ) };
+  );
   const storage = captureCsharpPlannedValue(node, input, diagnostics, expression.completion.carrier);
-  if (storage === undefined) return { handled: true };
+  if (storage === undefined) return undefined;
   const reference = { kind: "IdentifierName" as const, name: storage.name };
-  return { handled: true, expression: csharpPlannedValue(expression.completion.carrier, reference, [
+  return csharpPlannedValue(expression.completion.carrier, reference, [
     { kind: "LocalDeclarationStatement", ...storage },
     { kind: "UnsafeStatement", body: { kind: "Block", statements: [...expression.prelude, {
       kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", left: reference,
         operatorToken: { kind: "EqualsToken" }, right: expression.completion.expression },
     }] } },
-  ]) };
+  ]);
 }
 
 export function isExplicitUnsafeBlockMarker(

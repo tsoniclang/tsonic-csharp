@@ -27,7 +27,8 @@ import { getCsharpMethodValue } from "../../target-model/types/method-values.js"
 import { getCsharpClassFactory } from "../../target-model/types/carriers/class-factories.js";
 import { classifyCsharpOptionalCallCallee, classifyCsharpOptionalCallReceiver } from "./optional-calls.js";
 import { selectCsharpMemoryBinding } from "../../policy/operations/memory-bindings.js";
-import { selectCsharpNativeHandler } from "../../policy/operations/pointers/native-handlers.js";
+import { analyzeCsharpNativeHandlers } from "./native-handlers.js";
+import type { CsharpRequiredRecord } from "../program/records/required-records.js";
 import { selectCsharpElementDeletion } from "../../policy/operations/collections/element-deletion.js";
 import { selectCsharpSwitch } from "../../policy/operations/control-flow/switch.js";
 import {
@@ -79,7 +80,7 @@ import {
   isCsharpThrowableType,
 } from "../../policy/types/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpCallClassification, CsharpBinaryClassification, CsharpConstructionClassification, CsharpElementClassification, CsharpNativeHandler, CsharpOperatorFormClassification, CsharpPropertyClassification, CsharpUnaryClassification, CsharpTargetOperationClassifications, CsharpOperationIssue } from "../../target-model/records/operations.js";
+import type { CsharpCallClassification, CsharpBinaryClassification, CsharpConstructionClassification, CsharpElementClassification, CsharpOperatorFormClassification, CsharpPropertyClassification, CsharpUnaryClassification, CsharpTargetOperationClassifications, CsharpOperationIssue } from "../../target-model/records/operations.js";
 import {
   composeCsharpBinaryExecutionDriver,
 } from "../../providers/model/provider-policy-contribution.js";
@@ -170,7 +171,6 @@ const exactCatchRethrowKey = createTargetClassificationKey<boolean>(
 const nativeGuardResultKey = createTargetClassificationKey<boolean>("csharp.operation.native-guard-result");
 const nativeUnreachableKey = createTargetClassificationKey<boolean>("csharp.operation.native-unreachable");
 const erasedStatementKey = createTargetClassificationKey<boolean>("csharp.operation.erased-statement");
-const nativeHandlerKey = createTargetClassificationKey<CsharpNativeHandler>("csharp.operation.native-handler");
 const operatorFormKey = createTargetClassificationKey<CsharpOperatorFormClassification>("csharp.operation.operator-form");
 const borrowedSequenceKey = createTargetClassificationKey<ReturnType<typeof classifyCsharpBorrowedSequenceInput>>(
   "csharp.operation.borrowed-sequence",
@@ -182,6 +182,8 @@ export function analyzeCsharpTargetOperations(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
   erasureIndexes: CsharpOperationErasureIndexes,
+  nodes: readonly Node[],
+  requirements: CsharpRequiredRecord[],
 ): CsharpTargetOperationClassifications {
   const builder = createTargetClassificationBuilder();
   const operationResultSubjects = new Set<Node>();
@@ -209,6 +211,13 @@ export function analyzeCsharpTargetOperations(
       issues,
     );
   }
+  const nativeHandler = analyzeCsharpNativeHandlers(nodes, {
+    memoryBinding: { get: node => builder.get(node, memoryBindingKey) },
+    safetyOperation: erasure.safetyApplications.safetyOperation,
+    jsStringConversion: { get: node => builder.get(node, jsStringConversionKey) },
+    nativePointer: { get: node => builder.get(node, nativePointerKey) },
+    typedLocation: { get: node => builder.get(node, typedLocationKey) },
+  }, requirements);
   const facts = builder.seal();
   const operationResultTypes = new WeakMap<Node, import("../../target-model/types/model.js").TargetTypeRef>();
   for (const subject of operationResultSubjects) {
@@ -225,9 +234,8 @@ export function analyzeCsharpTargetOperations(
     nativeGuardResult: Object.freeze({ get: node => facts.get(node, nativeGuardResultKey) }),
     nativeUnreachable: Object.freeze({ get: node => facts.get(node, nativeUnreachableKey) === true }),
     erasedStatement: Object.freeze({ get: node => facts.get(node, erasedStatementKey) === true }),
-    nativeHandler: Object.freeze({ get: node => facts.get(node, nativeHandlerKey) }),
+    nativeHandler,
     operatorForm: Object.freeze({ get: node => facts.get(node, operatorFormKey)?.form, usesExpectedResultType: node => facts.get(node, operatorFormKey)?.usesExpectedResultType }),
-    memoryBinding: Object.freeze({ get: node => facts.get(node, memoryBindingKey) }),
     binaryExecutionDriver: () => selectedBinaryExecutionDriver,
     operationResultType: Object.freeze({ get: (node) => operationResultTypes.get(node) }),
     selectedCall: Object.freeze({ get: (node) => facts.get(node, callKey) }),
@@ -250,7 +258,6 @@ export function analyzeCsharpTargetOperations(
     jsObjectLiteral: Object.freeze({ get: (node) => facts.get(node, jsObjectLiteralKey) }),
     jsArrayMutation: Object.freeze({ get: (node) => facts.get(node, jsArrayMutationKey) }),
     elementDeletion: Object.freeze({ get: (node) => facts.get(node, elementDeletionKey) }),
-    jsStringConversion: Object.freeze({ get: (node) => facts.get(node, jsStringConversionKey) }),
     providerValue: Object.freeze({ get: (node) => facts.get(node, providerValueKey) }),
     regularExpression: Object.freeze({ get: (node) => facts.get(node, regularExpressionKey) }),
     throwable: Object.freeze({ get: (node) => facts.get(node, throwableKey) }),
@@ -411,10 +418,6 @@ function visit(
       selectCsharpTypedLocationOperation(policy, node, sourceFile),
     );
   }
-  const nativeHandler = selectCsharpNativeHandler(builder.get(node, memoryBindingKey),
-    erasure.safetyApplications.safetyOperation.get(node), builder.get(node, jsStringConversionKey),
-    builder.get(node, nativePointerKey), builder.get(node, typedLocationKey));
-  if (nativeHandler !== undefined) setClassification(builder, node, nativeHandlerKey, nativeHandler);
   if (ast.is.IsCallExpression(node)) {
     const expression = ast.as.AsCallExpression(node);
     const source = policy.semantics(sourceFile).operations.call(node);

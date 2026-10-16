@@ -41,34 +41,25 @@ import { buildCsharpPlannedValue, projectCsharpPlannedValue, planCsharpExpressio
 import { captureCsharpPlannedLocation } from "./planned-locations.js";
 import { translateCsharpPropertyAccess } from "./target-members/selected-property.js";
 import { sourceNodesEqual } from "@tsonic/target-api/source";
+import type { CsharpNativeHandler } from "../../../target-model/records/native-handlers.js";
 
-export type CsharpTypedLocationOperationPlan =
-  | { readonly handled: false }
-  | { readonly handled: true; readonly expression?: CsharpPlannedValue };
-
-export function tryPlanCsharpTypedLocationOperation(
+export function planCsharpTypedLocationOperation(
   node: Node,
+  operation: Extract<CsharpNativeHandler, { readonly kind: "typed-location" }>["selection"],
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   state?: DestructuringPlannerState,
-): CsharpTypedLocationOperationPlan {
-  const operation = input.program.records.typedLocation.get(node);
-  if (operation === undefined) {
-    return { handled: false };
-  }
-  if (operation.kind === "not-typed-location") {
-    return { handled: false };
-  }
+): CsharpPlannedValue | undefined {
   if (operation.kind === "rejected") {
     diagnostics.push(typedLocationDiagnostic(
       node,
       operation.operation,
       operation.reason,
     ));
-    return { handled: true };
+    return undefined;
   }
   const pointeeType = csharpTypeFromTargetTypeRef(operation.pointeeType, input.scope.typeParameterNames);
   const locationType = csharpTypeFromTargetTypeRef(operation.locationType, input.scope.typeParameterNames);
@@ -78,12 +69,12 @@ export function tryPlanCsharpTypedLocationOperation(
       operation.kind,
       "The selected C# typed-location operation is not renderable.",
     ));
-    return { handled: true };
+    return undefined;
   }
   switch (operation.kind) {
     case "location-hash": {
       const parameterType = csharpTypeFromTargetTypeRef(operation.parameterType, input.scope.typeParameterNames);
-      if (parameterType === undefined) return { handled: true };
+      if (parameterType === undefined) return undefined;
       const pointer = planExpressionWithExpectedType(
         operation.locationExpression,
         sourceFile,
@@ -93,10 +84,8 @@ export function tryPlanCsharpTypedLocationOperation(
         undefined,
         operation.parameterType,
       );
-      return { handled: true, ...(pointer === undefined ? {} : {
-        expression: projectCsharpPlannedValue(node, sourceFile, input, diagnostics, pointer,
-          value => invokeMember(locationType, "Hash", [value])),
-      }) };
+      return pointer === undefined ? undefined : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, pointer,
+        value => invokeMember(locationType, "Hash", [value]));
     }
     case "location-bind":
     case "location-view":
@@ -109,21 +98,19 @@ export function tryPlanCsharpTypedLocationOperation(
         );
       });
       const typeArguments = operation.typeArguments.map(type => csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames));
-      return { handled: true, ...(args.some(value => value === undefined) ||
-        typeArguments.some(value => value === undefined) ? {} : {
-          expression: buildCsharpPlannedValue(node, sourceFile, input, diagnostics, args,
-            values => invokeMember(locationType, operation.method, values, typeArguments as CsharpTypeNode[])),
-        }) };
+      return args.some(value => value === undefined) || typeArguments.some(value => value === undefined) ? undefined
+        : buildCsharpPlannedValue(node, sourceFile, input, diagnostics, args,
+          values => invokeMember(locationType, operation.method, values, typeArguments as CsharpTypeNode[]));
     }
     case "location-address": {
       if (input.program.records.nativeArray.get(operation.storage.expression)?.kind === "element") {
         const value = planExpression(operation.storage.expression, sourceFile, input, diagnostics);
         if (value?.completion.kind === "value" && value.completion.expression.kind === "ElementAccessExpression" && value.completion.expression.arguments.length === 1) {
-          return { handled: true, expression: projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
-            selected => selected.kind === "ElementAccessExpression" ? invokeMember(selected.receiver, "LocationAt", selected.arguments) : undefined) };
+          return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
+            selected => selected.kind === "ElementAccessExpression" ? invokeMember(selected.receiver, "LocationAt", selected.arguments) : undefined);
         }
         diagnostics.push(typedLocationDiagnostic(node, operation.kind, "Native array backing did not produce its sealed element access."));
-        return { handled: true };
+        return undefined;
       }
       if (operation.storage.kind === "reference-property-storage") {
         const source = input.program.records.sourceMember.get(operation.storage.expression);
@@ -134,28 +121,26 @@ export function tryPlanCsharpTypedLocationOperation(
         if (backing !== undefined) {
           const value = planExpression(operation.storage.expression, sourceFile, input, diagnostics);
           if (value?.completion.kind === "value" && value.completion.expression.kind === "SimpleMemberAccessExpression") {
-            return { handled: true, expression: projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
-              selected => selected.kind === "SimpleMemberAccessExpression" ? { kind: "SimpleMemberAccessExpression", receiver: selected.receiver, name: backing.storageName } : undefined) };
+            return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
+              selected => selected.kind === "SimpleMemberAccessExpression" ? { kind: "SimpleMemberAccessExpression", receiver: selected.receiver, name: backing.storageName } : undefined);
           }
           diagnostics.push(typedLocationDiagnostic(node, operation.kind, "Native field backing did not produce its sealed field access."));
-          return { handled: true };
+          return undefined;
         }
       }
       if (operation.storage.kind === "direct-storage" && operation.storage.identity.kind === "local-storage" &&
         input.program.records.nativeBacking.get(operation.storage.identity.declaration) !== undefined) {
         const value = planExpression(operation.storage.expression, sourceFile, input, diagnostics);
         if (value?.completion.kind === "value" && value.completion.expression.kind === "SimpleMemberAccessExpression" && value.completion.expression.name === "Value") {
-          return { handled: true, expression: projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
-            selected => selected.kind === "SimpleMemberAccessExpression" ? selected.receiver : undefined) };
+          return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
+            selected => selected.kind === "SimpleMemberAccessExpression" ? selected.receiver : undefined);
         }
         diagnostics.push(typedLocationDiagnostic(node, operation.kind, "Native local backing did not produce its sealed location access."));
-        return { handled: true };
+        return undefined;
       }
       const plannerState = state ??
         createDestructuringPlannerState(sourceFile, input.program.source.ast);
-      return {
-        handled: true,
-        expression: planCsharpTypedLocationStorage(
+      return planCsharpTypedLocationStorage(
           operation.storage,
           locationType,
           sourceFile,
@@ -163,8 +148,7 @@ export function tryPlanCsharpTypedLocationOperation(
           diagnostics,
           planExpression,
           plannerState,
-        ),
-      };
+        );
     }
     case "location-allocate": {
       const initial = planExpressionWithExpectedType(
@@ -177,18 +161,11 @@ export function tryPlanCsharpTypedLocationOperation(
         operation.pointeeType,
       );
       const backing = input.program.records.nativeBacking.get(node);
-      if (backing !== undefined) return { handled: true, expression: initial === undefined
+      if (backing !== undefined) return initial === undefined
         ? undefined : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, initial,
-          value => planCsharpNativeMemoryCall(input.scope.typeParameterNames, "Allocate", value, backing)) };
-      return {
-        handled: true,
-        ...(initial === undefined
-          ? {}
-          : {
-              expression: projectCsharpPlannedValue(node, sourceFile, input, diagnostics, initial,
-                value => invokeMember(locationType, "Allocate", [value])),
-            }),
-      };
+          value => planCsharpNativeMemoryCall(input.scope.typeParameterNames, "Allocate", value, backing));
+      return initial === undefined ? undefined : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, initial,
+        value => invokeMember(locationType, "Allocate", [value]));
     }
     case "location-load": {
       const location = planExpression(
@@ -197,15 +174,8 @@ export function tryPlanCsharpTypedLocationOperation(
         input,
         diagnostics,
       );
-      return {
-        handled: true,
-        ...(location === undefined
-          ? {}
-          : {
-              expression: projectCsharpPlannedValue(node, sourceFile, input, diagnostics, location,
-                value => operation.location.kind === "runtime-location" ? invokeMember(value, "Load", []) : value),
-            }),
-      };
+      return location === undefined ? undefined : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, location,
+        value => operation.location.kind === "runtime-location" ? invokeMember(value, "Load", []) : value);
     }
     case "location-store": {
       const location = planExpression(
@@ -230,30 +200,24 @@ export function tryPlanCsharpTypedLocationOperation(
         if (fact?.kind !== "resolved" || !fact.writable || fact.address?.passing !== "byref-readwrite") {
           diagnostics.push(typedLocationDiagnostic(node, operation.kind, fact?.kind === "rejected" ? fact.reason
             : "A native ref-return store requires its sealed writable managed address."));
-          return { handled: true };
+          return undefined;
         }
         const captured = captureCsharpPlannedLocation(node, sourceFile, input, diagnostics, location, fact,
           input.program.sourceNavigation.expressionEffects(operation.valueExpression).suspends);
-        if (captured === undefined || captured.completion.kind !== "value") return { handled: true, expression: captured };
+        if (captured === undefined || captured.completion.kind !== "value") return captured;
         const prelude = [...captured.prelude, ...value.prelude];
-        return { handled: true, expression: value.completion.kind === "never" ? { prelude, completion: value.completion }
+        return value.completion.kind === "never" ? { prelude, completion: value.completion }
           : value.completion.kind === "void" ? undefined : planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
-            assignment(captured.completion.expression, value.completion.expression), undefined, prelude) };
+            assignment(captured.completion.expression, value.completion.expression), undefined, prelude);
       }
-      return {
-        handled: true,
-        ...(location === undefined || value === undefined
-          ? {}
-          : {
-              expression: buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [location, value],
+      return location === undefined || value === undefined ? undefined
+        : buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [location, value],
                 values => operation.location.kind === "runtime-location" ? invokeMember(values[0]!, "Store", [values[1]!])
-                  : assignment(values[0]!, values[1]!)),
-            }),
-      };
+                  : assignment(values[0]!, values[1]!));
     }
     case "location-equal": {
       const parameterType = csharpTypeFromTargetTypeRef(operation.parameterType, input.scope.typeParameterNames);
-      if (parameterType === undefined) return { handled: true };
+      if (parameterType === undefined) return undefined;
       const left = planExpressionWithExpectedType(
         operation.leftExpression,
         sourceFile,
@@ -272,15 +236,9 @@ export function tryPlanCsharpTypedLocationOperation(
         undefined,
         operation.parameterType,
       );
-      return {
-        handled: true,
-        ...(left === undefined || right === undefined
-          ? {}
-          : {
-              expression: buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [left, right],
-                values => invokeMember(locationType, "Same", values)),
-            }),
-      };
+      return left === undefined || right === undefined ? undefined
+        : buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [left, right],
+          values => invokeMember(locationType, "Same", values));
     }
   }
 }
