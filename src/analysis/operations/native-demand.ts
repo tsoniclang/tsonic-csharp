@@ -1,9 +1,9 @@
 import type { Node } from "@tsonic/tsts";
 import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import { selectCsharpNativeConstructSteps } from "../../policy/operations/native-demand/constructs.js";
-import { selectCsharpNativeOperandUses, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "../../policy/operations/native-demand/operands.js";
-import { selectCsharpNativeCompletion, type CsharpNativeCompletionFlow } from "../../policy/operations/native-demand/completion.js";
+import { selectCsharpNativeConstructSteps } from "../../policy/operations/control-flow/native-constructs.js";
+import { selectCsharpNativeOperandUses, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "../../policy/operations/control-flow/native-operands.js";
+import { selectCsharpNativeCompletion, type CsharpNativeCompletionFlow } from "../../policy/operations/control-flow/native-completion.js";
 import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeChildUse, type CsharpNativeCompletion,
   type CsharpNativeEvaluation, type CsharpNativeOrderStep, type CsharpNativeUse } from "../../target-model/records/native-demand.js";
 import { csharpConstructorBaseCall } from "../callables/constructor-entry.js";

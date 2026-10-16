@@ -1,16 +1,16 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
-import type { CsharpExactLiteralSelection } from "../../../target-model/conversions/exact-literals.js";
-import type { CsharpConversionMode } from "../../../target-model/conversions/selection.js";
+import type { CsharpExactLiteralSelection } from "../../target-model/conversions/exact-literals.js";
+import type { CsharpConversionMode } from "../../target-model/conversions/selection.js";
 import {
   csharpNativeUseSite,
   type CsharpExpectedNativeUse,
   type CsharpNativeCallableCreation,
   type CsharpNativeUseSlot,
-} from "../../../target-model/records/native-demand.js";
-import type { CsharpOperationSelection, CsharpResolvedBinaryOperation } from "../../../target-model/records/operator-selection.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+} from "../../target-model/records/native-demand.js";
+import type { CsharpOperationSelection, CsharpResolvedBinaryOperation } from "../../target-model/records/operator-selection.js";
+import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 export interface CsharpNativeRepresentationChild {
   readonly site: TargetUseSiteRef;

@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { selectCsharpNativeOperandUses } from "../../../dist/policy/operations/native-demand/operands.js";
-import { selectCsharpNativeCompletion } from "../../../dist/policy/operations/native-demand/completion.js";
+import { selectCsharpNativeOperandUses } from "../../../dist/policy/operations/control-flow/native-operands.js";
+import { selectCsharpNativeCompletion } from "../../../dist/policy/operations/control-flow/native-completion.js";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "int32" });
 const checked = checkCsharpSource({ sourceText: `
