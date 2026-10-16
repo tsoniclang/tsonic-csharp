@@ -41,7 +41,7 @@ export function createCsharpExpectedTypePropagation(
   collection: CsharpExpectedUseCollection,
   expectedBinary: (expression: Node, targetType: TargetTypeRef) => CsharpExpectedBinarySelection,
 ): CsharpExpectedTypePropagation {
-  const { policy, evidence, operations, objectShapes, valueReadStages } = input;
+  const { policy, operations, objectShapes, valueReadStages } = input;
   const record = collection.record;
   const arrayCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
   const objectCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
@@ -196,14 +196,15 @@ export function createCsharpExpectedTypePropagation(
       }
       const propertyName = policy.ast.name(property);
       const selected = propertyName !== undefined &&
-          policy.ast.is.IsComputedPropertyName(propertyName)
+          (policy.ast.is.IsComputedPropertyName(propertyName) || policy.ast.is.IsNumericLiteral(propertyName))
         ? (() => {
-            const symbol = evidence.wellKnownSymbol.get(propertyName);
-            return symbol === undefined
+            const selectedName = policy.semanticsFor(property).propertyNames.get(propertyName);
+            return selectedName?.kind !== "resolved" && selectedName?.kind !== "well-known-symbol"
               ? undefined
               : resolveCsharpObjectShapeMemberBySourceKey(
                   resolution.shape,
-                  csharpWellKnownSymbolSourceMemberKey(symbol.kind),
+                  selectedName.kind === "resolved" ? csharpPropertySourceMemberKey(selectedName.name)
+                    : csharpWellKnownSymbolSourceMemberKey(selectedName.symbol),
                   "checked-object-literal-property",
                 );
           })()
