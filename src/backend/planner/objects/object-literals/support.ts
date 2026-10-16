@@ -66,7 +66,7 @@ export function findObjectShapeMemberForProperty(
     (input.program.source.ast.is.IsComputedPropertyName(name) || input.program.source.ast.is.IsNumericLiteral(name))
   ) {
     const selected = input.program.source.propertyNames.get(name);
-    if (selected === undefined || selected.kind === "rejected") failTargetPlannerInvariant(
+    if (selected === undefined || selected.kind === "rejected" || selected.kind === "unique-symbol") failTargetPlannerInvariant(
       "tsonic-csharp", "Computed object-shape member reached planning without admitted source-key evidence.", property);
     const lookup = resolveCsharpObjectShapeMemberBySourceKey(
       objectShape,

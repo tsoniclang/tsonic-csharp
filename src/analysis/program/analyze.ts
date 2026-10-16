@@ -475,7 +475,7 @@ function analyzeIteration(
     typeSystem.analysisTypes,
     policy,
   );
-  if (evidence.nativePropertyNameIssues.length !== 0) return rejectedTargetStage(evidence.nativePropertyNameIssues);
+  if (evidence.nativePropertyNameIssues.length !== 0) return rejectedTargetStage<never>(evidence.nativePropertyNameIssues);
   const sourceEvidence = evidence.index;
   const operations = analyzeCsharpTargetOperations(policy, sourceEvidence, statementErasure, sourceStorage.nodes, requiredRecords);
   const nativePropertyNameIssues = operations.issues.filter(issue =>
