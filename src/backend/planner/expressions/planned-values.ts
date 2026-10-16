@@ -2,6 +2,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
 import { isCsharpNeverTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import type { CsharpArgument, CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
+import { csharpExpressionIsSignedNumericLiteral } from "../../target-ast/syntax/expressions.js";
 
 export type CsharpPlannedCompletion =
   | { readonly kind: "value"; readonly carrier: TargetTypeRef; readonly expression: CsharpExpression }
@@ -162,6 +163,6 @@ export function csharpPlannedExpressionIsStable(expression: CsharpExpression): b
     case "DefaultExpression":
       return true;
     default:
-      return false;
+      return csharpExpressionIsSignedNumericLiteral(selected);
   }
 }

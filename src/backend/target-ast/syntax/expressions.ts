@@ -152,3 +152,10 @@ export interface CsharpArgument {
   readonly expression: CsharpExpression;
   readonly passing?: "in" | "out" | "ref";
 }
+
+export function csharpExpressionIsSignedNumericLiteral(expression: CsharpExpression): boolean {
+  return expression.kind === "PrefixUnaryExpression" &&
+    (expression.operatorToken.kind === "PlusToken" || expression.operatorToken.kind === "MinusToken") &&
+    expression.operand.kind === "NumericLiteralExpression" &&
+    (expression.operand.suffix === "F" || expression.operand.suffix === "M");
+}
