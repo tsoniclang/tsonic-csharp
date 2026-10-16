@@ -1,6 +1,6 @@
 import type { CsharpPlanningContext } from "../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { failTargetPlannerInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import {
   AsAsExpression,
@@ -32,7 +32,7 @@ import {
   Node_Text,
   SourceKind,
 } from "@tsonic/target-api/source";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../diagnostics.js";
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
@@ -97,7 +97,7 @@ export function tryPlanSourceSyntaxExpression(
       }
       const carrier = input.program.records.valueRead.get(node)?.source;
       if (carrier === undefined) {
-        return failTargetPlannerInvariant("tsonic-csharp",
+        return failCsharpPlannerInvariant(
           "Numeric literal emission requires its sealed native source carrier.", node);
       }
       if (carrier.kind === "source-primitive" && carrier.name === "float64") {
@@ -105,7 +105,7 @@ export function tryPlanSourceSyntaxExpression(
       }
       const selected = planCsharpExactLiteralConversion(input, node, carrier);
       if (selected.kind !== "resolved") {
-        return failTargetPlannerInvariant("tsonic-csharp",
+        return failCsharpPlannerInvariant(
           "Numeric literal emission requires the selected native scalar representation.", node);
       }
       return value(selected.expression);
