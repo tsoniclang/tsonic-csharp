@@ -10,7 +10,7 @@ export type CsharpNativeUseSlot =
       "write-target" | "update-target" | "default" | "present-payload" | "constructed-result" }
   | { readonly kind: "operand"; readonly position: "only" | "left" | "right" }
   | { readonly kind: "branch"; readonly branch: "true" | "false" }
-  | { readonly kind: "argument"; readonly sourceIndex: number; readonly effectiveIndex: number; readonly parameterIndex: number;
+  | { readonly kind: "argument"; readonly sourceIndex: number; readonly effectiveIndex: number; readonly parameterIndex?: number;
       readonly sourceParameterIndex?: number }
   | { readonly kind: "base-argument"; readonly sourceIndex: number }
   | { readonly kind: "element" | "member" | "span" | "case" | "attribute-invocation"; readonly index: number }
@@ -41,7 +41,8 @@ export function csharpNativeUseSite(owner: Node, slot: CsharpNativeUseSlot, cont
     case "operand": role = `operand:${slot.position}`; break;
     case "branch": role = `branch:${slot.branch}`; break;
     case "argument":
-      role = `argument:source=${slot.sourceIndex}:effective=${slot.effectiveIndex}:parameter=${slot.parameterIndex}` +
+      role = `argument:source=${slot.sourceIndex}:effective=${slot.effectiveIndex}` +
+        (slot.parameterIndex === undefined ? "" : `:parameter=${slot.parameterIndex}`) +
         (slot.sourceParameterIndex === undefined ? "" : `:source-parameter=${slot.sourceParameterIndex}`);
       break;
     case "base-argument": role = `base-argument:source=${slot.sourceIndex}`; break;
