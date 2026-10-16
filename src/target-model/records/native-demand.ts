@@ -4,6 +4,7 @@ import type { CsharpConversionMode } from "../conversions/selection.js";
 import { csharpTargetRepresentationContractId } from "../identities/identities.js";
 import { targetTypeRefKey } from "../types/equality.js";
 import type { TargetTypeRef } from "../types/model.js";
+import type { CsharpNativeHandler } from "./native-handlers.js";
 
 export type CsharpNativeUseSlot =
   | { readonly kind: "effect" | "initializer" | "return" | "thrown" | "condition" | "receiver" | "callee" | "key" |
@@ -90,4 +91,46 @@ export interface CsharpExpectedNativeUse {
 
 export interface CsharpExpectedNativeUseInput {
   readonly expectedUse: { readonly get: (site: TargetUseSiteRef) => CsharpExpectedNativeUse | undefined };
+}
+
+export interface CsharpNativeChildUse {
+  readonly owner: Node;
+  readonly expression: Node;
+  readonly slot: CsharpNativeUseSlot;
+  readonly context?: CsharpNativeUseContext;
+  readonly access?: "location";
+  readonly guard?: "if-absent" | "if-present";
+}
+
+export type CsharpNativeOrderStep =
+  | { readonly kind: "use"; readonly site: TargetUseSiteRef }
+  | { readonly kind: "construct"; readonly construct: Node };
+
+export type CsharpNativeEvaluation =
+  | { readonly kind: "sequence"; readonly steps: readonly { readonly site: TargetUseSiteRef; readonly guard?: "if-absent" | "if-present" }[] }
+  | { readonly kind: "conditional"; readonly condition: TargetUseSiteRef; readonly whenTrue: TargetUseSiteRef; readonly whenFalse: TargetUseSiteRef }
+  | { readonly kind: "short-circuit"; readonly left: TargetUseSiteRef; readonly right: TargetUseSiteRef }
+  | { readonly kind: "creation" };
+
+interface CsharpNativeEvaluatedUse {
+  readonly expression: Node;
+  readonly carrier: TargetTypeRef;
+  readonly completion: CsharpNativeCompletion;
+  readonly children: readonly TargetUseSiteRef[];
+  readonly evaluation: CsharpNativeEvaluation;
+}
+
+export type CsharpNativeUse =
+  | { readonly kind: "erased"; readonly expression: Node; readonly cause: "erased-statement" | "discarded-callable" }
+  | CsharpNativeEvaluatedUse & (
+    | { readonly kind: "value"; readonly handler?: CsharpNativeHandler }
+    | { readonly kind: "effect" | "location" | "constructed" | "forwarded" }
+    | { readonly kind: "converted"; readonly input: CsharpNativeCompletion; readonly target: TargetTypeRef; readonly mode: CsharpConversionMode }
+  );
+
+export interface CsharpNativeUseClassifications {
+  readonly nativeUse: {
+    readonly get: (site: TargetUseSiteRef) => CsharpNativeUse | undefined;
+    readonly order: (construct: Node) => readonly CsharpNativeOrderStep[] | undefined;
+  };
 }
