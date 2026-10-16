@@ -58,6 +58,11 @@ export function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
     }
     return true;
   };
+  const permissions = (input: unknown, length: number): boolean => {
+    if (!Array.isArray(input) || input.length !== length || !data(input) || Object.keys(input).length !== input.length) return false;
+    for (let index = 0; index < input.length; index += 1) if (typeof input[index] !== "boolean") return false;
+    return true;
+  };
   const visit = (input: unknown, depth: number): boolean => {
     if (++count > maximumCsharpMetadataEntries || depth > maximumCsharpMetadataDepth || typeof input !== "object" || input === null || active.has(input)) return false;
     if (Array.isArray(input) || !data(input)) return false;
@@ -72,10 +77,7 @@ export function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
       case "target-named":
         valid = string(type.id) &&
           (type.typeArguments === undefined || list(type.typeArguments, depth)) &&
-          Array.isArray(type.csharpAllowsRefLikeTypeArguments) && data(type.csharpAllowsRefLikeTypeArguments) &&
-          type.csharpAllowsRefLikeTypeArguments.length === (Array.isArray(type.typeArguments) ? type.typeArguments.length : 0) &&
-          Object.keys(type.csharpAllowsRefLikeTypeArguments).length === type.csharpAllowsRefLikeTypeArguments.length &&
-          type.csharpAllowsRefLikeTypeArguments.every(allowed => typeof allowed === "boolean");
+          permissions(type.csharpAllowsRefLikeTypeArguments, Array.isArray(type.typeArguments) ? type.typeArguments.length : 0);
         break;
       case "type-parameter": valid = string(type.identity) && string(type.name) &&
         (type.csharpDeclaration === undefined || typeof type.csharpDeclaration === "object" && type.csharpDeclaration !== null) &&

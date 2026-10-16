@@ -47,7 +47,7 @@ for (const [name, expression, local] of [
   ["new temporary argument", "consume(new Span<int32>(values), await pending)", ""],
   ["sliced temporary argument", "consume(view.Slice(0), await pending)", "const view = new Span<int32>(values);"],
   ["receiver", "view.Slice(await pending).Length", "const view = new Span<int32>(values);"],
-  ["conditional argument", "consume(new Span<int32>(values), values.length === 0 ? 0 : await pending)", ""],
+  ["conditional argument", "consume(new Span<int32>(values), values.Length === 0 ? 0 : await pending)", ""],
 ]) {
   test(`native full-expression liveness refuses ${name} across await`, () => {
     const compiled = compileCsharpSource({ sourceText: `${header}
@@ -66,7 +66,7 @@ for (const [name, body] of [
   ["same-scope pre-await local", `const view = new Span<int32>(values); const length = consume(view, 0); return length + await pending;`],
   ["consumed scalar before later await", `const view = new Span<int32>(values); return view.Length + await pending;`],
   ["ref-like created after suspension", `const extra = await pending; return consume(new Span<int32>(values), extra);`],
-  ["separate conditional arms", `const view = new Span<int32>(values); return values.length === 2 ? consume(view, 3) : await pending;`],
+  ["separate conditional arms", `const view = new Span<int32>(values); return values.Length === 2 ? consume(view, 3) : await pending;`],
 ]) {
   test(`native expression lifetime retains ${name}`, { timeout: 240_000 }, () => {
     const compiled = compileCsharpSource({ sourceText: `${header}

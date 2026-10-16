@@ -33,7 +33,7 @@ for (const [name, body, expected] of [
   ["inline ordinary object member", `export function fail(values: int32[]): int32 {
     return ({ value: new Span<int32>(values) }).value.Length;
   }`, "CSHARP_REFLIKE_FIELD"],
-  ["ordinary array element", `export function fail(values: Span<int32>[]): int32 { return values.length; }`,
+  ["ordinary array element", `export function fail(values: Span<int32>[]): int32 { return values.Length; }`,
     "CSHARP_REFLIKE_ARRAY_ELEMENT"],
   ["ordinary tuple element", `export function fail(value: Span<int32>): [Span<int32>, int32] { return [value, 1]; }`,
     "CSHARP_REFLIKE_TUPLE_ELEMENT"],
@@ -67,7 +67,7 @@ test("native named-carrier boundaries require exact immutable generic-slot facts
     ["sparse", { ...carrier, csharpAllowsRefLikeTypeArguments: new Array(1) }],
   ]) {
     assert.equal(isCsharpTargetTypeRef(invalid), false, `${name}: no permission without complete native metadata`);
-    assert.throws(() => snapshotCsharpTargetTypes([invalid]), /bounded valid carriers/u, name);
+    assert.throws(() => snapshotCsharpTargetTypes([invalid]), name === "sparse" ? /bounded dense arrays/u : /bounded valid carriers/u, name);
   }
   assert.throws(() => csharpTargetNamedType("Proof.Generic", [integer], undefined),
     /exact native generic-slot permissions/u, "the removed optional-metadata producer form is rejected");

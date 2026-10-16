@@ -102,7 +102,7 @@ export function nativeMemoryProvider({ missingRelation = false, wrongCarrier = f
       targetMember: { id: `native.method.${targetName}`, sourceName: name, targetName,
         kind: "method", static: true, declaringType: owner,
         ...(typeParameters === undefined ? {} : { typeParameters: typeParameters.map((parameter, index) => ({
-          ...parameter, identity: `${providerId}:${name}:${index}`,
+          ...parameter, identity: `${providerId}:${name}:${index}`, csharpAllowsRefLike: false,
         })) }),
         parameters: parameters.map((parameter, index) => targetParameter(parameter.name, parameterCarriers?.[index] ?? wordTarget)),
         ...(wrongByRefPointee && name === "location" ? { csharpReturnPassing: "byref-readwrite" } : {}),

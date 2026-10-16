@@ -81,7 +81,7 @@ test("unproduced native type vocabulary is rejected at the owning metadata bound
 
 test("C# constraints retain exactly the native projection producer vocabulary, not unused Rust constraints", () => {
   const source = [
-    { kind: "implements", contract: { kind: "named", metadataName: "Checked.Contract",
+    { kind: "implements", contract: { kind: "named", isByRefLike: false, allowsRefLikeTypeArguments: [], metadataName: "Checked.Contract",
       targetId: "Checked, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null::Checked.Contract" } },
     { kind: "value-type" }, { kind: "reference-type" }, { kind: "constructible" },
     { kind: "unmanaged" }, { kind: "not-null" },
