@@ -1,4 +1,5 @@
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "./model.js";
 import type { CsharpProjectCallableAdapters } from "../../target-model/records/callable-adapters.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
@@ -71,7 +72,8 @@ export function finalizeCsharpStructuralInterfaceForwarding(
   const objectShapes = Object.freeze({ ...readers, structuralImplementations(type: TargetTypeRef) {
     if (type.kind !== "target-named" || !sourceIds.has(type.id)) return noImplementations;
     const selected = byType.get(targetTypeRefKey(type));
-    if (selected === undefined) throw new Error("C# structural forwarding has no sealed record for the selected native instantiation.");
+    if (selected === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "C# structural forwarding has no sealed record for the selected native instantiation.");
     return selected;
   } });
   return Object.freeze({ objectShapes, issues: Object.freeze(issues) });

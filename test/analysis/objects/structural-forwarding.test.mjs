@@ -123,7 +123,9 @@ test("structural forwarding publishes canonical completed contracts and pure imm
   assert.equal(finalized.objectShapes.structuralImplementations({ ...value.sourceType }) === selected, true, "final reader preserves native record identity");
   assert.equal(value.reads(), reads, "the final getter is a lookup only");
   assert.throws(() => finalized.objectShapes.structuralImplementations({ ...value.sourceType, typeArguments: [integer] }),
-    /no sealed record/u, "an unadmitted generic instantiation cannot trigger late analysis");
+    error => error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" && error.diagnostic.source === "tsonic-csharp" &&
+      error.message === "C# structural forwarding has no sealed record for the selected native instantiation.",
+    "an impossible unadmitted generic instantiation uses the canonical analysis invariant and cannot trigger late analysis");
 });
 
 for (const missing of ["canonical method contract", "native parameter passing correspondence"]) {
