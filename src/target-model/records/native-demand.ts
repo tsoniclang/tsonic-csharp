@@ -61,3 +61,33 @@ export type CsharpNativeParticipation = "erased" | "frame-body" | "body" | "sign
 export interface CsharpNativeParticipationInput {
   readonly participation: { readonly get: (declaration: Node) => CsharpNativeParticipation | undefined };
 }
+
+export type CsharpNativeCompletion =
+  | { readonly kind: "value"; readonly type: TargetTypeRef }
+  | { readonly kind: "void" }
+  | { readonly kind: "never" };
+
+export type CsharpNativeCallableCreation =
+  | { readonly kind: "selected"; readonly carrier: TargetTypeRef }
+  | { readonly kind: "discarded" }
+  | { readonly kind: "pending" };
+
+export interface CsharpExpectedNativeUse {
+  readonly expression: Node;
+  readonly target: TargetTypeRef;
+  readonly carrier: TargetTypeRef;
+  readonly strength: "contextual" | "required";
+  readonly exactInteger: boolean;
+  readonly representation: "construct" | "forward" | "convert";
+  readonly mode: CsharpConversionMode;
+  readonly children: readonly TargetUseSiteRef[];
+  readonly construction?: {
+    readonly site: TargetUseSiteRef;
+    readonly carrier: TargetTypeRef;
+    readonly children: readonly TargetUseSiteRef[];
+  };
+}
+
+export interface CsharpExpectedNativeUseInput {
+  readonly expectedUse: { readonly get: (site: TargetUseSiteRef) => CsharpExpectedNativeUse | undefined };
+}

@@ -1,0 +1,95 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { targetUseSiteIdentity } from "@tsonic/target-api/analysis";
+import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { selectCsharpNativeUseRepresentation } from "../../../dist/policy/operations/native-demand/representation.js";
+import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
+
+const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
+const floating = Object.freeze({ kind: "source-primitive", name: "float64" });
+const checked = checkCsharpSource({ sourceText: `
+  export const binary = 7 / 2;
+  export const wrapped = (binary);
+  export const list = [binary];
+  export const callback = () => binary;
+  export const choice = true ? binary : binary;
+` });
+assert.equal(checked.sourceDiagnosticsText === "", true, checked.sourceDiagnosticsText);
+const source = createTargetSourceProgram(checked.source);
+const ast = source.ast;
+const nodes = [];
+const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
+for (const file of source.sourceFiles) walk(file);
+const initializer = name => {
+  const declaration = nodes.find(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === name);
+  return ast.as.AsVariableDeclaration(declaration).Initializer;
+};
+const base = expression => ({ ast, expression, target: integer, source: floating, mode: "implicit", absent: false,
+  literal: { kind: "not-applicable" }, callable: undefined, binary: undefined, children: new Map() });
+const edge = (input, expression, slot, target) => {
+  const site = csharpNativeUseSite(input.expression, slot, { target, mode: input.mode });
+  input.children.set(targetUseSiteIdentity(site), { site, expression, target });
+  return site;
+};
+
+test("binary physical carriers come from the selected operation, not requested results or integer summaries", () => {
+  for (const [name, carrier, target] of [["float to integer", floating, integer], ["integer to float", integer, floating]]) {
+    const input = { ...base(initializer("binary")), target, literal: { kind: "source-representation" } };
+    const expression = ast.as.AsBinaryExpression(input.expression);
+    input.binary = { kind: "resolved", sourceOperator: "/", targetOperation: { kind: "operator", operator: "/" },
+      left: expression.Left, right: expression.Right, leftType: carrier, rightType: carrier,
+      leftInputType: carrier, rightInputType: carrier, resultType: carrier };
+    edge(input, expression.Left, { kind: "operand", position: "left" }, carrier);
+    edge(input, expression.Right, { kind: "operand", position: "right" }, carrier);
+    const selected = selectCsharpNativeUseRepresentation(input);
+    assert.equal(selected.kind === "selected" && selected.representation === "convert" && selected.carrier === carrier && selected.children.length === 2,
+      true, name);
+    input.children.clear();
+    assert.equal(selectCsharpNativeUseRepresentation(input).reason, "forwarding-child-unresolved", "no positional/target fallback");
+  }
+});
+
+test("forwarding requires the exact child, target and mode", () => {
+  const input = base(initializer("wrapped"));
+  const child = ast.as.AsParenthesizedExpression(input.expression).Expression;
+  edge(input, child, { kind: "operand", position: "only" }, floating);
+  assert.equal(selectCsharpNativeUseRepresentation(input).reason, "forwarding-child-unresolved");
+  const expected = edge(input, child, { kind: "operand", position: "only" }, integer);
+  const selected = selectCsharpNativeUseRepresentation(input);
+  assert.equal(selected.kind === "selected" && selected.representation === "forward" && selected.children[0] === expected, true);
+});
+
+test("constructing C then converting to T retains the physical carrier independently", () => {
+  const carrier = Object.freeze({ kind: "array", element: integer });
+  const target = Object.freeze({ kind: "array", element: floating });
+  const input = { ...base(initializer("list")), target, constructionCarrier: carrier };
+  const element = ast.elements(input.expression)[0];
+  const site = edge(input, element, { kind: "element", index: 0 }, integer);
+  const selected = selectCsharpNativeUseRepresentation(input);
+  assert.equal(selected.kind === "selected" && selected.representation === "convert" && selected.carrier === carrier &&
+    selected.construction.carrier === carrier && selected.construction.children[0] === site && selected.children[0] === selected.construction.site, true);
+  assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.construction) && Object.isFrozen(selected.children), true);
+});
+
+test("unrequested, rejected and callable physical data never acquire the requested carrier by inference", () => {
+  const expression = initializer("callback");
+  for (const [literal, callable, reason] of [
+    [undefined, undefined, "literal-unrequested"],
+    [{ kind: "rejected", reason: "range" }, undefined, "literal-rejected"],
+    [{ kind: "not-applicable" }, undefined, "callable-creation"],
+    [{ kind: "not-applicable" }, { kind: "discarded" }, "callable-discarded"],
+  ]) assert.equal(selectCsharpNativeUseRepresentation({ ...base(expression), literal, callable }).reason, reason);
+  const selected = selectCsharpNativeUseRepresentation({ ...base(expression), callable: { kind: "selected", carrier: floating } });
+  assert.equal(selected.kind === "selected" && selected.carrier === floating && selected.representation === "convert", true);
+});
+
+test("conditional result forwarding retains both alternative uses without treating either as an unconditional evaluation", () => {
+  const input = base(initializer("choice"));
+  const conditional = ast.as.AsConditionalExpression(input.expression);
+  const whenTrue = edge(input, conditional.WhenTrue, { kind: "branch", branch: "true" }, integer);
+  const whenFalse = edge(input, conditional.WhenFalse, { kind: "branch", branch: "false" }, integer);
+  const selected = selectCsharpNativeUseRepresentation(input);
+  assert.equal(selected.kind === "selected" && selected.representation === "forward" && selected.children[0] === whenTrue &&
+    selected.children[1] === whenFalse && selected.children.length === 2, true);
+});

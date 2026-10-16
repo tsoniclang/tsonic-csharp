@@ -1,4 +1,4 @@
-import type { Node } from "@tsonic/tsts";
+import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpConversionMode } from "../../target-model/conversions/selection.js";
@@ -7,7 +7,10 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpValueReadStageIndex } from "../../target-model/records/conversions.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
-import type { CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
+import type { CsharpExpectedNativeUse, CsharpExpectedNativeUseInput, CsharpNativeCallableCreation, CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
+import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
+import type { CsharpNativeRepresentationPending } from "../../policy/operations/native-demand/representation.js";
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 import type { CsharpObjectShapeClassifications } from "../objects/index.js";
 import type { CsharpCallableContractIndex } from "../callables/index.js";
@@ -74,3 +77,21 @@ export type CsharpExpectedTypeRecord = (
   demand?: CsharpExpectedUseSiteDemand,
   exactInteger?: boolean,
 ) => void;
+
+export interface CsharpExpectedNativeUseFinalInput {
+  readonly ast: AstReader;
+  readonly exactLiteral: CsharpExactLiteralSelectionIndex["exactLiteral"];
+  readonly callableCreation: { readonly get: (expression: Node) => CsharpNativeCallableCreation | undefined };
+  readonly valueRead: CsharpValueReadClassifications["valueRead"];
+  readonly absentValue: { readonly get: (expression: Node) => boolean };
+  readonly operations: Pick<CsharpTargetOperationClassifications, "binaryOperation">;
+}
+
+export type CsharpExpectedNativeUsePendingReason = CsharpNativeRepresentationPending | CsharpExpectedUseWithholding
+  | "forwarding-owner-unresolved" | "forwarding-cycle" | "inconsistent-request";
+
+export interface CsharpExpectedNativeUseAdmission extends CsharpExpectedNativeUseInput {
+  readonly entries: readonly { readonly site: TargetUseSiteRef; readonly use: CsharpExpectedNativeUse }[];
+  readonly pending: readonly { readonly site: TargetUseSiteRef; readonly reason: CsharpExpectedNativeUsePendingReason }[];
+  readonly inactive: readonly TargetUseSiteRef[];
+}
