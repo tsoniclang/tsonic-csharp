@@ -175,7 +175,7 @@ ${body}
 
   if (surface === "js") for (const [label, body] of [
     ["console log", "export function use(value: Value): void { console.log(value); }"],
-    ["JSON stringify", "export function use(value: Value): string { return JSON.stringify(value); }"],
+    ["JSON stringify", "export function use(value: Value): string | undefined { return JSON.stringify(value); }"],
     ["Number valueOf", "export function use(value: Value): number { return value.valueOf(); }"],
     ["Number method value", "export function use(value: Value): () => number { return value.valueOf; }"],
   ]) {
