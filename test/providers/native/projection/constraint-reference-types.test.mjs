@@ -24,9 +24,10 @@ function requireModule(provider, specifier, request) {
 }
 
 function requireDeclaration(module, targetId) {
-  const declaration = module.exports.find(value => value.kind === "type" && value.targetId === targetId);
-  assert.equal(declaration !== undefined, true, `${targetId}: one actual native declaration`);
-  return declaration;
+  const declarations = [...module.exports, ...(module.targetOnlyTypes ?? [])]
+    .filter(value => value.kind === "type" && value.targetId === targetId);
+  assert.equal(declarations.length, 1, `${targetId}: one actual native declaration`);
+  return declarations[0];
 }
 
 function nativeContext() {
