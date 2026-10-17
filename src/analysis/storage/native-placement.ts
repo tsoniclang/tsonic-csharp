@@ -15,6 +15,7 @@ import type { CsharpTypeDefinitions } from "../../target-model/types/source-unio
 import { getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpGeneratorProtocol } from "../../target-model/types/carriers/generators.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
+import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { analyzeCsharpRefLikeLiveness, analyzeCsharpRefLikeEvaluation } from "./ref-like-liveness.js";
 
 export interface CsharpNativePlacementInput {
@@ -77,11 +78,12 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
   const inspect = (type: TargetTypeRef | undefined, node: Node, physicalShape?: CsharpObjectShapeFact): void => {
     if (type === undefined) return;
     const pending = [type];
-    const visited = new Set<TargetTypeRef>();
+    const visited = new Set<string>();
     while (pending.length > 0) {
       const current = pending.pop()!;
-      if (visited.has(current)) continue;
-      visited.add(current);
+      const key = targetTypeRefKey(current);
+      if (visited.has(key)) continue;
+      visited.add(key);
       if (current.kind === "array" || current.kind === "tuple") {
         const elements = current.kind === "array" ? [current.element] : current.elements;
         if (elements.some(isCsharpRefLikeTargetType)) reject(node,
