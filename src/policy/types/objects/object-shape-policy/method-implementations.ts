@@ -11,7 +11,7 @@ export function selectCsharpObjectMethodImplementation(
   state: CsharpTypeResolutionState,
   selectedLiteral?: Node,
 ): CsharpObjectShapeFact["methodImplementation"] | undefined {
-  const methods = [...new Set(members.flatMap(member => (member.sourceDeclarations ?? [])
+  const methods = [...new Set(members.filter(member => member.memberKind === "method").flatMap(member => (member.sourceDeclarations ?? [])
     .filter(declaration => host.ast.is.IsMethodDeclaration(declaration) && host.ast.body(declaration) !== undefined &&
       host.ast.is.IsObjectLiteralExpression(host.ast.parent(declaration)!) &&
       (selectedLiteral === undefined || host.ast.parent(declaration) === selectedLiteral))))]

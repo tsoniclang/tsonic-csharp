@@ -13,14 +13,16 @@ export function retainCsharpMethodValueContracts(
     (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") return shape;
   const implemented = new Map((shape.implements ?? []).map(type => [targetTypeRefKey(type), type]));
   const members = shape.members.map(member => {
-    if (!csharpObjectShapeMethodRequiresProtocol(member) &&
-      csharpObjectShapeMethodDeclaration(shape, member) === undefined) return member;
     let contract = member.methodValueContract;
     if (contract === undefined) {
       const signature = csharpPresentObjectShapeMethod(member);
       if (signature === undefined) return member;
-      contract = createStructuralObjectShapeTarget([signature], undefined, environment, true);
-      remember({ targetType: contract, members: [{ ...signature, methodValueContract: contract }] });
+      const protocol = createStructuralObjectShapeTarget([signature], undefined, environment, true);
+      const ownProtocol = targetTypeRefEquals(shape.targetType, protocol);
+      if (!ownProtocol && !csharpObjectShapeMethodRequiresProtocol(member) &&
+        csharpObjectShapeMethodDeclaration(shape, member) === undefined) return member;
+      contract = protocol;
+      if (!ownProtocol) remember({ targetType: contract, members: [{ ...signature, methodValueContract: contract }] });
     }
     if (!targetTypeRefEquals(shape.targetType, contract) &&
       (member.optional !== true || csharpObjectShapeMethodDeclaration(shape, member) !== undefined)) {

@@ -51,6 +51,7 @@ import { retainCsharpGenericCallableValue } from "../../callables/generic-values
 import type { CsharpObjectLiteralTargetShapeResolution, CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
 import type { CsharpProjectConstructibleTypeProjection } from "../../../../target-model/records/object-shapes.js";
 import { instantiateCsharpObjectShape } from "./instantiation.js";
+import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../../target-model/types/object-shape-members.js";
 
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
@@ -259,8 +260,10 @@ export function createCsharpObjectShapePolicy(
           (expectedShape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true)
       ? [expectedShape.targetType]
       : expectedShape.implements;
-    const nativeMethodLiteral = host.ast.properties(objectLiteral).some(property => property !== undefined &&
-      host.ast.is.IsMethodDeclaration(property) && host.ast.body(property) !== undefined);
+    const members = [...retainLiteralMemberEvidence(expectedShape.members, objectLiteral, host.semantics(sourceFile))];
+    const nativeMethodLiteral = members.some(member => member.memberKind === "method" &&
+      member.sourceDeclarations?.some(declaration => host.ast.is.IsMethodDeclaration(declaration) &&
+        host.ast.body(declaration) !== undefined && host.ast.parent(declaration) === objectLiteral) === true);
     const copiedMethods = host.ast.properties(objectLiteral).some(property => property !== undefined &&
       host.ast.is.IsSpreadAssignment(property)) && expectedShape.members.some(csharpObjectShapeMethodRequiresProtocol);
     const ownsImplementation = expectedShape.methodImplementation?.declaration === objectLiteral;
@@ -268,7 +271,6 @@ export function createCsharpObjectShapePolicy(
       (!nativeMethodLiteral || ownsImplementation) && !copiedMethods) {
       return { kind: "resolved", shape: expectedShape };
     }
-    const members = [...retainLiteralMemberEvidence(expectedShape.members, objectLiteral, host.semantics(sourceFile))];
     if (copiedMethods) {
       const sources: { readonly property: Node; readonly shape: CsharpObjectShapeFact }[] = [];
       for (const property of host.ast.properties(objectLiteral)) {
@@ -769,6 +771,17 @@ export function createCsharpObjectShapePolicy(
     ) {
       return undefined;
     }
+    const declarationType = host.projectTypeCatalog.targetTypeForDeclaration(
+      definition.declaration,
+      definition.typeParameterBindings,
+    );
+    if (declarationType === undefined) return undefined;
+    if (!targetTypeRefEquals(declarationType, targetType)) {
+      const existing = resolveTarget(declarationType);
+      const declared = existing ?? resolveProjectDeclarationShape(declarationType, nextState(state));
+      return declared === undefined ? undefined
+        : instantiateCsharpObjectShape(rememberTargetShape(declared), targetType);
+    }
     const queries = host.semantics(definition.sourceFile);
     const declaredType = queries.declarations.declaredType(
       definition.declaration,
@@ -794,10 +807,40 @@ export function createCsharpObjectShapePolicy(
     );
     const implemented = definition.kind === "interface" ? host.projectTypes().directSupertypes(targetType) : [];
     if (implemented === undefined) return undefined;
+    const members: CsharpObjectShapeMemberFact[] = [];
+    for (const declared of declaredMembers) {
+      let member = substituteObjectShapeMemberTargetTypeParameters(declared, substitutions);
+      if (member.memberKind === "method") {
+        const owners = new Map((member.sourceDeclarations ?? []).flatMap(declaration => {
+          const owner = host.projectTypeCatalog.definitionForDeclaration(host.ast.parent(declaration));
+          return owner === undefined ? [] : [[owner.id, owner] as const];
+        }));
+        if (owners.size > 1) return undefined;
+        const owner = owners.values().next().value;
+        if (owner !== undefined && owner.id !== definition.id) {
+          const ownerType = host.projectTypeCatalog.targetTypeForDeclaration(owner.declaration, owner.typeParameterBindings);
+          const selectedOwner = ownerType === undefined ? undefined
+            : host.projectTypes().instantiateDeclarationType(owner.declaration, targetType, ownerType);
+          if (selectedOwner?.kind !== "resolved" || selectedOwner.type.kind !== "target-named") return undefined;
+          const existing = resolveTarget(selectedOwner.type);
+          const inherited = existing ?? resolveProjectDeclarationShape(selectedOwner.type, nextState(state));
+          if (inherited === undefined) return undefined;
+          const completed = rememberTargetShape(inherited);
+          const selected = resolveCsharpObjectShapeMemberBySelectedSubject(completed,
+            [...member.sourceSubjects ?? [], ...member.sourceDeclarations ?? []]);
+          if (selected.kind !== "resolved" || selected.member.memberKind !== "method") return undefined;
+          member = Object.freeze({ ...selected.member,
+            sourceSubjects: Object.freeze([...new Set([...selected.member.sourceSubjects ?? [], ...member.sourceSubjects ?? []])]),
+            ...(member.sourceTypes === undefined ? {} : { sourceTypes: member.sourceTypes }),
+          });
+        }
+      }
+      members.push(member);
+    }
     return {
       targetType,
       sourceType: declaredType,
-      members: Object.freeze(declaredMembers.map(member => substituteObjectShapeMemberTargetTypeParameters(member, substitutions))),
+      members: Object.freeze(members),
       ...(implemented.length === 0 ? {} : { implements: implemented }),
     };
   }

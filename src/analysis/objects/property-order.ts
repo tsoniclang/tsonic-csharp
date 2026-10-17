@@ -141,6 +141,18 @@ function classifyAuthoredOrder(fact: CsharpObjectShapeFact, ast: AstReader): Aut
         range.kind === "authored" ? range.start : Number.MAX_SAFE_INTEGER)) } : undefined;
   });
   if (selected.some(entry => entry === undefined)) {
+    const declared = fact.members.every(member => {
+      if (member.memberKind !== "property" || member.optional === true || member.sourceDeclarations?.length !== 1) return false;
+      const declaration = member.sourceDeclarations[0]!;
+      const owner = ast.parent(declaration);
+      return owner !== undefined && !ast.is.IsObjectLiteralExpression(owner) && ast.is.IsPropertySignatureDeclaration(declaration);
+    });
+    if (declared) {
+      const names = fact.members.filter(member => member.sourceKey.kind === "property").map(member => member.sourceName);
+      const forward = orderEnumerableOwnStringProperties(names, name => name);
+      const reverse = orderEnumerableOwnStringProperties([...names].reverse(), name => name);
+      if (new Set(names).size === names.length && forward.every((name, index) => name === reverse[index])) return resolved(forward);
+    }
     return rejected("has a member without one exact authored own-property declaration.");
   }
   const entries = selected as readonly NonNullable<typeof selected[number]>[];

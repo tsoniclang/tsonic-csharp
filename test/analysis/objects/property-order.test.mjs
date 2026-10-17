@@ -27,10 +27,29 @@ function fixture(names = ["tail", "10", "2", "01"]) {
       IsMethodDeclaration: node => node.kind === "method",
       IsGetAccessorDeclaration: node => node.kind === "get",
       IsSetAccessorDeclaration: node => node.kind === "set",
+      IsPropertySignatureDeclaration: node => node.kind === "signature",
     },
   };
   return { owner, ast, shape: { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "CheckedShape" }, members } };
 }
+
+test("closed declared fields admit only enumeration orders independent of source occurrence", () => {
+  for (const names of [["value"], ["tail", "10", "2"], ["right", "left"]]) {
+    const current = fixture(names);
+    current.owner.kind = "type-literal";
+    for (const member of current.shape.members) member.sourceDeclarations[0].kind = "signature";
+    const index = createCsharpObjectShapePropertyOrderIndex(current.ast, () => {});
+    index.record(current.shape);
+    index.seal();
+    for (const projection of ["keys", "values", "entries"]) {
+      const selected = index.propertyOrder(current.shape, undefined, projection);
+      assert.equal(selected.kind === "resolved", names.length !== 2,
+        `${projection}: exact closed fields cannot guess the order of two ordinary string keys`);
+      if (selected.kind === "resolved") assert.equal(selected.propertyOrder.join(","),
+        names.length === 1 ? "value" : "2,10,tail", `${projection}: numeric keys use the shared canonical native order`);
+    }
+  }
+});
 
 test("exact source occurrences preserve order independently of equal native carrier names", () => {
   const first = fixture();

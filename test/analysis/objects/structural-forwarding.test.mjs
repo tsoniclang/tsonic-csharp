@@ -5,7 +5,8 @@ import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { csharpDelegateTargetType, getCsharpDelegateSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { analyzeCsharpProjectCallableAdapters } from "../../../dist/analysis/project-types/callable-adapters.js";
@@ -21,11 +22,56 @@ import { csharpProjectedType } from "../../../dist/target-model/types/projection
 import { instantiateCsharpInheritedCallable } from "../../../dist/analysis/callables/instantiation.js";
 import { csharpSourceTypeParameter } from "../../../dist/target-model/names/type-parameters.js";
 import { createCsharpObjectShapePolicy } from "../../../dist/policy/types/objects/object-shape-policy/api.js";
-import { mergeCsharpObjectShapeSubjects } from "../../../dist/policy/types/objects/object-shape-policy/construction.js";
+import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } from "../../../dist/policy/types/objects/object-shape-policy/construction.js";
 import { finalizeCsharpStructuralInterfaceForwarding } from "../../../dist/analysis/objects/structural-forwarding.js";
 import { retainCsharpMethodValueContracts, csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/object-shape-policy/method-values.js";
+import { selectCsharpObjectMethodImplementation } from "../../../dist/policy/types/objects/object-shape-policy/method-implementations.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
+
+test("a single native method contract and its extracted protocol publish the same canonical shape", () => {
+  const member = Object.freeze({ sourceKey: { kind: "property", name: "run" }, sourceName: "run",
+    targetName: "run", memberKind: "method", type: csharpDelegateTargetType("System.Func", [integer], integer) });
+  const environment = () => assert.fail("a monomorphic protocol has no native constraint query");
+  const targetType = createStructuralObjectShapeTarget([member], undefined, environment, true);
+  const remember = () => assert.fail("an existing method contract cannot allocate or register a second self protocol");
+  const logical = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]) }, remember, environment);
+  const physical = retainCsharpMethodValueContracts({ targetType,
+    members: Object.freeze([{ ...member, methodValueContract: targetType }]) }, remember, environment);
+  assert.equal(targetTypeRefKey(logical.members[0].methodValueContract), targetTypeRefKey(targetType),
+    "the logical contract already owns its actual self protocol");
+  assert.equal(targetTypeRefKey(physical.members[0].methodValueContract), targetTypeRefKey(targetType),
+    "extracting the same method cannot publish a contradictory missing-versus-present protocol");
+  assert.equal(logical.implements === undefined && physical.implements === undefined, true,
+    "canonical self identity never manufactures native self inheritance");
+});
+
+test("an authored method supplying a selected native delegate field does not invent a native method carrier", () => {
+  const declaration = Object.freeze({});
+  const member = Object.freeze({ sourceKey: { kind: "property", name: "run" }, sourceName: "run",
+    targetName: "run", memberKind: "property", sourceDeclarations: Object.freeze([declaration]),
+    type: csharpDelegateTargetType("System.Func", [integer], integer) });
+  const selected = selectCsharpObjectMethodImplementation(Object.freeze([member]), {
+    ast: { is: { IsMethodDeclaration: () => assert.fail("the selected native field is not reclassified by source spelling") } },
+    objectMethodSources: { get: () => assert.fail("a native delegate field must not demand a second method environment") },
+  }, { depth: 0 });
+  assert.equal(selected === undefined, true, "the actual native field keeps its canonical delegate initializer contract");
+});
+
+for (const surface of ["native", "js"]) test(`${surface}: native class delegate fields retain their authored object initializer`,
+  { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32 } from "@tsonic/core/types.js";
+class HandlerBox { run: (value: int32) => int32 = (value) => value; }
+function make(): HandlerBox { return { run(value: int32): int32 { return value + 1; } }; }
+export function run(): boolean { const handler = make(); return handler.run(6) === 7; }
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    const emitted = [...compiled.artifacts.values()].join("\n");
+    assert.match(emitted, /HandlerBox make\(\)/u, "the selected native class owns the returned storage");
+    assert.match(emitted, /new HandlerBox/u, "a method-shaped source initializer does not invent an unrelated native object carrier");
+    executeCsharpConstruction(compiled, `native-class-delegate-initializer-${surface}`);
+  });
 
 test("a physical method protocol retains checked source and generic declaration provenance when completed", () => {
   const targetType = Object.freeze({ kind: "target-named", id: "tsonic.shape:checked-method-protocol",
