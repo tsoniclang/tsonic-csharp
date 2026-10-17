@@ -25,6 +25,7 @@ function checkedNames(sourceText) {
     navigation: source.navigation,
     sourceFiles: [file],
     sourceIdentities: { node: () => undefined },
+    semanticsFor: source.semantics.forNode,
   });
   const identifiers = [];
   const visit = node => {

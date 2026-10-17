@@ -214,7 +214,6 @@ test("owning issues reject before the late registrations finish and before the o
     descendants(ast.as.AsIfStatement(statement).ThenStatement).some(node => ast.is.IsReturnStatement(node));
   const calling = callee => statement => callsTo(statement, callee).length === 1;
   const steps = [
-    ["native values", calling("analyzeCsharpNativeValueCarriers")],
     ["analysis issues", rejection("analysisIssues.length > 0")],
     ["source-module constructions", rejection("sourceModuleConstructions.issues.length > 0")],
     ["attributes", rejection("attributes.diagnostics.length > 0")],
@@ -225,6 +224,8 @@ test("owning issues reject before the late registrations finish and before the o
     ["flow reads", rejection("flowReads.issues.length > 0")],
     ["participation", calling("analyzeCsharpNativeParticipation")],
     ["native demand", calling("analyzeCsharpNativeDemand")],
+    ["native values", calling("analyzeCsharpNativeValueCarriers")],
+    ["native-value issues", rejection("nativeValueCarriers.issues.length > 0")],
     ["conversion uses", calling("analysis.conversionAnalysis.seal")],
     ["assembly", calling("createCsharpProgramRecords")],
     ["program literal", statement => ownDeclaration(statement, "program") !== undefined],

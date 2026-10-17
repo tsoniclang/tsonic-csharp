@@ -383,6 +383,7 @@ function owners(sourceText, surface = "js") {
   const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: program.sourceFiles, participation: records.nativeParticipation,
     evidence: records, operations: records, valueReads: records, objectShapes: program.objectShapes });
   const input = { ast, sourceFiles: program.sourceFiles, navigation: program.sourceNavigation, evidence: records, operations: records,
+    nativePropertyNameIssues: [],
     declarations: records, objectShapes: program.objectShapes,
     exactLiteral: records.exactLiteral, propertyKeyBindings: expression => {
       const use = records.nativeUse.expression(expression)?.use;
@@ -462,6 +463,39 @@ test("different finalized contexts and pending data remain private, not a first-
   const demand = analyzeCsharpNativeDemand({ ...value.input, expected: { entries, pending: [], inactive: [], expectedUse: { get: () => undefined } } }, []);
   assert.equal(demand.entries.some(entry => entry.use.expression === expression), false, "neither target is silently selected");
   assert.equal(demand.unadmitted.some(entry => entry.expression === expression && entry.reason === "use-context-unresolved"), true, "native-use-closure:98: demand.unadmitted.some(entry => entry.expression === expression && entry.reason === \"use-c");
+});
+
+test("actual native key refusals precede expected-slot pending and retain every original diagnostic", () => {
+  const value = owners("export const result = { first: 1, second: 2 };", "native");
+  const declaration = value.variable("result");
+  const expression = value.ast.as.AsVariableDeclaration(declaration).Initializer;
+  const names = value.ast.properties(expression).map(property => value.ast.name(property));
+  assert.equal(names.length === 2 && names.every(name => name !== undefined), true, "two actual checked property identities");
+  const issues = names.map((sourceNode, index) => Object.freeze({ category: "error", source: "tsonic-csharp",
+    code: "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN", sourceNode, message: `Exact selected key refusal ${index}.`, requiredBy: [expression] }));
+  const site = csharpNativeUseSite(declaration, { kind: "initializer" });
+  const demand = analyzeCsharpNativeDemand({ ...value.input, nativePropertyNameIssues: issues,
+    expected: { ...value.input.expected, pending: [{ site, expression, reason: "inconsistent-request" }] } }, []);
+  assert.equal(demand.unadmitted.length, 2, "both selected key refusals replace pending at the actual use root");
+  assert.equal(demand.unadmitted.every((entry, index) => entry.kind === "source-refusal" && entry.requiredBy === expression &&
+    entry.diagnostic === issues[index]), true, "the original diagnostic and actual required expression keep separate identities");
+  assert.equal(demand.nativeUse.expression(expression) === undefined, true, "a refused expression never receives a fabricated native use");
+});
+
+test("an actual selected empty construct differs from an erased construct for native key requirements", () => {
+  const value = owners("export function accept(): void {}", "native");
+  const declaration = value.nodes.find(node => value.ast.is.IsFunctionDeclaration(node));
+  const sourceNode = value.ast.name(declaration);
+  const issue = Object.freeze({ category: "error", source: "tsonic-csharp", code: "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN",
+    sourceNode, message: "Exact selected native signature key refusal.", requiredBy: [declaration] });
+  const selected = analyzeCsharpNativeDemand({ ...value.input, nativePropertyNameIssues: [issue] }, []);
+  assert.equal(selected.unadmitted.length === 1 && selected.unadmitted[0].kind === "source-refusal" &&
+    selected.unadmitted[0].requiredBy === declaration && selected.unadmitted[0].diagnostic === issue, true,
+  "a valid empty native signature still admits its exact key requirements");
+  const erased = analyzeCsharpNativeDemand({ ...value.input, nativePropertyNameIssues: [issue],
+    participation: { get: node => node === declaration ? "erased" : value.input.participation.get(node) } }, []);
+  assert.equal(erased.unadmitted.length, 0, "the same owner-selected erasure has no native key obligation");
+  assert.equal(erased.nativeUse.order(declaration)?.length, 0, "erasure keeps the established empty native order");
 });
 
 for (const [name, type, expression] of [["integer", "int32", "-2"], ["negative-zero", "float32", "-0"]]) {

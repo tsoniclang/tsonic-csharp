@@ -10,6 +10,7 @@ import {
   targetTypeRefEquals,
 } from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { failTargetPlannerInvariant } from "@tsonic/target-api/artifacts";
 import type {
   CsharpObjectInitializerAssignment,
 } from "../../../target-ast/syntax/index.js";
@@ -58,19 +59,15 @@ export function findObjectShapeMemberForProperty(
   const name = input.program.source.ast.name(property);
   if (
     name !== undefined &&
-    input.program.source.ast.is.IsComputedPropertyName(name)
+    (input.program.source.ast.is.IsComputedPropertyName(name) || input.program.source.ast.is.IsNumericLiteral(name))
   ) {
-    const selected = input.program.records.wellKnownSymbol.get(name);
-    if (selected === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        property,
-        "Computed object-shape members require exact selected well-known-symbol evidence.",
-      ));
-      return undefined;
-    }
+    const selected = input.program.source.propertyNames.get(name);
+    if (selected === undefined || selected.kind === "rejected" || selected.kind === "unique-symbol") failTargetPlannerInvariant(
+      "tsonic-csharp", "Computed object-shape member reached planning without admitted source-key evidence.", property);
     const lookup = resolveCsharpObjectShapeMemberBySourceKey(
       objectShape,
-      csharpWellKnownSymbolSourceMemberKey(selected.kind),
+      selected.kind === "resolved" ? csharpPropertySourceMemberKey(selected.name)
+        : csharpWellKnownSymbolSourceMemberKey(selected.symbol),
       "checked-object-literal-property",
     );
     return lookup.kind === "resolved" ? lookup.member : undefined;
@@ -113,6 +110,14 @@ export function getObjectLiteralPropertySourceName(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): string | undefined {
+  const name = input.program.source.ast.name(property);
+  if (name !== undefined && (input.program.source.ast.is.IsComputedPropertyName(name) ||
+    input.program.source.ast.is.IsNumericLiteral(name))) {
+    const selected = input.program.source.propertyNames.get(name);
+    if (selected?.kind !== "resolved") failTargetPlannerInvariant("tsonic-csharp",
+      "A static computed field reached planning without its admitted field name.", property);
+    return selected.name;
+  }
   const sourceName = ObjectLiteralProperty_SourceName(
     input.program.source.ast,
     property,

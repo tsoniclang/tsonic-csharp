@@ -6,8 +6,9 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import { sourceNodesEqual } from "@tsonic/target-api/source";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import { ObjectLiteralProperty_SourceName, sourceNodesEqual } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
+import { objectShapeMemberTargetName } from "../../policy/types/objects/object-shape-policy/construction.js";
 import {
   tryCsharpIdentifier,
 } from "../../target-model/names/identifiers.js";
@@ -36,6 +37,7 @@ export interface CsharpSourceNameResolverHost {
   readonly navigation: SourceProgramNavigation;
   readonly sourceFiles: readonly SourceFile[];
   readonly sourceIdentities: CsharpSourceIdentityPolicy;
+  semanticsFor(node: Node): SourceFileSemantics;
 }
 
 export function createCsharpSourceNameBuilder(
@@ -145,6 +147,23 @@ export function createCsharpSourceNameBuilder(
               )
             : Object.freeze({ kind: "resolved", name }),
       );
+    } else if (host.ast.is.IsComputedPropertyName(node)) {
+      const selected = host.semanticsFor(node).propertyNames.get(node);
+      const name = selected?.kind === "resolved" ? objectShapeMemberTargetName(selected.name) : undefined;
+      if (name !== undefined) sourceNames.add(name);
+      resolutions.set(node, name === undefined
+        ? rejected("The computed source name has no admitted static C# field identity.")
+        : Object.freeze({ kind: "resolved", name }));
+    } else if ((host.ast.is.IsStringLiteral(node) || host.ast.is.IsNumericLiteral(node)) &&
+      host.ast.name(host.ast.parent(node)) === node) {
+      const sourceName = host.ast.is.IsNumericLiteral(node)
+        ? host.semanticsFor(node).propertyNames.get(node)
+        : ObjectLiteralProperty_SourceName(host.ast, host.ast.parent(node));
+      const name = sourceName?.kind === "resolved" ? objectShapeMemberTargetName(sourceName.name) : undefined;
+      if (name !== undefined) sourceNames.add(name);
+      resolutions.set(node, name === undefined
+        ? rejected("The literal source name has no exact C# field identity.")
+        : Object.freeze({ kind: "resolved", name }));
     } else {
       resolutions.set(
         node,

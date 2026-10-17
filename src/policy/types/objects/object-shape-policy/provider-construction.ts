@@ -201,7 +201,7 @@ function deriveProviderObjectLiteralMember(
     declarations,
     property.name,
     input.host.ast,
-    input.queries,
+    input.host.semanticsFor,
   );
   if (sourceKey === undefined) {
     return undefined;

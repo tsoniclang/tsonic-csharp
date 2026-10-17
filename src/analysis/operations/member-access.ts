@@ -94,6 +94,7 @@ export function classifySourceOwnedElementMember(
   const { ast } = policy;
   return selection?.kind === "source-owned" && declaration !== undefined && (
     ast.is.IsPropertyDeclaration(declaration) || ast.is.IsPropertySignatureDeclaration(declaration) ||
+    ast.is.IsPropertyAssignment(declaration) || ast.is.IsShorthandPropertyAssignment(declaration) ||
     ast.is.IsMethodDeclaration(declaration) || ast.is.IsMethodSignatureDeclaration(declaration) ||
     ast.is.IsGetAccessorDeclaration(declaration) || ast.is.IsSetAccessorDeclaration(declaration) ||
     sourceParameterIsProperty(ast, declaration) || readCsharpSourceField(policy.sourceFacts, [declaration]) !== undefined

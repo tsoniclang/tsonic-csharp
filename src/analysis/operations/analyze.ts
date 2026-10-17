@@ -40,6 +40,7 @@ import type {
 } from "@tsonic/target-api/analysis";
 import {
   AsForInOrOfStatement,
+  sourceClassFieldIsTypeOnly,
 } from "@tsonic/target-api/source";
 import type {
   Node,
@@ -284,6 +285,7 @@ function visit(
     return;
   }
   const { ast } = policy;
+  if (sourceClassFieldIsTypeOnly(ast, node)) return;
   const issues = erasure.demandedInvocations.has(node) ? erasure.issues : scopeIssues;
   const erased = ast.is.IsExpressionStatement(node) && csharpErasedExpressionStatement(ast, node, erasure);
   if (erased) setClassification(builder, node, erasedStatementKey, true);

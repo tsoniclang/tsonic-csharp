@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import type { AstReader, Node } from "@tsonic/tsts";
-import { sourceLexicalCaptures, type SourceCallOnlyAlias, type SourceProgramNavigation } from "@tsonic/target-api/source";
+import { sourceLexicalCaptures, type SourceCallOnlyAlias, type SourceFileSemantics, type SourceProgramNavigation } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { csharpNativePropertyNameIssue } from "./computed-field-names.js";
 import type { CsharpObjectShapeClassifications } from "./model.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
@@ -21,6 +23,7 @@ export function analyzeCsharpNativeValueCarriers(
   evidence: CsharpSourceEvidenceIndex,
   values: CsharpValueReadClassifications,
   shapes: CsharpObjectShapeClassifications,
+  semanticsFor: (node: Node) => SourceFileSemantics,
   requiredRecords: CsharpRequiredRecord[],
 ): CsharpNativeValueCarriers {
   const declarations = new WeakMap<Node, CsharpNativeValueDeclaration>();
@@ -50,15 +53,29 @@ export function analyzeCsharpNativeValueCarriers(
     const start = issues.length;
     for (const property of ast.properties(shapeNode)) {
       if (property === undefined) continue;
+      const name = ast.name(property);
+      if (name !== undefined) {
+        const selected = semanticsFor(name).propertyNames.get(name);
+        if (selected === undefined && ast.is.IsComputedPropertyName(name)) failTargetAnalysisInvariant("tsonic-csharp",
+          "A native computed field requires its completed checked property-name selection.", name);
+        if (selected !== undefined) {
+          const issue = csharpNativePropertyNameIssue(name, selected);
+          if (issue !== undefined) {
+            issues.push(Object.freeze({ node: name, code: issue.code, message: issue.message }));
+            continue;
+          }
+        }
+      }
       if (!ast.is.IsPropertyAssignment(property)) {
         refuse(property, "Value-type members require finalized field facts from field-marker property assignments.");
         continue;
       }
       const assignment = ast.as.AsPropertyAssignment(property)!;
       if (evidence.sourceField.get([property, assignment.Initializer, ast.name(property)]) === undefined) {
-        refuse(property, `Value-type member '${ast.text(ast.name(property))}' requires a finalized field fact before C# struct emission.`);
+        refuse(property, "Value-type member requires a finalized field fact before C# struct emission.");
       }
     }
+    if (issues.length !== start) continue;
     const shape = shapes.resolveNode(node);
     const fields: CsharpNativeValueField[] = [];
     for (const field of source.fields) {

@@ -1,11 +1,10 @@
-import { createHash } from "node:crypto";
 import type { Node } from "@tsonic/tsts";
-import { sourceLexicalCaptures } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../../target-model/types/model.js";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpTypeResolutionState } from "../../resolution/model.js";
 import { nextState } from "../../resolution/state.js";
 import { csharpObjectShapeMethodRequiresProtocol } from "../../../../target-model/types/method-values.js";
+import type { CsharpObjectMethodSourceCapture } from "../../../../target-model/records/native-value-carriers.js";
 
 export function selectCsharpObjectMethodImplementation(
   members: readonly CsharpObjectShapeMemberFact[],
@@ -24,25 +23,30 @@ export function selectCsharpObjectMethodImplementation(
   if (literal === undefined || requiredMethods.some(method => host.ast.parent(method.declaration) !== literal)) return undefined;
   const methods = [...new Set(declaredMethods.filter(method => host.ast.parent(method.declaration) === literal)
     .map(method => method.declaration))].sort((left, right) => host.ast.pos(left) - host.ast.pos(right));
-  const selected = sourceLexicalCaptures(literal, methods, host.ast, host.navigation);
+  const selected = host.objectMethodSources.get(literal);
+  if (selected === undefined) return undefined;
+  const selectedCaptures = new Map<Node, CsharpObjectMethodSourceCapture>();
+  for (const method of methods) {
+    const captures = selected.captures(method);
+    if (captures === undefined) return undefined;
+    for (const capture of captures) {
+      if (!selectedCaptures.has(capture.declaration)) selectedCaptures.set(capture.declaration, capture);
+    }
+  }
   const names = new Set(members.map(member => member.targetName));
-  const captures = selected.captures.filter(capture => host.callOnlyAlias(capture.declaration) === undefined).map((capture, index) => {
-    const reference = capture.references[0];
+  const captures = [...selectedCaptures.values()].map((capture, index) => {
+    const reference = capture.reference;
     const type = host.typeResolver.resolveNode(capture.declaration, host.ast.getSourceFile(capture.declaration), nextState(state));
     if (reference === undefined || type === undefined) return undefined;
     let fieldName = `__tsonic_capture${index}`;
     while (names.has(fieldName)) fieldName += "_";
     names.add(fieldName);
     return Object.freeze({ declaration: capture.declaration, reference, fieldName, type,
-      mutable: host.navigation.declarationUseSummary(capture.declaration).bindingWritten,
+      mutable: capture.mutable,
     });
   });
   if (captures.some(capture => capture === undefined)) return undefined;
-  const file = host.ast.getSourceFile(literal);
-  const identity = createHash("sha256").update(JSON.stringify([
-    host.ast.getFileName(file), host.ast.pos(literal), host.ast.end(literal),
-  ])).digest("hex");
-  return Object.freeze({ declaration: literal, identity, methods: Object.freeze(methods),
+  return Object.freeze({ declaration: literal, identity: selected.identity, methods: Object.freeze(methods),
     captures: Object.freeze(captures as NonNullable<typeof captures[number]>[]),
   });
 }

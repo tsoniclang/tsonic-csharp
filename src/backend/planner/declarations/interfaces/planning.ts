@@ -60,7 +60,7 @@ export function planInterfaceDeclaration(
   const declaration = AsInterfaceDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "interface declaration", diagnostics);
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
-  const interfaces = planInterfaceHeritage(node, objectShape, input, diagnostics);
+  const interfaces = planInterfaceHeritage(node, input, diagnostics);
   if (objectShape !== undefined) {
     registerSourceObjectShape(input, objectShape, diagnostics, node);
     if (objectShape.members.some(member => member.memberKind === "method" && member.optional === true)) {

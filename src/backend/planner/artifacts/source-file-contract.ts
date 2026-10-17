@@ -146,6 +146,7 @@ function publicTypeDeclaration(
     case "EnumDeclaration":
       return Object.freeze({
         ...common,
+        underlyingType: declaration.underlyingType,
         members: Object.freeze(declaration.members.map(publicEnumMember)),
       });
   }

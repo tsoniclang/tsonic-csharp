@@ -21,7 +21,8 @@ function fixture() {
   }).checkSource();
   assert.equal(checked.diagnostics.length, 0, formatDiagnostics(checked.diagnostics));
   const source = createTargetSourceProgram(checked);
-  return { source, host: { ast: source.ast, navigation: source.navigation, semanticsFor: source.semantics.forNode } };
+  return { source, host: { ast: source.ast, navigation: source.navigation,
+    enumConstants: source.semantics.enumConstants, semanticsFor: source.semantics.forNode } };
 }
 
 test("C# project declaration scopes preserve colliding authored names and exact module identities", () => {

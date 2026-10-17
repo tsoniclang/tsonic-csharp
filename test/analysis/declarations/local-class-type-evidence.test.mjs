@@ -30,17 +30,18 @@ test("local class catalogs require exact outer type-parameter evidence", () => {
   visit(sourceFile);
   assert.ok(declaration);
   const semantics = source.semantics.forNode(declaration);
-  const host = { ast: source.ast, navigation: source.navigation, semanticsFor: () => semantics };
-  const definition = projectTypeDefinition(host, declaration);
-  assert.ok(definition);
+  const host = { ast: source.ast, navigation: source.navigation, enumConstants: source.semantics.enumConstants, semanticsFor: () => semantics };
+  const selected = projectTypeDefinition(host, declaration);
+  assert.equal(selected.kind, "resolved");
+  const definition = selected.definition;
   assert.equal(definition.outerTypeParameters.length, 1);
   assert.equal(definition.sourceTypeParameterCount, 1);
   assert.deepEqual(definition.typeParameterBindings.map(parameter => parameter.name), ["Outer", "Inner"]);
   assert.equal(new Set(definition.typeParameterBindings.map(parameter => parameter.identity)).size, 2);
   assert.equal(projectTypeDefinition({ ...host, semanticsFor: () => ({ ...semantics,
     declarations: { ...semantics.declarations, declaredType: () => undefined },
-  }) }, declaration), undefined);
+  }) }, declaration).kind, "not-project-type");
   assert.equal(projectTypeDefinition({ ...host, semanticsFor: () => ({ ...semantics,
     types: { ...semantics.types, typeArgumentBindings: () => undefined },
-  }) }, declaration), undefined);
+  }) }, declaration).kind, "not-project-type");
 });

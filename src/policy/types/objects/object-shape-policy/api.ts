@@ -453,6 +453,8 @@ export function createCsharpObjectShapePolicy(
       selectedType,
       queries,
       { depth: 0 },
+      undefined,
+      targetType,
     );
     if (members === undefined) {
       return {
@@ -687,7 +689,7 @@ export function createCsharpObjectShapePolicy(
       const declaredShape = contextualProjectType !== undefined && declaredKind === "class"
         ? resolveProjectDeclarationShape(contextualProjectType, state) : undefined;
       const members = declaredShape === undefined
-        ? deriveMembers(type, queries, nextState(state), authoredTypeRoot)
+        ? deriveMembers(type, queries, nextState(state), authoredTypeRoot, contextualProjectType)
         : instantiateMemberEvidence(declaredShape.members, type, queries, declaredShape.sourceType);
       if (members === undefined) {
         return undefined;
@@ -785,6 +787,7 @@ export function createCsharpObjectShapePolicy(
       queries,
       nextState(state),
       host.ast.typeNode(definition.declaration),
+      targetType,
     );
     if (declaredMembers === undefined) {
       return undefined;

@@ -123,7 +123,8 @@ import { analyzeCsharpNativeDemand } from "../operations/native-demand.js";
 import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/project/binary-execution-drivers.js";
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
-import { analyzeCsharpNativeValueCarriers } from "../objects/value-carriers.js";
+import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
+import { finalizeCsharpStructuralInterfaceForwarding } from "../objects/structural-forwarding.js";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -145,6 +146,7 @@ export function analyzeCsharpTargetProgram(
     return rejectedTargetStage(project.diagnostics);
   }
   const source = input.source;
+  if (source.semantics.enumConstants.issues.length !== 0) return rejectedTargetStage(source.semantics.enumConstants.issues);
   const nativeControlIssues = analyzeCsharpNativeControlFlow(source);
   if (nativeControlIssues.length !== 0) return rejectedTargetStage(nativeControlIssues);
   const memoryBindings = createTsonicMemoryBindingIndex(source);
@@ -173,12 +175,16 @@ export function analyzeCsharpTargetProgram(
     navigation: source.navigation,
     sourceFiles,
     sourceIdentities,
+    semanticsFor: source.semantics.forNode,
   });
+  const callOnlyAlias = createCsharpSourceProfileCallableAliasQuery(source);
   const typeHost = {
+    enumConstants: source.semantics.enumConstants,
     literalValues,
     sourceStorage,
     errorStorageDemands: createCsharpErrorStorageDemandQuery(source, sourceStorage),
-    callOnlyAlias: createCsharpSourceProfileCallableAliasQuery(source),
+    callOnlyAlias,
+    objectMethodSources: analyzeCsharpObjectMethodSources(source.ast, sourceStorage.nodes, source.navigation, callOnlyAlias),
     ast: source.ast,
     sourceFiles,
     sourceFacts: source.sourceFacts,
@@ -266,11 +272,7 @@ export function analyzeCsharpTargetProgram(
     }]);
   }
   const callableAdapters = analyzeCsharpProjectCallableAdapters(analysis.policy, analysis.callables);
-  const nativeValueCarriers = analyzeCsharpNativeValueCarriers(
-    source.ast, sourceStorage.nodes, analysis.sourceEvidence, analysis.valueReads, analysis.objectShapes, analysis.requiredRecords,
-  );
   const analysisIssues = [
-    ...nativeValueCarriers.issues,
     ...callableAdapters.issues,
     ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
     ...analysis.sourceEvidence.memoryMetadataIssues,
@@ -379,17 +381,26 @@ export function analyzeCsharpTargetProgram(
     bindingPatterns: bindingCandidates, callableCreation: callableCreations.callableCreation, attributeApplications,
     propertyKeyBindings: analysis.expectedTypes.constructions.propertyKeys, exactLiteral: exactLiterals.exactLiteral,
     classInitialization, projectTypes: analysis.typeSystem.projectTypes.catalog, classFactories, expected: expectedUse,
+    nativePropertyNameIssues: analysis.nativePropertyNameIssues,
   }, analysis.requiredRecords);
+  const sourceRefusals = nativeDemand.unadmitted.filter(use => use.kind === "source-refusal");
+  if (sourceRefusals.length > 0) return rejectedTargetStage(sourceRefusals.map(use => use.diagnostic));
+  const nativeValueCarriers = analyzeCsharpNativeValueCarriers(
+    source.ast, nativeDemand.requiredNativeValueDeclarations, analysis.sourceEvidence, analysis.valueReads, analysis.objectShapes,
+    source.semantics.forNode, analysis.requiredRecords,
+  );
+  if (nativeValueCarriers.issues.length > 0) return rejectCsharpAnalysisIssues(nativeValueCarriers.issues);
   const bindingPatterns = admitCsharpBindingPatterns(bindingCandidates, nativeDemand.requiredBindingRoots, analysis.requiredRecords);
   if (bindingPatterns.issues.length > 0) return rejectCsharpAnalysisIssues(bindingPatterns.issues);
-  if (nativeDemand.unadmitted.length > 0) {
-    const refusals = nativeDemand.unadmitted.filter(use =>
+  const pendingUses = nativeDemand.unadmitted.filter(use => use.kind === "pending-use");
+  if (pendingUses.length > 0) {
+    const refusals = pendingUses.filter(use =>
       use.message !== undefined || use.reason === "argument-refused" || use.reason === "source-argument-rejected" || use.reason === "property-key-refused");
     if (refusals.length > 0) return rejectCsharpAnalysisIssues(refusals.map(use => ({
       node: use.expression, code: use.code ?? "CSHARP_UNSUPPORTED_AST", message: use.message ?? failTargetAnalysisInvariant(
         "tsonic-csharp", "A native source refusal requires its exact admitted reason.", use.expression),
     })));
-    const incomplete = nativeDemand.unadmitted[0]!;
+    const incomplete = pendingUses[0]!;
     return failTargetAnalysisInvariant("tsonic-csharp",
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
   }
@@ -397,6 +408,10 @@ export function analyzeCsharpTargetProgram(
   const conversions = analysis.conversionAnalysis.seal();
   if (conversions.issues.length > 0) return rejectCsharpAnalysisIssues(conversions.issues);
   const objectShapes = analysis.objectShapes.seal();
+  const structuralForwarding = finalizeCsharpStructuralInterfaceForwarding(
+    analysis.policy, objectShapes, callableAdapters, analysis.declarations,
+  );
+  if (structuralForwarding.issues.length > 0) return rejectCsharpAnalysisIssues(structuralForwarding.issues);
   const typeDefinitions = analysis.typeDefinitions.seal();
   const records = createCsharpProgramRecords({
     nativeValueCarriers,
@@ -432,8 +447,9 @@ export function analyzeCsharpTargetProgram(
       analysis.typeSystem.projectTypes,
       source.ast,
       sourceStorage.nodes,
+      analysis.objectShapes,
     ),
-    objectShapes,
+    objectShapes: structuralForwarding.objectShapes,
     names: names.seal(),
     sourceModuleConstructions: Object.freeze({
       entries: sourceModuleConstructions.index.entries,
@@ -455,7 +471,8 @@ function analyzeIteration(
   sourceFiles: readonly SourceFile[],
   sourceIdentities: ReturnType<typeof createCsharpSourceIdentityPolicy>,
   names: ReturnType<typeof createCsharpSourceNameBuilder>,
-  typeHost: Parameters<typeof createCsharpTypeAnalysis>[0],
+  typeHost: Parameters<typeof createCsharpTypeAnalysis>[0] &
+    Pick<import("../../policy/types/project/project-types.js").CsharpProjectTypeCatalogHost, "enumConstants">,
   sourceStorage: SourceStorageQueries,
   statementErasure: Parameters<typeof analyzeCsharpTargetOperations>[2],
   previous: CsharpRepresentationContract | undefined,
@@ -572,6 +589,7 @@ function analyzeIteration(
     typeProjections,
     typeSystem,
     sourceEvidence,
+    nativePropertyNameIssues: evidence.nativePropertyNameIssues,
     operations,
     declarations,
     objectShapes,

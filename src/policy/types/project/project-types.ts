@@ -3,7 +3,7 @@ import type { AstReader, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
 import { sourceNodeIdentity, sourceCallableInterface } from "@tsonic/target-api/source";
 import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../../target-model/types/generic-references.js";
 import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
-import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceEnumConstantIndex, SourceEnumIntegerWidthSelection, SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import type {
   CsharpProviderRelationResolver,
 } from "../../../providers/model/relation-resolver.js";
@@ -90,12 +90,13 @@ export type CsharpProjectMemberTypeInstantiation =
 export interface CsharpProjectTypeCatalogHost {
   readonly ast: AstReader;
   readonly navigation: SourceProgramNavigation;
+  readonly enumConstants: SourceEnumConstantIndex;
   readonly sourceFacts?: ReadonlySourceFactResolver;
   semanticsFor(node: Node): SourceFileSemantics;
 }
 
 export interface CsharpProjectTypePolicyHost
-  extends CsharpProjectTypeCatalogHost {
+  extends Omit<CsharpProjectTypeCatalogHost, "enumConstants"> {
   readonly providers: CsharpProviderRelationResolver;
   readonly sourceFacts?: ReadonlySourceFactResolver;
   readonly types: CsharpTypePolicy;
@@ -312,10 +313,15 @@ function projectMemberOwner(
   return catalog.definitionForDeclaration(ast.parent(member));
 }
 
+export type CsharpProjectTypeDefinitionSelection =
+  | { readonly kind: "resolved"; readonly definition: CsharpProjectTypeDefinition }
+  | { readonly kind: "not-project-type" }
+  | { readonly kind: "rejected"; readonly selection: Extract<SourceEnumIntegerWidthSelection, { readonly kind: "rejected" }> };
+
 export function projectTypeDefinition(
   host: CsharpProjectTypeCatalogHost,
   declaration: Node,
-): CsharpProjectTypeDefinition | undefined {
+): CsharpProjectTypeDefinitionSelection {
   const kind = declarationKind(host, declaration);
   const sourceFile = host.ast.getSourceFile(declaration);
   const name = host.ast.name(declaration);
@@ -327,15 +333,18 @@ export function projectTypeDefinition(
     identity === undefined ||
     !host.navigation.isProjectDeclaration(declaration)
   ) {
-    return undefined;
+    return { kind: "not-project-type" };
   }
+  const enumWidth = kind === "enum" ? host.enumConstants.integerWidth(declaration) : undefined;
+  if (kind === "enum" && enumWidth === undefined) throw new Error("A checked source enum requires its completed common integer-width decision.");
+  if (enumWidth?.kind === "rejected") return { kind: "rejected", selection: enumWidth };
   const local = kind === "class" && !host.ast.is.IsSourceFile(host.ast.parent(declaration)!);
   const semantics = host.semanticsFor(declaration);
-  if (kind === "interface" && sourceCallableInterface(semantics.declarations.declaredType(declaration), semantics, host.ast) !== undefined) return undefined;
+  if (kind === "interface" && sourceCallableInterface(semantics.declarations.declaredType(declaration), semantics, host.ast) !== undefined) return { kind: "not-project-type" };
   const declaredType = local ? semantics.declarations.declaredType(declaration) : undefined;
-  if (local && declaredType === undefined) return undefined;
+  if (local && declaredType === undefined) return { kind: "not-project-type" };
   const bindings = declaredType === undefined ? undefined : semantics.types.typeArgumentBindings(declaredType);
-  if (declaredType !== undefined && semantics.types.isTypeReference(declaredType) && bindings === undefined) return undefined;
+  if (declaredType !== undefined && semantics.types.isTypeReference(declaredType) && bindings === undefined) return { kind: "not-project-type" };
   const outerTypeParameters = bindings?.filter(binding => binding.scope === "outer").map(binding => binding.declaration) ?? [];
   const rawTypeParameters = kind === "enum" || kind === "struct"
     ? []
@@ -350,15 +359,16 @@ export function projectTypeDefinition(
     typeParameters.length !== rawTypeParameters.length ||
     typeParameterBindings.some((parameter) => parameter === undefined)
   ) {
-    return undefined;
+    return { kind: "not-project-type" };
   }
-  return Object.freeze({
+  const definition = Object.freeze({
     id: `tsonic.source:${identity}`,
     declaration,
     sourceFile,
     sourceName: name === undefined ? "AnonymousClass" : host.ast.text(name),
     local,
-    kind,
+    ...(enumWidth === undefined ? { kind: kind as "class" | "interface" | "struct" }
+      : { kind: "enum" as const, integerWidth: enumWidth.integerWidth }),
     sourceTypeParameterCount: typeParameters.length,
     typeProjections: Object.freeze([]),
     outerTypeProjections: Object.freeze([]),
@@ -379,10 +389,11 @@ export function projectTypeDefinition(
         declaration,
       ),
   });
+  return { kind: "resolved", definition };
 }
 
 function projectClassHasParameterlessConstructor(
-  host: CsharpProjectTypeCatalogHost,
+  host: Pick<CsharpProjectTypeCatalogHost, "navigation">,
   declaration: Node,
 ): boolean {
   const constructors = host.navigation.classConstructors(declaration);
@@ -508,13 +519,17 @@ function heritageKindError(
       : `Project interface '${definition.sourceName}' cannot inherit the non-interface C# type '${csharpHeritageTargetName(target)}'.`;
   }
   if (relation === "extends") {
+    if (target.kind !== "target-named") {
+      return `Project class '${definition.sourceName}' cannot extend the non-class C# type '${csharpHeritageTargetName(target)}'.`;
+    }
     return targetKind !== undefined && targetKind !== "class"
       ? `Project class '${definition.sourceName}' cannot extend the selected non-class C# type.`
       : undefined;
   }
-  return targetKind !== undefined && targetKind !== "interface"
-    ? `Project class '${definition.sourceName}' cannot implement the selected non-interface C# type.`
-    : undefined;
+  if (targetKind === "interface" || targetKind === undefined && isCsharpStructuralInterfaceTarget(target)) return undefined;
+  return targetKind === undefined
+    ? `Project class '${definition.sourceName}' cannot implement the C# type '${csharpHeritageTargetName(target)}' without an exact native interface declaration.`
+    : `Project class '${definition.sourceName}' cannot implement the non-interface C# type '${csharpHeritageTargetName(target)}'.`;
 }
 
 function csharpHeritageTargetName(type: TargetTypeRef): string {
@@ -550,7 +565,9 @@ function targetDeclarationKind(
       ? "interface"
       : binding?.kind === "enum"
         ? "enum"
-        : undefined;
+        : binding?.kind === "struct"
+          ? "struct"
+          : (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind;
 }
 
 export function projectDefinitionTargetType(
