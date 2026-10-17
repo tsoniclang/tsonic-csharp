@@ -95,6 +95,24 @@ for (const surface of ["native", "js"]) test(`${surface}: source-only generic me
   executeCsharpConstruction(compiled, `artifact-demand-physical-method-${surface}`);
 });
 
+for (const surface of ["native", "js"]) test(`${surface}: required physical bindings without an initializer retain their declared artifact`, { timeout: 300_000 }, () => {
+  const { compiled, program, source, nodes } = compileCsharpRequiredRecordSource(header + `
+    export function run(): boolean {
+      let value: { count: int32 };
+      value = { count: 7 as int32 };
+      return value.count === 7;
+    }
+  `, surface);
+  const declaration = nodes.find(node => source.ast.is.IsVariableDeclaration(node) &&
+    source.ast.as.AsVariableDeclaration(node)?.Initializer === undefined);
+  const carrier = program.records.storageType.get(declaration);
+  const shape = program.objectShapes.resolveTarget(carrier);
+  assert.equal(carrier !== undefined && shape !== undefined, true, "the actual uninitialized native binding has its exact physical carrier");
+  assert.equal(program.records.objectShapeArtifact.get(objectShapeArtifactKey(shape))?.fact === shape, true,
+    "a required native declaration is not dropped with source-only expression views");
+  executeCsharpConstruction(compiled, `artifact-demand-uninitialized-binding-${surface}`);
+});
+
 for (const surface of ["native", "js"]) test(`${surface}: an unused optional declaration cannot demand copying native prototype methods`, { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface, sourceText: `
     type Reader = { read<Value>(value: Value): Value };

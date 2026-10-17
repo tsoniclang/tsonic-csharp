@@ -269,6 +269,9 @@ export function analyzeCsharpNativeArtifactDemand(
     const nativeParameter = input.storage.lambdaParameterType.get(node);
     const storedParameter = input.storage.requiredStorageType.get(node);
     demandType(storedParameter, node);
+    if (ast.is.IsVariableDeclaration(node) && input.nativeDemand.requiredBindingRoots.has(node)) {
+      demandType(input.storage.storageType.get(node), node);
+    }
     if (nativeParameter !== undefined && storedParameter !== undefined && defaulted === undefined) demandPair(node, nativeParameter, storedParameter);
     for (const adapter of input.callableAdapters.callableDispatch.get(node)?.adapters ?? []) {
       demandParameters(node, adapter.parameters);
