@@ -88,9 +88,9 @@ export function run(): number { const value = { [first()]: 1, [second()]: 2 }; r
     assert.equal(compiled.targetDiagnostics.every(issue => issue.code === "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN" &&
       issue.message === "A computed property key call must retain its effects and cannot be replaced with a static native field name."), true,
     "both exact shared rejections survive before expected-use pending");
-    const spans = compiled.targetDiagnostics.map(issue => issue.sourceSpan);
-    assert.equal(spans.every(span => span !== undefined) && new Set(spans.map(span => `${span.fileName}:${span.line}:${span.column}`)).size === 2, true,
-      "the public diagnostics preserve both distinct authored key locations");
+    const nodes = compiled.result.diagnostics.map(issue => issue.sourceNode);
+    assert.equal(nodes.every(node => node !== undefined) && new Set(nodes).size === 2, true,
+      "the original stage diagnostics preserve both distinct authored key identities");
     assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.result.artifacts.length === 0, true,
       "no rejected object is emitted");
   });
