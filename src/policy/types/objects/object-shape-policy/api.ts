@@ -833,11 +833,11 @@ export function createCsharpObjectShapePolicy(
     resolveCallableValue: (signature: TargetTypeRef, typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>) =>
       retainCsharpGenericCallableValue(signature, typeParameters, rememberTargetShape, environment),
     resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined {
-      shape = rememberTargetShape(shape);
       const contract = shape.targetType.kind === "target-named" &&
         ((shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true ||
           (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface");
       if (!contract && shape.methodImplementation === undefined) return shape;
+      shape = retainCsharpMethodValueContracts(shape, rememberTargetShape, environment);
       const original = shape.methodImplementation === undefined ? undefined : resolveNode(shape.methodImplementation.declaration);
       const receiver = selectCsharpCopiedMethodReceiver(shape.members, original === undefined ? [shape] : [original], host.ast);
       if (receiver.kind === "rejected") return undefined;

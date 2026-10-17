@@ -70,6 +70,11 @@ test("a raw interface copy admits its method protocol before selecting native st
   "the copied generic method retains an admitted native environment instead of an unrenderable open delegate");
   assert.equal(copied.members[0].typeParameters[0].identity === parameter.identity, true,
     "the real generic method binder is unchanged");
+  const nativeClass = Object.freeze({ targetType: Object.freeze({ kind: "target-named", id: "tsonic.source:NativeBody",
+    csharpSourceDeclarationKind: "class", csharpAllowsRefLikeTypeArguments: Object.freeze([]) }), members: Object.freeze([]) });
+  const admittedView = Object.freeze({ ...nativeClass, implements: Object.freeze([shape.targetType]) });
+  assert.equal(policy.resolveCopyShape(nativeClass) === nativeClass && policy.resolveCopyShape(admittedView) === admittedView, true,
+    "a non-copying native class retains the analysis-owned interface view without policy re-registration or arbitration");
 });
 
 test("a genuine native callable self-instantiation retains its complete projected binder vector", () => {
