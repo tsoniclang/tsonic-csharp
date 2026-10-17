@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { finalizeCsharpStructuralInterfaceForwarding } from "../../../dist/analysis/objects/structural-forwarding.js";
@@ -228,6 +229,9 @@ for (const surface of ["native", "js"]) {
     assert.equal(/public int value = 7;/u.test(generated), true, "the native int32 backing is never widened to the base read type");
     assert.equal(/double ReadBase\.value/u.test(generated), true, "the true inherited native numeric obligation is emitted");
     assert.equal(/DerivedValue\?? value/u.test(generated), true, "reference backing retains its concrete selected native carrier");
+    const captureRoot = new URL("../../../.temp/C19-structural-property-forwarding/", import.meta.url);
+    mkdirSync(captureRoot, { recursive: true });
+    writeFileSync(new URL(`${surface}.json`, captureRoot), JSON.stringify({ sourceText: readonlySource, nativeProgram: nativeObserver, artifacts: [...compiled.artifacts] }) + "\n");
     const output = executeCsharpConstruction(compiled, `C19-readonly-closure-${surface}`, false, false, [], nativeObserver);
     assert.equal(output, "readonly native-equivalent; generated=0; native=0",
       "complete native projects prove exact getter counts, identity, native absence, writable aliasing and zero extra allocation");
