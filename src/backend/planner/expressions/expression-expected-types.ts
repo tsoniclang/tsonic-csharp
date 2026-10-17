@@ -164,7 +164,7 @@ export function planCsharpNativeExpression(
       case "value": {
         const value = planSite(recipe.site, values);
         if (value === undefined || value.completion.kind === "never") return value;
-        if (value.completion.kind !== "value") return failCsharpPlannerInvariant("A dynamic discarded presence requires its native value.", node);
+        if (value.completion.kind !== "value") return failCsharpPlannerInvariant("An observed discarded presence requires its native value.", node);
         const absent = planCsharpStorageIsAbsent(value.completion.carrier, value.completion.expression, input.scope.typeParameterNames);
         if (absent === undefined) return failCsharpPlannerInvariant("An admitted nullable presence requires its native absence test.", node);
         return csharpPlannedValue(csharpSourcePrimitiveTargetType("bool"),

@@ -200,9 +200,12 @@ test("the late producers and the assembly receive the stable attempt's list", ()
     "the actual native-value producer receives the same stable requirement list");
   const demand = composedCall("analyzeCsharpNativeDemand", program, "stable attempt");
   const bindings = composedCall("admitCsharpBindingPatterns", program, "stable attempt");
-  const conversions = composedCall("analysis.conversionAnalysis.seal", program, "stable attempt");
+  const conversions = composedCall("analysis.conversionAnalysis.close", program, "stable attempt");
   for (const call of [demand, bindings, conversions]) assert.equal(text(ast.arguments(call).at(-1)) === "analysis.requiredRecords", true,
     "each late native-use admission receives the same stable requirement list");
+  const publication = composedCall("analysis.conversionAnalysis.seal", program, "stable attempt");
+  assert.equal(ast.arguments(publication).length === 0 && position(conversions) < position(publication), true,
+    "conversion publication reads the already-closed records without a second requirement writer");
 });
 
 test("owning issues reject before the late registrations finish and before the one assembly", () => {

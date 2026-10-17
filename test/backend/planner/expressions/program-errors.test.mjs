@@ -42,8 +42,18 @@ test("native throw planning requires its exact sealed operand, source carrier an
     assert.equal(diagnostics.length, 1);
     assert.equal(diagnostics[0].message, "Throw expression has no exact sealed C# native error carrier classification.");
   }
+  const native = program.records.nativeUse.expression(classification.expression);
+  assert.equal(native !== undefined && native.use.kind !== "erased", true, "the actual throw operand has one admitted native use");
+  const invalidTarget = csharpStringTargetType();
+  const invalidUse = { ...native.use, kind: "converted", input: native.use.completion,
+    target: invalidTarget, mode: "implicit", completion: { kind: "value", type: invalidTarget } };
   const changed = { ...program, records: { ...program.records,
-    throwValue: { get: () => ({ ...classification, targetCarrier: csharpStringTargetType() }) } } };
+    throwValue: { get: () => ({ ...classification, targetCarrier: invalidTarget }) },
+    nativeUse: { ...program.records.nativeUse,
+      expression: node => node === classification.expression ? { site: native.site, use: invalidUse }
+        : program.records.nativeUse.expression(node),
+      get: site => site === native.site ? invalidUse : program.records.nativeUse.get(site),
+    } } };
   const invalid = [];
   assert.deepEqual(planThrowStatement(statement, source.ast.getSourceFile(statement), { ...context, program: changed }, invalid), []);
   assert.equal(invalid.length, 1);

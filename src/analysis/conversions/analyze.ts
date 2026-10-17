@@ -348,6 +348,9 @@ export function analyzeCsharpConversions(
     }
     if (classification.sourceResult !== undefined) {
       classifyPair(classification.sourceResult.nativeType, classification.sourceResult.selectedType, "explicit", node);
+      if (classification.optionalCallee !== undefined || classification.optionalReceiver?.guard === true) {
+        classifyPair(classification.sourceResult.selectedType, classification.selectedResultType, "implicit", node);
+      }
     }
     const source = classification.source ?? (
       classification.target?.kind === "resolved"

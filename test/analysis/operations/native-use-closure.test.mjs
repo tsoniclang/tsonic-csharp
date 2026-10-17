@@ -56,7 +56,8 @@ for (const surface of ["js", "native"]) for (const [label, program] of emissionP
   `${surface === "js" ? "" : "native "}sealed emission context covers ${label}`, () => {
   const sourceText = surface === "native" && label === "delete, void and typeof"
     ? `export function run(values: Record<string, number>, value: number): string {
-        delete values["key"]; void value; return typeof value; }` : program;
+        delete values["key"]; void value; return typeof value; }`
+    : surface === "native" && label === "sequence spread" ? program.replace("values.length", "values.Length") : program;
   const compiled = compileCsharpSource({ sourceText, surface });
   assert.equal(compiled.sourceDiagnosticsText === "", true, `${label}: ${compiled.sourceDiagnosticsText}`);
   const errors = compiled.result.diagnostics.filter(diagnostic => diagnostic.category === "error");
@@ -133,7 +134,7 @@ for (const surface of ["native", "js"]) test(`${surface} discarded coalescing pr
       trace = 0;
       (condition(flag, 1) ? (tick(2), () => tick(9)) : (tick(3), undefined)) ?? (tick(4), () => tick(9));
       (condition(flag, 5) ? (tick(6), undefined) : (tick(7), () => tick(9))) ?? (tick(8), () => tick(9));
-      (condition(flag, 1) ? (tick(2), () => tick(9)) : (tick(3), () => tick(9))) ?? (tick(4), () => tick(9));
+      (condition(true, 1) && (condition(flag, 2) ? (() => tick(9)) : (() => tick(9)))) ?? (tick(4), () => tick(9));
       const optional: (() => number) | undefined = flag ? undefined : ready;
       (tick(5), optional) ?? (tick(6), () => tick(9));
       return trace;
@@ -142,9 +143,19 @@ for (const surface of ["native", "js"]) test(`${surface} discarded coalescing pr
       trace = 0;
       (condition(flag, 1) ? (() => tick(9)) : undefined) ?? fail();
     }
+    export function falseIsPresent(): number {
+      trace = 0;
+      (condition(false, 1) && (() => tick(9))) ?? (tick(2), () => tick(9));
+      return trace;
+    }
+    export function nullIsAbsent(flag: boolean): number {
+      trace = 0;
+      (condition(flag, 1) ? (tick(2), () => tick(9)) : (tick(3), null)) ?? (tick(4), () => tick(9));
+      return trace;
+    }
     export function leftThrow(): void {
       trace = 0;
-      (fail(), () => tick(9)) ?? (tick(8), () => tick(9));
+      (fail(), ready()) ?? (tick(8), () => tick(9));
     }
     export function allocation(flag: boolean): number {
       const captured = flag ? 1 : 2;
@@ -158,8 +169,11 @@ for (const surface of ["native", "js"]) test(`${surface} discarded coalescing pr
   const output = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
   assert.equal(output.includes("=>"), false, "discarded capture functions never become native delegates");
   executeCsharpConstruction(compiled, `discarded-coalescing-presence-${surface}`, false, false, [], `
-    if (Tsonic.Generated.Index.run(true) != 125681256 || Tsonic.Generated.Index.run(false) != 13457135)
+    if (Tsonic.Generated.Index.run(true) != 125681256 || Tsonic.Generated.Index.run(false) != 13457125)
       throw new System.Exception("mixed presence or operand order");
+    if (Tsonic.Generated.Index.falseIsPresent() != 1) throw new System.Exception("false is present, not absent");
+    if (Tsonic.Generated.Index.nullIsAbsent(true) != 12 || Tsonic.Generated.Index.nullIsAbsent(false) != 134)
+      throw new System.Exception("native null and undefined share the selected absence contract");
     Tsonic.Generated.Index.rightThrow(true);
     if (Tsonic.Generated.Index.observed() != 1) throw new System.Exception("present branch must skip rejection");
     bool rightFailed = false;
@@ -178,18 +192,19 @@ for (const surface of ["native", "js"]) test(`${surface} discarded coalescing pr
 });
 
 for (const surface of ["native", "js"]) test(`${surface} actual array and creation conversions close before structural publication`, () => {
-  const compiled = compileCsharpSource({ sourceText: `
-    import type { int32, int64 } from "@tsonic/core/types.js";
+  const sourceText = `
+    import type { int32 } from "@tsonic/core/types.js";
     function readonlyValues(): readonly number[] { return [1, 2]; }
     function choose(flag: boolean): readonly number[] { return flag ? [1] : [2, 3]; }
-    function identity(value: int32): int64 { return value; }
+    function identity(value: int32): number { return value; }
     export function run(flag: boolean): number {
       const values: readonly number[] = [...readonlyValues(), ...choose(flag)];
-      const callback: (value: int32) => int64 = value => identity(value);
+      const callback: (value: int32) => number = value => identity(value);
       void callback(1);
       return values.length;
     }
-  `, surface });
+  `;
+  const compiled = compileCsharpSource({ sourceText: surface === "native" ? sourceText.replace("values.length", "values.Length") : sourceText, surface });
   assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
   assert.equal(compiled.targetDiagnostics.length === 0 && compiled.result.program !== undefined, true,
     compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));

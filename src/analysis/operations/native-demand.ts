@@ -13,6 +13,7 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { isCsharpRecordDictionaryTargetType } from "../../target-model/types/carriers/collections.js";
 import { csharpVoidTargetType } from "../../target-model/types/carriers/scalar-types.js";
 import { csharpCarrierAdmitsSourceAbsence, isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
+import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 import type { CsharpNativePropertyKey } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpNativeDemandAnalysis, CsharpNativeDemandAnalysisInput, CsharpNativeUnadmittedReason } from "./native-demand-model.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
@@ -210,7 +211,8 @@ export function analyzeCsharpNativeDemand(
     });
     const selected: CsharpNativeOperandSelection = expected?.literal === undefined
       ? selectCsharpNativeOperandUses(policyInput, expression, child.access)
-      : Object.freeze({ runtime: Object.freeze([]), planning: Object.freeze([]), flow: "sequence", carrier: expected.carrier });
+      : Object.freeze({ runtime: Object.freeze([]), planning: Object.freeze([]), flow: "sequence", carrier: expected.carrier,
+        resultUse: sourceExpressionResultDisposition(ast, expression).kind === "discarded" ? "discarded" : "consumed" });
     const expectedChildren = new Map<string, TargetUseSiteRef[]>();
     for (const reference of expected?.construction?.children ?? expected?.children ?? []) {
       const matching = expectedChildren.get(reference.role) ?? [];
@@ -238,8 +240,9 @@ export function analyzeCsharpNativeDemand(
     if (selected.refusal !== undefined) return pending(site, expression, selected.refusal, selected.refusalMessage, selected.refusalCode);
     if (expected === undefined && child.context?.target !== undefined &&
       (selected.carrier === undefined || !targetTypeRefEquals(child.context.target, selected.carrier))) return pending(site, expression, "expected-use-pending");
-    const discarded = runtime.some(entry => entry.visited.completion?.kind === "void") &&
-      sourceExpressionResultDisposition(ast, expression).kind === "discarded";
+    const discarded = (runtime.some(entry => entry.visited.completion?.kind === "void") ||
+      selected.discardedGuard !== undefined && isCsharpVoidTargetType(selected.carrier)) &&
+      selected.resultUse === "discarded";
     const flow = completionFlow(selected, runtime, discarded);
     if (flow === undefined) return pending(site, expression, "completion-unresolved");
     const selectedCarrier = expected?.carrier ?? selected.carrier;

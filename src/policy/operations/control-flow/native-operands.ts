@@ -1,6 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetPlanningSourceNavigation } from "@tsonic/target-api/analysis";
-import { sourceDeclarationIsModuleScoped, sourceNodesEqual } from "@tsonic/target-api/source";
+import { sourceDeclarationIsModuleScoped, sourceNodesEqual, sourceExpressionResultDisposition } from "@tsonic/target-api/source";
 import type { CsharpNativeCallableCreation, CsharpNativeChildUse, CsharpNativeUseSlot, CsharpNativeDiscardedGuard } from "../../../target-model/records/native-demand.js";
 import type { CsharpTargetOperationClassifications, CsharpSourceArgumentGrouping } from "../../../target-model/records/operations.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
@@ -14,6 +14,7 @@ import { getCsharpNullableElementTargetType } from "../../../target-model/types/
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../members/selection/native-use-arguments.js";
 import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
+import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 
 export interface CsharpNativeOperandInput {
   readonly ast: AstReader;
@@ -41,6 +42,7 @@ export interface CsharpNativeOperandSelection {
   readonly runtime: readonly CsharpNativeChildUse[];
   readonly planning: readonly CsharpNativeOperandStep[];
   readonly flow: "sequence" | "conditional" | "short-circuit" | "creation";
+  readonly resultUse: "consumed" | "discarded";
   readonly carrier?: TargetTypeRef;
   readonly refusal?: CsharpNativeOperandRefusal;
   readonly refusalMessage?: string;
@@ -76,6 +78,7 @@ export function csharpNativeChildUses(owner: Node, expression: Node | undefined,
 
 export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, node: Node, access?: "location"): CsharpNativeOperandSelection {
   const { ast, operations, evidence } = input;
+  const resultUse = sourceExpressionResultDisposition(ast, node).kind === "discarded" ? "discarded" : "consumed";
   const carrier = input.valueReads.valueRead.get(node)?.value;
   const use = (expression: Node | undefined, slot: CsharpNativeUseSlot, target?: TargetTypeRef, access?: "location") =>
     csharpNativeChildUses(node, expression, slot, target, access);
@@ -83,7 +86,7 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     Object.freeze({ kind: "use" as const, use: child })));
   const chosen = (runtime: readonly CsharpNativeChildUse[], flow: CsharpNativeOperandSelection["flow"] = "sequence",
     planning: readonly CsharpNativeOperandStep[] = plan(runtime), own = carrier): CsharpNativeOperandSelection =>
-    Object.freeze({ runtime: Object.freeze([...runtime]), planning: Object.freeze([...planning]), flow, carrier: own });
+    Object.freeze({ runtime: Object.freeze([...runtime]), planning: Object.freeze([...planning]), flow, resultUse, carrier: own });
   const refused = (refusal: CsharpNativeOperandRefusal, refusalMessage?: string, refusalCode?: string): CsharpNativeOperandSelection =>
     Object.freeze({ ...chosen([]), refusal, ...(refusalMessage === undefined ? {} : { refusalMessage }),
       ...(refusalCode === undefined ? {} : { refusalCode }) });
@@ -240,6 +243,11 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     const binary = ast.as.AsBinaryExpression(node);
     const left = binary?.Left;
     const right = binary?.Right;
+    if (sourceOperatorFromKindName(ast.operatorKindName(node)) === "??" && resultUse === "discarded") {
+      return Object.freeze({ ...chosen([...use(left, { kind: "operand", position: "left" }),
+        ...use(right, { kind: "operand", position: "right" })], "short-circuit", undefined, csharpVoidTargetType()),
+        discardedGuard: Object.freeze({ kind: "coalescing" as const }) });
+    }
     switch (operations.operatorForm.get(node)) {
       case "js-value-operation": {
         const selected = operations.binaryOperation.get(node)?.jsValue;
