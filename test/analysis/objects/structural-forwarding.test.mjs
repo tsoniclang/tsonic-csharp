@@ -20,6 +20,7 @@ import { printCsharpCompilationUnit } from "../../../dist/print/source/index.js"
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
 import { instantiateCsharpInheritedCallable } from "../../../dist/analysis/callables/instantiation.js";
 import { csharpSourceTypeParameter } from "../../../dist/target-model/names/type-parameters.js";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { createCsharpObjectShapePolicy } from "../../../dist/policy/types/objects/object-shape-policy/api.js";
 import { retainCsharpMethodValueContracts, csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/object-shape-policy/method-values.js";
 
