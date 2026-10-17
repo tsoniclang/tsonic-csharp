@@ -9,6 +9,7 @@ import { objectShapeArtifactKey } from "../../../dist/target-model/records/objec
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
 import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
 import { monomorphicStructuralOptionalFiles } from "../../../../tsonic/test/fixtures/generic-structural-methods.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 const header = 'import type { int32 } from "@tsonic/core/types.js";';
 const programs = [
@@ -68,6 +69,29 @@ for (const surface of ["native", "js"]) test(`${surface}: authored native method
       "an authored native method uses this directly, never a synthetic receiver-delegate ABI");
   }
   assert.equal(nativeMethods > 0, true, "the intrinsic receiver assertion covers real native methods");
+});
+
+for (const surface of ["native", "js"]) test(`${surface}: an unused optional declaration cannot demand copying native prototype methods`, { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    type Reader = { read<Value>(value: Value): Value };
+    interface NamedReader { read<Value>(value: Value): Value; }
+    interface UnusedOptional { read?<Value>(value: Value): Value; }
+    class ReaderBody { read<Value>(value: Value): Value { return value; } }
+    export function run(): boolean {
+      const named: NamedReader = new ReaderBody();
+      const structural: Reader = new ReaderBody();
+      return named.read<number>(17) === 17 && structural.read<number>(19) === 19;
+    }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const artifacts = compiled.result.program.records.objectShapeArtifact.artifacts;
+  const optional = artifacts.filter(artifact => artifact.fact.members.some(member => member.memberKind === "method" && member.optional === true));
+  assert.equal(optional.length > 0, true, "the real checked optional declaration remains represented");
+  assert.equal(optional.every(artifact => !artifact.capabilities.includes("method-values")), true,
+    "a declaration alone never requests copying a native method");
+  assert.equal(artifacts.every(artifact => !artifact.capabilities.includes("method-values")), true,
+    "direct named and structural method calls do not gain a copied-value surface");
+  executeCsharpConstruction(compiled, `unused-optional-method-demand-${surface}`);
 });
 
 test("artifact demand seals once and the backend cannot reach the native query owner", () => {

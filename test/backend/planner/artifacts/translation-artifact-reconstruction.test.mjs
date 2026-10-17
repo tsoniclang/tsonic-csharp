@@ -191,6 +191,72 @@ test("copied CLR methods cannot conflict with a generic declaration receiver in 
   }
 });
 
+function genericCapabilityArtifacts() {
+  const parameter = { kind: "type-parameter", identity: "PhysicalCapability:Value", name: "Value" };
+  const integer = { kind: "source-primitive", name: "int32" };
+  const text = { kind: "source-primitive", name: "string" };
+  const target = argument => ({ kind: "target-named", id: "tsonic.shape:PhysicalCapability", typeArguments: [argument],
+    csharpAllowsRefLikeTypeArguments: [false], csharpRender: { kind: "named", name: "PhysicalCapability" } });
+  const declaration = { targetType: target(parameter), members: [] };
+  const first = { targetType: target(integer), members: [], declarationTemplate: declaration };
+  const second = { targetType: target(text), members: [], declarationTemplate: declaration };
+  const unrelated = { targetType: { ...target(integer), id: "tsonic.shape:UnrelatedCapability" }, members: [] };
+  const facts = [declaration, first, second, unrelated];
+  const byTarget = new Map(facts.map(fact => [targetTypeRefKey(fact.targetType), fact]));
+  const demand = createCsharpObjectShapeDemandEngine({ objectShapes: {
+    resolveTarget: type => type === undefined ? undefined : byTarget.get(targetTypeRefKey(type)),
+    resolveNode: () => undefined,
+    knownShapes: () => facts,
+    propertyOrder: () => ({ kind: "resolved", propertyOrder: [] }),
+  } });
+  return { demand, declaration, first, second, unrelated };
+}
+
+test("one exact native declaration publishes the selected capabilities for every closed view", () => {
+  for (const capability of ["reference-identity", "method-values", "enumerable-keys", "js-freeze", "json-serialization"]) {
+    for (const capabilityFirst of [false, true]) {
+      const { demand, declaration, first, second, unrelated } = genericCapabilityArtifacts();
+      assert.equal(demand.registerObjectShape(first, "synthetic").kind, "accepted", "the first closed carrier is admitted");
+      const request = () => demand.requireObjectShapeCapability(undefined, first.targetType, {}, capability, "object-shape");
+      if (capabilityFirst) assert.equal(request().kind, "accepted", "the actual selected capability precedes the other use");
+      assert.equal(demand.registerObjectShape(second, "synthetic").kind, "accepted", "a second native instantiation shares the declaration");
+      assert.equal(demand.registerObjectShape(unrelated, "synthetic").kind, "accepted", "an unrelated plain declaration stays independent");
+      if (!capabilityFirst) assert.equal(request().kind, "accepted", "the later capability reaches the existing physical declaration");
+      const published = demand.seal();
+      for (const fact of [declaration, first, second]) {
+        const artifact = published.get(`object-shape:${targetTypeRefKey(fact.targetType)}`);
+        assert.equal(artifact !== undefined && artifact.fact === fact, true, "every concrete identity and its declaration survive publication");
+        assert.equal(artifact.capabilities.length === 1 && artifact.capabilities[0] === capability, true,
+          "each view reads the one exact selected physical capability surface");
+        assert.equal(Object.isFrozen(artifact.capabilities), true, "physical capability publication cannot be strengthened");
+      }
+      assert.equal(published.get(`object-shape:${targetTypeRefKey(unrelated.targetType)}`).capabilities.length, 0,
+        "physical grouping never marks an unrelated plain unboxed shape");
+    }
+  }
+});
+
+test("one exact native declaration retains every selected projection and each source-site identity", () => {
+  const { demand, declaration, first, second } = genericCapabilityArtifacts();
+  const firstSite = {};
+  const secondSite = {};
+  const keys = demand.requireObjectShapeProjection(firstSite, first.targetType, {}, "keys",
+    { kind: "array", element: { kind: "source-primitive", name: "string" } }, "object-shape");
+  const hasOwn = demand.requireObjectShapeProjection(secondSite, second.targetType, {}, "has-own",
+    { kind: "source-primitive", name: "bool" }, "object-shape");
+  assert.equal(keys.kind === "accepted" && keys.projection !== undefined, true, "the actual first source projection is admitted");
+  assert.equal(hasOwn.kind === "accepted" && hasOwn.projection !== undefined, true, "the actual second source projection is admitted");
+  const published = demand.seal();
+  for (const fact of [declaration, first, second]) {
+    const artifact = published.get(`object-shape:${targetTypeRefKey(fact.targetType)}`);
+    assert.equal(artifact.projections.length === 2 && artifact.projections.includes(keys.projection) && artifact.projections.includes(hasOwn.projection),
+      true, "the physical declaration has both exact immutable selected projection bodies");
+    assert.equal(artifact.capabilities.length, 0, "projection publication does not invent an unrelated capability");
+  }
+  assert.equal(published.projection(firstSite) === keys.projection, true, "the first checked source site retains its own exact selection");
+  assert.equal(published.projection(secondSite) === hasOwn.projection, true, "the second checked source site retains its own exact selection");
+});
+
 test("source-file artifacts cannot be acknowledged by a target-owned reconstructor", () => {
   const demand = createCsharpObjectShapeDemandEngine({
     ast: {},

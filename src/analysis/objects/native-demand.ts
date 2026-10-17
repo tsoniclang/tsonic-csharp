@@ -251,9 +251,6 @@ export function analyzeCsharpNativeArtifactDemand(
       const shape = input.objectShapes.resolveNode(node, ast.getSourceFile(node));
       if (shape !== undefined) {
         demandShape(shape, node);
-        if (ast.is.IsInterfaceDeclaration(node) && shape.members.some(member => member.memberKind === "method" && member.optional === true)) {
-          capability(node, shape.targetType, "method-values");
-        }
       }
     }
     const callable = input.callables.get({ kind: "declaration", declaration: node });

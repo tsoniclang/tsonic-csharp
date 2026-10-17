@@ -423,6 +423,22 @@ export function requireObjectShapeMethodReceiver(
 export function objectShapeArtifacts(
   { records }: CsharpObjectShapeDemandScope,
 ): readonly CsharpObjectShapeArtifact[] {
+  const declarations = new Map<string, {
+    readonly capabilities: Set<CsharpObjectShapeCapability>;
+    readonly projections: Map<string, CsharpObjectShapeProjection>;
+  }>();
+  for (const record of records.values()) {
+    const key = objectShapeArtifactKey(record.fact.declarationTemplate ?? record.fact);
+    if (!records.has(key)) return failTargetAnalysisInvariant("tsonic-csharp",
+      "An admitted closed shape requires its canonical native declaration artifact.");
+    const declaration = declarations.get(key) ?? {
+      capabilities: new Set<CsharpObjectShapeCapability>(),
+      projections: new Map<string, CsharpObjectShapeProjection>(),
+    };
+    for (const capability of record.capabilities) declaration.capabilities.add(capability);
+    for (const [projectionKey, projection] of record.projections) declaration.projections.set(projectionKey, projection);
+    declarations.set(key, declaration);
+  }
   return [...records]
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, record]) => {
@@ -430,6 +446,9 @@ export function objectShapeArtifacts(
       const owner = declaration === undefined ? record : records.get(objectShapeArtifactKey(declaration));
       if (owner === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
         "An admitted closed shape requires its canonical native declaration artifact.");
+      const surface = declarations.get(objectShapeArtifactKey(owner.fact));
+      if (surface === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "An admitted shape requires its canonical native declaration surface.");
       const receivers = new Set(record.receiverBoundMethodKeys);
       if (declaration !== undefined) for (const member of declaration.members) {
         if (!owner.receiverBoundMethodKeys.has(csharpObjectShapeMemberContractKey(member))) continue;
@@ -439,15 +458,13 @@ export function objectShapeArtifacts(
         }
         receivers.add(csharpObjectShapeMemberContractKey(selected.member));
       }
-      const capabilities = new Set(record.capabilities);
-      if (owner.capabilities.has("method-values")) capabilities.add("method-values");
       return Object.freeze({
         key,
         fact: record.fact,
         materialization: record.materialization,
-        capabilities: Object.freeze([...capabilities].sort()),
+        capabilities: Object.freeze([...surface.capabilities].sort()),
         projections: Object.freeze(
-          [...record.projections.values()].sort((left, right) =>
+          [...surface.projections.values()].sort((left, right) =>
             objectShapeProjectionKey(left).localeCompare(objectShapeProjectionKey(right))
           ),
         ),
