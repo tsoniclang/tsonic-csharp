@@ -55,8 +55,8 @@ for (const surface of ["native", "js"]) {
         import type { int32 } from "@tsonic/core/types.js";
         import { Span } from "@tsonic/dotnet/System.js";
         ${overloaded}
-        export function fail(values: int32[]): int32 {
-          return pass${explicit ? "<Span<int32>>" : ""}(new Span<int32>(values)).Length;
+        export function fail(value: Span<int32>): int32 {
+          return pass${explicit ? "<Span<int32>>" : ""}(value).Length;
         }` });
       assert.equal(compiled.sourceDiagnosticsText, "", "the actual source generic instantiation is checked");
       assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_REFLIKE_GENERIC_ARGUMENT"), true,
