@@ -54,6 +54,10 @@ test("BCL carrier factories retain selected reflected generic-slot metadata", { 
       const declaration = requireType(module, carrier.id);
       const parameters = declaration.typeParameters ?? [];
       const allowances = carrier.csharpAllowsRefLikeTypeArguments;
+      assert.equal(typeof declaration.constraintRequiresReferenceType, "boolean",
+        `${carrier.id}: the selected native declaration supplies its bound guarantee`);
+      assert.equal(carrier.csharpConstraintRequiresReferenceType === true, declaration.constraintRequiresReferenceType,
+        `${carrier.id}: the actual factory retains the selected SDK bound guarantee`);
       assert.equal(Array.isArray(allowances), true, `${carrier.id}: the factory publishes required slot metadata`);
       assert.equal(allowances.length, parameters.length, `${carrier.id}: factory and reflected arity agree`);
       assert.equal(carrier.typeArguments?.length ?? 0, parameters.length, `${carrier.id}: every actual generic argument has a slot`);

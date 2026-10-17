@@ -202,6 +202,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpBaseType?: TargetTypeRef;
   readonly csharpValueType?: true;
   readonly csharpByRefLike?: true;
+  readonly csharpConstraintRequiresReferenceType?: true;
   readonly csharpAllowsRefLikeTypeArguments: readonly boolean[];
   readonly csharpAbsorbsNullish?: true;
   readonly csharpJsValueCarrier?: true;

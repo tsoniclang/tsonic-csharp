@@ -59,6 +59,7 @@ export function assertRawModuleContractInvariants(module) {
     if (declaration.kind !== "type") {
       continue;
     }
+    assert.equal(typeof declaration.constraintRequiresReferenceType, "boolean", `${declaration.sourceName}.constraintRequiresReferenceType`);
     assertTargetIdentity(declaration.targetId, declaration.metadataName, `${declaration.sourceName}.targetId`, declaration.assembly);
     if (declaration.assembly !== undefined) {
       assertAssemblyReference(declaration.assembly, `${declaration.sourceName}.assembly`);
@@ -194,6 +195,7 @@ export function assertDotnetTypeRefInvariant(type, path) {
     assert.equal("name" in type, false, `${path}.name`);
   }
   if (type.kind === "named") {
+    assert.equal(typeof type.constraintRequiresReferenceType, "boolean", `${path}.constraintRequiresReferenceType`);
     assertTargetIdentity(type.targetId, type.metadataName, `${path}.targetId`);
   }
   if (type.kind === "array" && type.rank !== undefined) {

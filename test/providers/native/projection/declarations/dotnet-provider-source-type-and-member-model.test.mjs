@@ -35,7 +35,7 @@ test(".NET provider declaration model preserves generic base arguments on herita
   const int32 = { kind: "source-primitive", name: "int32" };
   const baseType = {
     kind: "type",
-    isByRefLike: false,
+    isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [false],
     typeKind: "class",
     sourceName: "GenericBase",
@@ -60,7 +60,7 @@ test(".NET provider declaration model preserves generic base arguments on herita
   };
   const derivedType = {
     kind: "type",
-    isByRefLike: false,
+    isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
     typeKind: "class",
     sourceName: "IntDerived",
@@ -68,7 +68,7 @@ test(".NET provider declaration model preserves generic base arguments on herita
     targetId: testTargetId("ProviderModelFixtures.IntDerived"),
     metadataName: "ProviderModelFixtures.IntDerived",
     baseType: namedDotnetTypeRef("ProviderModelFixtures.GenericBase`1", {
-      isByRefLike: false,
+      isByRefLike: false, constraintRequiresReferenceType: true,
       allowsRefLikeTypeArguments: [false],
       typeArguments: [int32],
       sourceShape: {
@@ -305,7 +305,7 @@ test(".NET provider source type conversion preserves exact native source markers
   });
   assert.deepEqual(tryDotnetTypeRefToProviderType({
     kind: "named",
-    isByRefLike: false,
+    isByRefLike: false, constraintRequiresReferenceType: false,
     allowsRefLikeTypeArguments: [],
     targetId: testTargetId("ProviderModelFixtures.PointerBacked"),
     metadataName: "ProviderModelFixtures.PointerBacked",
@@ -345,11 +345,11 @@ test(".NET provider source type conversion preserves exact native source markers
 test(".NET named target refs do not derive C# special semantics from metadata names", () => {
   const intType = { kind: "source-primitive", name: "int32" };
   const namedRefs = [
-    dotnetTypeRefToTargetTypeRef(namedDotnetTypeRef("System.String", { isByRefLike: false, allowsRefLikeTypeArguments: [] })),
-    dotnetTypeRefToTargetTypeRef(namedDotnetTypeRef("System.Void", { isByRefLike: false, allowsRefLikeTypeArguments: [] })),
-    dotnetTypeRefToTargetTypeRef(namedDotnetTypeRef("System.Boolean", { isByRefLike: false, allowsRefLikeTypeArguments: [] })),
-    dotnetTypeRefToTargetTypeRef(namedDotnetTypeRef("System.Numerics.BigInteger", { isByRefLike: false, allowsRefLikeTypeArguments: [] })),
-    dotnetTypeRefToTargetTypeRef(namedDotnetTypeRef("System.Nullable`1", { isByRefLike: false, allowsRefLikeTypeArguments: [false], typeArguments: [intType] })),
+    dotnetTypeRefToTargetTypeRef(namedDotnetTypeRef("System.String", { isByRefLike: false, constraintRequiresReferenceType: true, allowsRefLikeTypeArguments: [] })),
+    dotnetTypeRefToTargetTypeRef(namedDotnetTypeRef("System.Void", { isByRefLike: false, constraintRequiresReferenceType: false, allowsRefLikeTypeArguments: [] })),
+    dotnetTypeRefToTargetTypeRef(namedDotnetTypeRef("System.Boolean", { isByRefLike: false, constraintRequiresReferenceType: false, allowsRefLikeTypeArguments: [] })),
+    dotnetTypeRefToTargetTypeRef(namedDotnetTypeRef("System.Numerics.BigInteger", { isByRefLike: false, constraintRequiresReferenceType: false, allowsRefLikeTypeArguments: [] })),
+    dotnetTypeRefToTargetTypeRef(namedDotnetTypeRef("System.Nullable`1", { isByRefLike: false, constraintRequiresReferenceType: false, allowsRefLikeTypeArguments: [false], typeArguments: [intType] })),
   ];
 
   for (const type of namedRefs) {
@@ -361,7 +361,7 @@ test(".NET named target refs do not derive C# special semantics from metadata na
 test(".NET target declarations do not derive C# special semantics from metadata names", () => {
   const stringBinding = dotnetExportToTargetBinding({
     kind: "type",
-    isByRefLike: false,
+    isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
     typeKind: "class",
     sourceName: "String",
@@ -371,7 +371,7 @@ test(".NET target declarations do not derive C# special semantics from metadata 
   });
   const booleanBinding = dotnetExportToTargetBinding({
     kind: "type",
-    isByRefLike: false,
+    isByRefLike: false, constraintRequiresReferenceType: false,
     allowsRefLikeTypeArguments: [],
     typeKind: "struct",
     sourceName: "Boolean",
@@ -390,7 +390,7 @@ test(".NET target declarations do not derive C# special semantics from metadata 
 test(".NET target refs carry provider-proven collection literal element metadata", () => {
   const raw = dotnetTypeRefToTargetTypeRef({
     kind: "named",
-    isByRefLike: false,
+    isByRefLike: false, constraintRequiresReferenceType: false,
     allowsRefLikeTypeArguments: [false],
     targetId: testTargetId("System.Collections.Generic.IEnumerable`1"),
     metadataName: "System.Collections.Generic.IEnumerable`1",
@@ -399,7 +399,7 @@ test(".NET target refs carry provider-proven collection literal element metadata
   });
   const providerProven = dotnetTypeRefToTargetTypeRef({
     kind: "named",
-    isByRefLike: false,
+    isByRefLike: false, constraintRequiresReferenceType: false,
     allowsRefLikeTypeArguments: [false],
     targetId: testTargetId("System.Collections.Generic.IEnumerable`1"),
     metadataName: "System.Collections.Generic.IEnumerable`1",
@@ -732,7 +732,7 @@ test(".NET provider model preserves overlap-like receiver and out parameter fact
   const typeParameter = { kind: "type-parameter", identity: "T", name: "T" };
   const spanOfT = {
     kind: "named",
-    isByRefLike: true,
+    isByRefLike: true, constraintRequiresReferenceType: false,
     allowsRefLikeTypeArguments: [false],
     targetId: testTargetId("Example.Span`1"),
     metadataName: "Example.Span`1",
@@ -742,7 +742,7 @@ test(".NET provider model preserves overlap-like receiver and out parameter fact
   };
   const readOnlySpanOfT = {
     kind: "named",
-    isByRefLike: true,
+    isByRefLike: true, constraintRequiresReferenceType: false,
     allowsRefLikeTypeArguments: [false],
     targetId: testTargetId("Example.ReadOnlySpan`1"),
     metadataName: "Example.ReadOnlySpan`1",
@@ -752,7 +752,7 @@ test(".NET provider model preserves overlap-like receiver and out parameter fact
   };
   const overlaps = {
     kind: "type",
-    isByRefLike: false,
+    isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
     typeKind: "class",
     sourceName: "MemoryExtensions",

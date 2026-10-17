@@ -28,7 +28,7 @@ test(".NET provider preserves exact synthetic export slices used by provider her
         namespaceName: "Acme",
         exports: [{
           kind: "type",
-          isByRefLike: false,
+          isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName: "Base",
@@ -90,7 +90,7 @@ test(".NET provider resolves interleaved declaration requests from each exact re
         namespaceName: "Acme",
         exports: (context.requestedExports ?? []).map((sourceName) => ({
           kind: "type",
-          isByRefLike: false,
+          isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName,
@@ -131,7 +131,7 @@ test(".NET provider resolves interleaved declaration requests from each exact re
 
 test(".NET provider imports external class heritage as values without widening type-only refs", () => {
   const externalType = (metadataName, moduleSpecifier, exportName) => namedDotnetTypeRef(metadataName, {
-    isByRefLike: false,
+    isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
     sourceShape: {
       kind: "provider-ref",
@@ -153,7 +153,7 @@ test(".NET provider imports external class heritage as values without widening t
     namespaceName: "Acme",
     exports: [{
       kind: "type",
-      isByRefLike: false,
+      isByRefLike: false, constraintRequiresReferenceType: true,
       allowsRefLikeTypeArguments: [],
       typeKind: "class",
       sourceName: "Derived",
@@ -201,7 +201,7 @@ test(".NET provider imports external class heritage as values without widening t
 
 test(".NET provider promotes a repeated external ref to one value-capable heritage import", () => {
   const baseType = namedDotnetTypeRef("Acme.Base", {
-    isByRefLike: false,
+    isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
     sourceShape: {
       kind: "provider-ref",
@@ -214,7 +214,7 @@ test(".NET provider promotes a repeated external ref to one value-capable herita
     namespaceName: "Acme",
     exports: [{
       kind: "type",
-      isByRefLike: false,
+      isByRefLike: false, constraintRequiresReferenceType: true,
       allowsRefLikeTypeArguments: [],
       typeKind: "class",
       sourceName: "Derived",

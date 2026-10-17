@@ -85,6 +85,7 @@ export interface DotnetTypeDeclaration {
   readonly kind: "type";
   readonly typeKind: DotnetTypeKind;
   readonly isByRefLike: boolean;
+  readonly constraintRequiresReferenceType: boolean;
   readonly allowsRefLikeTypeArguments: readonly boolean[];
   readonly sourceName: string;
   readonly sourceTypeFamily?: DotnetSourceTypeFamilyDeclaration;
@@ -387,7 +388,7 @@ export type DotnetTypeRef =
   | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind }
   | { readonly kind: "type-parameter"; readonly identity: string; readonly name: string }
   | { readonly kind: "provider-ref"; readonly moduleSpecifier: string; readonly exportName: string; readonly typeArguments?: readonly DotnetTypeRef[] }
-  | { readonly kind: "named"; readonly targetId: string; readonly metadataName: string; readonly isByRefLike: boolean; readonly allowsRefLikeTypeArguments: readonly boolean[]; readonly displayName?: string; readonly renderShape?: DotnetRenderShape; readonly typeArguments?: readonly DotnetTypeRef[]; readonly sourceShape?: DotnetTypeRef; readonly implicitArrayInput?: true; readonly callableRepresentation?: "delegate" | "expression-tree" }
+  | { readonly kind: "named"; readonly targetId: string; readonly metadataName: string; readonly isByRefLike: boolean; readonly constraintRequiresReferenceType: boolean; readonly allowsRefLikeTypeArguments: readonly boolean[]; readonly displayName?: string; readonly renderShape?: DotnetRenderShape; readonly typeArguments?: readonly DotnetTypeRef[]; readonly sourceShape?: DotnetTypeRef; readonly implicitArrayInput?: true; readonly callableRepresentation?: "delegate" | "expression-tree" }
   | { readonly kind: "nullable"; readonly elementType: DotnetTypeRef }
   | { readonly kind: "nullable-reference"; readonly elementType: DotnetTypeRef }
   | { readonly kind: "array"; readonly elementType: DotnetTypeRef; readonly rank?: number }

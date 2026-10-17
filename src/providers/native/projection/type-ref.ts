@@ -109,11 +109,15 @@ export function requireDotnetTargetId(targetId: string | undefined, metadataName
 export function csharpTargetMetadataFromDotnetTypeDeclaration(
   declaration: DotnetTypeDeclaration,
 ): Parameters<typeof csharpTargetNamedType>[3] {
+  if (typeof declaration.constraintRequiresReferenceType !== "boolean") {
+    throw new TypeError("A CLR declaration requires its exact native reference-only bound guarantee.");
+  }
   const delegateSignature = declaration.typeKind === "delegate"
     ? dotnetDelegateSignatureFromSourceShape(declaration.sourceShape) : undefined;
   return {
     ...(declaration.isByRefLike ? { byRefLike: true as const } : {}),
     allowsRefLikeTypeArguments: declaration.allowsRefLikeTypeArguments,
+    ...(declaration.constraintRequiresReferenceType ? { constraintRequiresReferenceType: true as const } : {}),
     ...(declaration.typeKind === "struct" || declaration.typeKind === "enum" ? { valueType: true as const } : {}),
     ...(declaration.typeKind === "class" || declaration.typeKind === "interface" || declaration.typeKind === "enum"
       ? { sourceDeclarationKind: declaration.typeKind }
@@ -139,6 +143,9 @@ export function dotnetRenderShapeToCsharpRenderShape(shape: DotnetRenderShape): 
 function csharpTargetMetadataFromDotnetTypeRef(
   type: Extract<DotnetTypeRef, { readonly kind: "named" }>,
 ): Parameters<typeof csharpTargetNamedType>[3] {
+  if (typeof type.constraintRequiresReferenceType !== "boolean") {
+    throw new TypeError("A named CLR type requires its exact native reference-only bound guarantee.");
+  }
   const sourceShape = type.sourceShape;
   const signature = dotnetDelegateSignatureFromSourceShape(sourceShape);
   const issue = dotnetCallableRepresentationIssue(type);
@@ -155,6 +162,7 @@ function csharpTargetMetadataFromDotnetTypeRef(
   return {
     ...(type.isByRefLike ? { byRefLike: true as const, valueType: true as const } : {}),
     allowsRefLikeTypeArguments: type.allowsRefLikeTypeArguments,
+    ...(type.constraintRequiresReferenceType ? { constraintRequiresReferenceType: true as const } : {}),
     ...(arrayLiteralElementType !== undefined ? { arrayLiteralElementType } : {}),
     ...(arrayLiteralElementType !== undefined && type.implicitArrayInput === true
       ? { implicitArrayInputElementType: arrayLiteralElementType }

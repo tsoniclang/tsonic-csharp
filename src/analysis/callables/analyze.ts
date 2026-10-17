@@ -46,6 +46,7 @@ export function analyzeCsharpCallableContracts(
   const byProjectConstructor = new Map<string, CsharpSourceCallableContract>();
   const contracts: CsharpSourceCallableContract[] = [];
   const declarationContracts: CsharpSourceCallableContract[] = [];
+  const checkedDeclarations: { readonly declaration: Node; readonly sourceFile: SourceFile }[] = [];
   for (const sourceFile of policy.sourceFiles) {
     visit(sourceFile, sourceFile);
   }
@@ -57,6 +58,13 @@ export function analyzeCsharpCallableContracts(
   for (const [index, contract] of nativeDeclarations.entries()) {
     byDeclaration.set(contract.sourceDeclaration, contract);
     contracts[index] = contract;
+  }
+  for (const { declaration, sourceFile } of checkedDeclarations) {
+    const contract = sourceCallableContract(policy, evidence, declarations, names, declaration, sourceFile, projections, undefined);
+    if (contract !== undefined) {
+      byDeclaration.set(declaration, contract);
+      contracts.push(contract);
+    }
   }
   for (const definition of policy.projectTypes.catalog.definitions) {
     for (
@@ -120,6 +128,14 @@ export function analyzeCsharpCallableContracts(
             }
           }
         }
+      }
+    } else if ((policy.ast.is.IsFunctionDeclaration(node) || policy.ast.is.IsMethodDeclaration(node) ||
+        policy.ast.is.IsConstructorDeclaration(node)) && source.navigation.isProjectDeclaration(node)) {
+      const implementation = source.navigation.callableImplementation(node);
+      if (implementation.kind === "resolved" &&
+        source.navigation.isProjectDeclaration(implementation.implementation.declaration) &&
+        isCsharpSourceCallableArtifactDeclaration(policy.ast, implementation.implementation.declaration)) {
+        checkedDeclarations.push({ declaration: node, sourceFile });
       }
     }
     policy.ast.forEachChild(node, (child) => {
@@ -338,6 +354,8 @@ function callableContractEquals(
       left.methodTypeParameterIdentities,
       right.methodTypeParameterIdentities,
     ) &&
+    left.methodAllowsRefLikeTypeArguments.length === right.methodAllowsRefLikeTypeArguments.length &&
+    left.methodAllowsRefLikeTypeArguments.every((allowed, index) => allowed === right.methodAllowsRefLikeTypeArguments[index]) &&
     targetTypeRefEquals(left.returnType, right.returnType) &&
     (left.sourceReturnType === undefined ? right.sourceReturnType === undefined
       : right.sourceReturnType !== undefined && targetTypeRefEquals(left.sourceReturnType, right.sourceReturnType)) &&

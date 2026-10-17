@@ -8,7 +8,7 @@ import {
 test(".NET target policy projects only exact JsonSerializer.Deserialize result type parameters", () => {
   const binding = dotnetExportToTargetBinding({
     kind: "type",
-    isByRefLike: false,
+    isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
     typeKind: "class",
     sourceName: "JsonSerializer",

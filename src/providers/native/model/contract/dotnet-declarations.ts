@@ -96,6 +96,10 @@ function validateDotnetTypeDeclaration(
   if (typeof declaration.isByRefLike !== "boolean" || declaration.isByRefLike && declaration.typeKind !== "struct") {
     collector.add(`${path}.isByRefLike`, "A CLR declaration requires its exact native by-ref-like boolean; only a struct can be ref-like.", declaration.isByRefLike);
   }
+  if (typeof declaration.constraintRequiresReferenceType !== "boolean" ||
+    declaration.constraintRequiresReferenceType && declaration.typeKind !== "class" && declaration.typeKind !== "delegate") {
+    collector.add(`${path}.constraintRequiresReferenceType`, "A CLR declaration requires its exact native reference-only bound guarantee; only a class or delegate can establish it.", declaration.constraintRequiresReferenceType);
+  }
   if (!Array.isArray(declaration.allowsRefLikeTypeArguments) ||
     declaration.allowsRefLikeTypeArguments.length !== (declaration.typeParameters?.length ?? 0) ||
     declaration.allowsRefLikeTypeArguments.some(allowed => typeof allowed !== "boolean")) {

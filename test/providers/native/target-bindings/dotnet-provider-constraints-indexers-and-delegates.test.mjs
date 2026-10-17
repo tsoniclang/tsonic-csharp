@@ -181,7 +181,7 @@ test(".NET provider source declarations expose readonly TS-compatible string ind
     exports: [
       {
         kind: "type",
-        isByRefLike: false,
+        isByRefLike: false, constraintRequiresReferenceType: true,
         allowsRefLikeTypeArguments: [],
         typeKind: "class",
         sourceName: "Headers",

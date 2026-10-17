@@ -51,6 +51,10 @@ export function validateDotnetTypeRef(
       if (typeof type.isByRefLike !== "boolean") {
         collector.add(`${path}.isByRefLike`, "A named CLR type requires its exact native by-ref-like boolean.", type.isByRefLike);
       }
+      if (typeof type.constraintRequiresReferenceType !== "boolean" ||
+        type.constraintRequiresReferenceType && type.isByRefLike) {
+        collector.add(`${path}.constraintRequiresReferenceType`, "A named CLR type requires its exact native reference-only bound guarantee; a ref-like value cannot establish it.", type.constraintRequiresReferenceType);
+      }
       if (!Array.isArray(type.allowsRefLikeTypeArguments) ||
         type.allowsRefLikeTypeArguments.length !== (type.typeArguments?.length ?? 0) ||
         type.allowsRefLikeTypeArguments.some(allowed => typeof allowed !== "boolean")) {

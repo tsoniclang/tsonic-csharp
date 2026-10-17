@@ -165,7 +165,7 @@ test("cross-module inherited members materialize only the exact base export", ()
     namespaceName: "Example",
     exports: [{
       kind: "type",
-      isByRefLike: false,
+      isByRefLike: false, constraintRequiresReferenceType: true,
       allowsRefLikeTypeArguments: [],
       typeKind: "class",
       sourceName: "Derived",
@@ -174,7 +174,7 @@ test("cross-module inherited members materialize only the exact base export", ()
       metadataName: "Example.Derived",
       baseType: {
         kind: "named",
-        isByRefLike: false,
+        isByRefLike: false, constraintRequiresReferenceType: true,
         allowsRefLikeTypeArguments: [],
         targetId: baseTargetId,
         metadataName: "Example.Base",
@@ -199,7 +199,7 @@ test("cross-module inherited members materialize only the exact base export", ()
         namespaceName: "Example",
         exports: [{
           kind: "type",
-          isByRefLike: false,
+          isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName: "Base",
@@ -211,7 +211,7 @@ test("cross-module inherited members materialize only the exact base export", ()
           } : {}),
         }, {
           kind: "type",
-          isByRefLike: false,
+          isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName: "Unrelated",
@@ -266,7 +266,7 @@ test("source declaration requests carry their own immutable slice and materializ
         namespaceName: "Example",
         exports: [{
           kind: "type",
-          isByRefLike: false,
+          isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName,
@@ -342,7 +342,7 @@ test("TSTS checking rebuilds the program after exact .NET export demand", () => 
         namespaceName: "Example",
         exports: [{
           kind: "type",
-          isByRefLike: false,
+          isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName: "Widget",

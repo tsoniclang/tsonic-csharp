@@ -315,7 +315,7 @@ test(".NET reflection provider exposes every representable advanced native membe
 test(".NET target binding facts preserve unsupported target-only constraint evidence", () => {
   const declaration = {
     kind: "type",
-    isByRefLike: false,
+    isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [false],
     typeKind: "class",
     sourceName: "Constrained",
@@ -342,7 +342,7 @@ test(".NET target binding facts preserve unsupported target-only constraint evid
       kind: "implements",
       contract: namedDotnetTypeRef(
         "ProviderModelFixtures.IRepresentable",
-        { isByRefLike: false, allowsRefLikeTypeArguments: [] },
+        { isByRefLike: false, constraintRequiresReferenceType: false, allowsRefLikeTypeArguments: [] },
       ),
     }],
     unsupportedImplementedContracts: [
