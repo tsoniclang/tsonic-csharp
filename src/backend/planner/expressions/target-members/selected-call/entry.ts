@@ -1,4 +1,5 @@
-import { selectedPolicyDiagnostic, targetPolicyDiagnostic, unsupportedNodeDiagnostic, failCsharpPlannerInvariant } from "../../../diagnostics.js";
+import { targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
+import { targetPolicyDiagnostic, unsupportedNodeDiagnostic, failCsharpPlannerInvariant } from "../../../diagnostics.js";
 import { planCsharpJsValueCall } from "./js-values.js";
 import { buildCsharpPlannedValue, projectCsharpPlannedValue } from "../../planned-value-composition.js";
 import type { CsharpPlannedValue } from "../../planned-values.js";
@@ -132,7 +133,7 @@ function translateCsharpCallExpressionCore(
         state,
       );
     case "rejected":
-      diagnostics.push(selectedPolicyDiagnostic(
+      diagnostics.push(targetDiagnosticFromExtension(
         node,
         selection.diagnostic,
       ));

@@ -1,4 +1,4 @@
-import { createTargetArtifactContractGraph, failTargetPlannerInvariant } from "@tsonic/target-api/artifacts";
+import { createTargetArtifactContractGraph } from "@tsonic/target-api/artifacts";
 import type { TargetArtifactContractGraph } from "@tsonic/target-api/artifacts";
 import type { CsharpArtifactFacet, CsharpArtifactSnapshot } from "../contracts.js";
 import { csharpObjectShapeContractCandidate } from "../contracts.js";
@@ -9,6 +9,7 @@ import { objectShapeArtifactKey } from "../../../../target-model/records/object-
 import { createCsharpGeneratedHelperRegistry } from "../generated-helpers.js";
 import { captureDependencies, dependOn } from "./dependencies.js";
 import { requireGeneratedHelper } from "./generated-helpers.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { reconstructArtifact, verifyContractClosure } from "./reconstruction.js";
 
 export interface CsharpArtifactGraphScope {
@@ -26,7 +27,7 @@ export function createCsharpArtifactGraph(host: CsharpArtifactGraphHost): Csharp
     artifact.projections, artifact.receiverBoundMethodKeys, artifact.dependencies,
   )));
   if (seeded.kind === "rejected") {
-    failTargetPlannerInvariant("tsonic-csharp", `Sealed object-shape artifacts have inconsistent contracts: ${seeded.reason}`);
+    failCsharpPlannerInvariant(`Sealed object-shape artifacts have inconsistent contracts: ${seeded.reason}`);
   }
   const helpers = createCsharpGeneratedHelperRegistry(contracts);
   const scope: CsharpArtifactGraphScope = Object.freeze({
@@ -36,7 +37,7 @@ export function createCsharpArtifactGraph(host: CsharpArtifactGraphHost): Csharp
   const read = (fact: CsharpObjectShapeFact, facet: CsharpArtifactFacet) => {
     const key = objectShapeArtifactKey(fact);
     dependOn(scope, key, facet);
-    return host.objectShapeArtifacts.get(key) ?? failTargetPlannerInvariant("tsonic-csharp",
+    return host.objectShapeArtifacts.get(key) ?? failCsharpPlannerInvariant(
       "An admitted native shape requires its sealed artifact record.");
   };
   return Object.freeze({

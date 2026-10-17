@@ -3,6 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetElementSelection } from "../../../../target-model/records/member-selections.js";
 import type { CsharpElementClassification } from "../../../../target-model/records/operations.js";
 import {
@@ -17,7 +18,6 @@ import type {
   CsharpExpression,
 } from "../../../target-ast/syntax/index.js";
 import {
-  selectedPolicyDiagnostic,
   targetPolicyDiagnostic,
   unsupportedNodeDiagnostic,
 } from "../../diagnostics.js";
@@ -143,7 +143,7 @@ export function translateCsharpElementAccess(
         planCallArgument,
       );
     case "rejected":
-      diagnostics.push(selectedPolicyDiagnostic(
+      diagnostics.push(targetDiagnosticFromExtension(
         node,
         selection.diagnostic,
       ));
