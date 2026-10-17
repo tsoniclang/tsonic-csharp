@@ -166,6 +166,62 @@ nativeEntryCases.push(...[
   ]
 ]);
 
+nativeEntryCases.push(...[
+  [
+    "authored-this-native-input",
+    "function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => { function deliver(this: void, actual: Value): void { resolve(actual); } [value].forEach(deliver); }); }"
+  ],
+  [
+    "tuple-rest-native-input",
+    "function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => { function deliver(...items: [actual: Value, index: number]): void { resolve(items[0]); } [value].forEach(deliver); }); }"
+  ],
+  [
+    "destructured-tuple-native-component",
+    "function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => { const rows: [Value][] = [[value]]; rows.forEach(([actual]) => { resolve(actual); }); }); }"
+  ],
+  [
+    "authored-this-source-helper",
+    "function deliver<Part>(this: void, done: (value: Part) => void, value: Part): void { done(value); }\nfunction wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => { deliver(resolve, value); }); }"
+  ],
+  [
+    "tuple-rest-source-helper",
+    "function deliver<Part>(...items: [done: (value: Part) => void, value: Part]): void { items[0](items[1]); }\nfunction wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => { deliver(resolve, value); }); }"
+  ],
+  [
+    "native-element-source-invocation",
+    "function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => { [() => { resolve(value); }].forEach(callback => { callback(); }); }); }"
+  ],
+  [
+    "native-element-forwarded-native-callback",
+    "function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => { [() => { resolve(value); }].forEach(callback => { [0].forEach(callback); }); }); }"
+  ],
+  [
+    "aliased-finite-native-element-candidates",
+    "function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => { const first = (): void => { resolve(value); }; const second = (): void => { resolve(value); }; const original = [first, second]; const copied = original; copied.forEach(callback => { callback(); }); }); }"
+  ],
+  [
+    "native-default-actual-undefined",
+    "function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => { void Promise.resolve(undefined).then((actual: Value | undefined = value) => { if (actual !== undefined) resolve(actual); else resolve(value); }); }); }"
+  ],
+  [
+    "official-nested-constructor-executor",
+    "function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(outer => { const nested = new Promise<void>(inner => { outer(value); inner(undefined); }); void nested; }); }"
+  ],
+  [
+    "authored-this-constructor-executor",
+    "function wrap<Value>(value: Value): Promise<Value> { function execute(this: void, done: (actual: Value | PromiseLike<Value>) => void): void { done(value); } return new Promise<Value>(execute); }"
+  ],
+  [
+    "tuple-rest-constructor-executor",
+    "function wrap<Value>(value: Value): Promise<Value> { function execute(...inputs: [done: (actual: Value | PromiseLike<Value>) => void]): void { inputs[0](value); } return new Promise<Value>(execute); }"
+  ]
+]);
+nativeEntryCases.push(...[
+  ["native-object-field-callable", "function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => { const item = { callback: (): void => { resolve(value); } }; [item].forEach(actual => { actual.callback(); }); }); }"],
+  ["native-class-field-callable", "function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => { class Holder { callback = (): void => { resolve(value); }; } [new Holder()].forEach(actual => { actual.callback(); }); }); }"],
+  ["native-returned-element-callable", "function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => { function make(): () => void { return () => { resolve(value); }; } [make()].forEach(actual => { actual(); }); }); }"]
+]);
+
 for (const [name, declarations] of nativeEntryCases) {
   test("C# native callback entry keeps exact generic adoption: " + name, () => {
     const compiled = compileCsharpSource({ surface: "js", sourceText: declarations +
@@ -227,6 +283,42 @@ nativeEntryInverses.push(...[
     "function wrap<Value>(value: Value): Promise<number> {\n  return new Promise<number>(resolve => { Array.from([0], actual => { void value; resolve(actual + 7); return 0; }); });\n}\nconsole.log(await wrap(Promise.resolve(5)));\n"
   ]
 ]);
+nativeEntryInverses.push(...[
+  [
+    "authored-this-index-not-element",
+    "function wrap<Value>(value: Value): Promise<number> { return new Promise<number>(resolve => { function deliver(this: void, actual: Value, index: number): void { void actual; resolve(index + 7); } [value].forEach(deliver); }); }\nconsole.log(await wrap(Promise.resolve(5)));\n"
+  ],
+  [
+    "tuple-rest-index-not-element",
+    "function wrap<Value>(value: Value): Promise<number> { return new Promise<number>(resolve => { function deliver(...items: [actual: Value, index: number]): void { void items[0]; resolve(items[1] + 7); } [value].forEach(deliver); }); }\nconsole.log(await wrap(Promise.resolve(5)));\n"
+  ],
+  [
+    "required-native-input-excludes-this-default",
+    "function wrap<Value>(value: Value): Promise<Value | number> { return new Promise<Value | number>(resolve => { function deliver(this: void, actual: Value | number = value): void { resolve(actual); } [7].forEach(deliver); }); }\nconsole.log(await wrap(Promise.resolve(5)));\n"
+  ],
+  [
+    "native-element-observer-resolver-correlation",
+    "function wrap<Value>(value: Value): Promise<number> { return new Promise<number>(resolve => { const observe = (): void => { void value; }; const done = (): void => { resolve(7); }; [observe, done].forEach(callback => { callback(); }); }); }\nconsole.log(await wrap(Promise.resolve(5)));\n"
+  ],
+  [
+    "native-element-observer-resolver-correlation-reversed",
+    "function wrap<Value>(value: Value): Promise<number> { return new Promise<number>(resolve => { const observe = (): void => { void value; }; const done = (): void => { resolve(7); }; [done, observe].forEach(callback => { [0].forEach(callback); }); }); }\nconsole.log(await wrap(Promise.resolve(5)));\n"
+  ],
+  [
+    "native-element-unused-callback",
+    "function wrap<Value>(value: Value): Promise<number> { return new Promise<number>(resolve => { [() => { void value; }].forEach(callback => { void callback; }); resolve(7); }); }\nconsole.log(await wrap(Promise.resolve(5)));\n"
+  ],
+  [
+    "authored-this-nonresolver",
+    "function wrap<Value>(value: Value): Promise<number> { return new Promise<number>(resolve => { function observe(this: void, actual: Value): void { void actual; } [value].forEach(observe); resolve(7); }); }\nconsole.log(await wrap(Promise.resolve(5)));\n"
+  ]
+]);
+nativeEntryInverses.push(...[
+  ["known-source-ignored-callable", "function ignore(callback: () => void): () => void { void callback; return () => {}; } function wrap<Value>(value: Value): Promise<Value | number> { return new Promise<Value | number>(resolve => { [ignore(() => { resolve(value); })].forEach(actual => { actual(); }); resolve(7); }); } console.log(await wrap(Promise.resolve(5)));"],
+  ["opaque-map-unused-callable", "function wrap<Value>(value: Value): Promise<Value | number> { return new Promise<Value | number>(resolve => { const values = new Map<number, () => void>([[0, () => { resolve(value); }]]); values.forEach(actual => { void actual; }); resolve(7); }); } console.log(await wrap(Promise.resolve(5)));"],
+  ["opaque-set-nonresolving-callable", "function wrap<Value>(value: Value): Promise<number> { return new Promise<number>(resolve => { const values = new Set<() => void>([() => { void value; }]); values.forEach(actual => { actual(); }); resolve(7); }); } console.log(await wrap(Promise.resolve(5)));"]
+]);
+
 for (const [name, sourceText] of nativeEntryInverses) {
   test("C# native callback non-adoption inverse: " + name, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText });
@@ -234,6 +326,83 @@ for (const [name, sourceText] of nativeEntryInverses) {
       JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
     const output = executeCsharpConstruction(compiled, "native-callback-inverse-" + name, false, false, [], "");
     assert.equal(output.trim(), "7", "only the actual resolver's same-activation payload is adopted");
+  });
+}
+const nativeOpaquePayloadCases = [
+  ["map-callable-payload", "function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => { const values = new Map<number, () => void>([[0, () => { resolve(value); }]]); values.forEach(actual => { actual(); }); }); }"],
+  ["set-callable-payload", "function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => { const values = new Set<() => void>([() => { resolve(value); }]); values.forEach(actual => { actual(); }); }); }"]
+];
+
+for (const [name, declarations] of nativeOpaquePayloadCases) {
+  test("C# native opaque callable input is unresolved, not safe empty: " + name, () => {
+    const compiled = compileCsharpSource({ surface: "js", sourceText: declarations +
+      "\nexport function reject(value: Promise<number>): void { void wrap(value); }" });
+    assert.deepEqual(compiled.result.diagnostics.map(issue => issue.code), ["CSHARP_ASYNC_RESULT_USE_NOT_PROVEN"],
+      "one precise source refusal, never a fabricated empty-safe execution or downstream native error");
+    const issue = compiled.result.diagnostics[0];
+    const { ast } = compiled.source;
+    assert.equal(ast.kindName(issue.sourceNode), "KindCallExpression", "the original resolving operation owns uncertainty");
+    assert.equal(Buffer.from(ast.getSourceText(ast.getSourceFile(issue.sourceNode))).subarray(ast.pos(issue.sourceNode), ast.end(issue.sourceNode))
+      .toString("utf8").trim(), "resolve(value)", "both targets report the same exact demanded operation");
+    assert.equal(compiled.result.program === undefined && compiled.result.artifacts.length === 0, true,
+      "an unresolved source adoption publishes no program or artifact");
+  });
+  test("C# ordinary opaque callable input keeps its native value: " + name, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" },
+      sourceText: declarations + "\nconsole.log(await wrap(7));" });
+    assert.equal(compiled.result.diagnostics.length, 0, JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
+    assert.equal(executeCsharpConstruction(compiled, "ordinary-native-opaque-" + name, false, false, [], "").trim(), "7",
+      "ordinary Awaited identity does not add a refusal or alter the native callback result");
+  });
+}
+
+const nativeConstructorCases = [
+  [
+    "direct-executor",
+    "function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => { resolve(value); }); }"
+  ],
+  [
+    "nested-executor",
+    "function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(outer => { const nested = new Promise<void>(inner => { outer(value); inner(undefined); }); void nested; }); }"
+  ],
+  [
+    "named-this-nested-executor",
+    "function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(outer => { function execute(this: void, inner: (value: void | PromiseLike<void>) => void): void { outer(value); inner(undefined); } const nested = new Promise<void>(execute); void nested; }); }"
+  ]
+];
+const nativeConstructorInverses = [
+  [
+    "nested-nonresolver",
+    "function wrap<Value>(value: Value): Promise<number> { return new Promise<number>(done => { const nested = new Promise<void>(inner => { void value; inner(undefined); }); void nested; done(7); }); }\nif ((await wrap(Promise.resolve(5))) !== 7) throw new Error(\"native constructor nonresolver\");"
+  ],
+  [
+    "foreign-same-named-constructor",
+    "namespace Foreign { export class PromiseConstructor<Part> { constructor(execute: (resolve: (actual: Part) => void) => void) { void execute; } } }\nfunction wrap<Value>(value: Value): number { const other = new Foreign.PromiseConstructor<Value>(resolve => { resolve(value); }); void other; return 7; }\nif (wrap(Promise.resolve(5)) !== 7) throw new Error(\"foreign constructor identity\");"
+  ]
+];
+
+for (const [name, declarations] of nativeConstructorCases) {
+  test("C# official native constructor keeps exact generic adoption: " + name, () => {
+    const compiled = compileCsharpSource({ surface: "native", sourceText: declarations +
+      "\nexport function reject(promised: Promise<number>): void { void wrap(promised); }" });
+    rejected(compiled, "wrap(promised)", "KindCallExpression", "wrap");
+  });
+  test("C# official native constructor preserves its ordinary native value: " + name, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface: "native", targetOptions: { outputType: "Exe" },
+      sourceText: declarations + "\nif ((await wrap(7)) !== 7) throw new Error(\"ordinary constructor payload\");" });
+    assert.equal(compiled.result.diagnostics.length, 0,
+      JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
+    const output = executeCsharpConstruction(compiled, "official-constructor-" + name, false, false, [], "");
+    assert.equal(output.trim(), "", "the exact officially selected native constructor preserves the ordinary payload");
+  });
+}
+for (const [name, sourceText] of nativeConstructorInverses) {
+  test("C# official native constructor inverse: " + name, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface: "native", targetOptions: { outputType: "Exe" }, sourceText });
+    assert.equal(compiled.result.diagnostics.length, 0,
+      JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
+    const output = executeCsharpConstruction(compiled, "official-constructor-inverse-" + name, false, false, [], "");
+    assert.equal(output.trim(), "", "foreign identity and nonresolving callbacks never manufacture adoption");
   });
 }
 function sourcePosition(ast, node, finish = false) {
