@@ -1,5 +1,5 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
-import { ObjectLiteralProperty_SourceName, sourceCallableUsesLexicalThis } from "@tsonic/target-api/source";
+import { asSourceNode, ObjectLiteralProperty_SourceName, sourceCallableUsesLexicalThis } from "@tsonic/target-api/source";
 import type { SourcePropertyNameIndex } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, rejectedTargetStage, resolvedTargetStage } from "@tsonic/target-api/artifacts";
 import type { TargetDiagnostic, TargetStageResult } from "@tsonic/target-api/artifacts";
@@ -222,7 +222,7 @@ export function analyzeCsharpNativeArtifactDemand(
 
   function demandUseBox(site: TargetUseSiteRef): void {
     const use = input.nativeDemand.nativeUse.get(site);
-    if (use === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A selected boxing edge requires its admitted operand.");
+    if (use === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A selected boxing edge requires its admitted operand.", asSourceNode(site.subject, input.ast));
     if (use.kind !== "erased" && use.completion.kind === "value") demandBox(use.expression, use.completion.type);
   }
 
