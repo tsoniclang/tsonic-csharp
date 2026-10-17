@@ -112,7 +112,12 @@ export function createCsharpTypeResolutionQueryCache():
   };
 
   return Object.freeze({
-    resolveArrayLiteral(node, sourceFile, root, compute) {
+    resolveArrayLiteral(
+      node: Node,
+      sourceFile: SourceFile,
+      root: boolean,
+      compute: () => CsharpArrayLiteralSelection,
+    ): CsharpArrayLiteralSelection {
       if (!root) return compute();
       const previous = arrays.get(node)?.get(sourceFile);
       if (previous !== undefined) return previous;
