@@ -589,7 +589,7 @@ function analyzeIteration(
     bindingPatterns: bindingCandidates, callableCreation: callableCreations.callableCreation, attributeApplications: attributes.index,
     propertyKeyBindings: expectedTypes.constructions.propertyKeys, exactLiteral: exactLiterals.exactLiteral,
     classInitialization, projectTypes: typeSystem.projectTypes.catalog, classFactories, expected: expectedUse,
-    nativePropertyNameIssues: evidence.nativePropertyNameIssues,
+    nativeExpressionIssues: evidence.nativeExpressionIssues,
   }, requiredRecords);
   const bindingPatterns = admitCsharpBindingPatterns(bindingCandidates, nativeDemand.requiredBindingRoots, requiredRecords);
   conversionAnalysis.close(nativeDemand, requiredRecords);
@@ -611,7 +611,7 @@ function analyzeIteration(
     typeProjections,
     typeSystem,
     sourceEvidence,
-    nativePropertyNameIssues: evidence.nativePropertyNameIssues,
+    nativeExpressionIssues: evidence.nativeExpressionIssues,
     operations,
     declarations,
     objectShapes: sealedObjectShapes,

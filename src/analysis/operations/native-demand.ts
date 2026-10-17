@@ -58,12 +58,12 @@ export function analyzeCsharpNativeDemand(
     unusedDefault: Object.freeze({ get: (node: Node) => unusedDefaults.has(node) }) };
   const entries: { readonly site: TargetUseSiteRef; readonly use: CsharpNativeUse }[] = [];
   const unadmitted: CsharpNativeUnadmitted[] = [];
-  const propertyNameRequirements = new Map<Node, CsharpNativeDemandAnalysisInput["nativePropertyNameIssues"][number][]>();
-  const refusedPropertyNames = new Set<Node>();
-  for (const issue of input.nativePropertyNameIssues) for (const requiredBy of issue.requiredBy) {
-    const issues = propertyNameRequirements.get(requiredBy) ?? [];
+  const sourceRequirements = new Map<Node, CsharpNativeDemandAnalysisInput["nativeExpressionIssues"][number][]>();
+  const refusedSourceExpressions = new Set<Node>();
+  for (const issue of input.nativeExpressionIssues) for (const requiredBy of issue.requiredBy) {
+    const issues = sourceRequirements.get(requiredBy) ?? [];
     issues.push(issue);
-    propertyNameRequirements.set(requiredBy, issues);
+    sourceRequirements.set(requiredBy, issues);
   }
   const states = new Map<object, Map<string, UseState>>();
   const published = new Map<object, Map<string, CsharpNativeUse>>();
@@ -134,7 +134,7 @@ export function analyzeCsharpNativeDemand(
     if (constructs.has(node)) return;
     constructs.add(node);
     const selected = selectCsharpNativeConstructSteps(policyInput, node);
-    if (selected.kind === "erased" || refusePropertyNames(node)) {
+    if (selected.kind === "erased" || refuseSourceExpression(node)) {
       orders.set(node, Object.freeze([]));
       return;
     }
@@ -155,12 +155,12 @@ export function analyzeCsharpNativeDemand(
     orders.set(node, Object.freeze(steps));
   }
 
-  function refusePropertyNames(requiredBy: Node): boolean {
-    const issues = propertyNameRequirements.get(requiredBy);
+  function refuseSourceExpression(requiredBy: Node): boolean {
+    const issues = sourceRequirements.get(requiredBy);
     if (issues === undefined) return false;
     for (const diagnostic of issues) {
-      if (refusedPropertyNames.has(diagnostic.sourceNode)) continue;
-      refusedPropertyNames.add(diagnostic.sourceNode);
+      if (refusedSourceExpressions.has(diagnostic.sourceNode)) continue;
+      refusedSourceExpressions.add(diagnostic.sourceNode);
       unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy, diagnostic }));
     }
     return true;
@@ -186,7 +186,7 @@ export function analyzeCsharpNativeDemand(
         : Object.freeze({ site, expression, completion: Object.freeze({ kind: "void" as const }),
           discardedPresence: constantPresence(existing.kind === "erased" && existing.cause === "discarded-callable", []) });
     }
-    if (refusePropertyNames(expression)) return Object.freeze({ site, expression, completion: undefined });
+    if (refuseSourceExpression(expression)) return Object.freeze({ site, expression, completion: undefined });
     if (exact === undefined) {
       const candidates = slots.get(site.subject)?.get(site.role);
       const matching = candidates?.expressions.get(expression) ?? [];

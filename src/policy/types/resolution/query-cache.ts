@@ -6,6 +6,7 @@ import type {
 import type {
   TargetTypeRef,
 } from "../../../target-model/types/model.js";
+import type { CsharpArrayLiteralSelection } from "./array-literals.js";
 
 type NodeTargetCache = WeakMap<
   Node,
@@ -13,6 +14,8 @@ type NodeTargetCache = WeakMap<
 >;
 
 export interface CsharpTypeResolutionQueryCache {
+  resolveArrayLiteral(node: Node, sourceFile: SourceFile, root: boolean,
+    compute: () => CsharpArrayLiteralSelection): CsharpArrayLiteralSelection;
   resolveNode(
     node: Node | undefined,
     sourceFile: SourceFile | undefined,
@@ -45,6 +48,7 @@ export function createCsharpTypeResolutionQueryCache():
     Type,
     WeakMap<SourceFile, TargetTypeRef | null>
   >();
+  const arrays = new WeakMap<Node, WeakMap<SourceFile, CsharpArrayLiteralSelection>>();
 
   const resolveNodeQuery = (
     cache: NodeTargetCache,
@@ -108,6 +112,22 @@ export function createCsharpTypeResolutionQueryCache():
   };
 
   return Object.freeze({
+    resolveArrayLiteral(node, sourceFile, root, compute) {
+      if (!root) return compute();
+      const previous = arrays.get(node)?.get(sourceFile);
+      if (previous !== undefined) return previous;
+      const cacheResult = activeQueryDepth === 0;
+      activeQueryDepth += 1;
+      try {
+        const result = compute();
+        if (cacheResult) {
+          let files = arrays.get(node);
+          if (files === undefined) { files = new WeakMap(); arrays.set(node, files); }
+          files.set(sourceFile, result);
+        }
+        return result;
+      } finally { activeQueryDepth -= 1; }
+    },
     resolveNode(
       node: Node | undefined,
       sourceFile: SourceFile | undefined,

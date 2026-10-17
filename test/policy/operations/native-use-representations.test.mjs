@@ -5,6 +5,7 @@ import { targetUseSiteIdentity } from "@tsonic/target-api/analysis";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { selectCsharpNativeUseRepresentation } from "../../../dist/policy/conversions/native-use-representation.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
+import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 const floating = Object.freeze({ kind: "source-primitive", name: "float64" });
@@ -70,6 +71,34 @@ test("constructing C then converting to T retains the physical carrier independe
   assert.equal(selected.kind === "selected" && selected.representation === "convert" && selected.carrier === carrier &&
     selected.construction.carrier === carrier && selected.construction.children[0] === site && selected.children[0] === selected.construction.site, true, "native-use-representations:71: selected.kind === \"selected\" && selected.representation === \"convert\" && selected.carrier ");
   assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.construction) && Object.isFrozen(selected.children), true, "native-use-representations:72: Object.isFrozen(selected) && Object.isFrozen(selected.construction) && Object.isFrozen(sel");
+});
+
+test("an authored numeric union contribution keeps its selected physical construction carrier", () => {
+  const literal = ast.as.AsBinaryExpression(initializer("binary")).Left;
+  const target = csharpRuntimeUnionTargetType([integer, floating]);
+  const selected = selectCsharpNativeUseRepresentation({ ...base(literal), source: integer, target,
+    constructionCarrier: floating, literal: Object.freeze({ kind: "source-representation" }) });
+  assert.equal(selected.kind === "selected" && selected.representation === "convert" && selected.carrier === floating &&
+    selected.construction.carrier === floating && selected.construction.children.length === 0 && selected.children.length === 1 &&
+    selected.children[0] === selected.construction.site && selected.construction.site.subject === literal &&
+    selected.construction.site.role === "constructed-result", true,
+  "the actual floating literal arm is constructed before union injection, not chosen from the integer source default");
+  assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.construction) && Object.isFrozen(selected.children), true,
+    "the selected scalar stage is immutable data in the existing native-use contract");
+});
+
+test("a parenthesized physical contribution forwards to its exact construction carrier before injection", () => {
+  const input = { ...base(initializer("wrapped")), target: csharpRuntimeUnionTargetType([integer, floating]),
+    constructionCarrier: floating, literal: { kind: "source-representation" } };
+  const operand = ast.as.AsParenthesizedExpression(input.expression).Expression;
+  edge(input, operand, { kind: "operand", position: "only" }, input.target);
+  assert.equal(selectCsharpNativeUseRepresentation(input).reason, "forwarding-child-unresolved",
+    "the target union is not a substitute for the selected physical literal arm");
+  const physical = edge(input, operand, { kind: "operand", position: "only" }, floating);
+  const selected = selectCsharpNativeUseRepresentation(input);
+  assert.equal(selected.kind === "selected" && selected.representation === "convert" && selected.carrier === floating &&
+    selected.construction.children.length === 1 && selected.construction.children[0] === physical, true,
+  "a transparent wrapper keeps the actual operand-to-physical and physical-to-union boundaries");
 });
 
 test("unrequested, rejected and callable physical data never acquire the requested carrier by inference", () => {

@@ -76,7 +76,7 @@ export function analyzeCsharpSourceEvidence(
   const compileTimeMetadata = new WeakSet<Node>(typeOnlyDeclarations.declarations);
   const memoryMetadataIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
   const fixedArrayIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
-  const nativePropertyNameIssues = new Map<Node, {
+  const nativeExpressionIssues = new Map<Node, {
     readonly diagnostic: TargetDiagnostic;
     readonly requiredBy: Set<Node>;
   }>();
@@ -194,7 +194,7 @@ export function analyzeCsharpSourceEvidence(
   }
 
   function requirePropertyName(name: Node, requiredBy: Node): void {
-    const previous = nativePropertyNameIssues.get(name);
+    const previous = nativeExpressionIssues.get(name);
     if (previous !== undefined) {
       previous.requiredBy.add(requiredBy);
       return;
@@ -206,7 +206,7 @@ export function analyzeCsharpSourceEvidence(
       return;
     }
     const diagnostic = csharpNativePropertyNameIssue(name, selected);
-    if (diagnostic !== undefined) nativePropertyNameIssues.set(name, { diagnostic, requiredBy: new Set([requiredBy]) });
+    if (diagnostic !== undefined) nativeExpressionIssues.set(name, { diagnostic, requiredBy: new Set([requiredBy]) });
   }
 
   function visit(node: Node, sourceFile: SourceFile, typeOnly = false): void {
@@ -300,10 +300,13 @@ export function analyzeCsharpSourceEvidence(
     ) {
       providerVirtualDeclarations.add(node);
     }
-    nodeTargetTypes.set(
-      node,
-      recordTargetType(types.resolveNode(node, sourceFile)) ?? missing,
-    );
+    const array = source.ast.is.IsArrayLiteralExpression(node) ? types.resolveArrayLiteral(node, sourceFile) : undefined;
+    if (!typeOnly && array?.kind === "rejected") nativeExpressionIssues.set(node, {
+      diagnostic: Object.freeze({ code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH", category: "error", source: "tsonic-csharp",
+        sourceNode: node, message: array.reason }), requiredBy: new Set([node]),
+    });
+    nodeTargetTypes.set(node, recordTargetType(array === undefined ? types.resolveNode(node, sourceFile)
+      : array.kind === "resolved" ? array.carrier : undefined) ?? missing);
     const nodeTargetType = cachedValue(nodeTargetTypes.get(node));
     sourceOwnedProjectShapes.set(
       node,
@@ -618,7 +621,7 @@ export function analyzeCsharpSourceEvidence(
       return sourceOwnedProjectShapes.get(node);
     } }),
   };
-  return Object.freeze({ index: Object.freeze(index), nativePropertyNameIssues: Object.freeze([...nativePropertyNameIssues].map(([sourceNode, issue]) =>
+  return Object.freeze({ index: Object.freeze(index), nativeExpressionIssues: Object.freeze([...nativeExpressionIssues].map(([sourceNode, issue]) =>
     Object.freeze({ ...issue.diagnostic, sourceNode, requiredBy: Object.freeze([...issue.requiredBy]) }))), inspectClosedArrayStorage: arrayStorage.resolve });
 }
 

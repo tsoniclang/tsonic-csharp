@@ -22,6 +22,7 @@ import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapePolicy } from "../objects/object-shape-policy.js";
 import type { CsharpObjectMethodSources } from "../../../target-model/records/native-value-carriers.js";
+import type { CsharpArrayLiteralSelection } from "./array-literals.js";
 
 export type ResolvedSourceCallInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["call"]>
@@ -105,6 +106,7 @@ export type CsharpScopedTypePolicyResult =
     };
 
 export interface CsharpTypePolicy {
+  resolveArrayLiteral(node: Node, sourceFile: SourceFile): CsharpArrayLiteralSelection;
   nativeGuardResult(expression: Node): boolean | undefined;
   nativeUnreachable(node: Node): boolean;
   nativeFlowMembers(reference: Node, sourceCarrier: TargetTypeRef): readonly TargetTypeRef[] | undefined;

@@ -16,10 +16,10 @@ function evidenceFor(sourceText) {
 
 test("storage evidence publishes an index without the closed-array inspector", () => {
   const { result } = evidenceFor("export {};");
-  assert.deepEqual(Object.keys(result).sort(), ["index", "inspectClosedArrayStorage", "nativePropertyNameIssues"]);
-  assert.equal(result.nativePropertyNameIssues.length, 0, "the valid open evidence result has no native key admission issue");
-  assert.equal(Object.isFrozen(result.nativePropertyNameIssues), true, "open admission issues are immutable data");
-  assert.equal(Object.hasOwn(result.index, "nativePropertyNameIssues"), false, "native admission issues are not a new published record family");
+  assert.deepEqual(Object.keys(result).sort(), ["index", "inspectClosedArrayStorage", "nativeExpressionIssues"]);
+  assert.equal(result.nativeExpressionIssues.length, 0, "the valid open evidence result has no native key admission issue");
+  assert.equal(Object.isFrozen(result.nativeExpressionIssues), true, "open admission issues are immutable data");
+  assert.equal(Object.hasOwn(result.index, "nativeExpressionIssues"), false, "native admission issues are not a new published record family");
   assert.equal(Object.isFrozen(result) && Object.isFrozen(result.index), true);
   assert.equal(Object.hasOwn(result.index, "inspectClosedArrayStorage"), false, "the index has no executable source worklist");
   assert.equal(Object.hasOwn(result.index, "closedArrayStorage"), false);

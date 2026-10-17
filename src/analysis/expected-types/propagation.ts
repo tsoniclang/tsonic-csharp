@@ -2,6 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { ObjectLiteralProperty_SourceName } from "@tsonic/target-api/source";
 import { selectCsharpArrayLiteralCarrier } from "../../policy/types/collections/literal-construction.js";
+import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
 import {
   getCsharpNullableElementTargetType,
   getCsharpArrayLiteralElementTargetType,
@@ -53,7 +54,7 @@ export function createCsharpExpectedTypePropagation(
   const { policy, operations, objectShapes, valueReadStages } = input;
   const record = collection.record;
   const arrayCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
-  const objectCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
+  const nonArrayCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
   const objectConstructions = new WeakMap<Node, Map<string, CsharpObjectShapeFact>>();
   const intrinsicTargets = new WeakMap<Node, Set<string>>();
   const positionsByOwner = new WeakMap<Node, ReadonlyMap<Node, number>>();
@@ -68,7 +69,7 @@ export function createCsharpExpectedTypePropagation(
       arrayLiteralCarrier: (expression: Node, targetType: TargetTypeRef) =>
         arrayCarriers.get(expression)?.get(targetTypeRefKey(targetType)),
       constructionCarrier: (expression: Node, targetType: TargetTypeRef) =>
-        (arrayCarriers.get(expression) ?? objectCarriers.get(expression))?.get(targetTypeRefKey(targetType)),
+        (arrayCarriers.get(expression) ?? nonArrayCarriers.get(expression))?.get(targetTypeRefKey(targetType)),
       objectShape: (expression: Node, targetType: TargetTypeRef) =>
         objectConstructions.get(expression)?.get(targetTypeRefKey(targetType)),
       intrinsicTarget: (expression: Node, targetType: TargetTypeRef) =>
@@ -113,9 +114,10 @@ export function createCsharpExpectedTypePropagation(
       return;
     }
     if (policy.ast.is.IsParenthesizedExpression(expression)) {
+      const physical = nonArrayCarriers.get(expression)?.get(targetTypeRefKey(targetType));
       record(
         policy.ast.as.AsParenthesizedExpression(expression)?.Expression,
-        targetType,
+        physical === undefined ? targetType : physical,
         strength,
         forwarded(expression, { kind: "operand", position: "only" }, pending.site, pending.mode),
         exactInteger,
@@ -289,9 +291,9 @@ export function createCsharpExpectedTypePropagation(
   }
 
   function recordObjectCarrier(expression: Node, targetType: TargetTypeRef, carrier: TargetTypeRef): void {
-    const carriers = objectCarriers.get(expression) ?? new Map<string, TargetTypeRef>();
+    const carriers = nonArrayCarriers.get(expression) ?? new Map<string, TargetTypeRef>();
     carriers.set(targetTypeRefKey(targetType), carrier);
-    objectCarriers.set(expression, carriers);
+    nonArrayCarriers.set(expression, carriers);
   }
 
   function recordObjectShape(expression: Node, targetType: TargetTypeRef, shape: CsharpObjectShapeFact): void {
@@ -362,11 +364,23 @@ export function createCsharpExpectedTypePropagation(
     if (elementTarget === undefined) {
       return;
     }
-    for (const node of elements) {
+    const numericSelection = getCsharpRuntimeUnionArms(elementTarget, policy.typeDefinitions) === undefined ? undefined
+      : policy.types.resolveArrayLiteral(expression, policy.semanticsFor(expression).sourceFile);
+    for (let index = 0; index < elements.length; index += 1) {
+      const node = elements[index];
       if (
         node !== undefined &&
         !policy.ast.is.IsSpreadElement(node)
       ) {
+        const physical = numericSelection?.kind === "resolved" ? numericSelection.elementCarriers[index] : undefined;
+        const sourceCarrier = valueReadStages.get(node)?.operationValue;
+        if (physical !== undefined && sourceCarrier !== undefined && !targetTypeRefEquals(physical, sourceCarrier) &&
+          policy.literalValues.literalValue.get(node)?.numeric?.kind === "authored") {
+          let native = nonArrayCarriers.get(node);
+          if (native === undefined) { native = new Map(); nonArrayCarriers.set(node, native); }
+          native.set(targetTypeRefKey(elementTarget), physical);
+          record(node, physical, "contextual");
+        }
         record(node, elementTarget, strength, element(node));
       }
     }

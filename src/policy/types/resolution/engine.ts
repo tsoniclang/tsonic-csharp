@@ -25,6 +25,7 @@ import { createCsharpSourceUnionIndex, type CsharpSourceUnionIndex } from "./sou
 import { createCsharpSourceUnionDefinitions } from "./union-definitions.js";
 import { createCsharpFixedArrayTypeQuery } from "./source-markers.js";
 import { selectCsharpNativeFlowMembers, selectCsharpNativeFlowTypeMembers, selectCsharpNativeGuardResult } from "./native-flow-refinement.js";
+import { resolveCsharpArrayLiteralSelection, type CsharpArrayLiteralSelection } from "./array-literals.js";
 import { resolveCsharpInstanceType } from "./instance-tests.js";
 import type { SourceNativeValueGuard } from "@tsonic/target-api/source";
 
@@ -122,6 +123,7 @@ type DropScope<Arguments extends readonly unknown[]> =
   Arguments extends readonly [unknown, ...infer Rest] ? Rest : never;
 
 export interface CsharpTypeResolutionScope {
+  resolveArrayLiteralWithState(node: Node, queries: SourceFileSemantics, state: CsharpTypeResolutionState): CsharpArrayLiteralSelection;
   resolvePointerReturn(
     declaration: Node,
     state: CsharpTypeResolutionState,
@@ -515,6 +517,9 @@ export function createCsharpTypeResolutionServices(
   const queryCache = createCsharpTypeResolutionQueryCache();
   const activeTypes = new WeakSet<Type>();
   const methods = {
+    resolveArrayLiteralWithState: (node: Node, queries: SourceFileSemantics, state: CsharpTypeResolutionState) =>
+      queryCache.resolveArrayLiteral(node, queries.sourceFile, state.depth === 0 && state.sourceBindings === undefined,
+        () => resolveCsharpArrayLiteralSelection(scope, node, queries, state)),
     resolveNode: (
       node: Node | undefined,
       sourceFile?: SourceFile,
@@ -738,6 +743,8 @@ export function createCsharpTypeResolutionServices(
         type => methods.resolveType(type, file), resolveNominal);
     },
     resolveBindingProjection: host.bindingProjection,
+    resolveArrayLiteral: (node: Node, sourceFile: SourceFile) =>
+      methods.resolveArrayLiteralWithState(node, host.semantics(sourceFile), { depth: 0 }),
     selectFixedArray: createCsharpFixedArrayTypeQuery(host),
     resolveNode: methods.resolveNode,
     resolveStorage: methods.resolveStorage,

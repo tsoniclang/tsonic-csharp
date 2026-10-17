@@ -5,7 +5,7 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/sourc
 
 export interface CsharpSourceEvidenceResult {
   readonly index: CsharpSourceEvidenceIndex;
-  readonly nativePropertyNameIssues: readonly (TargetDiagnostic & {
+  readonly nativeExpressionIssues: readonly (TargetDiagnostic & {
     readonly sourceNode: Node;
     readonly requiredBy: readonly Node[];
   })[];
