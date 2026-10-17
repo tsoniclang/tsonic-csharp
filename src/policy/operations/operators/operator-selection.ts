@@ -1,5 +1,5 @@
 import type { CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpResolvedDestructuringAssignmentOperation, CsharpResolvedUnaryOperation, CsharpTargetBinaryOperation } from "../../../target-model/records/operator-selection.js";
-import { validateBinaryTargetSemantics, validateUnaryTargetSemantics, isCsharpReferenceCarrier, isEquality, isRelational, isShift, isBitwise, isArithmetic } from "./operator-validation.js";
+import { validateBinaryTargetSemantics, validateUnaryTargetSemantics, isEquality, isRelational, isShift, isBitwise, isArithmetic } from "./operator-validation.js";
 import { selectCsharpAssignmentLocation } from "./assignment-location.js";
 
 import { selectCsharpGuardedIntegerPromotion } from "../numeric/guarded.js";
@@ -29,6 +29,7 @@ import {
   isCsharpAbsenceTargetType,
   isCsharpStringTargetType,
   isCsharpJsValueTargetType,
+  isCsharpReferenceCarrier,
   targetTypeRefEquals,
 } from "../../types/index.js";
 import {

@@ -1,5 +1,6 @@
 import {
   csharpBaseTargetTypeFromBinding,
+  csharpTargetTypeFromBinding,
 } from "../types/storage/bindings.js";
 import {
   csharpVoidReturnCompletion,
@@ -13,6 +14,8 @@ import {
   isCsharpJsValueTargetType,
   isCsharpAbsenceTargetType,
   isCsharpNullableReferenceTargetType,
+  isCsharpReferenceCarrier,
+  isCsharpSourceDelegateTargetType,
   isCsharpValueTypeTargetType,
   isCsharpVoidTargetType,
   targetTypeRefEquals,
@@ -33,6 +36,7 @@ import type {
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../model/context.js";
 import { csharpUnionLeaves, csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "../../target-model/types/union-relations.js";
+import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 
 export function selectJsValueConversion(
   source: TargetTypeRef,
@@ -59,7 +63,7 @@ export function selectJsValueConversion(
 }
 
 export function selectRuntimeUnionConversion(
-  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">,
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries,
   source: TargetTypeRef,
   target: TargetTypeRef,
   mode: CsharpConversionMode,
@@ -119,7 +123,7 @@ export function selectRuntimeUnionConversion(
 }
 
 export function csharpUnionReferenceImplicitlyAccepts(
-  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">,
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries,
   source: TargetTypeRef,
   target: TargetTypeRef,
 ): boolean {
@@ -132,7 +136,7 @@ export function csharpUnionReferenceImplicitlyAccepts(
 }
 
 export function selectCsharpRuntimeUnionProjection(
-  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">,
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries,
   source: TargetTypeRef, target: TargetTypeRef,
 ): CsharpConversionSelection {
   const sourceElement = getCsharpNullableElementTargetType(source);
@@ -155,7 +159,7 @@ export function selectNullableConversion(
   input: Pick<
     CsharpPolicyContext,
     "typeDefinitions" | "projectTypes" | "providers" | "target"
-  >,
+  > & CsharpConversionShapeQueries,
   source: TargetTypeRef,
   target: TargetTypeRef,
   mode: CsharpConversionMode,
@@ -216,7 +220,7 @@ export function selectDelegateConversion(
   input: Pick<
     CsharpPolicyContext,
     "typeDefinitions" | "projectTypes" | "providers" | "target"
-  >,
+  > & CsharpConversionShapeQueries,
   source: TargetTypeRef,
   target: TargetTypeRef,
 ): CsharpConversionSelection | undefined {
@@ -284,7 +288,7 @@ function rejectedDelegateConversion(
 }
 
 export function namedTargetTypesAreRelated(
-  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">,
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries,
   source: TargetTypeRef,
   target: TargetTypeRef,
 ): boolean {
@@ -293,7 +297,7 @@ export function namedTargetTypesAreRelated(
 }
 
 export function namedTargetTypeImplicitlyAccepts(
-  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">,
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries,
   source: TargetTypeRef,
   target: TargetTypeRef,
   visited: Set<string>,
@@ -312,68 +316,74 @@ export function namedTargetTypeImplicitlyAccepts(
     return false;
   }
   visited.add(key);
-  if (source.id === target.id) {
-    return constructedNamedTargetTypeImplicitlyAccepts(
-      input,
-      source,
-      target,
-      visited,
-    );
-  }
-  const projectSupertypes = input.projectTypes.directSupertypes(source);
-  if (
-    projectSupertypes?.some((supertype) =>
+  try {
+    if (input.objectShapes?.resolveTarget(source)?.implements?.some(implemented =>
+      namedTargetTypeImplicitlyAccepts(input, implemented, target, visited)) === true) {
+      return true;
+    }
+    if (source.id === target.id) {
+      return constructedNamedTargetTypeImplicitlyAccepts(
+        input,
+        source,
+        target,
+        visited,
+      );
+    }
+    const projectSupertypes = input.projectTypes.directSupertypes(source);
+    if (
+      projectSupertypes?.some((supertype) =>
+        namedTargetTypeImplicitlyAccepts(
+          input,
+          supertype,
+          target,
+          visited,
+        )
+      ) === true
+    ) {
+      return true;
+    }
+    const declaredBaseType =
+      (source as CsharpTargetNamedTypeRef).csharpBaseType;
+    if (
+      declaredBaseType !== undefined &&
       namedTargetTypeImplicitlyAccepts(
         input,
-        supertype,
+        declaredBaseType,
         target,
         visited,
       )
-    ) === true
-  ) {
-    return true;
+    ) {
+      return true;
+    }
+    const sourceBinding = csharpTargetBindingFact(
+      input.providers.findTargetBindingByTargetId(source.id),
+    );
+    if (sourceBinding === undefined) {
+      return false;
+    }
+    const substitutions = targetBindingSubstitutions(
+      sourceBinding,
+      source.typeArguments ?? [],
+    );
+    const baseType = csharpBaseTargetTypeFromBinding(
+      sourceBinding,
+      source.typeArguments ?? [],
+    );
+    if (
+      baseType !== undefined &&
+      namedTargetTypeImplicitlyAccepts(input, baseType, target, visited)
+    ) {
+      return true;
+    }
+    return (sourceBinding.implementedContracts ?? []).some((constraint) => {
+      if (constraint.kind !== "implements") return false;
+      const implemented = implementedConstraintType(input, constraint, substitutions);
+      return implemented !== undefined &&
+        namedTargetTypeImplicitlyAccepts(input, implemented, target, visited);
+    });
+  } finally {
+    visited.delete(key);
   }
-  const declaredBaseType =
-    (source as CsharpTargetNamedTypeRef).csharpBaseType;
-  if (
-    declaredBaseType !== undefined &&
-    namedTargetTypeImplicitlyAccepts(
-      input,
-      declaredBaseType,
-      target,
-      visited,
-    )
-  ) {
-    return true;
-  }
-  const sourceBinding = csharpTargetBindingFact(
-    input.providers.findTargetBindingByTargetId(source.id),
-  );
-  if (sourceBinding === undefined) {
-    return false;
-  }
-  const substitutions = targetBindingSubstitutions(
-    sourceBinding,
-    source.typeArguments ?? [],
-  );
-  const baseType = csharpBaseTargetTypeFromBinding(
-    sourceBinding,
-    source.typeArguments ?? [],
-  );
-  if (
-    baseType !== undefined &&
-    namedTargetTypeImplicitlyAccepts(input, baseType, target, visited)
-  ) {
-    return true;
-  }
-  return (sourceBinding.implementedContracts ?? []).some((constraint) =>
-    constraint.kind === "implements" &&
-    namedTargetTypeImplicitlyAccepts(
-      input,
-      implementedConstraintType(constraint, substitutions),
-      target,
-      visited,
-    ));
 }
 
 function targetTypeImplicitlyConvertsToObject(source: TargetTypeRef): boolean {
@@ -393,7 +403,7 @@ function targetTypeImplicitlyConvertsToObject(source: TargetTypeRef): boolean {
 }
 
 function constructedNamedTargetTypeImplicitlyAccepts(
-  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">,
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries,
   source: CsharpTargetNamedTypeRef,
   target: CsharpTargetNamedTypeRef,
   visited: Set<string>,
@@ -405,6 +415,17 @@ function constructedNamedTargetTypeImplicitlyAccepts(
   }
   if (sourceArguments.length === 0) {
     return true;
+  }
+  if (isCsharpSourceDelegateTargetType(source) && isCsharpSourceDelegateTargetType(target)) {
+    const sourceSignature = getCsharpDelegateSignature(source)!;
+    const targetSignature = getCsharpDelegateSignature(target)!;
+    return sourceSignature.parameters.length === targetSignature.parameters.length &&
+      sourceSignature.restParameterIndex === targetSignature.restParameterIndex &&
+      sourceSignature.returnPassing === targetSignature.returnPassing &&
+      sourceSignature.parameterPassingModes.every((mode, index) => mode === targetSignature.parameterPassingModes[index]) &&
+      sourceSignature.parameters.every((parameter, index) =>
+      variantArgumentImplicitlyAccepts(input, targetSignature.parameters[index]!, parameter, visited)) &&
+      variantArgumentImplicitlyAccepts(input, sourceSignature.returnType, targetSignature.returnType, visited);
   }
   const binding = csharpTargetBindingFact(
     input.providers.findTargetBindingByTargetId(source.id),
@@ -424,7 +445,7 @@ function constructedNamedTargetTypeImplicitlyAccepts(
 }
 
 function typeArgumentImplicitlyAccepts(
-  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">,
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries,
   source: TargetTypeRef,
   target: TargetTypeRef,
   parameter: TargetTypeParameter | undefined,
@@ -434,26 +455,37 @@ function typeArgumentImplicitlyAccepts(
     return true;
   }
   if (parameter?.variance === "out") {
-    return namedTargetTypeImplicitlyAccepts(input, source, target, visited);
+    return variantArgumentImplicitlyAccepts(input, source, target, visited);
   }
   if (parameter?.variance === "in") {
-    return namedTargetTypeImplicitlyAccepts(input, target, source, visited);
+    return variantArgumentImplicitlyAccepts(input, target, source, visited);
   }
   return false;
 }
 
-function implementedConstraintType(
+function variantArgumentImplicitlyAccepts(
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries,
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+  visited: Set<string>,
+): boolean {
+  return targetTypeRefEquals(source, target) ||
+    isCsharpReferenceCarrier(source) && isCsharpReferenceCarrier(target) &&
+      (!isCsharpNullableReferenceTargetType(source) || isCsharpNullableReferenceTargetType(target)) &&
+      namedTargetTypeImplicitlyAccepts(input, getCsharpNullableElementTargetType(source) ?? source,
+        getCsharpNullableElementTargetType(target) ?? target, visited);
+}
+
+export function implementedConstraintType(
+  input: Pick<CsharpPolicyContext, "providers" | "projectTypes">,
   constraint: Extract<TargetConstraint, { readonly kind: "implements" }>,
   substitutions: ReadonlyMap<string, TargetTypeRef>,
-): TargetTypeRef {
-  return {
-    kind: "target-named",
-    id: constraint.contract,
-    ...(constraint.typeArguments === undefined
-      ? {}
-      : {
-          typeArguments: constraint.typeArguments.map((argument) =>
-            substituteTargetTypeParameters(argument, substitutions)),
-        }),
-  };
+): TargetTypeRef | undefined {
+  const arguments_ = constraint.typeArguments?.map(argument => substituteTargetTypeParameters(argument, substitutions)) ?? [];
+  const definition = input.projectTypes.catalog.definitions.find(candidate => candidate.id === constraint.contract);
+  if (definition !== undefined) {
+    return input.projectTypes.catalog.targetTypeForDeclaration(definition.declaration, arguments_);
+  }
+  const binding = csharpTargetBindingFact(input.providers.findTargetBindingByTargetId(constraint.contract));
+  return binding === undefined ? undefined : csharpTargetTypeFromBinding(binding, arguments_);
 }

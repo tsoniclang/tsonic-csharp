@@ -8,10 +8,102 @@ import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conv
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
 import { analyzeCsharpCallableCreations } from "../../../dist/analysis/callables/creation.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
-import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpProviderArgumentSourceCarrier } from "../../../dist/policy/operations/members/selection/native-use-arguments.js";
 import { analyzeCsharpConversions } from "../../../dist/analysis/conversions/analyze.js";
 import { analyzeCsharpObjectShapes } from "../../../dist/analysis/objects/analyze.js";
+import { createCsharpNativeFieldBacking } from "../../../dist/analysis/storage/native-field-backing.js";
+import { prepareCsharpNativeBacking } from "../../../dist/analysis/storage/native-backing.js";
+import { createStructuralObjectShapeTarget } from "../../../dist/policy/types/objects/object-shape-policy/construction.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
+import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
+
+test("early backing exposes no incomplete field store and finalizes exactly once", () => {
+  const prepared = prepareCsharpNativeBacking({ ast: {} }, { pointerBackingDemands: [],
+    typeParameterConstraints: { get: () => undefined } }, {});
+  for (const name of ["nativeField", "nativeFields", "nativeLocation", "closedNativeContracts"]) {
+    assert.equal(Object.hasOwn(prepared, name), false, `${name}: no partial physical-field reader is advertised`);
+  }
+  const final = prepared.finalize({ knownShapes: () => [], resolveTarget: () => undefined });
+  assert.equal(final.fields.length === 0 && final.closedContracts.length === 0 && final.issues.length === 0 &&
+    Object.isFrozen(final), true, "the actual empty field-demand domain has one immutable complete result");
+  assert.throws(() => prepared.finalize({ knownShapes: () => [], resolveTarget: () => undefined }), /finalizes exactly once/u,
+    "a second field finalization cannot recompute or replace the complete iteration state");
+});
+
+test("native delegate variance uses exact reference edges without adding an adapter or boxing through a variant slot", () => {
+  const integer = csharpSourcePrimitiveTargetType("int32");
+  const base = Object.freeze({ kind: "target-named", id: "Owner.Base" });
+  const concrete = Object.freeze({ kind: "target-named", id: "Owner.Concrete" });
+  const foreign = Object.freeze({ kind: "target-named", id: "Owner.Foreign" });
+  const shapes = new Map([[concrete.id, { targetType: concrete, members: [], implements: [base] }],
+    [base.id, { targetType: base, members: [], implements: [concrete] }]]);
+  const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: id =>
+    id === "Owner.Covariant" ? { id, target: "csharp", kind: "interface", sourceName: "Covariant", targetName: "Covariant",
+      typeParameters: [{ identity: "Owner.Covariant:T", name: "T", variance: "out" }] } : undefined }, target: {},
+    objectShapes: { resolveTarget: type => type.kind === "target-named" ? shapes.get(type.id) : undefined } };
+  const callable = (parameters, result) => csharpDelegateTargetType("System.Func", parameters, result);
+  const conversions = [
+    [callable([integer], concrete), callable([integer], base)],
+    [csharpDelegateTargetType("System.Action", [base]), csharpDelegateTargetType("System.Action", [concrete])],
+    [callable([base], concrete), callable([concrete], base)],
+  ];
+  for (const [index, [source, target]] of conversions.entries()) {
+    const selected = selectCsharpConversion(policy, source, target, "implicit");
+    assert.equal(selected.kind === "implicit" && selected.proof === "reference", true,
+      `native variance ${index}: unchanged value slots and changed reference slots require no wrapper`);
+  }
+  const boxed = selectCsharpConversion(policy, callable([], integer), callable([], csharpObjectTargetType()), "implicit");
+  assert.equal(boxed.kind === "delegate-adapter" && boxed.strategy === "adaptation", true,
+    "a changed value-type result needs real adaptation, never native generic covariance");
+  assert.equal(selectCsharpConversion(policy, { kind: "target-named", id: "Owner.Covariant", typeArguments: [integer] },
+    { kind: "target-named", id: "Owner.Covariant", typeArguments: [csharpObjectTargetType()] }, "implicit").kind,
+  "rejected", "provider variance cannot manufacture a reference conversion from boxing");
+  const rest = csharpDelegateTargetType("System.Func", [integer], concrete, { restParameterIndex: 0 });
+  assert.equal(selectCsharpConversion(policy, rest, callable([integer], base), "implicit").kind, "rejected",
+    "native variance does not bypass the existing exact rest-parameter contract");
+  assert.equal(selectCsharpConversion(policy, callable([], concrete), callable([], foreign), "implicit").kind, "rejected",
+    "an unrelated reference target is not admitted through a cyclic implementation graph");
+});
+
+test("native field closure retains authored keys for every transitive and instantiated structural contract", () => {
+  const integer = csharpSourcePrimitiveTargetType("uint32");
+  const floating = csharpSourcePrimitiveTargetType("float64");
+  const boolean = csharpSourcePrimitiveTargetType("bool");
+  const constraints = Object.freeze({ kind: "resolved", constraints: Object.freeze([]) });
+  const environment = () => constraints;
+  const member = (name, type) => Object.freeze({ sourceKey: Object.freeze({ kind: "property", name }),
+    sourceName: name, targetName: name, memberKind: "property", type });
+  const value = member("value", integer);
+  const root = Object.freeze({ targetType: createStructuralObjectShapeTarget([value], undefined, environment, true), members: [value] });
+  const typeParameter = Object.freeze({ kind: "type-parameter", identity: "owner:Wide:Payload", name: "Payload", csharpConstraints: constraints });
+  const genericMembers = [value, member("payload", typeParameter)];
+  const generic = Object.freeze({ targetType: createStructuralObjectShapeTarget(genericMembers, undefined, environment, true),
+    members: genericMembers, implements: [root.targetType] });
+  const concrete = substituteObjectShapeFactTargetTypeParameters(generic, new Map([[typeParameter.identity, floating]]));
+  const leafMembers = [...concrete.members, member("extra", boolean)];
+  const leaf = Object.freeze({ targetType: createStructuralObjectShapeTarget(leafMembers, undefined, environment),
+    members: leafMembers, implements: [concrete.targetType] });
+  const backing = createCsharpNativeFieldBacking([root, concrete, leaf], environment);
+  const layout = Object.freeze({ kind: "scalar", pointeeType: integer, size: 4, alignment: 4,
+    width: 64, littleEndian: true, fields: Object.freeze([]) });
+  assert.equal(backing.select(root, value, layout).kind, "resolved", "the exact data-field layout is admitted once");
+  for (const [name, shape] of [["root", root], ["instantiated contract", concrete], ["transitive concrete implementation", leaf]]) {
+    assert.equal(backing.get(shape.targetType, "value") !== undefined, true, `${name}: every physical implementation is covered`);
+  }
+  const expected = [root.targetType, createStructuralObjectShapeTarget(concrete.members, undefined, environment, true)];
+  assert.equal(backing.closedContracts().length, 2, "both actual structural contracts feed representation convergence");
+  for (const [index, contract] of expected.entries()) {
+    assert.equal(backing.closedContracts().some(selected => targetTypeRefEquals(selected, contract)), true,
+      `closed contract ${index}: canonical authored key is not rehashed with late implementation edges`);
+  }
+  assert.equal(targetTypeRefEquals(concrete.members.find(field => field.targetName === "payload").type, floating), true,
+    "the instantiated contract key uses its actual substituted native payload");
+  const wrong = createStructuralObjectShapeTarget(concrete.members, concrete.implements, environment, true);
+  assert.equal(backing.closedContracts().some(selected => targetTypeRefEquals(selected, wrong)), false,
+    "an enriched implementation identity is never substituted for the authored native contract");
+});
 
 test("actual physical copy roots are ready before publication and all published shape reads are pure", () => {
   const root = { targetType: { kind: "target-named", id: "Owner.Shape" }, members: [] };
@@ -60,11 +152,17 @@ test("separately rendered provider conversions consume the exact source carrier 
     true, "a checked source parameter has no fabricated provider conversion");
 });
 
-test("actual native expression conversions complete while structural registration is open, then every view is lookup-only", () => {
+for (const wrapper of ["direct", "delegate", "tuple", "native-generic"]) test(wrapper === "direct"
+  ? "actual native expression conversions complete while structural registration is open, then every view is lookup-only"
+  : `${wrapper} actual conversion dependencies complete before structural publication`, () => {
   const expression = {};
   const other = {};
-  const source = csharpSourcePrimitiveTargetType("int32");
-  const target = csharpSourcePrimitiveTargetType("int64");
+  const source = { kind: "target-named", id: "Source.ActualShape" };
+  const target = { kind: "target-named", id: "Source.ActualContract" };
+  const wrap = type => wrapper === "direct" ? type : wrapper === "delegate" ? csharpDelegateTargetType("System.Func", [], type)
+    : wrapper === "tuple" ? { kind: "tuple", elements: [type] } : { kind: "target-named", id: "Owner.Covariant", typeArguments: [type] };
+  const sourceUse = wrap(source);
+  const targetUse = wrap(target);
   const boolean = csharpSourcePrimitiveTargetType("bool");
   const none = Object.freeze({ get: () => undefined });
   let structuralClosed = false;
@@ -72,32 +170,38 @@ test("actual native expression conversions complete while structural registratio
   const policy = { sourceFiles: [], target: {},
     ast: { is: { IsCallExpression: () => false, IsIdentifier: () => false }, getSourceFile: () => undefined },
     navigation: { referenceFor: () => undefined }, projectTypes: { directSupertypes: () => [] },
-    providers: { findTargetBindingByTargetId: () => undefined }, literalValues: { literalValue: none } };
-  const shapes = { resolveNode: () => undefined, resolveTarget: () => undefined,
+    providers: { findTargetBindingByTargetId: id => id === "Owner.Covariant" ? { id, target: "csharp", kind: "interface",
+      sourceName: "Covariant", targetName: "Covariant", typeParameters: [{ identity: "Owner.Covariant:T", name: "T", variance: "out" }] }
+      : undefined }, literalValues: { literalValue: none } };
+  const shape = { targetType: source, sourceType: {}, members: [], implements: [] };
+  const contract = { targetType: target, sourceType: {}, members: [] };
+  const shapes = { resolveNode: () => undefined, resolveTarget: type => type === source ? shape : type === target ? contract : undefined,
     registerStructuralInterface(subject, from, to) {
       assert.equal(structuralClosed, false, "no conversion registers a shape after publication");
       assert.equal(subject === expression && from === source && to === target, true, "only the exact consumed correspondence is registered");
       registrations++;
-      return false;
+      shape.implements = [target];
+      return true;
     } };
   const analysis = analyzeCsharpConversions(policy, {}, shapes);
   const prepared = analysis.prepare({ operations: { selectedCall: none, selectedConstruction: none },
     expectedTypes: {}, valueReads: {} });
   assert.throws(() => analysis.seal(), /closed preparation/u, "final publication cannot compute or close preparation itself");
   const site = csharpNativeUseSite(expression, { kind: "return" });
-  const use = Object.freeze({ kind: "converted", expression, carrier: source, target, mode: "implicit",
-    input: Object.freeze({ kind: "value", type: source }), completion: Object.freeze({ kind: "value", type: target }),
+  const use = Object.freeze({ kind: "converted", expression, carrier: sourceUse, target: targetUse, mode: "implicit",
+    input: Object.freeze({ kind: "value", type: sourceUse }), completion: Object.freeze({ kind: "value", type: targetUse }),
     children: Object.freeze([]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
   analysis.close({ entries: Object.freeze([Object.freeze({ site, use })]) }, []);
   assert.equal(registrations, 1, "the one actual expression key is completed once");
   structuralClosed = true;
   const sealed = analysis.seal();
   assert.equal(analysis.seal() === sealed, true, "publication is one pure completed-index lookup");
-  assert.equal(prepared.expressionConversion.get(expression, source, target, "implicit") ===
-    sealed.expressionConversion.get(expression, source, target, "implicit"), true, "prepared and published views read the same admitted selection");
-  assert.equal(prepared.expressionConversion.get(other, source, target, "implicit") === undefined, true,
+  assert.equal(prepared.expressionConversion.get(expression, sourceUse, targetUse, "implicit") ===
+    sealed.expressionConversion.get(expression, sourceUse, targetUse, "implicit"), true, "prepared and published views read the same admitted selection");
+  assert.equal(sealed.issues.length, 0, "the exact corresponding nested structural pair remains natively admissible");
+  assert.equal(prepared.expressionConversion.get(other, sourceUse, targetUse, "implicit") === undefined, true,
     "an absent expression cannot fall back to a pair or classify late");
-  assert.equal(prepared.expressionConversion.get(expression, target, source, "explicit") === undefined, true,
+  assert.equal(prepared.expressionConversion.get(expression, targetUse, sourceUse, "explicit") === undefined, true,
     "a different pair or mode cannot compute through the prepared view");
   assert.equal(prepared.conversion.get(target, boolean, "implicit") === undefined, true, "no speculative cross-product pair exists");
   assert.equal(registrations, 1, "no lookup or final seal touches the closed structural registry");

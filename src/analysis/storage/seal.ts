@@ -6,37 +6,61 @@ import type { CsharpObjectShapeClassifications } from "../objects/index.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpSourceEvidenceAnalysis } from "../source-evidence/model.js";
 import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications } from "../../target-model/records/storage.js";
-import { analyzeCsharpNativeBacking } from "./native-backing.js";
+import { prepareCsharpNativeBacking } from "./native-backing.js";
 import { classifyCsharpNativeLocation } from "./native-locations.js";
 import { classifyCsharpModuleFieldDemand } from "./module-fields.js";
+
+export type CsharpCaptureStorageQueries = Pick<CsharpStorageClassifications,
+  "storageType" | "nativeBacking" | "nativeArray" | "typedLocationIdentity">;
+
+export interface CsharpStoragePreparation {
+  readonly captures: CsharpCaptureStorageQueries;
+  readonly representations: CsharpStorageRepresentationClassifications;
+  readonly backing: ReturnType<typeof prepareCsharpNativeBacking>;
+}
+
+export function prepareCsharpStorage(
+  policy: CsharpPolicyContext,
+  evidence: CsharpSourceEvidenceAnalysis,
+  operations: CsharpTargetOperationClassifications,
+  representations: CsharpStorageRepresentationClassifications,
+): CsharpStoragePreparation {
+  const backing = prepareCsharpNativeBacking(policy, evidence, operations);
+  const captures: CsharpCaptureStorageQueries = Object.freeze({
+    storageType: representations.storageType,
+    nativeBacking: Object.freeze({ get: backing.get }),
+    nativeArray: Object.freeze({ get: backing.array }),
+    typedLocationIdentity: Object.freeze({ get: (declaration: Node) => backing.get(declaration) === undefined &&
+      backing.array(declaration) === undefined && representations.typedLocationIdentity.get(declaration) }),
+  });
+  return Object.freeze({ captures, backing, representations });
+}
 
 export function sealCsharpStorage(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceAnalysis,
   operations: CsharpTargetOperationClassifications,
   objectShapes: CsharpObjectShapeClassifications,
-  representations: CsharpStorageRepresentationClassifications,
+  preparation: CsharpStoragePreparation,
 ): CsharpStorageClassifications {
-  const backing = analyzeCsharpNativeBacking(policy, evidence, operations, objectShapes);
-  const issues = [...representations.issues, ...backing.issues];
+  const { representations, backing } = preparation;
+  const fields = backing.finalize(objectShapes);
+  const issues = [...representations.issues, ...backing.issues, ...fields.issues];
   const nativeLocations = new WeakMap<Node, ReturnType<typeof classifyCsharpNativeLocation>>();
   const sourceFiles = policy.sourceFiles;
   const classifications: CsharpStorageClassifications = {
     ...representations,
     nativeModuleField: Object.freeze({ get: classifyCsharpModuleFieldDemand(policy, evidence) }),
-    closedNativeContracts: backing.closedContracts,
+    closedNativeContracts: fields.closedContracts,
     nativeArrays: backing.arrays,
     nativeArray: Object.freeze({ get: backing.array }),
-    nativeFields: backing.fields,
-    nativeField: Object.freeze({ get: backing.field }),
+    nativeFields: fields.fields,
+    nativeField: Object.freeze({ get: fields.field }),
     nativeBackings: backing.entries,
     nativeBacking: Object.freeze({ get: backing.get }),
     nativeLocation: Object.freeze({ get: expression => nativeLocations.get(expression) }),
     issues,
-    typedLocationIdentity: Object.freeze({ get(declaration) {
-      return backing.get(declaration) === undefined && backing.array(declaration) === undefined &&
-        representations.typedLocationIdentity.get(declaration);
-    } }),
+    typedLocationIdentity: preparation.captures.typedLocationIdentity,
   };
   for (const sourceFile of sourceFiles) visit(sourceFile);
   Object.freeze(issues);
@@ -57,7 +81,7 @@ export function sealCsharpStorage(
       const property = operations.selectedProperty.get(expression)?.sourceOwned;
       const shape = property?.objectShape;
       const member = property?.shapeMember?.kind === "resolved" ? property.shapeMember.member : undefined;
-      const field = shape === undefined || member === undefined ? undefined : backing.field(shape.targetType, member.targetName);
+      const field = shape === undefined || member === undefined ? undefined : fields.field(shape.targetType, member.targetName);
       if (backing.array(expression) !== undefined || field !== undefined || declaration !== undefined && backing.get(declaration) !== undefined) {
         issues.push({ node, code: "CSHARP_NATIVE_BACKING_BYREF_NOT_PROVEN",
           message: "A physically backed location cannot be passed as a managed byref without an exact native reference contract." });

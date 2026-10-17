@@ -5,6 +5,7 @@ import {
   getCsharpCollectionElementTargetType,
   getCsharpImplicitArrayInputElementTargetType,
   getCsharpTaskResultTargetType,
+  getCsharpNullableElementTargetType,
   isCsharpNeverTargetType,
   isCsharpVoidTargetType,
   isCsharpAbsenceTargetType,
@@ -24,6 +25,7 @@ import type { CsharpPolicyContext } from "../model/context.js";
 import type { TargetTypeRef } from "../types/index.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 import { getCsharpMethodValue, csharpMethodValueContractsEqual } from "../../target-model/types/method-values.js";
+import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
 
 export function selectCsharpConversion(
   input: Pick<
@@ -53,6 +55,12 @@ export function selectCsharpConversion(
   if (isCsharpNeverTargetType(source) && !isCsharpVoidTargetType(target)) {
     return { kind: "never" };
   }
+  if (isCsharpRefLikeTargetType(source) && !isCsharpRefLikeTargetType(target)) {
+    const native = selectProviderConversionOperator(input, source, target, mode);
+    if (native.kind !== "none") return native;
+    return { kind: "rejected", code: "CSHARP_REFLIKE_BOXING",
+      reason: "A native ref-like value cannot be boxed or erased into an ordinary value carrier without an exact non-boxing native conversion." };
+  }
   const arrayElement = csharpArrayLikeElement(source, input.typeDefinitions);
   if (arrayElement !== undefined && targetTypeRefEquals(target, csharpArrayLikeTargetType(arrayElement))) {
     const arms = getCsharpRuntimeUnionArms(source, input.typeDefinitions);
@@ -68,6 +76,14 @@ export function selectCsharpConversion(
   );
   if (jsValueConversion !== undefined) {
     return jsValueConversion;
+  }
+  const sourceElement = getCsharpNullableElementTargetType(source);
+  const targetElement = getCsharpNullableElementTargetType(target);
+  const objectShape = input.objectShapes?.resolveTarget(sourceElement ?? source);
+  if (objectShape !== undefined && (sourceElement === undefined || targetElement !== undefined) &&
+    targetTypeRefEquals(objectShape.targetType, sourceElement ?? source) &&
+    objectShape.implements?.some(implemented => targetTypeRefEquals(implemented, targetElement ?? target)) === true) {
+    return { kind: "implicit", proof: "object-shape-interface" };
   }
   const nullable = selectNullableConversion(input, source, target, mode);
   if (nullable !== undefined) {
@@ -122,12 +138,12 @@ export function selectCsharpConversion(
   ) {
     return { kind: "cast", proof: "numeric" };
   }
+  if (namedTargetTypeImplicitlyAccepts(input, source, target, new Set())) {
+    return { kind: "implicit", proof: "reference" };
+  }
   const delegate = selectDelegateConversion(input, source, target);
   if (delegate !== undefined) {
     return delegate;
-  }
-  if (namedTargetTypeImplicitlyAccepts(input, source, target, new Set())) {
-    return { kind: "implicit", proof: "reference" };
   }
   const providerOperator = selectProviderConversionOperator(
     input,

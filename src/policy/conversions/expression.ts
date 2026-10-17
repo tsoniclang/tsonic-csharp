@@ -25,6 +25,7 @@ import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 import { selectCsharpUnionArmMapping } from "../../target-model/types/union-relations.js";
 import { selectCsharpRuntimeUnionProjection, selectDelegateConversion } from "./carriers.js";
 import { selectCsharpGuardedIntegerConversion } from "./integer-refinement.js";
+import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
 
 export function selectCsharpExpressionConversion(
   input: Pick<
@@ -40,7 +41,7 @@ export function selectCsharpExpressionConversion(
     return { kind: "absence" };
   }
   const selected = selectCsharpConversion(input, source, target, mode);
-  if (selected.kind !== "rejected" || target === undefined) {
+  if (selected.kind !== "rejected" || target === undefined || isCsharpRefLikeTargetType(source)) {
     return selected;
   }
   const quotationDelegate = getCsharpExpressionTreeDelegateType(getCsharpNullableElementTargetType(target) ?? target);
@@ -53,21 +54,6 @@ export function selectCsharpExpressionConversion(
   }
   const refined = selectCsharpGuardedIntegerConversion(input, expression, source, target);
   if (refined !== undefined) return refined;
-  const sourceElement = getCsharpNullableElementTargetType(source);
-  const targetElement = getCsharpNullableElementTargetType(target);
-  const objectShape = input.objectShapes?.resolveTarget(sourceElement ?? source) ??
-    input.objectShapes?.resolveNode(expression);
-  if (
-    source !== undefined &&
-    objectShape !== undefined &&
-    (sourceElement === undefined || targetElement !== undefined) &&
-    targetTypeRefEquals(objectShape.targetType, sourceElement ?? source) &&
-    objectShape.implements?.some((implemented) =>
-      targetTypeRefEquals(implemented, targetElement ?? target)
-    ) === true
-  ) {
-    return { kind: "implicit", proof: "object-shape-interface" };
-  }
   const runtimeUnionArms = getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(target) ?? target, input.typeDefinitions);
   if (runtimeUnionArms !== undefined) {
     const candidates = runtimeUnionArms.flatMap((armType, armIndex) => {

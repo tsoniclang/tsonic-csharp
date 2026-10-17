@@ -15,9 +15,12 @@ import {
   getCsharpJsArrayElementTargetType,
   getCsharpArrayLiteralElementTargetType,
   getCsharpCollectionElementTargetType,
+  csharpTargetBindingFact,
+  isCsharpReferenceCarrier,
   isSourceOwnedCallableRuntimeCarrierSubject,
   isSourceOwnedProjectReference,
   targetTypeRefKey,
+  targetTypeRefEquals,
 } from "../../policy/types/index.js";
 import {
   directCsharpSourceYieldExpression,
@@ -46,6 +49,9 @@ import { selectCsharpPropertyProjections } from "./property-projections.js";
 import { createCsharpExactLiteralRequestCollector } from "./literal-requests.js";
 import { sealCsharpConversionUses } from "./use-admission.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
+import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 
 const unavailableConversion: CsharpConversionSelection = Object.freeze({
   kind: "rejected",
@@ -73,6 +79,7 @@ export function analyzeCsharpConversions(
   let preparedOperations: CsharpTargetOperationClassifications | undefined;
   let sealedClassifications: CsharpConversionClassifications | undefined;
   const literalRequests = createCsharpExactLiteralRequestCollector(policy.literalValues);
+  const conversionPolicy = { ...policy, objectShapes };
 
   const openClassifications: CsharpConversionClassifications = {
     issues,
@@ -115,7 +122,7 @@ export function analyzeCsharpConversions(
       for (const sourceFile of policy.sourceFiles) {
         visit(sourceFile, sourceFile, operations, expectedTypes, valueReads);
       }
-      preparedClassifications = Object.freeze({ ...classifications, exactLiteralRequests: Object.freeze([...literalRequests.requests]) });
+      preparedClassifications = Object.freeze({ ...classifications, exactLiteralRequests: literalRequests.seal() });
       return preparedClassifications;
     },
     close(nativeDemand, requiredRecords) {
@@ -180,6 +187,12 @@ export function analyzeCsharpConversions(
     if (operations.nativeUnreachable.get(node)) return;
     const sourceTypes = exactSourceTypes(node, valueReads, expectedTypes.callableTarget.get(node));
     literalRequests.requestReads(node, sourceTypes, expectedTypes.expectedType.get(node), operations);
+    if (policy.literalValues.literalValue.get(node) !== undefined) {
+      const source = valueReads.valueRead.get(node)?.value;
+      if (source !== undefined) for (const target of expectedTypes.expectedType.get(node)) {
+        classifyExpression(node, source, target, "implicit", expectedTypes.exactIntegerConversion.get(node, target));
+      }
+    }
     const borrowedSequence = operations.borrowedSequence.get(node);
     if (borrowedSequence !== undefined) {
       const element = getCsharpCollectionElementTargetType(borrowedSequence.sourceCarrier);
@@ -559,13 +572,15 @@ export function analyzeCsharpConversions(
     }
     const key = pairKey(source, target, mode);
     const previous = pairSelections.get(key);
-    if (previous !== undefined) {
+    if (previous !== undefined && previous.kind !== "rejected") {
       return previous;
     }
+    if (node !== undefined) prepareStructuralDependencies(node, source, target);
     if (!reserveClassification(node)) {
       return undefined;
     }
-    const selected = admitCsharpConversionSelection(policy, source, target, selectCsharpConversion(policy, source, target, mode));
+    const selected = admitCsharpConversionSelection(conversionPolicy, source, target,
+      selectCsharpConversion(conversionPolicy, source, target, mode));
     pairSelections.set(key, selected);
     return selected;
   }
@@ -585,9 +600,10 @@ export function analyzeCsharpConversions(
     let selections = expressionSelections.get(expression);
     const previousClassification = selections?.get(key);
     const previous = previousClassification?.selection;
-    if (previous !== undefined && (!exactInteger || previous.kind !== "rejected")) {
+    if (previous !== undefined && previous.kind !== "rejected") {
       return previous;
     }
+    prepareStructuralDependencies(expression, source, target);
     if (!reserveClassification(expression)) {
       return undefined;
     }
@@ -600,7 +616,7 @@ export function analyzeCsharpConversions(
       directCallables.set(expression, Object.freeze({ ...reference }));
     }
     let candidate = selectCsharpIntegerTruncationConversion(policy, expression, sourceFile, source, target) ?? selectCsharpExpressionConversion(
-      { ...policy, objectShapes },
+      conversionPolicy,
       expression,
       source,
       target,
@@ -609,11 +625,7 @@ export function analyzeCsharpConversions(
     if (exactInteger && mode === "implicit" && candidate.kind === "rejected") {
       candidate = selectCsharpExactIntegerConversion(source, target) ?? candidate;
     }
-    if ((candidate.kind === "rejected" || candidate.kind === "implicit") &&
-      objectShapes.registerStructuralInterface(expression, source, target)) {
-      candidate = { kind: "implicit", proof: "object-shape-interface" };
-    }
-    const selected = admitCsharpConversionSelection(policy, source, target, candidate.kind === "delegate-adapter" && candidate.strategy === "adaptation" &&
+    const selected = admitCsharpConversionSelection(conversionPolicy, source, target, candidate.kind === "delegate-adapter" && candidate.strategy === "adaptation" &&
         (
           sourceFile === undefined ||
           !isSourceOwnedCallableRuntimeCarrierSubject(
@@ -635,6 +647,54 @@ export function analyzeCsharpConversions(
     }
     selections.set(key, Object.freeze({ source, target, selection: selected }));
     return selected;
+  }
+
+  function prepareStructuralDependencies(expression: Node, source: TargetTypeRef, target: TargetTypeRef): void {
+    const pending = [{ source, target }];
+    const visited = new Set<string>();
+    for (let index = 0; index < pending.length; index++) {
+      const pair = pending[index]!;
+      const key = pairKey(pair.source, pair.target, "implicit");
+      if (visited.has(key)) continue;
+      visited.add(key);
+      const source = getCsharpNullableElementTargetType(pair.source) ?? pair.source;
+      const target = getCsharpNullableElementTargetType(pair.target) ?? pair.target;
+      const shape = objectShapes.resolveTarget(source);
+      const contract = objectShapes.resolveTarget(target);
+      if (shape?.sourceType !== undefined && contract !== undefined && !targetTypeRefEquals(source, target) &&
+        shape.implements?.some(implemented => targetTypeRefEquals(implemented, target)) !== true) {
+        objectShapes.registerStructuralInterface(expression, pair.source, pair.target, shape.sourceType);
+      }
+      const from = getCsharpDelegateSignature(source);
+      const to = getCsharpDelegateSignature(target);
+      if (from !== undefined && to !== undefined) {
+        if (!csharpDelegateSignatureHasSupportedPassingModes(from) || !csharpDelegateSignatureHasSupportedPassingModes(to) ||
+          from.parameters.length > to.parameters.length || from.restParameterIndex !== to.restParameterIndex ||
+          from.returnPassing !== to.returnPassing || from.returnPassing !== undefined ||
+          from.parameterPassingModes.some(mode => mode !== "by-value") || to.parameterPassingModes.some(mode => mode !== "by-value")) continue;
+        for (const [parameterIndex, sourceParameter] of from.parameters.entries()) {
+          pending.push({ source: to.parameters[parameterIndex]!, target: sourceParameter });
+        }
+        if (!isCsharpVoidTargetType(to.returnType)) pending.push({ source: from.returnType, target: to.returnType });
+      } else if (source.kind === "tuple" && target.kind === "tuple" && source.elements.length === target.elements.length) {
+        for (const [elementIndex, element] of source.elements.entries()) {
+          pending.push({ source: element, target: target.elements[elementIndex]! });
+        }
+      } else if (source.kind === "target-named" && target.kind === "target-named" && source.id === target.id) {
+        const parameters = csharpTargetBindingFact(policy.providers.findTargetBindingByTargetId(source.id))?.typeParameters;
+        const sourceArguments = source.typeArguments ?? [];
+        const targetArguments = target.typeArguments ?? [];
+        if (parameters === undefined || sourceArguments.length !== targetArguments.length || parameters.length !== sourceArguments.length) continue;
+        for (const [argumentIndex, sourceArgument] of sourceArguments.entries()) {
+          const targetArgument = targetArguments[argumentIndex]!;
+          if (targetTypeRefEquals(sourceArgument, targetArgument) || !isCsharpReferenceCarrier(sourceArgument) ||
+            !isCsharpReferenceCarrier(targetArgument)) continue;
+          const variance = parameters[argumentIndex]!.variance;
+          if (variance === "out") pending.push({ source: sourceArgument, target: targetArgument });
+          else if (variance === "in") pending.push({ source: targetArgument, target: sourceArgument });
+        }
+      }
+    }
   }
 
   function reserveClassification(node: Node | undefined): boolean {

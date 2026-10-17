@@ -8,7 +8,8 @@ import type { SourceLexicalValueCreation } from "@tsonic/target-api/source";
 import { createHash } from "node:crypto";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeClassifications } from "../objects/model.js";
-import type { CsharpStorageClassifications, CsharpStorageIssue } from "../../target-model/records/storage.js";
+import type { CsharpStorageIssue } from "../../target-model/records/storage.js";
+import type { CsharpCaptureStorageQueries } from "../storage/index.js";
 import { createStructuralObjectShapeTarget } from "../../policy/types/objects/object-shape-policy/construction.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
@@ -33,7 +34,7 @@ const unknownLambdaCreation: CsharpLambdaCreation = Object.freeze({ kind: "fresh
 export function analyzeCsharpCaptureStorage(
   source: TargetSourceProgram,
   shapes: CsharpObjectShapeClassifications,
-  storage: CsharpStorageClassifications,
+  storage: CsharpCaptureStorageQueries,
   evidence: CsharpSourceEvidenceIndex,
   classCaptures: readonly import("../../target-model/records/class-factories.js").CsharpClassCapture[],
   names: CsharpSourceNameResolver,

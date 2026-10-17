@@ -250,8 +250,16 @@ for (const surface of ["native", "js"]) test(`${surface} numeric spread carriers
       const left = [signed, unsigned, 0.5];
       const middle = [signed, 0.5, unsigned];
       const right = [0.5, signed, unsigned];
-      return left[0] === signed && left[1] === unsigned && middle[0] === signed &&
-        middle[2] === unsigned && right[1] === signed && right[2] === unsigned;
+      return left[0] === signed && left[1] === unsigned && left[2] === 0.5 && middle[0] === signed &&
+        middle[1] === 0.5 && middle[2] === unsigned && right[0] === 0.5 && right[1] === signed && right[2] === unsigned;
+    }
+    export function nativePairs(signed: int32, unsigned: uint32): boolean {
+      const narrow = [signed, 1];
+      const bare = [signed, unsigned];
+      const explicit: number[] = [signed, unsigned, 0.5];
+      void bare;
+      return narrow[0] === signed && narrow[1] === 1 &&
+        explicit[0] === signed && explicit[1] === unsigned && explicit[2] === 0.5;
     }
     const narrow: int32 = 1;
     const wide: int64 = 9007199254740993n;
@@ -278,6 +286,14 @@ for (const surface of ["native", "js"]) test(`${surface} numeric spread carriers
   for (const file of program.sourceFiles) visit(file);
   for (const name of ["prefix", "suffix", "left", "middle", "right"]) assert.equal(arrays.get(name)?.kind === "source-primitive" &&
     arrays.get(name)?.name === "float64", true, `${name}: actual double spread and numeric literals share the same native carrier`);
+  assert.equal(arrays.get("narrow")?.kind === "source-primitive" && arrays.get("narrow")?.name === "int32", true,
+    "an actual native int32 and its exact integer literal retain the admitted int32 carrier");
+  const bare = getCsharpRuntimeUnionArms(arrays.get("bare"), program.typeDefinitions);
+  assert.equal(bare?.length === 2 && bare.some(type => type.kind === "source-primitive" && type.name === "int32") &&
+    bare.some(type => type.kind === "source-primitive" && type.name === "uint32"), true,
+    "a bare signed/unsigned pair retains its existing checked union, never a synthetic wider carrier");
+  assert.equal(arrays.get("explicit")?.kind === "source-primitive" && arrays.get("explicit")?.name === "float64", true,
+    "an explicitly authored number array retains its actual native float64 contract");
   const distinct = getCsharpRuntimeUnionArms(arrays.get("distinct"), program.typeDefinitions);
   assert.equal(distinct?.length === 2 && distinct.some(type => type.kind === "source-primitive" && type.name === "int32") &&
     distinct.some(type => type.kind === "source-primitive" && type.name === "int64"), true,
@@ -288,10 +304,11 @@ for (const surface of ["native", "js"]) test(`${surface} numeric spread carriers
     `if (Tsonic.Generated.Index.run(${surface === "native" ? "new double[] { 3, 4 }"
       : "new Tsonic.CSharp.Js.JSArray<double>(new double[] { 3, 4 })"}) != 8 ||
       !Tsonic.Generated.Index.permutations(-7, 4294967295U) ||
+      !Tsonic.Generated.Index.nativePairs(-7, 4294967295U) ||
       Tsonic.Generated.Index.homogeneousWide[0] != 9007199254740993L) throw new System.Exception("native array common carrier");`);
 });
 
-for (const surface of ["native", "js"]) test(`${surface} actual structural callable returns retain native-backed interface fields`,
+for (const surface of ["native", "js"]) test(`${surface} a named interface property has no inferred physical native-field guarantee`,
   { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface, capabilities: [memoryAbiCapability("csharp")], sourceText: `
     import { abi } from "test:abi";
@@ -313,9 +330,120 @@ for (const surface of ["native", "js"]) test(`${surface} actual structural calla
     export function run(): boolean { return change(create); }
   ` });
   assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  assert.equal(compiled.result.program === undefined, true, "the existing field-backing refusal precedes publication");
+  assert.equal(compiled.targetDiagnostics.length === 1 && compiled.targetDiagnostics[0].code === "CSHARP_NATIVE_BACKING_NOT_PROVEN" &&
+    compiled.targetDiagnostics[0].message === "Native field backing requires one complete compiler-owned mutable data field.", true,
+    "a named interface's accessor contract is not invented physical field evidence");
+  assert.equal([...compiled.artifacts.keys()].some(path => path.endsWith(".cs")), false, "no refused native program is emitted");
+});
+
+for (const surface of ["native", "js"]) test(`${surface} actual structural callable returns retain every native-backed physical implementation`,
+  { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface, capabilities: [memoryAbiCapability("csharp")], sourceText: `
+    import { abi } from "test:abi";
+    import { memorylayout, addressof, torawptr, reinterpretrawptr, loadptr, storeptr, unsafecontext } from "@tsonic/core/lang.js";
+    import type { uint32 } from "@tsonic/core/types.js";
+    const word = memorylayout<uint32>({ datalayout: abi, bytesize: 4, bytealignment: 4, stride: 4, fields: [] });
+    type Box = { value: uint32 };
+    type Wide<Payload> = { value: uint32; payload: Payload };
+    function create() { const value: uint32 = 7; return { value, extra: true }; }
+    function createOther() { const value: uint32 = 7; return { value, label: "other" }; }
+    function createWide(): Wide<number> { const value: uint32 = 7; return { value, payload: 0.5 }; }
+    function coerce<Payload>(value: Wide<Payload>): Box { return value; }
+    function transitiveFactory(): Box { return coerce(createWide()); }
+    function change(factory: () => Box): boolean {
+      unsafecontext();
+      const box = factory();
+      const pointer = addressof(box.value);
+      const raw = torawptr(pointer, word);
+      const restored = reinterpretrawptr(raw, word);
+      if (restored === undefined) return false;
+      storeptr(restored, 9);
+      return box.value === 9 && loadptr(pointer) === 9;
+    }
+    export function run(): boolean { return change(create); }
+    export function runOther(): boolean { return change(createOther); }
+    export function runTransitive(): boolean { return change(transitiveFactory); }
+    export function crossAlias(): boolean {
+      unsafecontext();
+      const original = createWide();
+      const box = coerce(original);
+      const pointer = addressof(box.value);
+      const raw = torawptr(pointer, word);
+      const restored = reinterpretrawptr(raw, word);
+      if (restored === undefined) return false;
+      storeptr(restored, 9);
+      return original.value === 9 && box.value === 9 && loadptr(pointer) === 9;
+    }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
   assert.equal(compiled.targetDiagnostics.length === 0 && compiled.result.program !== undefined, true,
     compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
-  executeCsharpConstruction(compiled, `native-backed-structural-return-${surface}`, false, true);
+  const program = compiled.result.program;
+  const ast = program.source.ast;
+  const producers = [];
+  const visit = node => {
+    if (ast.is.IsFunctionDeclaration(node) && ["create", "createOther"].includes(ast.text(ast.name(node)))) producers.push(node);
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  assert.equal(producers.length, 2, "both actual checked callable producers are present");
+  for (const producer of producers) {
+    const contract = program.records.returnContract.get(producer);
+    assert.equal(contract?.kind === "resolved" && program.records.nativeField.get(contract.type, "value") !== undefined, true,
+      `${ast.text(ast.name(producer))}: final backing contains the actual late structural implementation`);
+  }
+  executeCsharpConstruction(compiled, `native-backed-structural-return-${surface}`, false, true, [],
+    `if (!Tsonic.Generated.Index.run() || !Tsonic.Generated.Index.runOther() || !Tsonic.Generated.Index.runTransitive() ||
+      !Tsonic.Generated.Index.crossAlias()) throw new System.Exception("native field aliases through concrete, transitive and generic structural factories");`);
+});
+
+for (const surface of ["native", "js"]) test(`${surface} actual native delegate variance preserves identity and allocates no adapter`,
+  { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    type Product = { value: int32; extra: boolean };
+    type View = { value: int32 };
+    function make(value: int32) { return { value, extra: true }; }
+    export function nativeFactory(): (value: int32) => Product { return make; }
+    export function retain(factory: (value: int32) => Product): (value: int32) => View { return factory; }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  assert.equal(compiled.targetDiagnostics.length === 0 && compiled.result.program !== undefined, true,
+    compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+  const program = compiled.result.program;
+  const ast = program.source.ast;
+  const returns = [];
+  const visit = node => {
+    if (ast.is.IsReturnStatement(node)) {
+      const expression = ast.as.AsReturnStatement(node).Expression;
+      if (expression !== undefined && ast.is.IsIdentifier(expression) && ast.text(expression) === "factory") returns.push(expression);
+    }
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  assert.equal(returns.length, 1, "the source has one actual native variant return use");
+  const use = program.records.nativeUse.expression(returns[0])?.use;
+  assert.equal(use?.kind === "converted" && use.input.kind === "value", true,
+    "the exact consumed callable source and destination are retained");
+  const selected = program.records.expressionConversion.get(returns[0], use.input.type, use.target, use.mode);
+  assert.equal(selected?.kind === "implicit" && selected.proof === "reference", true,
+    "the selected native relation has no adapter, captures, boxing or copy");
+  executeCsharpConstruction(compiled, `native-delegate-variance-${surface}`, false, false, [], `
+    var original = Tsonic.Generated.Index.nativeFactory();
+    var widened = Tsonic.Generated.Index.retain(original);
+    if (!System.Object.ReferenceEquals(original, widened) || widened(7).value != 7)
+      throw new System.Exception("native variance keeps delegate identity and invocation");
+    for (int index = 0; index < 20000; index++)
+      if (!System.Object.ReferenceEquals(original, Tsonic.Generated.Index.retain(original)))
+        throw new System.Exception("native variance warmup identity");
+    long before = System.GC.GetAllocatedBytesForCurrentThread();
+    bool same = true;
+    for (int index = 0; index < 20000; index++)
+      same &= System.Object.ReferenceEquals(original, Tsonic.Generated.Index.retain(original));
+    long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+    if (!same || allocated != 0) throw new System.Exception("native variance must allocate zero adapter bytes");
+  `);
 });
 
 test("tagged template operands have finite contexts without changing the retained source refusal", () => {

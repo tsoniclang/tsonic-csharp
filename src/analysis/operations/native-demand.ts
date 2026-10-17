@@ -91,7 +91,7 @@ export function analyzeCsharpNativeDemand(
     nativeUse: Object.freeze({ get: (site: TargetUseSiteRef) => published.get(site.subject)?.get(targetUseSiteIdentity(site)),
       order: (construct: Node) => orders.get(construct), expression: (node: Node) => emissions.get(node) }) });
 
-  function publish(site: TargetUseSiteRef, use: CsharpNativeUse): VisitedUse {
+  function publish(site: TargetUseSiteRef, use: CsharpNativeUse, presence?: CsharpNativeDiscardedPresence): VisitedUse {
     let owner = published.get(site.subject);
     if (owner === undefined) { owner = new Map(); published.set(site.subject, owner); }
     const identity = targetUseSiteIdentity(site);
@@ -111,7 +111,7 @@ export function analyzeCsharpNativeDemand(
       emissions.set(use.expression, entry);
     }
     const discardedPresence = use.kind === "erased" ? constantPresence(use.cause === "discarded-callable", [])
-      : use.discardedPresence ?? (use.kind === "converted" && (use.input.kind === "void" ||
+      : use.discardedPresence ?? presence ?? (use.kind === "converted" && (use.input.kind === "void" ||
           use.input.kind === "value" && isCsharpAbsenceTargetType(use.input.type)) ? constantPresence(false, [site]) : undefined);
     return Object.freeze({ site, expression: use.expression, completion: use.kind === "erased" ? Object.freeze({ kind: "void" as const }) : use.completion,
       ...(discardedPresence === undefined ? {} : { discardedPresence }) });
@@ -270,8 +270,8 @@ export function analyzeCsharpNativeDemand(
     }
     const evaluation = evaluationOf(selected, runtime);
     if (evaluation === undefined) return pending(site, expression, "completion-unresolved");
-    const discardedPresence = !discarded || inputCompletion.kind !== "void" ? undefined
-      : selectDiscardedPresence(expression, selected, runtime);
+    const presence = selectDiscardedPresence(expression, selected, runtime);
+    const discardedPresence = !discarded || inputCompletion.kind !== "void" ? undefined : presence;
     const projections: TargetUseSiteRef[] = [];
     const operation = expected?.binary ?? input.operations.binaryOperation.get(expression)?.target;
     if (inputCompletion.kind === "value" && operation?.kind === "resolved" && operation.targetOperation.kind === "conditional-value" &&
@@ -304,7 +304,7 @@ export function analyzeCsharpNativeDemand(
       if (completion === undefined) return pending(site, expression, "completion-unresolved");
       return publish(site, { kind: "converted", expression, carrier: physical, input: inputCompletion, target: expected.target, mode: expected.mode,
         children: Object.freeze([stage]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([Object.freeze({ site: stage })]) }),
-        objectShape, defaultValue, propertyKeys, completion });
+        objectShape, defaultValue, propertyKeys, completion }, presence);
     }
     const common = { expression, carrier: physical, children, evaluation, completion: inputCompletion,
       ...(discardedPresence === undefined ? {} : { discardedPresence }),
@@ -314,16 +314,16 @@ export function analyzeCsharpNativeDemand(
       ...(objectShape === undefined ? {} : { objectShape }),
       ...(propertyKeys === undefined ? {} : { propertyKeys }),
       ...(defaultValue === undefined ? {} : { defaultValue }) };
-    if (inputCompletion.kind === "void" && discarded) return publish(site, { ...common, kind: "effect" });
+    if (inputCompletion.kind === "void" && discarded) return publish(site, { ...common, kind: "effect" }, presence);
     if (expected?.representation === "convert") {
       const completion = selectCsharpNativeCompletion(expected.target, { kind: "sequence", children: [{ completion: inputCompletion }] });
       return completion === undefined ? pending(site, expression, "completion-unresolved")
-        : publish(site, { ...common, kind: "converted", input: inputCompletion, target: expected.target, mode: expected.mode, completion });
+        : publish(site, { ...common, kind: "converted", input: inputCompletion, target: expected.target, mode: expected.mode, completion }, presence);
     }
-    if (expected !== undefined) return publish(site, { ...common, kind: expected.representation === "construct" ? "constructed" : "forwarded" });
-    if (child.access === "location") return publish(site, { ...common, kind: "location" });
-    return child.slot.kind === "effect" ? publish(site, { ...common, kind: "effect" })
-      : publish(site, { ...common, kind: "value", handler: input.operations.nativeHandler.get(expression) });
+    if (expected !== undefined) return publish(site, { ...common, kind: expected.representation === "construct" ? "constructed" : "forwarded" }, presence);
+    if (child.access === "location") return publish(site, { ...common, kind: "location" }, presence);
+    return child.slot.kind === "effect" ? publish(site, { ...common, kind: "effect" }, presence)
+      : publish(site, { ...common, kind: "value", handler: input.operations.nativeHandler.get(expression) }, presence);
   }
 
   function erasedExpression(expression: Node): "discarded-callable" | "erased-statement" | false {

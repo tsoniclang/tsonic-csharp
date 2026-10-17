@@ -62,7 +62,7 @@ export function createCsharpNativeFieldBacking(shapes: readonly CsharpObjectShap
       }
       for (const shape of selected) {
         if (shape.targetType.kind === "target-named" && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true) {
-          const contract = createStructuralObjectShapeTarget(shape.members, shape.implements, environment, true);
+          const contract = createStructuralObjectShapeTarget(shape.members, undefined, environment, true);
           closedContracts.set(targetTypeRefKey(contract), contract);
         }
         fields.set(fieldKey(shape.targetType, member.targetName), Object.freeze({

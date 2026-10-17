@@ -35,3 +35,10 @@ export function isCsharpValueTypeTargetType(type: TargetTypeRef): boolean {
     csharpType.csharpSourceDeclarationKind === "enum" ||
     csharpType.csharpSourceDeclarationKind === "struct";
 }
+
+export function isCsharpReferenceCarrier(type: TargetTypeRef): boolean {
+  return type.kind === "array" ||
+    type.kind === "target-named" &&
+      !isCsharpValueTypeTargetType(type) &&
+      !isCsharpVoidTargetType(type);
+}
