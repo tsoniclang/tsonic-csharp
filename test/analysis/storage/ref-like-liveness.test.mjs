@@ -42,7 +42,7 @@ test("a bounded lexical-owner query cannot silently admit unproven ref-like life
   const compiled = compileCsharpSource({ sourceText: `${header}
 export async function fail(values: int32[], pending: Promise<int32>): Promise<int32> {
   let size: int32 = 0;
-  ${"{".repeat(130)} const view = new Span<int32>(values); size = view.Length; ${"}".repeat(130)}
+  ${"{".repeat(300)} const view = new Span<int32>(values); size = view.Length; ${"}".repeat(300)}
   return size + await pending;
 }` });
   assert.equal(compiled.sourceDiagnosticsText, "", "the deeply nested binding remains checked source");
@@ -72,6 +72,7 @@ export async function fail(values: int32[], pending: Promise<int32>): Promise<in
 }
 
 for (const [name, body] of [
+  ["130 nested pre-await blocks", `let size: int32 = 0; ${"{".repeat(130)} const view = new Span<int32>(values); size = view.Length; ${"}".repeat(130)} return size + await pending;`],
   ["same-scope pre-await local", `const view = new Span<int32>(values); const length = consume(view, 0); return length + await pending;`],
   ["consumed scalar before later await", `const view = new Span<int32>(values); return view.Length + await pending;`],
   ["ref-like created after suspension", `const extra = await pending; return consume(new Span<int32>(values), extra);`],
