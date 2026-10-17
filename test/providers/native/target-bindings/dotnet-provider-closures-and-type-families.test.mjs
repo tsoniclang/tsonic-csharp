@@ -10,7 +10,7 @@ test(".NET provider declaration model preserves explicit target parameter passin
     exports: [
       {
         kind: "type",
-        isByRefLike: false,
+        isByRefLike: false, constraintRequiresReferenceType: true,
         allowsRefLikeTypeArguments: [],
         typeKind: "class",
         sourceName: "Dictionary",
@@ -74,7 +74,7 @@ test(".NET provider exposes explicit native Array as a provider-owned C# array p
       exports: [
         {
           kind: "type",
-          isByRefLike: false,
+          isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName: "Array",

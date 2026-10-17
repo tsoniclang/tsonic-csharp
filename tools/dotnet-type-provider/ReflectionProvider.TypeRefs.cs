@@ -184,6 +184,7 @@ sealed partial class ReflectionProvider
         {
             kind = "named",
             isByRefLike = definition.IsByRefLike,
+            constraintRequiresReferenceType = ConstraintRequiresReferenceType(definition),
             allowsRefLikeTypeArguments = definition.IsGenericTypeDefinition
                 ? definition.GetGenericArguments().Select(parameter => (parameter.GenericParameterAttributes & GenericParameterAttributes.AllowByRefLike) != 0).ToArray()
                 : Array.Empty<bool>(),

@@ -129,6 +129,10 @@ sealed partial class ReflectionProvider
         readonly MetadataLoadContext context;
         readonly IReadOnlyList<AssemblyCandidate> rootCandidates;
 
+        public Type CoreObjectType { get; }
+        public Type CoreValueType { get; }
+        public Type CoreEnumType { get; }
+
         public RequestMetadataLoadContext(
             IReadOnlyCollection<string> runtimePaths,
             IReadOnlyCollection<string> referencePaths,
@@ -153,6 +157,11 @@ sealed partial class ReflectionProvider
             context = new MetadataLoadContext(
                 new PathAssemblyResolver(rootCandidates.Select(candidate => candidate.Path)),
                 typeof(object).Assembly.GetName().Name!);
+            var coreAssembly = context.CoreAssembly
+                ?? throw new InvalidOperationException("The selected .NET metadata context has no core assembly.");
+            CoreObjectType = coreAssembly.GetType("System.Object", throwOnError: true)!;
+            CoreValueType = coreAssembly.GetType("System.ValueType", throwOnError: true)!;
+            CoreEnumType = coreAssembly.GetType("System.Enum", throwOnError: true)!;
             ValidateExplicitReferenceClosure(candidatesByIdentity);
         }
 

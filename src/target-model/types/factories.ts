@@ -36,6 +36,7 @@ export function csharpTargetNamedType(
     readonly typeofRuntimeKind?: CsharpTypeofRuntimeKind;
     readonly valueType?: true;
     readonly byRefLike?: true;
+    readonly constraintRequiresReferenceType?: true;
     readonly allowsRefLikeTypeArguments: readonly boolean[];
     readonly absorbsNullish?: true;
     readonly jsValueCarrier?: true;
@@ -43,6 +44,11 @@ export function csharpTargetNamedType(
     readonly jsObjectShape?: true;
   },
 ): CsharpTargetNamedTypeRef {
+  if (typeof metadata === "object" && metadata !== null && metadata.constraintRequiresReferenceType !== undefined &&
+    (metadata.constraintRequiresReferenceType !== true || metadata.valueType === true || metadata.byRefLike === true ||
+      metadata.sourceDeclarationKind !== undefined && metadata.sourceDeclarationKind !== "class")) {
+    throw new TypeError("A C# reference-only bound guarantee must be literal true and cannot describe a value carrier.");
+  }
   if (typeof metadata !== "object" || metadata === null || !Array.isArray(metadata.allowsRefLikeTypeArguments) ||
     metadata.allowsRefLikeTypeArguments.length !== (typeArguments?.length ?? 0) ||
     Object.keys(metadata.allowsRefLikeTypeArguments).length !== metadata.allowsRefLikeTypeArguments.length ||
@@ -86,6 +92,7 @@ export function csharpTargetNamedType(
     ...(metadata.typeofRuntimeKind !== undefined ? { csharpTypeofRuntimeKind: metadata.typeofRuntimeKind } : {}),
     ...(metadata.valueType === true ? { csharpValueType: true } : {}),
     ...(metadata.byRefLike === true ? { csharpByRefLike: true } : {}),
+    ...(metadata.constraintRequiresReferenceType === true ? { csharpConstraintRequiresReferenceType: true as const } : {}),
     csharpAllowsRefLikeTypeArguments: Object.freeze([...metadata.allowsRefLikeTypeArguments]),
     ...(metadata.absorbsNullish === true ? { csharpAbsorbsNullish: true } : {}),
     ...(metadata.jsValueCarrier === true

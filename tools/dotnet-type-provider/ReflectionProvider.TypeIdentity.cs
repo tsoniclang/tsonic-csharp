@@ -2,6 +2,14 @@ using System.Reflection;
 
 sealed partial class ReflectionProvider
 {
+    bool ConstraintRequiresReferenceType(Type type)
+    {
+        var loaded = requestLoadContext
+            ?? throw new InvalidOperationException("Native constraint metadata requires the selected metadata context.");
+        return type.IsClass && type != loaded.CoreObjectType &&
+            type != loaded.CoreValueType && type != loaded.CoreEnumType;
+    }
+
     static bool IsRuntimeType(Type type, Type runtimeType)
     {
         if (type.IsGenericType && !type.IsGenericTypeDefinition && runtimeType.IsGenericTypeDefinition)

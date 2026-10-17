@@ -205,7 +205,7 @@ test("concrete properties suppress colliding extension-method projections", () =
 test("enum source declarations omit extension-method projections", () => {
   const declaration = {
     kind: "type",
-    isByRefLike: false,
+    isByRefLike: false, constraintRequiresReferenceType: false,
     allowsRefLikeTypeArguments: [],
     typeKind: "enum",
     sourceName: "Status",
@@ -241,7 +241,7 @@ test("enum source declarations omit extension-method projections", () => {
 test("concrete method call shapes precede extensions while distinct extension overloads remain", () => {
   const declaration = {
     kind: "type",
-    isByRefLike: false,
+    isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
     typeKind: "class",
     sourceName: "Widget",
@@ -253,7 +253,7 @@ test("concrete method call shapes precede extensions while distinct extension ov
     name: "value",
     type: {
       kind: "named",
-      isByRefLike: false,
+      isByRefLike: false, constraintRequiresReferenceType: true,
       allowsRefLikeTypeArguments: [],
       targetId: "Example.Widget",
       metadataName: "Example.Widget",
@@ -369,7 +369,7 @@ test("derived provider signatures replace their exact virtual slot while retaini
     exports: [
       {
         kind: "type",
-        isByRefLike: false,
+        isByRefLike: false, constraintRequiresReferenceType: true,
         allowsRefLikeTypeArguments: [],
         typeKind: "class",
         sourceName: "Base",
@@ -412,7 +412,7 @@ test("derived provider signatures replace their exact virtual slot while retaini
       },
       {
         kind: "type",
-        isByRefLike: false,
+        isByRefLike: false, constraintRequiresReferenceType: true,
         allowsRefLikeTypeArguments: [],
         typeKind: "class",
         sourceName: "Derived",
@@ -421,7 +421,7 @@ test("derived provider signatures replace their exact virtual slot while retaini
         metadataName: "Example.Derived",
         baseType: {
           kind: "named",
-          isByRefLike: false,
+          isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
           targetId: "Example.Base",
           metadataName: "Example.Base",

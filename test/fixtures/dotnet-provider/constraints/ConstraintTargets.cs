@@ -48,3 +48,26 @@ public sealed class NotNullTarget<T>
     where T : notnull
 {
 }
+
+public readonly struct NativeCategoryValue : ITagged
+{
+}
+
+public enum NativeCategoryEnum
+{
+    Zero,
+    One,
+}
+
+public delegate int NativeCategoryCallback(int value);
+
+public sealed class NativeCategoryGeneric<T> where T : EntityBase
+{
+}
+
+public static class NativeCategoryBounds
+{
+    public static bool FromBase<T>(T value) where T : EntityBase => true;
+    public static bool FromInterface<T>(T value) where T : ITagged => true;
+    public static bool FromDelegate<T>(T value) where T : System.Delegate => true;
+}

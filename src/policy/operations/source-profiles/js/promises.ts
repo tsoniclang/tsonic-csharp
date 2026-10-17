@@ -65,15 +65,15 @@ export const csharpJsPromiseCallPolicies:
       promiseFinallyMember,
       firstParameterReceiver,
     ),
-    jsCallPolicy(
-      jsMemberIdentity("Promise", "then"),
+    ...["Promise", "PromiseLike"].map(owner => jsCallPolicy(
+      jsMemberIdentity(owner, "then"),
       context => promiseContinuationMember(context, "then"),
       firstParameterReceiver,
       { targetMethodTypeArguments: context => {
         const result = getCsharpTaskResultTargetType(promiseContinuationMember(context, "then")?.returnType);
         return result === undefined ? undefined : isCsharpVoidTargetType(result) ? [] : [result];
       } },
-    ),
+    )),
     jsCallPolicy(
       jsMemberIdentity("Promise", "catch"),
       context => promiseContinuationMember(context, "catch"),

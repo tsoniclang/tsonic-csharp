@@ -15,6 +15,34 @@ import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotne
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const constraintModuleSpecifier = "@tsonic/dotnet/ProviderConstraintFixtures.js";
 
+test("native bound metadata round-trips actual class, interface, value, enum and delegate declarations", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ references: [buildConstraintFixture()], disablePersistentCache: true });
+  const module = getCompleteDotnetModule(provider, constraintModuleSpecifier, {});
+  assert.equal("exports" in module, true, "the actual native constraint fixture is loaded");
+  for (const [name, expected] of [
+    ["EntityBase", true], ["ITagged", false], ["NativeCategoryValue", false],
+    ["NativeCategoryEnum", false], ["NativeCategoryCallback", true], ["NativeCategoryGeneric`1", true],
+  ]) {
+    const declaration = getDeclaration(module, `ProviderConstraintFixtures.${name}`);
+    assert.equal(declaration.constraintRequiresReferenceType, expected, `${name}: native declaration evidence`);
+    const binding = provider.findTargetBindingByTargetId(declaration.targetId);
+    assert.equal(binding !== undefined, true, `${name}: the canonical binding is present`);
+    assert.equal(binding.csharpType.csharpConstraintRequiresReferenceType === true, expected,
+      `${name}: selected native carrier retains the actual guarantee`);
+  }
+  const bounds = getDeclaration(module, "ProviderConstraintFixtures.NativeCategoryBounds");
+  for (const [method, expected] of [["FromBase", true], ["FromInterface", false], ["FromDelegate", true]]) {
+    const member = bounds.members.find(value => value.targetName === method);
+    assert.equal(member !== undefined, true, `${method}: the real native method is present`);
+    const parameter = member.signatures[0].typeParameters[0];
+    const bound = parameter.constraints.find(value => value.kind === "implements");
+    assert.equal(bound !== undefined, true, `${method}: the actual native bound is present`);
+    assert.equal(bound.contract.constraintRequiresReferenceType, expected,
+      `${method}: named constraint metadata retains its native bound guarantee`);
+    assert.equal(parameter.allowsRefLike, false, `${method}: native anti-constraint permission remains exact`);
+  }
+});
+
 test(".NET provider projects source-compatible constraints and keeps target-only constraints in target facts", () => {
   const provider = createDotnetReflectionTypeDataProvider({ references: [buildConstraintFixture()] });
   const module = getCompleteDotnetModule(provider, constraintModuleSpecifier, {});

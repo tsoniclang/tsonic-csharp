@@ -135,9 +135,11 @@ sealed partial class ReflectionProvider
             constraints.Add(new { kind = "constructible" });
         }
         var unsupportedConstraints = new List<object>();
+        var coreValueType = (requestLoadContext
+            ?? throw new InvalidOperationException("Native generic metadata requires the selected metadata context.")).CoreValueType;
         foreach (var constraint in parameter.GetGenericParameterConstraints())
         {
-            if (IsRuntimeType(constraint, typeof(ValueType)))
+            if (constraint == coreValueType)
             {
                 continue;
             }

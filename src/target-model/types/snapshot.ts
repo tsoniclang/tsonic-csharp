@@ -76,6 +76,9 @@ export function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
         break;
       case "target-named":
         valid = string(type.id) &&
+          (type.csharpConstraintRequiresReferenceType === undefined ||
+            type.csharpConstraintRequiresReferenceType === true && type.csharpValueType !== true && type.csharpByRefLike !== true &&
+              (type.csharpSourceDeclarationKind === undefined || type.csharpSourceDeclarationKind === "class")) &&
           (type.typeArguments === undefined || list(type.typeArguments, depth)) &&
           permissions(type.csharpAllowsRefLikeTypeArguments, Array.isArray(type.typeArguments) ? type.typeArguments.length : 0);
         break;
