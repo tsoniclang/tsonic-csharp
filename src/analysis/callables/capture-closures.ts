@@ -31,7 +31,7 @@ export function selectCsharpFrameClosures(
   const visit = (node: Node): void => {
     if (evidence.compileTimeMetadata.get(node)) return;
     if ((source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) &&
-      sourceCallableDefinitionIsDiscarded(node, source.ast)) return;
+      sourceCallableDefinitionIsDiscarded(node, source.ast, source.navigation)) return;
     if (!valueOwned.has(node) && (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node) ||
       source.ast.is.IsFunctionDeclaration(node) && source.ast.parent(node) !== undefined &&
       !source.ast.is.IsSourceFile(source.ast.parent(node)!))) candidates.push(node);

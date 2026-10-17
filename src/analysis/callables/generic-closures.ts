@@ -22,7 +22,7 @@ export function selectCsharpGenericFrameClosures(
   const visit = (node: Node): void => {
     if (exhausted || evidence.compileTimeMetadata.get(node)) return;
     if ((source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) &&
-      sourceCallableDefinitionIsDiscarded(node, source.ast)) return;
+      sourceCallableDefinitionIsDiscarded(node, source.ast, source.navigation)) return;
     if ((source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) && source.ast.typeParameters(node).length > 0) {
       const type = evidence.nodeTargetType.get(node);
       const method = getCsharpMethodValue(type);

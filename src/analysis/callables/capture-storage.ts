@@ -197,7 +197,7 @@ export function analyzeCsharpCaptureStorage(
   const visitValues = (node: Node): void => {
     if (evidence.compileTimeMetadata.get(node)) return;
     if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
-      if (sourceCallableDefinitionIsDiscarded(node, source.ast)) {
+      if (sourceCallableDefinitionIsDiscarded(node, source.ast, source.navigation)) {
         lambdaCreations.set(node, Object.freeze({ kind: "discarded", staticBody: true }));
         return;
       }
