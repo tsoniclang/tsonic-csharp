@@ -42,7 +42,7 @@ function fixture(options = {}) {
         isNumberLike: () => true },
     },
     host: {
-      ast: { name: subject => subject.name, is: { IsComputedPropertyName: () => false } },
+      ast: { name: subject => subject.name, is: { IsComputedPropertyName: () => false, IsNumericLiteral: () => false } },
       sourceFacts: { getFact(subject, key) {
         if (key === providerVirtualDeclarationFactKey) {
           if (subject === type && !options.missingTypeFact) return typeFact;
