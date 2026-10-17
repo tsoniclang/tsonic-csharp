@@ -773,7 +773,7 @@ test("C# keeps opaque resolver provenance explicitly unresolved for a Promise-va
   const { ast } = compiled.source;
   assert.equal(ast.kindName(issue.sourceNode), "KindCallExpression", "the original unresolved operation is the diagnostic site");
   assert.equal(Buffer.from(ast.getSourceText(ast.getSourceFile(issue.sourceNode)))
-    .subarray(ast.pos(issue.sourceNode), ast.end(issue.sourceNode)).toString("utf8").trim(), "done(value)",
+    .subarray(ast.pos(issue.sourceNode), ast.end(issue.sourceNode)).toString("utf8").trim(), "opaque(resolve)",
   "the precise same source operation is reported on both targets");
   assert.equal(compiled.result.program === undefined && compiled.result.artifacts.length === 0, true,
     "the unresolved source summary publishes no program or artifacts");
