@@ -14,6 +14,15 @@ const checked = checkCsharpSource({ sourceText: `
   class Box { value = 1; }
   export const constructed = new Box();
   export const indexed = [1][0];
+  function first(): number { return 1; }
+  function tail(): { continued: number } { return { continued: 2 }; }
+  function body(): number { return 3; }
+  function last(): number { return 4; }
+  const short = 9;
+  export const ordered = { a: first(), ...tail(), m() { return body(); }, z: last() };
+  export const shorthandOrdered = { a: first(), short, ...tail(), m() { return body(); }, z: last() };
+  export const accessorOrdered = { a: first(), get measured(): number { return body(); },
+    set measured(value: number) { void value; }, z: last() };
 ` });
 assert.equal(checked.sourceDiagnosticsText === "", true, checked.sourceDiagnosticsText);
 const source = createTargetSourceProgram(checked.source);
@@ -101,6 +110,43 @@ test("callable bodies have compilation work but never become creation-time runti
   const selected = selectCsharpNativeOperandUses(value, arrow);
   assert.equal(selected.flow === "creation" && selected.runtime.length === 0 && selected.planning.length === 1 &&
     selected.planning[0].kind === "construct" && selected.planning[0].node === arrow, true, "native-use-order:70: selected.flow === \"creation\" && selected.runtime.length === 0 && selected.planning.length ");
+});
+
+for (const example of [
+  { name: "ordered", runtime: ["first()", "tail()", "last()"], slots: [0, 1, 3],
+    planning: ["use:0", "use:1", "construct:2", "use:3"] },
+  { name: "shorthandOrdered", runtime: ["first()", "short", "tail()", "last()"], slots: [0, 1, 2, 4],
+    planning: ["use:0", "use:1", "use:2", "construct:3", "use:4"] },
+  { name: "accessorOrdered", runtime: ["first()", "last()"], slots: [0, 3],
+    planning: ["use:0", "construct:1", "construct:2", "use:3"] },
+]) test(`shared object member rows retain original identity and native construct interleave (${example.name})`, () => {
+  const declaration = nodes.find(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === example.name);
+  const object = ast.as.AsVariableDeclaration(declaration)?.Initializer;
+  assert.equal(object !== undefined && ast.is.IsObjectLiteralExpression(object), true,
+    `${example.name}: the actual checked object initializer exists`);
+  const selected = selectCsharpNativeOperandUses(input(undefined), object);
+  assert.equal(selected.refusal === undefined && selected.flow === "sequence", true,
+    `${example.name}: the retained object policy selects the same sequence`);
+  assert.deepEqual(selected.runtime.map(child => text(child.expression)), example.runtime,
+    `${example.name}: runtime operands preserve property, shorthand and spread source order`);
+  assert.equal(selected.runtime.every(child => child.owner === object && child.slot.kind === "member"), true,
+    `${example.name}: every runtime row keeps the original object owner and member slot`);
+  assert.deepEqual(selected.runtime.map(child => child.slot.index), example.slots,
+    `${example.name}: method and accessor positions never renumber source member indexes`);
+  const members = ast.children(object);
+  assert.deepEqual(selected.planning.map(step => step.kind === "use" ? `use:${step.use.slot.index}`
+    : `construct:${members.indexOf(step.node)}`), example.planning,
+  `${example.name}: native method and accessor constructs retain their exact use/construct interleave`);
+  const plannedUses = selected.planning.filter(step => step.kind === "use");
+  assert.equal(plannedUses.length === selected.runtime.length && plannedUses.every((step, index) => step.use === selected.runtime[index]), true,
+    `${example.name}: planning reuses the identical runtime child objects and cannot execute an operand twice`);
+  assert.equal(selected.planning.filter(step => step.kind === "construct").every(step =>
+    members.includes(step.node) && (ast.is.IsMethodDeclaration(step.node) || ast.is.IsGetAccessorDeclaration(step.node) || ast.is.IsSetAccessorDeclaration(step.node))), true,
+  `${example.name}: only the original native method/accessor declarations are construct work`);
+  assert.equal(selected.runtime.some(child => text(child.expression) === "body()"), false,
+    `${example.name}: creating the object never executes a method or accessor body`);
+  assert.equal(Object.isFrozen(selected.runtime) && selected.runtime.every(child => Object.isFrozen(child) && Object.isFrozen(child.slot)), true,
+    `${example.name}: the selected occurrence rows and slots remain immutable`);
 });
 
 test("completion distinguishes mandatory, alternative, guarded and creation-time dependencies", () => {

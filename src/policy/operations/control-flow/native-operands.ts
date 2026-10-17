@@ -1,6 +1,6 @@
 import type { AstReader, ExtensionDiagnostic, Node } from "@tsonic/tsts";
 import type { TargetPlanningSourceNavigation } from "@tsonic/target-api/analysis";
-import { sourceDeclarationIsModuleScoped, sourceNodesEqual, sourceExpressionResultDisposition } from "@tsonic/target-api/source";
+import { sourceDeclarationIsModuleScoped, sourceNodesEqual, sourceExpressionResultDisposition, sourceExpressionValueInputs } from "@tsonic/target-api/source";
 import type { CsharpNativeCallableCreation, CsharpNativeChildUse, CsharpNativeUseSlot, CsharpNativeDiscardedGuard } from "../../../target-model/records/native-demand.js";
 import type { CsharpTargetOperationClassifications, CsharpSourceArgumentGrouping } from "../../../target-model/records/operations.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
@@ -92,6 +92,10 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     sourceDiagnostic?: ExtensionDiagnostic): CsharpNativeOperandSelection =>
     Object.freeze({ ...chosen([]), refusal, ...(refusalMessage === undefined ? {} : { refusalMessage }),
       ...(refusalCode === undefined ? {} : { refusalCode }), ...(sourceDiagnostic === undefined ? {} : { sourceDiagnostic }) });
+  const sourceSelection = (flow: CsharpNativeOperandSelection["flow"] = "sequence"): CsharpNativeOperandSelection => {
+    const inputs = sourceExpressionValueInputs(ast, node);
+    return inputs === undefined ? refused("expression-form-unresolved") : chosen(inputs, flow);
+  };
   const intrinsic = (expression: Node | undefined, operand: Extract<CsharpNativeUseSlot, { readonly kind: "intrinsic-operand" }>["operand"],
     target?: TargetTypeRef, index?: number) => use(expression, { kind: "intrinsic-operand", operand,
       ...(index === undefined ? {} : { index }) }, target);
@@ -238,11 +242,7 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       : chosen([], "creation", [Object.freeze({ kind: "construct", node })], creation.carrier);
   }
   if (ast.is.IsClassExpression(node)) return chosen([], "creation", [Object.freeze({ kind: "construct", node })]);
-  if (ast.is.IsConditionalExpression(node)) {
-    const conditional = ast.as.AsConditionalExpression(node);
-    return chosen([...use(conditional?.Condition, { kind: "condition" }), ...use(conditional?.WhenTrue, { kind: "branch", branch: "true" }),
-      ...use(conditional?.WhenFalse, { kind: "branch", branch: "false" })], "conditional");
-  }
+  if (ast.is.IsConditionalExpression(node)) return sourceSelection("conditional");
   if (ast.is.IsBinaryExpression(node)) {
     const binary = ast.as.AsBinaryExpression(node);
     const left = binary?.Left;
@@ -336,52 +336,50 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       selected.target.source.selectedElementIndex !== undefined && unwrapped?.kind === "tuple") return chosen(receiverUses(selected.target.source.receiver));
     return chosen([...use(element?.Expression, { kind: "receiver" }), ...use(element?.ArgumentExpression, { kind: "key" })]);
   }
-  if (ast.is.IsArrayLiteralExpression(node)) return chosen(ast.children(node).flatMap((element, index) =>
-    element === undefined || ast.is.IsOmittedExpression(element) || !isCsharpNativeExpression(ast, element) ? []
-      : use(ast.is.IsSpreadElement(element) ? ast.as.AsSpreadElement(element)?.Expression : element, { kind: "element", index })));
+  if (ast.is.IsArrayLiteralExpression(node)) {
+    const inputs = sourceExpressionValueInputs(ast, node);
+    if (inputs === undefined) return refused("expression-form-unresolved");
+    const elements = ast.children(node);
+    return chosen(inputs.filter(entry => {
+      if (entry.slot.kind !== "element") return false;
+      const element = elements[entry.slot.index];
+      return element !== undefined && isCsharpNativeExpression(ast, element);
+    }));
+  }
   if (ast.is.IsObjectLiteralExpression(node)) {
+    const inputs = sourceExpressionValueInputs(ast, node);
+    if (inputs === undefined) return refused("expression-form-unresolved");
+    const memberUses = new Map<number, CsharpNativeChildUse>();
+    for (const entry of inputs) if (entry.slot.kind === "member") memberUses.set(entry.slot.index, entry);
     const runtime: CsharpNativeChildUse[] = [];
     const planning: CsharpNativeOperandStep[] = [];
     for (const [index, member] of ast.children(node).entries()) {
       if (member === undefined) continue;
-      if (ast.is.IsPropertyAssignment(member)) {
-        const children = use(ast.as.AsPropertyAssignment(member)?.Initializer, { kind: "member", index });
-        runtime.push(...children); planning.push(...plan(children));
-      } else if (ast.is.IsShorthandPropertyAssignment(member) || ast.is.IsSpreadAssignment(member)) {
-        const children = use(ast.is.IsShorthandPropertyAssignment(member) ? ast.name(member) : ast.as.AsSpreadAssignment(member)?.Expression, { kind: "member", index });
-        runtime.push(...children); planning.push(...plan(children));
+      const child = memberUses.get(index);
+      if (child !== undefined) {
+        runtime.push(child); planning.push(Object.freeze({ kind: "use", use: child }));
       } else if (ast.is.IsMethodDeclaration(member) || ast.is.IsGetAccessorDeclaration(member) || ast.is.IsSetAccessorDeclaration(member)) {
         planning.push(Object.freeze({ kind: "construct", node: member }));
       }
     }
     return chosen(runtime, "sequence", planning);
   }
-  if (ast.is.IsTemplateExpression(node)) return chosen((ast.as.AsTemplateExpression(node)?.TemplateSpans?.Nodes ?? [])
-    .flatMap((span, index) => span === undefined ? [] : use(ast.as.AsTemplateSpan(span)?.Expression, { kind: "span", index })));
+  if (ast.is.IsTemplateExpression(node)) return sourceSelection();
   if (ast.is.IsTaggedTemplateExpression(node)) {
     const tagged = ast.as.AsTaggedTemplateExpression(node);
     const template = tagged?.Template;
-    const spans = template === undefined || !ast.is.IsTemplateExpression(template) ? []
-      : ast.as.AsTemplateExpression(template)?.TemplateSpans?.Nodes ?? [];
-    return Object.freeze({ ...chosen([...use(tagged?.Tag, { kind: "callee" }), ...spans.flatMap((span, index) =>
-      span === undefined ? [] : use(ast.as.AsTemplateSpan(span)?.Expression, { kind: "span", index }))]),
+    const spans = template === undefined || !ast.is.IsTemplateExpression(template) ? [] : sourceExpressionValueInputs(ast, template);
+    if (spans === undefined) return refused("expression-form-unresolved");
+    return Object.freeze({ ...chosen([...use(tagged?.Tag, { kind: "callee" }), ...spans.flatMap(entry => use(entry.expression, entry.slot))]),
       refusal: "expression-form-unresolved", refusalMessage: "Expression is outside the current C# planning surface." });
   }
   if (ast.is.IsDeleteExpression(node)) {
     const expression = ast.as.AsDeleteExpression(node)?.Expression;
     return operations.elementDeletion.get(node) === undefined ? refused("operation-unresolved") : chosen(use(expression, { kind: "write-target" }, undefined, "location"));
   }
-  if (ast.is.IsParenthesizedExpression(node)) return chosen(use(ast.as.AsParenthesizedExpression(node)?.Expression, { kind: "operand", position: "only" }));
-  if (ast.is.IsAsExpression(node) || ast.is.IsTypeAssertion(node)) {
-    const assertion = ast.is.IsAsExpression(node) ? ast.as.AsAsExpression(node) : ast.as.AsTypeAssertion(node);
-    return chosen(use(assertion?.Expression, { kind: "operand", position: "only" }));
-  }
-  if (ast.is.IsSatisfiesExpression(node)) return chosen(use(ast.as.AsSatisfiesExpression(node)?.Expression, { kind: "operand", position: "only" }));
-  if (ast.is.IsNonNullExpression(node)) return chosen(use(ast.as.AsNonNullExpression(node)?.Expression, { kind: "operand", position: "only" }));
-  if (ast.is.IsAwaitExpression(node)) return chosen(use(ast.as.AsAwaitExpression(node)?.Expression, { kind: "operand", position: "only" }));
-  if (ast.is.IsYieldExpression(node)) return chosen(use(ast.as.AsYieldExpression(node)?.Expression, { kind: "operand", position: "only" }));
-  if (ast.is.IsVoidExpression(node)) return chosen(use(ast.as.AsVoidExpression(node)?.Expression, { kind: "effect" }));
-  if (ast.is.IsTypeOfExpression(node)) return chosen(use(ast.as.AsTypeOfExpression(node)?.Expression, { kind: "operand", position: "only" }));
+  if (ast.is.IsParenthesizedExpression(node) || ast.is.IsAsExpression(node) || ast.is.IsTypeAssertion(node) || ast.is.IsSatisfiesExpression(node) ||
+    ast.is.IsNonNullExpression(node) || ast.is.IsAwaitExpression(node) || ast.is.IsYieldExpression(node) || ast.is.IsVoidExpression(node) ||
+    ast.is.IsTypeOfExpression(node)) return sourceSelection();
   return isCsharpNativeExpression(ast, node) && ast.children(node).every(child => child === undefined || !isCsharpNativeExpression(ast, child))
     ? chosen([]) : refused("expression-form-unresolved");
 
