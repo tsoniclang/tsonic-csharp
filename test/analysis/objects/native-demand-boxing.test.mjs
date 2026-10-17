@@ -195,10 +195,13 @@ function originalNativeProgram(name, selected) {
     "var pair = new NativePair { first = new NativeLeft { left = 3 }, second = new NativeRight { right = 4 } }; return pair.first.left + pair.second.right;",
     "sealed class NativeLeft { public int left; } sealed class NativeRight { public int right; } sealed class NativePair { public required NativeLeft first; public required NativeRight second; }");
   const parameter = selected.nodes.find(node => selected.source.ast.is.IsParameterDeclaration(node));
-  const carrier = selected.program.records.requiredStorageType.get(parameter);
+  const parameterType = selected.source.ast.as.AsParameterDeclaration(parameter)?.Type;
+  assert.equal(parameterType !== undefined, true, `${name}: the original parameter has its authored type`);
+  const carrier = selected.program.records.nodeTargetType.get(parameterType);
+  assert.equal(carrier !== undefined, true, `${name}: the authored parameter type has its sealed carrier`);
   const shape = selected.program.objectShapes.resolveTarget(carrier);
-  const nativeType = printCsharpType(csharpTypeFromTargetTypeRef(carrier));
   assert.equal(shape !== undefined, true, `${name}: real sealed parameter shape`);
+  const nativeType = printCsharpType(csharpTypeFromTargetTypeRef(carrier));
   if (name === "destructured-rest") return nativeCostProgram("return Index.read(input);", "return input.first + input.second;",
     `sealed class NativeInput : ${nativeType} { public int first { get; set; } = 3; public int second { get; set; } = 4; }`, "var input = new NativeInput();");
   const nested = shape.members.find(member => member.sourceName === "nested");
