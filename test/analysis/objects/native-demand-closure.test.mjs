@@ -74,6 +74,48 @@ for (const surface of ["native", "js"]) test(`${surface}: authored native method
   assert.equal(nativeMethods > 0, true, "the intrinsic receiver assertion covers real native methods");
 });
 
+for (const surface of ["native", "js"]) test(`${surface}: source-only generic method storage is not an emitted native artifact`, { timeout: 300_000 }, () => {
+  const { compiled, program, source, nodes } = compileCsharpRequiredRecordSource(header + `
+    interface Identity { identity<Value>(value: Value): Value; }
+    export function identity(): Identity { return { identity<Value>(value: Value): Value { return value; } }; }
+    export function run(): boolean { return identity().identity<int32>(7 as int32) === 7; }
+  `, surface);
+  const literal = nodes.find(node => source.ast.is.IsObjectLiteralExpression(node));
+  const selected = program.records.nativeUse.expression(literal)?.use;
+  const logical = program.records.storageType.get(literal);
+  assert.equal(selected !== undefined && selected.kind !== "erased" && selected.objectShape !== undefined && logical !== undefined, true,
+    "the control has both its source storage view and its actual native construction");
+  const physical = selected.objectShape;
+  const completed = program.records.objectShapeArtifact.targetShapes[targetTypeRefKey(physical.targetType)];
+  assert.equal(completed !== undefined && program.records.objectShapeArtifact.get(objectShapeArtifactKey(physical))?.fact === completed, true,
+    "the actual native body carrier is retained by its canonical completed identity");
+  assert.equal(physical.methodImplementation !== undefined && completed.methodImplementation?.identity === physical.methodImplementation.identity, true,
+    "completion preserves the exact admitted native method implementation rather than manufacturing a body from its source-only view");
+  assert.equal(targetTypeRefKey(logical) !== targetTypeRefKey(physical.targetType), true,
+    "the source-only generic method view is not mistaken for its physical implementation");
+  assert.equal(program.records.objectShapeArtifact.get(`object-shape:${targetTypeRefKey(logical)}`) === undefined, true,
+    "no unconstructed source-only generic method declaration is invented");
+  executeCsharpConstruction(compiled, `artifact-demand-physical-method-${surface}`);
+});
+
+for (const surface of ["native", "js"]) test(`${surface}: required physical bindings without an initializer retain their declared artifact`, { timeout: 300_000 }, () => {
+  const { compiled, program, source, nodes } = compileCsharpRequiredRecordSource(header + `
+    export function run(): boolean {
+      let value: { count: int32 };
+      value = { count: 7 as int32 };
+      return value.count === 7;
+    }
+  `, surface);
+  const declaration = nodes.find(node => source.ast.is.IsVariableDeclaration(node) &&
+    source.ast.as.AsVariableDeclaration(node)?.Initializer === undefined);
+  const carrier = program.records.storageType.get(declaration);
+  const shape = program.objectShapes.resolveTarget(carrier);
+  assert.equal(carrier !== undefined && shape !== undefined, true, "the actual uninitialized native binding has its exact physical carrier");
+  assert.equal(program.records.objectShapeArtifact.get(objectShapeArtifactKey(shape))?.fact === shape, true,
+    "a required native declaration is not dropped with source-only expression views");
+  executeCsharpConstruction(compiled, `artifact-demand-uninitialized-binding-${surface}`);
+});
+
 for (const surface of ["native", "js"]) test(`${surface}: an unused optional declaration cannot demand copying native prototype methods`, { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface, sourceText: `
     type Reader = { read<Value>(value: Value): Value };
@@ -107,7 +149,8 @@ test("artifact demand seals once and the backend cannot reach the native query o
     targetShapes,
     resolveTarget(selected) { assert.equal(closed, false, "queries run before publication"); reads += 1; return selected === type ? fact : undefined; },
     knownShapes: () => [fact],
-  } });
+  }, ast: {}, names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
+    conversions: { conversion: { get() {} } } });
   assert.equal(engine.registerObjectShape(fact, "synthetic").kind, "accepted");
   const demand = engine.seal();
   assert.equal(demand.targetShapes === targetShapes && Object.isFrozen(demand.targetShapes), true,
@@ -122,7 +165,9 @@ test("artifact demand seals once and the backend cannot reach the native query o
 
 test("artifact demand requires its canonical immutable completed shape index at sealing", () => {
   for (const targetShapes of [undefined, {}]) {
-    const engine = createCsharpObjectShapeDemandEngine({ objectShapes: { targetShapes, resolveTarget() {} } });
+    const engine = createCsharpObjectShapeDemandEngine({ objectShapes: { targetShapes, resolveTarget() {} },
+      ast: {}, names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
+      conversions: { conversion: { get() {} } } });
     assert.throws(() => engine.seal(), /immutable completed target-shape index/u,
       "a missing or mutable input cannot become a published artifact DTO");
   }

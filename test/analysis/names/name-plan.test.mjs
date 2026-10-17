@@ -212,8 +212,11 @@ for (const [label, sourceText] of [
 ]) {
   test(`retained ${label} bindings select a real in-scope type/value collision`, () => {
     const fixture = checkedNames(sourceText);
-    const roots = fixture.bindingRoots.filter(node => !fixture.source.ast.is.IsForOfStatement(fixture.source.ast.parent(
-      fixture.source.ast.parent(node))));
+    const roots = fixture.bindingRoots.filter(node => {
+      const parent = fixture.source.ast.parent(node);
+      const owner = parent === undefined ? undefined : fixture.source.ast.parent(parent);
+      return owner === undefined || !fixture.source.ast.is.IsForOfStatement(owner);
+    });
     const plan = fixture.builder.seal(roots);
     assert.equal(plan.typeParameterNames.length === 1 && plan.typeParameterNames[0].name === "T1", true,
       `${label}: a retained binding, not merely formal parameter spelling, conflicts with the native method binder`);

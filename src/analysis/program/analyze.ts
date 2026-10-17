@@ -408,13 +408,14 @@ export function analyzeCsharpTargetProgram(
     analysis.typeSystem.projectTypes, source.ast, sourceStorage.nodes, analysis.objectShapes,
   );
   const sourceSyntax = targetSourceSyntaxProgram(source);
+  const names = analysis.names.seal(nativeDemand.requiredBindingRoots);
   const objectShapeDemand = analyzeCsharpNativeArtifactDemand({
     ast: source.ast, sourceFiles, propertyNames: sourceSyntax.propertyNames,
     nativeDemand, participation: nativeParticipation.participation,
     objectShapes: callableAdapters.objectShapes, projectTypes, typeDefinitions,
     valueReads: analysis.valueReads, operations: analysis.operations, storage: analysis.storage,
     callables: analysis.callables, captureStorage, callableAdapters, flowReads, declarations: analysis.declarations,
-    bindingPatterns, conversions, nativeValueCarriers, sourceEvidence: analysis.sourceEvidence,
+    bindingPatterns, conversions, nativeValueCarriers, sourceEvidence: analysis.sourceEvidence, names,
   }, analysis.requiredRecords);
   if (objectShapeDemand.kind === "rejected") return objectShapeDemand;
   const records = createCsharpProgramRecords({
@@ -447,7 +448,7 @@ export function analyzeCsharpTargetProgram(
     sourceFiles,
     projectTypes,
     objectShapes: callableAdapters.objectShapes,
-    names: analysis.names.seal(nativeDemand.requiredBindingRoots),
+    names,
     sourceModuleConstructions: Object.freeze({
       entries: sourceModuleConstructions.index.entries,
       from: sourceModuleConstructions.index.from,

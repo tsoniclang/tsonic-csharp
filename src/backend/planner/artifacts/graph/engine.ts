@@ -24,7 +24,7 @@ export function createCsharpArtifactGraph(host: CsharpArtifactGraphHost): Csharp
   const contracts = createTargetArtifactContractGraph<CsharpArtifactFacet, CsharpArtifactSnapshot>();
   const seeded = contracts.commitBatch(host.objectShapeArtifacts.artifacts.map(artifact => csharpObjectShapeContractCandidate(
     artifact.key, artifact.fact, artifact.materialization, artifact.capabilities,
-    artifact.projections, artifact.receiverBoundMethodKeys, artifact.dependencies,
+    artifact.projections, artifact.receiverBoundMethodKeys, artifact.dependencies, artifact.typeParameterNames,
   )));
   if (seeded.kind === "rejected") {
     failCsharpPlannerInvariant(`Sealed object-shape artifacts have inconsistent contracts: ${seeded.reason}`);

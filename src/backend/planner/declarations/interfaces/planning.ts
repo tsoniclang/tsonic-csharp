@@ -106,7 +106,7 @@ export function planInterfaceDeclaration(
           ],
         }),
     members: [...shadowCsharpInheritedInterfaceMembers(members, inheritedMembers),
-      ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input, objectShape,
+      ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input,
         input.artifacts.objectShapeProjections(objectShape), diagnostics))],
   };
 }

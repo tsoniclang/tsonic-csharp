@@ -42,6 +42,8 @@ test("target-owned object shapes reconstruct from canonical artifact state", () 
   ]);
   const demand = createCsharpObjectShapeDemandEngine({
     ast: {},
+    names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
+    conversions: { conversion: { get() {} } },
     navigation: {},
     objectShapes: {
       targetShapes: Object.freeze(Object.fromEntries(shapes)),
@@ -83,6 +85,7 @@ test("target-owned object shapes reconstruct from canonical artifact state", () 
       materialization: "synthetic",
       capabilities: ["json-serialization"],
       projections: [],
+      typeParameterNames: [],
       receiverBoundMethodKeys: [],
     },
   });
@@ -106,6 +109,8 @@ test("object-shape receiver requirements strengthen one exact generated type sur
   };
   const demand = createCsharpObjectShapeDemandEngine({
     ast: {},
+    names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
+    conversions: { conversion: { get() {} } },
     navigation: {},
     objectShapes: { targetShapes: Object.freeze({ [targetTypeRefKey(shape.targetType)]: shape }), resolveTarget() { return shape; } },
   });
@@ -117,11 +122,11 @@ test("object-shape receiver requirements strengthen one exact generated type sur
   const before = demand.objectShapeArtifacts()[0];
   assert.equal(before.receiverBoundMethodKeys.length, 0, "receiver storage is not demanded initially");
   const initialContract = csharpObjectShapeContractCandidate(owner, shape, "synthetic", before.capabilities,
-    before.projections, before.receiverBoundMethodKeys, before.dependencies);
+    before.projections, before.receiverBoundMethodKeys, before.dependencies, before.typeParameterNames);
   assert.deepEqual(demand.requireObjectShapeMethodReceiver(shape, method), { kind: "accepted" });
   const after = demand.objectShapeArtifacts()[0];
   const strengthened = csharpObjectShapeContractCandidate(owner, shape, "synthetic", after.capabilities,
-    after.projections, after.receiverBoundMethodKeys, after.dependencies);
+    after.projections, after.receiverBoundMethodKeys, after.dependencies, after.typeParameterNames);
   assert.equal(initialContract.contract.facets.find(facet => facet.facet === "object-shape-type-surface").value !==
     strengthened.contract.facets.find(facet => facet.facet === "object-shape-type-surface").value, true,
     "the canonical type surface strengthens before publication");
@@ -148,7 +153,8 @@ function genericReceiverArtifacts() {
   const declaration = { targetType: target(parameter), members: [member(parameter)] };
   const instance = { targetType: target(integer), members: [member(integer)], declarationTemplate: declaration };
   const shapes = new Map([declaration, instance].map(shape => [targetTypeRefKey(shape.targetType), shape]));
-  const demand = createCsharpObjectShapeDemandEngine({ objectShapes: {
+  const demand = createCsharpObjectShapeDemandEngine({ ast: {}, names: { typeParameterNames: [] },
+    captureStorage: { captureFrameShape: { get() {} } }, conversions: { conversion: { get() {} } }, objectShapes: {
     targetShapes: Object.freeze(Object.fromEntries(shapes)),
     resolveTarget: type => shapes.get(targetTypeRefKey(type)), knownShapes: () => [declaration, instance],
   } });
@@ -205,7 +211,8 @@ function genericCapabilityArtifacts() {
   const unrelated = { targetType: { ...target(integer), id: "tsonic.shape:UnrelatedCapability" }, members: [] };
   const facts = [declaration, first, second, unrelated];
   const byTarget = new Map(facts.map(fact => [targetTypeRefKey(fact.targetType), fact]));
-  const demand = createCsharpObjectShapeDemandEngine({ objectShapes: {
+  const demand = createCsharpObjectShapeDemandEngine({ ast: {}, names: { typeParameterNames: [] },
+    captureStorage: { captureFrameShape: { get() {} } }, conversions: { conversion: { get() {} } }, objectShapes: {
     targetShapes: Object.freeze(Object.fromEntries(byTarget)),
     resolveTarget: type => type === undefined ? undefined : byTarget.get(targetTypeRefKey(type)),
     resolveNode: () => undefined,
@@ -252,17 +259,20 @@ test("one exact native declaration retains every selected projection and each so
   const published = demand.seal();
   for (const fact of [declaration, first, second]) {
     const artifact = published.get(`object-shape:${targetTypeRefKey(fact.targetType)}`);
-    assert.equal(artifact.projections.length === 2 && artifact.projections.includes(keys.projection) && artifact.projections.includes(hasOwn.projection),
+    assert.equal(artifact.projections.length === 2 && artifact.projections.some(projection => projection.selection === keys.projection) &&
+      artifact.projections.some(projection => projection.selection === hasOwn.projection),
       true, "the physical declaration has both exact immutable selected projection bodies");
     assert.equal(artifact.capabilities.length, 0, "projection publication does not invent an unrelated capability");
   }
-  assert.equal(published.projection(firstSite) === keys.projection, true, "the first checked source site retains its own exact selection");
-  assert.equal(published.projection(secondSite) === hasOwn.projection, true, "the second checked source site retains its own exact selection");
+  assert.equal(published.projection(firstSite).selection === keys.projection, true, "the first checked source site retains its own exact selection");
+  assert.equal(published.projection(secondSite).selection === hasOwn.projection, true, "the second checked source site retains its own exact selection");
 });
 
 test("source-file artifacts cannot be acknowledged by a target-owned reconstructor", () => {
   const demand = createCsharpObjectShapeDemandEngine({
     ast: {},
+    names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
+    conversions: { conversion: { get() {} } },
     navigation: {},
     objectShapes: { targetShapes: Object.freeze({}), resolveTarget() {} },
   });

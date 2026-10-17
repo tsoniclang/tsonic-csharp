@@ -6,7 +6,6 @@ import type {
 } from "../../../target-ast/syntax/index.js";
 import type {
   CsharpObjectShapeFact,
-  CsharpObjectShapeProjection,
 } from "../../../../target-model/types/index.js";
 import {
   sameCsharpType,
@@ -35,17 +34,18 @@ import {
 } from "../json-object-shapes.js";
 import {
   csharpObjectShapeMemberContractKey,
-  csharpObjectShapeProjectionMethodName,
 } from "../../../../target-model/types/index.js";
 import { csharpFrozenStorageName } from "../frozen-data-properties.js";
 import { isCsharpEnumerableKeysMember } from "./enumerable-keys.js";
+import type { CsharpObjectShapeProjectionDeclaration } from "../../../../target-model/records/object-shape-demand.js";
+import { renderObjectShapeProjectionMethod } from "../closed-object-shapes.js";
 
 export function objectShapeDeclarationMatches(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   declaration: CsharpClassDeclaration,
   fact: CsharpObjectShapeFact,
   jsonSerializable = false,
-  projections: readonly CsharpObjectShapeProjection[] = [],
+  projections: readonly CsharpObjectShapeProjectionDeclaration[] = [],
   receiverBoundMethodKeys: ReadonlySet<string> = new Set(),
   frozen = false,
   referenceIdentity = false,
@@ -134,13 +134,14 @@ export function objectShapeDeclarationMatches(
   }
   const projectionMethodNames = new Set(
     projections.map((projection) =>
-      csharpObjectShapeProjectionMethodName(projection)
+      projection.methodName
     ),
   );
-  if ([...projectionMethodNames].some((name) =>
-    !declaration.members.some((member) =>
-      member.kind === "MethodDeclaration" && member.name === name
-    ))) {
+  if (projections.some(projection => {
+    const selected = renderObjectShapeProjectionMethod(typeParameterNames, projection);
+    return selected.kind === "rejected" || !declaration.members.some(member =>
+      member.kind === "MethodDeclaration" && JSON.stringify(member) === JSON.stringify(selected.method));
+  })) {
     return false;
   }
   return declaration.members.every((member) => {
