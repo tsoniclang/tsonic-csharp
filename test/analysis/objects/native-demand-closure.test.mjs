@@ -9,6 +9,7 @@ import { objectShapeArtifactKey } from "../../../dist/target-model/records/objec
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
 import { csharpTargetTypeRenderingRejection, csharpTargetTypeRendersAsUnqualifiedIdentifier } from "../../../dist/policy/types/model/renderability.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-type-rendering.js";
+import { csharpVoidTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
 const header = 'import type { int32 } from "@tsonic/core/types.js";';
 const programs = [
@@ -84,8 +85,8 @@ test("the pre-seal renderer predicate and syntax renderer agree on the existing 
     named({ kind: "predefined", name: "int" }),
     named({ kind: "nullable" }),
     { kind: "type-parameter", identity: "invalid", name: "$value" },
-    { kind: "function-pointer", args: [], result: { kind: "source-primitive", name: "void" }, abi: ["managed", "Cdecl"] },
-    { kind: "function-pointer", args: [], result: { kind: "source-primitive", name: "void" }, abi: ["unmanaged", "Cdecl"] },
+    { kind: "function-pointer", args: [], result: csharpVoidTargetType(), abi: ["managed", "Cdecl"] },
+    { kind: "function-pointer", args: [], result: csharpVoidTargetType(), abi: ["unmanaged", "Cdecl"] },
   ];
   for (const [index, type] of controls.entries()) {
     const syntax = csharpTypeFromTargetTypeRef(type, undefined);
@@ -127,7 +128,7 @@ test("participating unsupported construction retains its native rejection before
   assert.equal(compiled.sourceDiagnosticsText, "", "the checked constructor reaches the actual native refusal owner");
   assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
     "an actual unsupported construction is refused before publication and never emulated");
-  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&
+  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_JS_SOURCE_PROFILE_OPERATION_UNSUPPORTED" &&
     diagnostic.message === "Proxy traps redefine object operations dynamically and have no closed C# source-to-source representation."), true,
     "the exact supported diagnostic is retained, not an internal failure");
 });
