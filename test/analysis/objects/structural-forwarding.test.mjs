@@ -20,8 +20,62 @@ import { printCsharpCompilationUnit } from "../../../dist/print/source/index.js"
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
 import { instantiateCsharpInheritedCallable } from "../../../dist/analysis/callables/instantiation.js";
 import { csharpSourceTypeParameter } from "../../../dist/target-model/names/type-parameters.js";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { createCsharpObjectShapePolicy } from "../../../dist/policy/types/objects/object-shape-policy/api.js";
+import { retainCsharpMethodValueContracts, csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/object-shape-policy/method-values.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
+
+test("every actual authored native method uses the same body and copy protocol", () => {
+  const declaration = Object.freeze({});
+  const literal = Object.freeze({});
+  const targetType = Object.freeze({ kind: "target-named", id: "tsonic.shape:authored-body",
+    csharpAllowsRefLikeTypeArguments: Object.freeze([]), csharpRender: Object.freeze({ kind: "named", name: "AuthoredBody" }) });
+  const member = Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "read" }), sourceName: "read",
+    targetName: "read", memberKind: "method", type: csharpDelegateTargetType("System.Func", [], integer),
+    sourceDeclarations: Object.freeze([declaration]) });
+  const implementation = Object.freeze({ declaration: literal, identity: "authored-body", methods: Object.freeze([declaration]),
+    captures: Object.freeze([]) });
+  const environment = () => assert.fail("a monomorphic native method has no free generic constraint to resolve");
+  const admitted = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]),
+    methodImplementation: implementation }, shape => shape, environment);
+  assert.equal(admitted.methodImplementation === implementation, true, "native body and checked capture identity are retained");
+  assert.equal(admitted.members[0].methodValueContract !== undefined, true, "an ordinary native body gets the existing method protocol");
+  assert.equal(admitted.members[0].methodStorageType === undefined, true, "the native body does not introduce a delegate storage field");
+  assert.equal(csharpCopiedObjectShapeMembers(admitted)[0].methodStorageType === targetType, true,
+    "a copy retains the actual original native environment");
+  const unimplemented = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]) }, shape => shape, environment);
+  assert.equal(unimplemented.members[0].methodValueContract === undefined, true,
+    "a method signature alone never manufactures an authored native body");
+});
+
+test("a raw interface copy admits its method protocol before selecting native storage", () => {
+  const declaration = Object.freeze({});
+  const parameter = Object.freeze({ kind: "type-parameter", identity: "interface.read.Value", name: "Value",
+    csharpConstraints: Object.freeze({ kind: "resolved", constraints: Object.freeze([]) }) });
+  const shape = Object.freeze({ targetType: Object.freeze({ kind: "target-named", id: "tsonic.source:Reader",
+    csharpSourceDeclarationKind: "interface", csharpAllowsRefLikeTypeArguments: Object.freeze([]) }),
+  members: Object.freeze([Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "read" }), sourceName: "read",
+    targetName: "read", memberKind: "method", type: csharpDelegateTargetType("System.Func", [parameter], parameter),
+    typeParameters: Object.freeze([Object.freeze({ declaration, identity: parameter.identity, name: parameter.name,
+      csharpAllowsRefLike: false, constraints: Object.freeze([]) })]) })]) });
+  const policy = createCsharpObjectShapePolicy({
+    typeParameterConstraints: () => assert.fail("method-local binders never become copy-owner generic parameters"),
+    ast: { is: {} },
+  });
+  const copied = policy.resolveCopyShape(shape);
+  assert.equal(copied !== undefined && copied !== shape, true, "the interface has one physical copy representation");
+  assert.equal(copied.members[0].methodValueContract !== undefined &&
+    copied.members[0].methodStorageType === copied.members[0].methodValueContract, true,
+  "the copied generic method retains an admitted native environment instead of an unrenderable open delegate");
+  assert.equal(copied.members[0].typeParameters[0].identity === parameter.identity, true,
+    "the real generic method binder is unchanged");
+  const nativeClass = Object.freeze({ targetType: Object.freeze({ kind: "target-named", id: "tsonic.source:NativeBody",
+    csharpSourceDeclarationKind: "class", csharpAllowsRefLikeTypeArguments: Object.freeze([]) }), members: Object.freeze([]) });
+  const admittedView = Object.freeze({ ...nativeClass, implements: Object.freeze([shape.targetType]) });
+  assert.equal(policy.resolveCopyShape(nativeClass) === nativeClass && policy.resolveCopyShape(admittedView) === admittedView, true,
+    "a non-copying native class retains the analysis-owned interface view without policy re-registration or arbitration");
+});
 
 test("a genuine native callable self-instantiation retains its complete projected binder vector", () => {
   const declaration = Object.freeze({});

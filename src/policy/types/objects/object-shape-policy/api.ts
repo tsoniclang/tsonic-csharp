@@ -260,8 +260,7 @@ export function createCsharpObjectShapePolicy(
       ? [expectedShape.targetType]
       : expectedShape.implements;
     const nativeMethodLiteral = host.ast.properties(objectLiteral).some(property => property !== undefined &&
-      host.ast.is.IsMethodDeclaration(property) && (host.ast.typeParameters(property).length > 0 ||
-        expectedShape.members.some(member => member.optional === true && member.sourceSubjects?.includes(property))));
+      host.ast.is.IsMethodDeclaration(property) && host.ast.body(property) !== undefined);
     const copiedMethods = host.ast.properties(objectLiteral).some(property => property !== undefined &&
       host.ast.is.IsSpreadAssignment(property)) && expectedShape.members.some(csharpObjectShapeMethodRequiresProtocol);
     const ownsImplementation = expectedShape.methodImplementation?.declaration === objectLiteral;
@@ -508,8 +507,10 @@ export function createCsharpObjectShapePolicy(
     ) {
       return shape;
     }
+    if (shape.declarationTemplate !== undefined) {
+      shape = { ...shape, declarationTemplate: rememberTargetShape(shape.declarationTemplate) };
+    }
     shape = retainCsharpMethodValueContracts(shape, rememberTargetShape, environment);
-    if (shape.declarationTemplate !== undefined) rememberTargetShape(shape.declarationTemplate);
     const key = targetTypeRefKey(shape.targetType);
     const existing = targetShapes.get(key);
     if (existing !== undefined && !csharpObjectShapesEqual(existing, shape)) {
@@ -534,7 +535,7 @@ export function createCsharpObjectShapePolicy(
         genericShapes.set(canonical.targetType.id, canonical);
       }
     }
-    return shape;
+    return canonical;
   }
 
   function resolveStructShape(
@@ -835,6 +836,7 @@ export function createCsharpObjectShapePolicy(
         ((shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true ||
           (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface");
       if (!contract && shape.methodImplementation === undefined) return shape;
+      shape = retainCsharpMethodValueContracts(shape, rememberTargetShape, environment);
       const original = shape.methodImplementation === undefined ? undefined : resolveNode(shape.methodImplementation.declaration);
       const receiver = selectCsharpCopiedMethodReceiver(shape.members, original === undefined ? [shape] : [original], host.ast);
       if (receiver.kind === "rejected") return undefined;
