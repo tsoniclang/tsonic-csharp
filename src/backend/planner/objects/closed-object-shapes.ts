@@ -3,11 +3,9 @@ import type { CsharpPlanningContext } from "../context.js";
 import { planCsharpEmptyRecordConversion } from "../expressions/empty-record-conversion.js";
 import type {
   CsharpObjectShapeFact,
-  CsharpObjectShapeProjection,
   TargetTypeRef,
 } from "../../../target-model/types/index.js";
 import {
-  csharpObjectShapeProjectionMethodName,
   csharpObjectShapeAssignmentMembers,
   csharpObjectShapeProjectionMembers,
   csharpSourcePrimitiveTargetType,
@@ -30,6 +28,9 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
+import type { CsharpObjectShapeProjectionDeclaration } from "../../../target-model/records/object-shape-demand.js";
+import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../types/type-parameters.js";
+import type { CsharpTypeParameter } from "../../target-ast/syntax/index.js";
 
 const stringTargetType = csharpStringTargetType();
 const boolTargetType = csharpSourcePrimitiveTargetType("bool");
@@ -37,12 +38,11 @@ const stringType = { kind: "PredefinedType", name: "string" } as const;
 
 export function renderObjectShapeProjectionMethods(
   input: CsharpPlanningContext,
-  fact: CsharpObjectShapeFact,
-  projections: readonly CsharpObjectShapeProjection[],
+  projections: readonly CsharpObjectShapeProjectionDeclaration[],
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpMethodDeclaration[] {
   return projections.flatMap((projection) => {
-    const result = renderObjectShapeProjectionMethod(input, fact, projection);
+    const result = renderObjectShapeProjectionMethod(input.scope.typeParameterNames, projection);
     if (result.kind === "rejected") {
       diagnostics.push({
         code: "CSHARP_OBJECT_SHAPE_PROJECTION_NOT_CLOSED",
@@ -60,23 +60,38 @@ type ProjectionMethodResult =
   | { readonly kind: "resolved"; readonly method: CsharpMethodDeclaration }
   | { readonly kind: "rejected"; readonly reason: string };
 
-function renderObjectShapeProjectionMethod(
-  input: CsharpPlanningContext,
-  fact: CsharpObjectShapeFact,
-  projection: CsharpObjectShapeProjection,
+export function renderObjectShapeProjectionMethod(
+  names: ReadonlyMap<string, string> | undefined,
+  declaration: CsharpObjectShapeProjectionDeclaration,
 ): ProjectionMethodResult {
+  const fact = declaration.receiver;
+  const projection = declaration.selection;
+  const typeParameterNames = new Map([...names ?? [], ...declaration.typeParameterNames.map(parameter => [parameter.identity, parameter.name] as const)]);
+  const input = { scope: { typeParameterNames } };
   const returnType = csharpTypeFromTargetTypeRef(projection.resultType, input.scope.typeParameterNames);
   if (returnType === undefined) {
     return rejected(
       `Closed object '${projection.kind}' projection has no renderable selected result type.`,
     );
   }
-  const expression = renderProjectionExpression(input, fact, projection);
+  const receiverType = csharpTypeFromTargetTypeRef(fact.targetType, typeParameterNames);
+  if (receiverType === undefined) return rejected("An admitted object projection requires its exact native receiver carrier.");
+  const typeParameters: CsharpTypeParameter[] = [];
+  for (const parameter of declaration.typeParameters) {
+    const selected = parameter.csharpConstraints;
+    if (selected?.kind !== "resolved") return rejected("An admitted object projection requires exact native generic constraints.");
+    const constraints = selected.constraints.map(constraint => csharpGenericConstraintFromTargetTypeParameterConstraint(
+      typeParameterNames, constraint, parameter.csharpDeclaration!, []));
+    if (constraints.some(constraint => constraint === undefined)) return rejected("An admitted object projection constraint must be renderable.");
+    typeParameters.push({ name: typeParameterNames.get(parameter.identity)!,
+      ...(constraints.length === 0 ? {} : { constraints: constraints as NonNullable<typeof constraints[number]>[] }) });
+  }
+  const expression = renderProjectionExpression(input, declaration);
   if (expression.kind === "rejected") {
     return expression;
   }
   const assignment = projection.kind === "assign"
-    ? renderAssignStatements(input, fact, projection)
+    ? renderAssignStatements(input, declaration)
     : undefined;
   if (assignment?.kind === "rejected") {
     return assignment;
@@ -93,14 +108,15 @@ function renderObjectShapeProjectionMethod(
     kind: "resolved",
     method: {
       kind: "MethodDeclaration",
-      name: csharpObjectShapeProjectionMethodName(projection),
-      modifiers: ["public"],
+      name: declaration.methodName,
+      modifiers: ["public", "static"],
+      ...(typeParameters.length === 0 ? {} : { typeParameters }),
       returnType,
-      parameters: projection.kind === "has-own"
+      parameters: [{ name: "receiver", type: receiverType }, ...(projection.kind === "has-own"
         ? [{ name: "key", type: stringType }]
         : projection.kind === "assign"
         ? [{ name: "source", type: assignmentSourceType! }]
-        : [],
+        : [])],
       body: {
         kind: "Block",
         statements: projection.kind === "assign"
@@ -108,7 +124,7 @@ function renderObjectShapeProjectionMethod(
               ...(assignment?.kind === "resolved" ? assignment.statements : []),
               {
                 kind: "ReturnStatement" as const,
-                expression: { kind: "IdentifierName" as const, name: "this" },
+                expression: { kind: "IdentifierName" as const, name: "receiver" },
               },
             ]
           : [{ kind: "ReturnStatement", expression: expression.expression }],
@@ -118,12 +134,13 @@ function renderObjectShapeProjectionMethod(
 }
 
 function renderProjectionExpression(
-  input: CsharpPlanningContext,
-  fact: CsharpObjectShapeFact,
-  projection: CsharpObjectShapeProjection,
+  input: Pick<CsharpPlanningContext, "scope">,
+  declaration: CsharpObjectShapeProjectionDeclaration,
 ):
   | { readonly kind: "resolved"; readonly expression: CsharpExpression }
   | { readonly kind: "rejected"; readonly reason: string } {
+  const fact = declaration.receiver;
+  const projection = declaration.selection;
   const members = projection.kind === "assign"
     ? csharpObjectShapeAssignmentMembers(fact, projection)?.map((pair) => pair.target)
     : csharpObjectShapeProjectionMembers(fact, projection);
@@ -154,10 +171,10 @@ function renderProjectionExpression(
         return rejected("Object.values requires an exact JS-array result carrier.");
       }
       const values: CsharpExpression[] = [];
-      for (const member of members) {
-        const converted = convertClosedShapeValue(
-          input,
-          member.type,
+      for (const [index, member] of members.entries()) {
+        const converted = applyClosedShapeConversion(
+          input.scope.typeParameterNames,
+          declaration.conversions[index]!.selection,
           elementType,
           memberExpression(fact, member),
         );
@@ -183,10 +200,10 @@ function renderProjectionExpression(
       }
       const valueType = elementType.elements[1]!;
       const entries: CsharpExpression[] = [];
-      for (const member of members) {
-        const converted = convertClosedShapeValue(
-          input,
-          member.type,
+      for (const [index, member] of members.entries()) {
+        const converted = applyClosedShapeConversion(
+          input.scope.typeParameterNames,
+          declaration.conversions[index]!.selection,
           valueType,
           memberExpression(fact, member),
         );
@@ -240,19 +257,21 @@ function renderProjectionExpression(
       }
       return {
         kind: "resolved",
-        expression: { kind: "IdentifierName", name: "this" },
+        expression: { kind: "IdentifierName", name: "receiver" },
       };
     }
   }
 }
 
 function renderAssignStatements(
-  input: CsharpPlanningContext,
-  fact: CsharpObjectShapeFact,
-  projection: Extract<CsharpObjectShapeProjection, { readonly kind: "assign" }>,
+  input: Pick<CsharpPlanningContext, "scope">,
+  declaration: CsharpObjectShapeProjectionDeclaration,
 ):
   | { readonly kind: "resolved"; readonly statements: readonly CsharpStatement[] }
   | { readonly kind: "rejected"; readonly reason: string } {
+  const fact = declaration.receiver;
+  const projection = declaration.selection;
+  if (projection.kind !== "assign") return rejected("Object.assign requires its admitted assignment projection.");
   const pairs = csharpObjectShapeAssignmentMembers(fact, projection);
   if (pairs === undefined) {
     return rejected(
@@ -260,15 +279,15 @@ function renderAssignStatements(
     );
   }
   const statements: CsharpStatement[] = [];
-  for (const pair of pairs) {
+  for (const [index, pair] of pairs.entries()) {
     const source: CsharpExpression = {
       kind: "SimpleMemberAccessExpression",
       receiver: { kind: "IdentifierName", name: "source" },
       name: objectShapeStorageMemberName(projection.sourceShape, pair.source),
     };
-    const converted = convertClosedShapeValue(
-      input,
-      pair.source.type,
+    const converted = applyClosedShapeConversion(
+      input.scope.typeParameterNames,
+      declaration.conversions[index]!.selection,
       pair.target.type,
       source,
     );
@@ -325,7 +344,8 @@ function memberExpression(
   member: CsharpObjectShapeFact["members"][number],
 ): CsharpExpression {
   return {
-    kind: "IdentifierName",
+    kind: "SimpleMemberAccessExpression",
+    receiver: { kind: "IdentifierName", name: "receiver" },
     name: objectShapeStorageMemberName(fact, member),
   };
 }

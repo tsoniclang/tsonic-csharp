@@ -261,7 +261,6 @@ export function analyzeCsharpNativeArtifactDemand(
     }
     const returned = input.declarations.returnContract.get(node);
     if (returned?.kind === "resolved") demandType(returned.type, node);
-    demandType(input.storage.storageType.get(node), node);
     const defaulted = input.declarations.runtimeDefault.get(node);
     if (defaulted !== undefined) {
       demandType(defaulted.native.source, node); demandType(defaulted.native.target, node);
@@ -269,6 +268,7 @@ export function analyzeCsharpNativeArtifactDemand(
     }
     const nativeParameter = input.storage.lambdaParameterType.get(node);
     const storedParameter = input.storage.requiredStorageType.get(node);
+    demandType(storedParameter, node);
     if (nativeParameter !== undefined && storedParameter !== undefined && defaulted === undefined) demandPair(node, nativeParameter, storedParameter);
     for (const adapter of input.callableAdapters.callableDispatch.get(node)?.adapters ?? []) {
       demandParameters(node, adapter.parameters);

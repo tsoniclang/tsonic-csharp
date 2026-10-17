@@ -6,6 +6,7 @@ import type {
 } from "../../target-model/types/index.js";
 import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
 import type { JsonClosureState } from "./native-demand-batches.js";
+import type { CsharpObjectShapeProjectionAdmission } from "./native-demand-batches.js";
 import {
   csharpObjectShapesEqual,
   csharpObjectShapeAssignmentMembers,
@@ -136,14 +137,14 @@ export function validateProjectionShapes(
 
 export function addShapeProjection(
   {  }: CsharpObjectShapeDemandScope,
-  target: Map<string, Map<string, CsharpObjectShapeProjection>>,
+  target: Map<string, Map<string, CsharpObjectShapeProjectionAdmission>>,
   shapes: ReadonlyMap<string, CsharpObjectShapeFact>,
-  projection: CsharpObjectShapeProjection,
+  projection: CsharpObjectShapeProjectionAdmission,
 ): void {
-  const projectionKey = objectShapeProjectionKey(projection);
+  const projectionKey = objectShapeProjectionKey(projection.selection);
   for (const key of shapes.keys()) {
     const projections = target.get(key) ??
-      new Map<string, CsharpObjectShapeProjection>();
+      new Map<string, CsharpObjectShapeProjectionAdmission>();
     projections.set(projectionKey, projection);
     target.set(key, projections);
   }

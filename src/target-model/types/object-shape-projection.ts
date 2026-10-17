@@ -11,6 +11,7 @@ import {
 const projectionPrefix = "__tsonicObject";
 
 export function csharpObjectShapeProjectionMethodName(
+  receiver: CsharpObjectShapeFact,
   projection: CsharpObjectShapeProjection,
 ): string {
   const operation = projection.kind === "has-own"
@@ -20,6 +21,7 @@ export function csharpObjectShapeProjectionMethodName(
     : `${projection.kind[0]!.toUpperCase()}${projection.kind.slice(1)}`;
   const identity = createHash("sha256")
     .update(JSON.stringify([
+      targetTypeRefKey(receiver.targetType),
       projection.kind,
       targetTypeRefKey(projection.resultType),
       ...projection.propertyOrder,

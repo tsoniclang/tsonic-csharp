@@ -1,5 +1,5 @@
-import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../../../target-model/types/index.js";
-import type { CsharpObjectShapeArtifact, CsharpObjectShapeDemand } from "../../../../target-model/records/object-shape-demand.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeCapability } from "../../../../target-model/types/index.js";
+import type { CsharpObjectShapeArtifact, CsharpObjectShapeDemand, CsharpObjectShapeProjectionDeclaration } from "../../../../target-model/records/object-shape-demand.js";
 import type { TargetArtifactContractGraph, TargetArtifactDependency, TargetArtifactReconstruction } from "@tsonic/target-api/artifacts";
 import type { CsharpArtifactSnapshot, CsharpArtifactFacet } from "../contracts.js";
 import type { CsharpGeneratedHelper } from "../generated-helpers.js";
@@ -20,7 +20,7 @@ export interface CsharpArtifactGraph {
   };
   objectShapeHasCapability(fact: CsharpObjectShapeFact, capability: CsharpObjectShapeCapability): boolean;
   objectShape(fact: CsharpObjectShapeFact): CsharpObjectShapeArtifact;
-  objectShapeProjections(fact: CsharpObjectShapeFact): readonly CsharpObjectShapeProjection[];
+  objectShapeProjections(fact: CsharpObjectShapeFact): readonly CsharpObjectShapeProjectionDeclaration[];
   objectShapeMethodUsesReceiver(fact: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number]): boolean;
   objectShapeArtifacts(): readonly CsharpObjectShapeArtifact[];
   requireGeneratedHelper(helper: CsharpGeneratedHelper): CsharpArtifactRequestResult;

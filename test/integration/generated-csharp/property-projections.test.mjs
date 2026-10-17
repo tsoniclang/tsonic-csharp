@@ -79,3 +79,63 @@ static string Handwritten(Tsonic.Generated.Options options) =>
 `);
   assert.match(output, /^\d+:\d+\s*$/u);
 });
+
+test("closed and partially open generic own projections preserve exact receiver identity and field carriers", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    type Box<Value> = { value: Value };
+    function assign<Value>(target: Box<Value>, source: Box<Value>): Box<Value> { return Object.assign(target, source); }
+    function first<Value>(input: Box<Value>): Value { return Object.values(input)[0]; }
+    function entry<Value>(input: Box<Value>): Value { return Object.entries(input)[0][1]; }
+    export function run(): boolean {
+      const integer: Box<int32> = { value: 1 as int32 };
+      const other: Box<int32> = { value: 7 as int32 };
+      const text: Box<string> = { value: "before" };
+      const after: Box<string> = { value: "after" };
+      const assigned = Object.assign(integer, other);
+      const changed = assign(text, after);
+      return assigned === integer && assigned.value === 7 && changed === text && text.value === "after" &&
+        first(integer) === 7 && first(text) === "after" && entry(integer) === 7 && entry(text) === "after" &&
+        Object.keys(integer)[0] === "value" && Object.keys(text)[0] === "value" &&
+        Object.hasOwn(integer, "value") && Object.hasOwn(text, "value") && !Object.hasOwn(text, "missing");
+    }
+  ` });
+  executeCsharpConstruction(compiled, "generic-native-own-projections");
+});
+
+test("exact closed Object.assign introduces no allocation or receiver copy", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    type Box<Value> = { value: Value };
+    export function make(value: int32): Box<int32> { return { value }; }
+    export function assign(target: Box<int32>, source: Box<int32>): Box<int32> { return Object.assign(target, source); }
+    export function run(): boolean { const target = make(1 as int32); return assign(target, make(7 as int32)) === target && target.value === 7; }
+  ` });
+  const output = executeCsharpConstruction(compiled, "generic-native-assign-cost", false, false, [], `
+using System;
+using Index = Tsonic.Generated.Index;
+var target = Index.make(1);
+var source = Index.make(7);
+if (!ReferenceEquals(Index.assign(target, source), target) || target.value != 7)
+    throw new Exception("exact generic assign identity");
+for (int iteration = 0; iteration < 8192; iteration++) {
+    _ = Index.assign(target, source);
+    target.value = source.value;
+}
+long before = GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 4096; iteration++) {
+    if (!ReferenceEquals(Index.assign(target, source), target)) throw new Exception("receiver copy");
+}
+long generated = GC.GetAllocatedBytesForCurrentThread() - before;
+before = GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 4096; iteration++) {
+    target.value = source.value;
+    if (!ReferenceEquals(target, target)) throw new Exception("native receiver identity");
+}
+long native = GC.GetAllocatedBytesForCurrentThread() - before;
+if (generated != native || native != 0 || target.value != 7)
+    throw new Exception($"generic native assignment allocation {generated} != {native}");
+Console.WriteLine($"{generated}:{native}");
+`);
+  assert.match(output, /^0:0\s*$/u, "native assignment keeps the same handle and exact zero-allocation baseline");
+});

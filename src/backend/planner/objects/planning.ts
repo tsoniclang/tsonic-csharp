@@ -61,7 +61,7 @@ import { csharpClosedValueCarrierInterfaceType } from "./declarations/interfaces
 import { csharpEnumerableKeysContract, isCsharpEnumerableKeysMember, renderCsharpEnumerableKeys } from "./declarations/enumerable-keys.js";
 import { renderCsharpAuthoredObjectMethods } from "./declarations/authored-methods.js";
 import { renderCsharpCaptureFrameMethods } from "./declarations/capture-methods.js";
-import { csharpAuthoredTypeParameterNames, csharpGeneratedTypeParameterNames } from "../../../target-model/names/type-parameters.js";
+import type { CsharpObjectShapeProjectionDeclaration } from "../../../target-model/records/object-shape-demand.js";
 
 export function csharpTypeFromObjectShapeFact(
   input: CsharpPlanningContext,
@@ -112,16 +112,8 @@ export function materializeObjectShapeDeclarations(
     const fact = artifact.fact.declarationTemplate ?? artifact.fact;
     const declarationArtifact = artifact.fact.declarationTemplate === undefined
       ? artifact : input.artifacts.objectShape(fact);
-    const generatedTypeParameterNames = csharpGeneratedTypeParameterNames(
-      fact.targetType.kind === "target-named"
-        ? (fact.targetType.typeArguments ?? []).filter(argument => argument.kind === "type-parameter") : [],
-      [...fact.members.flatMap(member => (member.typeParameters ?? []).map(parameter => input.scope.typeParameterNames?.get(parameter.identity) ?? parameter.name)),
-        ...(input.program.records.captureFrameShape.get(fact.targetType)?.methods.flatMap(method =>
-          csharpAuthoredTypeParameterNames(method.declaration, input.program.source.ast)) ?? []),
-        ...(fact.methodImplementation === undefined ? [] : csharpAuthoredTypeParameterNames(
-          fact.methodImplementation.declaration, input.program.source.ast))],
-    );
-    const typeParameterNames = new Map([...input.scope.typeParameterNames ?? [], ...generatedTypeParameterNames]);
+    const typeParameterNames = new Map([...input.scope.typeParameterNames ?? [],
+      ...declarationArtifact.typeParameterNames.map(parameter => [parameter.identity, parameter.name] as const)]);
     const declarationInput = { ...input, scope: { ...input.scope, typeParameterNames } };
     const declaration = renderObjectShapeDeclaration(
       declarationInput,
@@ -205,7 +197,7 @@ function renderObjectShapeDeclaration(
   input: CsharpPlanningContext,
   instance: CsharpObjectShapeFact,
   capabilities: readonly import("../../../target-model/types/index.js").CsharpObjectShapeCapability[],
-  projections: readonly import("../../../target-model/types/index.js").CsharpObjectShapeProjection[],
+  projections: readonly CsharpObjectShapeProjectionDeclaration[],
   receiverBoundMethodKeys: readonly string[],
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeDeclaration | undefined {
@@ -246,7 +238,7 @@ function renderObjectShapeDeclaration(
       interfaces: [...interfaces, ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
         ...(referenceIdentity ? [csharpClosedValueCarrierInterfaceType()] : [])],
       members: [...contractMembers, ...(capabilities.includes("enumerable-keys") && !inheritedEnumerableKeys ? [csharpEnumerableKeysContract()] : []),
-        ...renderObjectShapeProjectionMethods(input, fact, projections, diagnostics)] };
+        ...renderObjectShapeProjectionMethods(input, projections, diagnostics)] };
   }
   const members = renderObjectShapeMembers(
     input.scope.typeParameterNames,
@@ -303,7 +295,6 @@ function renderObjectShapeDeclaration(
       ...(jsonSerializable ? renderJsonSerializableObjectShapeMethod(fact) : []),
       ...renderObjectShapeProjectionMethods(
         input,
-        fact,
         projections,
         diagnostics,
       ),

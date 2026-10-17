@@ -109,7 +109,7 @@ export function planClassDeclaration(
       ...(jsonSerializable && objectShape !== undefined
         ? renderJsonSerializableObjectShapeMethod(objectShape)
         : []),
-      ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input, objectShape,
+      ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input,
         input.artifacts.objectShapeProjections(objectShape), diagnostics)),
       ...input.scope.generatedMethods!.values(),
     ],

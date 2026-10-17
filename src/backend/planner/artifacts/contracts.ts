@@ -1,4 +1,5 @@
-import { encodeContractParts, objectShapeProjectionContractParts, objectShapeProjectionKey } from "../../../target-model/records/object-shape-demand.js";
+import { encodeContractParts, objectShapeProjectionContractParts } from "../../../target-model/records/object-shape-demand.js";
+import type { CsharpObjectShapeArtifact, CsharpObjectShapeProjectionDeclaration } from "../../../target-model/records/object-shape-demand.js";
 import type {
   TargetArtifactContract,
   TargetArtifactDependency,
@@ -6,7 +7,6 @@ import type {
 import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeCapability,
-  CsharpObjectShapeProjection,
 } from "../../../target-model/types/index.js";
 import {
   canonicalCsharpObjectShapeImplementedTypes,
@@ -14,6 +14,7 @@ import {
   csharpObjectShapeMemberContractParts,
   targetTypeRefKey,
 } from "../../../target-model/types/index.js";
+import { csharpTypeParameterConstraintResolutionKey } from "../../../target-model/types/generic-constraints.js";
 
 export type CsharpArtifactFacet =
   | "generated-helper-surface"
@@ -33,7 +34,8 @@ export type CsharpArtifactSnapshot =
       readonly fact: CsharpObjectShapeFact;
       readonly materialization: "source" | "synthetic";
       readonly capabilities: readonly CsharpObjectShapeCapability[];
-      readonly projections: readonly CsharpObjectShapeProjection[];
+      readonly projections: readonly CsharpObjectShapeProjectionDeclaration[];
+      readonly typeParameterNames: CsharpObjectShapeArtifact["typeParameterNames"];
       readonly receiverBoundMethodKeys: readonly string[];
     }
   | {
@@ -73,16 +75,17 @@ export function csharpObjectShapeContractCandidate(
   fact: CsharpObjectShapeFact,
   materialization: "source" | "synthetic",
   capabilities: ReadonlySet<CsharpObjectShapeCapability> | readonly CsharpObjectShapeCapability[],
-  projections: readonly CsharpObjectShapeProjection[],
+  projections: readonly CsharpObjectShapeProjectionDeclaration[],
   receiverBoundMethodKeys: ReadonlySet<string> | readonly string[],
   dependencies: readonly string[],
+  typeParameterNames: CsharpObjectShapeArtifact["typeParameterNames"],
 ): CsharpArtifactContractCandidate {
   const canonicalCapabilities = Object.freeze(
     [...capabilities].sort(),
   );
   const canonicalProjections = Object.freeze(
     [...projections].sort((left, right) =>
-      objectShapeProjectionKey(left).localeCompare(objectShapeProjectionKey(right))
+      left.methodName.localeCompare(right.methodName)
     ),
   );
   const canonicalReceiverBoundMethodKeys = Object.freeze(
@@ -100,7 +103,12 @@ export function csharpObjectShapeContractCandidate(
             ...canonicalProjections.map((projection) =>
               encodeContractParts([
                 "projection",
-                ...objectShapeProjectionContractParts(projection),
+                targetTypeRefKey(projection.receiver.targetType),
+                projection.methodName,
+                ...objectShapeProjectionContractParts(projection.selection),
+                ...projection.typeParameterNames.flatMap(parameter => [parameter.identity, parameter.name]),
+                ...projection.typeParameters.flatMap(parameter => [parameter.identity,
+                  csharpTypeParameterConstraintResolutionKey(parameter.csharpConstraints)]),
               ])
             ),
           ]),
@@ -111,11 +119,11 @@ export function csharpObjectShapeContractCandidate(
         },
         {
           facet: "object-shape-type-surface",
-          value: csharpObjectShapeTypeSurface(
+          value: encodeContractParts([csharpObjectShapeTypeSurface(
             fact,
             canonicalReceiverBoundMethodKeys,
             canonicalCapabilities.includes("method-values"),
-          ),
+          ), ...typeParameterNames.flatMap(parameter => [parameter.identity, parameter.name])]),
         },
       ],
     },
@@ -137,6 +145,7 @@ export function csharpObjectShapeContractCandidate(
       materialization,
       capabilities: canonicalCapabilities,
       projections: canonicalProjections,
+      typeParameterNames,
       receiverBoundMethodKeys: canonicalReceiverBoundMethodKeys,
     }),
   };
