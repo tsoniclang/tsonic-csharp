@@ -74,7 +74,8 @@ export function resolveCsharpArrayLiteralSelection(
     destination.kind === "resolved" ? destination.carrier : undefined);
   if (numeric.kind === "rejected") return numeric;
   const contributionCarriers = numeric.kind === "unavailable" ? numeric.carriers : elements;
-  const element = isCsharpJsValueTargetType(sourceElement) ? sourceElement
+  const element = destination.kind === "resolved" ? destination.carrier
+    : isCsharpJsValueTargetType(sourceElement) ? sourceElement
     : numeric.kind === "resolved" ? numeric.carrier : combineCsharpTargetUnionMembers(contributionCarriers);
   if (element === undefined) return unavailable;
   const retained = sourceUnions.retain(element, contributions.map((member, index) =>
