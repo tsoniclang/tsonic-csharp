@@ -1,10 +1,51 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 const code = "TSONIC_GENERIC_ASYNC_ADOPTION_UNSUPPORTED";
 const identity = "async function identity<Value>(value: Value) { return value; }";
+
+for (const surface of ["native", "js"]) {
+  test(`C# canonical Promise resolve source arity admits void omission and generic payloads: ${surface}`, () => {
+    const checked = checkCsharpSource({ surface, sourceText: `
+      export function generic<Value>(value: Value): Promise<Value> {
+        return new Promise<Value>(resolve => { resolve(value); });
+      }
+      export function complete(): Promise<void> { return new Promise<void>(resolve => { resolve(); }); }
+    ` });
+    assert.equal(checked.sourceDiagnosticsText, "", "the canonical checked signature preserves both valid source contracts");
+    assert.equal(checked.extensionDiagnostics.length, 0, "void omission does not require an extension escape");
+  });
+
+  test(`C# canonical Promise resolve source arity rejects omitted nonvoid payloads: ${surface}`, () => {
+    const checked = checkCsharpSource({ surface, sourceText: `
+      export function incomplete(): Promise<number> { return new Promise<number>(resolve => { resolve(); }); }
+    ` });
+    assert.equal(checked.source.diagnostics.length, 1, "exactly one original nonvoid arity error");
+    assert.match(checked.sourceDiagnosticsText, /TS2554: Expected 1 arguments, but got 0\./u,
+      "the native checked signature retains the precise nonvoid argument requirement");
+    assert.equal(checked.extensionDiagnostics.length, 0, "the source arity refusal is not an extension fallback");
+  });
+}
+
+test("C# recursive closure creations preserve disjoint local stores at a shared invocation", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `
+    export {};
+    function factory(count: number, seed: number): () => number {
+      if (count > 0) return factory(count - 1, seed);
+      return () => { let local = seed; local += 1; return local; };
+    }
+    function invoke(callback: () => number): number { return callback(); }
+    console.log(invoke(factory(1, 1)));
+    console.log(invoke(factory(0, 10)));
+  ` });
+  assert.equal(compiled.result.diagnostics.length, 0,
+    JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
+  const output = executeCsharpConstruction(compiled, "recursive-capture-store-prefix", false, false, [], "");
+  assert.deepEqual(output.trim().split(/\r?\n/u), ["2", "11"],
+    "different real factory/caller creations cannot merge their private local stores");
+});
 
 const nativeEntryCases = [
   [

@@ -47,12 +47,8 @@ interface Promise<T> {
   catch<TResult = never>(onrejected?: ((reason: unknown) => TResult) | null): Promise<T | TResult>;
 }
 
-type __TsonicPromiseResolve<T> = [T] extends [void]
-  ? (value?: T | PromiseLike<T>) => void
-  : (value: T | PromiseLike<T>) => void;
-
 interface PromiseConstructor {
-  new <T>(executor: (resolve: __TsonicPromiseResolve<T>, reject: (reason?: unknown) => void) => void): Promise<T>;
+  new <T>(executor: (resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: unknown) => void) => void): Promise<T>;
   resolve<T>(value: T | PromiseLike<T>): Promise<T>;
   reject<T = never>(reason?: unknown): Promise<T>;
   all<T>(values: readonly Promise<T>[]): Promise<T[]>;
