@@ -78,6 +78,9 @@ export function analyzeCsharpNativeArtifactDemand(
   const requiredShapes = new Map<string, Node>();
   const forwarding = new Set<string>();
   for (const sourceFile of input.sourceFiles) visitConstruct(sourceFile);
+  for (const binding of input.nativeDemand.requiredBindingRoots) {
+    if (input.ast.is.IsVariableDeclaration(binding)) demandType(input.storage.storageType.get(binding), binding);
+  }
   if (issues.length > 0) return rejectedTargetStage(issues);
   const result = engine.seal();
   for (const [key, subject] of requiredShapes) requireCsharpRecord(required, {
@@ -269,9 +272,6 @@ export function analyzeCsharpNativeArtifactDemand(
     const nativeParameter = input.storage.lambdaParameterType.get(node);
     const storedParameter = input.storage.requiredStorageType.get(node);
     demandType(storedParameter, node);
-    if (ast.is.IsVariableDeclaration(node) && input.nativeDemand.requiredBindingRoots.has(node)) {
-      demandType(input.storage.storageType.get(node), node);
-    }
     if (nativeParameter !== undefined && storedParameter !== undefined && defaulted === undefined) demandPair(node, nativeParameter, storedParameter);
     for (const adapter of input.callableAdapters.callableDispatch.get(node)?.adapters ?? []) {
       demandParameters(node, adapter.parameters);
