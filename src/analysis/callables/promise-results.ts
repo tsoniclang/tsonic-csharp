@@ -15,9 +15,23 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
 
-export function analyzeCsharpPromiseResults(input: {
+export function analyzeCsharpGenericAdoption(input: {
   readonly source: TargetSourceProgram;
   readonly projectRoot: string;
+  readonly storage: SourceStorageQueries;
+}): readonly TargetDiagnostic[] {
+  const adoption = analyzeSourceGenericAdoption({ source: input.source, projectRoot: input.projectRoot,
+    nodes: input.storage.nodes, storage: input.storage, budget: createSourceStorageBudget(defaultSourceStorageLimits) });
+  return Object.freeze(adoption.kind === "unresolved" ? [Object.freeze({ code: "CSHARP_ASYNC_RESULT_USE_NOT_PROVEN",
+    category: "error" as const, source: "tsonic-csharp", sourceNode: adoption.at, message: adoption.reason })]
+    : adoption.issues.map(issue => Object.freeze({ code: sourceGenericAdoptionDiagnosticCode,
+      category: "error" as const, source: "tsonic-csharp", sourceNode: issue.site, sourceSpan: issue.sourceSpan,
+      message: sourceGenericAdoptionDiagnosticMessage, evidence: issue.evidence })));
+}
+
+export function analyzeCsharpPromiseResults(input: {
+  readonly source: TargetSourceProgram;
+  readonly genericAdoption: readonly TargetDiagnostic[];
   readonly storage: SourceStorageQueries;
   readonly nodes: readonly Node[];
   readonly records: Pick<CsharpProgramRecords, "valueRead" | "selectedCall" | "selectedConstruction">;
@@ -26,17 +40,9 @@ export function analyzeCsharpPromiseResults(input: {
   readonly nativePlacement: readonly TargetDiagnostic[];
 }): { readonly results: CsharpPromiseResults; readonly diagnostics: readonly TargetDiagnostic[] } {
   const results = new Map<Node, CsharpPromiseResult>();
-  const diagnostics: TargetDiagnostic[] = [];
+  const diagnostics: TargetDiagnostic[] = [...input.genericAdoption];
   const budget = createSourceStorageBudget(defaultSourceStorageLimits);
   const { ast } = input.source;
-  const adoption = analyzeSourceGenericAdoption({ source: input.source, projectRoot: input.projectRoot, nodes: input.storage.nodes,
-    budget: createSourceStorageBudget(defaultSourceStorageLimits) });
-  if (adoption.kind === "unresolved") diagnostics.push(Object.freeze({ code: "CSHARP_ASYNC_RESULT_USE_NOT_PROVEN",
-    category: "error", source: "tsonic-csharp", sourceNode: adoption.at, message: adoption.reason }));
-  else for (const issue of adoption.issues) diagnostics.push(Object.freeze({ code: sourceGenericAdoptionDiagnosticCode,
-    category: "error", source: "tsonic-csharp", sourceNode: issue.site, sourceSpan: issue.sourceSpan,
-    message: sourceGenericAdoptionDiagnosticMessage,
-    evidence: issue.evidence }));
   if (input.nativePlacement.length !== 0) return Object.freeze({ results,
     diagnostics: Object.freeze([...input.nativePlacement, ...diagnostics]) });
   const unresolved = (at: Node, reason: string): SourceOwnershipUnresolved => Object.freeze({ kind: "unresolved", at, reason });
@@ -96,7 +102,8 @@ export function analyzeCsharpPromiseResults(input: {
       const checked = input.storage.typeFor(value);
       if (checked.kind === "unresolved") return unresolved(value.node, checked.reason);
       const carrier = input.sourceCarrier(checked.type, checked.sourceFile);
-      if (carrier === undefined || carrier.kind === "opaque" || isCsharpRefLikeTargetType(carrier)) {
+      const uninhabited = input.source.semantics.forNode(value.node).types.isNever(checked.type);
+      if (!uninhabited && (carrier === undefined || carrier.kind === "opaque" || isCsharpRefLikeTargetType(carrier))) {
         return unresolved(value.node, "Continuation retention requires this actual value's completed native CLR placement and carrier.");
       }
       return Object.freeze({ kind: "resolved", premises: Object.freeze([Object.freeze({ kind: "retained", value,
