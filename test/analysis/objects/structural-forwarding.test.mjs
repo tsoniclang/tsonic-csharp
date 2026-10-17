@@ -500,18 +500,22 @@ for (const surface of ["native", "js"]) {
         "the default initializer is never copied from its implementation into an explicit forwarding body");
     });
   }
-  test(`complete generic source project matches handwritten native observations and allocation costs (${surface})`, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: genericSource(genericCases) });
+  for (const [group, controls, presentFunction] of [
+    ["complete", genericCases, "anonymous"],
+    ["independent named", genericCases.filter(control => control.name !== "anonymous" && control.name !== "outer"), "named"],
+  ]) {
+  test(`${group} generic source project matches handwritten native observations and allocation costs (${surface})`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: genericSource(controls) });
     assert.equal(compiled.result.diagnostics.length, 0,
       `generic project: ${compiled.result.diagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | ")}`);
-    const observations = genericCases.map(control => `
+    const observations = controls.map(control => `
 if (Tsonic.Generated.Index.${control.name}(false) != 7 || Tsonic.Generated.Index.${control.name}(true) != 11)
     throw new System.Exception("${control.name}: omission, present value or single body call");`).join("\n");
     const program = `${observations}
-for (int index = 0; index < 4096; index++) { _ = Tsonic.Generated.Index.named(false); _ = Tsonic.Generated.Index.anonymous(true); _ = NativeBaseline.Read(false); }
+for (int index = 0; index < 4096; index++) { _ = Tsonic.Generated.Index.named(false); _ = Tsonic.Generated.Index.${presentFunction}(true); _ = NativeBaseline.Read(false); }
 long generatedBefore = System.GC.GetAllocatedBytesForCurrentThread();
 long generatedSum = 0;
-for (int index = 0; index < 4096; index++) generatedSum += Tsonic.Generated.Index.named(false) + Tsonic.Generated.Index.anonymous(true);
+for (int index = 0; index < 4096; index++) generatedSum += Tsonic.Generated.Index.named(false) + Tsonic.Generated.Index.${presentFunction}(true);
 long generatedBytes = System.GC.GetAllocatedBytesForCurrentThread() - generatedBefore;
 long nativeBefore = System.GC.GetAllocatedBytesForCurrentThread();
 long nativeSum = 0;
@@ -534,8 +538,8 @@ static class NativeBaseline {
         return value;
     }
 }`;
-    const proof = buildNativeProject(`generic-source-${surface}`, program, compiled.artifacts);
-    writeFileSync(join(proof.root, "source.ts"), genericSource(genericCases));
+    const proof = buildNativeProject(`generic-source-${group}-${surface}`, program, compiled.artifacts);
+    writeFileSync(join(proof.root, "source.ts"), genericSource(controls));
     assert.equal(proof.build.status, 0, `complete native generic project: ${String(proof.build.stdout).slice(-4096)}`);
     const executed = proof.run();
     assert.equal(executed.status, 0, `generic observations/cost: ${String(executed.stderr).slice(-4096)}`);
@@ -545,9 +549,10 @@ static class NativeBaseline {
       path.endsWith(".cs") ? text.replace(/(\bint [^()\r\n]+\.read)<[^>]+>(\(int\? )/gu, "$1$2") : text]));
     assert.equal([...omitted].some(([path, text]) => text !== compiled.artifacts.get(path)), true,
       "the native red changes an actual generated destination declaration, never a build-model error");
-    const negative = buildNativeProject(`generic-omitted-binder-${surface}`, program, omitted);
+    const negative = buildNativeProject(`generic-omitted-binder-${group}-${surface}`, program, omitted);
     assert.equal(negative.build.status === 0, false, "the otherwise identical complete project cannot omit the destination binder");
     assert.equal(/error CS(?:0535|0539)/u.test(String(negative.build.stdout)), true,
       "Roslyn rejects the missing explicit generic implementation, not an unrelated compiler failure");
   });
+  }
 }
