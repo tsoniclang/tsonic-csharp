@@ -222,7 +222,7 @@ export function analyzeCsharpNativeArtifactDemand(
 
   function demandUseBox(site: TargetUseSiteRef): void {
     const use = input.nativeDemand.nativeUse.get(site);
-    if (use === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A selected boxing edge requires its admitted operand.", site.subject);
+    if (use === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A selected boxing edge requires its admitted operand.");
     if (use.kind !== "erased" && use.completion.kind === "value") demandBox(use.expression, use.completion.type);
   }
 
