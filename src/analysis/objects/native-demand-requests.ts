@@ -430,7 +430,7 @@ export function objectShapeArtifacts(
 
 export function connect(
   { records }: CsharpObjectShapeDemandScope,
-ownerKey: string, dependencyKey: string): void {
+  ownerKey: string, dependencyKey: string): void {
   const owner = records.get(ownerKey);
   const dependency = records.get(dependencyKey);
   if (

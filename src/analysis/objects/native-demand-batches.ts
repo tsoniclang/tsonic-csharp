@@ -4,6 +4,12 @@ import type { CsharpProjectTypeClassifications } from "../../target-model/record
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
 import type { CsharpObjectShapeArtifact } from "../../target-model/records/object-shape-demand.js";
 import type { TargetTypeRef, CsharpObjectShapeProjectionKind } from "../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../target-model/types/index.js";
+import { csharpObjectShapesEqual, csharpObjectShapeMemberContractKey } from "../../target-model/types/index.js";
+import { objectShapeArtifactKey, objectShapeMaterialization } from "../../target-model/records/object-shape-demand.js";
+import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
+import { targetTypeRefKey } from "../../target-model/types/equality.js";
+import { isCsharpEmptyObjectTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 
 export type CsharpArtifactRequestResult = { readonly kind: "accepted" } | { readonly kind: "rejected"; readonly reason: string };
 export type CsharpObjectShapeProjectionRequestResult =
@@ -100,13 +106,6 @@ export interface CsharpObjectShapeDemandScope {
   collectJsonShape(shape: CsharpObjectShapeFact, state: JsonClosureState): string | undefined;
   inheritedObjectShapeCapabilities(fact: CsharpObjectShapeFact): readonly CsharpObjectShapeCapability[];
 }
-
-import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../target-model/types/index.js";
-import { csharpObjectShapesEqual, csharpObjectShapeMemberContractKey } from "../../target-model/types/index.js";
-import { objectShapeArtifactKey, objectShapeMaterialization } from "../../target-model/records/object-shape-demand.js";
-import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
-import { targetTypeRefKey } from "../../target-model/types/equality.js";
-import { isCsharpEmptyObjectTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 
 export function collectShapeDependencies(
   { host }: CsharpObjectShapeDemandScope,

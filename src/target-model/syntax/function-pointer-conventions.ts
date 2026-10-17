@@ -31,4 +31,3 @@ export function csharpFunctionPointerCallingConvention(
     ...(modifiers.length === 0 ? {} : { callingConventionModifiers: modifiers }),
   };
 }
-

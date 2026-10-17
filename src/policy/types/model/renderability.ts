@@ -177,4 +177,3 @@ function segmentsRejection(
   }
   return segmentsRejection(type, rest, withoutNested, typeArgumentCount, argumentOffset + arity);
 }
-
