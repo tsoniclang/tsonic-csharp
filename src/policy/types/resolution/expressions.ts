@@ -24,6 +24,7 @@ import { resolveCsharpStaticMemberReceiver } from "../project/static-members.js"
 import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 
 export function resolveSelectedExpressionType(
   { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveTypeWithState, resolveReadStorage, resolveNonNullExpressionType, resolveMemberAccessTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState, sourceUnions }: CsharpTypeResolutionScope,
@@ -52,11 +53,15 @@ export function resolveSelectedExpressionType(
     }
     if (elements.length === 0 || elements.some(candidate => candidate === undefined)) return undefined;
     const sourceElement = getCsharpCollectionElementTargetType(resolveTypeWithState(sourceType, queries.sourceFile, nextState(state)));
-    const commonElement = sourceElement?.kind !== "source-primitive" ||
-      elements.some(element => element?.kind !== "source-primitive") ? undefined
-      : elements.reduce<TargetTypeRef | undefined>((common, candidate) => commonTargetRepresentation(common, candidate), elements[0]);
+    const nativeCandidates = sourceElement?.kind !== "source-primitive" ||
+      elements.some(element => element?.kind !== "source-primitive") ? []
+      : [...new Map(elements.map(element => [targetTypeRefKey(element!), element!])).values()];
+    const commonCandidates = nativeCandidates.filter(candidate => nativeCandidates.every(actual => {
+      const selected = commonTargetRepresentation(candidate, actual);
+      return selected !== undefined && targetTypeRefEquals(selected, candidate);
+    }));
     const element = isCsharpJsValueTargetType(sourceElement) ? sourceElement
-      : commonElement ?? combineCsharpTargetUnionMembers(elements as readonly TargetTypeRef[]);
+      : commonCandidates.length === 1 ? commonCandidates[0] : combineCsharpTargetUnionMembers(elements as readonly TargetTypeRef[]);
     if (element === undefined) return undefined;
     const members = sourceElements.map((entry, index) => {
       if (entry === undefined) return undefined;

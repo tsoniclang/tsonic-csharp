@@ -110,9 +110,11 @@ export function analyzeCsharpNativeDemand(
       }
       emissions.set(use.expression, entry);
     }
+    const discardedPresence = use.kind === "erased" ? constantPresence(use.cause === "discarded-callable", [])
+      : use.discardedPresence ?? (use.kind === "converted" && (use.input.kind === "void" ||
+          use.input.kind === "value" && isCsharpAbsenceTargetType(use.input.type)) ? constantPresence(false, [site]) : undefined);
     return Object.freeze({ site, expression: use.expression, completion: use.kind === "erased" ? Object.freeze({ kind: "void" as const }) : use.completion,
-      ...(use.kind === "erased" ? { discardedPresence: constantPresence(use.cause === "discarded-callable", []) }
-        : use.discardedPresence === undefined ? {} : { discardedPresence: use.discardedPresence }) });
+      ...(discardedPresence === undefined ? {} : { discardedPresence }) });
   }
 
   function pending(site: TargetUseSiteRef, expression: Node, reason: CsharpNativeUnadmittedReason, message?: string, code?: string): VisitedUse {
