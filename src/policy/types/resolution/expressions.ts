@@ -52,8 +52,11 @@ export function resolveSelectedExpressionType(
     }
     if (elements.length === 0 || elements.some(candidate => candidate === undefined)) return undefined;
     const sourceElement = getCsharpCollectionElementTargetType(resolveTypeWithState(sourceType, queries.sourceFile, nextState(state)));
+    const commonElement = sourceElement?.kind !== "source-primitive" ||
+      elements.some(element => element?.kind !== "source-primitive") ? undefined
+      : elements.reduce<TargetTypeRef | undefined>((common, candidate) => commonTargetRepresentation(common, candidate), elements[0]);
     const element = isCsharpJsValueTargetType(sourceElement) ? sourceElement
-      : combineCsharpTargetUnionMembers(elements as readonly TargetTypeRef[]);
+      : commonElement ?? combineCsharpTargetUnionMembers(elements as readonly TargetTypeRef[]);
     if (element === undefined) return undefined;
     const members = sourceElements.map((entry, index) => {
       if (entry === undefined) return undefined;

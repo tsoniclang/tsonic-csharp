@@ -183,6 +183,10 @@ function classifyReturnContract(
     };
   }
   const asynchronous = HasSyntacticModifier(policy.ast, declaration, ModifierFlagsAsync);
+  const observedBaseline = asynchronous ? getCsharpTaskResultTargetType(baseline) : baseline;
+  if (observedBaseline === undefined) return {
+    kind: "rejected", reason: "The checked source callable has no single closed C# return representation.",
+  };
   const observed: TargetTypeRef[] = [];
   let incomplete = false;
   collectDirectReturnExpressions(policy, declaration, (expression) => {
@@ -192,19 +196,20 @@ function classifyReturnContract(
     } else {
       if (asynchronous) {
         const awaited = getCsharpAwaitResultTargetType(type, policy.typeDefinitions);
-        const baselineResult = getCsharpTaskResultTargetType(baseline);
-        if (awaited !== undefined) observed.push(csharpTaskTargetType(awaited));
-        else if (baselineResult !== undefined && targetTypeRefEquals(type, baselineResult)) observed.push(baseline);
+        if (awaited !== undefined) observed.push(awaited);
+        else if (targetTypeRefEquals(type, observedBaseline)) observed.push(type);
         else incomplete = true;
       } else observed.push(type);
     }
   });
-  const contract = reconcileInferredReturnTargetContract(
+  const observedContract = reconcileInferredReturnTargetContract(
     policy,
-    baseline,
+    observedBaseline,
     observed,
     incomplete,
   );
+  const contract = asynchronous && observedContract.kind === "resolved"
+    ? { ...observedContract, type: csharpTaskTargetType(observedContract.type) } : observedContract;
   const contextualReturn = getCsharpDelegateSignature(evidence.contextualTargetType.get(declaration))?.returnType;
   if (contract.kind === "resolved" && isCsharpJsValueTargetType(contract.type) && contextualReturn !== undefined &&
     csharpConversionIsApplicable(selectCsharpConversion(policy, contract.type, contextualReturn, "implicit"), "implicit")) {

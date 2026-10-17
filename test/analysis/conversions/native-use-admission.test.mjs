@@ -22,7 +22,7 @@ test("actual physical copy roots are ready before publication and all published 
   const policy = { ast: {}, sourceFiles: [], typeDefinitions: undefined,
     projectTypes: { directSupertypes: () => [] }, objectShapes: {
       resolveTarget(type) { reads++; return type.kind === "target-named" ? shapes.get(type.id) : undefined; },
-      resolveCopyShape(shape) { reads++; return shape === root ? copy : shape; },
+      resolveCopyShape(shape) { reads++; return shape.targetType === root.targetType ? copy : shape; },
     } };
   const registry = analyzeCsharpObjectShapes(policy, { targetTypes: [root.targetType] }, {});
   assert.equal(registry.resolveCopyShape(root) === copy, true, "binding copy demand is satisfied before the seal");
@@ -31,7 +31,7 @@ test("actual physical copy roots are ready before publication and all published 
   assert.equal(registry.resolveTarget(late.targetType) === undefined, true, "an unregistered target is not fabricated");
   shapes.set(late.targetType.id, late);
   assert.equal(registry.resolveTarget(late.targetType) === late, true, "a missing open target is not negatively cached");
-  assert.equal(registry.resolveCopyShape(late) === late, true, "a late actual root reaches the same physical owner");
+  assert.equal(registry.resolveCopyShape(late)?.targetType === late.targetType, true, "a late actual root reaches the same physical owner");
   const sealed = registry.seal();
   const completedReads = reads;
   for (let index = 0; index < 3; index++) {

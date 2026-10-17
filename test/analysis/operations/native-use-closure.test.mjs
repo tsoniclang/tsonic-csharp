@@ -7,6 +7,8 @@ import { analyzeCsharpBindingPatterns } from "../../../dist/analysis/control-flo
 import { analyzeCsharpNativeDemand } from "../../../dist/analysis/operations/native-demand.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
 import { csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { getCsharpArrayLiteralElementTargetType } from "../../../dist/target-model/types/carriers/collections.js";
+import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 const emissionPrograms = [
@@ -124,7 +126,7 @@ for (const surface of ["native", "js"]) test(`${surface} discarded callable bran
 for (const surface of ["native", "js"]) test(`${surface} discarded coalescing preserves mixed presence, short circuits and zero native allocation`,
   { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ sourceText: `
-    let trace = 0;
+    let trace: number;
     function tick(value: number): number { trace = trace * 10 + value; return value; }
     function condition(value: boolean, mark: number): boolean { tick(mark); return value; }
     function ready(): number { return 1; }
@@ -209,6 +211,74 @@ for (const surface of ["native", "js"]) test(`${surface} actual array and creati
   assert.equal(compiled.targetDiagnostics.length === 0 && compiled.result.program !== undefined, true,
     compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
   assert.equal([...compiled.artifacts.keys()].some(path => path.endsWith(".cs")), true, "actual construction conversions reach emission");
+});
+
+for (const surface of ["native", "js"]) test(`${surface} inferred async returns join native payloads once before constructing the task`,
+  { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    import type { int32, int64 } from "@tsonic/core/types.js";
+    function narrow(): int32 { return 3; }
+    function wide(): int64 { return 9007199254740993n; }
+    async function completed(): Promise<int64> { return wide(); }
+    async function mixed(flag: boolean) { if (flag) return narrow(); return wide(); }
+    async function optional(flag: boolean) { if (flag) return wide(); }
+    async function pending() { return completed(); }
+    export async function run(): Promise<boolean> {
+      return await mixed(true) === 3n && await mixed(false) === 9007199254740993n &&
+        await optional(false) === undefined && await optional(true) === 9007199254740993n &&
+        await pending() === 9007199254740993n;
+    }
+  `, surface });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  assert.equal(compiled.targetDiagnostics.length === 0 && compiled.result.program !== undefined, true,
+    compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+  executeCsharpConstruction(compiled, `native-async-payload-join-${surface}`, true);
+});
+
+for (const surface of ["native", "js"]) test(`${surface} numeric spread carriers are order-independent without erasing genuine native unions`,
+  { timeout: 300_000 }, () => {
+  const sourceText = `
+    import type { int32, int64 } from "@tsonic/core/types.js";
+    function sum(...values: number[]): number { return values.length; }
+    export function run(values: number[]): number {
+      const prefix = [1, ...values, 2];
+      const suffix = [...values, 1, 2];
+      return sum(...prefix) + sum(...suffix);
+    }
+    const narrow: int32 = 1;
+    const wide: int64 = 9007199254740993n;
+    export const distinct = [narrow, wide];
+    export const homogeneousWide = [wide, wide];
+  `;
+  const compiled = compileCsharpSource({ sourceText: surface === "native" ? sourceText.replace("values.length", "values.Length") : sourceText, surface });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  const program = compiled.result.program;
+  assert.equal(compiled.targetDiagnostics.length === 0 && program !== undefined, true,
+    compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+  const arrays = new Map();
+  const ast = program.source.ast;
+  const visit = node => {
+    if (ast.is.IsVariableDeclaration(node)) {
+      const declaration = ast.as.AsVariableDeclaration(node);
+      const initializer = declaration?.Initializer;
+      if (initializer !== undefined && ast.is.IsArrayLiteralExpression(initializer)) {
+        arrays.set(ast.text(ast.name(node)), getCsharpArrayLiteralElementTargetType(program.records.valueRead.get(initializer)?.value));
+      }
+    }
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  for (const name of ["prefix", "suffix"]) assert.equal(arrays.get(name)?.kind === "source-primitive" &&
+    arrays.get(name)?.name === "float64", true, `${name}: actual double spread and numeric literals share the same native carrier`);
+  const distinct = getCsharpRuntimeUnionArms(arrays.get("distinct"), program.typeDefinitions);
+  assert.equal(distinct?.length === 2 && distinct.some(type => type.kind === "source-primitive" && type.name === "int32") &&
+    distinct.some(type => type.kind === "source-primitive" && type.name === "int64"), true,
+    "a genuine checked union preserves both explicit native widths");
+  assert.equal(arrays.get("homogeneousWide")?.kind === "source-primitive" && arrays.get("homogeneousWide")?.name === "int64", true,
+    "a homogeneous native int64 array never takes a floating route");
+  executeCsharpConstruction(compiled, `native-array-common-carrier-${surface}`, false, false, [],
+    `if (Tsonic.Generated.Index.run(new double[] { 3, 4 }) != 8 ||
+      Tsonic.Generated.Index.homogeneousWide[0] != 9007199254740993L) throw new System.Exception("native array common carrier");`);
 });
 
 test("tagged template operands have finite contexts without changing the retained source refusal", () => {
