@@ -123,7 +123,7 @@ test("structural implementations are materialized at seal and an unrecorded inst
       resolveTarget: type => { assert.equal(closed, false, "native selection precedes publication"); queries += 1; return shapes.get(targetTypeRefKey(type)); },
       resolveCopyShape: () => { assert.equal(closed, false, "copy selection precedes publication"); return undefined; },
     },
-    projectTypes: { directSupertypes: () => [] },
+    projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
     semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({
       kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
         source: { property: { symbol, rootSymbols: [] }, declarations: [] },

@@ -218,6 +218,11 @@ export function analyzeCsharpObjectShapes(
             const baseKey = targetTypeRefKey(base);
             pending.push(base);
             if (provided.has(baseKey)) continue;
+            const baseShape = byTarget.get(baseKey) ?? policy.objectShapes.resolveTarget(base);
+            const checkedMethodProtocol = baseShape?.sourceType === undefined &&
+              structuralImplementations(request.source).some(implementation => implementation.methods.some(method =>
+                method.member.methodValueContract !== undefined && targetTypeRefEquals(method.member.methodValueContract, base)));
+            if (checkedMethodProtocol) continue;
             const requestKey = JSON.stringify([targetTypeRefKey(request.source), baseKey]);
             if (rejected.has(requestKey)) continue;
             if (!classifications.registerStructuralInterface(request.selected.sourceNode, request.source, base, request.sourceType)) {

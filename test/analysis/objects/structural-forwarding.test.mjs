@@ -399,9 +399,9 @@ test("canonical generic admission alpha-aligns real body parameters and retains 
 });
 
 const nativeBoundBase = csharpTargetNamedType("test.BoundBase", undefined, { kind: "named", name: "BoundBase" },
-  { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [] });
+  { sourceDeclarationKind: "class", constraintRequiresReferenceType: true, allowsRefLikeTypeArguments: [] });
 const nativeBoundDerived = csharpTargetNamedType("test.BoundDerived", undefined, { kind: "named", name: "BoundDerived" },
-  { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [] });
+  { sourceDeclarationKind: "class", constraintRequiresReferenceType: true, allowsRefLikeTypeArguments: [] });
 
 function genericBoundFixture(bodyConstraints, destinationConstraints, bodyPermissions = [false], destinationPermissions = [false]) {
   const value = fixture();

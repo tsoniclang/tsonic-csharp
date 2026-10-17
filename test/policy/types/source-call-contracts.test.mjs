@@ -13,6 +13,7 @@ import { sourceCallableTypeParametersMatch, resolveSourceCallReceiverTargetType 
 import { csharpSourceTypeParameter } from "../../../dist/target-model/names/type-parameters.js";
 import { selectSourceCallParameterSlots } from "../../../../tsonic/packages/target-api/dist/source-semantics/call-parameter-slots.js";
 import { resolveCallableEvidence } from "../../../dist/policy/types/resolution/source-profiles.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/policy/constraints/type-parameter-environment.js";
 
 const integer = { kind: "source-primitive", name: "int64" };
 const string = { kind: "source-primitive", name: "string" };
@@ -185,6 +186,8 @@ function checkedBinders(current) {
   Object.assign(ast, { getSourceFile: () => file, getPath: () => "fixture.ts", kind: () => 169,
     pos: node => node.position, end: node => node.position + 1, name: () => ({}), text: () => "Item" });
   ast.is.IsTypeParameterDeclaration = node => node?.kind === "parameter";
+  current.scope.host.typeParameterConstraints = createCsharpTypeParameterEnvironment(ast,
+    () => Object.freeze({ kind: "resolved", constraints: Object.freeze([]) }));
   const original = current.scope.host.semantics();
   current.scope.host.semantics = () => ({ ...original, declarations: { ...original.declarations,
     typeSymbol: type => type, symbolDeclarations: symbol => [symbol] } });
