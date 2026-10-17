@@ -144,8 +144,8 @@ export function analyzeCsharpProjectCallableAdapters(
         const subjects = [...method.member.sourceSubjects ?? [], ...method.member.sourceDeclarations ?? []];
         const selected = shape === undefined ? undefined : resolveCsharpObjectShapeMemberBySelectedSubject(shape, subjects);
         if (selected?.kind !== "resolved" || selected.member.memberKind !== "method") {
-          reject(method.declaration, "An inherited method-value protocol has no exact checked native member correspondence.");
-          continue;
+          return failTargetAnalysisInvariant("tsonic-csharp",
+            "An inherited method-value protocol lost its checked native member correspondence.", method.declaration);
         }
         addMethod(interfaceRequest(owner.type, Object.freeze({ sourceNode: request.selected.sourceNode,
           sourceType: request.selected.sourceType, interfaceType: protocol, properties: Object.freeze([]), methods: Object.freeze([]) })),
