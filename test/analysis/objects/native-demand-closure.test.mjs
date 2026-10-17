@@ -123,7 +123,7 @@ test("a native class named Proxy is not confused with the unsupported source-pro
 test("constructor refusals and other participating native refusals share one complete pre-seal result", () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: `
     export const value = new Proxy({}, {});
-    function tag(parts: TemplateStringsArray, count: number): string { return parts[0]; }
+    function tag(parts: TemplateStringsArray, count: number): string { return "constant"; }
     export function run(count: number): string { return tag\`value=\${count}\`; }
   ` });
   assert.equal(compiled.sourceDiagnosticsText, "", "both refused constructs are valid checked source");
@@ -136,4 +136,7 @@ test("constructor refusals and other participating native refusals share one com
   "exact constructor diagnostic transport");
   assert.equal(diagnostics.some(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&
     diagnostic.message === "Expression is outside the current C# planning surface."), true, "the existing independent native refusal is retained");
+  const tagged = diagnostics.find(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST");
+  assert.equal(compiled.source.ast.is.IsTaggedTemplateExpression(tagged.sourceNode), true,
+    "the independent refusal belongs to the actual tagged template, not an unrelated tag-body operation");
 });

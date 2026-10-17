@@ -359,8 +359,30 @@ export function analyzeCsharpTargetProgram(
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));
   if (flowReads.issues.length > 0) return rejectCsharpAnalysisIssues(flowReads.issues);
-  const sourceRefusals = nativeDemand.unadmitted.filter(use => use.kind === "source-refusal");
-  if (sourceRefusals.length > 0) return rejectedTargetStage(sourceRefusals.map(use => use.diagnostic));
+  const refusals = nativeDemand.unadmitted.flatMap<TargetDiagnostic>(use => {
+    if (use.kind === "source-refusal") return [use.diagnostic];
+    if (use.reason === "construction-unresolved") {
+      const construction = analysis.operations.selectedConstruction.get(use.expression);
+      if (construction?.jsValue.kind === "rejected") return [{ sourceNode: use.expression,
+        source: "tsonic-csharp", category: "error", code: "CSHARP_UNSUPPORTED_AST", message: construction.jsValue.reason }];
+      const selected = construction?.target;
+      if (selected?.kind === "rejected") return [targetDiagnosticFromExtension(use.expression, selected.diagnostic)];
+      if (selected?.kind === "missing" || selected?.kind === "conflict" || selected?.kind === "ambiguous") {
+        const code = selected.kind === "missing" ? "CSHARP_TARGET_CONSTRUCTION_NOT_CLOSED"
+          : selected.kind === "conflict" ? "CSHARP_TARGET_CONSTRUCTION_IDENTITY_CONFLICT" : "CSHARP_TARGET_CONSTRUCTION_AMBIGUOUS";
+        return [{ sourceNode: use.expression, source: "tsonic-csharp", category: "error", code, message: selected.reason,
+          ...(selected.kind === "ambiguous" ? { evidence: Object.freeze([...new Set(selected.candidates.map(candidate => `candidate=${candidate}`))]) } : {}),
+        }];
+      }
+    }
+    if (use.message === undefined && use.reason !== "argument-refused" && use.reason !== "source-argument-rejected" &&
+      use.reason !== "property-key-refused") return [];
+    return [{ sourceNode: use.expression, source: "tsonic-csharp", category: "error",
+      code: use.code ?? "CSHARP_UNSUPPORTED_AST", message: use.message ?? failTargetAnalysisInvariant(
+        "tsonic-csharp", "A native source refusal requires its exact admitted reason.", use.expression),
+    }];
+  });
+  if (refusals.length > 0) return rejectedTargetStage(refusals);
   const nativeValueCarriers = analyzeCsharpNativeValueCarriers(
     source.ast, nativeDemand.requiredNativeValueDeclarations, analysis.sourceEvidence, analysis.valueReads, analysis.objectShapes,
     source.semantics.forNode, analysis.requiredRecords,
@@ -369,29 +391,6 @@ export function analyzeCsharpTargetProgram(
   if (bindingPatterns.issues.length > 0) return rejectCsharpAnalysisIssues(bindingPatterns.issues);
   const pendingUses = nativeDemand.unadmitted.filter(use => use.kind === "pending-use");
   if (pendingUses.length > 0) {
-    const refusals = pendingUses.flatMap<TargetDiagnostic>(use => {
-      if (use.reason === "construction-unresolved") {
-        const construction = analysis.operations.selectedConstruction.get(use.expression);
-        if (construction?.jsValue.kind === "rejected") return [{ sourceNode: use.expression,
-          source: "tsonic-csharp", category: "error", code: "CSHARP_UNSUPPORTED_AST", message: construction.jsValue.reason }];
-        const selected = construction?.target;
-        if (selected?.kind === "rejected") return [targetDiagnosticFromExtension(use.expression, selected.diagnostic)];
-        if (selected?.kind === "missing" || selected?.kind === "conflict" || selected?.kind === "ambiguous") {
-          const code = selected.kind === "missing" ? "CSHARP_TARGET_CONSTRUCTION_NOT_CLOSED"
-            : selected.kind === "conflict" ? "CSHARP_TARGET_CONSTRUCTION_IDENTITY_CONFLICT" : "CSHARP_TARGET_CONSTRUCTION_AMBIGUOUS";
-          return [{ sourceNode: use.expression, source: "tsonic-csharp", category: "error", code, message: selected.reason,
-            ...(selected.kind === "ambiguous" ? { evidence: Object.freeze([...new Set(selected.candidates.map(candidate => `candidate=${candidate}`))]) } : {}),
-          }];
-        }
-      }
-      if (use.message === undefined && use.reason !== "argument-refused" && use.reason !== "source-argument-rejected" &&
-        use.reason !== "property-key-refused") return [];
-      return [{ sourceNode: use.expression, source: "tsonic-csharp", category: "error",
-        code: use.code ?? "CSHARP_UNSUPPORTED_AST", message: use.message ?? failTargetAnalysisInvariant(
-          "tsonic-csharp", "A native source refusal requires its exact admitted reason.", use.expression),
-      }];
-    });
-    if (refusals.length > 0) return rejectedTargetStage(refusals);
     const incomplete = pendingUses[0]!;
     return failTargetAnalysisInvariant("tsonic-csharp",
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
