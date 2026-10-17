@@ -40,6 +40,9 @@ export function analyzeCsharpObjectShapes(
   const templates = new Map<string, CsharpObjectShapeFact>();
   const completedShapes = new WeakMap<CsharpObjectShapeFact, CsharpObjectShapeFact>();
   const copies = new Map<string, CsharpObjectShapeFact>();
+  const physicalTypes: TargetTypeRef[] = [];
+  const pendingPhysicalTypes = new Map<string, TargetTypeRef>();
+  const preparedPhysicalTypes = new Set<string>();
   const objectLiterals = new Map<Node, SourceFile>();
   const copiedMethodImplementations = new Set<string>();
   const operationTypes: TargetTypeRef[] = [];
@@ -101,6 +104,7 @@ export function analyzeCsharpObjectShapes(
       const merged = mergeCsharpObjectShapeSubjects(previous, shape);
       byTarget.set(key, merged);
     }
+    enqueuePhysicalType(shape.targetType);
     if (shape.declarationTemplate !== undefined) rememberShape(shape.declarationTemplate);
   };
 
@@ -131,7 +135,41 @@ export function analyzeCsharpObjectShapes(
       const merged = mergeCsharpObjectShapeSubjects(previous, shape);
       byTarget.set(key, merged);
     }
+    enqueuePhysicalType(type);
   };
+
+  function enqueuePhysicalType(type: TargetTypeRef): void {
+    const key = targetTypeRefKey(type);
+    if (!preparedPhysicalTypes.has(key)) pendingPhysicalTypes.set(key, type);
+  }
+
+  function preparePhysicalShapes(): void {
+    const visited = new Set<string>();
+    for (const [key, type] of pendingPhysicalTypes) {
+      pendingPhysicalTypes.delete(key);
+      if (visited.has(key) || preparedPhysicalTypes.has(key)) continue;
+      visited.add(key);
+      reserveClassification();
+      physicalTypes.push(type);
+      const shape = byTarget.get(key) ?? policy.objectShapes.resolveTarget(type);
+      rememberShape(shape);
+      if (shape !== undefined) {
+        if (shape.declarationTemplate !== undefined) enqueuePhysicalType(shape.declarationTemplate.targetType);
+        const copy = policy.objectShapes.resolveCopyShape(shape);
+        if (copy !== undefined) {
+          copies.set(key, copy);
+          admittedShapes.add(copy);
+          preparedPhysicalTypes.add(key);
+          if (copy !== shape) rememberShape(copy);
+        }
+      }
+      for (const component of csharpTargetTypeComponents(type, shape)) enqueuePhysicalType(component);
+      if (type.kind === "target-named" &&
+        (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "class") {
+        for (const inherited of policy.projectTypes.directSupertypes(type) ?? []) enqueuePhysicalType(inherited);
+      }
+    }
+  }
 
   for (const sourceFile of policy.sourceFiles) {
     visit(sourceFile, sourceFile);
@@ -214,7 +252,8 @@ export function analyzeCsharpObjectShapes(
     structuralImplementations,
     knownShapes() {
       if (sealed) return knownShapes;
-      if (!sealed) for (const shape of byTarget.values()) admittedShapes.add(shape);
+      preparePhysicalShapes();
+      for (const shape of byTarget.values()) admittedShapes.add(shape);
       return Object.freeze([...byTarget.values()].map(shape => withInterfaces(shape)!));
     },
     methodImplementationHasCopies(shape) {
@@ -261,35 +300,7 @@ export function analyzeCsharpObjectShapes(
     },
     seal() {
       if (sealed) throw new Error("C# object-shape analysis is sealed.");
-      const pending = [...byTarget.values()].flatMap(shape => [shape.targetType, ...shape.members.map(member => member.type),
-        ...shape.members.flatMap(member => member.methodStorageType === undefined ? [] : [member.methodStorageType]), ...shape.implements ?? []]);
-      const visited = new Set<string>();
-      for (let index = 0; index < pending.length; index++) {
-        const type = pending[index]!;
-        const key = targetTypeRefKey(type);
-        if (visited.has(key)) continue;
-        visited.add(key);
-        reserveClassification();
-        const shape = policy.objectShapes.resolveTarget(type);
-        rememberShape(shape);
-        if (shape !== undefined) {
-          if (shape.declarationTemplate !== undefined) pending.push(shape.declarationTemplate.targetType);
-          const copy = policy.objectShapes.resolveCopyShape(shape);
-          if (copy !== undefined) {
-            copies.set(key, copy);
-            admittedShapes.add(copy);
-          }
-          if (copy !== undefined && copy !== shape) {
-            rememberShape(copy);
-            pending.push(copy.targetType);
-          }
-        }
-        pending.push(...csharpTargetTypeComponents(type, shape));
-        if (type.kind === "target-named" &&
-          (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "class") {
-          pending.push(...policy.projectTypes.directSupertypes(type) ?? []);
-        }
-      }
+      preparePhysicalShapes();
       for (const shape of byTarget.values()) admittedShapes.add(shape);
       for (const shape of admittedShapes) {
         propertyOrders.record(shape);
@@ -323,7 +334,7 @@ export function analyzeCsharpObjectShapes(
       const publishedShapes = [...byTarget.values()].map(completeShape).concat([...byNode.values()], [...copies.values()],
         [...objectLiterals.keys()].flatMap(literal =>
           [...literalResults.get(literal)?.values() ?? []].flatMap(result => result.kind === "resolved" ? [result.shape] : [])));
-      const demandedTypes = [...evidence.targetTypes, ...operationTypes, ...pending];
+      const demandedTypes = [...evidence.targetTypes, ...operationTypes, ...physicalTypes];
       const shapeQueue = [...publishedShapes];
       const demandedKeys = new Set<string>();
       const walkedShapes = new Set<CsharpObjectShapeFact>();
@@ -388,6 +399,10 @@ export function analyzeCsharpObjectShapes(
       return literalUnionCarriers.get(node)?.get(targetTypeRefKey(type));
     },
     resolveCopyShape(shape) {
+      if (!sealed) {
+        rememberShape(shape);
+        preparePhysicalShapes();
+      }
       const copy = copies.get(targetTypeRefKey(shape.targetType));
       if (!sealed && copy !== undefined) admittedShapes.add(copy);
       return copy;

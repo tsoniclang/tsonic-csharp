@@ -11,6 +11,8 @@ import {
   csharpWellKnownSymbolSourceMemberKey,
   resolveCsharpObjectShapeMemberBySourceKey,
   projectCsharpJsValueObjectLiteralShape,
+  csharpObjectTargetType,
+  targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
 import type { selectCsharpBinaryOperation } from "../../policy/operations/index.js";
@@ -207,7 +209,8 @@ export function createCsharpExpectedTypePropagation(
       }
       return;
     }
-    const expectedShape = objectShapes.resolveTarget(construction);
+    const expectedShape = targetTypeRefEquals(carrier, csharpObjectTargetType())
+      ? objectShapes.resolveNode(expression) : objectShapes.resolveTarget(construction);
     const resolution = objectShapes.resolveObjectLiteralTargetShape(
       expectedShape,
       expression,

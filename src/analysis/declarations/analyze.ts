@@ -1,5 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import { selectCsharpContextualAsyncReturn } from "../../policy/conversions/contextual-async-return.js";
+import { getCsharpAwaitResultTargetType } from "../../policy/operations/control-flow/await-completions.js";
+import { csharpTaskTargetType } from "../../target-model/types/carriers/delegates.js";
 import { csharpMethodValueCoversContract } from "../../target-model/types/method-values.js";
 import {
   HasSyntacticModifier,
@@ -180,11 +182,7 @@ function classifyReturnContract(
         "The checked source callable has no single closed C# return representation.",
     };
   }
-  if (
-    HasSyntacticModifier(policy.ast, declaration, ModifierFlagsAsync)
-  ) {
-    return { kind: "resolved", type: baseline };
-  }
+  const asynchronous = HasSyntacticModifier(policy.ast, declaration, ModifierFlagsAsync);
   const observed: TargetTypeRef[] = [];
   let incomplete = false;
   collectDirectReturnExpressions(policy, declaration, (expression) => {
@@ -192,7 +190,13 @@ function classifyReturnContract(
     if (type === undefined) {
       incomplete = true;
     } else {
-      observed.push(type);
+      if (asynchronous) {
+        const awaited = getCsharpAwaitResultTargetType(type, policy.typeDefinitions);
+        const baselineResult = getCsharpTaskResultTargetType(baseline);
+        if (awaited !== undefined) observed.push(csharpTaskTargetType(awaited));
+        else if (baselineResult !== undefined && targetTypeRefEquals(type, baselineResult)) observed.push(baseline);
+        else incomplete = true;
+      } else observed.push(type);
     }
   });
   const contract = reconcileInferredReturnTargetContract(

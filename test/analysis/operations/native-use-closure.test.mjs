@@ -135,7 +135,7 @@ for (const surface of ["native", "js"]) test(`${surface} discarded coalescing pr
       (condition(flag, 1) ? (tick(2), () => tick(9)) : (tick(3), undefined)) ?? (tick(4), () => tick(9));
       (condition(flag, 5) ? (tick(6), undefined) : (tick(7), () => tick(9))) ?? (tick(8), () => tick(9));
       (condition(true, 1) && (condition(flag, 2) ? (() => tick(9)) : (() => tick(9)))) ?? (tick(4), () => tick(9));
-      const optional: (() => number) | undefined = flag ? undefined : ready;
+      const optional: number | undefined = flag ? undefined : 1;
       (tick(5), optional) ?? (tick(6), () => tick(9));
       return trace;
     }

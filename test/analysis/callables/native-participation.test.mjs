@@ -4,6 +4,7 @@ import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
+import { analyzeCsharpNativeParticipation } from "../../../dist/analysis/callables/participation.js";
 import { compileCsharpTarget } from "../../../dist/backend/compile.js";
 
 function analyze(sourceText, surface = "native") {
@@ -19,7 +20,7 @@ function analyze(sourceText, surface = "native") {
   assert.equal(Object.hasOwn(result.value.records, "nativeParticipation"), true, "one published participation reader");
   const storage = createSourceStorageQuery(source, source.navigation.sourceFiles);
   assert.equal(storage.failureReason(), undefined, "bounded owned source domain");
-  return { ast: source.ast, nodes: storage.nodes, result, compiled };
+  return { source, ast: source.ast, nodes: storage.nodes, result, compiled };
 }
 
 function labels(value) {
@@ -158,4 +159,49 @@ test("participation uses the bounded unique parent-before-child source domain", 
   assert.equal(value.result.value.records.nativeParticipation.get(arrows[1]) === undefined, true,
     "an erased owning definition never publishes a participating nested definition");
   assertCsharpCompilationSucceeded(value.compiled);
+});
+
+for (const surface of ["native", "js"]) test(`${surface} participation excludes an unused capturing function before its descendants in any domain order`, () => {
+  const value = analyze(`export function run(value: number): number {
+    function unused(): () => number { return () => value + 1; }
+    return value;
+  }`, surface);
+  const unused = value.nodes.find(node => value.ast.is.IsFunctionDeclaration(node) &&
+    value.ast.text(value.ast.name(node)) === "unused");
+  assert.equal(unused !== undefined, true, "the unused capturing definition remains in checked source");
+  const records = value.result.value.records;
+  const descendants = [];
+  const walk = node => { value.ast.forEachChild(node, child => { if (child !== undefined) { descendants.push(child); walk(child); } }); };
+  walk(unused);
+  const requiredRecords = [];
+  const selected = analyzeCsharpNativeParticipation({ ast: value.ast, nodes: [...value.nodes].reverse(),
+    navigation: value.source.navigation,
+    captureClosure: { get(node) {
+      assert.equal(node === unused, false, "unusedness is decided before asking for a native frame");
+      return records.captureClosure.get(node);
+    } }, lambdaCreation: records.lambdaCreation, objectShapes: value.result.value.objectShapes,
+    compileTimeMetadata: records.compileTimeMetadata, requiredRecords });
+  assert.equal(selected.participation.get(unused), "erased", "the erased root retains its single decision");
+  assert.equal(descendants.every(node => selected.participation.get(node) === undefined), true,
+    "no erased descendant receives native participation regardless of input order");
+  assert.equal(requiredRecords.filter(record => record.subject === unused).length, 1, "one required decision for the erased root");
+  assert.equal(requiredRecords.some(record => descendants.includes(record.subject)), false, "no descendant requirement is fabricated");
+  assertCsharpCompilationSucceeded(value.compiled);
+});
+
+test("compile-time metadata excludes the whole subtree without a participation requirement", () => {
+  const value = analyze("export function run(): number { const callback = () => 1; return callback(); }");
+  const root = value.nodes.find(node => value.ast.is.IsFunctionDeclaration(node));
+  assert.equal(root !== undefined, true, "actual checked callable metadata root");
+  const records = value.result.value.records;
+  const requiredRecords = [];
+  const input = { ast: value.ast, nodes: [...value.nodes].reverse(), navigation: value.source.navigation,
+    captureClosure: records.captureClosure, lambdaCreation: records.lambdaCreation, objectShapes: value.result.value.objectShapes,
+    compileTimeMetadata: { get: node => node === root }, requiredRecords };
+  const selected = analyzeCsharpNativeParticipation(input);
+  assert.equal(value.nodes.every(node => selected.participation.get(node) === undefined), true,
+    "metadata is not an erased native callable publication");
+  assert.equal(requiredRecords.length, 0, "metadata and descendants require no native record");
+  assert.throws(() => analyzeCsharpNativeParticipation({ ...input, nodes: value.nodes.slice(1) }),
+    /requires every checked parent/u, "an unresolved native domain cannot silently become empty");
 });

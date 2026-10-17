@@ -11,6 +11,36 @@ import { csharpDelegateTargetType } from "../../../dist/target-model/types/carri
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpProviderArgumentSourceCarrier } from "../../../dist/policy/operations/members/selection/native-use-arguments.js";
 import { analyzeCsharpConversions } from "../../../dist/analysis/conversions/analyze.js";
+import { analyzeCsharpObjectShapes } from "../../../dist/analysis/objects/analyze.js";
+
+test("actual physical copy roots are ready before publication and all published shape reads are pure", () => {
+  const root = { targetType: { kind: "target-named", id: "Owner.Shape" }, members: [] };
+  const copy = { targetType: { kind: "target-named", id: "Owner.Copy" }, members: [] };
+  const late = { targetType: { kind: "target-named", id: "Owner.Late" }, members: [] };
+  const shapes = new Map([[root.targetType.id, root], [copy.targetType.id, copy]]);
+  let reads = 0;
+  const policy = { ast: {}, sourceFiles: [], typeDefinitions: undefined,
+    projectTypes: { directSupertypes: () => [] }, objectShapes: {
+      resolveTarget(type) { reads++; return type.kind === "target-named" ? shapes.get(type.id) : undefined; },
+      resolveCopyShape(shape) { reads++; return shape === root ? copy : shape; },
+    } };
+  const registry = analyzeCsharpObjectShapes(policy, { targetTypes: [root.targetType] }, {});
+  assert.equal(registry.resolveCopyShape(root) === copy, true, "binding copy demand is satisfied before the seal");
+  assert.equal(registry.knownShapes().some(shape => shape.targetType === copy.targetType), true,
+    "native backing observes the complete actual copy closure");
+  assert.equal(registry.resolveTarget(late.targetType) === undefined, true, "an unregistered target is not fabricated");
+  shapes.set(late.targetType.id, late);
+  assert.equal(registry.resolveTarget(late.targetType) === late, true, "a missing open target is not negatively cached");
+  assert.equal(registry.resolveCopyShape(late) === late, true, "a late actual root reaches the same physical owner");
+  const sealed = registry.seal();
+  const completedReads = reads;
+  for (let index = 0; index < 3; index++) {
+    assert.equal(sealed.resolveCopyShape(root)?.targetType === copy.targetType, true, "sealed exact copy lookup");
+    assert.equal(sealed.resolveTarget(late.targetType)?.targetType === late.targetType, true, "sealed late root lookup");
+    assert.equal(sealed.knownShapes().length, 3, "only actual roots and their actual copy are published");
+  }
+  assert.equal(reads, completedReads, "no sealed reader invokes physical policy or computes a new shape");
+});
 
 test("separately rendered provider conversions consume the exact source carrier once", () => {
   const source = csharpSourcePrimitiveTargetType("float64");

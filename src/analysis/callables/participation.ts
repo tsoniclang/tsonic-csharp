@@ -1,5 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import { sourceEnclosingCallable, sourceLexicalFunctionIsUnused } from "@tsonic/target-api/source";
+import { sourceEnclosingCallable, sourceLexicalFunctionIsUnused, sourceNodesOutsideErasedSubtrees } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
 import type { CsharpNativeParticipation, CsharpNativeParticipationInput } from "../../target-model/records/native-demand.js";
@@ -22,20 +23,16 @@ export interface CsharpNativeParticipationAnalysisInput {
 export function analyzeCsharpNativeParticipation(input: CsharpNativeParticipationAnalysisInput): CsharpNativeParticipationInput {
   const { ast } = input;
   const participation = new WeakMap<Node, CsharpNativeParticipation>();
-  const excluded = new WeakSet<Node>();
-  for (const node of input.nodes) {
-    const parent = ast.parent(node);
-    if (parent !== undefined && excluded.has(parent) || input.compileTimeMetadata.get(node)) {
-      excluded.add(node);
-      continue;
-    }
+  const admitted = sourceNodesOutsideErasedSubtrees(ast, input.nodes, node => {
+    if (input.compileTimeMetadata.get(node)) return true;
     const selected = select(node);
-    if (selected === undefined) continue;
+    if (selected === undefined) return false;
     requireCsharpRecord(input.requiredRecords, { family: "nativeParticipation", subject: node,
       construct: "native participation decision", producer: "analyzeCsharpNativeParticipation" });
     participation.set(node, selected);
-    if (selected === "erased") excluded.add(node);
-  }
+    return selected === "erased";
+  });
+  if (admitted.kind === "unresolved") failTargetAnalysisInvariant("tsonic-csharp", admitted.reason);
   return Object.freeze({ participation: Object.freeze({ get: (declaration: Node) => participation.get(declaration) }) });
 
   function select(node: Node): CsharpNativeParticipation | undefined {
@@ -46,8 +43,9 @@ export function analyzeCsharpNativeParticipation(input: CsharpNativeParticipatio
     if (ast.is.IsFunctionDeclaration(node)) {
       if (ast.body(node) === undefined) return "erased";
       if (sourceEnclosingCallable(ast.parent(node), ast) === undefined) return "body";
+      if (sourceLexicalFunctionIsUnused(node, ast, input.navigation)) return "erased";
       if (input.captureClosure.get(node) !== undefined) return "frame-body";
-      return sourceLexicalFunctionIsUnused(node, ast, input.navigation) ? "erased" : "body";
+      return "body";
     }
     if (ast.is.IsMethodDeclaration(node)) {
       return ast.body(node) !== undefined ? "body" : ast.hasModifierKind(node, "abstract") ? "signature" : "erased";
