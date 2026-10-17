@@ -89,11 +89,13 @@ for (const surface of ["native", "js"]) {
     const storage = createSourceStorageQuery(source, program.sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source));
     assert.equal(storage.failureReason() === undefined, true, "bounded owned source domain");
     const rows = [];
-    const participation = analyzeCsharpNativeParticipation({
-      ast, nodes: storage.nodes, navigation: source.navigation,
+    const admitted = analyzeCsharpNativeParticipation({
+      ast, storage, navigation: source.navigation,
       captureClosure: records.captureClosure, lambdaCreation: records.lambdaCreation,
       objectShapes: program.objectShapes, compileTimeMetadata: records.compileTimeMetadata, requiredRecords: rows,
-    }).participation;
+    });
+    assert.equal(admitted.kind, "resolved", "the participation domain is closed before its records can be consumed");
+    const participation = admitted.value.participation;
     assert.equal(storage.nodes.every(node => participation.get(node) === records.nativeParticipation.get(node)), true,
       "the owner selects the published participation again");
     const selected = storage.nodes.filter(node => participation.get(node) !== undefined);

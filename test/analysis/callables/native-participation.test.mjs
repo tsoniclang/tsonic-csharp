@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
+import { createSourceStorageQuery, defaultSourceStorageLimits } from "@tsonic/target-api/analysis";
 import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
@@ -174,15 +174,17 @@ for (const surface of ["native", "js"]) test(`${surface} participation excludes 
   const walk = node => { value.ast.forEachChild(node, child => { if (child !== undefined) { descendants.push(child); walk(child); } }); };
   walk(unused);
   const requiredRecords = [];
-  const selected = analyzeCsharpNativeParticipation({ ast: value.ast, nodes: [...value.nodes].reverse(),
+  const selected = analyzeCsharpNativeParticipation({ ast: value.ast,
+    storage: { nodes: [...value.nodes].reverse(), failureReason: () => undefined },
     navigation: value.source.navigation,
     captureClosure: { get(node) {
       assert.equal(node === unused, false, "unusedness is decided before asking for a native frame");
       return records.captureClosure.get(node);
     } }, lambdaCreation: records.lambdaCreation, objectShapes: value.result.value.objectShapes,
     compileTimeMetadata: records.compileTimeMetadata, requiredRecords });
-  assert.equal(selected.participation.get(unused), "erased", "the erased root retains its single decision");
-  assert.equal(descendants.every(node => selected.participation.get(node) === undefined), true,
+  assert.equal(selected.kind, "resolved", "the complete reverse-ordered domain resolves before publication");
+  assert.equal(selected.value.participation.get(unused), "erased", "the erased root retains its single decision");
+  assert.equal(descendants.every(node => selected.value.participation.get(node) === undefined), true,
     "no erased descendant receives native participation regardless of input order");
   assert.equal(requiredRecords.filter(record => record.subject === unused).length, 1, "one required decision for the erased root");
   assert.equal(requiredRecords.some(record => descendants.includes(record.subject)), false, "no descendant requirement is fabricated");
@@ -195,13 +197,62 @@ test("compile-time metadata excludes the whole subtree without a participation r
   assert.equal(root !== undefined, true, "actual checked callable metadata root");
   const records = value.result.value.records;
   const requiredRecords = [];
-  const input = { ast: value.ast, nodes: [...value.nodes].reverse(), navigation: value.source.navigation,
+  const input = { ast: value.ast, storage: { nodes: [...value.nodes].reverse(), failureReason: () => undefined },
+    navigation: value.source.navigation,
     captureClosure: records.captureClosure, lambdaCreation: records.lambdaCreation, objectShapes: value.result.value.objectShapes,
     compileTimeMetadata: { get: node => node === root }, requiredRecords };
   const selected = analyzeCsharpNativeParticipation(input);
-  assert.equal(value.nodes.every(node => selected.participation.get(node) === undefined), true,
+  assert.equal(selected.kind, "resolved", "a complete metadata-only domain resolves before its reader is exposed");
+  assert.equal(value.nodes.every(node => selected.value.participation.get(node) === undefined), true,
     "metadata is not an erased native callable publication");
   assert.equal(requiredRecords.length, 0, "metadata and descendants require no native record");
-  assert.throws(() => analyzeCsharpNativeParticipation({ ...input, nodes: value.nodes.slice(1) }),
-    /requires every checked parent/u, "an unresolved native domain cannot silently become empty");
+  const unresolved = analyzeCsharpNativeParticipation({ ...input,
+    storage: { nodes: value.nodes.slice(1), failureReason: () => undefined } });
+  assert.equal(unresolved.kind === "rejected" && !Object.hasOwn(unresolved, "value"), true,
+    "an unresolved native domain cannot silently become empty or publish a participation reader");
+  assert.equal(unresolved.diagnostics.length === 1 && unresolved.diagnostics[0].code === "CSHARP_NATIVE_PARTICIPATION_NOT_CLOSED" &&
+    unresolved.diagnostics[0].message === "Source participation requires every checked parent in its finite source domain.", true,
+    "the original missing-parent negative reports its exact expected source diagnostic instead of crashing internally");
+  assert.equal(requiredRecords.length, 0, "an unresolved metadata domain publishes no fabricated requirements");
+});
+
+for (const surface of ["native", "js"]) test(`${surface} malformed or budget-exhausted participation domains reject precisely before classification`, () => {
+  const value = analyze("export function run(): number { const callback = () => 1; return callback(); }", surface);
+  const root = value.nodes.find(node => value.ast.is.IsSourceFile(node));
+  assert.equal(root !== undefined, true, "the actual checked finite domain has its original source-file root");
+  const records = value.result.value.records;
+  const limited = createSourceStorageQuery(value.source, value.source.navigation.sourceFiles,
+    { ...defaultSourceStorageLimits, maximumNodes: 1 });
+  assert.equal(limited.failureReason(), "Source storage transport exceeds its finite source-node budget.",
+    "the budget control uses a real bounded source-storage failure, not an invented empty domain");
+  assert.equal(limited.nodes.length < value.nodes.length, true, "the resource-exhausted checked domain is actually partial");
+  const validFailure = () => undefined;
+  const cyclic = { ...value.ast, parent: node => node === root ? root : value.ast.parent(node) };
+  for (const [label, ast, storage, reason] of [
+    ["stored budget failure", value.ast, limited, limited.failureReason()],
+    ["missing parent", value.ast, { nodes: value.nodes.filter(node => node !== root), failureReason: validFailure },
+      "Source participation requires every checked parent in its finite source domain."],
+    ["duplicate source identity", value.ast, { nodes: [...value.nodes, root], failureReason: validFailure },
+      "Source participation requires one occurrence of each checked source node."],
+    ["cyclic parent correspondence", cyclic, { nodes: value.nodes, failureReason: validFailure },
+      "Source participation requires acyclic checked parent correspondence."],
+  ]) {
+    const requiredRecords = [];
+    let classifications = 0;
+    const rejected = analyzeCsharpNativeParticipation({ ast, storage, navigation: value.source.navigation,
+      captureClosure: records.captureClosure, lambdaCreation: records.lambdaCreation,
+      objectShapes: value.result.value.objectShapes,
+      compileTimeMetadata: { get() { classifications++; return false; } }, requiredRecords });
+    assert.equal(rejected.kind === "rejected" && !Object.hasOwn(rejected, "value"), true,
+      `${label}: an invalid native domain has no reader or default publication`);
+    assert.equal(rejected.diagnostics.length, 1, `${label}: one owning diagnostic`);
+    const diagnostic = rejected.diagnostics[0];
+    assert.equal(diagnostic.code, "CSHARP_NATIVE_PARTICIPATION_NOT_CLOSED", `${label}: precise pre-seal source refusal`);
+    assert.equal(diagnostic.message, reason, `${label}: the exact canonical domain failure is retained`);
+    assert.equal(diagnostic.category === "error" && diagnostic.source === "tsonic-csharp" &&
+      diagnostic.evidence?.join() === "target.capability=csharp.native-participation", true,
+      `${label}: the ordinary target-stage rejection carries the correct native capability evidence`);
+    assert.equal(classifications, 0, `${label}: no source/native classifier runs on an unproven domain`);
+    assert.equal(requiredRecords.length, 0, `${label}: no partial native requirement list is fabricated`);
+  }
 });

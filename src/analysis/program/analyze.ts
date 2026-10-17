@@ -561,11 +561,13 @@ function analyzeIteration(
     ast: source.ast, nodes: sourceStorage.nodes, captures: captureStorage, contracts: callables,
     expectedTypes, storage: storageRepresentations, evidence: sourceEvidence, conversions: preparedConversions,
   });
-  const nativeParticipation = analyzeCsharpNativeParticipation({
-    ast: source.ast, nodes: sourceStorage.nodes, navigation: source.navigation,
+  const participation = analyzeCsharpNativeParticipation({
+    ast: source.ast, storage: sourceStorage, navigation: source.navigation,
     captureClosure: captureStorage.captureClosure, lambdaCreation: captureStorage.lambdaCreation,
     objectShapes, compileTimeMetadata: sourceEvidence.compileTimeMetadata, requiredRecords,
   });
+  if (participation.kind === "rejected") return participation;
+  const nativeParticipation = participation.value;
   const classInitialization = analyzeCsharpClassInitialization(source, classFactories);
   const exactLiterals = analyzeCsharpExactLiteralSelections(typeHost.literalValues, [
     ...preparedConversions.exactLiteralRequests,

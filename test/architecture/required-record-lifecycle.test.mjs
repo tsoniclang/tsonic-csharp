@@ -252,6 +252,29 @@ test("callable contracts and forwarding consume the actual attempt's mandatory f
   }
 });
 
+test("unclosed native participation rejects before its reader or any native demand is consumed", () => {
+  const call = composedCall("analyzeCsharpNativeParticipation", iteration, "participation result");
+  const input = ast.arguments(call)[0];
+  const storage = property(input, "storage");
+  assert.equal(storage !== undefined && ast.is.IsPropertyAssignment(storage) &&
+    text(ast.as.AsPropertyAssignment(storage).Initializer) === "sourceStorage", true,
+    "the participation owner receives the actual complete storage domain and its failure reason, not only a partial node array");
+  const statements = ast.statements(ast.body(iteration));
+  const index = topLevelIndex(statements, statement => ownDeclaration(statement, "participation") !== undefined, "participation result");
+  const rejection = statements[index + 1];
+  assert.equal(ast.is.IsIfStatement(rejection) && text(ast.as.AsIfStatement(rejection).Expression) === 'participation.kind === "rejected"' &&
+    ast.is.IsReturnStatement(ast.as.AsIfStatement(rejection).ThenStatement) &&
+    text(ast.as.AsReturnStatement(ast.as.AsIfStatement(rejection).ThenStatement).Expression) === "participation", true,
+    "the exact expected rejection is returned immediately before any reader is exposed");
+  const publication = ownDeclaration(statements[index + 2], "nativeParticipation");
+  assert.equal(publication !== undefined && text(ast.as.AsVariableDeclaration(publication).Initializer) === "participation.value", true,
+    "only a resolved native domain publishes the reader used by later admission and the record seal");
+  for (const callee of ["analyzeCsharpClassInitialization", "analyzeCsharpBindingPatterns", "analyzeCsharpNativeDemand", "conversionAnalysis.close"]) {
+    assert.equal(position(rejection) < position(composedCall(callee, iteration, "participation result")), true,
+      `${callee}: no later native admission can run after an unresolved participation domain`);
+  }
+});
+
 test("owning issues reject before the late registrations finish and before the one assembly", () => {
   const rejection = condition => statement => ast.is.IsIfStatement(statement) &&
     text(ast.as.AsIfStatement(statement).Expression) === condition &&
