@@ -90,4 +90,3 @@ export function objectShapeProjectionDeclaration(
   return Object.freeze({ receiver, selection, methodName: csharpObjectShapeProjectionMethodName(receiver, selection),
     receiverRequiresNullCheck: isCsharpReferenceCarrier(receiver.targetType), typeParameters, typeParameterNames, conversions });
 }
-

@@ -262,7 +262,7 @@ test("actual optional and conditional physical projection methods compile and re
       { kind: "ConstructorDeclaration", name: "Projection", modifiers: ["public"],
         parameters: [{ name: "value", type: { kind: "IdentifierName", name: "Value" } }], body: { kind: "Block", statements: [
           { kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" },
-            left: { kind: "SimpleMemberAccessExpression", receiver: { kind: "ThisExpression" }, name: "value" },
+            left: { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: "value" },
             right: { kind: "IdentifierName", name: "value" } } },
         ] } },
       ...methods,
