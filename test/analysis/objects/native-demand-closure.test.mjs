@@ -123,12 +123,26 @@ test("erased metadata is not an extra demand root and retained source refusals s
     "the existing precise source rejection is not relabelled as an invariant");
 });
 
-test("participating unsupported construction retains its native rejection before publication", () => {
-  const compiled = compileCsharpSource({ surface: "js", sourceText: "export const value = new Proxy({}, {});" });
+for (const [name, sourceText] of [
+  ["module initializer", "export const value = new Proxy({}, {});"],
+  ["returned construction", "export function make(): unknown { return new Proxy({}, {}); }"],
+  ["parenthesized construction", "export const value = (new Proxy({}, {}));"],
+  ["conditional construction", "export function make(flag: boolean): unknown { return flag ? new Proxy({}, {}) : {}; }"],
+  ["invoked closure", "export const value = (() => new Proxy({}, {}))();"],
+]) test(`participating ${name} retains its native constructor rejection before publication`, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText });
   assert.equal(compiled.sourceDiagnosticsText, "", "the checked constructor reaches the actual native refusal owner");
   assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
     "an actual unsupported construction is refused before publication and never emulated");
-  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_JS_SOURCE_PROFILE_OPERATION_UNSUPPORTED" &&
+  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "TS9101002" &&
     diagnostic.message === "Proxy traps redefine object operations dynamically and have no closed C# source-to-source representation."), true,
     "the exact supported diagnostic is retained, not an internal failure");
+  assert.equal(compiled.result.diagnostics.length, 1, "the exact participating constructor has one owning refusal");
+  assert.equal(compiled.source.ast.is.IsNewExpression(compiled.result.diagnostics[0].sourceNode), true, "the refusal is on its actual constructor source");
+});
+
+test("a native class named Proxy is not confused with the unsupported source-profile constructor", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: "class Proxy {} export const value = new Proxy();" });
+  assertCsharpCompilationSucceeded(compiled);
+  assert.equal(compiled.artifacts.size > 0, true, "the selected native constructor remains admitted without a name-based rejection");
 });
