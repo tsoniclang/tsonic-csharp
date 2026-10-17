@@ -331,6 +331,36 @@ test("the complete interface request union is deduplicated before native admissi
   assert.equal(value.reads(), 2, "the real implementation and default contracts are each read once, before publication");
 });
 
+test("retained method protocols require their exact producer-owned shape and checked member", () => {
+  for (const mode of ["retained", "missing-shape", "foreign-subject", "non-method"]) {
+    const value = fixture();
+    const protocol = csharpTargetNamedType("test.MethodProtocol", undefined, { kind: "named", name: "MethodProtocol" },
+      { structuralContract: true, allowsRefLikeTypeArguments: [] });
+    const selected = value.shapes.structuralImplementations(value.sourceType)[0];
+    const method = selected.methods[0];
+    const subject = Object.freeze({});
+    const member = Object.freeze({ ...method.member, sourceSubjects: Object.freeze([subject]), methodValueContract: protocol });
+    value.shapes.structuralImplementations = () => [{ ...selected, methods: [{ ...method, member }] }];
+    value.shapes.resolveTarget = type => type !== protocol || mode === "missing-shape" ? undefined : {
+      targetType: protocol, members: [{ ...member,
+        sourceSubjects: mode === "foreign-subject" ? [Object.freeze({})] : member.sourceSubjects,
+        memberKind: mode === "non-method" ? "property" : "method" }],
+    };
+    const analyze = () => analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes,
+      value.declarations, value.projections);
+    if (mode === "retained") {
+      const finalized = analyze();
+      assert.equal(finalized.issues.length, 0, `${mode}: the actual producer-owned protocol is admitted`);
+      const implementations = finalized.objectShapes.structuralImplementations(value.sourceType);
+      assert.equal(implementations.length === 2 && implementations.every(implementation => implementation.methods.length === 1), true,
+        `${mode}: both exact interface obligations have one canonical native implementation`);
+    } else assert.throws(analyze, error => error.diagnostic?.code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" &&
+      error.diagnostic.source === "tsonic-csharp" && error.diagnostic.sourceNode === value.declaration &&
+      error.message === "An inherited method-value protocol lost its checked native member correspondence.",
+    `${mode}: broken producer evidence is not a new unsupported-source restriction`);
+  }
+});
+
 test("native implicit methods need no bridge while phantom destination binders still require one", () => {
   for (const phantom of [false, true]) {
     const value = fixture();
@@ -399,9 +429,9 @@ test("canonical generic admission alpha-aligns real body parameters and retains 
 });
 
 const nativeBoundBase = csharpTargetNamedType("test.BoundBase", undefined, { kind: "named", name: "BoundBase" },
-  { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [] });
+  { sourceDeclarationKind: "class", constraintRequiresReferenceType: true, allowsRefLikeTypeArguments: [] });
 const nativeBoundDerived = csharpTargetNamedType("test.BoundDerived", undefined, { kind: "named", name: "BoundDerived" },
-  { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [] });
+  { sourceDeclarationKind: "class", constraintRequiresReferenceType: true, allowsRefLikeTypeArguments: [] });
 
 function genericBoundFixture(bodyConstraints, destinationConstraints, bodyPermissions = [false], destinationPermissions = [false]) {
   const value = fixture();

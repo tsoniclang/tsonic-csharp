@@ -26,6 +26,7 @@ export function substituteTargetTypeParameters(
   type: TargetTypeRef,
   substitutions: ReadonlyMap<string, TargetTypeRef>,
 ): TargetTypeRef {
+  if (substitutions.size === 0) return type;
   switch (type.kind) {
     case "type-parameter":
       const substitution = substitutions.get(type.identity);
