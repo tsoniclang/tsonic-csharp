@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertNoTargetDiagnostics } from "../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 
 const header = `
   import type { int } from "@tsonic/csharp/types.js";
@@ -57,7 +58,7 @@ for (const [name, body, count] of acceptedForms) {
   test(`admitted keep-alive in ${name} position is published as sealed data and emitted`, () => {
     const compiled = compileCsharpSource({ sourceText: header + body });
     assert.equal(compiled.sourceDiagnosticsText, "");
-    assert.deepEqual(compiled.result.diagnostics, []);
+    assertNoTargetDiagnostics(compiled.result.diagnostics);
     const output = compiled.artifacts.get("src/Index.cs");
     assert.equal(output.split("global::System.GC.KeepAlive(value)").length - 1, count);
     const records = compiled.result.program.records;
@@ -80,7 +81,7 @@ test("a local function named like a source-flow marker is an ordinary call with 
     export function f(value: int): int { return move2(value); }
   ` });
   assert.equal(compiled.sourceDiagnosticsText, "");
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assertNoTargetDiagnostics(compiled.result.diagnostics);
   const records = compiled.result.program.records;
   const ast = compiled.result.program.source.ast;
   const calls = [];
