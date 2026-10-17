@@ -139,7 +139,7 @@ function selectArrayElementDestination(
       ? csharpFreeTypeParameterIdentities([receiverBinding.type]) : parameters;
     if ([...unbound].some(identity => !selected.sourceSelectedMethodTypeArguments?.some(entry => {
       if (entry.explicitTypeNode === undefined) return false;
-      const native = resolveTypeParameter(entry.typeParameter, callQueries, host.ast);
+      const native = resolveTypeParameter(entry.typeParameter, callQueries, host.ast, host.typeParameterConstraints);
       return native?.kind === "type-parameter" && native.identity === identity;
     }))) return undefined;
     const actual = scope.resolveSourceCallArgumentParameter(selected, binding, file);
