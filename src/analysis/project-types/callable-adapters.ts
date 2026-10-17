@@ -309,9 +309,16 @@ export function analyzeCsharpProjectCallableAdapters(
       })));
       contract = Object.freeze({ parameters: Object.freeze(parameters.map(targetParameter => Object.freeze({ targetParameter }))),
         returnType: signature.returnType });
-      const declaration = method.member.typeParameters?.[0]?.declaration;
-      const owner = declaration === undefined ? undefined : policy.ast.parent(declaration);
-      if (owner !== undefined) nativeContract = callables.get({ kind: "declaration", declaration: owner });
+      const identities = method.member.typeParameters?.map(parameter => parameter.identity) ?? [];
+      const contracts = new Map<Node, CsharpSourceCallableContract>();
+      for (const declaration of new Set(method.member.sourceDeclarations ?? [])) {
+        const selected = callables.get({ kind: "declaration", declaration });
+        if (selected !== undefined && selected.methodTypeParameterIdentities.length === identities.length &&
+          selected.methodTypeParameterIdentities.every((identity, index) => identity === identities[index])) {
+          contracts.set(selected.sourceDeclaration, selected);
+        }
+      }
+      if (contracts.size === 1) nativeContract = contracts.values().next().value;
     }
     const typeParameters = nativeContract === undefined ? (method.member.typeParameters?.length ?? 0) === 0 ? Object.freeze([]) : undefined
       : nativeParameters(method.member, nativeContract);
@@ -339,14 +346,15 @@ export function analyzeCsharpProjectCallableAdapters(
     const permissions = contract.methodAllowsRefLikeTypeArguments;
     if (!Array.isArray(permissions) || permissions.length !== contract.methodTypeParameterIdentities.length ||
       Object.keys(permissions).length !== permissions.length || permissions.some(allowed => typeof allowed !== "boolean")) return undefined;
-    const authored: readonly NativeParameter[] = (member?.typeParameters ?? []).map(parameter => Object.freeze({
-      kind: "type-parameter" as const, identity: parameter.identity, name: parameter.name, csharpDeclaration: parameter.declaration,
-      csharpConstraints: Object.freeze({ kind: "resolved" as const, constraints: parameter.constraints }),
+    const projected = new Map(projections.get(contract.sourceDeclaration).map(parameter => [parameter.identity, parameter]));
+    const selected: readonly NativeParameter[] = Object.freeze((member?.typeParameters ?? []).map(parameter => {
+      const projection = projected.get(parameter.identity);
+      const constraints = Object.freeze({ kind: "resolved" as const, constraints: parameter.constraints });
+      return projection === undefined ? Object.freeze({
+        kind: "type-parameter" as const, identity: parameter.identity, name: parameter.name,
+        csharpDeclaration: parameter.declaration, csharpConstraints: constraints,
+      }) : Object.freeze({ ...projection, csharpProjectionConstraints: parameter.constraints, csharpConstraints: constraints });
     }));
-    const projected = projections.get(contract.sourceDeclaration).map(parameter => Object.freeze({ ...parameter,
-      csharpConstraints: Object.freeze({ kind: "resolved" as const, constraints: parameter.csharpProjectionConstraints }),
-    }));
-    const selected = Object.freeze([...authored, ...projected]);
     return selected.length === contract.methodTypeParameterIdentities.length &&
       selected.every((parameter, index) => parameter.identity === contract.methodTypeParameterIdentities[index]) ? selected : undefined;
   }
