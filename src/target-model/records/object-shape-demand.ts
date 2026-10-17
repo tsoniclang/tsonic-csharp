@@ -16,6 +16,7 @@ export interface CsharpObjectShapeArtifact {
 
 export interface CsharpObjectShapeDemand {
   readonly artifacts: readonly CsharpObjectShapeArtifact[];
+  readonly targetShapes: Readonly<Record<string, CsharpObjectShapeFact>>;
   readonly get: (key: string) => CsharpObjectShapeArtifact | undefined;
   readonly projection: (subject: Node) => CsharpObjectShapeProjection | undefined;
 }

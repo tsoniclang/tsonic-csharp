@@ -56,7 +56,8 @@ export interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemand
   readonly captureStorage: CsharpCaptureStorage;
   readonly callableAdapters: CsharpProjectCallableAdapters;
   readonly flowReads: CsharpFlowReadClassifications;
-  readonly objectShapes: CsharpObjectShapeClassifications<CsharpFinalStructuralInterfaceImplementation>;
+  readonly objectShapes: CsharpObjectShapeClassifications<CsharpFinalStructuralInterfaceImplementation> &
+    Pick<CsharpObjectShapeDemandHost["objectShapes"], "targetShapes">;
   readonly declarations: CsharpDeclarationClassifications;
   readonly bindingPatterns: CsharpBindingPatternClassifications;
   readonly conversions: CsharpConversionClassifications;
@@ -251,9 +252,6 @@ export function analyzeCsharpNativeArtifactDemand(
       const shape = input.objectShapes.resolveNode(node, ast.getSourceFile(node));
       if (shape !== undefined) {
         demandShape(shape, node);
-        if (ast.is.IsInterfaceDeclaration(node) && shape.members.some(member => member.memberKind === "method" && member.optional === true)) {
-          capability(node, shape.targetType, "method-values");
-        }
       }
     }
     const callable = input.callables.get({ kind: "declaration", declaration: node });

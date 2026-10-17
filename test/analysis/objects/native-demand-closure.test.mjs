@@ -6,7 +6,11 @@ import { createCsharpProgramRecords } from "../../../dist/analysis/program/recor
 import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/records/required-records.js";
 import { createCsharpObjectShapeDemandEngine } from "../../../dist/analysis/objects/native-demand-requests.js";
 import { objectShapeArtifactKey } from "../../../dist/target-model/records/object-shape-demand.js";
+import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
+import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
+import { monomorphicStructuralOptionalFiles } from "../../../../tsonic/test/fixtures/generic-structural-methods.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 const header = 'import type { int32 } from "@tsonic/core/types.js";';
 const programs = [
@@ -23,6 +27,8 @@ for (const surface of ["native", "js"]) for (const [name, body] of programs) {
     const { compiled, program, source, nodes } = compileCsharpRequiredRecordSource(header + body, surface);
     const demand = program.records.objectShapeArtifact;
     assert.equal(Object.isFrozen(demand) && Object.isFrozen(demand.artifacts), true, "one immutable artifact publication");
+    assert.equal(demand.targetShapes === program.objectShapes.targetShapes && Object.isFrozen(demand.targetShapes), true,
+      "artifact demand transports the canonical completed target-shape index by identity");
     assert.equal(demand.artifacts.length > 0, true, "participating anonymous storage has emitted artifacts");
     for (const artifact of demand.artifacts) {
       assert.equal(Object.isFrozen(artifact) && demand.get(artifact.key) === artifact, true, "exact immutable shape identity");
@@ -53,23 +59,73 @@ for (const surface of ["native", "js"]) for (const [name, body] of programs) {
   });
 }
 
+for (const surface of ["native", "js"]) test(`${surface}: authored native method protocols retain their intrinsic receiver ABI`, () => {
+  const { program } = compileCsharpRequiredRecordSource(monomorphicStructuralOptionalFiles["index.ts"], surface);
+  const implementations = program.records.objectShapeArtifact.artifacts.filter(artifact => artifact.fact.methodImplementation !== undefined &&
+    artifact.fact.members.some(member => member.memberKind === "method" && member.methodValueContract !== undefined));
+  assert.equal(implementations.length > 0, true, "the actual optional method body has admitted native implementation evidence");
+  let nativeMethods = 0;
+  for (const artifact of implementations) for (const member of artifact.fact.members) {
+    if (member.memberKind !== "method" || member.methodValueContract === undefined || member.methodStorageType !== undefined) continue;
+    nativeMethods += 1;
+    assert.equal(artifact.receiverBoundMethodKeys.includes(csharpObjectShapeMemberContractKey(member)), false,
+      "an authored native method uses this directly, never a synthetic receiver-delegate ABI");
+  }
+  assert.equal(nativeMethods > 0, true, "the intrinsic receiver assertion covers real native methods");
+});
+
+for (const surface of ["native", "js"]) test(`${surface}: an unused optional declaration cannot demand copying native prototype methods`, { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    type Reader = { read<Value>(value: Value): Value };
+    interface NamedReader { read<Value>(value: Value): Value; }
+    interface UnusedOptional { read?<Value>(value: Value): Value; }
+    class ReaderBody { read<Value>(value: Value): Value { return value; } }
+    export function run(): boolean {
+      const named: NamedReader = new ReaderBody();
+      const structural: Reader = new ReaderBody();
+      return named.read<number>(17) === 17 && structural.read<number>(19) === 19;
+    }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const artifacts = compiled.result.program.records.objectShapeArtifact.artifacts;
+  const optional = artifacts.filter(artifact => artifact.fact.members.some(member => member.memberKind === "method" && member.optional === true));
+  assert.equal(optional.length > 0, true, "the real checked optional declaration remains represented");
+  assert.equal(optional.every(artifact => !artifact.capabilities.includes("method-values")), true,
+    "a declaration alone never requests copying a native method");
+  assert.equal(artifacts.every(artifact => !artifact.capabilities.includes("method-values")), true,
+    "direct named and structural method calls do not gain a copied-value surface");
+  executeCsharpConstruction(compiled, `unused-optional-method-demand-${surface}`);
+});
+
 test("artifact demand seals once and the backend cannot reach the native query owner", () => {
   let closed = false;
   let reads = 0;
   const type = { kind: "target-named", id: "tsonic.shape:Leaf", csharpAllowsRefLikeTypeArguments: [], csharpRender: { kind: "named", name: "Leaf" } };
   const fact = Object.freeze({ targetType: type, members: Object.freeze([]) });
+  const targetShapes = Object.freeze({ [targetTypeRefKey(type)]: fact });
   const engine = createCsharpObjectShapeDemandEngine({ objectShapes: {
+    targetShapes,
     resolveTarget(selected) { assert.equal(closed, false, "queries run before publication"); reads += 1; return selected === type ? fact : undefined; },
     knownShapes: () => [fact],
   } });
   assert.equal(engine.registerObjectShape(fact, "synthetic").kind, "accepted");
   const demand = engine.seal();
+  assert.equal(demand.targetShapes === targetShapes && Object.isFrozen(demand.targetShapes), true,
+    "the immutable completed lookup is transported without reindexing");
   closed = true;
   const before = reads;
   for (let index = 0; index < 4; index += 1) assert.equal(demand.get(objectShapeArtifactKey(fact)).fact === fact, true, "same fixed record");
   assert.equal(reads, before, "no native-query recomputation after publication");
   assert.throws(() => engine.registerObjectShape(fact, "synthetic"), /artifact demand is sealed/u);
   assert.throws(() => engine.seal(), /artifact demand is sealed/u);
+});
+
+test("artifact demand requires its canonical immutable completed shape index at sealing", () => {
+  for (const targetShapes of [undefined, {}]) {
+    const engine = createCsharpObjectShapeDemandEngine({ objectShapes: { targetShapes, resolveTarget() {} } });
+    assert.throws(() => engine.seal(), /immutable completed target-shape index/u,
+      "a missing or mutable input cannot become a published artifact DTO");
+  }
 });
 
 test("erased metadata is not an extra demand root and retained source refusals still precede planning", () => {
