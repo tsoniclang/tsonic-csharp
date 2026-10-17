@@ -22,7 +22,8 @@ function fixture() {
     names: { temporaryName: value => value },
     artifacts: Object.freeze({}),
   };
-  const orders = createCsharpObjectShapePropertyOrderIndex({}, () => {}, () => []);
+  const orders = createCsharpObjectShapePropertyOrderIndex({}, () => {}, () => [],
+    () => { throw new Error("This nominal fixture has no native implementers to query"); });
   orders.record(shape);
   orders.seal();
   return { source, shape, members, input, conversions, orders };

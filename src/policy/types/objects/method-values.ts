@@ -114,7 +114,11 @@ function inferStructuralMemberTypeArguments(
   actual: CsharpObjectShapeMemberFact,
   parameterIdentities: ReadonlySet<string>,
 ): ReadonlyMap<string, TargetTypeRef> | undefined {
-  if (![...csharpFreeTypeParameterIdentities([pattern.type])].some(identity => parameterIdentities.has(identity))) return new Map();
+  const containsParameter = (type: TargetTypeRef): boolean =>
+    [...csharpFreeTypeParameterIdentities([type])].some(identity => parameterIdentities.has(identity));
+  const constrained = pattern.typeParameters?.some(parameter => parameter.constraints.some(constraint =>
+    constraint.kind === "type" && containsParameter(constraint.type))) === true;
+  if (!containsParameter(pattern.type) && !constrained) return new Map();
   const from = actual.typeParameters ?? [];
   const to = pattern.typeParameters ?? [];
   if (from.length !== to.length) return undefined;
@@ -124,6 +128,23 @@ function inferStructuralMemberTypeArguments(
     substitutions.set(parameter.identity, Object.freeze({ kind: "type-parameter", identity: target.identity,
       name: target.name, csharpConstraints: Object.freeze({ kind: "resolved", constraints: target.constraints }) }));
   }
-  return inferCsharpTargetTypeParameterBindings(pattern.type,
-    substituteTargetTypeParameters(actual.type, substitutions), parameterIdentities);
+  const inferred = containsParameter(pattern.type) ? inferCsharpTargetTypeParameterBindings(pattern.type,
+    substituteTargetTypeParameters(actual.type, substitutions), parameterIdentities) : new Map<string, TargetTypeRef>();
+  if (inferred === undefined) return undefined;
+  const bindings = new Map(inferred);
+  for (const [index, parameter] of to.entries()) {
+    for (const constraint of parameter.constraints) {
+      if (constraint.kind !== "type" || !containsParameter(constraint.type)) continue;
+      const matches = from[index]!.constraints.flatMap(candidate => {
+        if (candidate.kind !== "type") return [];
+        const selected = inferCsharpTargetTypeParameterBindings(constraint.type,
+          substituteTargetTypeParameters(candidate.type, substitutions), parameterIdentities);
+        return selected !== undefined && [...selected].every(([identity, type]) =>
+          !bindings.has(identity) || targetTypeRefEquals(bindings.get(identity)!, type)) ? [selected] : [];
+      });
+      if (matches.length !== 1) return undefined;
+      for (const [identity, type] of matches[0]!) bindings.set(identity, type);
+    }
+  }
+  return bindings;
 }

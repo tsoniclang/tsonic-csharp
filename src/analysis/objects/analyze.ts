@@ -26,6 +26,7 @@ import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeMemberTarg
 import { createCsharpObjectShapePropertyOrderIndex } from "./property-order.js";
 import { instantiateCsharpObjectShape } from "../../policy/types/objects/object-shape-policy/instantiation.js";
 import type { CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
+import { namedTargetTypeImplicitlyAccepts } from "../../policy/conversions/carriers.js";
 
 const noExpectedShape = "<none>";
 const maximumObjectShapeClassifications = 131_072;
@@ -48,8 +49,14 @@ export function analyzeCsharpObjectShapes(
   const copiedMethodImplementations = new Set<string>();
   const operationTypes: TargetTypeRef[] = [];
   const admittedShapes = new Set<CsharpObjectShapeFact>();
+  const conversionPolicy = { typeDefinitions: policy.typeDefinitions, projectTypes: policy.projectTypes, providers: policy.providers,
+    objectShapes: {
+      resolveNode: (node: Node | undefined) => node === undefined ? undefined : withInterfaces(byNode.get(node)),
+      resolveTarget: (type: TargetTypeRef | undefined) => type === undefined ? undefined : withInterfaces(byTarget.get(targetTypeRefKey(type))),
+    } };
   const propertyOrders = createCsharpObjectShapePropertyOrderIndex(policy.ast, reserveClassification,
-    () => [...admittedShapes].map(shape => withInterfaces(shape)!));
+    () => [...admittedShapes].map(shape => withInterfaces(shape)!),
+    (source, target) => namedTargetTypeImplicitlyAccepts(conversionPolicy, source, target, new Set()));
   let classificationCount = 0;
   let sealed = false;
   let knownShapes: readonly CsharpObjectShapeFact[] = Object.freeze([]);

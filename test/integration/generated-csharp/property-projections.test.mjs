@@ -54,6 +54,46 @@ for (const [name, body] of [
   assert.equal(compiled.artifacts.size, 0, `${name}: no truncated or prototype-based own-property array is published`);
 });
 
+test("Object.assign refuses a structural source whose complete own set is wider than its view", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    type View = { readonly count: int32 };
+    function copy(value: View): int32 {
+      const target = { count: 0 as int32, extra: 0 as int32 };
+      return Object.assign(target, value).extra;
+    }
+    export function run(): boolean {
+      const actual = { count: 7 as int32, extra: 11 as int32 };
+      const view: View = actual;
+      return copy(view) === 11;
+    }
+  ` });
+  assertCsharpCheckingSucceeded(compiled);
+  assert.equal(compiled.targetDiagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    issue.message.includes("exact own-property set")), true, "assignment source admission cannot silently copy only count");
+  assert.equal(compiled.artifacts.size, 0, "no artifact can leave extra unchanged after truncating an unproved source");
+});
+
+test("own-property admission includes closed covariant native implementations with wider storage", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    class BaseValue { marker: int32 = 1; }
+    class DerivedValue extends BaseValue { derived: int32 = 2; }
+    type Read<Value> = { readonly value: Value };
+    function describe(value: Read<BaseValue>): string { return Object.keys(value).join(","); }
+    export function run(): boolean {
+      const exact: Read<BaseValue> = { value: new BaseValue() };
+      const actual = { value: new DerivedValue(), extra: 7 as int32 };
+      const narrowed: Read<DerivedValue> = actual;
+      return describe(exact) === "value" && describe(narrowed) === "value,extra";
+    }
+  ` });
+  assertCsharpCheckingSucceeded(compiled);
+  assert.equal(compiled.targetDiagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    issue.message.includes("exact own-property set")), true, "native covariance cannot hide the wider admitted receiver");
+  assert.equal(compiled.artifacts.size, 0, "no truncated key array is published for a covariant native receiver");
+});
+
 test("native property projections preserve selected generic inherited getters and exact failure identity", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: nativePropertyProjectionSource });
   executeCsharpConstruction(compiled, "property-projections");

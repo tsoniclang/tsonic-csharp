@@ -4,8 +4,8 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact, CsharpObjectShapeProjectionKind, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { isSourceDeclaredNominalShape, isCsharpObjectShapeGeneratedMemberName } from "../../target-model/types/object-shape-projection.js";
 import { csharpStructuralObjectShapeIdPrefix } from "../../target-model/types/object-shape-identity.js";
-import { inferCsharpTargetTypeParameterBindings } from "../../target-model/types/substitution.js";
-import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
+import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
 import type { CsharpObjectShapePropertyOrderSelection } from "./model.js";
 
 type AuthoredOrder = CsharpObjectShapePropertyOrderSelection | { readonly kind: "empty" };
@@ -42,9 +42,13 @@ export function createCsharpObjectShapePropertyOrderIndex(
   ast: AstReader,
   reserveClassification: () => void,
   completedNativeShapes: () => Iterable<CsharpObjectShapeFact>,
+  nativeImplementationAccepts: (source: TargetTypeRef, target: TargetTypeRef) => boolean,
 ) {
   if (typeof completedNativeShapes !== "function") {
     throw new TypeError("C# own-property analysis requires its completed native shape input.");
+  }
+  if (typeof nativeImplementationAccepts !== "function") {
+    throw new TypeError("C# own-property analysis requires its canonical native implementation relation.");
   }
   const emptyLiterals = new WeakSet<Node>();
   const byType = new WeakMap<TargetTypeRef, WeakMap<CsharpObjectShapeFact["members"], PropertyOrders>>();
@@ -80,10 +84,15 @@ export function createCsharpObjectShapePropertyOrderIndex(
       }
       implementations = selected;
     }
-    const native = shape.targetType.kind === "target-named"
-      ? (implementations.get(shape.targetType.id) ?? []).filter(implementation =>
-        exactNativeInstantiationCanMatch(shape.targetType, implementation.contract)).map(implementation => implementation.shape) : [];
-    byMembers.set(shape.members, classifyPropertyOrders(shape, ast, native));
+    const native: CsharpObjectShapeFact[] = [];
+    let complete = true;
+    for (const implementation of shape.targetType.kind === "target-named" ? implementations.get(shape.targetType.id) ?? [] : []) {
+      reserveClassification();
+      const match = nativeInstantiationCanMatch(shape.targetType, implementation.contract, nativeImplementationAccepts);
+      if (match === undefined) complete = false;
+      else if (match) native.push(implementation.shape);
+    }
+    byMembers.set(shape.members, classifyPropertyOrders(shape, ast, complete ? native : undefined));
     byType.set(shape.targetType, byMembers);
   };
   const selection = (shape: CsharpObjectShapeFact): PropertyOrders | undefined => {
@@ -130,14 +139,22 @@ function isInterfaceShape(fact: CsharpObjectShapeFact): boolean {
       (fact.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface");
 }
 
-function exactNativeInstantiationCanMatch(left: TargetTypeRef, right: TargetTypeRef): boolean {
-  if (targetTypeRefEquals(left, right)) return true;
-  const parameters = (type: TargetTypeRef): ReadonlySet<string> => new Set(type.kind !== "target-named" ? []
-    : (type.typeArguments ?? []).flatMap(argument => argument.kind === "type-parameter" ? [argument.identity] : []));
-  const leftParameters = parameters(left);
-  const rightParameters = parameters(right);
-  return leftParameters.size !== 0 && inferCsharpTargetTypeParameterBindings(left, right, leftParameters) !== undefined ||
-    rightParameters.size !== 0 && inferCsharpTargetTypeParameterBindings(right, left, rightParameters) !== undefined;
+function nativeInstantiationCanMatch(
+  target: TargetTypeRef, source: TargetTypeRef,
+  nativeAccepts: (source: TargetTypeRef, target: TargetTypeRef) => boolean,
+): boolean | undefined {
+  if (nativeAccepts(source, target)) return true;
+  const sourceParameters = csharpFreeTypeParameterIdentities([source]);
+  const targetParameters = csharpFreeTypeParameterIdentities([target]);
+  if (sourceParameters.size !== 0) {
+    const bindings = inferCsharpTargetTypeParameterBindings(source, target, sourceParameters);
+    if (bindings !== undefined && nativeAccepts(substituteTargetTypeParameters(source, bindings), target)) return true;
+  }
+  if (targetParameters.size !== 0) {
+    const bindings = inferCsharpTargetTypeParameterBindings(target, source, targetParameters);
+    if (bindings !== undefined && nativeAccepts(source, substituteTargetTypeParameters(target, bindings))) return true;
+  }
+  return sourceParameters.size === 0 && targetParameters.size === 0 ? false : undefined;
 }
 
 function hasExactNativeOwnStorage(fact: CsharpObjectShapeFact): boolean {
@@ -149,12 +166,12 @@ function hasExactNativeOwnStorage(fact: CsharpObjectShapeFact): boolean {
 }
 
 function classifyPropertyOrders(fact: CsharpObjectShapeFact, ast: AstReader,
-  implementations: readonly CsharpObjectShapeFact[]): PropertyOrders {
+  implementations: readonly CsharpObjectShapeFact[] | undefined): PropertyOrders {
   const stringMembers = fact.members.filter(member => member.sourceKey.kind === "property");
   const nominal = isSourceDeclaredNominalShape(fact);
   const reserved = fact.members.some(member => isCsharpObjectShapeGeneratedMemberName(member.targetName));
   const exactOwnSet = !isInterfaceShape(fact) ? hasExactNativeOwnStorage(fact)
-    : implementations.length !== 0 && implementations.every(implementation => {
+    : implementations !== undefined && implementations.length !== 0 && implementations.every(implementation => {
       const members = implementation.members.filter(member => member.sourceKey.kind === "property");
       return hasExactNativeOwnStorage(implementation) && members.length === stringMembers.length &&
         members.every(member => member.optional !== true && stringMembers.some(expected =>
@@ -179,10 +196,9 @@ function classifyPropertyOrders(fact: CsharpObjectShapeFact, ast: AstReader,
     : stringMembers.some(member => member.optional === true || member.memberKind !== "property" ||
       member.readonly === true || member.accessor !== undefined)
       ? rejected("Selected 'assign' operation requires exact writable, required data-property storage.") : dataOrder;
-  const assignmentSource = nominal ? rejected("Selected 'assign' operation requires one exact generated structural source carrier; an open nominal source type cannot prove its runtime own-property set.")
-    : reserved ? rejected("Selected 'assign' source conflicts with a reserved generated object-shape member name.")
-      : stringMembers.some(member => member.optional === true || member.memberKind !== "property" || member.accessor !== undefined)
-        ? rejected("Selected 'assign' source requires exact readable, required data-property storage.") : dataOrder;
+  const assignmentSource = commonReason !== undefined ? rejected(`Selected 'assign' source ${commonReason}`)
+    : stringMembers.some(member => member.optional === true || member.memberKind !== "property" || member.accessor !== undefined)
+      ? rejected("Selected 'assign' source requires exact readable, required data-property storage.") : dataOrder;
   return Object.freeze({ projections: Object.freeze({ keys: enumeration("keys"), values: enumeration("values"),
     entries: enumeration("entries"), "has-own": hasOwn, assign }), assignmentSource });
 }
