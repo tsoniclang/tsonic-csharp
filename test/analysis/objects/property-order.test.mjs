@@ -38,7 +38,12 @@ test("closed declared fields admit only enumeration orders independent of source
     const current = fixture(names);
     current.owner.kind = "type-literal";
     for (const member of current.shape.members) member.sourceDeclarations[0].kind = "signature";
-    const index = createCsharpObjectShapePropertyOrderIndex(current.ast, () => {});
+    current.shape.targetType.csharpStructuralContract = true;
+    const actual = fixture(names).shape;
+    actual.targetType = { kind: "target-named", id: "tsonic.shape:actual", csharpAllowsRefLikeTypeArguments: [],
+      csharpRender: { kind: "named", name: "Actual" } };
+    actual.implements = [current.shape.targetType];
+    const index = createCsharpObjectShapePropertyOrderIndex(current.ast, () => {}, () => [actual]);
     index.record(current.shape);
     index.seal();
     for (const projection of ["keys", "values", "entries"]) {
@@ -51,12 +56,45 @@ test("closed declared fields admit only enumeration orders independent of source
   }
 });
 
+test("own-property analysis rejects the removed input form without completed native shapes", () => {
+  assert.throws(() => createCsharpObjectShapePropertyOrderIndex({}, () => {}),
+    /requires its completed native shape input/u, "the old two-argument form cannot invent an empty implementation domain");
+});
+
+test("a structural view cannot lend an exact own set to absent, wider or prototype implementations", () => {
+  for (const variant of ["absent", "wider", "prototype", "foreign", "mixed"]) {
+    const current = fixture(["value"]);
+    current.owner.kind = "type-literal";
+    current.shape.targetType.csharpStructuralContract = true;
+    current.shape.members[0].sourceDeclarations[0].kind = "signature";
+    const exact = fixture(["value"]).shape;
+    exact.targetType = { kind: "target-named", id: "tsonic.shape:exact", csharpAllowsRefLikeTypeArguments: [],
+      csharpRender: { kind: "named", name: "Exact" } };
+    exact.implements = [current.shape.targetType];
+    const actual = fixture(variant === "wider" || variant === "mixed" ? ["value", "extra"] : ["value"]).shape;
+    actual.targetType = { kind: "target-named", id: "tsonic.shape:actual", csharpAllowsRefLikeTypeArguments: [],
+      csharpRender: { kind: "named", name: "Actual" },
+      ...(variant === "prototype" ? { csharpSourceDeclarationKind: "class" } : {}) };
+    actual.implements = [{ ...current.shape.targetType, id: variant === "foreign" ? "Foreign" : current.shape.targetType.id }];
+    const implementations = variant === "absent" ? [] : variant === "mixed" ? [exact, actual] : [actual];
+    const index = createCsharpObjectShapePropertyOrderIndex(current.ast, () => {}, () => implementations);
+    index.record(current.shape);
+    index.seal();
+    for (const projection of ["keys", "values", "entries", "has-own", "assign"]) {
+      const selection = index.propertyOrder(current.shape, undefined, projection);
+      assert.equal(selection.kind === "rejected", true, `${variant}/${projection}: every real own set must be proved`);
+      assert.equal(selection.reason.includes("exact own-property set"), true, `${variant}/${projection}: precise owning proof`);
+    }
+    assert.equal(index.assignmentSourceOrder(current.shape).kind, "rejected", `${variant}: copying cannot invent an own set`);
+  }
+});
+
 test("exact source occurrences preserve order independently of equal native carrier names", () => {
   const first = fixture();
   const second = fixture(["01", "tail", "2", "10"]);
   second.shape.targetType = first.shape.targetType;
   let rows = 0;
-  const index = createCsharpObjectShapePropertyOrderIndex(first.ast, () => { rows += 1; });
+  const index = createCsharpObjectShapePropertyOrderIndex(first.ast, () => { rows += 1; }, () => []);
   index.record(first.shape);
   index.record(first.shape);
   index.record(second.shape);
@@ -93,7 +131,7 @@ test("completed shared carriers retain exact authored occurrence orders without 
       ...member.sourceDeclarations,
       ...second.shape.members.find(candidate => candidate.sourceName === member.sourceName).sourceDeclarations,
     ] })) };
-  const index = createCsharpObjectShapePropertyOrderIndex(first.ast, () => {});
+  const index = createCsharpObjectShapePropertyOrderIndex(first.ast, () => {}, () => []);
   index.record(first.shape);
   index.record(second.shape);
   index.record(merged);
@@ -121,7 +159,7 @@ test("completed shared carriers retain exact authored occurrence orders without 
 
 test("empty enumeration requires its exact admitted empty literal without a shape-node cross product", () => {
   const current = fixture([]);
-  const index = createCsharpObjectShapePropertyOrderIndex(current.ast, () => {});
+  const index = createCsharpObjectShapePropertyOrderIndex(current.ast, () => {}, () => []);
   index.record(current.shape);
   index.recordEmptyLiteral(current.owner);
   index.seal();
@@ -143,7 +181,7 @@ test("merged, spread and unauthored property evidence never borrows another occu
     if (mutation === "spread") current.owner.properties.push({ kind: "spread" });
     if (mutation === "unauthored") current.shape.members[0].sourceDeclarations[0].range = { kind: "synthesized" };
     if (mutation === "duplicate-range") current.shape.members[1].sourceDeclarations[0].range = current.shape.members[0].sourceDeclarations[0].range;
-    const index = createCsharpObjectShapePropertyOrderIndex(current.ast, () => {});
+    const index = createCsharpObjectShapePropertyOrderIndex(current.ast, () => {}, () => []);
     index.record(current.shape);
     index.seal();
     for (const projection of ["keys", "values", "entries"]) {
@@ -163,7 +201,7 @@ test("accessor arrangements and assignment input versus destination contracts st
       field.sourceDeclarations.push(setter);
       current.owner.properties.push(setter);
     }
-    const index = createCsharpObjectShapePropertyOrderIndex(current.ast, () => {});
+    const index = createCsharpObjectShapePropertyOrderIndex(current.ast, () => {}, () => []);
     index.record(current.shape);
     index.seal();
     assert.equal(index.propertyOrder(current.shape, undefined, "keys").kind, "resolved");
@@ -172,7 +210,7 @@ test("accessor arrangements and assignment input versus destination contracts st
   }
   const readonly = fixture(["value"]);
   readonly.shape.members[0].readonly = true;
-  const index = createCsharpObjectShapePropertyOrderIndex(readonly.ast, () => {});
+  const index = createCsharpObjectShapePropertyOrderIndex(readonly.ast, () => {}, () => []);
   index.record(readonly.shape);
   index.seal();
   assert.equal(index.assignmentSourceOrder(readonly.shape).kind, "resolved", "readonly data remains readable as a source");
@@ -186,7 +224,7 @@ test("nominal, reserved and optional restrictions retain every operation's own p
     if (mutation === "reserved") current.shape.members[0].targetName = "__tsonicObjectConflict";
     if (mutation === "optional") current.shape.members[0].optional = true;
     if (mutation === "malformed-accessor") current.shape.members[0].accessor = { getter: true, setter: true };
-    const index = createCsharpObjectShapePropertyOrderIndex(current.ast, () => {});
+    const index = createCsharpObjectShapePropertyOrderIndex(current.ast, () => {}, () => []);
     index.record(current.shape);
     index.seal();
     assert.equal(index.propertyOrder(current.shape, undefined, "keys").kind, mutation === "optional" ? "resolved" : "rejected", mutation);
@@ -198,7 +236,7 @@ test("nominal, reserved and optional restrictions retain every operation's own p
 
 test("order construction remains accounted and an unadmitted selection fails closed", () => {
   const current = fixture();
-  const index = createCsharpObjectShapePropertyOrderIndex(current.ast, () => { throw new Error("bounded classification exhausted"); });
+  const index = createCsharpObjectShapePropertyOrderIndex(current.ast, () => { throw new Error("bounded classification exhausted"); }, () => []);
   assert.throws(() => index.record(current.shape), /bounded classification exhausted/u);
   index.seal();
   assert.equal(index.propertyOrder(current.shape, undefined, "keys").kind, "rejected");

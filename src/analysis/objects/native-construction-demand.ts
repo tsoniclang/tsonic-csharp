@@ -220,11 +220,6 @@ export function createCsharpNativeConstructionDemandQuery(
       current = subject;
       budget.reserve(1);
       if (subject.kind !== "value" || subject.projection.length !== 0 || demands.has(subject)) continue;
-      const source = selectedType(subject);
-      if (source === undefined || source.nullable) continue;
-      const shape = shapeForType(source.type, source.queries);
-      if (shape?.targetType.kind !== "target-named" ||
-        !shape.targetType.id.startsWith(csharpStructuralObjectShapeIdPrefix)) continue;
       const declaration = subject.node;
       const variable = host.ast.is.IsVariableDeclaration(declaration)
         ? host.ast.as.AsVariableDeclaration(declaration) : undefined;
@@ -236,6 +231,9 @@ export function createCsharpNativeConstructionDemandQuery(
       if (variable?.Initializer === undefined && !rest || variable !== undefined &&
         !host.ast.is.IsObjectLiteralExpression(variable.Initializer) ||
         sourceDeclarationIsModuleScoped(declaration, host.ast) || !host.navigation.isProjectDeclaration(declaration)) continue;
+      const source = selectedType(subject);
+      if (source === undefined || source.nullable ||
+        source.queries.types.constructSignatures(source.type).length !== 0) continue;
       const summary = host.navigation.declarationUseSummary(declaration);
       budget.reserve(summary.uses.length + 1);
       if (summary.bindingWritten || summary.memberWritten || summary.identityCompared || summary.aliasedOrStored ||
@@ -249,6 +247,9 @@ export function createCsharpNativeConstructionDemandQuery(
         !host.navigation.isProjectDeclaration(origin.subject.node) || demands.has(origin.subject) ||
         !source.queries.types.isIdentical(source.type, origin.type) ||
         (rest ? origin.subject !== subject : origin.subject.node !== variable?.Initializer)) continue;
+      const shape = shapeForType(source.type, source.queries);
+      if (shape?.targetType.kind !== "target-named" ||
+        !shape.targetType.id.startsWith(csharpStructuralObjectShapeIdPrefix)) continue;
       const selected = host.scopedTargetType(declaration);
       if (selected !== undefined && !targetTypeRefEquals(selected, shape.targetType)) continue;
       const valueShape = createCsharpObjectShapeValueStorage(shape);

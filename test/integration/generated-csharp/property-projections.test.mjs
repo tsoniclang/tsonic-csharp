@@ -32,6 +32,28 @@ export function run(): boolean {
 }` }), "completed-own-property-orders");
 });
 
+for (const [name, body] of [
+  ["wider producer", `
+    const actual = { count: 7 as int32, extra: 11 as int32 };
+    const view: View = actual;
+    return describe(view) === "count,extra";`],
+  ["prototype getter", `
+    const value: View = new PrototypeOnly();
+    return describe(value) === "";`],
+]) test(`own-property admission refuses a minimum structural view of a ${name}`, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    type View = { readonly count: int32 };
+    class PrototypeOnly { get count(): int32 { return 7; } }
+    function describe(value: View): string { return Object.keys(value).join(","); }
+    export function run(): boolean { ${body} }
+  ` });
+  assertCsharpCheckingSucceeded(compiled);
+  assert.equal(compiled.targetDiagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    issue.message.includes("exact own-property set")), true, `${name}: the owning admission refuses an unproved own set`);
+  assert.equal(compiled.artifacts.size, 0, `${name}: no truncated or prototype-based own-property array is published`);
+});
+
 test("native property projections preserve selected generic inherited getters and exact failure identity", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: nativePropertyProjectionSource });
   executeCsharpConstruction(compiled, "property-projections");

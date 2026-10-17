@@ -48,7 +48,8 @@ export function analyzeCsharpObjectShapes(
   const copiedMethodImplementations = new Set<string>();
   const operationTypes: TargetTypeRef[] = [];
   const admittedShapes = new Set<CsharpObjectShapeFact>();
-  const propertyOrders = createCsharpObjectShapePropertyOrderIndex(policy.ast, reserveClassification);
+  const propertyOrders = createCsharpObjectShapePropertyOrderIndex(policy.ast, reserveClassification,
+    () => [...admittedShapes].map(shape => withInterfaces(shape)!));
   let classificationCount = 0;
   let sealed = false;
   let knownShapes: readonly CsharpObjectShapeFact[] = Object.freeze([]);

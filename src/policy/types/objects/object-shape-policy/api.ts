@@ -684,6 +684,7 @@ export function createCsharpObjectShapePolicy(
       }
       const declaredShape = contextualProjectType !== undefined && declaredKind === "class"
         ? resolveProjectDeclarationShape(contextualProjectType, state) : undefined;
+      if (declaredKind === "class" && declaredShape === undefined) return undefined;
       const members = declaredShape === undefined
         ? deriveMembers(type, queries, nextState(state), authoredTypeRoot, contextualProjectType)
         : instantiateMemberEvidence(declaredShape.members, type, queries, declaredShape.sourceType);
@@ -695,14 +696,10 @@ export function createCsharpObjectShapePolicy(
         declaredKind === "class"
       ) {
         return {
+              ...declaredShape!,
               targetType: contextualProjectType,
               sourceType: type,
               members,
-              constructible: projectClassIsObjectInitializable(
-                type,
-                queries,
-                host,
-              ),
             };
       }
       if (
@@ -841,6 +838,9 @@ export function createCsharpObjectShapePolicy(
       targetType,
       sourceType: declaredType,
       members: Object.freeze(members),
+      ...(definition.kind !== "class" ? {} : {
+        constructible: projectClassIsObjectInitializable(declaredType, queries, host),
+      }),
       ...(implemented.length === 0 ? {} : { implements: implemented }),
     };
   }
