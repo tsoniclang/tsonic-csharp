@@ -3,7 +3,7 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
 import { sourcePresentCallableType, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpSourcePrimitiveTargetType, isCsharpIntegralTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { nextState } from "./state.js";
 import { resolveBinaryTargetRepresentation, commonTargetRepresentation, getTaskResultType } from "./representation.js";
@@ -13,19 +13,14 @@ import { selectCsharpMethodValue } from "../objects/method-values.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { getCsharpClassFactory } from "../../../target-model/types/carriers/class-factories.js";
 import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
-import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
-import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js.js";
-import { selectedCsharpSourceProfileOwner } from "./source-profile.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { selectCsharpConditionalNumericCarrier } from "../conditional-numeric-carrier.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 import { resolveCsharpStaticMemberReceiver } from "../project/static-members.js";
-import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { combineCsharpTargetUnionMembers } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
-import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
-import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
 
 export function resolveSelectedExpressionType(
   { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveTypeWithState, resolveReadStorage, resolveNonNullExpressionType, resolveMemberAccessTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState, sourceUnions }: CsharpTypeResolutionScope,
@@ -33,62 +28,6 @@ export function resolveSelectedExpressionType(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  if (host.ast.is.IsArrayLiteralExpression(node)) {
-    const sourceType = queries.types.expressionType(node);
-    if (sourceType === undefined) return undefined;
-    const sourceElements = host.ast.elements(node);
-    const elements = sourceElements.map(element => {
-      if (element === undefined) return undefined;
-      if (!host.ast.is.IsSpreadElement(element)) {
-        return resolveNodeWithState(element, queries.sourceFile, nextState(state));
-      }
-      const operand = host.ast.as.AsSpreadElement(element)?.Expression;
-      return getCsharpCollectionElementTargetType(resolveNodeWithState(operand, queries.sourceFile, nextState(state)));
-    });
-    if (queries.types.isTuple(sourceType)) {
-      if (sourceElements.some(element => element === undefined || host.ast.is.IsSpreadElement(element)) ||
-        elements.some(element => element === undefined)) return undefined;
-      const tuple = resolveTypeWithState(sourceType, queries.sourceFile, nextState(state));
-      return tuple?.kind === "tuple" && tuple.elements.length === elements.length
-        ? { ...tuple, elements: elements as readonly TargetTypeRef[] } : undefined;
-    }
-    if (elements.length === 0 || elements.some(candidate => candidate === undefined)) return undefined;
-    const sourceElement = getCsharpCollectionElementTargetType(resolveTypeWithState(sourceType, queries.sourceFile, nextState(state)));
-    const nativeCandidates = sourceElement?.kind !== "source-primitive" ||
-      elements.some(element => element?.kind !== "source-primitive") ? []
-      : [...new Map(elements.map(element => [targetTypeRefKey(element!), element!])).values()];
-    const commonCandidates = nativeCandidates.filter(candidate => elements.every((actual, index) => {
-      const entry = sourceElements[index];
-      const literal = entry === undefined || host.ast.is.IsSpreadElement(entry) ? undefined : host.literalValues.literalValue.get(entry);
-      if (isCsharpIntegralTargetType(candidate) && literal?.numeric?.kind === "authored" &&
-        !(literal.numeric.token.negative && literal.numeric.token.coefficient === 0n) &&
-        csharpLiteralIsRepresentableAs(literal, candidate)) return true;
-      const selected = commonTargetRepresentation(candidate, actual);
-      return selected !== undefined && targetTypeRefEquals(selected, candidate);
-    }));
-    const leastCandidates = commonCandidates.filter(candidate => commonCandidates.every(other => {
-      const selected = commonTargetRepresentation(candidate, other);
-      return selected !== undefined && targetTypeRefEquals(selected, other);
-    }));
-    const element = isCsharpJsValueTargetType(sourceElement) ? sourceElement
-      : leastCandidates.length === 1 ? leastCandidates[0] : combineCsharpTargetUnionMembers(elements as readonly TargetTypeRef[]);
-    if (element === undefined) return undefined;
-    const members = sourceElements.map((entry, index) => {
-      if (entry === undefined) return undefined;
-      const spread = host.ast.is.IsSpreadElement(entry);
-      const operand = spread ? host.ast.as.AsSpreadElement(entry)?.Expression : entry;
-      const selected = operand === undefined ? undefined : queries.types.expressionType(operand);
-      const type = selected === undefined ? undefined : spread ? queries.types.typeArguments(selected)[0] : selected;
-      const source = type === undefined ? undefined : queries.types.literalBaseType(type);
-      const carrier = elements[index];
-      return source === undefined || carrier === undefined ? undefined : { source, carrier };
-    });
-    if (members.some(member => member === undefined)) return undefined;
-    const retained = sourceUnions.retain(element, members.filter(member => member !== undefined), queries, state);
-    if (retained === undefined) return undefined;
-    return selectedCsharpSourceProfileOwner(host.target) === "js"
-      ? csharpJsArrayTargetType(retained) : { kind: "array", element: retained };
-  }
   if (
     host.ast.is.IsAsExpression(node) ||
     host.ast.is.IsTypeAssertion(node)

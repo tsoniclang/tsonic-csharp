@@ -291,7 +291,6 @@ export function analyzeCsharpTargetProgram(
     ...callableAdapters.issues,
     ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
     ...analysis.sourceEvidence.memoryMetadataIssues,
-    ...analysis.sourceEvidence.typeOnlyIssues,
     ...analysis.sourceEvidence.fixedArrayIssues,
     ...analysis.typeSystem.projectTypes.issues,
     ...analysis.typeSystem.nativeConstruction.issues,
@@ -671,7 +670,7 @@ function analyzeIteration(
     bindingPatterns: bindingCandidates, callableCreation: callableCreations.callableCreation, attributeApplications: attributes.index,
     propertyKeyBindings: expectedTypes.constructions.propertyKeys, exactLiteral: exactLiterals.exactLiteral,
     classInitialization, projectTypes: typeSystem.projectTypes.catalog, classFactories, expected: expectedUse,
-    nativePropertyNameIssues: evidence.nativePropertyNameIssues,
+    nativeExpressionIssues: evidence.nativeExpressionIssues,
   }, requiredRecords);
   const bindingPatterns = admitCsharpBindingPatterns(bindingCandidates, nativeDemand.requiredBindingRoots, requiredRecords);
   conversionAnalysis.close(nativeDemand, requiredRecords);
@@ -693,7 +692,7 @@ function analyzeIteration(
     typeProjections,
     typeSystem,
     sourceEvidence,
-    nativePropertyNameIssues: evidence.nativePropertyNameIssues,
+    nativeExpressionIssues: evidence.nativeExpressionIssues,
     operations,
     declarations,
     objectShapes: sealedObjectShapes,

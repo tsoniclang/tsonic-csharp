@@ -544,7 +544,7 @@ function owners(sourceText, surface = "js") {
   const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: program.sourceFiles, participation: records.nativeParticipation,
     evidence: records, operations: records, valueReads: records, objectShapes: program.objectShapes });
   const input = { ast, sourceFiles: program.sourceFiles, navigation: program.sourceNavigation, evidence: records, operations: records,
-    nativePropertyNameIssues: [],
+    nativeExpressionIssues: [],
     declarations: records, objectShapes: program.objectShapes,
     exactLiteral: records.exactLiteral, propertyKeyBindings: expression => {
       const use = records.nativeUse.expression(expression)?.use;
@@ -635,12 +635,82 @@ test("actual native key refusals precede expected-slot pending and retain every 
   const issues = names.map((sourceNode, index) => Object.freeze({ category: "error", source: "tsonic-csharp",
     code: "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN", sourceNode, message: `Exact selected key refusal ${index}.`, requiredBy: [expression] }));
   const site = csharpNativeUseSite(declaration, { kind: "initializer" });
-  const demand = analyzeCsharpNativeDemand({ ...value.input, nativePropertyNameIssues: issues,
+  const demand = analyzeCsharpNativeDemand({ ...value.input, nativeExpressionIssues: issues,
     expected: { ...value.input.expected, pending: [{ site, expression, reason: "inconsistent-request" }] } }, []);
   assert.equal(demand.unadmitted.length, 2, "both selected key refusals replace pending at the actual use root");
   assert.equal(demand.unadmitted.every((entry, index) => entry.kind === "source-refusal" && entry.requiredBy === expression &&
     entry.diagnostic === issues[index]), true, "the original diagnostic and actual required expression keep separate identities");
   assert.equal(demand.nativeUse.expression(expression) === undefined, true, "a refused expression never receives a fabricated native use");
+});
+
+for (const surface of ["native", "js"]) test(`${surface} actual ambient admission precedes pending slots without observing an erased body`, () => {
+  const value = owners(`
+declare const external: number;
+export function run(): number {
+  function hidden(): number { return external; }
+  return 42;
+}`, surface);
+  const hidden = value.nodes.find(node => value.ast.is.IsFunctionDeclaration(node) && value.ast.text(value.ast.name(node)) === "hidden");
+  const reference = value.nodes.find(node => value.ast.is.IsIdentifier(node) && value.ast.text(node) === "external" &&
+    value.ast.is.IsReturnStatement(value.ast.parent(node)));
+  assert.equal(hidden !== undefined && reference !== undefined && value.records.nativeParticipation.get(hidden) === "erased", true,
+    "the real canonical producer erases the exact original dormant body and retains its checked reference");
+  const dormant = analyzeCsharpNativeDemand(value.input, []);
+  assert.equal(dormant.unadmitted.length === 0 && dormant.nativeUse.expression(reference) === undefined, true,
+    "native demand does not invent an implementation obligation for an erased body");
+  const site = csharpNativeUseSite(value.ast.parent(reference), { kind: "return" });
+  const demand = analyzeCsharpNativeDemand({ ...value.input,
+    participation: { get: node => node === hidden ? "body" : value.input.participation.get(node) },
+    expected: { ...value.input.expected, pending: [{ site, expression: reference, reason: "inconsistent-request" }] },
+  }, []);
+  const refusals = demand.unadmitted.filter(entry => entry.kind === "source-refusal");
+  const refusal = refusals[0];
+  assert.equal(refusals.length === 1 && refusal.requiredBy === reference && refusal.diagnostic.sourceNode === reference &&
+    refusal.diagnostic.code === "CSHARP_AMBIENT_VALUE_IMPLEMENTATION_MISSING" &&
+    refusal.diagnostic.message === "A runtime read of an authored ambient variable requires an exact native implementation.", true,
+  "the same actual runtime reference reports its original source refusal before an expected-slot pending or missing-fact invariant");
+  assert.equal(demand.unadmitted.some(entry => entry.kind === "pending-use" && entry.expression === reference), false,
+    "the precise implementation refusal is not replaced by pending carrier evidence");
+  assert.equal(demand.nativeUse.expression(reference) === undefined, true,
+    "refused actual use cannot publish an invented native binding or expression");
+});
+
+for (const [label, body, expression, family] of [
+  ["call", "function make(): number { return 1; } export const result = make();", "make()", "selectedCall"],
+  ["construction", "class Box { value = 1; } export const result = new Box();", "new Box()", "selectedConstruction"],
+  ["property", "const box = { value: 1 }; export const result = box.value;", "box.value", "selectedProperty"],
+  ["element", "const values = [1]; export const result = values[0];", "values[0]", "selectedElement"],
+]) test(`a selected ${label} refusal reaches analysis with its canonical code, node, reason and complete evidence`, () => {
+  const value = owners(body, "native");
+  const node = value.nodes.find(candidate => value.text(candidate) === expression &&
+    value.input.operations[family].get(candidate) !== undefined);
+  assert.equal(node !== undefined, true, `${label}: the real operation owner publishes its selected boundary`);
+  const original = value.input.operations[family].get(node);
+  const diagnostic = Object.freeze({ extensionId: "test-source-policy", extensionCode: "EXACT_NATIVE_RELATION",
+    publicCode: "DO_NOT_SUBSTITUTE_PUBLIC_CODE", numericCode: 9101001, category: "error",
+    nodeOrSpan: node, message: `Selected ${label} native relation is not closed.`, evidence: Object.freeze([
+      Object.freeze({ message: "The selected physical carrier is exact." }),
+      Object.freeze({ message: "Its required native relation is absent." }),
+      Object.freeze({ message: "The selected physical carrier is exact." }),
+    ]) });
+  const target = Object.freeze({ kind: "rejected", diagnostic });
+  const selected = label === "property" ? { ...original, selection: target }
+    : { ...original, target };
+  const operations = { ...value.input.operations, [family]: { get: candidate => candidate === node
+    ? selected : value.input.operations[family].get(candidate) } };
+  const demand = analyzeCsharpNativeDemand({ ...value.input, operations }, []);
+  const refusals = demand.unadmitted.filter(entry => entry.kind === "source-refusal");
+  const refusal = refusals[0];
+  assert.equal(refusals.length === 1 && refusal.requiredBy === node && refusal.diagnostic.sourceNode === node &&
+    refusal.diagnostic.code === "TS9101001" && refusal.diagnostic.category === diagnostic.category &&
+    refusal.diagnostic.source === diagnostic.extensionId && refusal.diagnostic.message === diagnostic.message, true,
+  `${label}: the one canonical mapper preserves the actual selected node, numeric code, category, owner and reason`);
+  assert.equal(refusal.diagnostic.evidence?.length === 2 &&
+    refusal.diagnostic.evidence[0] === diagnostic.evidence[0].message &&
+    refusal.diagnostic.evidence[1] === diagnostic.evidence[1].message && Object.isFrozen(refusal.diagnostic.evidence), true,
+  `${label}: all distinct evidence survives once, in its original order`);
+  assert.equal(demand.nativeUse.expression(node) === undefined, true,
+    `${label}: a refused operation is never published as an accepted native use`);
 });
 
 test("an actual selected empty construct differs from an erased construct for native key requirements", () => {
@@ -649,11 +719,11 @@ test("an actual selected empty construct differs from an erased construct for na
   const sourceNode = value.ast.name(declaration);
   const issue = Object.freeze({ category: "error", source: "tsonic-csharp", code: "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN",
     sourceNode, message: "Exact selected native signature key refusal.", requiredBy: [declaration] });
-  const selected = analyzeCsharpNativeDemand({ ...value.input, nativePropertyNameIssues: [issue] }, []);
+  const selected = analyzeCsharpNativeDemand({ ...value.input, nativeExpressionIssues: [issue] }, []);
   assert.equal(selected.unadmitted.length === 1 && selected.unadmitted[0].kind === "source-refusal" &&
     selected.unadmitted[0].requiredBy === declaration && selected.unadmitted[0].diagnostic === issue, true,
   "a valid empty native signature still admits its exact key requirements");
-  const erased = analyzeCsharpNativeDemand({ ...value.input, nativePropertyNameIssues: [issue],
+  const erased = analyzeCsharpNativeDemand({ ...value.input, nativeExpressionIssues: [issue],
     participation: { get: node => node === declaration ? "erased" : value.input.participation.get(node) } }, []);
   assert.equal(erased.unadmitted.length, 0, "the same owner-selected erasure has no native key obligation");
   assert.equal(erased.nativeUse.order(declaration)?.length, 0, "erasure keeps the established empty native order");

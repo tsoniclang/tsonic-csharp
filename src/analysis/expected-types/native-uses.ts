@@ -147,11 +147,12 @@ export function admitCsharpExpectedNativeUses(
       }
     }
     const source = final.valueRead.get(request.expression)?.value;
+    const constructionCarrier = expected.constructions.constructionCarrier(request.expression, request.targetType);
     const selection = selectCsharpNativeUseRepresentation({ ast: final.ast, expression: request.expression, target: request.targetType,
       mode: request.mode, source, absent: source !== undefined && isCsharpAbsenceTargetType(source),
       ...(request.site.role === "present-payload" ? { projection: "present-payload" as const } : {}),
-      literal: final.exactLiteral.get(request.expression, request.targetType), callable: final.callableCreation.get(request.expression),
-      constructionCarrier: expected.constructions.constructionCarrier(request.expression, request.targetType),
+      literal: final.exactLiteral.get(request.expression, constructionCarrier === undefined ? request.targetType : constructionCarrier),
+      callable: final.callableCreation.get(request.expression), constructionCarrier,
       binary: final.operations.operatorForm.get(request.expression) !== "selected" ? undefined
         : final.operations.operatorForm.usesExpectedResultType(request.expression)
           ? expected.expectedBinary.get(request.expression, request.targetType) : final.operations.binaryOperation.get(request.expression)?.target,

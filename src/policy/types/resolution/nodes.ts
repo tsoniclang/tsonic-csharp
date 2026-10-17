@@ -57,6 +57,10 @@ export function resolveNodeWithState(
   if (syntaxFact !== undefined) {
     return syntaxFact;
   }
+  if (host.ast.is.IsArrayLiteralExpression(node)) {
+    const selection = scope.resolveArrayLiteralWithState(node, queries, state);
+    return selection.kind === "resolved" ? selection.carrier : undefined;
+  }
   if (host.ast.is.IsPropertyDeclaration(node) || host.ast.is.IsPropertySignatureDeclaration(node) ||
     host.ast.is.IsParameterDeclaration(node)) {
     const typeNode = host.ast.typeNode(node);

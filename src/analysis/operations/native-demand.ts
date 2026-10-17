@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
-import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import { sourceExpressionResultDisposition, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { selectCsharpNativeConstructSteps } from "../../policy/operations/control-flow/native-constructs.js";
 import { selectCsharpNativeOperandUses, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "../../policy/operations/control-flow/native-operands.js";
@@ -58,12 +58,12 @@ export function analyzeCsharpNativeDemand(
     unusedDefault: Object.freeze({ get: (node: Node) => unusedDefaults.has(node) }) };
   const entries: { readonly site: TargetUseSiteRef; readonly use: CsharpNativeUse }[] = [];
   const unadmitted: CsharpNativeUnadmitted[] = [];
-  const propertyNameRequirements = new Map<Node, CsharpNativeDemandAnalysisInput["nativePropertyNameIssues"][number][]>();
-  const refusedPropertyNames = new Set<Node>();
-  for (const issue of input.nativePropertyNameIssues) for (const requiredBy of issue.requiredBy) {
-    const issues = propertyNameRequirements.get(requiredBy) ?? [];
+  const sourceRequirements = new Map<Node, CsharpNativeDemandAnalysisInput["nativeExpressionIssues"][number][]>();
+  const refusedSourceExpressions = new Set<Node>();
+  for (const issue of input.nativeExpressionIssues) for (const requiredBy of issue.requiredBy) {
+    const issues = sourceRequirements.get(requiredBy) ?? [];
     issues.push(issue);
-    propertyNameRequirements.set(requiredBy, issues);
+    sourceRequirements.set(requiredBy, issues);
   }
   const states = new Map<object, Map<string, UseState>>();
   const published = new Map<object, Map<string, CsharpNativeUse>>();
@@ -134,7 +134,7 @@ export function analyzeCsharpNativeDemand(
     if (constructs.has(node)) return;
     constructs.add(node);
     const selected = selectCsharpNativeConstructSteps(policyInput, node);
-    if (selected.kind === "erased" || refusePropertyNames(node)) {
+    if (selected.kind === "erased" || refuseSourceExpression(node)) {
       orders.set(node, Object.freeze([]));
       return;
     }
@@ -155,13 +155,31 @@ export function analyzeCsharpNativeDemand(
     orders.set(node, Object.freeze(steps));
   }
 
-  function refusePropertyNames(requiredBy: Node): boolean {
-    const issues = propertyNameRequirements.get(requiredBy);
+  function refuseSourceExpression(requiredBy: Node): boolean {
+    const issues = sourceRequirements.get(requiredBy);
     if (issues === undefined) return false;
     for (const diagnostic of issues) {
-      if (refusedPropertyNames.has(diagnostic.sourceNode)) continue;
-      refusedPropertyNames.add(diagnostic.sourceNode);
+      if (refusedSourceExpressions.has(diagnostic.sourceNode)) continue;
+      refusedSourceExpressions.add(diagnostic.sourceNode);
       unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy, diagnostic }));
+    }
+    return true;
+  }
+
+  function refuseAmbientValueUse(expression: Node): boolean {
+    const declaration = input.navigation.sourceReferenceFor(expression)?.declaration;
+    if (declaration === undefined || !ast.is.IsVariableDeclaration(declaration) ||
+      !input.navigation.isProjectDeclaration(declaration) || !input.evidence.compileTimeMetadata.get(declaration)) return false;
+    const list = ast.parent(declaration);
+    const statement = list === undefined ? undefined : ast.parent(list);
+    if (statement === undefined || !ast.is.IsVariableStatement(statement) ||
+      ast.as.AsVariableStatement(statement)?.DeclarationList !== list || !ast.hasModifierKind(statement, "ambient")) return false;
+    if (!refusedSourceExpressions.has(expression)) {
+      refusedSourceExpressions.add(expression);
+      unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy: expression, diagnostic: Object.freeze({
+        code: "CSHARP_AMBIENT_VALUE_IMPLEMENTATION_MISSING", category: "error", source: "tsonic-csharp", sourceNode: expression,
+        message: "A runtime read of an authored ambient variable requires an exact native implementation.",
+      }) }));
     }
     return true;
   }
@@ -186,7 +204,7 @@ export function analyzeCsharpNativeDemand(
         : Object.freeze({ site, expression, completion: Object.freeze({ kind: "void" as const }),
           discardedPresence: constantPresence(existing.kind === "erased" && existing.cause === "discarded-callable", []) });
     }
-    if (refusePropertyNames(expression)) return Object.freeze({ site, expression, completion: undefined });
+    if (refuseSourceExpression(expression) || refuseAmbientValueUse(expression)) return Object.freeze({ site, expression, completion: undefined });
     if (exact === undefined) {
       const candidates = slots.get(site.subject)?.get(site.role);
       const matching = candidates?.expressions.get(expression) ?? [];
@@ -241,6 +259,14 @@ export function analyzeCsharpNativeDemand(
       ? selectCsharpNativeOperandUses(policyInput, expression, child.access)
       : Object.freeze({ runtime: Object.freeze([]), planning: Object.freeze([]), flow: "sequence", carrier: expected.carrier,
         resultUse: sourceExpressionResultDisposition(ast, expression).kind === "discarded" ? "discarded" : "consumed" });
+    if (selected.sourceDiagnostic !== undefined) {
+      if (!refusedSourceExpressions.has(expression)) {
+        refusedSourceExpressions.add(expression);
+        unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy: expression,
+          diagnostic: targetDiagnosticFromExtension(expression, selected.sourceDiagnostic) }));
+      }
+      return Object.freeze({ site, expression, completion: undefined });
+    }
     const expectedChildren = new Map<string, TargetUseSiteRef[]>();
     for (const reference of expected?.construction?.children ?? expected?.children ?? []) {
       const matching = expectedChildren.get(reference.role) ?? [];

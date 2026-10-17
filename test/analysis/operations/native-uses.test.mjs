@@ -23,7 +23,7 @@ function owners(sourceText, surface = "native") {
   const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: program.sourceFiles, participation, evidence: records,
     operations: records, valueReads: records, objectShapes: program.objectShapes });
   const input = { ast, sourceFiles: program.sourceFiles, navigation: program.sourceNavigation, evidence: records, operations: records,
-    nativePropertyNameIssues: [],
+    nativeExpressionIssues: [],
     declarations: records, objectShapes: program.objectShapes,
     exactLiteral: records.exactLiteral, propertyKeyBindings: expression => {
       const use = records.nativeUse.expression(expression)?.use;

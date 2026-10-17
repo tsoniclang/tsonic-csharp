@@ -11,6 +11,9 @@ const checked = checkCsharpSource({ sourceText: `
   function receiver(): { method: (value: number) => number } { return { method: value => value }; }
   export const called = receiver().method(argument());
   export const callback = () => argument();
+  class Box { value = 1; }
+  export const constructed = new Box();
+  export const indexed = [1][0];
 ` });
 assert.equal(checked.sourceDiagnosticsText === "", true, checked.sourceDiagnosticsText);
 const source = createTargetSourceProgram(checked.source);
@@ -60,6 +63,35 @@ test("a selected native handler owns the runtime operands without asking the los
   const selected = selectCsharpNativeOperandUses(value, call);
   assert.equal(selected.refusal === undefined && selected.runtime.length === 1 && selected.runtime[0].expression === argument &&
     selected.runtime[0].slot.kind === "intrinsic-operand" && selected.runtime[0].slot.operand === "value", true, "native-use-order:61: selected.refusal === undefined && selected.runtime.length === 1 && selected.runtime[0].exp");
+});
+
+for (const [label, kind, expression, family] of [
+  ["call", "IsCallExpression", "receiver().method(argument())", "selectedCall"],
+  ["construction", "IsNewExpression", "new Box()", "selectedConstruction"],
+  ["property", "IsPropertyAccessExpression", "receiver().method", "selectedProperty"],
+  ["element", "IsElementAccessExpression", "[1][0]", "selectedElement"],
+]) test(`the winning ${label} source refusal carries the identical extension diagnostic`, () => {
+  const node = nodes.find(candidate => ast.is[kind](candidate) && text(candidate) === expression);
+  assert.equal(node !== undefined, true, `${label}: the original checked operation exists`);
+  const diagnostic = Object.freeze({ extensionId: "test-source-policy", extensionCode: "EXACT_SELECTED_REFUSAL",
+    publicCode: "NOT_THE_CANONICAL_TARGET_CODE", numericCode: 9101001, category: "error",
+    message: `The selected ${label} requires its exact native relation.`, nodeOrSpan: node,
+    evidence: Object.freeze([Object.freeze({ message: "The actual selected native relation is absent." })]) });
+  const target = Object.freeze({ kind: "rejected", diagnostic });
+  const selected = label === "call" ? { form: { kind: "target" }, target }
+    : label === "construction" || label === "element" ? { jsValue: { kind: "not-js-value" }, target }
+    : { selection: target };
+  const value = input(undefined);
+  value.operations[family] = { get: candidate => candidate === node ? selected : undefined };
+  const refusal = selectCsharpNativeOperandUses(value, node);
+  assert.equal(refusal.sourceDiagnostic === diagnostic && refusal.runtime.length === 0 && refusal.planning.length === 0, true,
+    `${label}: the winning diagnostic, source identity and evidence are transported without re-selection`);
+  value.operations.nativeHandler = { get: candidate => candidate === node
+    ? { kind: "memory-binding", selection: { kind: "field", type: scalar, expression: argument } } : undefined };
+  value.operations[family] = { get: () => assert.fail(`${label}: losing source-selection reader`) };
+  const winner = selectCsharpNativeOperandUses(value, node);
+  assert.equal(winner.refusal === undefined && winner.sourceDiagnostic === undefined && winner.runtime.length === 1 &&
+    winner.runtime[0].expression === argument, true, `${label}: a native handler never probes or publishes a losing source refusal`);
 });
 
 test("callable bodies have compilation work but never become creation-time runtime operands", () => {

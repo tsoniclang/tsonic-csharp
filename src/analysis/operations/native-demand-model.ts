@@ -18,7 +18,7 @@ export interface CsharpNativeDemandAnalysisInput extends Omit<CsharpNativeConstr
   readonly objectShapes: Pick<CsharpObjectShapeClassifications, "resolveTarget">;
   readonly propertyKeyBindings: (expression: Node, carrier: TargetTypeRef) => readonly CsharpNativePropertyKeyBinding[] | undefined;
   readonly exactLiteral: CsharpExactLiteralSelectionIndex["exactLiteral"];
-  readonly nativePropertyNameIssues: CsharpSourceEvidenceResult["nativePropertyNameIssues"];
+  readonly nativeExpressionIssues: CsharpSourceEvidenceResult["nativeExpressionIssues"];
 }
 
 export type CsharpNativeUnadmittedReason =

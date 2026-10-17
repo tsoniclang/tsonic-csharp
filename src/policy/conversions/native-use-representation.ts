@@ -63,6 +63,12 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
     const site = child(node, { kind: "operand", position: "only" }, target);
     return site === undefined ? pending("forwarding-child-unresolved") : selected("forward", target, [site]);
   };
+  const construct = (carrier: TargetTypeRef, children: readonly TargetUseSiteRef[]): CsharpNativeRepresentationSelection => {
+    if (targetTypeRefEquals(carrier, target)) return selected("construct", carrier, children);
+    const site = csharpNativeUseSite(expression, { kind: "constructed-result" }, { target, mode: input.mode });
+    return Object.freeze({ kind: "selected", representation: "convert", carrier, children: Object.freeze([site]),
+      construction: Object.freeze({ site, carrier, children: Object.freeze([...children]) }) });
+  };
 
   if (input.projection === "present-payload") return input.source === undefined ? pending("source-unresolved")
     : selected(targetTypeRefEquals(input.source, target) ? "forward" : "convert", input.source);
@@ -89,6 +95,12 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
       kind: "selected", representation: "construct", carrier: target, children: none, literal: input.literal.recipe,
     });
   }
+  if (input.constructionCarrier !== undefined && !ast.is.IsArrayLiteralExpression(expression) && !ast.is.IsObjectLiteralExpression(expression)) {
+    const operand = ast.is.IsParenthesizedExpression(expression) ? ast.as.AsParenthesizedExpression(expression)?.Expression : undefined;
+    const site = operand === undefined ? undefined : child(operand, { kind: "operand", position: "only" }, input.constructionCarrier);
+    return operand !== undefined && site === undefined ? pending("forwarding-child-unresolved")
+      : construct(input.constructionCarrier, site === undefined ? none : [site]);
+  }
   if (ast.isConstAssertion(expression)) {
     const assertion = ast.is.IsAsExpression(expression) ? ast.as.AsAsExpression(expression) : ast.as.AsTypeAssertion(expression);
     return forward(assertion?.Expression);
@@ -114,10 +126,7 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
     if (carrier === undefined) return pending("construction-unresolved");
     const prefix = ast.is.IsArrayLiteralExpression(expression) ? "element:" : "member:";
     const children = Object.freeze([...input.children.values()].filter(entry => entry.site.role.startsWith(prefix)).map(entry => entry.site));
-    if (targetTypeRefEquals(carrier, target)) return selected("construct", carrier, children);
-    const site = csharpNativeUseSite(expression, { kind: "constructed-result" }, { target, mode: input.mode });
-    return Object.freeze({ kind: "selected", representation: "convert", carrier, children: Object.freeze([site]),
-      construction: Object.freeze({ site, carrier, children }) });
+    return construct(carrier, children);
   }
   return input.source === undefined ? pending("source-unresolved")
     : selected(targetTypeRefEquals(input.source, target) ? "forward" : "convert", input.source);
