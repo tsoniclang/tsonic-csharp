@@ -156,7 +156,7 @@ function classForwarder(control) {
     type: Object.freeze({ ...signature, csharpDelegateSignature: Object.freeze({ ...signature.csharpDelegateSignature,
       parameterPassingModes: Object.freeze([...control.modes]) }) }) });
   const forwarding = Object.freeze({ contract: Object.freeze({ parameters: contract.parameters, returnType: contract.returnType }),
-    implementation, typeArguments: Object.freeze([]), parameters, result,
+    implementation, typeArguments: Object.freeze([]), typeParameters: Object.freeze([]), parameters, result,
     parameterDefaults: Object.freeze(implementation.parameters.map(() => undefined)) });
   const interfaceImplementation = Object.freeze({ sourceNode: declaration, sourceType, interfaceType, properties: Object.freeze([]),
     methods: Object.freeze([Object.freeze({ sourceName: "read", declaration, member, forwarding })]) });

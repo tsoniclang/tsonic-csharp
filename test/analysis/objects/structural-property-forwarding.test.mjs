@@ -28,12 +28,13 @@ function propertyFixture(target = number) {
     structuralImplementations: () => Object.freeze([selected]), resolveTarget: () => undefined };
   const forbidden = () => assert.fail("property admission has no callable or default dependency");
   return { sourceNode, sourceType, property, selected, policy, shapes, reads: () => shapeReads,
-    callables: { declarationContracts: Object.freeze([]), get: forbidden }, declarations: { runtimeDefault: { get: forbidden } } };
+    callables: { declarationContracts: Object.freeze([]), get: forbidden }, declarations: { runtimeDefault: { get: forbidden } },
+    projections: { get: forbidden } };
 }
 
 test("readonly native property admission publishes the single exact conversion and lookup-only evidence", () => {
   const value = propertyFixture();
-  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations);
+  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
   const implementations = finalized.objectShapes.structuralImplementations(value.sourceType);
   const property = implementations[0]?.properties[0];
   assert.equal(finalized.issues.length, 0, "native int32-to-number reads are admitted without changing their backing storage");
@@ -58,7 +59,7 @@ test("readonly admission failures remain expected source issues and publish no f
   const inherited = Object.freeze({ node: value.sourceNode, code: "CSHARP_UNSUPPORTED_AST",
     message: "An analyzed interface has no exact inherited native implementation." });
   value.shapes.issues = Object.freeze([inherited]);
-  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations);
+  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
   assert.equal(finalized.issues.length, 2, "all existing inherited and property admission failures are collected together");
   assert.equal(finalized.issues[0] === inherited, true, "the existing graph owner issue is not dropped or relabelled");
   assert.equal(finalized.issues[1]?.node === value.sourceNode && finalized.issues[1]?.code === "CSHARP_UNSUPPORTED_AST" &&
@@ -218,6 +219,27 @@ export function readPhantomNative(): int32 { const value: PhantomNative = new Ph
 interface ConstrainedNumber { read<T extends BaseValue>(): number; }
 class ConstrainedNumberBody implements ConstrainedNumber { read<Native extends BaseValue>(): int32 { return 47; } }
 export function readConstrainedMethod(): number { const value: ConstrainedNumber = new ConstrainedNumberBody(); return value.read<DerivedValue>(); }
+interface EqualBound { read<T extends BaseValue>(): int32; }
+class EqualBoundBody implements EqualBound { read<Native extends BaseValue>(): int32 { return 67; } }
+export function readEqualBound(): int32 { const value: EqualBound = new EqualBoundBody(); return value.read<BaseValue>(); }
+interface WeakerBound { read<T extends DerivedValue>(): int32; }
+class WeakerBoundBody implements WeakerBound { read<Native extends BaseValue>(): int32 { return 71; } }
+export function readWeakerBound(): int32 { const value: WeakerBound = new WeakerBoundBody(); return value.read<DerivedValue>(); }
+interface ClassBound { read<T extends BaseValue>(): int32; }
+class ClassBoundBody implements ClassBound { read<Native extends object>(): int32 { return 73; } }
+export function readClassBound(): int32 { const value: ClassBound = new ClassBoundBody(); return value.read<BaseValue>(); }
+interface DependentBound { read<T extends BaseValue, Value extends T>(): int32; }
+class DependentBoundBody implements DependentBound { read<Native extends BaseValue, Item extends Native>(): int32 { return 79; } }
+export function readDependentBound(): int32 {
+  const value: DependentBound = new DependentBoundBody(); return value.read<BaseValue, DerivedValue>();
+}
+interface ProjectedNumber { read<T>(value: T | undefined): number; }
+class ProjectedNumberBody implements ProjectedNumber {
+  read<Native>(value: Native | undefined): int32 { return value === undefined ? 83 : 89; }
+}
+export function readProjectedMethod(): number {
+  const value: ProjectedNumber = new ProjectedNumberBody(); return value.read<string>(undefined) + value.read<string>("x");
+}
 interface ExactNative { echo<T>(value: T): T; }
 class ExactNativeBody implements ExactNative { echo<Native>(value: Native): Native { return value; } }
 export function readExactNative(): int32 { const value: ExactNative = new ExactNativeBody(); return value.echo<int32>(53); }
@@ -242,6 +264,11 @@ if (Tsonic.Generated.Index.observeMethod(method) != 7 || method.calls != 1 ||
     Tsonic.Generated.Index.readGenericMethod() != 31 || Tsonic.Generated.Index.readGenericResult() != 41 ||
     Tsonic.Generated.Index.readPhantomNative() != 43 || Tsonic.Generated.Index.readConstrainedMethod() != 47 ||
     Tsonic.Generated.Index.readExactNative() != 53) throw new System.Exception("one canonical native method admission");
+if (Tsonic.Generated.Index.readEqualBound() != 67 || Tsonic.Generated.Index.readWeakerBound() != 71 ||
+    Tsonic.Generated.Index.readClassBound() != 73 || Tsonic.Generated.Index.readDependentBound() != 79)
+    throw new System.Exception("actual generic invocation bounds and native implicit implementation eligibility");
+if (Tsonic.Generated.Index.readProjectedMethod() != 172)
+    throw new System.Exception("the exact real interface and body optional projection tails share native invocation evidence");
 if (Tsonic.Generated.Index.readClassOverride().value != 11) throw new System.Exception("native class covariant override remains intact");
 if (Tsonic.Generated.Index.readNamedGeneric() != 59 || Tsonic.Generated.Index.readKeywordMethod() != 61)
     throw new System.Exception("truthful native parameter names and generic binders remain hygienic");
@@ -371,6 +398,17 @@ for (const surface of ["native", "js"]) {
       "reference covariance has one canonical explicit implementation, not competing producers");
     assert.equal((generated.match(/ExactNative\.echo</gu) ?? []).length, 0,
       "an alpha-equivalent native generic method gains no gratuitous interface adapter");
+    assert.equal((generated.match(/EqualBound\.read</gu) ?? []).length, 0,
+      "equal alpha-aligned native generic bounds need no additional interface bridge");
+    assert.equal((generated.match(/WeakerBound\.read</gu) ?? []).length, 1,
+      "legal weaker body bounds require one explicit bridge rather than an invalid native implicit implementation");
+    assert.equal((generated.match(/ClassBound\.read</gu) ?? []).length, 1,
+      "a nominal class bound satisfies the body's class constraint without equating the native method declarations");
+    assert.equal((generated.match(/DependentBound\.read</gu) ?? []).length, 0,
+      "dependent native bounds preserve exact alpha-equivalent implicit implementation");
+    const projectedMethod = /double ProjectedNumber\.read<([^>]+)>/u.exec(generated);
+    assert.equal(projectedMethod !== null && projectedMethod[1].split(",").length === 3, true,
+      "the existing exact-layout native optional method publishes its real binder plus both required projection binders");
     assert.equal(/override DerivedValue read\(/u.test(generated), true,
       "the original native class covariant-override path remains separate and unchanged");
     const captureRoot = new URL("../../../.temp/C19-structural-property-forwarding/", import.meta.url);
@@ -388,6 +426,40 @@ for (const surface of ["native", "js"]) {
     assert.throws(() => executeCsharpConstruction({ ...compiled, artifacts: omitted }, `C19-generic-arguments-omitted-${surface}`,
       false, false, [], nativeObserver), error => String(error.message).includes("CS0411"),
     "Roslyn rejects omitted real body type arguments; a source metadata/import error is not a valid native inverse");
+    let removedBridge = 0;
+    const invalidImplicit = new Map([...compiled.artifacts].map(([path, source]) => [path,
+      source.replace(/\bint WeakerBound\.read<[^>]+>\(\)\s*\{[^{}]*\}/gu, () => { removedBridge += 1; return ""; })]));
+    assert.equal(removedBridge, 1, "the countercontrol removes only the actual legal weaker-bound explicit bridge");
+    assert.throws(() => executeCsharpConstruction({ ...compiled, artifacts: invalidImplicit }, `C19-weaker-bound-implicit-${surface}`,
+      false, false, [], nativeObserver), error => String(error.message).includes("CS0425"),
+    "Roslyn requires matching native implicit method bounds even when the explicit invocation is valid");
+    let tightened = 0;
+    const invalidInvocation = new Map([...compiled.artifacts].map(([path, source]) => [path,
+      source.replace(/(class ConstrainedNumberBody\b[\s\S]*?where\s+Native\s*:\s*)BaseValue\b/u, (_match, prefix) => {
+        tightened += 1;
+        return `${prefix}DerivedValue`;
+      })]));
+    assert.equal(tightened, 1, "the native inverse tightens only the actual generic implementation's bound");
+    assert.throws(() => executeCsharpConstruction({ ...compiled, artifacts: invalidInvocation }, `C19-stricter-bound-invocation-${surface}`,
+      false, false, [], nativeObserver), error => String(error.message).includes("CS0311"),
+    "Roslyn refuses a generic bridge whose destination binder cannot meet the implementation requirement");
+  });
+
+  test(`phantom implementation bounds require real native invocation admission (${surface})`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `import type { int32 } from "@tsonic/core/types.js";
+class Base { value: number = 1; }
+class Derived extends Base { extra: number = 2; }
+interface Read { read<T extends Base>(): number; }
+class Body implements Read { read<Native extends Derived>(): int32 { return 7; } }
+export function run(): number { const value: Read = new Body(); return value.read<Base>(); }` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "unused source binders are checker-admitted and still have real native constraints");
+    assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_PROJECT_CALLABLE_ADAPTER_NOT_PROVEN" &&
+      issue.message === "An interface method's native type arguments do not satisfy its implementation's generic constraints."), true,
+    "the canonical owner refuses the exact impossible native invocation before sealing");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+      "an unproved generic native invocation publishes no program, plan or artifact");
+    assert.equal(compiled.result.diagnostics.some(issue => String(issue.code).includes("INTERNAL")), false,
+      "a source-reachable native bound failure is not an internal invariant");
   });
 
   test(`writable structural widening refuses before any native artifacts are published (${surface})`, () => {

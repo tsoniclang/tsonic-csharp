@@ -18,12 +18,20 @@ import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } fro
 import type { CsharpCallableContractIndex } from "../callables/model.js";
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../objects/model.js";
 import { finalizeCsharpStructuralInterfaceForwarding } from "../objects/structural-forwarding.js";
+import { csharpTypeParameterConstraintsEqual, csharpTypeParameterConstraintsImply } from "../../policy/constraints/type-parameter-constraints.js";
+import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
+import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
+import { csharpProjectedType, csharpTypeProjection } from "../../target-model/types/projections.js";
 
 type StructuralMethod = CsharpStructuralInterfaceImplementation["methods"][number];
 type FinalMethod = CsharpFinalStructuralInterfaceImplementation["methods"][number];
+type NativeParameter = Extract<TargetTypeRef, { readonly kind: "type-parameter" }> & {
+  readonly csharpConstraints: { readonly kind: "resolved"; readonly constraints: readonly CsharpTypeParameterConstraint[] };
+};
 type MethodRequest = {
   readonly selected: CsharpStructuralInterfaceImplementation;
-  readonly methods: Map<string, { readonly method: StructuralMethod; readonly contract: CsharpStructuralMethodForwarding["contract"] }>;
+  readonly methods: Map<string, { readonly method: StructuralMethod; readonly contract: CsharpStructuralMethodForwarding["contract"];
+    readonly typeParameters: readonly NativeParameter[]; readonly nativeContract: CsharpSourceCallableContract | undefined }>;
   readonly rejected: Set<string>;
 };
 
@@ -34,6 +42,7 @@ export function analyzeCsharpProjectCallableAdapters(
   callables: CsharpCallableContractIndex,
   shapes: CsharpObjectShapeAnalysis,
   declarations: Pick<CsharpDeclarationClassifications, "runtimeDefault">,
+  projections: CsharpGenericProjectionIndex["genericProjection"],
 ): CsharpProjectCallableAdapters & {
   readonly objectShapes: CsharpObjectShapeClassifications<CsharpFinalStructuralInterfaceImplementation>;
 } {
@@ -132,25 +141,64 @@ export function analyzeCsharpProjectCallableAdapters(
     const implementations: CsharpFinalStructuralInterfaceImplementation[] = [];
     for (const request of owner.interfaces.values()) {
       const methods: FinalMethod[] = [];
-      for (const { method, contract } of request.methods.values()) {
+      for (const { method, contract, typeParameters, nativeContract } of request.methods.values()) {
         if (nativeBaseProvides(owner.type, request.selected.interfaceType)) continue;
         const original = callables.get({ kind: "declaration", declaration: method.declaration });
         const declaringOwner = policy.projectTypes.catalog.definitionForDeclaration(policy.ast.parent(method.declaration));
         const instantiated = original === undefined || declaringOwner === undefined || declaringOwner.typeParameterBindings.length === 0
           ? original : instantiateCsharpInheritedCallable(policy, original, original, request.selected.sourceType);
-        const binders = method.member.typeParameters ?? [];
-        if (instantiated === undefined ||
-          instantiated.methodTypeParameterIdentities.length !== 0 && instantiated.methodTypeParameterIdentities.length !== binders.length) {
+        if (instantiated === undefined) {
           refuse(method.declaration);
           continue;
         }
-        const typeArguments: readonly TargetTypeRef[] = Object.freeze(instantiated.methodTypeParameterIdentities.map((_identity, index) => {
-          const binder = binders[index]!;
-          return Object.freeze({ kind: "type-parameter" as const, identity: binder.identity, name: binder.name,
-            csharpDeclaration: binder.declaration,
-            csharpConstraints: Object.freeze({ kind: "resolved" as const, constraints: binder.constraints }) });
-        }));
+        const bodyShape = instantiated.methodTypeParameterIdentities.length === 0 ? undefined : shapes.resolveTarget(request.selected.sourceType);
+        const bodyMember = bodyShape === undefined ? undefined
+          : resolveCsharpObjectShapeMemberBySelectedSubject(bodyShape, [method.declaration]);
+        const bodyParameters = instantiated.methodTypeParameterIdentities.length === 0
+          ? nativeParameters(undefined, instantiated) : bodyMember?.kind === "resolved" ? nativeParameters(bodyMember.member, instantiated) : undefined;
+        if (bodyParameters === undefined || bodyParameters.length > 0 && nativeContract === undefined) {
+          reject(method.declaration, "An interface method has no exact native generic constraint or anti-constraint evidence.");
+          continue;
+        }
+        const bodyAuthored = bodyParameters.filter(parameter => csharpTypeProjection(parameter) === undefined);
+        const authored = typeParameters.filter(parameter => csharpTypeProjection(parameter) === undefined);
+        if (bodyParameters.length !== 0 && (bodyAuthored.length !== authored.length || bodyParameters.length !== typeParameters.length)) {
+          refuse(method.declaration);
+          continue;
+        }
+        const authoredSubstitutions = new Map(bodyAuthored.map((parameter, index) => [parameter.identity, authored[index]!]));
+        const selectedArguments = bodyParameters.map(parameter => {
+          const projection = csharpTypeProjection(parameter)?.csharpProjection;
+          if (projection === undefined) return authoredSubstitutions.get(parameter.identity);
+          const normalized = projection.kind === "optional" ? csharpProjectedType({ ...projection,
+            arguments: [substituteTargetTypeParameters(projection.arguments[0], authoredSubstitutions)] })
+            : csharpProjectedType({ ...projection,
+              arguments: projection.arguments.map(argument => substituteTargetTypeParameters(argument, authoredSubstitutions)) });
+          const candidates = typeParameters.filter(candidate => csharpTypeProjection(candidate) !== undefined && targetTypeRefEquals(normalized, candidate));
+          return candidates.length === 1 ? candidates[0] : undefined;
+        });
+        if (selectedArguments.some(argument => argument === undefined)) { refuse(method.declaration); continue; }
+        const typeArguments = Object.freeze(selectedArguments as readonly NativeParameter[]);
         const substitutions = new Map(instantiated.methodTypeParameterIdentities.map((identity, index) => [identity, typeArguments[index]!]));
+        const bounds = new Map(typeParameters.map(parameter => [parameter.identity, parameter.csharpConstraints.constraints]));
+        let sameGenericSignature = bodyParameters.length === typeParameters.length;
+        let nativeInvocation = true;
+        for (const [index, parameter] of bodyParameters.entries()) {
+          const argument = typeArguments[index]!;
+          const required = parameter.csharpConstraints.constraints.map(constraint => constraint.kind === "type"
+            ? { ...constraint, type: substituteTargetTypeParameters(constraint.type, substitutions) } : constraint);
+          const destinationIndex = typeParameters.findIndex(candidate => candidate.identity === argument.identity);
+          const acceptsRefLike = nativeContract!.methodAllowsRefLikeTypeArguments[destinationIndex]!;
+          const bodyAcceptsRefLike = instantiated.methodAllowsRefLikeTypeArguments[index]!;
+          nativeInvocation &&= (!acceptsRefLike || bodyAcceptsRefLike) &&
+            csharpTypeParameterConstraintsImply(policy, argument.csharpConstraints.constraints, required, bounds);
+          sameGenericSignature &&= destinationIndex === index && acceptsRefLike === bodyAcceptsRefLike &&
+            csharpTypeParameterConstraintsEqual(argument.csharpConstraints.constraints, required);
+        }
+        if (!nativeInvocation) {
+          reject(method.declaration, "An interface method's native type arguments do not satisfy its implementation's generic constraints.");
+          continue;
+        }
         const implementation: CsharpSourceCallableContract = substitutions.size === 0 ? instantiated : Object.freeze({ ...instantiated,
           parameters: Object.freeze(instantiated.parameters.map(parameter => Object.freeze({ ...parameter,
             targetParameter: Object.freeze({ ...parameter.targetParameter,
@@ -171,13 +219,13 @@ export function analyzeCsharpProjectCallableAdapters(
         const nativeMethod = declaringOwner?.kind === "class" || parent !== undefined && policy.ast.is.IsObjectLiteralExpression(parent);
         const sameSignature = nativeMethod && !policy.ast.hasModifierKind(method.declaration, "private") &&
           !policy.ast.hasModifierKind(method.declaration, "protected") && method.sourceName === method.member.targetName &&
-          implementation.methodTypeParameterIdentities.length === binders.length &&
+          sameGenericSignature &&
           implementation.parameters.length === incoming.length && implementation.parameters.every((parameter, index) =>
             parameter.targetParameter.passingMode === incoming[index]!.passingMode &&
             targetTypeRefEquals(parameter.targetParameter.type, incoming[index]!.type)) &&
           targetTypeRefEquals(implementation.returnType, contract.returnType);
         if (sameSignature && result.conversion.kind === "identity") continue;
-        methods.push(Object.freeze({ ...method, forwarding: Object.freeze({ contract, implementation, typeArguments,
+        methods.push(Object.freeze({ ...method, forwarding: Object.freeze({ contract, implementation, typeArguments, typeParameters,
           parameterDefaults: Object.freeze(implementation.parameters.map(parameter => declarations.runtimeDefault.get(parameter.sourceParameter))),
           parameters, result }) }));
       }
@@ -218,6 +266,7 @@ export function analyzeCsharpProjectCallableAdapters(
   function addMethod(request: MethodRequest, method: StructuralMethod): void {
     const destinationOwner = policy.projectTypes.catalog.definitionForTarget(request.selected.interfaceType);
     let contract: CsharpStructuralMethodForwarding["contract"];
+    let nativeContract: CsharpSourceCallableContract | undefined;
     if (destinationOwner?.kind === "interface") {
       const destinationDeclarations = method.member.sourceDeclarations?.filter(declaration => policy.ast.parent(declaration) === destinationOwner.declaration) ?? [];
       const original = destinationDeclarations.length === 1 ? callables.get({ kind: "declaration", declaration: destinationDeclarations[0]! }) : undefined;
@@ -228,6 +277,7 @@ export function analyzeCsharpProjectCallableAdapters(
         return;
       }
       contract = Object.freeze({ parameters: selected.parameters, returnType: selected.returnType });
+      nativeContract = selected;
     } else {
       const signature = getCsharpDelegateSignature(method.member.type);
       if (signature === undefined || !csharpDelegateSignatureHasSupportedPassingModes(signature)) {
@@ -241,8 +291,17 @@ export function analyzeCsharpProjectCallableAdapters(
       })));
       contract = Object.freeze({ parameters: Object.freeze(parameters.map(targetParameter => Object.freeze({ targetParameter }))),
         returnType: signature.returnType });
+      const declaration = method.member.typeParameters?.[0]?.declaration;
+      const owner = declaration === undefined ? undefined : policy.ast.parent(declaration);
+      if (owner !== undefined) nativeContract = callables.get({ kind: "declaration", declaration: owner });
     }
-    const binders = new Map((method.member.typeParameters ?? []).map((parameter, index) => [parameter.identity, index]));
+    const typeParameters = nativeContract === undefined ? (method.member.typeParameters?.length ?? 0) === 0 ? Object.freeze([]) : undefined
+      : nativeParameters(method.member, nativeContract);
+    if (typeParameters === undefined) {
+      reject(method.declaration, "An interface method has no exact native generic constraint or anti-constraint evidence.");
+      return;
+    }
+    const binders = new Map(typeParameters.map((parameter, index) => [parameter.identity, index]));
     const key = JSON.stringify([method.member.targetName, binders.size,
       contract.parameters.map(({ targetParameter }) => [scopedTargetTypeRefKey(targetParameter.type, binders),
         targetParameter.passingMode, targetParameter.paramsArray === true, targetParameter.optional === true]),
@@ -253,7 +312,25 @@ export function analyzeCsharpProjectCallableAdapters(
       request.methods.delete(key);
       request.rejected.add(key);
       reject(request.selected.sourceNode, "An interface callable has contradictory checked native implementation correspondence.");
-    } else if (existing === undefined) request.methods.set(key, { method, contract });
+    } else if (existing === undefined) request.methods.set(key, { method, contract, typeParameters, nativeContract });
+  }
+
+  function nativeParameters(
+    member: StructuralMethod["member"] | undefined, contract: CsharpSourceCallableContract,
+  ): readonly NativeParameter[] | undefined {
+    const permissions = contract.methodAllowsRefLikeTypeArguments;
+    if (!Array.isArray(permissions) || permissions.length !== contract.methodTypeParameterIdentities.length ||
+      Object.keys(permissions).length !== permissions.length || permissions.some(allowed => typeof allowed !== "boolean")) return undefined;
+    const authored: readonly NativeParameter[] = (member?.typeParameters ?? []).map(parameter => Object.freeze({
+      kind: "type-parameter" as const, identity: parameter.identity, name: parameter.name, csharpDeclaration: parameter.declaration,
+      csharpConstraints: Object.freeze({ kind: "resolved" as const, constraints: parameter.constraints }),
+    }));
+    const projected = projections.get(contract.sourceDeclaration).map(parameter => Object.freeze({ ...parameter,
+      csharpConstraints: Object.freeze({ kind: "resolved" as const, constraints: parameter.csharpProjectionConstraints }),
+    }));
+    const selected = Object.freeze([...authored, ...projected]);
+    return selected.length === contract.methodTypeParameterIdentities.length &&
+      selected.every((parameter, index) => parameter.identity === contract.methodTypeParameterIdentities[index]) ? selected : undefined;
   }
 
   function nativeBaseProvides(type: TargetTypeRef, destination: TargetTypeRef): boolean {

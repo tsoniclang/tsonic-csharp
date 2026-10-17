@@ -48,7 +48,7 @@ export function planCsharpStructuralInterfaceMembers(
           method.declaration);
       }
       const { forwarding } = method;
-      const binders = method.member.typeParameters ?? [];
+      const binders = forwarding.typeParameters;
       const binderIds = new Set(binders.map(parameter => parameter.identity));
       const bareName = (name: string): string => name.startsWith("@") ? name.slice(1) : name;
       const methodNames = csharpGeneratedTypeParameterNames(binders.map(parameter => ({ identity: parameter.identity,
@@ -88,12 +88,12 @@ export function planCsharpStructuralInterfaceMembers(
       const value = applyCsharpConversionSelection(method.declaration, sourceFile, methodInput, diagnostics,
         forwarding.result.source, forwarding.result.target, forwarding.result.conversion, call);
       if (value === undefined) continue;
-      const typeParameters = (method.member.typeParameters ?? []).map(parameter => {
+      const typeParameters = binders.map(parameter => {
         const rendered = csharpTypeFromTargetTypeRef({
           kind: "type-parameter", identity: parameter.identity, name: parameter.name,
         }, methodInput.scope.typeParameterNames);
         if (rendered?.kind !== "IdentifierName") return failCsharpPlannerInvariant(
-          "An admitted structural method binder has no native identifier rendering.", parameter.declaration);
+          "An admitted structural method binder has no native identifier rendering.", parameter.csharpDeclaration ?? method.declaration);
         return { name: rendered.name };
       });
       result.push({ kind: "MethodDeclaration", name: method.member.targetName, explicitInterface, modifiers: [], returnType,

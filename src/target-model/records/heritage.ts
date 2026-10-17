@@ -23,6 +23,7 @@ export interface CsharpStructuralMethodForwarding {
   readonly contract: Pick<CsharpSourceCallContract, "parameters" | "returnType">;
   readonly implementation: CsharpSourceCallableContract;
   readonly typeArguments: readonly import("../types/model.js").TargetTypeRef[];
+  readonly typeParameters: readonly Extract<import("../types/model.js").TargetTypeRef, { readonly kind: "type-parameter" }>[];
   readonly parameterDefaults: readonly (CsharpDefaultParameterContract | undefined)[];
   readonly parameters: readonly CsharpCallableParameterAdapter[];
   readonly result: CsharpCallableValueAdapter;

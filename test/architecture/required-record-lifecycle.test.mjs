@@ -248,9 +248,9 @@ test("callable contracts and forwarding consume the actual attempt's mandatory f
     "ast,navigation,typeDefinitions,projectTypes,providers,target,objectShapes", "the final view cannot expose the mutable source policy");
   const call = composedCall("analyzeCsharpProjectCallableAdapters", program, "stable callable input");
   assert.equal(text(ast.arguments(call)[0]), "callablePolicy", "the one actual conversion view remains mandatory");
-  assert.equal(ast.arguments(call).length === 4 && ast.arguments(call).map(text).join() ===
-    "callablePolicy,analysis.callables,analysis.objectShapes,analysis.declarations", true,
-  "one canonical owner receives actual contracts, the complete shape publication and exact native defaults");
+  assert.equal(ast.arguments(call).length === 5 && ast.arguments(call).map(text).join() ===
+    "callablePolicy,analysis.callables,analysis.objectShapes,analysis.declarations,analysis.typeProjections.genericProjection", true,
+  "one canonical owner receives actual contracts, the complete shape publication, exact native defaults and the existing projection index");
   assert.equal(callsTo(file(paths.analyze), "finalizeCsharpStructuralInterfaceForwarding").length === 0 &&
     identifiers(file(paths.analyze), "finalizeCsharpStructuralInterfaceForwarding").length === 0, true,
   "the composing program has no competing finalizer call or stale import");

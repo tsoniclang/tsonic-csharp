@@ -17,6 +17,7 @@ import { csharpTargetNamedType } from "../../../dist/target-model/types/factorie
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { substituteObjectShapeMemberTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 import { printCsharpCompilationUnit } from "../../../dist/print/source/index.js";
+import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 
@@ -197,12 +198,12 @@ function fixture(passingMode = "by-value") {
   const shapes = { issues: Object.freeze([]), structuralImplementationTypes: Object.freeze([sourceType]),
     structuralImplementations: () => Object.freeze([selected]), knownShapes: () => [], resolveTarget: () => undefined };
   return { sourceType, declaration, sourceParameter, implementation, runtimeDefault, callables, declarations, policy, shapes,
-    reads: () => reads };
+    projections: { get: () => Object.freeze([]) }, reads: () => reads };
 }
 
 test("structural forwarding publishes canonical completed contracts and pure immutable native reads", () => {
   const value = fixture();
-  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations);
+  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
   assert.equal(finalized.issues.length, 0, "the canonical incoming native ABI is admitted");
   const selected = finalized.objectShapes.structuralImplementations(value.sourceType);
   const method = selected[0]?.methods[0];
@@ -229,7 +230,7 @@ test("the complete interface request union is deduplicated before native admissi
   const value = fixture();
   const selected = value.shapes.structuralImplementations(value.sourceType)[0];
   value.shapes.structuralImplementations = () => [selected, { ...selected, methods: [...selected.methods] }];
-  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations);
+  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
   assert.equal(finalized.issues.length, 0, "identical checked obligations are not competing source constraints");
   const admitted = finalized.objectShapes.structuralImplementations(value.sourceType);
   assert.equal(admitted.length === 1 && admitted[0].methods.length === 1, true, "one native owner/interface/member implementation");
@@ -245,12 +246,20 @@ test("native implicit methods need no bridge while phantom destination binders s
     value.policy.projectTypes.catalog.definitionForDeclaration = node => node === owner
       ? { kind: "class", declaration: owner, typeParameterBindings: [] } : undefined;
     if (phantom) {
+      const destinationDeclaration = Object.freeze({});
+      const destinationBinder = Object.freeze({});
       const selected = value.shapes.structuralImplementations(value.sourceType)[0];
       const method = selected.methods[0];
+      const canonicalGet = value.callables.get;
+      value.callables.get = identity => identity.declaration === destinationDeclaration ? {
+        sourceDeclaration: destinationDeclaration, parameters: value.implementation.parameters, returnType: integer,
+        methodTypeParameterIdentities: ["destination:T"], methodAllowsRefLikeTypeArguments: [false],
+      } : canonicalGet(identity);
+      value.policy.ast.parent = node => node === value.declaration ? owner : node === destinationBinder ? destinationDeclaration : undefined;
       value.shapes.structuralImplementations = () => [{ ...selected, methods: [{ ...method, member: { ...method.member,
-        typeParameters: [{ declaration: {}, identity: "destination:T", name: "T", csharpAllowsRefLike: false, constraints: [] }] } }] }];
+        typeParameters: [{ declaration: destinationBinder, identity: "destination:T", name: "T", constraints: [] }] } }] }];
     }
-    const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations);
+    const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
     assert.equal(finalized.issues.length, 0, `${phantom}: exact native parameters and result are admitted`);
     const methods = finalized.objectShapes.structuralImplementations(value.sourceType)[0].methods;
     assert.equal(methods.length, phantom ? 1 : 0, `${phantom}: actual native method arity controls implicit implementation`);
@@ -267,13 +276,23 @@ test("canonical generic admission alpha-aligns real body parameters and retains 
     methodAllowsRefLikeTypeArguments: Object.freeze([false]), returnType: source,
     parameters: Object.freeze([Object.freeze({ sourceParameter: value.sourceParameter,
       targetParameter: Object.freeze({ name: "value", type: source, passingMode: "by-value" }) })]) });
-  value.callables.get = identity => identity.declaration === value.declaration ? implementation : undefined;
+  const destinationDeclaration = Object.freeze({});
+  const destinationBinder = Object.freeze({});
+  const bodyBinder = Object.freeze({});
+  const destinationContract = Object.freeze({ sourceDeclaration: destinationDeclaration, methodTypeParameterIdentities: [destination.identity],
+    methodAllowsRefLikeTypeArguments: [false], returnType: destination,
+    parameters: [{ sourceParameter: Object.freeze({}), targetParameter: { name: "value", type: destination, passingMode: "by-value" } }] });
+  value.callables.get = identity => identity.declaration === value.declaration ? implementation
+    : identity.declaration === destinationDeclaration ? destinationContract : undefined;
+  value.policy.ast.parent = node => node === destinationBinder ? destinationDeclaration : undefined;
   const selected = value.shapes.structuralImplementations(value.sourceType)[0];
   const method = selected.methods[0];
   value.shapes.structuralImplementations = () => [{ ...selected, methods: [{ ...method, member: { ...method.member,
     type: csharpDelegateTargetType("System.Func", [destination], destination),
-    typeParameters: [{ declaration: {}, identity: destination.identity, name: destination.name, csharpAllowsRefLike: false, constraints: [] }] } }] }];
-  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations);
+    typeParameters: [{ declaration: destinationBinder, identity: destination.identity, name: destination.name, constraints: [] }] } }] }];
+  value.shapes.resolveTarget = () => ({ targetType: value.sourceType, members: [{ ...method.member,
+    sourceSubjects: [value.declaration], typeParameters: [{ declaration: bodyBinder, identity: source.identity, name: source.name, constraints: [] }] }] });
+  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
   assert.equal(finalized.issues.length, 0, "different authored generic names have one native signature");
   const forwarding = finalized.objectShapes.structuralImplementations(value.sourceType)[0].methods[0].forwarding;
   assert.equal(forwarding.typeArguments.length === 1 && forwarding.typeArguments[0].identity === destination.identity, true,
@@ -283,6 +302,137 @@ test("canonical generic admission alpha-aligns real body parameters and retains 
   assert.equal(forwarding.implementation.methodTypeParameterIdentities === implementation.methodTypeParameterIdentities &&
     forwarding.implementation.methodAllowsRefLikeTypeArguments === implementation.methodAllowsRefLikeTypeArguments, true,
   "the body's mandatory metadata is preserved rather than copied from the interface");
+});
+
+const nativeBoundBase = csharpTargetNamedType("test.BoundBase", undefined, { kind: "named", name: "BoundBase" },
+  { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [] });
+const nativeBoundDerived = csharpTargetNamedType("test.BoundDerived", undefined, { kind: "named", name: "BoundDerived" },
+  { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [] });
+
+function genericBoundFixture(bodyConstraints, destinationConstraints, bodyPermissions = [false], destinationPermissions = [false]) {
+  const value = fixture();
+  const owner = Object.freeze({});
+  const bodyBinder = Object.freeze({});
+  const destinationBinder = Object.freeze({});
+  const destinationDeclaration = Object.freeze({});
+  const body = Object.freeze({ ...value.implementation, parameters: Object.freeze([]),
+    methodTypeParameterIdentities: Object.freeze(["body:U"]), methodAllowsRefLikeTypeArguments: Object.freeze(bodyPermissions) });
+  const destination = Object.freeze({ sourceDeclaration: destinationDeclaration, parameters: Object.freeze([]), returnType: integer,
+    methodTypeParameterIdentities: Object.freeze(["view:T"]), methodAllowsRefLikeTypeArguments: Object.freeze(destinationPermissions) });
+  const selected = value.shapes.structuralImplementations(value.sourceType)[0];
+  const original = selected.methods[0];
+  const signature = csharpDelegateTargetType("System.Func", [], integer);
+  const bodyMember = Object.freeze({ ...original.member, type: signature, sourceSubjects: [value.declaration],
+    sourceDeclarations: [value.declaration], typeParameters: [{ declaration: bodyBinder, identity: "body:U", name: "U", constraints: bodyConstraints }] });
+  const destinationMember = Object.freeze({ ...original.member, type: signature, sourceDeclarations: [destinationDeclaration],
+    typeParameters: [{ declaration: destinationBinder, identity: "view:T", name: "T", constraints: destinationConstraints }] });
+  value.callables.get = identity => identity.declaration === value.declaration ? body
+    : identity.declaration === destinationDeclaration ? destination : undefined;
+  value.policy.ast.parent = node => node === value.declaration ? owner : node === bodyBinder ? value.declaration
+    : node === destinationBinder ? destinationDeclaration : undefined;
+  value.policy.ast.hasModifierKind = () => false;
+  value.policy.ast.is = { IsObjectLiteralExpression: () => false };
+  const definition = Object.freeze({ kind: "class", declaration: owner, typeParameterBindings: [] });
+  value.policy.projectTypes.catalog.definitionForDeclaration = node => node === owner ? definition : undefined;
+  value.policy.projectTypes.catalog.definitionForTarget = type => type.id === nativeBoundBase.id || type.id === nativeBoundDerived.id
+    ? { kind: "class" } : undefined;
+  value.policy.projectTypes.directSupertypes = type => type.id === nativeBoundDerived.id ? [nativeBoundBase] : [];
+  value.shapes.resolveTarget = type => type.id === value.sourceType.id ? { targetType: value.sourceType, members: [bodyMember] } : undefined;
+  value.shapes.structuralImplementations = () => [{ ...selected, methods: [{ ...original, member: destinationMember }] }];
+  return value;
+}
+
+for (const control of [
+  { name: "equal native bounds", body: [{ kind: "type", type: nativeBoundBase }], destination: [{ kind: "type", type: nativeBoundBase }], accepted: true, bridges: 0 },
+  { name: "weaker implementation bound", body: [{ kind: "type", type: nativeBoundBase }], destination: [{ kind: "type", type: nativeBoundDerived }], accepted: true, bridges: 1 },
+  { name: "stricter phantom implementation bound", body: [{ kind: "type", type: nativeBoundDerived }], destination: [{ kind: "type", type: nativeBoundBase }], accepted: false },
+  { name: "nominal class implies reference constraint", body: [{ kind: "keyword", keyword: "class" }], destination: [{ kind: "type", type: nativeBoundBase }], accepted: true, bridges: 1 },
+  { name: "reference constraint does not select a native subclass", body: [{ kind: "type", type: nativeBoundBase }], destination: [{ kind: "keyword", keyword: "class" }], accepted: false },
+  { name: "class does not imply a constructor", body: [{ kind: "constructor" }], destination: [{ kind: "keyword", keyword: "class" }], accepted: false },
+  { name: "value constraint implies native construction", body: [{ kind: "constructor" }], destination: [{ kind: "keyword", keyword: "struct" }], accepted: true, bridges: 1 },
+  { name: "unmanaged implies value constraint", body: [{ kind: "keyword", keyword: "struct" }], destination: [{ kind: "keyword", keyword: "unmanaged" }], accepted: true, bridges: 1 },
+  { name: "value constraint does not imply unmanaged", body: [{ kind: "keyword", keyword: "unmanaged" }], destination: [{ kind: "keyword", keyword: "struct" }], accepted: false },
+  { name: "reference constraint implies native non-null", body: [{ kind: "keyword", keyword: "notnull" }], destination: [{ kind: "keyword", keyword: "class" }], accepted: true, bridges: 1 },
+]) {
+  test(`canonical generic native admission: ${control.name}`, () => {
+    const value = genericBoundFixture(control.body, control.destination);
+    const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+    assert.equal(finalized.issues.length, control.accepted ? 0 : 1, `${control.name}: exact native invocation legality`);
+    const methods = finalized.objectShapes.structuralImplementations(value.sourceType)[0].methods;
+    assert.equal(methods.length, control.accepted ? control.bridges : 0,
+      `${control.name}: invocation implication does not replace native implicit constraint equivalence`);
+    if (!control.accepted) assert.equal(finalized.issues[0]?.node === value.declaration &&
+      finalized.issues[0]?.code === "CSHARP_PROJECT_CALLABLE_ADAPTER_NOT_PROVEN" &&
+      finalized.issues[0]?.message === "An interface method's native type arguments do not satisfy its implementation's generic constraints.", true,
+    `${control.name}: a reachable native constraint failure is an exact expected owner issue`);
+  });
+}
+
+for (const control of [
+  { name: "identical declared permissions", body: [false], destination: [false], accepted: true, bridges: 0 },
+  { name: "a body permitting ref structs accepts an ordinary destination", body: [true], destination: [false], accepted: true, bridges: 1 },
+  { name: "a ref-struct destination cannot call an ordinary body", body: [false], destination: [true], accepted: false },
+  { name: "missing body permission is not false", body: [], destination: [false], accepted: false },
+  { name: "missing destination permission is not false", body: [false], destination: [], accepted: false },
+]) {
+  test(`canonical generic native metadata: ${control.name}`, () => {
+    const value = genericBoundFixture([], [], control.body, control.destination);
+    const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+    assert.equal(finalized.issues.length, control.accepted ? 0 : 1, `${control.name}: actual anti-constraint evidence governs`);
+    assert.equal(finalized.objectShapes.structuralImplementations(value.sourceType)[0].methods.length,
+      control.accepted ? control.bridges : 0, `${control.name}: no generic bridge is published with unproved permissions`);
+    if (!control.accepted) assert.equal(finalized.issues[0]?.node === value.declaration &&
+      finalized.issues[0]?.code === "CSHARP_PROJECT_CALLABLE_ADAPTER_NOT_PROVEN", true,
+    `${control.name}: native metadata failures reject before publication rather than defaulting or throwing an invariant`);
+  });
+}
+
+test("matching native projection layouts retain all actual binder, permission and invocation slots", () => {
+  const value = genericBoundFixture([], []);
+  const selected = value.shapes.structuralImplementations(value.sourceType)[0];
+  const method = selected.methods[0];
+  const destinationDeclaration = method.member.sourceDeclarations[0];
+  const body = value.callables.get({ declaration: value.declaration });
+  const destination = value.callables.get({ declaration: destinationDeclaration });
+  const bodyParameter = Object.freeze({ kind: "type-parameter", identity: "body:U", name: "U" });
+  const destinationParameter = Object.freeze({ kind: "type-parameter", identity: "view:T", name: "T" });
+  const projected = parameter => ["operations", "storage"].map(part => csharpProjectedType({
+    kind: "optional", part, arguments: [parameter],
+  })).sort((left, right) => left.name.localeCompare(right.name));
+  const bodyProjections = projected(bodyParameter);
+  const destinationProjections = projected(destinationParameter);
+  const bodyStorage = bodyProjections.find(parameter => parameter.csharpProjection.part === "storage");
+  const destinationStorage = destinationProjections.find(parameter => parameter.csharpProjection.part === "storage");
+  const widened = Object.freeze({ kind: "source-primitive", name: "float64" });
+  const bodyParameters = [{ sourceParameter: value.sourceParameter, targetParameter: {
+    name: "value", type: bodyStorage, passingMode: "by-value" } }];
+  const destinationParameters = [{ sourceParameter: Object.freeze({}), targetParameter: {
+    name: "value", type: destinationStorage, passingMode: "by-value" } }];
+  const bodyContract = Object.freeze({ ...body, parameters: bodyParameters,
+    methodTypeParameterIdentities: [bodyParameter.identity, ...bodyProjections.map(parameter => parameter.identity)],
+    methodAllowsRefLikeTypeArguments: [false, false, false] });
+  const destinationContract = Object.freeze({ ...destination, parameters: destinationParameters, returnType: widened,
+    methodTypeParameterIdentities: [destinationParameter.identity, ...destinationProjections.map(parameter => parameter.identity)],
+    methodAllowsRefLikeTypeArguments: [false, false, false] });
+  value.callables.get = identity => identity.declaration === value.declaration ? bodyContract
+    : identity.declaration === destinationDeclaration ? destinationContract : undefined;
+  const bodyShape = value.shapes.resolveTarget(value.sourceType);
+  value.shapes.resolveTarget = () => ({ ...bodyShape, members: [{ ...bodyShape.members[0],
+    type: csharpDelegateTargetType("System.Func", [bodyStorage], integer) }] });
+  value.shapes.structuralImplementations = () => [{ ...selected, methods: [{ ...method, member: { ...method.member,
+    type: csharpDelegateTargetType("System.Func", [destinationStorage], widened) } }] }];
+  value.projections.get = declaration => declaration === value.declaration ? bodyProjections
+    : declaration === destinationDeclaration ? destinationProjections : Object.freeze([]);
+  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+  assert.equal(finalized.issues.length, 0, "the real matching projection tail is not confused with authored binder arity");
+  const forwarding = finalized.objectShapes.structuralImplementations(value.sourceType)[0].methods[0].forwarding;
+  assert.equal(forwarding.typeParameters.length === 3 && forwarding.typeArguments.length === 3, true,
+    "both native operations and storage slots survive alongside the real authored binder");
+  assert.equal(forwarding.typeArguments.every((argument, index) => argument.identity === destinationContract.methodTypeParameterIdentities[index]), true,
+    "the body invocation uses the exact existing destination witnesses, not fabricated native parameters");
+  assert.equal(forwarding.implementation.methodAllowsRefLikeTypeArguments === bodyContract.methodAllowsRefLikeTypeArguments, true,
+    "native permission evidence retains the original full callable vector");
+  assert.equal(forwarding.parameters[0].adapter.conversion.kind, "identity", "matching native storage is forwarded without conversion or copying");
 });
 
 for (const missing of ["canonical method contract", "native parameter passing correspondence"]) {
@@ -297,7 +447,7 @@ for (const missing of ["canonical method contract", "native parameter passing co
       } };
       value.shapes.structuralImplementations = () => [{ ...selected, methods: [{ ...method, member }] }];
     }
-    const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations);
+    const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
     assert.equal(finalized.issues.length, 1, "one precise incomplete native contract diagnostic");
     assert.equal(finalized.issues[0]?.node === value.declaration, true, "the exact implementation declaration owns the failure");
     assert.equal(finalized.issues[0]?.message, "An analyzed interface method has no exact native forwarding signature.",
@@ -310,7 +460,7 @@ for (const missing of ["canonical method contract", "native parameter passing co
 for (const passingMode of ["by-value", "byref-readonly", "byref-readwrite", "byref-writeonly-must-init"]) {
   test(`structural forwarding preserves the canonical ${passingMode} incoming parameter without a body prelude`, () => {
     const value = fixture(passingMode);
-    const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations);
+    const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
     assert.equal(finalized.issues.length, 0, "identical native passing contracts need no new adaptation capability");
     const diagnostics = [];
     const planned = planCsharpStructuralInterfaceMembers({ targetType: value.sourceType }, value.declaration, {
@@ -395,6 +545,7 @@ const nativeModes = [
 
 function adaptedNativeForwarder(control, destinationNames = []) {
   const declaration = Object.freeze({});
+  const destinationDeclaration = Object.freeze({});
   const sourceType = csharpTargetNamedType(`Proof.Generated${control.name}`, undefined, undefined,
     { allowsRefLikeTypeArguments: [] });
   const interfaceType = csharpTargetNamedType(`Proof.I${control.name}`, undefined,
@@ -417,15 +568,22 @@ function adaptedNativeForwarder(control, destinationNames = []) {
   const selected = Object.freeze({ sourceNode: declaration, sourceType, interfaceType, properties: Object.freeze([]), methods: Object.freeze([
     Object.freeze({ sourceName: "read", declaration, member }),
   ]) });
-  const policy = { ast: { parent: () => undefined, parameters: () => assert.fail("native forwarding cannot re-plan source parameters") },
+  const destinationBinders = new Set(member.typeParameters?.map(parameter => parameter.declaration) ?? []);
+  const destinationContract = Object.freeze({ sourceDeclaration: destinationDeclaration,
+    methodTypeParameterIdentities: Object.freeze(member.typeParameters?.map(parameter => parameter.identity) ?? []),
+    methodAllowsRefLikeTypeArguments: Object.freeze(destinationNames.map(() => false)),
+    parameters: implementation.parameters, returnType: widened });
+  const policy = { ast: { parent: node => destinationBinders.has(node) ? destinationDeclaration : undefined,
+    parameters: () => assert.fail("native forwarding cannot re-plan source parameters") },
     projectTypes: { catalog: { definitionForDeclaration: () => undefined, definitionForTarget: () => undefined }, directSupertypes: () => [] },
     objectShapes: Object.freeze({ resolveNode: () => undefined, resolveTarget: () => undefined }),
     providers: { findTargetBindingByTargetId: () => undefined }, target: {} };
   const finalized = analyzeCsharpProjectCallableAdapters(policy,
-    { declarationContracts: Object.freeze([]), get: identity => identity.declaration === declaration ? implementation : undefined },
+    { declarationContracts: Object.freeze([]), get: identity => identity.declaration === declaration ? implementation
+      : identity.declaration === destinationDeclaration ? destinationContract : undefined },
     { issues: Object.freeze([]), structuralImplementationTypes: Object.freeze([sourceType]), structuralImplementations: () => Object.freeze([selected]),
       resolveTarget: () => undefined },
-    { runtimeDefault: { get: () => undefined } });
+    { runtimeDefault: { get: () => undefined } }, { get: () => Object.freeze([]) });
   assert.equal(finalized.issues.length, 0, `${control.name}: canonical native admission accepts exact byref parameters and an adapted result`);
   const forwarding = finalized.objectShapes.structuralImplementations(sourceType)[0]?.methods[0]?.forwarding;
   assert.equal(forwarding?.implementation === implementation, true, `${control.name}: exact canonical physical method identity`);

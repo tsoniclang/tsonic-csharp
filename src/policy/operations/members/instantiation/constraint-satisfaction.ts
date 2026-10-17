@@ -31,6 +31,7 @@ import type {
 } from "../../../../target-model/types/generic-constraints.js";
 import {
   resolveCsharpTypeParameterConstraints,
+  csharpTypeParameterConstraintsImply,
 } from "../../../constraints/index.js";
 import type { CsharpSelectedTargetMethodTypeArgument } from "../../../../target-model/records/members.js";
 import {
@@ -359,48 +360,32 @@ function sourceConstraintsImplyTargetConstraint(
   sourceConstraints: readonly CsharpTypeParameterConstraint[],
   targetConstraint: TargetConstraint,
 ): boolean {
+  let required: CsharpTypeParameterConstraint;
   switch (targetConstraint.kind) {
     case "implements": {
       const targetType = implementedConstraintType(host, targetConstraint, new Map());
       if (targetType === undefined) return false;
-      return sourceConstraints.some((constraint) =>
-        constraint.kind === "type" &&
-        namedTargetTypeImplicitlyAccepts(
-          host,
-          constraint.type,
-          targetType,
-          new Set(),
-        ));
+      required = { kind: "type", type: targetType };
+      break;
     }
     case "reference-type":
-      return hasSourceKeyword(sourceConstraints, "class");
+      required = { kind: "keyword", keyword: "class" };
+      break;
     case "value-type":
-      return hasSourceKeyword(sourceConstraints, "struct") ||
-        hasSourceKeyword(sourceConstraints, "unmanaged");
+      required = { kind: "keyword", keyword: "struct" };
+      break;
     case "constructible":
-      return sourceConstraints.some((constraint) =>
-          constraint.kind === "constructor") ||
-        hasSourceKeyword(sourceConstraints, "struct") ||
-        hasSourceKeyword(sourceConstraints, "unmanaged");
+      required = { kind: "constructor" };
+      break;
     case "unmanaged":
-      return hasSourceKeyword(sourceConstraints, "unmanaged");
+      required = { kind: "keyword", keyword: "unmanaged" };
+      break;
     case "target-specific":
-      return targetConstraint.target === "csharp" &&
-        targetConstraint.name === "notnull" &&
-        (
-          hasSourceKeyword(sourceConstraints, "notnull") ||
-          hasSourceKeyword(sourceConstraints, "struct") ||
-          hasSourceKeyword(sourceConstraints, "unmanaged")
-        );
+      if (targetConstraint.target !== "csharp" || targetConstraint.name !== "notnull") return false;
+      required = { kind: "keyword", keyword: "notnull" };
+      break;
   }
-}
-
-function hasSourceKeyword(
-  constraints: readonly CsharpTypeParameterConstraint[],
-  keyword: Extract<CsharpTypeParameterConstraint, { readonly kind: "keyword" }>["keyword"],
-): boolean {
-  return constraints.some((constraint) =>
-    constraint.kind === "keyword" && constraint.keyword === keyword);
+  return csharpTypeParameterConstraintsImply(host, sourceConstraints, [required], new Map());
 }
 
 function isCsharpNonNullableValueType(type: TargetTypeRef): boolean {

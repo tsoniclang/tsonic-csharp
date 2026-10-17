@@ -278,7 +278,7 @@ export function analyzeCsharpTargetProgram(
     providers: analysis.policy.providers, target: analysis.policy.target, objectShapes: analysis.objectShapes,
   });
   const callableAdapters = analyzeCsharpProjectCallableAdapters(
-    callablePolicy, analysis.callables, analysis.objectShapes, analysis.declarations,
+    callablePolicy, analysis.callables, analysis.objectShapes, analysis.declarations, analysis.typeProjections.genericProjection,
   );
   const analysisIssues = [
     ...callableAdapters.issues,
