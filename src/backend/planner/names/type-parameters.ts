@@ -17,6 +17,9 @@ export function createCsharpTypeParameterPlanningContext(
   const typeParameterNames = csharpGeneratedTypeParameterNames([
     ...parameters.filter(parameter => parameter !== undefined), ...definition.outerTypeProjections,
   ], [...csharpAuthoredTypeParameterNames(owner, input.program.source.ast),
+    ...input.program.names.typeParameterNames.map(parameter => parameter.name),
     ...input.program.records.genericProjection.get(owner).map(parameter => parameter.name)]);
-  return { ...input, scope: { ...input.scope, typeParameterNames } };
+  return { ...input, scope: { ...input.scope,
+    typeParameterNames: new Map([...input.scope.typeParameterNames ?? [], ...typeParameterNames]),
+  } };
 }

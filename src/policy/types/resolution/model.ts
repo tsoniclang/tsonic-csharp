@@ -32,7 +32,7 @@ import type { CsharpSourceCallResult } from "../../../target-model/operations/so
 export type { CsharpSourceCallResult } from "../../../target-model/operations/source-call-results.js";
 
 export interface CsharpPlanningRepresentationQueries {
-  genericProjections?(declaration: Node): readonly import("../../../target-model/types/projections.js").CsharpProjectedType[];
+  genericProjections(declaration: Node): readonly import("../../../target-model/types/projections.js").CsharpProjectedType[];
   requiresClosedStructuralContract(type: TargetTypeRef): boolean;
   scopedTargetType(node: Node): TargetTypeRef | undefined;
   sourceCallable(

@@ -31,7 +31,6 @@ import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { nextState } from "../../resolution/state.js";
 import {
   substituteObjectShapeMemberTargetTypeParameters,
-  substituteTargetTypeParameters,
 } from "../../../../target-model/types/substitution.js";
 import {
   isCsharpJsValueTargetType,

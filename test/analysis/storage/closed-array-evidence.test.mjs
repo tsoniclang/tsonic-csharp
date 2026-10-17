@@ -3,6 +3,7 @@ import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpSourceEvidence } from "../../../dist/analysis/source-evidence/analyze.js";
+import { createCsharpSourceProfileCallableAliasQuery } from "../../../dist/policy/operations/source-profiles/callable-aliases.js";
 
 const unknownTypes = new Proxy({}, { get: () => () => undefined });
 
@@ -11,7 +12,8 @@ function evidenceFor(sourceText) {
   assertCsharpCheckingSucceeded(checked);
   const source = createTargetSourceProgram(checked.source);
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
-  return { source, sourceFiles, result: analyzeCsharpSourceEvidence(source, sourceFiles, unknownTypes, { types: unknownTypes }) };
+  return { source, sourceFiles, result: analyzeCsharpSourceEvidence(source, sourceFiles, unknownTypes,
+    { types: unknownTypes, callOnlyAlias: createCsharpSourceProfileCallableAliasQuery(source) }) };
 }
 
 test("storage evidence publishes an index without the closed-array inspector", () => {
