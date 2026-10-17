@@ -9,7 +9,7 @@ import type {
   CsharpExpression,
 } from "../../target-ast/syntax/index.js";
 import {
-  selectedPolicyDiagnostic,
+  failCsharpPlannerInvariant,
   targetPolicyDiagnostic,
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -62,8 +62,7 @@ export function translateCsharpConstruction(
   }
   const jsValueOperation = classification.jsValue;
   if (jsValueOperation.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
-    return undefined;
+    return failCsharpPlannerInvariant("A participating construction refusal must be rejected before publication.", node);
   }
   if (jsValueOperation.kind === "resolved") {
     const sourceArguments = input.program.source.ast.arguments(node)
@@ -127,34 +126,10 @@ export function translateCsharpConstruction(
         planCallArgument,
       );
     case "rejected":
-      diagnostics.push(selectedPolicyDiagnostic(
-        node,
-        selection.diagnostic,
-      ));
-      return undefined;
     case "missing":
-      diagnostics.push(targetPolicyDiagnostic(
-        node,
-        "CSHARP_TARGET_CONSTRUCTION_NOT_CLOSED",
-        selection.reason,
-      ));
-      return undefined;
     case "conflict":
-      diagnostics.push(targetPolicyDiagnostic(
-        node,
-        "CSHARP_TARGET_CONSTRUCTION_IDENTITY_CONFLICT",
-        selection.reason,
-      ));
-      return undefined;
     case "ambiguous":
-      diagnostics.push(targetPolicyDiagnostic(
-        node,
-        "CSHARP_TARGET_CONSTRUCTION_AMBIGUOUS",
-        selection.reason,
-        selection.candidates.map((candidate) =>
-          `candidate=${candidate}`),
-      ));
-      return undefined;
+      return failCsharpPlannerInvariant("A participating constructor selection refusal must be rejected before publication.", node);
   }
 }
 

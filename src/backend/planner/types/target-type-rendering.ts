@@ -4,6 +4,7 @@ import type {
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { csharpTupleType } from "./csharp-tuples.js";
+import { csharpFunctionPointerCallingConvention } from "../../../target-model/syntax/function-pointer-conventions.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { sanitizeIdentifier, tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import type {
@@ -82,39 +83,6 @@ function csharpTypeFromEnrichedTargetTypeRef(
   }
 }
 
-function csharpFunctionPointerCallingConvention(
-  abi: readonly string[] | undefined,
-): {
-  readonly callingConvention?: "managed" | "unmanaged";
-  readonly callingConventionModifiers?: readonly string[];
-} | undefined {
-  if (abi === undefined || abi.length === 0) {
-    return {};
-  }
-  if (abi.length === 1 && abi[0] === "target-default") {
-    return {};
-  }
-  const [kind, ...modifiers] = abi;
-  if (kind === "managed") {
-    return modifiers.length === 0 ? { callingConvention: "managed" } : undefined;
-  }
-  if (kind !== "unmanaged" || modifiers.some((modifier) =>
-    ![
-      "Cdecl",
-      "Fastcall",
-      "MemberFunction",
-      "Stdcall",
-      "SuppressGCTransition",
-      "Swift",
-      "Thiscall",
-    ].includes(modifier))) {
-    return undefined;
-  }
-  return {
-    callingConvention: "unmanaged",
-    ...(modifiers.length === 0 ? {} : { callingConventionModifiers: modifiers }),
-  };
-}
 
 function csharpTypeParameterName(name: string): CsharpTypeNode | undefined {
   const identifier = tryCsharpIdentifier(name);

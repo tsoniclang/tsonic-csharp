@@ -5,7 +5,7 @@ import { renderSelectedCsharpTargetMethodTypeArguments } from "../../selected-me
 import { sourceCallIsOptional, translateArrayCreationCall } from "./helpers.js";
 import { translateCsharpSelectedReceiver } from "../../receivers.js";
 import { translateSelectedTargetArguments } from "./arguments.js";
-import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
+import { unsupportedNodeDiagnostic, failCsharpPlannerInvariant } from "../../../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
@@ -67,13 +67,11 @@ function buildSelectedTargetCall(
     ));
     return undefined;
   }
-  const registeredArtifacts = registerSelectedCallArtifacts(
+  const registeredArtifacts = readSelectedCallArtifacts(
       node,
       source,
       selection.targetMember,
-      sourceFile,
       input,
-      diagnostics,
     );
   if (registeredArtifacts === undefined) {
     return undefined;
@@ -674,106 +672,20 @@ function translateEcmascriptProtocolDispatch(
   };
 }
 
-function registerSelectedCallArtifacts(
+function readSelectedCallArtifacts(
   node: Node,
   source: ResolvedSourceCallInfo,
   member: CsharpTargetMember,
-  sourceFile: SourceFile,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-): { readonly objectShapeProjection?: CsharpObjectShapeProjection } | undefined {
-  const requirements = member.csharpArtifactRequirements;
-  if (requirements === undefined || requirements.length === 0) {
-    return {};
-  }
-  let objectShapeProjection: CsharpObjectShapeProjection | undefined;
-  for (const requirement of requirements) {
-    const subject = requirement.source.kind === "receiver"
-      ? source.sourceReceiver?.expression
-      : source.sourceArguments[requirement.source.index]?.expression;
-    const requirementName = requirement.kind === "object-shape-capability"
-      ? requirement.capability
-      : requirement.projection;
-    if (subject === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        `Selected target call '${member.id}' requires exact '${requirementName}' source-value evidence.`,
-      ));
-      return undefined;
-    }
-    const targetType = input.types.classifications.resolveNode(subject, sourceFile);
-    if (targetType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        `Selected target call '${member.id}' requires exact '${requirementName}' source-value type evidence.`,
-      ));
-      return undefined;
-    }
-    if (requirement.kind === "object-shape-capability") {
-      const result = input.artifacts.requireObjectShapeCapability(
-          subject,
-          targetType,
-          sourceFile,
-          requirement.capability,
-          requirement.rootKind,
-        );
-      if (result.kind === "rejected") {
-        diagnostics.push(unsupportedNodeDiagnostic(subject, result.reason));
-        return undefined;
-      }
-      continue;
-    }
-    if (member.returnType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        subject,
-        `Selected target call '${member.id}' has no result type for its exact '${requirement.projection}' object projection.`,
-      ));
-      return undefined;
-    }
-    const assignmentSubject = requirement.projection === "assign"
-      ? source.sourceArguments[requirement.assignmentSource.index]?.expression
-      : undefined;
-    const assignmentType = assignmentSubject === undefined
-      ? undefined
-      : input.types.classifications.resolveNode(assignmentSubject, sourceFile);
-    if (requirement.projection === "assign" &&
-      (assignmentSubject === undefined || assignmentType === undefined)) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        subject,
-        `Selected target call '${member.id}' requires exact assignment-source value and type evidence.`,
-      ));
-      return undefined;
-    }
-    const result = input.artifacts.requireObjectShapeProjection(
-      subject,
-      requirement.projection === "assign" ? member.returnType : targetType,
-      sourceFile,
-      requirement.projection,
-      member.returnType,
-      requirement.rootKind,
-      assignmentSubject === undefined || assignmentType === undefined
-        ? undefined
-        : { node: assignmentSubject, type: assignmentType },
-    );
-    if (result.kind === "rejected") {
-      diagnostics.push(unsupportedNodeDiagnostic(subject, result.reason));
-      return undefined;
-    }
-    if (
-      result.projection === undefined ||
-      objectShapeProjection !== undefined
-    ) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        subject,
-        `Selected target call '${member.id}' does not have one exact object-shape projection artifact.`,
-      ));
-      return undefined;
-    }
-    objectShapeProjection = result.projection;
-  }
-  return objectShapeProjection === undefined
-    ? {}
-    : { objectShapeProjection };
+): { readonly objectShapeProjection?: CsharpObjectShapeProjection } {
+  const request = (member.csharpArtifactRequirements ?? []).find(requirement => requirement.kind === "object-shape-projection");
+  if (request === undefined) return {};
+  const subject = request.source.kind === "receiver"
+    ? source.sourceReceiver?.expression : source.sourceArguments[request.source.index]?.expression;
+  const projection = subject === undefined ? undefined : input.program.records.objectShapeArtifact.projection(subject);
+  if (projection === undefined) return failCsharpPlannerInvariant(
+    "A participating selected call requires its admitted object-shape projection.", node);
+  return { objectShapeProjection: projection };
 }
 
 function translateObjectShapeProjectionCall(

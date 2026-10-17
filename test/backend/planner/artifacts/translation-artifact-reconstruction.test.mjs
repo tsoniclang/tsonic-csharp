@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCsharpObjectShapeDemandEngine } from "../../../../dist/analysis/objects/native-demand-requests.js";
+import { csharpObjectShapeContractCandidate } from "../../../../dist/backend/planner/artifacts/contracts.js";
 
 import {
   csharpDelegateTargetType,
@@ -38,7 +40,7 @@ test("target-owned object shapes reconstruct from canonical artifact state", () 
     [targetTypeRefKey(innerType), inner],
     [targetTypeRefKey(outerType), outer],
   ]);
-  const artifacts = createCsharpArtifactGraph({
+  const demand = createCsharpObjectShapeDemandEngine({
     ast: {},
     navigation: {},
     objectShapes: {
@@ -50,11 +52,11 @@ test("target-owned object shapes reconstruct from canonical artifact state", () 
     },
   });
 
-  assert.deepEqual(artifacts.registerObjectShape(outer, "synthetic"), {
+  assert.deepEqual(demand.registerObjectShape(outer, "synthetic"), {
     kind: "accepted",
   });
   assert.deepEqual(
-    artifacts.requireObjectShapeCapability(
+    demand.requireObjectShapeCapability(
       undefined,
       outerType,
       {},
@@ -64,6 +66,7 @@ test("target-owned object shapes reconstruct from canonical artifact state", () 
     { kind: "accepted" },
   );
 
+  const artifacts = createCsharpArtifactGraph({ objectShapeArtifacts: demand.seal() });
   const outerOwner = `object-shape:${targetTypeRefKey(outerType)}`;
   const innerOwner = `object-shape:${targetTypeRefKey(innerType)}`;
   assert.deepEqual(artifacts.reconstructArtifact(outerOwner), {
@@ -100,61 +103,47 @@ test("object-shape receiver requirements strengthen one exact generated type sur
     targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Example.Counter" },
     members: [method],
   };
-  const artifacts = createCsharpArtifactGraph({
+  const demand = createCsharpObjectShapeDemandEngine({
     ast: {},
     navigation: {},
     objectShapes: { resolveTarget() { return shape; } },
   });
 
-  assert.deepEqual(artifacts.registerObjectShape(shape, "synthetic"), {
+  assert.deepEqual(demand.registerObjectShape(shape, "synthetic"), {
     kind: "accepted",
   });
   const owner = `object-shape:${targetTypeRefKey(shape.targetType)}`;
-  const initialRevision = artifacts.contractGraph.facetRevision(
-    owner,
-    "object-shape-type-surface",
-  );
-  assert.equal(artifacts.objectShapeMethodUsesReceiver(shape, method), false);
-
-  assert.deepEqual(
-    artifacts.requireObjectShapeMethodReceiver(shape, method),
-    { kind: "accepted" },
-  );
+  const before = demand.objectShapeArtifacts()[0];
+  assert.equal(before.receiverBoundMethodKeys.length, 0, "receiver storage is not demanded initially");
+  const initialContract = csharpObjectShapeContractCandidate(owner, shape, "synthetic", before.capabilities,
+    before.projections, before.receiverBoundMethodKeys, before.dependencies);
+  assert.deepEqual(demand.requireObjectShapeMethodReceiver(shape, method), { kind: "accepted" });
+  const after = demand.objectShapeArtifacts()[0];
+  const strengthened = csharpObjectShapeContractCandidate(owner, shape, "synthetic", after.capabilities,
+    after.projections, after.receiverBoundMethodKeys, after.dependencies);
+  assert.equal(initialContract.contract.facets.find(facet => facet.facet === "object-shape-type-surface").value !==
+    strengthened.contract.facets.find(facet => facet.facet === "object-shape-type-surface").value, true,
+    "the canonical type surface strengthens before publication");
+  assert.deepEqual(demand.requireObjectShapeMethodReceiver(shape, method), { kind: "accepted" });
+  assert.deepEqual(demand.objectShapeArtifacts()[0].receiverBoundMethodKeys, [csharpObjectShapeMemberContractKey(method)]);
+  assert.match(demand.requireObjectShapeMethodReceiver(shape, { ...method, sourceKey: csharpPropertySourceMemberKey("other"),
+    sourceName: "other" }).reason, /exact method member/u);
+  const artifacts = createCsharpArtifactGraph({ objectShapeArtifacts: demand.seal() });
   assert.equal(artifacts.objectShapeMethodUsesReceiver(shape, method), true);
-  assert.equal(
-    artifacts.contractGraph.facetRevision(
-      owner,
-      "object-shape-type-surface",
-    ),
-    initialRevision + 1,
-  );
-  const stableRevision = artifacts.revision;
-  assert.deepEqual(
-    artifacts.requireObjectShapeMethodReceiver(shape, method),
-    { kind: "accepted" },
-  );
-  assert.equal(artifacts.revision, stableRevision);
-  assert.deepEqual(
-    artifacts.objectShapeArtifacts()[0]?.receiverBoundMethodKeys,
-    [csharpObjectShapeMemberContractKey(method)],
-  );
+  const revision = artifacts.revision;
+  assert.equal(artifacts.objectShapeMethodUsesReceiver(shape, method), true);
+  assert.equal(artifacts.revision, revision, "sealed reads cannot strengthen a backend contract");
+  assert.equal(Object.hasOwn(artifacts, "requireObjectShapeMethodReceiver"), false, "late demand API is removed");
 
-  assert.match(
-    artifacts.requireObjectShapeMethodReceiver(shape, {
-      ...method,
-      sourceKey: csharpPropertySourceMemberKey("other"),
-      sourceName: "other",
-    }).reason,
-    /exact method member/u,
-  );
 });
 
 test("source-file artifacts cannot be acknowledged by a target-owned reconstructor", () => {
-  const artifacts = createCsharpArtifactGraph({
+  const demand = createCsharpObjectShapeDemandEngine({
     ast: {},
     navigation: {},
     objectShapes: { resolveTarget() {} },
   });
+  const artifacts = createCsharpArtifactGraph({ objectShapeArtifacts: demand.seal() });
   const owner = "source-file:index.ts";
   assert.deepEqual(artifacts.contractGraph.commit(
     owner,

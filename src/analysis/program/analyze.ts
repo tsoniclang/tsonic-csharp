@@ -32,6 +32,7 @@ import {
 } from "@tsonic/target-api/analysis";
 import type {
   TargetStageResult,
+  TargetDiagnostic,
 } from "@tsonic/target-api/artifacts";
 import {
   createCsharpTypeAnalysis,
@@ -127,6 +128,7 @@ import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-proje
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
 import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
 import { finalizeCsharpStructuralInterfaceForwarding } from "../objects/structural-forwarding.js";
+import { analyzeCsharpNativeArtifactDemand } from "../objects/native-demand.js";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -361,6 +363,31 @@ export function analyzeCsharpTargetProgram(
   if (bindingPatterns.issues.length > 0) return rejectCsharpAnalysisIssues(bindingPatterns.issues);
   const pendingUses = nativeDemand.unadmitted.filter(use => use.kind === "pending-use");
   if (pendingUses.length > 0) {
+    const constructionRefusals = pendingUses.flatMap<TargetDiagnostic>(use => {
+      if (use.reason !== "construction-unresolved") return [];
+      const construction = analysis.operations.selectedConstruction.get(use.expression);
+      if (construction?.jsValue.kind === "rejected") return [{ sourceNode: use.expression,
+        source: "tsonic-csharp", category: "error", code: "CSHARP_UNSUPPORTED_AST", message: construction.jsValue.reason }];
+      const selected = construction?.target;
+      if (selected?.kind === "rejected") {
+        const diagnostic = selected.diagnostic;
+        return [{ sourceNode: use.expression, source: diagnostic.extensionId, category: diagnostic.category,
+          code: `TS${diagnostic.numericCode}`, message: diagnostic.message,
+          ...(diagnostic.evidence === undefined || diagnostic.evidence.length === 0 ? {} : {
+            evidence: Object.freeze([...new Set(diagnostic.evidence.map(entry => entry.message))]),
+          }),
+        }];
+      }
+      if (selected?.kind === "missing" || selected?.kind === "conflict" || selected?.kind === "ambiguous") {
+        const code = selected.kind === "missing" ? "CSHARP_TARGET_CONSTRUCTION_NOT_CLOSED"
+          : selected.kind === "conflict" ? "CSHARP_TARGET_CONSTRUCTION_IDENTITY_CONFLICT" : "CSHARP_TARGET_CONSTRUCTION_AMBIGUOUS";
+        return [{ sourceNode: use.expression, source: "tsonic-csharp", category: "error", code, message: selected.reason,
+          ...(selected.kind === "ambiguous" ? { evidence: Object.freeze([...new Set(selected.candidates.map(candidate => `candidate=${candidate}`))]) } : {}),
+        }];
+      }
+      return [];
+    });
+    if (constructionRefusals.length > 0) return rejectedTargetStage(constructionRefusals);
     const refusals = pendingUses.filter(use =>
       use.message !== undefined || use.reason === "argument-refused" || use.reason === "source-argument-rejected" || use.reason === "property-key-refused");
     if (refusals.length > 0) return rejectCsharpAnalysisIssues(refusals.map(use => ({
@@ -383,7 +410,21 @@ export function analyzeCsharpTargetProgram(
     sourceCarrier: (type, file) => analysis.policy.types.resolveType(type, file) });
   if (promiseResults.diagnostics.length > 0) return rejectedTargetStage(promiseResults.diagnostics);
   const typeDefinitions = analysis.typeDefinitions.seal();
+  const projectTypes = sealCsharpProjectTypeClassifications(
+    analysis.typeSystem.projectTypes, source.ast, sourceStorage.nodes, analysis.objectShapes,
+  );
+  const sourceSyntax = targetSourceSyntaxProgram(source);
+  const objectShapeDemand = analyzeCsharpNativeArtifactDemand({
+    ast: source.ast, sourceFiles, propertyNames: sourceSyntax.propertyNames,
+    nativeDemand, participation: nativeParticipation.participation,
+    objectShapes: structuralForwarding.objectShapes, projectTypes, typeDefinitions,
+    valueReads: analysis.valueReads, operations: analysis.operations, storage: analysis.storage,
+    callables: analysis.callables, captureStorage, declarations: analysis.declarations,
+    bindingPatterns, conversions, nativeValueCarriers, sourceEvidence: analysis.sourceEvidence,
+  }, analysis.requiredRecords);
+  if (objectShapeDemand.kind === "rejected") return objectShapeDemand;
   const records = createCsharpProgramRecords({
+    objectShapeDemand: objectShapeDemand.value,
     nativeValueCarriers,
     literalValues, exactLiterals, nativeParticipation, nativeDemand, bindingPatterns,
     flowReads, valueReads: analysis.valueReads,
@@ -407,15 +448,10 @@ export function analyzeCsharpTargetProgram(
     }),
     configuration,
     project: project.value,
-    source: targetSourceSyntaxProgram(source),
+    source: sourceSyntax,
     sourceNavigation: snapshotTargetPlanningSourceNavigation(source),
     sourceFiles,
-    projectTypes: sealCsharpProjectTypeClassifications(
-      analysis.typeSystem.projectTypes,
-      source.ast,
-      sourceStorage.nodes,
-      analysis.objectShapes,
-    ),
+    projectTypes,
     objectShapes: structuralForwarding.objectShapes,
     names: analysis.names.seal(),
     sourceModuleConstructions: Object.freeze({

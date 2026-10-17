@@ -58,14 +58,6 @@ export function planObjectShapeSpreadAssignments(
   const sharedImplementation = sourceShape.methodImplementation !== undefined &&
     sourceShape.methodImplementation.identity === targetShape.methodImplementation?.identity &&
     targetTypeRefEquals(sourceShape.targetType, targetShape.targetType);
-  if (sourceShape.members.some(member => member.methodValueContract !== undefined &&
-    !(sharedImplementation && csharpObjectShapeMethodDeclaration(sourceShape, member) !== undefined))) {
-    const required = input.artifacts.requireObjectShapeCapability(undefined, sourceShape.targetType, sourceFile, "method-values", "object-shape");
-    if (required.kind === "rejected") {
-      diagnostics.push(unsupportedNodeDiagnostic(spreadNode, required.reason));
-      return undefined;
-    }
-  }
   const sourceExpression = planExpression(expression, sourceFile, input, diagnostics);
   if (sourceExpression === undefined) {
     return undefined;

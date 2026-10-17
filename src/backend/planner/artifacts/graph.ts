@@ -6,5 +6,4 @@ export type {
   CsharpArtifactGraphHost,
   CsharpArtifactRequestResult,
   CsharpObjectShapeArtifact,
-  CsharpObjectShapeProjectionRequestResult,
 } from "./graph/model.js";

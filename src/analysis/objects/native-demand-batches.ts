@@ -1,17 +1,114 @@
-import type { CsharpArtifactGraphScope } from "../engine.js";
-import type { CsharpArtifactRequestResult, PreparedObjectShapeBatch, StagedObjectShapeRecord } from "../model.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../../../../target-model/types/index.js";
-import { accepted, rejected } from "../result.js";
-import { csharpObjectShapeContractCandidate } from "../../contracts.js";
-import { csharpObjectShapesEqual, csharpObjectShapeMemberContractKey } from "../../../../../target-model/types/index.js";
-import { maximumArtifactCount } from "../model.js";
-import { objectShapeArtifactKey, objectShapeMaterialization } from "./identity.js";
-import { csharpTargetTypeComponents } from "../../../../../target-model/types/components.js";
-import { targetTypeRefKey } from "../../../../../target-model/types/equality.js";
-import { isCsharpEmptyObjectTargetType } from "../../../../../target-model/types/carriers/runtime-carriers.js";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { CsharpObjectShapeClassifications } from "./model.js";
+import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
+import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
+import type { CsharpObjectShapeArtifact } from "../../target-model/records/object-shape-demand.js";
+import type { TargetTypeRef, CsharpObjectShapeProjectionKind } from "../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../target-model/types/index.js";
+import { csharpObjectShapesEqual, csharpObjectShapeMemberContractKey } from "../../target-model/types/index.js";
+import { objectShapeArtifactKey, objectShapeMaterialization } from "../../target-model/records/object-shape-demand.js";
+import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
+import { targetTypeRefKey } from "../../target-model/types/equality.js";
+import { isCsharpEmptyObjectTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
+
+export type CsharpArtifactRequestResult = { readonly kind: "accepted" } | { readonly kind: "rejected"; readonly reason: string };
+export type CsharpObjectShapeProjectionRequestResult =
+  | { readonly kind: "accepted"; readonly projection?: CsharpObjectShapeProjection }
+  | { readonly kind: "rejected"; readonly reason: string };
+export const accepted: CsharpArtifactRequestResult = Object.freeze({ kind: "accepted" });
+export function rejected(reason: string): Extract<CsharpArtifactRequestResult, { readonly kind: "rejected" }> {
+  return { kind: "rejected", reason };
+}
+export const maximumArtifactCount = 131_072;
+export const maximumJsonClosureDepth = 256;
+
+export interface CsharpObjectShapeDemandHost {
+  readonly objectShapes: CsharpObjectShapeClassifications;
+  readonly projectTypes?: Pick<CsharpProjectTypeClassifications, "heritageForTarget">;
+  readonly typeDefinitions?: CsharpTypeDefinitions;
+}
+
+export interface MutableObjectShapeArtifact {
+  fact: CsharpObjectShapeFact;
+  materialization: "source" | "synthetic";
+  readonly capabilities: Set<CsharpObjectShapeCapability>;
+  readonly projections: Map<string, CsharpObjectShapeProjection>;
+  readonly receiverBoundMethodKeys: Set<string>;
+  readonly dependencies: Set<string>;
+  readonly dependents: Set<string>;
+}
+
+export interface JsonClosureState {
+  readonly visiting: Set<string>;
+  readonly collected: Map<string, CsharpObjectShapeFact>;
+  depth: number;
+}
+
+export interface PreparedObjectShapeBatch {
+  readonly shapes: Map<string, CsharpObjectShapeFact>;
+  readonly dependencies: Map<string, Set<string>>;
+  readonly materializations: Map<string, "source" | "synthetic">;
+}
+
+export interface StagedObjectShapeRecord {
+  readonly fact: CsharpObjectShapeFact;
+  readonly materialization: "source" | "synthetic";
+  readonly capabilities: ReadonlySet<CsharpObjectShapeCapability>;
+  readonly projections: ReadonlyMap<string, CsharpObjectShapeProjection>;
+  readonly receiverBoundMethodKeys: ReadonlySet<string>;
+  readonly dependencies: ReadonlySet<string>;
+}
+
+interface CsharpObjectShapeClosure {
+  readonly kind: "accepted";
+  readonly shapes: ReadonlyMap<string, CsharpObjectShapeFact>;
+}
+type CsharpObjectShapeClosureResult = CsharpObjectShapeClosure | { readonly kind: "rejected"; readonly reason: string };
+
+export interface CsharpObjectShapeDemandScope {
+  readonly host: CsharpObjectShapeDemandHost;
+  readonly records: Map<string, MutableObjectShapeArtifact>;
+  readonly projections: Map<Node, CsharpObjectShapeProjection>;
+  registerObjectShape(fact: CsharpObjectShapeFact, materialization: "source" | "synthetic"): CsharpArtifactRequestResult;
+  requireObjectShapeCapability(node: Node | undefined, type: TargetTypeRef, file: SourceFile,
+    capability: CsharpObjectShapeCapability, rootKind: "value" | "object-shape"): CsharpArtifactRequestResult;
+  requireObjectShapeProjection(node: Node | undefined, type: TargetTypeRef, file: SourceFile,
+    projection: CsharpObjectShapeProjectionKind, resultType: TargetTypeRef, rootKind: "value" | "object-shape",
+    assignmentSource?: { readonly node: Node; readonly type: TargetTypeRef }): CsharpObjectShapeProjectionRequestResult;
+  requireObjectShapeMethodReceiver(fact: CsharpObjectShapeFact,
+    member: CsharpObjectShapeFact["members"][number]): CsharpArtifactRequestResult;
+  objectShapeArtifacts(): readonly CsharpObjectShapeArtifact[];
+  connect(ownerKey: string, dependencyKey: string): void;
+  collectShapeDependencies(root: CsharpObjectShapeFact):
+    CsharpObjectShapeClosure & { readonly dependencies: ReadonlyMap<string, ReadonlySet<string>> }
+    | { readonly kind: "rejected"; readonly reason: string };
+  prepareObjectShapeBatch(roots: readonly { readonly fact: CsharpObjectShapeFact; readonly materialization: "source" | "synthetic" }[]):
+    { readonly kind: "accepted"; readonly batch: PreparedObjectShapeBatch } | { readonly kind: "rejected"; readonly reason: string };
+  addObjectShapesToBatch(batch: PreparedObjectShapeBatch,
+    roots: readonly { readonly fact: CsharpObjectShapeFact; readonly materialization: "source" | "synthetic" }[]): CsharpArtifactRequestResult;
+  validateObjectShapeBatch(batch: PreparedObjectShapeBatch, capabilities: ReadonlyMap<string, ReadonlySet<CsharpObjectShapeCapability>>,
+    projections: ReadonlyMap<string, ReadonlyMap<string, CsharpObjectShapeProjection>>,
+    receivers: ReadonlyMap<string, ReadonlySet<string>>): CsharpArtifactRequestResult;
+  commitObjectShapeBatch(batch: PreparedObjectShapeBatch, capabilities: ReadonlyMap<string, ReadonlySet<CsharpObjectShapeCapability>>,
+    projections: ReadonlyMap<string, ReadonlyMap<string, CsharpObjectShapeProjection>>,
+    receivers: ReadonlyMap<string, ReadonlySet<string>>): CsharpArtifactRequestResult;
+  collectJsonClosure(type: TargetTypeRef, preferred: CsharpObjectShapeFact | undefined,
+    pending?: ReadonlyMap<string, CsharpObjectShapeFact>): CsharpObjectShapeClosureResult;
+  collectCapabilityClosure(capability: CsharpObjectShapeCapability, type: TargetTypeRef, preferred: CsharpObjectShapeFact | undefined,
+    pending?: ReadonlyMap<string, CsharpObjectShapeFact>): CsharpObjectShapeClosureResult;
+  addShapeCapabilities(target: Map<string, Set<CsharpObjectShapeCapability>>, shapes: ReadonlyMap<string, CsharpObjectShapeFact>,
+    capability: CsharpObjectShapeCapability): void;
+  validateProjectionShapes(shapes: ReadonlyMap<string, CsharpObjectShapeFact>, projection: CsharpObjectShapeProjection): string | undefined;
+  addShapeProjection(target: Map<string, Map<string, CsharpObjectShapeProjection>>, shapes: ReadonlyMap<string, CsharpObjectShapeFact>,
+    projection: CsharpObjectShapeProjection): void;
+  visibleObjectShapes(pending: ReadonlyMap<string, CsharpObjectShapeFact>): readonly CsharpObjectShapeFact[];
+  collectJsonType(type: TargetTypeRef, preferred: CsharpObjectShapeFact | undefined, state: JsonClosureState): string | undefined;
+  collectJsonShape(shape: CsharpObjectShapeFact, state: JsonClosureState): string | undefined;
+  inheritedObjectShapeCapabilities(fact: CsharpObjectShapeFact): readonly CsharpObjectShapeCapability[];
+}
 
 export function collectShapeDependencies(
-  { host }: CsharpArtifactGraphScope,
+  { host }: CsharpObjectShapeDemandScope,
   root: CsharpObjectShapeFact,
 ):
   | {
@@ -68,7 +165,7 @@ export function collectShapeDependencies(
 }
 
 export function prepareObjectShapeBatch(
-  { addObjectShapesToBatch }: CsharpArtifactGraphScope,
+  { addObjectShapesToBatch }: CsharpObjectShapeDemandScope,
   roots: readonly {
     readonly fact: CsharpObjectShapeFact;
     readonly materialization: "source" | "synthetic";
@@ -88,7 +185,7 @@ export function prepareObjectShapeBatch(
 }
 
 export function addObjectShapesToBatch(
-  { collectShapeDependencies }: CsharpArtifactGraphScope,
+  { collectShapeDependencies }: CsharpObjectShapeDemandScope,
   batch: PreparedObjectShapeBatch,
   roots: readonly {
     readonly fact: CsharpObjectShapeFact;
@@ -131,7 +228,7 @@ export function addObjectShapesToBatch(
   return accepted;
 }
 export function validateObjectShapeBatch(
-  { records }: CsharpArtifactGraphScope,
+  { records }: CsharpObjectShapeDemandScope,
   batch: PreparedObjectShapeBatch,
   capabilitiesByShape: ReadonlyMap<
     string,
@@ -224,7 +321,7 @@ export function validateObjectShapeBatch(
 }
 
 export function commitObjectShapeBatch(
-  { connect, contracts, records }: CsharpArtifactGraphScope,
+  { connect, records }: CsharpObjectShapeDemandScope,
   batch: PreparedObjectShapeBatch,
   capabilitiesByShape: ReadonlyMap<
     string,
@@ -278,23 +375,6 @@ export function commitObjectShapeBatch(
       ]),
       dependencies,
     });
-  }
-  const candidates = [...staged]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, record]) =>
-      csharpObjectShapeContractCandidate(
-        key,
-        record.fact,
-        record.materialization,
-        record.capabilities,
-        [...record.projections.values()],
-        record.receiverBoundMethodKeys,
-        [...record.dependencies].sort(),
-      )
-    );
-  const committed = contracts.commitBatch(candidates);
-  if (committed.kind === "rejected") {
-    return rejected(committed.reason);
   }
   for (const [key, stagedRecord] of staged) {
     const existing = records.get(key);

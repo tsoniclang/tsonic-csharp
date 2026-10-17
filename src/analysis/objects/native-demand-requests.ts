@@ -4,23 +4,44 @@ import type {
   CsharpObjectShapeProjection,
   CsharpObjectShapeProjectionKind,
   TargetTypeRef,
-} from "../../../../../target-model/types/index.js";
-import type { CsharpArtifactGraphScope } from "../engine.js";
-import type { CsharpArtifactRequestResult, CsharpObjectShapeProjectionRequestResult, CsharpObjectShapeArtifact } from "../model.js";
+} from "../../target-model/types/index.js";
+import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
+import type { CsharpArtifactRequestResult, CsharpObjectShapeProjectionRequestResult } from "./native-demand-batches.js";
+import type { CsharpObjectShapeArtifact } from "../../target-model/records/object-shape-demand.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { accepted, rejected } from "../result.js";
+import { accepted, rejected } from "./native-demand-batches.js";
 import {
   csharpObjectShapeMemberContractKey,
   resolveCsharpObjectShapeMemberBySourceContract,
   targetTypeRefEquals,
   isCsharpEmptyObjectTargetType,
   isSourceDeclaredNominalShape,
-} from "../../../../../target-model/types/index.js";
-import { objectShapeArtifactKey, objectShapeMaterialization } from "./identity.js";
-import { objectShapeProjectionKey } from "../../contracts.js";
+} from "../../target-model/types/index.js";
+import { objectShapeArtifactKey, objectShapeMaterialization } from "../../target-model/records/object-shape-demand.js";
+import { objectShapeProjectionKey } from "../../target-model/records/object-shape-demand.js";
+import type { CsharpObjectShapeDemand } from "../../target-model/records/object-shape-demand.js";
+import type { CsharpObjectShapeDemandHost } from "./native-demand-batches.js";
+import {
+  collectShapeDependencies,
+  prepareObjectShapeBatch,
+  addObjectShapesToBatch,
+  validateObjectShapeBatch,
+  commitObjectShapeBatch,
+} from "./native-demand-batches.js";
+import {
+  collectJsonClosure,
+  collectCapabilityClosure,
+  addShapeCapabilities,
+  validateProjectionShapes,
+  addShapeProjection,
+  visibleObjectShapes,
+  collectJsonType,
+  collectJsonShape,
+  inheritedObjectShapeCapabilities,
+} from "./native-demand-closure.js";
 
 export function registerObjectShape(
-  { addObjectShapesToBatch, addShapeCapabilities, collectCapabilityClosure, commitObjectShapeBatch, dependOn, host, inheritedObjectShapeCapabilities, prepareObjectShapeBatch, validateObjectShapeBatch }: CsharpArtifactGraphScope,
+  { addObjectShapesToBatch, addShapeCapabilities, collectCapabilityClosure, commitObjectShapeBatch, host, inheritedObjectShapeCapabilities, prepareObjectShapeBatch, validateObjectShapeBatch }: CsharpObjectShapeDemandScope,
   fact: CsharpObjectShapeFact,
   requestedMaterialization: "source" | "synthetic",
 ): CsharpArtifactRequestResult {
@@ -79,17 +100,11 @@ export function registerObjectShape(
     projectionsByShape,
     new Map(),
   );
-  if (committed.kind === "accepted") {
-    dependOn(
-      objectShapeArtifactKey(fact),
-      "object-shape-type-surface",
-    );
-  }
   return committed;
 }
 
 export function requireObjectShapeCapability(
-  { addObjectShapesToBatch, addShapeCapabilities, collectCapabilityClosure, commitObjectShapeBatch, dependOn, host, prepareObjectShapeBatch, validateObjectShapeBatch }: CsharpArtifactGraphScope,
+  { addObjectShapesToBatch, addShapeCapabilities, collectCapabilityClosure, commitObjectShapeBatch, host, prepareObjectShapeBatch, validateObjectShapeBatch }: CsharpObjectShapeDemandScope,
   node: Node | undefined,
   type: TargetTypeRef,
   sourceFile: SourceFile,
@@ -166,26 +181,12 @@ export function requireObjectShapeCapability(
     projectionsByShape,
     new Map(),
   );
-  if (committed.kind === "accepted") {
-    for (const key of completeClosure.shapes.keys()) {
-      dependOn(key, "object-shape-behavior");
-    }
-  }
   return committed;
 }
 
-export function objectShapeHasCapability(
-  { dependOn, records }: CsharpArtifactGraphScope,
-  fact: CsharpObjectShapeFact,
-  capability: CsharpObjectShapeCapability,
-): boolean {
-  const key = objectShapeArtifactKey(fact);
-  dependOn(key, "object-shape-behavior");
-  return records.get(key)?.capabilities.has(capability) === true;
-}
-
 export function requireObjectShapeProjection(
-  { addShapeProjection, commitObjectShapeBatch, dependOn, host, prepareObjectShapeBatch, validateObjectShapeBatch, validateProjectionShapes }: CsharpArtifactGraphScope,
+  { addShapeProjection, commitObjectShapeBatch, host, prepareObjectShapeBatch, validateObjectShapeBatch, validateProjectionShapes,
+    projections: publishedProjections }: CsharpObjectShapeDemandScope,
   node: Node | undefined,
   type: TargetTypeRef,
   sourceFile: SourceFile,
@@ -326,6 +327,10 @@ export function requireObjectShapeProjection(
   if (projectionFailure !== undefined) {
     return rejected(projectionFailure);
   }
+  const previous = node === undefined ? undefined : publishedProjections.get(node);
+  if (previous !== undefined && objectShapeProjectionKey(previous) !== objectShapeProjectionKey(projection)) {
+    return rejected("One native object-shape projection requires one exact admitted projection contract.");
+  }
   const projectionsByShape = new Map<
     string,
     Map<string, CsharpObjectShapeProjection>
@@ -347,31 +352,14 @@ export function requireObjectShapeProjection(
     projectionsByShape,
     new Map(),
   );
-  if (committed.kind === "accepted") {
-    for (const key of projectedShapes.keys()) {
-      dependOn(key, "object-shape-behavior");
-    }
-  }
-  return committed.kind === "rejected"
-    ? committed
-    : { kind: "accepted", projection };
-}
-
-export function objectShapeProjections(
-  { dependOn, records }: CsharpArtifactGraphScope,
-  fact: CsharpObjectShapeFact,
-): readonly CsharpObjectShapeProjection[] {
-  const key = objectShapeArtifactKey(fact);
-  dependOn(key, "object-shape-behavior");
-  return Object.freeze(
-    [...(records.get(key)?.projections.values() ?? [])].sort((left, right) =>
-      objectShapeProjectionKey(left).localeCompare(objectShapeProjectionKey(right))
-    ),
-  );
+  if (committed.kind === "rejected") return committed;
+  const published = previous ?? projection;
+  if (node !== undefined) publishedProjections.set(node, published);
+  return { kind: "accepted", projection: published };
 }
 
 export function requireObjectShapeMethodReceiver(
-  { commitObjectShapeBatch, dependOn, prepareObjectShapeBatch, validateObjectShapeBatch }: CsharpArtifactGraphScope,
+  { commitObjectShapeBatch, prepareObjectShapeBatch, validateObjectShapeBatch }: CsharpObjectShapeDemandScope,
   fact: CsharpObjectShapeFact,
   member: CsharpObjectShapeFact["members"][number],
 ): CsharpArtifactRequestResult {
@@ -414,26 +402,11 @@ export function requireObjectShapeMethodReceiver(
     projectionsByShape,
     receiverBoundMethodsByShape,
   );
-  if (committed.kind === "accepted") {
-    dependOn(objectShapeArtifactKey(fact), "object-shape-type-surface");
-  }
   return committed;
 }
 
-export function objectShapeMethodUsesReceiver(
-  { dependOn, records }: CsharpArtifactGraphScope,
-  fact: CsharpObjectShapeFact,
-  member: CsharpObjectShapeFact["members"][number],
-): boolean {
-  const key = objectShapeArtifactKey(fact);
-  dependOn(key, "object-shape-type-surface");
-  return records.get(key)?.receiverBoundMethodKeys.has(
-    csharpObjectShapeMemberContractKey(member),
-  ) === true;
-}
-
 export function objectShapeArtifacts(
-  { records }: CsharpArtifactGraphScope,
+  { records }: CsharpObjectShapeDemandScope,
 ): readonly CsharpObjectShapeArtifact[] {
   return [...records]
     .sort(([left], [right]) => left.localeCompare(right))
@@ -456,8 +429,8 @@ export function objectShapeArtifacts(
 }
 
 export function connect(
-  { records }: CsharpArtifactGraphScope,
-ownerKey: string, dependencyKey: string): void {
+  { records }: CsharpObjectShapeDemandScope,
+  ownerKey: string, dependencyKey: string): void {
   const owner = records.get(ownerKey);
   const dependency = records.get(dependencyKey);
   if (
@@ -469,4 +442,69 @@ ownerKey: string, dependencyKey: string): void {
   }
   owner.dependencies.add(dependencyKey);
   dependency.dependents.add(ownerKey);
+}
+
+export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDemandHost):
+  Pick<CsharpObjectShapeDemandScope, "registerObjectShape" | "requireObjectShapeCapability" |
+    "requireObjectShapeProjection" | "requireObjectShapeMethodReceiver" | "objectShapeArtifacts"> & {
+      readonly seal: () => CsharpObjectShapeDemand;
+    } {
+  let scope: CsharpObjectShapeDemandScope;
+  let sealed = false;
+  const requireOpen = (): void => {
+    if (sealed) throw new Error("C# object-shape artifact demand is sealed.");
+  };
+  const operations: Omit<CsharpObjectShapeDemandScope, "host" | "records" | "projections"> = {
+    registerObjectShape(fact, materialization) {
+      requireOpen();
+      return registerObjectShape(scope, fact, materialization);
+    },
+    requireObjectShapeCapability(node, type, file, capability, rootKind) {
+      requireOpen();
+      return requireObjectShapeCapability(scope, node, type, file, capability, rootKind);
+    },
+    requireObjectShapeProjection(node, type, file, projection, resultType, rootKind, assignmentSource) {
+      requireOpen();
+      return requireObjectShapeProjection(scope, node, type, file, projection, resultType, rootKind, assignmentSource);
+    },
+    requireObjectShapeMethodReceiver(fact, member) {
+      requireOpen();
+      return requireObjectShapeMethodReceiver(scope, fact, member);
+    },
+    objectShapeArtifacts: () => objectShapeArtifacts(scope),
+    connect: (owner, dependency) => connect(scope, owner, dependency),
+    collectShapeDependencies: root => collectShapeDependencies(scope, root),
+    prepareObjectShapeBatch: roots => prepareObjectShapeBatch(scope, roots),
+    addObjectShapesToBatch: (batch, roots) => addObjectShapesToBatch(scope, batch, roots),
+    validateObjectShapeBatch: (batch, capabilities, projections, receivers) =>
+      validateObjectShapeBatch(scope, batch, capabilities, projections, receivers),
+    commitObjectShapeBatch: (batch, capabilities, projections, receivers) =>
+      commitObjectShapeBatch(scope, batch, capabilities, projections, receivers),
+    collectJsonClosure: (type, preferred, pending) => collectJsonClosure(scope, type, preferred, pending),
+    collectCapabilityClosure: (capability, type, preferred, pending) => collectCapabilityClosure(scope, capability, type, preferred, pending),
+    addShapeCapabilities: (target, shapes, capability) => addShapeCapabilities(scope, target, shapes, capability),
+    validateProjectionShapes: (shapes, projection) => validateProjectionShapes(scope, shapes, projection),
+    addShapeProjection: (target, shapes, projection) => addShapeProjection(scope, target, shapes, projection),
+    visibleObjectShapes: pending => visibleObjectShapes(scope, pending),
+    collectJsonType: (type, preferred, state) => collectJsonType(scope, type, preferred, state),
+    collectJsonShape: (shape, state) => collectJsonShape(scope, shape, state),
+    inheritedObjectShapeCapabilities: fact => inheritedObjectShapeCapabilities(scope, fact),
+  };
+  scope = Object.freeze({ host, records: new Map(), projections: new Map(), ...operations });
+  return Object.freeze({
+    registerObjectShape: operations.registerObjectShape,
+    requireObjectShapeCapability: operations.requireObjectShapeCapability,
+    requireObjectShapeProjection: operations.requireObjectShapeProjection,
+    requireObjectShapeMethodReceiver: operations.requireObjectShapeMethodReceiver,
+    objectShapeArtifacts: operations.objectShapeArtifacts,
+    seal(): CsharpObjectShapeDemand {
+      requireOpen();
+      sealed = true;
+      const artifacts = Object.freeze(operations.objectShapeArtifacts());
+      const byKey = new Map(artifacts.map(artifact => [artifact.key, artifact]));
+      const projections = new Map(scope.projections);
+      return Object.freeze({ artifacts, get: (key: string) => byKey.get(key),
+        projection: (subject: Node) => projections.get(subject) });
+    },
+  });
 }

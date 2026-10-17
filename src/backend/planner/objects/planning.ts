@@ -12,6 +12,7 @@ import type {
 } from "../../artifact-model/output.js";
 import {
   unsupportedNodeDiagnostic,
+  failCsharpPlannerInvariant,
 } from "../diagnostics.js";
 import {
   csharpTypeFromTargetTypeRef,
@@ -62,74 +63,17 @@ import { renderCsharpAuthoredObjectMethods } from "./declarations/authored-metho
 import { renderCsharpCaptureFrameMethods } from "./declarations/capture-methods.js";
 import { csharpAuthoredTypeParameterNames, csharpGeneratedTypeParameterNames } from "../../../target-model/names/type-parameters.js";
 
-export function registerSourceObjectShape(
-  input: CsharpPlanningContext,
-  fact: CsharpObjectShapeFact,
-  diagnostics: TargetDiagnostic[],
-  diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0],
-): boolean {
-  const result = input.artifacts.registerObjectShape(fact, "source");
-  if (result.kind === "accepted") {
-    return true;
-  }
-  diagnostics.push(unsupportedNodeDiagnostic(
-    diagnosticSubject,
-    result.reason,
-  ));
-  return false;
-}
-
 export function csharpTypeFromObjectShapeFact(
   input: CsharpPlanningContext,
   fact: CsharpObjectShapeFact,
-  diagnostics?: TargetDiagnostic[],
+  _diagnostics?: TargetDiagnostic[],
   diagnosticSubject?: Parameters<typeof unsupportedNodeDiagnostic>[0],
 ): CsharpTypeNode | undefined {
   const targetType = csharpTypeFromTargetTypeRef(fact.targetType, input.scope.typeParameterNames);
-  if (targetType === undefined) {
-    reportObjectShapeFailure(
-      diagnostics,
-      diagnosticSubject,
-      "Object-shape fact must carry a renderable named target carrier type before C# emission.",
-    );
-    return undefined;
-  }
-  if (isCsharpJsValueObjectShapeTargetType(fact.targetType)) {
-    return targetType;
-  }
-  if (isCsharpEmptyObjectTargetType(fact.targetType)) {
-    if (fact.members.length === 0 && (fact.implements?.length ?? 0) === 0) return targetType;
-    reportObjectShapeFailure(diagnostics, diagnosticSubject, "An empty-object carrier cannot contain members or implemented contracts.");
-    return undefined;
-  }
-  if (fact.constructible === true || isSourceDeclaredNominalShape(fact)) {
-    const result = input.artifacts.registerObjectShape(fact, "source");
-    if (result.kind === "rejected") {
-      reportObjectShapeFailure(
-        diagnostics,
-        diagnosticSubject,
-        result.reason,
-      );
-      return undefined;
-    }
-    return targetType;
-  }
-  if (targetType.kind !== "IdentifierName") {
-    reportObjectShapeFailure(
-      diagnostics,
-      diagnosticSubject,
-      "Generated object-shape declarations require one exact unqualified compiler-owned target type name.",
-    );
-    return undefined;
-  }
-  const result = input.artifacts.registerObjectShape(fact, "synthetic");
-  if (result.kind === "rejected") {
-    reportObjectShapeFailure(
-      diagnostics,
-      diagnosticSubject,
-      result.reason,
-    );
-    return undefined;
+  if (targetType === undefined) return failCsharpPlannerInvariant(
+    "An admitted object-shape artifact must carry its renderable target type.", diagnosticSubject);
+  if (!isCsharpJsValueObjectShapeTargetType(fact.targetType) && !isCsharpEmptyObjectTargetType(fact.targetType)) {
+    input.artifacts.objectShape(fact);
   }
   return targetType;
 }
@@ -372,11 +316,4 @@ function reportObjectShapeFailure(
   if (diagnostics !== undefined && diagnosticSubject !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, message));
   }
-}
-
-function isSourceDeclaredNominalShape(fact: CsharpObjectShapeFact): boolean {
-  return fact.targetType.kind === "target-named" &&
-    (fact.targetType as {
-      readonly csharpSourceDeclarationKind?: unknown;
-    }).csharpSourceDeclarationKind !== undefined;
 }

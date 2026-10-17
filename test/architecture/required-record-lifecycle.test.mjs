@@ -21,6 +21,7 @@ const paths = Object.freeze({
   conversionModel: "src/analysis/conversions/model.ts",
   conversionUses: "src/analysis/conversions/use-admission.ts",
   nativeValues: "src/analysis/objects/value-carriers.ts",
+  artifactDemand: "src/analysis/objects/native-demand.ts",
 });
 const checked = createCompilerSessionFromFiles({
   currentDirectory: "/csharp",
@@ -202,11 +203,14 @@ test("the late producers and the assembly receive the stable attempt's list", ()
   assert.equal(ast.arguments(assembly).length === 2 && text(ast.arguments(assembly)[1]) === "analysis.requiredRecords", true,
     "stable attempt: createCsharpProgramRecords receives analysis.requiredRecords");
   const reads = descendants(program).filter(node => ast.is.IsPropertyAccessExpression(node) && text(node) === "analysis.requiredRecords");
-  assert.equal(reads.length === 2 && identifiers(program, "requiredRecords").length === 2, true,
-    "stable attempt: only final native-value admission and assembly read the completed attempt's list");
+  assert.equal(reads.length === 3 && identifiers(program, "requiredRecords").length === 3, true,
+    "stable attempt: final native-value admission, artifact demand and assembly read the completed attempt's list");
   const nativeValues = composedCall("analyzeCsharpNativeValueCarriers", program, "stable attempt");
   assert.equal(text(ast.arguments(nativeValues).at(-1)) === "analysis.requiredRecords", true,
     "the actual native-value producer receives the same stable requirement list");
+  const artifacts = composedCall("analyzeCsharpNativeArtifactDemand", program, "stable attempt");
+  assert.equal(text(ast.arguments(artifacts).at(-1)) === "analysis.requiredRecords" && position(artifacts) < position(assembly), true,
+    "the actual artifact-demand producer registers its exact requirements before the one assembly");
   const demand = composedCall("analyzeCsharpNativeDemand", iteration, "stable attempt");
   const bindings = composedCall("admitCsharpBindingPatterns", iteration, "stable attempt");
   const conversions = composedCall("conversionAnalysis.close", iteration, "stable attempt");
@@ -405,7 +409,7 @@ test("storage and class factories take the list as a mandatory parameter and par
     "native handler input: a mandatory CsharpRequiredRecord[] list");
 });
 
-test("requirement state stays inside analysis, in exactly fourteen files", () => {
+test("requirement state stays inside analysis, in exactly fifteen files", () => {
   const users = sourceFiles(sourceRoot)
     .filter(path => /requiredRecords|CsharpRequiredRecord|requireCsharpRecord|assertCsharpRequiredRecords/u.test(readFileSync(path, "utf8")))
     .map(path => path.slice(repositoryRoot.length + 1)).sort();
@@ -424,7 +428,8 @@ test("requirement state stays inside analysis, in exactly fourteen files", () =>
     paths.conversionModel,
     paths.conversionUses,
     paths.nativeValues,
-  ].sort().join(), true, `requirement users: exactly the fourteen analysis files, found ${users.join(", ")}`);
+    paths.artifactDemand,
+  ].sort().join(), true, `requirement users: exactly the fifteen analysis files, found ${users.join(", ")}`);
 });
 
 test("each seal name and producer is mentioned only by its owner and the composition", () => {
@@ -433,9 +438,9 @@ test("each seal name and producer is mentioned only by its owner and the composi
     ["requiredRecords", [paths.participation, paths.analyze, paths.classFactories, paths.storage,
       paths.nativeDemand, paths.bindingPatterns, paths.conversions, paths.conversionModel, paths.conversionUses, paths.nativeValues]],
     ["CsharpRequiredRecord", [paths.participation, paths.operations, paths.nativeHandlers, paths.analyze, paths.create, requiredRecordsModule,
-      paths.classFactories, paths.storage, paths.nativeDemand, paths.bindingPatterns, paths.conversionModel, paths.conversionUses, paths.nativeValues]],
+      paths.classFactories, paths.storage, paths.nativeDemand, paths.bindingPatterns, paths.conversionModel, paths.conversionUses, paths.nativeValues, paths.artifactDemand]],
     ["requireCsharpRecord", [paths.participation, paths.nativeHandlers, requiredRecordsModule, paths.classFactories, paths.storage,
-      paths.nativeDemand, paths.bindingPatterns, paths.conversionUses, paths.nativeValues]],
+      paths.nativeDemand, paths.bindingPatterns, paths.conversionUses, paths.nativeValues, paths.artifactDemand]],
     ["assertCsharpRequiredRecords", [paths.create, requiredRecordsModule]],
     ["createCsharpProgramRecords", [paths.analyze, paths.create]],
     ["analyzeCsharpClassFactories", [paths.analyze, paths.classFactories]],

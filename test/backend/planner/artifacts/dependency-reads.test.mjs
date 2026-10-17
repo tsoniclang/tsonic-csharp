@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { captureDependencies, dependOn } from "../../../../dist/backend/planner/artifacts/graph/dependencies.js";
 import { createCsharpArtifactGraph } from "../../../../dist/backend/planner/artifacts/graph.js";
-import { collectShapeDependencies } from "../../../../dist/backend/planner/artifacts/graph/object-shapes/batches.js";
-import { objectShapeArtifactKey } from "../../../../dist/backend/planner/artifacts/graph/object-shapes/identity.js";
+import { collectShapeDependencies } from "../../../../dist/analysis/objects/native-demand-batches.js";
+import { objectShapeArtifactKey } from "../../../../dist/target-model/records/object-shape-demand.js";
 import { targetTypeRefKey } from "../../../../dist/target-model/types/equality.js";
+import { createCsharpObjectShapeDemandEngine } from "../../../../dist/analysis/objects/native-demand-requests.js";
 
 function fixture() {
   const revisions = new Map();
@@ -111,20 +112,20 @@ test("publication after an explicit absent-facet snapshot requires reconstructio
 });
 
 test("unavailable object-shape capabilities fail at their exact owner without publication", () => {
-  const artifacts = artifactFixture();
-  const captured = artifacts.captureDependencies("source", [], () =>
-    artifacts.requireObjectShapeCapability(undefined, { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "MissingShape" }, {},
-      "json-serialization", "object-shape"));
-  assert.equal(captured.value.kind, "rejected");
-  assert.equal(captured.value.reason,
+  const demand = createCsharpObjectShapeDemandEngine({ objectShapes: { resolveTarget() {}, resolveNode() {} } });
+  const requested = demand.requireObjectShapeCapability(undefined,
+    { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "MissingShape" }, {}, "json-serialization", "object-shape");
+  assert.equal(requested.kind, "rejected");
+  assert.equal(requested.reason,
     "Selected 'json-serialization' operation requires an exact closed object-shape argument.");
-  assert.equal(captured.stable, true);
-  assert.equal(captured.dependencies.length, 0);
+  const artifacts = createCsharpArtifactGraph({ objectShapeArtifacts: demand.seal() });
   assert.equal(artifacts.contractGraph.artifactCount, 0);
+  assert.equal(Object.hasOwn(artifacts, "requireObjectShapeCapability"), false, "the backend cannot request late capability publication");
 });
 
 function artifactFixture() {
-  return createCsharpArtifactGraph({ ast: {}, objectShapes: { resolveTarget() {}, resolveNode() {} } });
+  const demand = createCsharpObjectShapeDemandEngine({ objectShapes: { resolveTarget() {}, resolveNode() {} } });
+  return createCsharpArtifactGraph({ objectShapeArtifacts: demand.seal() });
 }
 
 test("nested or throwing builds cannot retain a dependency capture", () => {

@@ -9,7 +9,7 @@ import {
 import { resolvedArtifact, accepted, rejected } from "./result.js";
 
 export function reconstructArtifact(
-  { contracts, records }: CsharpArtifactGraphScope,
+  { contracts, host }: CsharpArtifactGraphScope,
   owner: string,
 ): TargetArtifactReconstruction<CsharpArtifactFacet, CsharpArtifactSnapshot> {
   const artifact = contracts.artifact(owner);
@@ -26,7 +26,7 @@ export function reconstructArtifact(
         csharpGeneratedHelperContractCandidate(artifact.helper),
       );
     case "object-shape": {
-      const record = records.get(owner);
+      const record = host.objectShapeArtifacts.get(owner);
       if (record === undefined) {
         return {
           kind: "rejected",
@@ -40,9 +40,9 @@ export function reconstructArtifact(
         record.fact,
         record.materialization,
         record.capabilities,
-        [...record.projections.values()],
+        record.projections,
         record.receiverBoundMethodKeys,
-        [...record.dependencies].sort(),
+        record.dependencies,
       ));
     }
     case "source-file":

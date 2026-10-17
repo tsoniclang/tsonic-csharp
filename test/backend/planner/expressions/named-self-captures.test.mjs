@@ -18,7 +18,7 @@ function fixture() {
   const original = csharpCaptureFrameName(scope, state);
   const registered = [];
   const input = { scope: {}, program: { records: { capturedBinding: { get: node => bindings.get(node) } } },
-    artifacts: { registerObjectShape: shape => { registered.push(shape); return { kind: "accepted" }; } } };
+    artifacts: { objectShape: shape => { registered.push(shape); return { fact: shape }; } } };
   const self = { declaration, captures: [first, second, ordinary], capturesReceiver: false, calls: [], values: [{}] };
   const select = (selectedInput = input, selectedSelf = self) => {
     const diagnostics = [];
@@ -103,14 +103,12 @@ test("unframed native captures need no extra storage and existing overrides are 
   assert.equal(input.registered.length, 0);
 });
 
-test("unrenderable or rejected activation facts fail closed rather than capturing the rotating local", () => {
+test("unrenderable or absent admitted activation facts fail the invariant without capturing the rotating local", () => {
   for (const reason of ["carrier", "registration"]) {
     const input = fixture();
     if (reason === "carrier") input.frame.shape.targetType = { kind: "opaque", id: "unproven" };
-    if (reason === "registration") input.input.artifacts.registerObjectShape = () => ({ kind: "rejected", reason: "unproven activation" });
-    const { planned, diagnostics } = input.select();
-    assert.equal(planned === undefined, true, reason);
-    assert.equal(diagnostics.length > 0, true, reason);
+    if (reason === "registration") input.input.artifacts.objectShape = () => { throw new Error("unproven activation"); };
+    assert.throws(() => input.select(), reason === "carrier" ? /admitted object-shape/u : /unproven activation/u, reason);
     assert.equal(input.input.scope.captureFrames === undefined, true, "failure preserves caller scope");
   }
 });

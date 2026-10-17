@@ -97,10 +97,7 @@ export function createCsharpPlanningContext(
 ): CsharpPlanningContext {
   const { objectShapes, projectTypes } = program;
   const artifacts = createCsharpArtifactGraph({
-    ast: program.source.ast,
-    objectShapes,
-    projectTypes,
-    typeDefinitions: program.typeDefinitions,
+    objectShapeArtifacts: program.records.objectShapeArtifact,
   });
   const classifications = createCsharpPlanningTypeClassifications(program);
   const types: CsharpPlanningTypeView = Object.freeze({

@@ -22,8 +22,8 @@ const owners = new Map([
 test("own-property order proofs belong to analysis and planners consume completed selections", () => {
   const model = readFileSync(resolve(repositoryRoot, "src/target-model/types/object-shape-projection.ts"), "utf8");
   assert.doesNotMatch(maskNonCode(model), /\bAstReader\b|\bast\s*\.|\borderEnumerableOwnStringProperties\b/u);
-  for (const file of ["src/backend/planner/artifacts/graph/object-shapes/requests.ts",
-    "src/backend/planner/artifacts/graph/object-shapes/reference-closure.ts",
+  for (const file of ["src/analysis/objects/native-demand-requests.ts",
+    "src/analysis/objects/native-demand-references.ts",
     "src/backend/planner/objects/declarations/enumerable-keys.ts"]) {
     const source = maskNonCode(readFileSync(resolve(repositoryRoot, file), "utf8"));
     assert.doesNotMatch(source, /\bresolveCsharpObjectShape(?:PropertyOrder|AssignmentSourceOrder)\b/u);

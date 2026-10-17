@@ -3,9 +3,9 @@ import type {
   CsharpObjectShapeCapability,
   CsharpObjectShapeProjection,
   TargetTypeRef,
-} from "../../../../../target-model/types/index.js";
-import type { CsharpArtifactGraphScope } from "../engine.js";
-import type { JsonClosureState } from "../model.js";
+} from "../../target-model/types/index.js";
+import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
+import type { JsonClosureState } from "./native-demand-batches.js";
 import {
   csharpObjectShapesEqual,
   csharpObjectShapeAssignmentMembers,
@@ -20,16 +20,16 @@ import {
   resolveCsharpJsonObjectShapeContract,
   targetTypeRefEquals,
   targetTypeRefKey,
-} from "../../../../../target-model/types/index.js";
-import { rejected } from "../result.js";
-import { maximumJsonClosureDepth } from "../model.js";
-import { objectShapeArtifactKey } from "./identity.js";
-import { objectShapeProjectionKey } from "../../contracts.js";
-import { collectCsharpReferenceClosure } from "./reference-closure.js";
-import { resolveCsharpSourceClassStorage } from "./native-storage.js";
+} from "../../target-model/types/index.js";
+import { rejected } from "./native-demand-batches.js";
+import { maximumJsonClosureDepth } from "./native-demand-batches.js";
+import { objectShapeArtifactKey } from "../../target-model/records/object-shape-demand.js";
+import { objectShapeProjectionKey } from "../../target-model/records/object-shape-demand.js";
+import { collectCsharpReferenceClosure } from "./native-demand-references.js";
+import { resolveCsharpSourceClassStorage } from "./native-demand-storage.js";
 
 export function collectJsonClosure(
-  { collectJsonShape, collectJsonType, visibleObjectShapes }: CsharpArtifactGraphScope,
+  { collectJsonShape, collectJsonType, visibleObjectShapes }: CsharpObjectShapeDemandScope,
   type: TargetTypeRef,
   preferredShape: CsharpObjectShapeFact | undefined,
   pendingShapes: ReadonlyMap<string, CsharpObjectShapeFact> = new Map(),
@@ -73,7 +73,7 @@ export function collectJsonClosure(
 }
 
 export function collectCapabilityClosure(
-  scope: CsharpArtifactGraphScope,
+  scope: CsharpObjectShapeDemandScope,
   capability: CsharpObjectShapeCapability,
   type: TargetTypeRef,
   preferredShape: CsharpObjectShapeFact | undefined,
@@ -96,7 +96,7 @@ export function collectCapabilityClosure(
 }
 
 export function addShapeCapabilities(
-  {  }: CsharpArtifactGraphScope,
+  {  }: CsharpObjectShapeDemandScope,
   target: Map<string, Set<CsharpObjectShapeCapability>>,
   shapes: ReadonlyMap<string, CsharpObjectShapeFact>,
   capability: CsharpObjectShapeCapability,
@@ -109,7 +109,7 @@ export function addShapeCapabilities(
 }
 
 export function validateProjectionShapes(
-  {  }: CsharpArtifactGraphScope,
+  {  }: CsharpObjectShapeDemandScope,
   shapes: ReadonlyMap<string, CsharpObjectShapeFact>,
   projection: CsharpObjectShapeProjection,
 ): string | undefined {
@@ -135,7 +135,7 @@ export function validateProjectionShapes(
 }
 
 export function addShapeProjection(
-  {  }: CsharpArtifactGraphScope,
+  {  }: CsharpObjectShapeDemandScope,
   target: Map<string, Map<string, CsharpObjectShapeProjection>>,
   shapes: ReadonlyMap<string, CsharpObjectShapeFact>,
   projection: CsharpObjectShapeProjection,
@@ -150,7 +150,7 @@ export function addShapeProjection(
 }
 
 export function visibleObjectShapes(
-  { records }: CsharpArtifactGraphScope,
+  { records }: CsharpObjectShapeDemandScope,
   pendingShapes: ReadonlyMap<string, CsharpObjectShapeFact>,
 ): readonly CsharpObjectShapeFact[] {
   const visible = new Map<string, CsharpObjectShapeFact>();
@@ -164,7 +164,7 @@ export function visibleObjectShapes(
 }
 
 export function collectJsonType(
-  { collectJsonShape, collectJsonType, host }: CsharpArtifactGraphScope,
+  { collectJsonShape, collectJsonType, host }: CsharpObjectShapeDemandScope,
   type: TargetTypeRef,
   preferredShape: CsharpObjectShapeFact | undefined,
   state: JsonClosureState,
@@ -225,7 +225,7 @@ export function collectJsonType(
 }
 
 export function collectJsonShape(
-  { collectJsonType }: CsharpArtifactGraphScope,
+  { collectJsonType }: CsharpObjectShapeDemandScope,
   shape: CsharpObjectShapeFact,
   state: JsonClosureState,
 ): string | undefined {
@@ -285,7 +285,7 @@ export function collectJsonShape(
 }
 
 export function inheritedObjectShapeCapabilities(
-  scope: CsharpArtifactGraphScope,
+  scope: CsharpObjectShapeDemandScope,
   fact: CsharpObjectShapeFact,
 ): readonly CsharpObjectShapeCapability[] {
   const inherited = new Set<CsharpObjectShapeCapability>();
