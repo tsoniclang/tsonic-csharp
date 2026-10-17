@@ -122,7 +122,7 @@ test("generic property members close from exact receiver representation", () => 
     id: "Fixture.Box`1.Value",
     targetName: "Value",
     declaringType: {
-      kind: "target-named",
+      kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
       id: binding.id,
       typeArguments: [{ kind: "type-parameter", identity: "T", name: "T" }],
     },
@@ -132,7 +132,7 @@ test("generic property members close from exact receiver representation", () => 
     binding,
     member,
     receiverTarget: {
-      kind: "target-named",
+      kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
       id: binding.id,
       typeArguments: [stringType],
     },
@@ -311,7 +311,7 @@ test("generic indexer results close from exact receiver representation", () => {
   const member = providerIndexer({
     id: "Fixture.Dictionary`1.Item(System.Int32)",
     declaringType: {
-      kind: "target-named",
+      kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
       id: binding.id,
       typeArguments: [{ kind: "type-parameter", identity: "T", name: "T" }],
     },
@@ -321,7 +321,7 @@ test("generic indexer results close from exact receiver representation", () => {
     binding,
     member,
     receiverTarget: {
-      kind: "target-named",
+      kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
       id: binding.id,
       typeArguments: [stringType],
     },
@@ -441,7 +441,7 @@ function createPropertyFixture(options = {}) {
     ...(options.additionalFacts ?? []),
   ];
   const receiverTarget = options.receiverTarget ?? {
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
     id: binding.id,
   };
   const direct = directProviderHost({
@@ -501,7 +501,7 @@ function createElementFixture(options = {}) {
         }],
       });
   const receiverTarget = options.receiverTarget ?? {
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
     id: binding.id,
   };
   const argumentTarget = options.argumentTarget ?? targetParameterType;

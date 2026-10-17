@@ -447,7 +447,7 @@ function mapArrayMember(
     shape.receiver,
     [targetParameter("callbackfn", callback)],
     resultType,
-  ), typeParameters: [{ identity: "Tsonic.CSharp.Js.JSArray.map::0", name: "U" }] };
+  ), typeParameters: [{ identity: "Tsonic.CSharp.Js.JSArray.map::0", name: "U", csharpAllowsRefLike: false }] };
 }
 
 function forEachArrayMember(
@@ -595,7 +595,7 @@ function arrayOfMember(
         arrayStaticsType,
         [targetParameter("items", { kind: "array", element }, { paramsArray: true })],
         csharpJsArrayTargetType(element),
-        { typeParameters: [{ name: "T" }] },
+        { typeParameters: [{ name: "T", csharpAllowsRefLike: false }] },
       );
 }
 
@@ -639,7 +639,7 @@ function arrayFromMember(
     shape.resultType,
     {
       typeParameters: arrayFromTypeParameterNames(context)
-        .map((name) => ({ name })),
+        .map((name) => ({ name, csharpAllowsRefLike: false })),
     },
   );
 }

@@ -142,12 +142,12 @@ test("representable numeric literals satisfy exact integral target parameters", 
 
 test("exact generated object-shape contracts satisfy their implemented target interface", () => {
   const sourceInterface = {
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
     id: "tsonic.source:Input",
     csharpSourceDeclarationKind: "interface",
   };
   const generatedShape = {
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
     id: "tsonic.shape:Input",
   };
   const fixture = createCallFixture({
@@ -239,7 +239,7 @@ function createCallFixture(options = {}) {
   const relations = options.relations ?? [relation];
   const sourceArgumentTargets = options.sourceArgumentTargets ?? [];
   const receiverTarget = options.receiverTarget ?? {
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: (binding.typeParameters ?? []).map(() => false),
     id: binding.id,
     ...(binding.typeParameters === undefined
       ? {}
@@ -329,7 +329,7 @@ function int32ProviderAdapter() {
     kind: "static-method",
     id: "System.Convert.ToInt32(System.Double)",
     declaringType: {
-      kind: "target-named",
+      kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
       id: "System.Convert",
       csharpRender: {
         kind: "named",

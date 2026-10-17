@@ -269,7 +269,7 @@ test("policy, rejections, execution driver and runtime data are retained per sel
   policy.relations.push({ kind: "type", source, targetBinding: { target: "csharp", id: "Measurement.Runtime.Measurement" } });
   policy.rejections.push({ source, diagnostic: input.moduleDiagnostic("missing", "unsupported") });
   policy.binaryExecutionDriver = {
-    id: "measurement-driver", declaringType: { kind: "target-named", id: "Measurement.Runtime.Driver" },
+    id: "measurement-driver", declaringType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Measurement.Runtime.Driver" },
     runMethodName: "Run", runWithEntrypointMethodName: "RunEntrypoint",
   };
   const plugin = createCsharpProviderPackage(input);
@@ -352,7 +352,7 @@ test("source declarations and target policy receive matching immutable surface s
     calls.push(surfaces);
     return csharpProviderPolicyContribution(providerIdentity.id, providerIdentity.version, [], [], {
       id: surfaces.includes("units") ? "units-driver" : "native-driver",
-      declaringType: { kind: "target-named", id: "Measurement.Runtime.Driver" },
+      declaringType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Measurement.Runtime.Driver" },
       runMethodName: "Run", runWithEntrypointMethodName: "RunEntrypoint",
     });
   };

@@ -58,7 +58,7 @@ export function dotnetExportToTargetBinding(declaration: DotnetExportDeclaration
   return declaration.kind === "type" ? dotnetTypeToTargetBinding(declaration) : undefined;
 }
 
-function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBindingFact {
+export function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): DotnetTargetBindingFact & { readonly csharpType: TargetTypeRef } {
   const targetId = requireDotnetTargetId(declaration.targetId, declaration.metadataName);
   const declaredCsharpType = declaration.targetType === undefined
     ? csharpTargetNamedType(

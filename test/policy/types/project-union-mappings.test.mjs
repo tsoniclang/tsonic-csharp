@@ -14,7 +14,7 @@ import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.j
 import { csharpUnionArmMappingsMatch, selectCsharpUnionArmMapping } from "../../../dist/target-model/types/union-relations.js";
 import { planCsharpUnionMapping } from "../../../dist/backend/planner/expressions/union-mappings.js";
 
-const reference = (name, arguments_) => csharpTargetNamedType(`fixture.${name}`, arguments_, { kind: "named", name });
+const reference = (name, arguments_) => csharpTargetNamedType(`fixture.${name}`, arguments_, { kind: "named", name }, { allowsRefLikeTypeArguments: ((arguments_) ?? []).map(() => false),});
 
 function fixture({ siblings = false, nested = false, authored = false } = {}) {
   const base = reference("Base");
@@ -96,7 +96,7 @@ test("C# nominal arm admission does not manufacture covariance, numeric width ch
   const integer = csharpSourcePrimitiveTargetType("int64");
   const unsigned = csharpSourcePrimitiveTargetType("uint64");
   const floating = csharpSourcePrimitiveTargetType("float64");
-  const value = csharpTargetNamedType(derived.id, undefined, { kind: "named", name: "Value" }, { valueType: true });
+  const value = csharpTargetNamedType(derived.id, undefined, { kind: "named", name: "Value" }, { allowsRefLikeTypeArguments: [], valueType: true });
   const nullableDerived = csharpNullableTargetType(derived);
   const cases = [[value, base], [nullableDerived, base], [csharpAbsenceTargetType(), base],
     [integer, unsigned], [integer, floating],

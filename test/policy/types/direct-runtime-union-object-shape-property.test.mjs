@@ -8,8 +8,8 @@ import {
 
 const selectedDeclaration = {};
 const string = csharpStringTargetType();
-const circleType = { kind: "target-named", id: "Shape.Circle" };
-const squareType = { kind: "target-named", id: "Shape.Square" };
+const circleType = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Shape.Circle" };
+const squareType = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Shape.Square" };
 const circle = {
   targetType: circleType,
   members: [{
@@ -56,7 +56,7 @@ test("runtime-union object-shape properties resolve every exact arm member", () 
 test("runtime-union object-shape properties fail closed on incomplete arms", () => {
   const union = csharpRuntimeUnionTargetType([
     circleType,
-    { kind: "target-named", id: "Shape.Missing" },
+    { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Shape.Missing" },
   ]);
   assert.ok(union);
   const resolved = resolveCsharpRuntimeUnionObjectShapeProperty(

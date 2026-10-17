@@ -19,12 +19,12 @@ export function csharpEnumerableTargetType(elementType: TargetTypeRef): CsharpTa
     csharpQualifiedTypeRenderShape("System.Collections.Generic", "IEnumerable"),
     {
       sourceDeclarationKind: "interface",
+      allowsRefLikeTypeArguments: [true],
       arrayLiteralElementType: elementType,
       arrayLiteralConstructionType: constructionType,
       implicitArrayInputElementType: elementType,
       enumerableElementType: elementType,
-    },
-  );
+    });
 }
 
 export function csharpReadOnlyListTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
@@ -35,6 +35,7 @@ export function csharpReadOnlyListTargetType(elementType: TargetTypeRef): Csharp
     csharpQualifiedTypeRenderShape("System.Collections.Generic", "IReadOnlyList"),
     {
       sourceDeclarationKind: "interface",
+      allowsRefLikeTypeArguments: [false],
       arrayLiteralElementType: elementType,
       arrayLiteralConstructionType: constructionType,
       implicitArrayInputElementType: elementType,
@@ -42,8 +43,7 @@ export function csharpReadOnlyListTargetType(elementType: TargetTypeRef): Csharp
       readOnlyIndexableElementType: elementType,
       indexableLengthMemberName: "Count",
       collectionSemantics: "dense",
-    },
-  );
+    });
 }
 
 export function csharpListTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
@@ -53,6 +53,7 @@ export function csharpListTargetType(elementType: TargetTypeRef): CsharpTargetNa
     csharpQualifiedTypeRenderShape("System.Collections.Generic", "List"),
     {
       sourceDeclarationKind: "class",
+      allowsRefLikeTypeArguments: [false],
       arrayLiteralElementType: elementType,
       enumerableElementType: elementType,
       readOnlyIndexableElementType: elementType,
@@ -60,8 +61,7 @@ export function csharpListTargetType(elementType: TargetTypeRef): CsharpTargetNa
       arrayLiteralBuilder: Object.freeze({ appendElementMethod: "Add", capacityConstructor: true }),
       indexableLengthMemberName: "Count",
       collectionSemantics: "dense",
-    },
-  ));
+    }));
   return Object.freeze({
     ...type,
     csharpArrayLiteralConstructionType: type,

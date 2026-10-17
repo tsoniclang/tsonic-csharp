@@ -24,6 +24,7 @@ import type { CsharpPolicyContext } from "../model/context.js";
 import type { TargetTypeRef } from "../types/index.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 import { getCsharpMethodValue, csharpMethodValueContractsEqual } from "../../target-model/types/method-values.js";
+import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
 
 export function selectCsharpConversion(
   input: Pick<
@@ -52,6 +53,12 @@ export function selectCsharpConversion(
   }
   if (isCsharpNeverTargetType(source) && !isCsharpVoidTargetType(target)) {
     return { kind: "never" };
+  }
+  if (isCsharpRefLikeTargetType(source) && !isCsharpRefLikeTargetType(target)) {
+    const native = selectProviderConversionOperator(input, source, target, mode);
+    if (native.kind !== "none") return native;
+    return { kind: "rejected", code: "CSHARP_REFLIKE_BOXING",
+      reason: "A native ref-like value cannot be boxed or erased into an ordinary value carrier without an exact non-boxing native conversion." };
   }
   const arrayElement = csharpArrayLikeElement(source, input.typeDefinitions);
   if (arrayElement !== undefined && targetTypeRefEquals(target, csharpArrayLikeTargetType(arrayElement))) {

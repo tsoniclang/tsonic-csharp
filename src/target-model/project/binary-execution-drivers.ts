@@ -12,11 +12,7 @@ export const csharpJsEventLoopBinaryExecutionDriver:
   CsharpTargetBinaryExecutionDriver =
   Object.freeze({
     id: "tsonic.csharp.js.event-loop-v1",
-    declaringType: Object.freeze(csharpTargetNamedType(
-      "Tsonic.CSharp.Js.JsEventLoop",
-      undefined,
-      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "JsEventLoop"),
-    )),
+    declaringType: Object.freeze(csharpTargetNamedType("Tsonic.CSharp.Js.JsEventLoop", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "JsEventLoop"), { allowsRefLikeTypeArguments: [],})),
     runMethodName: "Run",
     runWithEntrypointMethodName: "Run",
   });

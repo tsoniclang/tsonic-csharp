@@ -10,7 +10,7 @@ const member = Object.freeze({ sourceKey: { kind: "property", name: "identity" }
   memberKind: "method", type: { kind: "source-primitive", name: "float64" }, sourceDeclarations: Object.freeze([declaration]) });
 const implementation = Object.freeze({ declaration: Object.freeze({}), identity: "body",
   methods: Object.freeze([declaration]), captures: Object.freeze([]) });
-const shape = Object.freeze({ targetType: { kind: "target-named", id: "tsonic.shape:owner" },
+const shape = Object.freeze({ targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "tsonic.shape:owner" },
   members: Object.freeze([member]), methodImplementation: implementation });
 
 test("native method protocol selection does not require its own finalized output", () => {

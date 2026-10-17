@@ -10,9 +10,9 @@ const integer = csharpSourcePrimitiveTargetType("uint64");
 const string = csharpStringTargetType();
 const boolean = csharpSourcePrimitiveTargetType("bool");
 const floating = csharpSourcePrimitiveTargetType("float64");
-const base = { kind: "target-named", id: "fixture.Base" };
-const child = { kind: "target-named", id: "fixture.Child" };
-const other = { kind: "target-named", id: "fixture.Other" };
+const base = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Base" };
+const child = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Child" };
+const other = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Other" };
 const host = {
   projectTypeCatalog: {
     definitionForTarget: type => [base.id, child.id, other.id].includes(type.id) ? { kind: "class" } : undefined,
@@ -83,7 +83,7 @@ test("native scalar results remain authoritative without evaluating selected sou
 test("ambiguous and cyclic closed results cannot invent an exact selected payload", () => {
   const duplicate = csharpRuntimeUnionTargetType([integer, integer]);
   expectSelection(duplicate, integer, duplicate);
-  const cycle = { kind: "target-named", id: "fixture.Cycle" };
+  const cycle = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Cycle" };
   const cyclic = { ...host, typeDefinitions: { sourceUnionArms: type => type.id === cycle.id ? [cycle] : undefined } };
   expectSelection(cycle, integer, cycle, cyclic);
 });

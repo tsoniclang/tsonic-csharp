@@ -10,7 +10,7 @@ import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types
 import { retainCsharpMethodValueContracts, csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/object-shape-policy/method-values.js";
 import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 
-const owner = { kind: "target-named", id: "tsonic.shape:owner", typeArguments: [{ kind: "type-parameter", identity: "Outer", name: "Outer" }],
+const owner = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "tsonic.shape:owner", typeArguments: [{ kind: "type-parameter", identity: "Outer", name: "Outer" }],
   csharpRender: { kind: "named", name: "Owner" } };
 function contract(name) {
   const type = { kind: "type-parameter", identity: name, name };
@@ -69,7 +69,7 @@ test("method references require exact native reference ownership and unique quan
 test("optional native method storage retains a required present protocol without weakening member identity", () => {
   const member = { sourceKey: { kind: "property", name: "identity" }, sourceName: "identity", targetName: "identity",
     memberKind: "method", optional: true, type: csharpNullableTargetType(contract("Item")),
-    typeParameters: [{ identity: "Item", name: "Item", declaration: {}, constraints: [] }] };
+    typeParameters: [{ csharpAllowsRefLike: false, identity: "Item", name: "Item", declaration: {}, constraints: [] }] };
   const recorded = [];
   const shape = retainCsharpMethodValueContracts({ targetType: { ...owner, csharpStructuralContract: true }, members: [member] },
     fact => { recorded.push(fact); return fact; }, unconstrained);
@@ -90,7 +90,7 @@ test("optional native method storage retains a required present protocol without
 
 test("copied generic methods retain only the exact original environment and minimal method contract", () => {
   const member = { sourceKey: { kind: "property", name: "identity" }, sourceName: "identity", targetName: "identity",
-    memberKind: "method", type: contract("Item"), typeParameters: [{ identity: "Item", name: "Item", declaration: {}, constraints: [] }] };
+    memberKind: "method", type: contract("Item"), typeParameters: [{ csharpAllowsRefLike: false, identity: "Item", name: "Item", declaration: {}, constraints: [] }] };
   const recorded = [];
   const shape = retainCsharpMethodValueContracts({ targetType: owner, members: [member],
     methodImplementation: { declaration: {}, identity: "body", methods: [], captures: [] } }, fact => { recorded.push(fact); return fact; }, unconstrained);

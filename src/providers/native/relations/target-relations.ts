@@ -14,9 +14,7 @@ import type {
 import type {
   DotnetTypeDeclaration,
 } from "../model/index.js";
-import {
-  dotnetExportToTargetBinding,
-} from "../model/index.js";
+import { dotnetTypeToTargetBinding } from "../projection/binding-projection.js";
 import {
   dotnetMemberToProviderMember,
 } from "../projection/declarations/members.js";
@@ -108,7 +106,7 @@ export function dotnetTypeTargetMemberProjections(
   readonly signatureProjections: ReadonlyMap<string, readonly DotnetTargetMemberProjection[]>;
   readonly canonicalSignatureProjections: ReadonlyMap<string, readonly DotnetTargetMemberProjection[]>;
 } {
-  const targetBinding = dotnetExportToTargetBinding(declaration) as CsharpTargetBindingFact;
+  const targetBinding = dotnetTypeToTargetBinding(declaration);
   const memberProjections = new Map<string, DotnetTargetMemberProjection[]>();
   const signatureProjections = new Map<string, DotnetTargetMemberProjection[]>();
   const canonicalSignatureProjections = new Map<
@@ -122,10 +120,7 @@ export function dotnetTypeTargetMemberProjections(
     }
     const targetMemberRecords = dotnetMemberToTargetMemberRecords(
       member,
-      targetBinding.csharpType ?? {
-        kind: "target-named",
-        id: targetBinding.id,
-      },
+      targetBinding.csharpType,
     );
     if (providerMember.signatures === undefined) {
       const record = targetMemberRecords[0];

@@ -10,9 +10,7 @@ function fixture(modes, slots) {
   const expression = {};
   const sourceParameter = {};
   const selectedDeclaration = {};
-  const carrier = csharpTargetNamedType("Fixture::Native", undefined,
-    { kind: "named", name: "Native", usingNamespace: ["Fixture"] },
-    { delegateSignature: { parameters: [integer], parameterPassingModes: modes, returnType: integer } });
+  const carrier = csharpTargetNamedType("Fixture::Native", undefined, { kind: "named", name: "Native", usingNamespace: ["Fixture"] }, { allowsRefLikeTypeArguments: [], delegateSignature: { parameters: [integer], parameterPassingModes: modes, returnType: integer } });
   const source = { call: {}, selectedSignature: {},
     sourceCallee: { expression, type: {}, selectedDeclaration },
     sourceSelectedSignatureParameters: [{ parameterIndex: 7, parameterDeclaration: sourceParameter }] };

@@ -66,8 +66,8 @@ test("signature-like metadata does not admit provider, value, opaque or mixed me
   const inferred = callable(integer);
   const annotated = callable(floating);
   const provider = { ...annotated, id: "Provider.Callback", csharpRender: { kind: "named", name: "Callback" } };
-  const unproved = csharpTargetNamedType(annotated.id, annotated.typeArguments, annotated.csharpRender);
-  const owner = csharpTargetNamedType("tsonic.shape:fixture", [], { kind: "named", name: "Owner" });
+  const unproved = csharpTargetNamedType(annotated.id, annotated.typeArguments, annotated.csharpRender, { allowsRefLikeTypeArguments: ((annotated.typeArguments) ?? []).map(() => false),});
+  const owner = csharpTargetNamedType("tsonic.shape:fixture", [], { kind: "named", name: "Owner" }, { allowsRefLikeTypeArguments: [],});
   const method = csharpMethodValueType(owner, "invoke", "fixture-method", inferred, []);
   assert.equal(method !== undefined, true, "exact existing method-value owner");
   for (const other of [provider, unproved, method, integer, { kind: "opaque", id: "Callback" },

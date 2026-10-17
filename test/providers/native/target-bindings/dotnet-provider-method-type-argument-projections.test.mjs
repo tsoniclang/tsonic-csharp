@@ -8,6 +8,8 @@ import {
 test(".NET target policy projects only exact JsonSerializer.Deserialize result type parameters", () => {
   const binding = dotnetExportToTargetBinding({
     kind: "type",
+    isByRefLike: false,
+    allowsRefLikeTypeArguments: [],
     typeKind: "class",
     sourceName: "JsonSerializer",
     namespaceName: "System.Text.Json",
@@ -83,7 +85,7 @@ function deserializeMember({ id, metadataName, returnType }) {
     signatures: [{
       id,
       sourceId: id,
-      typeParameters: [{ identity: `${id}:0`, name: "TValue" }],
+      typeParameters: [{ allowsRefLike: false, identity: `${id}:0`, name: "TValue" }],
       parameters: [{
         name: "json",
         type: { kind: "string" },

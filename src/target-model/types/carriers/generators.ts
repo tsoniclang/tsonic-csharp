@@ -33,32 +33,22 @@ export function csharpAsyncGeneratorTargetType(
 export function csharpIteratorResultTargetType(
   protocol: CsharpIteratorResultProtocol,
 ): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
-    "Tsonic.CSharp.Runtime.IteratorResult`2",
-    [protocol.yieldType, protocol.returnType],
-    csharpQualifiedTypeRenderShape(
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.IteratorResult`2", [protocol.yieldType, protocol.returnType], csharpQualifiedTypeRenderShape(
       "Tsonic.CSharp.Runtime",
       "IteratorResult",
-    ),
-    {
+    ), { allowsRefLikeTypeArguments: [false, false],
       iteratorResultProtocol: protocol,
       flowRefinementRepresentation: "identity",
-    },
-  );
+    });
 }
 
 export function csharpAsyncEnumerableTargetType(
   elementType: TargetTypeRef,
 ): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
-    "System.Collections.Generic.IAsyncEnumerable`1",
-    [elementType],
-    csharpQualifiedTypeRenderShape(
+  return csharpTargetNamedType("System.Collections.Generic.IAsyncEnumerable`1", [elementType], csharpQualifiedTypeRenderShape(
       "System.Collections.Generic",
       "IAsyncEnumerable",
-    ),
-    { enumerableElementType: elementType },
-  );
+    ), { allowsRefLikeTypeArguments: [true], enumerableElementType: elementType });
 }
 
 export function getCsharpGeneratorProtocol(
@@ -94,13 +84,8 @@ function generatorTargetType(
   protocol: Omit<CsharpGeneratorProtocol, "kind">,
 ): CsharpTargetNamedTypeRef {
   const closedProtocol = Object.freeze({ kind, ...protocol });
-  return csharpTargetNamedType(
-    `Tsonic.CSharp.Runtime.${name}\`3`,
-    [protocol.yieldType, protocol.returnType, protocol.nextType],
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", name),
-    {
+  return csharpTargetNamedType(`Tsonic.CSharp.Runtime.${name}\`3`, [protocol.yieldType, protocol.returnType, protocol.nextType], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", name), { allowsRefLikeTypeArguments: [false, false, false],
       enumerableElementType: protocol.yieldType,
       generatorProtocol: closedProtocol,
-    },
-  );
+    });
 }

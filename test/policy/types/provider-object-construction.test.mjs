@@ -7,7 +7,7 @@ import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.j
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int64" });
 const floating = Object.freeze({ kind: "source-primitive", name: "float64" });
-const selectedTarget = Object.freeze({ kind: "target-named", id: "native.Counters" });
+const selectedTarget = Object.freeze({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "native.Counters" });
 
 function fixture(options = {}) {
   const type = {};

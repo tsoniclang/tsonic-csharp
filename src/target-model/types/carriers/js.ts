@@ -20,11 +20,7 @@ export const csharpJsArrayCarrierId = "Tsonic.CSharp.Js.JSArray`1";
 export function csharpJsArrayTargetType(
   elementType: TargetTypeRef,
 ): CsharpTargetNamedTypeRef {
-  const type = csharpTargetNamedType(
-    csharpJsArrayCarrierId,
-    [elementType],
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "JSArray"),
-    {
+  const type = csharpTargetNamedType(csharpJsArrayCarrierId, [elementType], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "JSArray"), { allowsRefLikeTypeArguments: [false],
       arrayLikeElementType: elementType,
       arrayLiteralElementType: elementType,
       enumerableElementType: elementType,
@@ -33,8 +29,7 @@ export function csharpJsArrayTargetType(
       indexableLengthMemberName: "length",
       collectionSemantics: "js-array",
       typeofRuntimeKind: "object",
-    },
-  );
+    });
   return {
     ...type,
     csharpJsArrayMutation: {
@@ -58,12 +53,7 @@ export function csharpJsMapTargetType(
     elements: [keyType, valueType],
   };
   return {
-    ...csharpTargetNamedType(
-      "Tsonic.CSharp.Js.Map`2",
-      [keyType, valueType],
-      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Map"),
-      { enumerableElementType: entryType, typeofRuntimeKind: "object" },
-    ),
+    ...csharpTargetNamedType("Tsonic.CSharp.Js.Map`2", [keyType, valueType], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Map"), { allowsRefLikeTypeArguments: [false, false], enumerableElementType: entryType, typeofRuntimeKind: "object" }),
     csharpJsSurfaceKind: "map",
   };
 }
@@ -72,12 +62,7 @@ export function csharpJsSetTargetType(
   elementType: TargetTypeRef,
 ): CsharpTargetNamedTypeRef {
   return {
-    ...csharpTargetNamedType(
-      "Tsonic.CSharp.Js.Set`1",
-      [elementType],
-      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Set"),
-      { enumerableElementType: elementType, typeofRuntimeKind: "object" },
-    ),
+    ...csharpTargetNamedType("Tsonic.CSharp.Js.Set`1", [elementType], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Set"), { allowsRefLikeTypeArguments: [false], enumerableElementType: elementType, typeofRuntimeKind: "object" }),
     csharpJsSurfaceKind: "set",
   };
 }
@@ -87,12 +72,7 @@ export function csharpJsWeakMapTargetType(
   valueType: TargetTypeRef,
 ): CsharpTargetNamedTypeRef {
   return {
-    ...csharpTargetNamedType(
-      "Tsonic.CSharp.Js.WeakMap`2",
-      [keyType, valueType],
-      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "WeakMap"),
-      { typeofRuntimeKind: "object" },
-    ),
+    ...csharpTargetNamedType("Tsonic.CSharp.Js.WeakMap`2", [keyType, valueType], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "WeakMap"), { allowsRefLikeTypeArguments: [false, false], typeofRuntimeKind: "object" }),
     csharpJsSurfaceKind: "weak-map",
   };
 }
@@ -101,12 +81,7 @@ export function csharpJsWeakSetTargetType(
   elementType: TargetTypeRef,
 ): CsharpTargetNamedTypeRef {
   return {
-    ...csharpTargetNamedType(
-      "Tsonic.CSharp.Js.WeakSet`1",
-      [elementType],
-      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "WeakSet"),
-      { typeofRuntimeKind: "object" },
-    ),
+    ...csharpTargetNamedType("Tsonic.CSharp.Js.WeakSet`1", [elementType], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "WeakSet"), { allowsRefLikeTypeArguments: [false], typeofRuntimeKind: "object" }),
     csharpJsSurfaceKind: "weak-set",
   };
 }
@@ -133,12 +108,7 @@ export function getCsharpJsWeakSetElementTargetType(
 
 export function csharpJsSymbolTargetType(): CsharpTargetNamedTypeRef {
   return {
-    ...csharpTargetNamedType(
-      "Tsonic.CSharp.Js.Symbol",
-      undefined,
-      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Symbol"),
-      { typeofRuntimeKind: "symbol" },
-    ),
+    ...csharpTargetNamedType("Tsonic.CSharp.Js.Symbol", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Symbol"), { allowsRefLikeTypeArguments: [], typeofRuntimeKind: "symbol" }),
     csharpJsSurfaceKind: "symbol",
   };
 }
@@ -150,50 +120,25 @@ export function csharpJsPromiseFulfilledResultTargetType(
     valueType.kind === "target-named" &&
     valueType.id === "System.Void"
   ) {
-    return csharpTargetNamedType(
-      "Tsonic.CSharp.Js.PromiseFulfilledResult",
-      undefined,
-      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseFulfilledResult"),
-      { typeofRuntimeKind: "object" },
-    );
+    return csharpTargetNamedType("Tsonic.CSharp.Js.PromiseFulfilledResult", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseFulfilledResult"), { allowsRefLikeTypeArguments: [], typeofRuntimeKind: "object" });
   }
-  return csharpTargetNamedType(
-    "Tsonic.CSharp.Js.PromiseFulfilledResult`1",
-    [valueType],
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseFulfilledResult"),
-    { typeofRuntimeKind: "object" },
-  );
+  return csharpTargetNamedType("Tsonic.CSharp.Js.PromiseFulfilledResult`1", [valueType], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseFulfilledResult"), { allowsRefLikeTypeArguments: [false], typeofRuntimeKind: "object" });
 }
 
 export function csharpJsPromiseRejectedResultTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
-    "Tsonic.CSharp.Js.PromiseRejectedResult",
-    undefined,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseRejectedResult"),
-    { typeofRuntimeKind: "object" },
-  );
+  return csharpTargetNamedType("Tsonic.CSharp.Js.PromiseRejectedResult", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseRejectedResult"), { allowsRefLikeTypeArguments: [], typeofRuntimeKind: "object" });
 }
 
 export function csharpJsArrayBufferTargetType(): CsharpTargetNamedTypeRef {
   return {
-    ...csharpTargetNamedType(
-      "Tsonic.CSharp.Js.ArrayBuffer",
-      undefined,
-      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "ArrayBuffer"),
-      { typeofRuntimeKind: "object" },
-    ),
+    ...csharpTargetNamedType("Tsonic.CSharp.Js.ArrayBuffer", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "ArrayBuffer"), { allowsRefLikeTypeArguments: [], typeofRuntimeKind: "object" }),
     csharpJsSurfaceKind: "array-buffer",
   };
 }
 
 export function csharpJsDataViewTargetType(): CsharpTargetNamedTypeRef {
   return {
-    ...csharpTargetNamedType(
-      "Tsonic.CSharp.Js.DataView",
-      undefined,
-      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "DataView"),
-      { typeofRuntimeKind: "object" },
-    ),
+    ...csharpTargetNamedType("Tsonic.CSharp.Js.DataView", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "DataView"), { allowsRefLikeTypeArguments: [], typeofRuntimeKind: "object" }),
     csharpJsSurfaceKind: "data-view",
   };
 }
@@ -219,12 +164,7 @@ export function csharpJsIntlTargetType(
         ? "intl-collator"
         : undefined;
   return {
-    ...csharpTargetNamedType(
-      `Tsonic.CSharp.Js.${name}`,
-      undefined,
-      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name),
-      { typeofRuntimeKind: "object" },
-    ),
+    ...csharpTargetNamedType(`Tsonic.CSharp.Js.${name}`, undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name), { allowsRefLikeTypeArguments: [], typeofRuntimeKind: "object" }),
     ...(kind === undefined ? {} : { csharpJsSurfaceKind: kind }),
   } as CsharpTargetNamedTypeRef;
 }
@@ -260,19 +200,14 @@ export function csharpJsTypedArrayTargetType(
 ): CsharpTargetNamedTypeRef {
   const elementType = csharpSourcePrimitiveTargetType(typedArrayElementNames[name]);
   return {
-    ...csharpTargetNamedType(
-      `Tsonic.CSharp.Js.${name}`,
-      undefined,
-      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name),
-      {
+    ...csharpTargetNamedType(`Tsonic.CSharp.Js.${name}`, undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name), { allowsRefLikeTypeArguments: [],
         arrayLikeElementType: csharpSourcePrimitiveTargetType("float64"),
         enumerableElementType: elementType,
         denseMutableElementType: csharpSourcePrimitiveTargetType("float64"),
         indexableLengthMemberName: "length",
         collectionSemantics: "dense",
         typeofRuntimeKind: "object",
-      },
-    ),
+      }),
     csharpJsSurfaceKind: "typed-array",
   };
 }
@@ -321,24 +256,14 @@ export function getCsharpJsSetElementTargetType(
 
 export function csharpJsDateTargetType(): CsharpTargetNamedTypeRef {
   return {
-    ...csharpTargetNamedType(
-      "Tsonic.CSharp.Js.Date",
-      undefined,
-      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Date"),
-      { typeofRuntimeKind: "object" },
-    ),
+    ...csharpTargetNamedType("Tsonic.CSharp.Js.Date", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Date"), { allowsRefLikeTypeArguments: [], typeofRuntimeKind: "object" }),
     csharpJsSurfaceKind: "date",
   };
 }
 
 export function csharpJsRegExpTargetType(): CsharpTargetNamedTypeRef {
   return {
-    ...csharpTargetNamedType(
-      "Tsonic.CSharp.Js.RegExp",
-      undefined,
-      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExp"),
-      { typeofRuntimeKind: "object" },
-    ),
+    ...csharpTargetNamedType("Tsonic.CSharp.Js.RegExp", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExp"), { allowsRefLikeTypeArguments: [], typeofRuntimeKind: "object" }),
     csharpJsSurfaceKind: "regexp",
   };
 }
@@ -377,30 +302,15 @@ export function csharpJsRegExpIndicesArrayTargetType(): CsharpTargetNamedTypeRef
 }
 
 export function csharpJsRegExpNamedGroupsTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
-    "Tsonic.CSharp.Js.RegExpNamedGroups",
-    undefined,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedGroups"),
-    { typeofRuntimeKind: "object" },
-  );
+  return csharpTargetNamedType("Tsonic.CSharp.Js.RegExpNamedGroups", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedGroups"), { allowsRefLikeTypeArguments: [], typeofRuntimeKind: "object" });
 }
 
 export function csharpJsRegExpNamedIndicesTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
-    "Tsonic.CSharp.Js.RegExpNamedIndices",
-    undefined,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedIndices"),
-    { typeofRuntimeKind: "object" },
-  );
+  return csharpTargetNamedType("Tsonic.CSharp.Js.RegExpNamedIndices", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedIndices"), { allowsRefLikeTypeArguments: [], typeofRuntimeKind: "object" });
 }
 
 export function csharpJsRegExpStringIteratorTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
-    "Tsonic.CSharp.Js.RegExpStringIterator",
-    undefined,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpStringIterator"),
-    { enumerableElementType: csharpJsRegExpExecArrayTargetType(), typeofRuntimeKind: "object" },
-  );
+  return csharpTargetNamedType("Tsonic.CSharp.Js.RegExpStringIterator", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpStringIterator"), { allowsRefLikeTypeArguments: [], enumerableElementType: csharpJsRegExpExecArrayTargetType(), typeofRuntimeKind: "object" });
 }
 
 export function csharpExactJsRegExpExecArrayTargetType(): CsharpTargetNamedTypeRef {
@@ -427,30 +337,15 @@ export function csharpExactJsRegExpIndicesArrayTargetType(): CsharpTargetNamedTy
 }
 
 export function csharpExactJsRegExpNamedGroupsTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
-    "Tsonic.CSharp.Js.JsRegExpNamedGroups",
-    undefined,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedGroups"),
-    { typeofRuntimeKind: "object" },
-  );
+  return csharpTargetNamedType("Tsonic.CSharp.Js.JsRegExpNamedGroups", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedGroups"), { allowsRefLikeTypeArguments: [], typeofRuntimeKind: "object" });
 }
 
 export function csharpExactJsRegExpNamedIndicesTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
-    "Tsonic.CSharp.Js.JsRegExpNamedIndices",
-    undefined,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedIndices"),
-    { typeofRuntimeKind: "object" },
-  );
+  return csharpTargetNamedType("Tsonic.CSharp.Js.JsRegExpNamedIndices", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedIndices"), { allowsRefLikeTypeArguments: [], typeofRuntimeKind: "object" });
 }
 
 export function csharpExactJsRegExpStringIteratorTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
-    "Tsonic.CSharp.Js.JsRegExpStringIterator",
-    undefined,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpStringIterator"),
-    { enumerableElementType: csharpExactJsRegExpExecArrayTargetType(), typeofRuntimeKind: "object" },
-  );
+  return csharpTargetNamedType("Tsonic.CSharp.Js.JsRegExpStringIterator", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpStringIterator"), { allowsRefLikeTypeArguments: [], enumerableElementType: csharpExactJsRegExpExecArrayTargetType(), typeofRuntimeKind: "object" });
 }
 
 function csharpExactJsRegExpArrayTargetType(
@@ -485,11 +380,7 @@ function csharpJsArrayLikeTargetType(
   elementType: TargetTypeRef,
   baseType?: TargetTypeRef,
 ): CsharpTargetNamedTypeRef {
-  const type = csharpTargetNamedType(
-    id,
-    undefined,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name),
-    {
+  const type = csharpTargetNamedType(id, undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name), { allowsRefLikeTypeArguments: [],
       enumerableElementType: elementType,
       readOnlyIndexableElementType: elementType,
       denseMutableElementType: elementType,
@@ -497,8 +388,7 @@ function csharpJsArrayLikeTargetType(
       collectionSemantics: "js-array",
       baseType,
       typeofRuntimeKind: "object",
-    },
-  );
+    });
   return {
     ...type,
     csharpJsArrayMutation: {

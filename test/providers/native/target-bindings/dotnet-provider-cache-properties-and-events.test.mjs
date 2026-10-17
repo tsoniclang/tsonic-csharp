@@ -99,6 +99,8 @@ test(".NET provider declaration model omits source members without truthful sour
     exports: [
       {
         kind: "type",
+        isByRefLike: false,
+        allowsRefLikeTypeArguments: [],
         typeKind: "class",
         sourceName: "Example",
         namespaceName: "System",
@@ -111,7 +113,7 @@ test(".NET provider declaration model omits source members without truthful sour
             targetName: "UnsafeTargetOnly",
             targetId: testTargetId("System.Example.UnsafeTargetOnly"),
             metadataName: "System.Example.UnsafeTargetOnly",
-            type: namedDotnetTypeRef("System.Environment.SpecialFolder"),
+            type: namedDotnetTypeRef("System.Environment.SpecialFolder", { isByRefLike: false, allowsRefLikeTypeArguments: [] }),
           },
           {
             kind: "property",
@@ -122,6 +124,8 @@ test(".NET provider declaration model omits source members without truthful sour
             readable: true,
             writable: true,
             type: namedDotnetTypeRef("System.String", {
+              isByRefLike: false,
+              allowsRefLikeTypeArguments: [],
               sourceShape: { kind: "string" },
             }),
           },
@@ -138,7 +142,7 @@ test(".NET provider declaration model omits source members without truthful sour
                 parameters: [
                   {
                     name: "folder",
-                    type: namedDotnetTypeRef("System.Environment.SpecialFolder"),
+                    type: namedDotnetTypeRef("System.Environment.SpecialFolder", { isByRefLike: false, allowsRefLikeTypeArguments: [] }),
                     passingMode: "by-value",
                   },
                 ],
@@ -159,6 +163,8 @@ test(".NET provider model maps property setters and field mutability to source a
   const int32 = { kind: "source-primitive", name: "int32" };
   const example = {
     kind: "type",
+    isByRefLike: false,
+    allowsRefLikeTypeArguments: [],
     typeKind: "class",
     sourceName: "Example",
     namespaceName: "ProviderModelFixtures",
@@ -240,6 +246,8 @@ test(".NET provider model maps property setters and field mutability to source a
 
 test(".NET provider model keeps event facts target-only until source event semantics exist", () => {
   const eventHandler = namedDotnetTypeRef("System.EventHandler", {
+    isByRefLike: false,
+    allowsRefLikeTypeArguments: [],
     callableRepresentation: "delegate",
     sourceShape: {
       kind: "function",
@@ -250,6 +258,8 @@ test(".NET provider model keeps event facts target-only until source event seman
   });
   const eventSource = {
     kind: "type",
+    isByRefLike: false,
+    allowsRefLikeTypeArguments: [],
     typeKind: "class",
     sourceName: "EventSource",
     namespaceName: "ProviderModelFixtures",
@@ -290,6 +300,8 @@ test(".NET provider declaration model keeps inherited source members on heritage
   const stringType = { kind: "string" };
   const baseType = {
     kind: "type",
+    isByRefLike: false,
+    allowsRefLikeTypeArguments: [],
     typeKind: "class",
     sourceName: "Base",
     namespaceName: "ProviderModelFixtures",
@@ -313,12 +325,16 @@ test(".NET provider declaration model keeps inherited source members on heritage
   };
   const derivedType = {
     kind: "type",
+    isByRefLike: false,
+    allowsRefLikeTypeArguments: [],
     typeKind: "class",
     sourceName: "Derived",
     namespaceName: "ProviderModelFixtures",
     targetId: testTargetId("ProviderModelFixtures.Derived"),
     metadataName: "ProviderModelFixtures.Derived",
     baseType: namedDotnetTypeRef("ProviderModelFixtures.Base", {
+      isByRefLike: false,
+      allowsRefLikeTypeArguments: [],
       sourceShape: {
         kind: "provider-ref",
         moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",

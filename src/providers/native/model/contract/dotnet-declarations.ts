@@ -93,6 +93,17 @@ function validateDotnetTypeDeclaration(
   validateOptionalDotnetAssemblyReference(declaration.assembly, `${path}.assembly`, collector);
   validateOptionalDotnetRenderShape(declaration.renderShape, `${path}.renderShape`, collector);
   validateDotnetTypeParameters(declaration.typeParameters ?? [], `${path}.typeParameters`, collector);
+  if (typeof declaration.isByRefLike !== "boolean" || declaration.isByRefLike && declaration.typeKind !== "struct") {
+    collector.add(`${path}.isByRefLike`, "A CLR declaration requires its exact native by-ref-like boolean; only a struct can be ref-like.", declaration.isByRefLike);
+  }
+  if (!Array.isArray(declaration.allowsRefLikeTypeArguments) ||
+    declaration.allowsRefLikeTypeArguments.length !== (declaration.typeParameters?.length ?? 0) ||
+    declaration.allowsRefLikeTypeArguments.some(allowed => typeof allowed !== "boolean")) {
+    collector.add(`${path}.allowsRefLikeTypeArguments`, "A CLR declaration requires the exact native allows-ref-struct flag for each generic parameter.", declaration.allowsRefLikeTypeArguments);
+  } else if ((declaration.typeParameters ?? []).some((parameter, index) =>
+    typeof parameter.allowsRefLike === "boolean" && parameter.allowsRefLike !== declaration.allowsRefLikeTypeArguments[index])) {
+    collector.add(`${path}.allowsRefLikeTypeArguments`, "A CLR declaration's generic-slot permissions must agree with its exact parameter metadata.", declaration.allowsRefLikeTypeArguments);
+  }
   if (declaration.abstract !== undefined && declaration.abstract !== true) {
     collector.add(`${path}.abstract`, "A .NET abstract-type fact, when present, must be true.", declaration.abstract);
   }

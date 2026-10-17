@@ -4,7 +4,7 @@ import { collectCsharpReferenceClosure } from "../../../../dist/backend/planner/
 
 function shape(id, bases = [], overrides = {}) {
   return {
-    targetType: { kind: "target-named", id },
+    targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id },
     members: [],
     implements: bases.map(base => base.targetType),
     ...overrides,
@@ -35,10 +35,10 @@ test("reference capabilities follow transitive, diamond and cyclic exact shape e
 
 test("reference capabilities do not cross generic instantiation identities", () => {
   const numeric = shape("Box", [], {
-    targetType: { kind: "target-named", id: "Box", typeArguments: [{ kind: "source-primitive", name: "int32" }] },
+    targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "Box", typeArguments: [{ kind: "source-primitive", name: "int32" }] },
   });
   const text = shape("Box", [], {
-    targetType: { kind: "target-named", id: "Box", typeArguments: [{ kind: "target-named", id: "System.String" }] },
+    targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "Box", typeArguments: [{ kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "System.String" }] },
   });
   const numericChild = shape("NumericChild", [numeric]);
   const textChild = shape("TextChild", [text]);
@@ -50,7 +50,7 @@ test("reference capabilities do not cross generic instantiation identities", () 
 test("reference closure rejects transitive value storage and unprotected frozen writes", () => {
   const root = shape("Root");
   const value = shape("Value", [root], {
-    targetType: { kind: "target-named", id: "Value", csharpValueType: true },
+    targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Value", csharpValueType: true },
   });
   assert.equal(collect(root, [value]).kind, "rejected");
   const bound = shape("Bound", [root], { members: [{ bound: true }] });

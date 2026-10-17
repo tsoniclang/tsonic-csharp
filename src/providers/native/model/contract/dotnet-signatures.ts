@@ -440,6 +440,9 @@ export function validateDotnetTypeParameters(
     requireUnique(identities, parameter.identity, `${parameterPath}.identity`, collector);
     requireNonEmptyString(parameter.name, `${parameterPath}.name`, collector);
     requireUnique(names, parameter.name, `${parameterPath}.name`, collector);
+    if (typeof parameter.allowsRefLike !== "boolean") {
+      collector.add(`${parameterPath}.allowsRefLike`, "A CLR generic parameter requires its native allows-ref-struct flag.", parameter.allowsRefLike);
+    }
     validateDotnetConstraints(parameter.constraints ?? [], `${parameterPath}.constraints`, collector);
     validateUnsupportedConstraints(parameter.unsupportedConstraints ?? [], `${parameterPath}.unsupportedConstraints`, collector);
     validateOptionalDotnetTypeRef(parameter.defaultType, `${parameterPath}.defaultType`, collector, { allowLiteral: false, allowProviderRef: false });

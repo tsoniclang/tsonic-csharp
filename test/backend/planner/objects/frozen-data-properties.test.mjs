@@ -6,7 +6,7 @@ const integer = { kind: "PredefinedType", keyword: "int" };
 const input = { program: { records: { nativeField: { get: () => undefined } } } };
 
 function shape(members) {
-  return { targetType: { kind: "target-named", id: "Owner" }, members };
+  return { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Owner" }, members };
 }
 
 function data(name, overrides = {}) {

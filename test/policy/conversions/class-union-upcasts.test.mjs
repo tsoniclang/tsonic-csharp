@@ -3,7 +3,7 @@ import test from "node:test";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
 import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpTargetNamedType } from "../../../dist/policy/types/index.js";
 
-const reference = name => csharpTargetNamedType(name, undefined, { kind: "named", name });
+const reference = name => csharpTargetNamedType(name, undefined, { kind: "named", name }, { allowsRefLikeTypeArguments: [],});
 const base = reference("Base");
 const first = reference("First");
 const second = reference("Second");
@@ -30,7 +30,7 @@ test("class union upcasts require every exact reference arm to reach the selecte
 test("class union upcasts do not erase nullable arms or invent value-type boxing", () => {
   const nullable = csharpRuntimeUnionTargetType([csharpNullableTargetType(first), second]);
   assert.equal(selectCsharpConversion(host, nullable, base, "implicit").kind, "rejected");
-  const value = csharpTargetNamedType("Record", undefined, { kind: "named", name: "Record" }, { valueType: true });
+  const value = csharpTargetNamedType("Record", undefined, { kind: "named", name: "Record" }, { allowsRefLikeTypeArguments: [], valueType: true });
   assert.equal(selectCsharpConversion(host, csharpRuntimeUnionTargetType([value, second]), base, "implicit").kind, "rejected");
   assert.equal(selectCsharpConversion(host, csharpRuntimeUnionTargetType([first, second]), unrelated, "explicit").kind, "rejected");
 });

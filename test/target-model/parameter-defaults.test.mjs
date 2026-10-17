@@ -24,7 +24,7 @@ test("native defaults select one explicit incoming absence ABI without wrapping 
   }
   for (const type of [csharpVoidTargetType(),
     { kind: "type-parameter", name: "T", identity: "default-test-T" },
-    csharpTargetNamedType("opaque.absence", undefined, { kind: "predefined", name: "object" }, { absorbsNullish: true })]) {
+    csharpTargetNamedType("opaque.absence", undefined, { kind: "predefined", name: "object" }, { allowsRefLikeTypeArguments: [], absorbsNullish: true })]) {
     assert.equal(csharpRuntimeParameterDefault(type), undefined);
   }
   assert.ok(Object.isFrozen(closedDefault));

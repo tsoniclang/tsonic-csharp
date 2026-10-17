@@ -8,6 +8,8 @@ test(".NET provider model contract rejects incomplete provider refs", () => {
     exports: [
       {
         kind: "type",
+        isByRefLike: false,
+        allowsRefLikeTypeArguments: [],
         typeKind: "class",
         sourceName: "Derived",
         namespaceName: "ProviderContractFixtures",
@@ -15,6 +17,8 @@ test(".NET provider model contract rejects incomplete provider refs", () => {
         metadataName: "ProviderContractFixtures.Derived",
         baseType: {
           kind: "named",
+          isByRefLike: false,
+          allowsRefLikeTypeArguments: [],
           targetId: testTargetId("ProviderContractFixtures.Base"),
           metadataName: "ProviderContractFixtures.Base",
           sourceShape: {
@@ -35,6 +39,8 @@ test(".NET provider model requires an explicit source identity for every target 
     namespaceName: "ProviderContractFixtures",
     exports: [{
       kind: "type",
+      isByRefLike: false,
+      allowsRefLikeTypeArguments: [],
       typeKind: "class",
       sourceName: "Derived",
       namespaceName: "ProviderContractFixtures",
@@ -72,6 +78,8 @@ test(".NET provider model contract rejects malformed identities and type refs be
     exports: [
       {
         kind: "type",
+        isByRefLike: false,
+        allowsRefLikeTypeArguments: [],
         typeKind: "class",
         sourceName: "Box",
         namespaceName: "ProviderContractFixtures",
@@ -128,6 +136,8 @@ test(".NET provider model contract rejects extra fields on type-ref variants", (
     exports: [
       {
         kind: "type",
+        isByRefLike: false,
+        allowsRefLikeTypeArguments: [],
         typeKind: "class",
         sourceName: "BadShapes",
         namespaceName: "ProviderContractFixtures",
@@ -195,6 +205,8 @@ test(".NET provider model accepts native-array input only as exact named-type ev
     namespaceName: "ProviderContractFixtures",
     exports: [{
       kind: "type",
+      isByRefLike: false,
+      allowsRefLikeTypeArguments: [],
       typeKind: "class",
       sourceName: "ArrayInputs",
       namespaceName: "ProviderContractFixtures",
@@ -214,6 +226,8 @@ test(".NET provider model accepts native-array input only as exact named-type ev
             passingMode: "by-value",
             type: {
               kind: "named",
+              isByRefLike: false,
+              allowsRefLikeTypeArguments: [],
               targetId: testTargetId("ProviderContractFixtures.Sequence"),
               metadataName: "ProviderContractFixtures.Sequence",
               sourceShape: {
@@ -227,6 +241,8 @@ test(".NET provider model accepts native-array input only as exact named-type ev
             passingMode: "by-value",
             type: {
               kind: "named",
+              isByRefLike: false,
+              allowsRefLikeTypeArguments: [],
               targetId: testTargetId("ProviderContractFixtures.Text"),
               metadataName: "ProviderContractFixtures.Text",
               sourceShape: { kind: "string" },
@@ -262,6 +278,8 @@ test(".NET provider model contract accepts nullable CLR params-array targets wit
     exports: [
       {
         kind: "type",
+        isByRefLike: false,
+        allowsRefLikeTypeArguments: [],
         typeKind: "class",
         sourceName: "ParamsTarget",
         namespaceName: "ProviderContractFixtures",
@@ -318,6 +336,8 @@ test(".NET provider model contract rejects metadata-name fallback identities and
     exports: [
       {
         kind: "type",
+        isByRefLike: false,
+        allowsRefLikeTypeArguments: [false],
         typeKind: "class",
         sourceName: "EventSource",
         namespaceName: "ProviderContractFixtures",
@@ -325,7 +345,7 @@ test(".NET provider model contract rejects metadata-name fallback identities and
         metadataName: "ProviderContractFixtures.EventSource",
         assembly: { name: "" },
         typeParameters: [
-          {
+          { allowsRefLike: false,
             name: "T",
             variance: "sideways",
           },
@@ -369,6 +389,8 @@ test(".NET provider model contract rejects assembly identity drift", () => {
     exports: [
       {
         kind: "type",
+        isByRefLike: false,
+        allowsRefLikeTypeArguments: [],
         typeKind: "class",
         sourceName: "Widget",
         namespaceName: "ProviderContractFixtures",
@@ -402,6 +424,8 @@ test(".NET provider model contract rejects unsupported discriminants and convers
     exports: [
       {
         kind: "type",
+        isByRefLike: false,
+        allowsRefLikeTypeArguments: [],
         typeKind: "record",
         sourceName: "Broken",
         namespaceName: "ProviderContractFixtures",
@@ -426,6 +450,8 @@ test(".NET provider model contract rejects unsupported discriminants and convers
             sourceType: { kind: "source-primitive", name: "float64" },
             targetType: {
               kind: "named",
+              isByRefLike: false,
+              allowsRefLikeTypeArguments: [],
               targetId: testTargetId("ProviderContractFixtures.Broken"),
               metadataName: "ProviderContractFixtures.Broken",
             },
@@ -438,6 +464,8 @@ test(".NET provider model contract rejects unsupported discriminants and convers
             sourceType: { kind: "source-primitive", name: "float64" },
             targetType: {
               kind: "named",
+              isByRefLike: false,
+              allowsRefLikeTypeArguments: [],
               targetId: testTargetId("ProviderContractFixtures.Broken"),
               metadataName: "ProviderContractFixtures.Broken",
             },
@@ -468,6 +496,8 @@ test(".NET provider model contract accepts exact pointers and ranked arrays but 
     exports: [
       {
         kind: "type",
+        isByRefLike: false,
+        allowsRefLikeTypeArguments: [],
         typeKind: "class",
         sourceName: "UnsupportedShapeTarget",
         namespaceName: "ProviderContractFixtures",
@@ -551,6 +581,8 @@ test(".NET provider model contract accepts exact pointers and ranked arrays but 
             },
             targetType: {
               kind: "named",
+              isByRefLike: false,
+              allowsRefLikeTypeArguments: [],
               targetId: testTargetId("ProviderContractFixtures.UnsupportedShapeTarget"),
               metadataName: "ProviderContractFixtures.UnsupportedShapeTarget",
             },
@@ -890,6 +922,8 @@ test(".NET provider model contract accepts literal only on static non-writable f
     namespaceName: "ProviderContractFixtures",
     exports: [{
       kind: "type",
+      isByRefLike: false,
+      allowsRefLikeTypeArguments: [],
       typeKind: "class",
       sourceName: "Limits",
       namespaceName: "ProviderContractFixtures",

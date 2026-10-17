@@ -81,12 +81,14 @@ function dotnetNativeArrayDeclaration(complete: boolean): DotnetTypeDeclaration 
   return {
     kind: "type",
     typeKind: "class",
+    isByRefLike: false,
+    allowsRefLikeTypeArguments: [false],
     sourceName: "Array",
     namespaceName: "System",
     targetId: dotnetNativeArrayTypeId,
     metadataName: "System.Array`1",
     displayName: "System.Array<T>",
-    typeParameters: [{ identity: typeParameter.identity, name: "T", defaultType: { kind: "unknown" } }],
+    typeParameters: [{ identity: typeParameter.identity, name: "T", allowsRefLike: false, defaultType: { kind: "unknown" } }],
     targetType: nativeArrayType,
     ...(complete ? { members: [
       {
@@ -100,7 +102,7 @@ function dotnetNativeArrayDeclaration(complete: boolean): DotnetTypeDeclaration 
           {
             id: dotnetNativeArrayCreateMemberId,
             sourceId: dotnetNativeArrayCreateMemberId,
-            typeParameters: [{ identity: typeParameter.identity, name: "T" }],
+            typeParameters: [{ identity: typeParameter.identity, name: "T", allowsRefLike: false }],
             parameters: [
               {
                 name: "length",

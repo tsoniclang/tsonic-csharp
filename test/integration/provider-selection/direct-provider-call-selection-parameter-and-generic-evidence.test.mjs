@@ -212,7 +212,7 @@ test("byref arguments use CLR storage identity across nullable-reference annotat
   const parameterDeclaration = {};
   const sourceArgument = {};
   const storageExpression = {};
-  const todo = csharpTargetNamedType("Example.Todo");
+  const todo = csharpTargetNamedType("Example.Todo", undefined, undefined, { allowsRefLikeTypeArguments: [],});
   const nullableTodo = csharpNullableReferenceTargetType(todo);
   const target = {
     ...targetParameter("value", todo),
@@ -340,7 +340,7 @@ test("inferred provider method bounds use one order-independent implicit target"
 test("inferred provider method bounds cannot widen invariant native carriers", () => {
   const selectedType = {};
   const parameterType = { kind: "type-parameter", identity: "T", name: "T" };
-  const invariant = type => csharpTargetNamedType("Fixture.Invariant", [type]);
+  const invariant = type => csharpTargetNamedType("Fixture.Invariant", [type], undefined, { allowsRefLikeTypeArguments: [false],});
   const method = providerMethod({
     parameters: [targetParameter("first", invariant(parameterType)), targetParameter("second", invariant(parameterType))],
     returnType: parameterType,
@@ -391,7 +391,7 @@ test("receiver evidence closes generic provider bindings before member substitut
   const method = providerMethod({
     id: "Fixture.Box`1.Get()",
     declaringType: {
-      kind: "target-named",
+      kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
       id: binding.id,
       typeArguments: [{ kind: "type-parameter", identity: "T", name: "T" }],
     },
@@ -405,7 +405,7 @@ test("receiver evidence closes generic provider bindings before member substitut
     argumentTypes: [],
     bindings: [],
     receiverTarget: {
-      kind: "target-named",
+      kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
       id: binding.id,
       typeArguments: [stringType],
     },
@@ -421,7 +421,7 @@ test("receiver evidence closes generic provider bindings before member substitut
 
 test("target-parameter receiver relations do not consume the first explicit argument", () => {
   const receiverType = {
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
     id: "Fixture.Box`1",
     typeArguments: [csharpStringTargetType()],
   };
@@ -490,7 +490,7 @@ test("generic constructor families close from selected operation type arguments"
   const constructor = providerConstructor({
     id: "Fixture.Box`1..ctor()",
     declaringType: {
-      kind: "target-named",
+      kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
       id: binding.id,
       typeArguments: [{ kind: "type-parameter", identity: "T", name: "T" }],
     },
@@ -519,7 +519,7 @@ test("generic constructor families close from selected operation type arguments"
   );
   assert.equal(selected.kind, "resolved");
   assert.deepEqual(selected.call.targetMember.declaringType, {
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
     id: binding.id,
     typeArguments: [stringType],
   });
@@ -580,7 +580,7 @@ function createCallFixture(options = {}) {
   const relations = options.relations ?? [relation];
   const sourceArgumentTargets = options.sourceArgumentTargets ?? [];
   const receiverTarget = options.receiverTarget ?? {
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: (binding.typeParameters ?? []).map(() => false),
     id: binding.id,
     ...(binding.typeParameters === undefined
       ? {}
@@ -670,7 +670,7 @@ function int32ProviderAdapter() {
     kind: "static-method",
     id: "System.Convert.ToInt32(System.Double)",
     declaringType: {
-      kind: "target-named",
+      kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
       id: "System.Convert",
       csharpRender: {
         kind: "named",

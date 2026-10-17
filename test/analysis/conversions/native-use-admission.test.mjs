@@ -213,7 +213,7 @@ function nativeCreations(value, overrides = {}) {
       return type === undefined ? undefined : { sourceParameter: parameter, targetParameter: { type, passingMode: "by-value" } };
     });
     return parameters.some(parameter => parameter === undefined) ? undefined : {
-      sourceDeclaration: declaration, methodTypeParameterIdentities: [], parameters, returnType: result.type,
+      sourceDeclaration: declaration, methodTypeParameterIdentities: [], methodAllowsRefLikeTypeArguments: [], parameters, returnType: result.type,
     };
   };
   return analyzeCsharpCallableCreations({ ast: value.ast, nodes: value.nodes,

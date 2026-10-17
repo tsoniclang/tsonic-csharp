@@ -10,7 +10,7 @@ const integer = { kind: "source-primitive", name: "int64" };
 
 function fixture(options = {}) {
   const selected = providerIndexedPolicyFixture(options.keys);
-  const binding = providerBinding({ id: "Native.Box", typeParameters: [{ identity: "T", name: "T" }] });
+  const binding = providerBinding({ id: "Native.Box", typeParameters: [{ csharpAllowsRefLike: false, identity: "T", name: "T" }] });
   const facts = new Map();
   const relations = selected.evidence.members.map((member, index) => {
     const declaration = providerDeclaration({ signatureId: member.selection.kind === "index" ? `index-${index}` : null, memberId: `field-${index}` });
@@ -30,7 +30,7 @@ function fixture(options = {}) {
     host: { ...direct.host, ast: selected.source.ast, sourceFacts: {
       getFact: (subject, key) => key === providerVirtualDeclarationFactKey && !options.unowned ? facts.get(subject) : undefined,
     } },
-    resolveNodeWithState: () => ({ kind: "target-named", id: options.wrongOwner ? "Native.Other" : binding.id,
+    resolveNodeWithState: () => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: options.missingGeneric ? [] : [false], id: options.wrongOwner ? "Native.Other" : binding.id,
       typeArguments: options.missingGeneric ? [] : [integer] }),
   };
   return resolveCsharpProviderIndexedAccess(scope, selected.node, selected.semantics, { depth: 0 });

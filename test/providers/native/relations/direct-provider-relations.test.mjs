@@ -326,7 +326,7 @@ test("provider first-argument receiver relations require explicit target metadat
     static: true,
     parameters: [{
       name: "receiver",
-      type: { kind: "target-named", id: "Fixture.Target" },
+      type: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Fixture.Target" },
       passingMode: "by-value",
     }],
   });
@@ -417,7 +417,7 @@ test("provider argument adapters require ordinary by-value parameter relations",
       argumentAdapter: {
         kind: "static-method",
         id: "System.Convert.ToInt32(System.Double)",
-        declaringType: { kind: "target-named", id: "System.Convert" },
+        declaringType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "System.Convert" },
         targetName: "ToInt32",
         inputType: { kind: "source-primitive", name: "float64" },
         resultType: { kind: "source-primitive", name: "int32" },
@@ -435,7 +435,7 @@ test("checked integral adapter contracts reject nonnumeric and malformed selecti
   const primitive = name => ({ kind: "source-primitive", name });
   const valid = {
     kind: "static-method", id: "Fixture.Convert", targetName: "Convert",
-    declaringType: { kind: "target-named", id: "Fixture" },
+    declaringType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Fixture" },
     inputType: primitive("float64"), resultType: primitive("int64"),
     nativeIntegerConversion: "checked",
   };
@@ -467,14 +467,14 @@ test("provider type-parameter relations must cover exact target arity", () => {
   const declaration = providerDeclaration();
   const binding = providerBinding({
     id: "Fixture.Target`1",
-    typeParameters: [{ identity: "T", name: "T" }],
+    typeParameters: [{ csharpAllowsRefLike: false, identity: "T", name: "T" }],
   });
   const relation = signatureRelation({
     declaration,
     binding,
     member: providerMethod({
       declaringType: {
-        kind: "target-named",
+        kind: "target-named", csharpAllowsRefLikeTypeArguments: [false],
         id: binding.id,
         typeArguments: [{ kind: "type-parameter", identity: "T", name: "T" }],
       },

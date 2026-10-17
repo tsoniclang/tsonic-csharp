@@ -55,7 +55,7 @@ export function sealCsharpConversionUses(
       return failTargetAnalysisInvariant("tsonic-csharp", "A consumed native default requires its completed conversion classification.", expression);
     }
     if (selected.kind === "rejected") {
-      issues.push(Object.freeze({ node: expression, code: "CSHARP_UNSUPPORTED_AST",
+      issues.push(Object.freeze({ node: expression, code: selected.code ?? "CSHARP_UNSUPPORTED_AST",
         message: selected.reason }));
       return;
     }
@@ -105,7 +105,7 @@ export function sealCsharpConversionUses(
     selections.set(admitted.key, admitted.classification);
     expressions.set(expression, selections);
     if (admitted.classification.selection.kind === "rejected") {
-      issues.push(Object.freeze({ node: expression, code: "CSHARP_UNSUPPORTED_AST",
+      issues.push(Object.freeze({ node: expression, code: admitted.classification.selection.code ?? "CSHARP_UNSUPPORTED_AST",
         message: admitted.classification.selection.reason }));
       return;
     }

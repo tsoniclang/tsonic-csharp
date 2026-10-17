@@ -6,7 +6,7 @@ import { csharpDelegateTargetType } from "../../../../dist/target-model/types/ca
 import { completeCsharpDeclarationHeritage } from "../../../../dist/analysis/project-types/heritage.js";
 
 function type(argument, id = "Native.View") {
-  return { kind: "target-named", id, name: "View", typeArguments: [argument], csharpRender: { kind: "named", name: "View" } };
+  return { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id, name: "View", typeArguments: [argument], csharpRender: { kind: "named", name: "View" } };
 }
 
 test("classes and interfaces consume one deduplicated exact sealed heritage contract", () => {

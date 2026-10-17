@@ -34,7 +34,7 @@ test("C# registry is metadata only and does not widen native Task or imported pa
   const pending = csharpTaskTargetType(value);
   assert.equal(pending.csharpTaskResultType === value, true);
   assert.equal(pending.typeArguments[0] === value, true);
-  const imported = csharpTargetNamedType("checked.native.Type`1", [value], undefined, { valueType: true });
+  const imported = csharpTargetNamedType("checked.native.Type`1", [value], undefined, { allowsRefLikeTypeArguments: [false], valueType: true });
   assert.equal(imported.typeArguments[0] === value, true);
   assert.equal(imported.csharpValueType, true);
   assert.equal(csharpJsMapTargetType(imported, value).typeArguments[0] === imported, true);
@@ -68,7 +68,7 @@ test("unproduced native type vocabulary is rejected at the owning metadata bound
   ]) {
     assert.equal(current.vocabulary.kinds.includes(ghost.kind), false, ghost.kind);
     for (const type of [ghost, { kind: "array", element: ghost },
-      { kind: "target-named", id: "checked:Wrapper", typeArguments: [ghost] },
+      { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "checked:Wrapper", typeArguments: [ghost] },
       { kind: "tuple", elements: [ghost] }, { kind: "pointer", pointee: ghost },
       { kind: "function-pointer", args: [ghost], result: scalar },
       { kind: "function-pointer", args: [scalar], result: ghost }]) {
@@ -81,7 +81,7 @@ test("unproduced native type vocabulary is rejected at the owning metadata bound
 
 test("C# constraints retain exactly the native projection producer vocabulary, not unused Rust constraints", () => {
   const source = [
-    { kind: "implements", contract: { kind: "named", metadataName: "Checked.Contract",
+    { kind: "implements", contract: { kind: "named", isByRefLike: false, allowsRefLikeTypeArguments: [], metadataName: "Checked.Contract",
       targetId: "Checked, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null::Checked.Contract" } },
     { kind: "value-type" }, { kind: "reference-type" }, { kind: "constructible" },
     { kind: "unmanaged" }, { kind: "not-null" },

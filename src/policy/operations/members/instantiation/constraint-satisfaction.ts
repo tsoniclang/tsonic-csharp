@@ -34,6 +34,7 @@ import {
 } from "../../../constraints/index.js";
 import type { CsharpSelectedTargetMethodTypeArgument } from "../../../../target-model/records/members.js";
 import {
+  implementedConstraintType,
   namedTargetTypeImplicitlyAccepts,
 } from "../../../conversions/carriers.js";
 import type {
@@ -167,7 +168,7 @@ function validateTypeParameterArguments(
         sourceFile,
       );
       if (reason !== undefined) {
-        return `C# ${owner} type argument '${targetTypeRefKey(argument.targetType)}' for '${parameter.name}' does not satisfy '${constraintDescription(substituted)}'. ${reason}`;
+        return `C# ${owner} type argument '${targetTypeRefKey(argument.targetType)}' for '${parameter.name}' does not satisfy '${constraintDescription(host, substituted)}'. ${reason}`;
       }
     }
   }
@@ -198,13 +199,8 @@ function targetTypeFailsConstraint(
   }
   switch (constraint.kind) {
     case "implements": {
-      const contract: TargetTypeRef = {
-        kind: "target-named",
-        id: constraint.contract,
-        ...(constraint.typeArguments === undefined
-          ? {}
-          : { typeArguments: constraint.typeArguments }),
-      };
+      const contract = implementedConstraintType(host, constraint, new Map());
+      if (contract === undefined) return "The required native contract has no exact registered target carrier metadata.";
       return namedTargetTypeImplicitlyAccepts(
           host,
           target,
@@ -365,13 +361,8 @@ function sourceConstraintsImplyTargetConstraint(
 ): boolean {
   switch (targetConstraint.kind) {
     case "implements": {
-      const targetType: TargetTypeRef = {
-        kind: "target-named",
-        id: targetConstraint.contract,
-        ...(targetConstraint.typeArguments === undefined
-          ? {}
-          : { typeArguments: targetConstraint.typeArguments }),
-      };
+      const targetType = implementedConstraintType(host, targetConstraint, new Map());
+      if (targetType === undefined) return false;
       return sourceConstraints.some((constraint) =>
         constraint.kind === "type" &&
         namedTargetTypeImplicitlyAccepts(
@@ -521,16 +512,10 @@ function isCsharpUnmanagedType(
   }
 }
 
-function constraintDescription(constraint: TargetConstraint): string {
-  return constraint.kind === "implements"
-    ? targetTypeRefKey({
-        kind: "target-named",
-        id: constraint.contract,
-        ...(constraint.typeArguments === undefined
-          ? {}
-          : { typeArguments: constraint.typeArguments }),
-      })
-    : constraint.kind === "target-specific"
-      ? `${constraint.target}:${constraint.name}`
-      : constraint.kind;
+function constraintDescription(host: CsharpConstraintSatisfactionHost, constraint: TargetConstraint): string {
+  if (constraint.kind === "implements") {
+    const carrier = implementedConstraintType(host, constraint, new Map());
+    return carrier === undefined ? constraint.contract : targetTypeRefKey(carrier);
+  }
+  return constraint.kind === "target-specific" ? `${constraint.target}:${constraint.name}` : constraint.kind;
 }

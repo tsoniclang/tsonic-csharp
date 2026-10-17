@@ -22,7 +22,7 @@ test("absence completion uses the exact native storage without an adapter", () =
 });
 
 test("absence completion rejects missing or unproved native storage", () => {
-  for (const carrier of [undefined, csharpSourcePrimitiveTargetType("uint64"), { kind: "target-named", id: "External.Value" }]) {
+  for (const carrier of [undefined, csharpSourcePrimitiveTargetType("uint64"), { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "External.Value" }]) {
     assert.equal(csharpCarrierAdmitsSourceAbsence(carrier), false);
     assert.throws(() => planCsharpAbsenceReturn(carrier), /finalized native storage carrier/u);
   }

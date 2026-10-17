@@ -5,7 +5,7 @@ import { csharpEmptyObjectTargetType } from "../../../dist/target-model/types/ca
 
 test("empty-record conversion requires exact fieldless value facts", () => {
   const object = csharpEmptyObjectTargetType();
-  const value = { kind: "target-named", id: "source.Empty", csharpSourceDeclarationKind: "struct" };
+  const value = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "source.Empty", csharpSourceDeclarationKind: "struct" };
   const input = { objectShapes: { resolveTarget: type => type === value
     ? { targetType: value, members: [] } : undefined } };
   assert.deepEqual(selectCsharpEmptyRecordConversion(input, value, object), { kind: "empty-record", source: value, target: object });

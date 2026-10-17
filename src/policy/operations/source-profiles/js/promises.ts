@@ -115,7 +115,7 @@ function promiseContinuationMember(
     {
       csharpBinaryExecutionDriver: csharpJsEventLoopBinaryExecutionDriver,
       ...(name === "then" && !isCsharpVoidTargetType(result)
-        ? { typeParameters: [{ name: "TResult" }] } : {}),
+        ? { typeParameters: [{ name: "TResult", csharpAllowsRefLike: false }] } : {}),
     },
   );
 }
@@ -255,16 +255,8 @@ function resolveResultTask(
 
 function promiseRuntimeType(result: TargetTypeRef): TargetTypeRef {
   return isCsharpVoidTargetType(result)
-    ? csharpTargetNamedType(
-        "Tsonic.CSharp.Js.PromiseRuntime",
-        undefined,
-        csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseRuntime"),
-      )
-    : csharpTargetNamedType(
-        "Tsonic.CSharp.Js.PromiseRuntime`1",
-        [result],
-        csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseRuntime"),
-      );
+    ? csharpTargetNamedType("Tsonic.CSharp.Js.PromiseRuntime", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseRuntime"), { allowsRefLikeTypeArguments: [],})
+    : csharpTargetNamedType("Tsonic.CSharp.Js.PromiseRuntime`1", [result], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseRuntime"), { allowsRefLikeTypeArguments: [false],});
 }
 
 function targetIdentity(type: TargetTypeRef): string {

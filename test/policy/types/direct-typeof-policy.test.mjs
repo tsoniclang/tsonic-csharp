@@ -27,18 +27,18 @@ test("native categories retain exact declaration authority after definition seal
       : id === "native.wrong" ? { id: "native.other", target: "csharp", sourceName: "Selected", targetName: "Selected", kind: "class" }
       : undefined;
   });
-  const selected = { kind: "target-named", id: "native.selected" };
+  const selected = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "native.selected" };
   assert.equal(getCsharpTypeofRuntimeKind(selected, definitions), "object");
   assert.deepEqual(selectCsharpClosedTypeTestPlan(selected, { kind: "array" }, new Set(), definitions), { kind: "runtime-array" });
-  assert.equal(getCsharpTypeofRuntimeKind({ kind: "target-named", id: "native.wrong" }, definitions), undefined);
-  assert.equal(getCsharpTypeofRuntimeKind({ kind: "target-named", id: "native.missing" }, definitions), undefined);
+  assert.equal(getCsharpTypeofRuntimeKind({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "native.wrong" }, definitions), undefined);
+  assert.equal(getCsharpTypeofRuntimeKind({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "native.missing" }, definitions), undefined);
   const compound = csharpNullableTargetType(csharpRuntimeUnionTargetType([selected, csharpStringTargetType()]));
   const category = getCsharpTypeofResult(compound, undefined, definitions);
   const sealed = definitions.seal();
   const before = lookups;
   kind = "interface";
   assert.deepEqual(getCsharpTypeofResult(compound, undefined, sealed), category);
-  assert.equal(getCsharpTypeofRuntimeKind({ kind: "target-named", id: "native.late" }, sealed), undefined);
+  assert.equal(getCsharpTypeofRuntimeKind({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "native.late" }, sealed), undefined);
   assert.equal(lookups, before);
   const other = createCsharpTypeDefinitionRegistry(id => ({ id, target: "csharp", sourceName: "Class", targetName: "Class", kind: "interface" }));
   assert.equal(getCsharpTypeofRuntimeKind(selected, other), undefined);
@@ -104,5 +104,5 @@ test("closed typeof comparisons retain repeated categories, nested absence and m
     assert.deepEqual(selectCsharpTypeofComparison(value, kind, true), categorySelection(value, kind, true));
   }
   assert.equal(selectCsharpTypeofComparison(undefined, "number", false).kind, "rejected");
-  assert.equal(selectCsharpTypeofComparison({ kind: "target-named", id: "opaque", name: "Opaque" }, "object", false).kind, "rejected");
+  assert.equal(selectCsharpTypeofComparison({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "opaque", name: "Opaque" }, "object", false).kind, "rejected");
 });

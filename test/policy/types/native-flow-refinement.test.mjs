@@ -274,8 +274,8 @@ test("exact nominal subclass evidence remains authoritative inside a native guar
   };
   visit(file);
   assert.equal(read !== undefined, true);
-  const base = { kind: "target-named", id: "fixture.Base", csharpSourceDeclarationKind: "class" };
-  const child = { kind: "target-named", id: "fixture.Child", csharpSourceDeclarationKind: "class" };
+  const base = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Base", csharpSourceDeclarationKind: "class" };
+  const child = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Child", csharpSourceDeclarationKind: "class" };
   const storage = csharpNullableTargetType(csharpRuntimeUnionTargetType([base, csharpStringTargetType()]));
   const declaration = source.navigation.referenceFor(read).declaration;
   const scope = {

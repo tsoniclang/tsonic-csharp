@@ -81,8 +81,7 @@ export function createCsharpStructuralUnionDefinitions(
     if (definition === undefined) {
       const arms = identities.map(identity => {
         const digest = createHash("sha256").update(identity!).digest("hex");
-        return csharpTargetNamedType(`${csharpStructuralObjectShapeIdPrefix}${digest}`,
-          typeArguments.length === 0 ? undefined : typeArguments, { kind: "named", name: `__TsonicShape_${digest}` });
+        return csharpTargetNamedType(`${csharpStructuralObjectShapeIdPrefix}${digest}`, typeArguments.length === 0 ? undefined : typeArguments, { kind: "named", name: `__TsonicShape_${digest}` }, { allowsRefLikeTypeArguments: ((typeArguments.length === 0 ? undefined : typeArguments) ?? []).map(() => false),});
       });
       const union = csharpRuntimeUnionTargetType(arms);
       if (union === undefined) return { kind: "rejected" };

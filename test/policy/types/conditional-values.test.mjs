@@ -88,7 +88,7 @@ test("constant boolean conditions select only their reachable native payload", (
 });
 
 test("conditional value admission never invents truthiness, numeric conversion or object boxing", () => {
-  const record = csharpTargetNamedType("fixture.Record");
+  const record = csharpTargetNamedType("fixture.Record", undefined, undefined, { allowsRefLikeTypeArguments: [],});
   const expected = combineCsharpTargetUnionMembers([boolean, record]);
   const selected = selectCsharpBinaryOperands(input, trueLiteral, value, "&&", record,
     node => node === trueLiteral ? boolean : record);

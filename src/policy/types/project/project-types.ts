@@ -574,15 +574,10 @@ export function projectDefinitionTargetType(
   definition: CsharpProjectTypeDefinition,
   typeArguments: readonly TargetTypeRef[],
 ): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
-    definition.id,
-    typeArguments,
-    { kind: "named", name: definition.sourceName,
-      ...(definition.scopeName === undefined ? {} : { namespace: [definition.scopeName] }) },
-    { sourceDeclarationKind: definition.kind,
+  return csharpTargetNamedType(definition.id, typeArguments, { kind: "named", name: definition.sourceName,
+      ...(definition.scopeName === undefined ? {} : { namespace: [definition.scopeName] }) }, { allowsRefLikeTypeArguments: (typeArguments ?? []).map(() => false), sourceDeclarationKind: definition.kind,
       ...(definition.kind === "class" || definition.kind === "interface" || definition.kind === "struct"
-        ? { typeofRuntimeKind: "object" as const } : {}) },
-  );
+        ? { typeofRuntimeKind: "object" as const } : {}) });
 }
 
 function declarationKind(

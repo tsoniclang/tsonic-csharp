@@ -10,6 +10,8 @@ test(".NET provider declaration model preserves explicit target parameter passin
     exports: [
       {
         kind: "type",
+        isByRefLike: false,
+        allowsRefLikeTypeArguments: [],
         typeKind: "class",
         sourceName: "Dictionary",
         namespaceName: "System.Collections.Generic",
@@ -72,6 +74,8 @@ test(".NET provider exposes explicit native Array as a provider-owned C# array p
       exports: [
         {
           kind: "type",
+          isByRefLike: false,
+          allowsRefLikeTypeArguments: [],
           typeKind: "class",
           sourceName: "Array",
           namespaceName: "System",
@@ -348,7 +352,7 @@ test(".NET reflection provider exposes CLR arity variants as source-visible type
   );
   assert.ok(targetContinueWithState);
   assert.deepEqual(targetContinueWithState.parameters[1].type, {
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
     id: "System.Object",
     csharpRender: { kind: "predefined", name: "object" },
     csharpNullableReference: true,

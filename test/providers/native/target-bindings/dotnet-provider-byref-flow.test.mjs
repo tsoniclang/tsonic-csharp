@@ -11,12 +11,14 @@ import {
 test(".NET target parameters preserve MaybeNull output flow as explicit C# metadata", () => {
   const dictionary = {
     kind: "type",
+    isByRefLike: false,
+    allowsRefLikeTypeArguments: [false, false],
     typeKind: "class",
     sourceName: "Dictionary",
     namespaceName: "System.Collections.Generic",
     targetId: testTargetId("System.Collections.Generic.Dictionary`2"),
     metadataName: "System.Collections.Generic.Dictionary`2",
-    typeParameters: [{ identity: "TKey", name: "TKey" }, { identity: "TValue", name: "TValue" }],
+    typeParameters: [{ allowsRefLike: false, identity: "TKey", name: "TKey" }, { allowsRefLike: false, identity: "TValue", name: "TValue" }],
     members: [{
       kind: "method",
       sourceName: "TryGetValue",
@@ -39,6 +41,8 @@ test(".NET target parameters preserve MaybeNull output flow as explicit C# metad
             target: "parameter",
             attributeType: {
               kind: "named",
+              isByRefLike: false,
+              allowsRefLikeTypeArguments: [],
               targetId: testTargetId("System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute"),
               metadataName: "System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute",
               displayName: "System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute",
@@ -72,6 +76,8 @@ test(".NET target parameters do not infer output nullability from unrelated attr
       target: "parameter",
       attributeType: {
         kind: "named",
+        isByRefLike: false,
+        allowsRefLikeTypeArguments: [],
         targetId: testTargetId("System.ObsoleteAttribute"),
         metadataName: "System.ObsoleteAttribute",
         displayName: "System.ObsoleteAttribute",
@@ -81,6 +87,8 @@ test(".NET target parameters do not infer output nullability from unrelated attr
   };
   const declaration = {
     kind: "type",
+    isByRefLike: false,
+    allowsRefLikeTypeArguments: [],
     typeKind: "class",
     sourceName: "Host",
     namespaceName: "Example",

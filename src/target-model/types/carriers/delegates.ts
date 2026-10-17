@@ -43,10 +43,11 @@ export function csharpDelegateTargetType(
     kind: "named",
     name: kind === "System.Action" ? "Action" : "Func",
     usingNamespace: ["System"],
-  });
+  }, { allowsRefLikeTypeArguments: typeArguments.map(() => true) });
   return {
     kind: "target-named",
     id: targetType.id,
+    csharpAllowsRefLikeTypeArguments: targetType.csharpAllowsRefLikeTypeArguments,
     ...(targetType.typeArguments !== undefined ? { typeArguments: targetType.typeArguments } : {}),
     ...(targetType.csharpRender !== undefined ? { csharpRender: targetType.csharpRender } : {}),
     csharpDelegateSignature: {
@@ -70,8 +71,8 @@ export function csharpDelegateTargetType(
 
 export function csharpTaskTargetType(resultType: TargetTypeRef): CsharpTaskTargetTypeRef {
   const targetType = isCsharpVoidTargetType(resultType)
-    ? csharpTargetNamedType("System.Threading.Tasks.Task", undefined, csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"), { sourceDeclarationKind: "class", typeofRuntimeKind: "object" })
-    : csharpTargetNamedType("System.Threading.Tasks.Task`1", [resultType], csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"), { sourceDeclarationKind: "class", typeofRuntimeKind: "object" });
+    ? csharpTargetNamedType("System.Threading.Tasks.Task", undefined, csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"), { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [], typeofRuntimeKind: "object" })
+    : csharpTargetNamedType("System.Threading.Tasks.Task`1", [resultType], csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"), { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [false], typeofRuntimeKind: "object" });
   return {
     ...targetType,
     csharpTaskResultType: resultType,

@@ -49,8 +49,7 @@ export function csharpSourceUnionTargetType(
   identity: string, name: string, arguments_: readonly TargetTypeRef[],
 ): CsharpTargetNamedTypeRef {
   return Object.freeze({
-    ...csharpTargetNamedType(`csharp.source-union:${identity}`, Object.freeze([...arguments_]),
-      { kind: "named", name, genericArity: arguments_.length }, { valueType: true }),
+    ...csharpTargetNamedType(`csharp.source-union:${identity}`, Object.freeze([...arguments_]), { kind: "named", name, genericArity: arguments_.length }, { allowsRefLikeTypeArguments: arguments_.map(() => false), valueType: true }),
     csharpSourceUnionIdentity: identity,
   });
 }

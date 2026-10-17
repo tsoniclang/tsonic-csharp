@@ -30,7 +30,7 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
     case "undefined":
       throw new Error("Undefined is a source declaration shape only and cannot be emitted as a target type.");
     case "object":
-      return csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
+      return csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" }, { allowsRefLikeTypeArguments: [],});
     case "string":
       return csharpStringTargetType();
     case "literal":
@@ -38,7 +38,7 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
     case "boolean":
       return csharpBooleanTargetType();
     case "number":
-      return csharpTargetNamedType("System.Double", undefined, { kind: "predefined", name: "double" });
+      return csharpTargetNamedType("System.Double", undefined, { kind: "predefined", name: "double" }, { allowsRefLikeTypeArguments: [],});
     case "bigint":
       return csharpBigIntegerTargetType();
     case "source-primitive":
@@ -112,6 +112,8 @@ export function csharpTargetMetadataFromDotnetTypeDeclaration(
   const delegateSignature = declaration.typeKind === "delegate"
     ? dotnetDelegateSignatureFromSourceShape(declaration.sourceShape) : undefined;
   return {
+    ...(declaration.isByRefLike ? { byRefLike: true as const } : {}),
+    allowsRefLikeTypeArguments: declaration.allowsRefLikeTypeArguments,
     ...(declaration.typeKind === "struct" || declaration.typeKind === "enum" ? { valueType: true as const } : {}),
     ...(declaration.typeKind === "class" || declaration.typeKind === "interface" || declaration.typeKind === "enum"
       ? { sourceDeclarationKind: declaration.typeKind }
@@ -151,6 +153,8 @@ function csharpTargetMetadataFromDotnetTypeRef(
     : undefined;
   const arrayLiteralElementType = elementType === undefined ? undefined : dotnetTypeRefToTargetTypeRef(elementType);
   return {
+    ...(type.isByRefLike ? { byRefLike: true as const, valueType: true as const } : {}),
+    allowsRefLikeTypeArguments: type.allowsRefLikeTypeArguments,
     ...(arrayLiteralElementType !== undefined ? { arrayLiteralElementType } : {}),
     ...(arrayLiteralElementType !== undefined && type.implicitArrayInput === true
       ? { implicitArrayInputElementType: arrayLiteralElementType }

@@ -14,7 +14,7 @@ function fixture() {
   const selectedSymbol = {};
   const integer = csharpSourcePrimitiveTargetType("int64");
   const incoming = csharpNullableTargetType(integer);
-  const arms = [csharpTargetNamedType("Left"), csharpTargetNamedType("Right")];
+  const arms = [csharpTargetNamedType("Left", undefined, undefined, { allowsRefLikeTypeArguments: [],}), csharpTargetNamedType("Right", undefined, undefined, { allowsRefLikeTypeArguments: [],})];
   const owners = [{}, {}];
   const name = {};
   const parameters = [{ Initializer: {} }, { Initializer: {} }];

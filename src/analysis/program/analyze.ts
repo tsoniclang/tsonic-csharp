@@ -116,6 +116,7 @@ import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-de
 import { createSourceStorageQuery, type SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../../policy/operations/source-profiles/source-storage-effects.js";
 import { analyzeCsharpPromiseResults } from "../callables/promise-results.js";
+import { analyzeCsharpRefLikePlacements } from "../storage/native-placement.js";
 import { analyzeCsharpCallableCreations } from "../callables/creation.js";
 import { analyzeCsharpBindingPatterns, admitCsharpBindingPatterns } from "../control-flow/binding-patterns.js";
 import { admitCsharpExpectedNativeUses } from "../expected-types/native-uses.js";
@@ -407,6 +408,16 @@ export function analyzeCsharpTargetProgram(
   analysis.conversionAnalysis.close(nativeDemand, analysis.requiredRecords);
   const conversions = analysis.conversionAnalysis.seal();
   if (conversions.issues.length > 0) return rejectCsharpAnalysisIssues(conversions.issues);
+  const refLikeDiagnostics = analyzeCsharpRefLikePlacements({
+    source, nodes: sourceStorage.nodes, callables: analysis.callables, captureStorage,
+    classFactories: classFactories.factories, nativeParticipation,
+    nativeDemand, operations: analysis.operations, objectShapes: analysis.objectShapes, definitions: analysis.typeDefinitions,
+    classPropertyStorage: analysis.operations.classPropertyStorage,
+    generatorFor: declaration => analysis.sourceEvidence.generator.get(declaration) !== undefined,
+    bindingCarrierFor: declaration => analysis.storage.storageType.get(declaration),
+    expressionCarrierFor: expression => analysis.valueReads.valueRead.get(expression)?.value,
+  });
+  if (refLikeDiagnostics.length > 0) return rejectedTargetStage(refLikeDiagnostics);
   const objectShapes = analysis.objectShapes.seal();
   const structuralForwarding = finalizeCsharpStructuralInterfaceForwarding(
     analysis.policy, objectShapes, callableAdapters, analysis.declarations,

@@ -51,18 +51,13 @@ const objectType = csharpObjectTargetType();
 const objectRuntimeType = jsRuntimeTargetType("Object");
 const jsonRuntimeType = jsRuntimeTargetType("JSON");
 const jsonValueType = csharpTsValueTargetType();
-const jsonReplacerType = csharpTargetNamedType(
-  "Tsonic.CSharp.Js.JsonReplacer",
-  undefined,
-  csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "JsonReplacer"),
-  {
+const jsonReplacerType = csharpTargetNamedType("Tsonic.CSharp.Js.JsonReplacer", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "JsonReplacer"), { allowsRefLikeTypeArguments: [],
     delegateSignature: {
       parameters: [stringType, jsonValueType],
       parameterPassingModes: ["by-value", "by-value"],
       returnType: jsonValueType,
     },
-  },
-);
+  });
 const noReceiver = { kind: "none" } as const;
 const firstParameterReceiver = {
   kind: "target-parameter",
@@ -104,14 +99,14 @@ export const csharpJsObjectCallPolicies:
           return staticMethod(`Tsonic.CSharp.Runtime.EmptyObject.${name}`, name,
             name === "freeze" ? "Freeze" : "IsFrozen", csharpEmptyObjectTargetType(),
             [targetParameter("value", argument)], name === "freeze" ? argument : boolType,
-            { typeParameters: [{ name: "T" }] });
+            { typeParameters: [{ name: "T", csharpAllowsRefLike: false }] });
         }
         const shape = expression === undefined ? undefined : context.host.objectShapes?.resolveNode(expression, context.sourceFile);
         if (shape === undefined || !targetTypeRefEquals(argument, shape.targetType)) return undefined;
         return staticMethod(`Tsonic.CSharp.Js.FrozenObject.${name}`, name,
           name === "freeze" ? "Freeze" : "IsFrozen", jsRuntimeTargetType("FrozenObject"),
           [targetParameter("value", argument)], name === "freeze" ? argument : boolType, {
-            typeParameters: [{ name: "T" }],
+            typeParameters: [{ name: "T", csharpAllowsRefLike: false }],
             csharpArtifactRequirements: [{ kind: "object-shape-capability",
               source: { kind: "argument", index: 0 }, capability: "js-freeze", rootKind: "object-shape" }],
           });
@@ -551,11 +546,7 @@ function promiseAllMember(
   if (taskType === undefined || elementType === undefined) {
     return undefined;
   }
-  const factoryType = csharpTargetNamedType(
-    "Tsonic.CSharp.Js.PromiseRuntime`1",
-    [elementType],
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseRuntime"),
-  );
+  const factoryType = csharpTargetNamedType("Tsonic.CSharp.Js.PromiseRuntime`1", [elementType], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseRuntime"), { allowsRefLikeTypeArguments: [false],});
   const taskElementType = csharpTaskTargetType(elementType);
   return staticMethod(
     `Tsonic.CSharp.Js.PromiseRuntime.All:${targetTypeIdentity(elementType)}`,

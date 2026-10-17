@@ -9,7 +9,7 @@ const floating = { kind: "source-primitive", name: "float64" };
 const symbol = {};
 const sourceType = {};
 const expression = {};
-const carrier = (id, argument = integer) => ({ kind: "target-named", id, typeArguments: [argument],
+const carrier = (id, argument = integer) => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id, typeArguments: [argument],
   csharpStructuralContract: true });
 const shape = targetType => ({ targetType, sourceType, members: [{ sourceName: "value", targetName: "value",
   sourceKey: { kind: "property", name: "value" }, sourceSubjects: [symbol], memberKind: "property", type: integer }] });

@@ -56,16 +56,11 @@ export function csharpSourcePrimitiveDotnetMetadataName(kind: SourcePrimitiveKin
 }
 
 export function csharpStringTargetType(): CsharpTargetNamedTypeRef {
-  const type = csharpTargetNamedType("System.String", undefined, { kind: "predefined", name: "string" }, {
+  const type = csharpTargetNamedType("System.String", undefined, { kind: "predefined", name: "string" }, { allowsRefLikeTypeArguments: [],
     specialType: "string",
     typeofRuntimeKind: "string",
   });
-  const charType = csharpTargetNamedType(
-    "System.Char",
-    undefined,
-    { kind: "predefined", name: "char" },
-    { valueType: true },
-  );
+  const charType = csharpTargetNamedType("System.Char", undefined, { kind: "predefined", name: "char" }, { allowsRefLikeTypeArguments: [], valueType: true });
   return {
     ...type,
     csharpStringIteration: {
@@ -89,35 +84,21 @@ export function csharpStringTargetType(): CsharpTargetNamedTypeRef {
 }
 
 export function csharpJsStringTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
-    "Tsonic.CSharp.Js.JsString",
-    undefined,
-    { kind: "predefined", name: "string" },
-    { jsStringCarrier: true, typeofRuntimeKind: "string" },
-  );
+  return csharpTargetNamedType("Tsonic.CSharp.Js.JsString", undefined, { kind: "predefined", name: "string" }, { allowsRefLikeTypeArguments: [], jsStringCarrier: true, typeofRuntimeKind: "string" });
 }
 
 export function csharpObjectTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
-    "System.Object",
-    undefined,
-    { kind: "predefined", name: "object" },
-  );
+  return csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" }, { allowsRefLikeTypeArguments: [],});
 }
 
 export function csharpVoidTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("System.Void", undefined, { kind: "predefined", name: "void" }, {
+  return csharpTargetNamedType("System.Void", undefined, { kind: "predefined", name: "void" }, { allowsRefLikeTypeArguments: [],
     specialType: "void",
   });
 }
 
 export function csharpUnitTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
-    "System.ValueTuple",
-    undefined,
-    csharpQualifiedTypeRenderShape("System", "ValueTuple"),
-    { valueType: true },
-  );
+  return csharpTargetNamedType("System.ValueTuple", undefined, csharpQualifiedTypeRenderShape("System", "ValueTuple"), { allowsRefLikeTypeArguments: [], valueType: true });
 }
 
 export function csharpNeverTargetType(): TargetTypeRef {
@@ -131,14 +112,14 @@ export function isCsharpNeverTargetType(
 }
 
 export function csharpBooleanTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("System.Boolean", undefined, { kind: "predefined", name: "bool" }, {
+  return csharpTargetNamedType("System.Boolean", undefined, { kind: "predefined", name: "bool" }, { allowsRefLikeTypeArguments: [],
     typeofRuntimeKind: "boolean",
     valueType: true,
   });
 }
 
 export function csharpBigIntegerTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("System.Numerics.BigInteger", undefined, csharpQualifiedTypeRenderShape("System.Numerics", "BigInteger"), {
+  return csharpTargetNamedType("System.Numerics.BigInteger", undefined, csharpQualifiedTypeRenderShape("System.Numerics", "BigInteger"), { allowsRefLikeTypeArguments: [],
     typeofRuntimeKind: "bigint",
     valueType: true,
   });
@@ -147,6 +128,7 @@ export function csharpBigIntegerTargetType(): CsharpTargetNamedTypeRef {
 export function csharpExceptionTargetType(): CsharpTargetNamedTypeRef {
   return csharpTargetNamedType("System.Exception", undefined, csharpQualifiedTypeRenderShape("System", "Exception"), {
     sourceDeclarationKind: "class",
+    allowsRefLikeTypeArguments: [],
     throwable: true,
     typeofRuntimeKind: "object",
   });
@@ -157,7 +139,7 @@ export function csharpRuntimeErrorTargetType(name: CsharpSourceErrorName = "Erro
     `Tsonic.CSharp.Runtime.${name}`,
     undefined,
     csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", name),
-    { sourceDeclarationKind: "class", throwable: true, typeofRuntimeKind: "object",
+    { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [], throwable: true, typeofRuntimeKind: "object",
       baseType: name === "Error" ? csharpExceptionTargetType() : csharpRuntimeErrorTargetType() },
   );
 }

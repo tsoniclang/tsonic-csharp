@@ -11,8 +11,8 @@ import { csharpTsValueTargetType } from "../../../dist/target-model/types/carrie
 const integer = Object.freeze({ kind: "source-primitive", name: "int64" });
 const floating = Object.freeze({ kind: "source-primitive", name: "float64" });
 const boolean = Object.freeze({ kind: "source-primitive", name: "bool" });
-const native = Object.freeze({ kind: "target-named", id: "native.Counters" });
-const structural = Object.freeze({ kind: "target-named", id: "source.Shape" });
+const native = Object.freeze({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "native.Counters" });
+const structural = Object.freeze({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "source.Shape" });
 
 function fixture() {
   const sourceFile = {};
@@ -228,7 +228,7 @@ test("native numeric demand selects full int64 storage but cannot override an ex
 test("native demand rejects conflicting native targets rather than choosing the first", () => {
   const value = fixture();
   const first = value.row([{ identity: "user" }], native, { provider: true });
-  const second = value.row([{ identity: "user" }], { kind: "target-named", id: "native.Other" }, { provider: true });
+  const second = value.row([{ identity: "user" }], { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "native.Other" }, { provider: true });
   const producer = value.subject(value.row([{ identity: "user" }]));
   value.connect(producer, value.subject(first));
   value.connect(producer, value.subject(second));
@@ -251,7 +251,7 @@ test("native demand rejects lost members, accessors, methods, incompatible stora
     { fields: [{ identity: "user" }], options: { calls: [{}] } },
     { fields: [{ identity: "user" }], options: { indexes: [{}] } },
     ...["class", "struct", "enum"].map(kind => ({ fields: [{ identity: "user" }],
-      target: { kind: "target-named", id: "source.Nominal", csharpSourceDeclarationKind: kind } })),
+      target: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "source.Nominal", csharpSourceDeclarationKind: kind } })),
     { fields: [{ identity: "user" }], options: { shape: { sourceType: undefined } } },
   ];
   for (const [index, control] of cases.entries()) {
@@ -284,7 +284,7 @@ test("native demand rejects incompatible preselected storage and accepts exactly
     const expectedType = value.row([{ identity: "user" }], native, { provider: true });
     const producer = value.subject(value.row([{ identity: "user" }]));
     value.connect(producer, value.subject(expectedType));
-    value.existing.set(producer.node, conflict ? { kind: "target-named", id: "selected.Other" } : native);
+    value.existing.set(producer.node, conflict ? { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "selected.Other" } : native);
     const selected = value.freeze();
     assert.equal(selected.issues.length !== 0, conflict);
     assert.equal(selected.constructionFor(producer.node) === undefined, conflict);
@@ -451,7 +451,7 @@ test("native indexed construction rejects open, populated and incompatible index
     const producer = control === "open" ? value.subject(actualType) : value.literal(actualType);
     value.connect(producer, value.subject(expectedType));
     if (control === "conflicting") {
-      value.connect(producer, value.subject(value.row([], { kind: "target-named", id: "native.Other" },
+      value.connect(producer, value.subject(value.row([], { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "native.Other" },
         { provider: true, indexes: [{}] })));
     }
     const selected = value.freeze();

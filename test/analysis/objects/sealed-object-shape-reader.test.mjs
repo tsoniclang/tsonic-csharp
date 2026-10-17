@@ -12,9 +12,9 @@ const string = { kind: "source-primitive", name: "string" };
 const parameter = { kind: "type-parameter", name: "Value", identity: "test.Shape.Value" };
 const member = type => ({ sourceKey: { kind: "property", name: "value" }, sourceName: "value", targetName: "value",
   memberKind: "property", type });
-const template = { targetType: { kind: "target-named", id: "Shape", typeArguments: [parameter] }, members: [member(parameter)] };
-const component = { kind: "target-named", id: "Shape", typeArguments: [integer] };
-const holder = { targetType: { kind: "target-named", id: "Holder" }, members: [member(component)] };
+const template = { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "Shape", typeArguments: [parameter] }, members: [member(parameter)] };
+const component = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "Shape", typeArguments: [integer] };
+const holder = { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Holder" }, members: [member(component)] };
 
 const refusesMutation = (mutate) => {
   try {
@@ -75,7 +75,7 @@ test("an instance no producer demanded is a negative lookup, never a late instan
   const { sealed, counts } = harness({ resolvesComponent: false });
   const before = counts.policy;
   for (const argument of [string, { kind: "array", element: integer }]) {
-    const undemanded = { kind: "target-named", id: "Shape", typeArguments: [argument] };
+    const undemanded = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "Shape", typeArguments: [argument] };
     assert.equal(sealed.resolveTarget(undemanded) === undefined, true, `undemanded ${targetTypeRefKey(undemanded)} is absent`);
   }
   assert.equal(sealed.resolveTarget(undefined) === undefined, true, "absent input is absent");
@@ -107,7 +107,7 @@ test("sealed structural implementations, property orders and node shapes are loo
 test("structural implementations are materialized at seal and an unrecorded instantiation fails closed", () => {
   const symbol = {};
   const sourceType = {};
-  const carrier = (id, argument) => ({ kind: "target-named", id, csharpStructuralContract: true,
+  const carrier = (id, argument) => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: argument === undefined ? [] : [false], id, csharpStructuralContract: true,
     ...(argument === undefined ? {} : { typeArguments: [argument] }) });
   const shape = targetType => ({ targetType, sourceType, members: [{ ...member(integer), sourceSubjects: [symbol] }] });
   const source = shape(carrier("tsonic.shape:source"));
@@ -191,16 +191,16 @@ test("a generic structural implementation is substituted once at seal into froze
   const sourceType = {};
   const destinationType = {};
   const optional = type => csharpNullableTargetType(type);
-  const slot = type => ({ kind: "target-named", id: "test.Slot", csharpSourceDeclarationKind: "interface",
+  const slot = type => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false, false, false], id: "test.Slot", csharpSourceDeclarationKind: "interface",
     typeArguments: [type, resolveCsharpOptionalStorage({ kind: "optional", part: "operations", arguments: [element] }, type), optional(type)] });
   const field = (symbol, type) => ({ sourceName: "value", targetName: "value", sourceKey: { kind: "property", name: "value" },
     sourceSubjects: [symbol], memberKind: "property", type });
   const destinationTemplate = { targetType: slot(element), sourceType: destinationType, members: [field(destinationSymbol, optional(element))] };
   const destination = { targetType: slot(integer), sourceType: destinationType, members: [field(destinationSymbol, optional(integer))],
     declarationTemplate: destinationTemplate };
-  const recordTemplate = { targetType: { kind: "target-named", id: "test.Record", typeArguments: [captured] },
+  const recordTemplate = { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "test.Record", typeArguments: [captured] },
     members: [field(sourceSymbol, optional(captured))] };
-  const source = { targetType: { kind: "target-named", id: "test.Record", typeArguments: [integer] },
+  const source = { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "test.Record", typeArguments: [integer] },
     members: [field(sourceSymbol, optional(integer))], declarationTemplate: recordTemplate };
   const shapes = new Map([source, destination, recordTemplate, destinationTemplate].map(value => [targetTypeRefKey(value.targetType), value]));
   let closed = false;

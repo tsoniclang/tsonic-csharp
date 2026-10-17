@@ -11,7 +11,7 @@ const functionDeclaration = { kind: "function" };
 const methodDeclaration = { kind: "method" };
 const variableDeclaration = { kind: "variable" };
 const delegate = csharpDelegateTargetType("System.Action", []);
-const owner = { kind: "target-named", id: "owner", csharpRender: { kind: "name", namespace: [], name: "Owner" } };
+const owner = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "owner", csharpRender: { kind: "name", namespace: [], name: "Owner" } };
 function classify(declaration, selected, access, carrier = delegate, isStatic = false) {
   return classifyCsharpSourceCallee({
     ast: { is: { IsFunctionDeclaration: node => node?.kind === "function", IsMethodDeclaration: node => node?.kind === "method",

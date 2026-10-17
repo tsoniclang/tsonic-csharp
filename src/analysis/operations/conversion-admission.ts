@@ -9,7 +9,7 @@ export function csharpOperationConversionIssue(
   node: Node, conversion: CsharpConversionSelection | undefined, code: string,
 ): CsharpOperationIssue | undefined {
   return conversion?.kind === "rejected" || conversion?.kind === "ambiguous"
-    ? Object.freeze({ node, code, message: conversion.reason }) : undefined;
+    ? Object.freeze({ node, code: conversion.kind === "rejected" ? conversion.code ?? code : code, message: conversion.reason }) : undefined;
 }
 
 export function csharpSelectedCallConversionIssue(

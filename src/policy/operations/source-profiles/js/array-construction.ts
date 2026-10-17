@@ -47,7 +47,7 @@ export function arrayConstructionMember(
       kind: "static-factory-construction",
       factoryType: arrayStaticsType,
     },
-    typeParameters: [{ identity: "Tsonic.CSharp.Js.JSArrayStatics.of:construction::0", name: "T" }],
+    typeParameters: [{ identity: "Tsonic.CSharp.Js.JSArrayStatics.of:construction::0", name: "T", csharpAllowsRefLike: false }],
   } satisfies CsharpTargetMember);
 }
 
@@ -76,7 +76,7 @@ export function arrayCallMember(
       ? [targetParameter("length", doubleType)]
       : [targetParameter("items", { kind: "array", element }, { paramsArray: true })],
     resultType,
-    { typeParameters: [{ name: "T" }] },
+    { typeParameters: [{ name: "T", csharpAllowsRefLike: false }] },
   );
 }
 

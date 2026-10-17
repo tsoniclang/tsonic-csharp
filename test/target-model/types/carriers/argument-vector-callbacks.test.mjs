@@ -7,7 +7,7 @@ import { csharpDelegateTargetType } from "../../../../dist/target-model/types/ca
 
 test("argument-vector callbacks preserve exact results and admit nonreturning void callbacks", () => {
   const result = csharpVoidTargetType();
-  const vector = { kind: "target-named", id: "Tsonic.CSharp.Js.TimerCallbackArguments" };
+  const vector = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Tsonic.CSharp.Js.TimerCallbackArguments" };
   for (const source of [result, csharpNeverTargetType()]) {
     assert.equal(csharpArgumentVectorCallbackResultMatches(source, result), true);
     const callable = csharpDelegateTargetType(source === result ? "System.Action" : "System.Func", [], source === result ? undefined : source);

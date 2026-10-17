@@ -29,8 +29,7 @@ export function csharpAnyTargetType(): CsharpTargetNamedTypeRef {
 }
 
 export function csharpEmptyObjectTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("Tsonic.CSharp.Runtime.EmptyObject", undefined,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "EmptyObject"), { typeofRuntimeKind: "object" });
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.EmptyObject", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "EmptyObject"), { allowsRefLikeTypeArguments: [], typeofRuntimeKind: "object" });
 }
 
 export function isCsharpEmptyObjectTargetType(type: TargetTypeRef): boolean {
@@ -39,67 +38,48 @@ export function isCsharpEmptyObjectTargetType(type: TargetTypeRef): boolean {
 }
 
 export function csharpTsValueTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
-    "Tsonic.CSharp.Runtime.TsValue",
-    undefined,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "TsValue"),
-    {
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.TsValue", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "TsValue"), { allowsRefLikeTypeArguments: [],
       valueType: true,
       absorbsNullish: true,
       jsValueCarrier: true,
-    },
-  );
+    });
 }
 
 export function csharpTsUnionTargetType(): TargetTypeRef {
-  return csharpTargetNamedType("Tsonic.CSharp.Runtime.TsUnion", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "TsUnion"));
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.TsUnion", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "TsUnion"), { allowsRefLikeTypeArguments: [],});
 }
 
 export function csharpTsThrownValueExceptionTargetType(): TargetTypeRef {
-  return csharpTargetNamedType("Tsonic.CSharp.Runtime.TsThrownValueException", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "TsThrownValueException"), {
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.TsThrownValueException", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "TsThrownValueException"), { allowsRefLikeTypeArguments: [],
     throwable: true,
     typeofRuntimeKind: "object",
   });
 }
 
 export function csharpAbsenceTargetType(): TargetTypeRef {
-  return csharpNullableReferenceTargetType(csharpTargetNamedType(
-    "csharp.native.absence", undefined, { kind: "predefined", name: "object" },
-    { absorbsNullish: true },
-  ));
+  return csharpNullableReferenceTargetType(csharpTargetNamedType("csharp.native.absence", undefined, { kind: "predefined", name: "object" }, { allowsRefLikeTypeArguments: [], absorbsNullish: true }));
 }
 
 export function csharpRuntimeLocationTargetType(
   pointee: TargetTypeRef,
 ): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
-    "Tsonic.CSharp.Runtime.Location`1",
-    [pointee],
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Location"),
-  );
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.Location`1", [pointee], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Location"), { allowsRefLikeTypeArguments: [false],});
 }
 
 export function csharpRuntimeRecordFieldTargetType(pointee: TargetTypeRef): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("Tsonic.CSharp.Runtime.RecordField`1", [pointee],
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "RecordField"), { valueType: true });
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.RecordField`1", [pointee], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "RecordField"), { allowsRefLikeTypeArguments: [false], valueType: true });
 }
 
 export function csharpRuntimeRawPointerTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
-    "Tsonic.CSharp.Runtime.RawPointer",
-    undefined,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "RawPointer"),
-  );
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.RawPointer", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "RawPointer"), { allowsRefLikeTypeArguments: [],});
 }
 
 export function csharpRuntimeNativeLayoutTargetType(pointee: TargetTypeRef): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("Tsonic.CSharp.Runtime.NativeLayout`1", [pointee],
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "NativeLayout"));
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.NativeLayout`1", [pointee], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "NativeLayout"), { allowsRefLikeTypeArguments: [false],});
 }
 
 export function csharpRuntimeNativeArrayTargetType(pointee: TargetTypeRef): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("Tsonic.CSharp.Runtime.NativeArray`1", [pointee],
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "NativeArray"));
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.NativeArray`1", [pointee], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "NativeArray"), { allowsRefLikeTypeArguments: [false],});
 }
 
 export function csharpRuntimeLocationPointee(
@@ -119,14 +99,11 @@ export function csharpRuntimeUnionTargetType(
   if (arms.length < 2 || arms.length > 8) {
     return undefined;
   }
-  const targetType = csharpTargetNamedType(
-    `Tsonic.CSharp.Runtime.Union\`${arms.length}`,
-    arms,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Union"),
-  );
+  const targetType = csharpTargetNamedType(`Tsonic.CSharp.Runtime.Union\`${arms.length}`, arms, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Union"), { allowsRefLikeTypeArguments: arms.map(() => false) });
   return {
     kind: "target-named",
     id: targetType.id,
+    csharpAllowsRefLikeTypeArguments: targetType.csharpAllowsRefLikeTypeArguments,
     typeArguments: arms,
     ...(targetType.csharpRender !== undefined ? { csharpRender: targetType.csharpRender } : {}),
     csharpRuntimeUnionArms: arms,

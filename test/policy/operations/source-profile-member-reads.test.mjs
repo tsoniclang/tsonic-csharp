@@ -39,7 +39,7 @@ test("native and foreign index carriers cannot acquire source-array location cap
   const native = csharpJsArrayElementPolicies[0].select(context({ kind: "array", element }, false));
   assert.equal(native.kind, "resolved");
   assert.equal(native.invocation.indexedLocationMethod, undefined);
-  for (const carrier of [undefined, { kind: "target-named", id: "fixture.Foreign" }]) {
+  for (const carrier of [undefined, { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Foreign" }]) {
     assert.equal(csharpJsArrayElementPolicies[0].select(context(carrier, false)).kind, "rejected");
     assert.equal(csharpJsArrayPropertyPolicies[0].select(context(carrier, false)).kind, "rejected");
   }

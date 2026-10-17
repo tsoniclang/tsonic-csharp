@@ -9,8 +9,8 @@ import type {
 
 export function csharpTargetNamedType(
   id: string,
-  typeArguments?: readonly TargetTypeRef[],
-  renderShape?: CsharpTargetTypeRenderShape,
+  typeArguments: readonly TargetTypeRef[] | undefined,
+  renderShape: CsharpTargetTypeRenderShape | undefined,
   metadata: {
     readonly arrayLiteralElementType?: TargetTypeRef;
     readonly arrayLiteralConstructionType?: TargetTypeRef;
@@ -35,12 +35,20 @@ export function csharpTargetNamedType(
     readonly throwable?: true;
     readonly typeofRuntimeKind?: CsharpTypeofRuntimeKind;
     readonly valueType?: true;
+    readonly byRefLike?: true;
+    readonly allowsRefLikeTypeArguments: readonly boolean[];
     readonly absorbsNullish?: true;
     readonly jsValueCarrier?: true;
     readonly jsStringCarrier?: true;
     readonly jsObjectShape?: true;
-  } = {},
+  },
 ): CsharpTargetNamedTypeRef {
+  if (typeof metadata !== "object" || metadata === null || !Array.isArray(metadata.allowsRefLikeTypeArguments) ||
+    metadata.allowsRefLikeTypeArguments.length !== (typeArguments?.length ?? 0) ||
+    Object.keys(metadata.allowsRefLikeTypeArguments).length !== metadata.allowsRefLikeTypeArguments.length ||
+    metadata.allowsRefLikeTypeArguments.some(allowed => typeof allowed !== "boolean")) {
+    throw new TypeError("A physical C# named carrier requires its exact native generic-slot permissions.");
+  }
   return {
     kind: "target-named",
     id,
@@ -77,6 +85,8 @@ export function csharpTargetNamedType(
     ...(metadata.throwable === true ? { csharpThrowable: true } : {}),
     ...(metadata.typeofRuntimeKind !== undefined ? { csharpTypeofRuntimeKind: metadata.typeofRuntimeKind } : {}),
     ...(metadata.valueType === true ? { csharpValueType: true } : {}),
+    ...(metadata.byRefLike === true ? { csharpByRefLike: true } : {}),
+    csharpAllowsRefLikeTypeArguments: Object.freeze([...metadata.allowsRefLikeTypeArguments]),
     ...(metadata.absorbsNullish === true ? { csharpAbsorbsNullish: true } : {}),
     ...(metadata.jsValueCarrier === true
       ? { csharpJsValueCarrier: true }

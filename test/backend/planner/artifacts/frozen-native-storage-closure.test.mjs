@@ -7,7 +7,7 @@ import { maximumArtifactCount } from "../../../../dist/backend/planner/artifacts
 
 function sourceClass(id, arguments_ = []) {
   return {
-    targetType: { kind: "target-named", id, csharpSourceDeclarationKind: "class", typeArguments: arguments_ },
+    targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: arguments_.map(() => false), id, csharpSourceDeclarationKind: "class", typeArguments: arguments_ },
     members: [],
   };
 }
@@ -64,7 +64,7 @@ test("freezing a derived source object includes every exact native base storage 
 
 test("freeze capability follows structural views into source inheritance without freezing child payload types", () => {
   const view = { targetType: {
-    kind: "target-named", id: "View", csharpStructuralContract: true,
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "View", csharpStructuralContract: true,
   }, members: [] };
   const base = sourceClass("Base");
   const child = sourceClass("Child");
@@ -80,7 +80,7 @@ test("freeze capability follows structural views into source inheritance without
 test("closed generic native bases include their one authored declaration storage owner", () => {
   const parameter = { kind: "type-parameter", identity: "Base:T", name: "T" };
   const integer = { kind: "source-primitive", name: "int32" };
-  const text = { kind: "target-named", id: "System.String" };
+  const text = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "System.String" };
   const template = sourceClass("Base", [parameter]);
   const numeric = sourceClass("Base", [integer]);
   const textual = sourceClass("Base", [text]);
@@ -133,10 +133,10 @@ test("freeze storage closure rejects missing, external and mismatched native bas
     { entries: [{ shape: leaf }], resolveNode: () => sourceClass("Leaf", [
       { kind: "type-parameter", identity: "stale:T", name: "T" },
     ]) },
-    { entries: [{ shape: leaf, base: { kind: "target-named", id: "External" } }] },
+    { entries: [{ shape: leaf, base: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "External" } }] },
     { entries: [{ shape: base }, { shape: leaf, base: base.targetType }],
       resolveTarget: selected => selected.id === "Base" ? sourceClass("Other") : undefined },
-    { entries: [{ shape: leaf, base: { kind: "target-named", id: "External" } }],
+    { entries: [{ shape: leaf, base: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "External" } }],
       resolveTarget: selected => selected.id === "External"
         ? { targetType: selected, members: [] } : undefined },
   ]) {
@@ -145,9 +145,9 @@ test("freeze storage closure rejects missing, external and mismatched native bas
 });
 
 test("reference storage closure retains its finite artifact-count guard", () => {
-  const root = { targetType: { kind: "target-named", id: "Root" }, members: [] };
+  const root = { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Root" }, members: [] };
   const visible = Array.from({ length: maximumArtifactCount }, (_, index) => ({
-    targetType: { kind: "target-named", id: `Child${index}` }, members: [], implements: [root.targetType],
+    targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: `Child${index}` }, members: [], implements: [root.targetType],
   }));
   const result = collectCsharpReferenceClosure({
     host: { objectShapes: { resolveTarget: () => root } },

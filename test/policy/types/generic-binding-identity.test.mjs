@@ -62,7 +62,7 @@ test("quantified signatures remain alpha-equivalent without capturing free param
   const other = { ...inner, identity: "source:other/0", name: "U" };
   const member = parameter => ({ sourceName: "pair", targetName: "pair", sourceKey: { kind: "property", name: "pair" },
     memberKind: "method", type: csharpDelegateTargetType("System.Func", [parameter], { kind: "tuple", elements: [outer, parameter] }),
-    typeParameters: [{ ...parameter, declaration: {}, constraints: [] }] });
+    typeParameters: [{ csharpAllowsRefLike: false, ...parameter, declaration: {}, constraints: [] }] });
   assert.equal(csharpObjectShapeMemberTypeKey(member(inner)), csharpObjectShapeMemberTypeKey(member(other)));
   assert.deepEqual(csharpObjectShapeTypeParameters([member(inner)], []), [outer]);
   assert.notEqual(scopedTargetTypeRefKey(outer, new Map([[inner.identity, 0]])), scopedTargetTypeRefKey(inner, new Map([[inner.identity, 0]])));
@@ -108,7 +108,7 @@ test("generated generic scopes reserve authored binders and render nested refere
 test("native generic binding validates derived optional arguments after binding their payload", () => {
   const storage = csharpNullableTargetType(outer);
   const operations = csharpProjectedType({ kind: "optional", part: "operations", arguments: [outer] });
-  const box = typeArguments => ({ kind: "target-named", id: "test.Box", typeArguments });
+  const box = typeArguments => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: typeArguments.map(() => false), id: "test.Box", typeArguments });
   const pattern = box([operations, storage, outer]);
   const identities = new Set([outer.identity]);
   const carriers = [integer, csharpNullableTargetType(integer), { kind: "source-primitive", name: "string" }, inner];

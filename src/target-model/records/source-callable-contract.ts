@@ -9,6 +9,7 @@ export interface CsharpSourceCallableContract extends CsharpSourceCallContract {
 export interface CsharpSourceCallContract {
   readonly sourceDeclaration?: Node;
   readonly methodTypeParameterIdentities: readonly string[];
+  readonly methodAllowsRefLikeTypeArguments: readonly boolean[];
   readonly receiverTypeOwner?: Node;
   readonly parameters: readonly CsharpSourceCallParameterContract[];
   readonly returnType: TargetTypeRef;

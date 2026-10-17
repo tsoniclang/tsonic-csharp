@@ -51,7 +51,7 @@ function fixture(body, quotation = false) {
     storageType: { get: () => undefined },
     typedLocationIdentity: { get: () => false } };
   const names = { resolve: () => ({ kind: "resolved", name: "selected" }), temporaryName: name => name };
-  const target = quotation ? { kind: "target-named", id: "Fixture::Quotation", csharpExpressionTreeDelegateType: callable } : undefined;
+  const target = quotation ? { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Fixture::Quotation", csharpExpressionTreeDelegateType: callable } : undefined;
   const selected = analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, storage, evidence,
     [], names, { runtimeDefault: Object.freeze({ get: () => undefined }) }, { selectedCall: Object.freeze({ get: node => operations.get(node) }) }, { callableTarget: Object.freeze({ get: () => target }) });
   assert.equal(selected.issues.length === 0, true, "closed capture storage");

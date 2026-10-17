@@ -24,8 +24,7 @@ import { snapshotCsharpMetadata } from "../../../target-model/metadata/immutable
 
 const errorType = csharpRuntimeErrorTargetType();
 const exceptionType = csharpExceptionTargetType();
-const observationType = csharpTargetNamedType("Tsonic.CSharp.Runtime.ErrorObject", undefined,
-  csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "ErrorObject"));
+const observationType = csharpTargetNamedType("Tsonic.CSharp.Runtime.ErrorObject", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "ErrorObject"), { allowsRefLikeTypeArguments: [],});
 const stringType = csharpStringTargetType();
 const instanceReceiver = { kind: "instance" } as const;
 const noReceiver = { kind: "none" } as const;

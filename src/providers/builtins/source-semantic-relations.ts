@@ -36,7 +36,7 @@ const nativePointerBinding: CsharpTargetBindingFact = Object.freeze({
   targetName: "pointer",
   target: "csharp",
   kind: "opaque",
-  typeParameters: [{ identity: "tsonic.csharp.native-pointer::0", name: "T" }],
+  typeParameters: [{ identity: "tsonic.csharp.native-pointer::0", name: "T", csharpAllowsRefLike: false }],
   csharpType: nativePointerType,
 });
 
@@ -88,6 +88,7 @@ function rankedArrayRelations(
   const voidType: TargetTypeRef = Object.freeze({
     kind: "target-named",
     id: "System.Void",
+    csharpAllowsRefLikeTypeArguments: Object.freeze([]),
     csharpRender: { kind: "predefined", name: "void" },
   });
   const binding: CsharpTargetBindingFact = Object.freeze({
@@ -96,7 +97,7 @@ function rankedArrayRelations(
     targetName: `${descriptor.exportName}<T>`,
     target: "csharp",
     kind: "opaque",
-    typeParameters: [{ identity: `tsonic.csharp.ranked-array.${descriptor.rank}::0`, name: "T" }],
+    typeParameters: [{ identity: `tsonic.csharp.ranked-array.${descriptor.rank}::0`, name: "T", csharpAllowsRefLike: false }],
     csharpType: arrayType,
   });
   const indexParameters = descriptor.indexParameterNames.map((name) =>

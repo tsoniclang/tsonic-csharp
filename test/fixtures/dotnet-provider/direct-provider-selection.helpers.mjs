@@ -117,7 +117,7 @@ export function providerMethod(options = {}) {
       options.returnType ?? csharpVoidTargetType(),
       {
         declaringType: options.declaringType ?? {
-          kind: "target-named",
+          kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
           id: options.declaringTypeId ?? "Fixture.Target",
         },
         static: options.static ?? false,
@@ -137,7 +137,7 @@ export function providerMethod(options = {}) {
 
 export function providerConstructor(options = {}) {
   const declaringType = options.declaringType ?? {
-    kind: "target-named",
+    kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
     id: options.declaringTypeId ?? "Fixture.Target",
   };
   return Object.freeze({
@@ -164,7 +164,7 @@ export function providerIndexer(options = {}) {
     ],
     returnType: options.returnType ?? csharpStringTargetType(),
     declaringType: options.declaringType ?? {
-      kind: "target-named",
+      kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
       id: options.declaringTypeId ?? "Fixture.Target",
     },
     ...(options.readonly === true ? { readonly: true } : {}),
@@ -181,7 +181,7 @@ export function providerField(options = {}) {
     parameters: [],
     returnType: options.returnType ?? csharpStringTargetType(),
     declaringType: options.declaringType ?? {
-      kind: "target-named",
+      kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
       id: options.declaringTypeId ?? "Fixture.Target",
     },
     ...(options.readonly === true ? { readonly: true } : {}),
@@ -499,6 +499,10 @@ export function directProviderHost(options = {}) {
       }),
       projectTypes: Object.freeze({
         catalog: Object.freeze({
+          definitions: Object.freeze([...(options.projectTypeDefinitions?.values() ?? [])]),
+          targetTypeForDeclaration(declaration) {
+            return options.projectTargetTypes?.get(declaration);
+          },
           definitionForTarget(target) {
             return options.projectTypeDefinitions?.get(target.id);
           },

@@ -205,6 +205,8 @@ test("concrete properties suppress colliding extension-method projections", () =
 test("enum source declarations omit extension-method projections", () => {
   const declaration = {
     kind: "type",
+    isByRefLike: false,
+    allowsRefLikeTypeArguments: [],
     typeKind: "enum",
     sourceName: "Status",
     namespaceName: "Example",
@@ -239,6 +241,8 @@ test("enum source declarations omit extension-method projections", () => {
 test("concrete method call shapes precede extensions while distinct extension overloads remain", () => {
   const declaration = {
     kind: "type",
+    isByRefLike: false,
+    allowsRefLikeTypeArguments: [],
     typeKind: "class",
     sourceName: "Widget",
     namespaceName: "Example",
@@ -249,6 +253,8 @@ test("concrete method call shapes precede extensions while distinct extension ov
     name: "value",
     type: {
       kind: "named",
+      isByRefLike: false,
+      allowsRefLikeTypeArguments: [],
       targetId: "Example.Widget",
       metadataName: "Example.Widget",
       displayName: "Example.Widget",
@@ -363,6 +369,8 @@ test("derived provider signatures replace their exact virtual slot while retaini
     exports: [
       {
         kind: "type",
+        isByRefLike: false,
+        allowsRefLikeTypeArguments: [],
         typeKind: "class",
         sourceName: "Base",
         namespaceName: "Example",
@@ -404,6 +412,8 @@ test("derived provider signatures replace their exact virtual slot while retaini
       },
       {
         kind: "type",
+        isByRefLike: false,
+        allowsRefLikeTypeArguments: [],
         typeKind: "class",
         sourceName: "Derived",
         namespaceName: "Example",
@@ -411,6 +421,8 @@ test("derived provider signatures replace their exact virtual slot while retaini
         metadataName: "Example.Derived",
         baseType: {
           kind: "named",
+          isByRefLike: false,
+          allowsRefLikeTypeArguments: [],
           targetId: "Example.Base",
           metadataName: "Example.Base",
           displayName: "Example.Base",

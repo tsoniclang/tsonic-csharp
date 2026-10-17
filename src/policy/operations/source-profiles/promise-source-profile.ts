@@ -100,13 +100,9 @@ function promiseConstructorMember(
     typeArguments,
     [resolveType, rejectType],
   );
-  const factoryType = csharpTargetNamedType(
-    voidPromise
+  const factoryType = csharpTargetNamedType(voidPromise
       ? "Tsonic.CSharp.Runtime.TaskCompletion"
-      : "Tsonic.CSharp.Runtime.TaskCompletion`1",
-    typeArguments,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "TaskCompletion"),
-  );
+      : "Tsonic.CSharp.Runtime.TaskCompletion`1", typeArguments, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "TaskCompletion"), { allowsRefLikeTypeArguments: (typeArguments ?? []).map(() => false),});
   const [closedTask, closedExecutor, closedFactory] = snapshotCsharpTargetTypes([
     taskType,
     executorType,
@@ -138,13 +134,9 @@ function completionDelegate(
   parameters: readonly TargetTypeRef[],
   optionalParameterIndexes: readonly number[] = [],
 ): TargetTypeRef {
-  return csharpTargetNamedType(
-    typeArguments.length === 0
+  return csharpTargetNamedType(typeArguments.length === 0
       ? `Tsonic.CSharp.Runtime.${name}`
-      : `Tsonic.CSharp.Runtime.${name}\`${typeArguments.length}`,
-    typeArguments,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", name),
-    {
+      : `Tsonic.CSharp.Runtime.${name}\`${typeArguments.length}`, typeArguments, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", name), { allowsRefLikeTypeArguments: (typeArguments ?? []).map(() => false),
       delegateSignature: {
         parameters,
         parameterPassingModes: Object.freeze(parameters.map(() => "by-value" as const)),
@@ -153,6 +145,5 @@ function completionDelegate(
           ? {}
           : { optionalParameterIndexes }),
       },
-    },
-  );
+    });
 }

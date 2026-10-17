@@ -7,7 +7,7 @@ import { planCsharpConstructorInitializerArgument } from "../../../../dist/backe
 import { csharpSourcePrimitiveTargetType, csharpNeverTargetType, csharpTargetNamedType, csharpNullableTargetType } from "../../../../dist/target-model/types/index.js";
 
 const integer = csharpSourcePrimitiveTargetType("uint64");
-const carrier = csharpTargetNamedType("fixture:Record", [], { kind: "named", name: "Record" });
+const carrier = csharpTargetNamedType("fixture:Record", [], { kind: "named", name: "Record" }, { allowsRefLikeTypeArguments: [],});
 const type = { kind: "IdentifierName", name: "Record" };
 const identifier = name => ({ kind: "IdentifierName", name });
 const call = name => ({ kind: "InvocationExpression", callee: identifier(name), arguments: [] });

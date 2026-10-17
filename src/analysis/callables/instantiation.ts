@@ -34,7 +34,8 @@ export function instantiateCsharpInheritedCallable(
   });
   return result === undefined || source.sourceReturnType !== undefined && sourceReturnType === undefined ||
     parameters.some(parameter => parameter === undefined) ? undefined : Object.freeze({
-    ...source, methodTypeParameterIdentities: implementation.methodTypeParameterIdentities, returnType: result,
+    ...source, methodTypeParameterIdentities: implementation.methodTypeParameterIdentities,
+    methodAllowsRefLikeTypeArguments: implementation.methodAllowsRefLikeTypeArguments, returnType: result,
     ...(sourceReturnType === undefined ? {} : { sourceReturnType }),
     parameters: Object.freeze(parameters as CsharpSourceCallableContract["parameters"][number][]),
   });

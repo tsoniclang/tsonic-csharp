@@ -5,9 +5,9 @@ import { selectCsharpFlowReadConversion } from "../../../dist/policy/conversions
 import { csharpRuntimeUnionProjectionMatches } from "../../../dist/analysis/conversions/validation.js";
 import { csharpRuntimeUnionTargetType, csharpNullableTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 
-const base = { kind: "target-named", id: "fixture.Base" };
-const child = { kind: "target-named", id: "fixture.Child" };
-const other = { kind: "target-named", id: "fixture.Other" };
+const base = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Base" };
+const child = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Child" };
+const other = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Other" };
 const policy = {
   projectTypes: { directSupertypes: carrier => carrier === child ? [base] : [] },
   providers: { findTargetBindingByTargetId: () => undefined }, target: {},

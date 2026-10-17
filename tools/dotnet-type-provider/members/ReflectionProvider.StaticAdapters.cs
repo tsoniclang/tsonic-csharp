@@ -333,6 +333,7 @@ sealed partial class ReflectionProvider
                 {
                     identity = $"{MethodId(method!)}::source-dispatch",
                     name = dispatchName,
+                    allowsRefLike = false,
                     constraints = new[] { new { kind = "implements", contract } },
                 },
             };

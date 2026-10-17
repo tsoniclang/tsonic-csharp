@@ -144,8 +144,7 @@ export function analyzeCsharpCaptureStorage(
     const identity = sourceNodeIdentity(source.ast, scope);
     if (identity === undefined || selectedType.kind !== "target-named") throw new Error("A native capture frame requires an exact named source identity.");
     const digest = createHash("sha256").update(identity).digest("hex");
-    const type = csharpTargetNamedType(`tsonic.shape:capture_${digest}`, selectedType.typeArguments,
-      { kind: "named", name: `__TsonicCapture_${digest}` });
+    const type = csharpTargetNamedType(`tsonic.shape:capture_${digest}`, selectedType.typeArguments, { kind: "named", name: `__TsonicCapture_${digest}` }, { allowsRefLikeTypeArguments: (selectedType.typeArguments ?? []).map(() => false),});
     const frame: CsharpCaptureFrame = Object.freeze({ scope, ownership: "activation", bindings, parents, methods, receivers, shape: Object.freeze({
       targetType: type, members,
       implements: implementations,
@@ -183,8 +182,7 @@ export function analyzeCsharpCaptureStorage(
     })));
     const selectedType = createStructuralObjectShapeTarget(members, [contract], environment);
     const digest = createHash("sha256").update(identity).digest("hex");
-    const type = csharpTargetNamedType(`tsonic.shape:callable_${digest}`, selectedType.kind === "target-named" ? selectedType.typeArguments : undefined,
-      { kind: "named", name: `__TsonicCallable_${digest}` }, { typeofRuntimeKind: "function" });
+    const type = csharpTargetNamedType(`tsonic.shape:callable_${digest}`, selectedType.kind === "target-named" ? selectedType.typeArguments : undefined, { kind: "named", name: `__TsonicCallable_${digest}` }, { allowsRefLikeTypeArguments: ((selectedType.kind === "target-named" ? selectedType.typeArguments : undefined) ?? []).map(() => false), typeofRuntimeKind: "function" });
     const frame: CsharpCaptureFrame = Object.freeze({ scope: method.declaration, ownership: "value", bindings, parents, methods: Object.freeze([method]), receivers,
       shape: Object.freeze({ targetType: type, members, implements: Object.freeze([contract]) }),
     });
@@ -268,7 +266,7 @@ export function analyzeCsharpCaptureStorage(
   }
   const frames = Object.freeze([...byScope.values(), ...valueFrames]);
   const helperMembers = csharpCapturedMemberAccess(source, frames);
-  return Object.freeze({ issues: Object.freeze(issues), frames,
+  return Object.freeze({ issues: Object.freeze(issues), frames, lexicalCaptures: frameClosures.lexicalCaptures,
     captureFrame: Object.freeze({ get: (scope: Node) => byScope.get(scope) }), capturedBinding: Object.freeze({ get: (declaration: Node) => byBinding.get(declaration) }),
     physicalStorageType: Object.freeze({ get(declaration: Node, logicalType: TargetTypeRef): TargetTypeRef {
       const selected = physicalTypes.get(declaration);

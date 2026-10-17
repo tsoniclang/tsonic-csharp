@@ -306,7 +306,7 @@ export const csharpJsStringCallPolicies: readonly CsharpSourceProfileCallPolicy[
             [targetParameter("codes", { kind: "array", element }, { paramsArray: true,
               ...(targetTypeRefEquals(element, doubleType) ? { csharpSequenceHolePolicy: "number-nan" as const } : {}) })],
             stringType,
-            { typeParameters: [{ name: "T" }] },
+            { typeParameters: [{ name: "T", csharpAllowsRefLike: false }] },
           );
         },
         noReceiver,
@@ -334,7 +334,7 @@ export const csharpJsStringCallPolicies: readonly CsharpSourceProfileCallPolicy[
             }),
           ],
           stringType,
-          isCsharpAbsenceTargetType(argumentType) ? { typeParameters: [{ name: "T" }] } : {},
+          isCsharpAbsenceTargetType(argumentType) ? { typeParameters: [{ name: "T", csharpAllowsRefLike: false }] } : {},
         );
       },
       noReceiver,

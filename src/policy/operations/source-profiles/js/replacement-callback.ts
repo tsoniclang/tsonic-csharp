@@ -47,21 +47,16 @@ export function csharpJsArgumentVectorCallbackParameter(
   ) {
     return undefined;
   }
-  const callbackType = csharpTargetNamedType(
-    targetId,
-    undefined,
-    csharpQualifiedTypeRenderShape(
+  const callbackType = csharpTargetNamedType(targetId, undefined, csharpQualifiedTypeRenderShape(
       "Tsonic.CSharp.Js",
       targetName,
-    ),
-    {
+    ), { allowsRefLikeTypeArguments: [],
       delegateSignature: {
         parameters: [argumentVectorType],
         parameterPassingModes: ["by-value"],
         returnType: resultType,
       },
-    },
-  );
+    });
   return targetParameter(name, callbackType, {
     csharpAcceptsCheckedSourceArgument: true,
     csharpSourceArgumentAdapter: Object.freeze({

@@ -183,6 +183,10 @@ sealed partial class ReflectionProvider
         var namedType = new
         {
             kind = "named",
+            isByRefLike = definition.IsByRefLike,
+            allowsRefLikeTypeArguments = definition.IsGenericTypeDefinition
+                ? definition.GetGenericArguments().Select(parameter => (parameter.GenericParameterAttributes & GenericParameterAttributes.AllowByRefLike) != 0).ToArray()
+                : Array.Empty<bool>(),
             targetId = TargetId(definition),
             metadataName = MetadataName(definition),
             displayName = DisplayName(definition),

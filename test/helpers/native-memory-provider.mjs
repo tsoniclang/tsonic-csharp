@@ -60,8 +60,7 @@ export function nativeMemoryProvider({ missingRelation = false, wrongCarrier = f
     typeArguments: [{ kind: "type-parameter", name: "Value" }] };
   const genericTarget = name => ({ kind: "type-parameter", identity: `${providerId}:${name}:0`, name: "Value" });
   const genericCarrier = csharpRuntimeLocationTargetType(genericTarget("relay"));
-  const owner = csharpTargetNamedType("NativeMemoryProof.Provider", undefined,
-    csharpQualifiedTypeRenderShape("NativeMemoryProof", "Provider"));
+  const owner = csharpTargetNamedType("NativeMemoryProof.Provider", undefined, csharpQualifiedTypeRenderShape("NativeMemoryProof", "Provider"), { allowsRefLikeTypeArguments: [],});
   const definitions = [
     ["acquire", "Acquire", [{ name: "value", type: wordSource }], rawSource, csharpRuntimeRawPointerTargetType()],
     ["readOriginal", "ReadOriginal", [], wordSource, wordTarget],
@@ -103,7 +102,7 @@ export function nativeMemoryProvider({ missingRelation = false, wrongCarrier = f
       targetMember: { id: `native.method.${targetName}`, sourceName: name, targetName,
         kind: "method", static: true, declaringType: owner,
         ...(typeParameters === undefined ? {} : { typeParameters: typeParameters.map((parameter, index) => ({
-          ...parameter, identity: `${providerId}:${name}:${index}`,
+          ...parameter, identity: `${providerId}:${name}:${index}`, csharpAllowsRefLike: false,
         })) }),
         parameters: parameters.map((parameter, index) => targetParameter(parameter.name, parameterCarriers?.[index] ?? wordTarget)),
         ...(wrongByRefPointee && name === "location" ? { csharpReturnPassing: "byref-readwrite" } : {}),

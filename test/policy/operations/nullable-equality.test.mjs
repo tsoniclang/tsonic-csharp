@@ -20,7 +20,7 @@ test("nullable scalar equality admits a present operand in either order", () => 
 test("nullable equality does not infer equality of two absent or unproved provider carriers", () => {
   const nullable = csharpNullableTargetType({ kind: "source-primitive", name: "float64" });
   assert.match(validateBinaryTargetSemantics("===", nullable, nullable, context), /not proven equivalent/);
-  const provider = csharpTargetNamedType("External.Value", [], { kind: "named", namespace: ["External"], name: "Value" }, { valueType: true });
+  const provider = csharpTargetNamedType("External.Value", [], { kind: "named", namespace: ["External"], name: "Value" }, { allowsRefLikeTypeArguments: [], valueType: true });
   const owned = { ...context, providers: { findTargetBindingByTargetId: () => ({ kind: "struct" }) } };
   assert.match(validateBinaryTargetSemantics("===", csharpNullableTargetType(provider), provider, owned), /provider operator relation/);
 });
@@ -28,10 +28,10 @@ test("nullable equality does not infer equality of two absent or unproved provid
 test("native nullish operators do not require provider overloads", () => {
   const reference = csharpTargetNamedType("External.Reference", [], {
     kind: "named", namespace: ["External"], name: "Reference",
-  }, { valueType: false });
+  }, { allowsRefLikeTypeArguments: [], valueType: false });
   const value = csharpTargetNamedType("External.Value", [], {
     kind: "named", namespace: ["External"], name: "Value",
-  }, { valueType: true });
+  }, { allowsRefLikeTypeArguments: [], valueType: true });
   const owned = { ...context, providers: { findTargetBindingByTargetId: () => ({ kind: "class" }) } };
   for (const operator of ["??", "??="]) {
     assert.equal(validateBinaryTargetSemantics(operator, reference, reference, owned), undefined);

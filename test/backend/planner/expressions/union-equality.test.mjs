@@ -50,7 +50,7 @@ test("union equality rejects stale carriers, paths, operations, coverage and pol
 test("nullable union equality plans canonical native presence guards with each operand evaluated once in order", () => {
   const integer = csharpSourcePrimitiveTargetType("int64");
   const text = csharpStringTargetType();
-  const base = csharpTargetNamedType("fixture.Base", [], { kind: "named", name: "Base" }, { sourceDeclarationKind: "class" });
+  const base = csharpTargetNamedType("fixture.Base", [], { kind: "named", name: "Base" }, { allowsRefLikeTypeArguments: [], sourceDeclarationKind: "class" });
   const policy = { providers: { findTargetBindingByTargetId() {} }, objectShapes: { resolveTarget() {} },
     projectTypes: { catalog: { definitionForTarget() {} } } };
   const union = csharpNullableTargetType(csharpRuntimeUnionTargetType([integer, text, base]));
