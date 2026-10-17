@@ -39,6 +39,7 @@ import { getCsharpClassFactory } from "../../../target-model/types/carriers/clas
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue, planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { composeCsharpPlannedCall } from "./target-members/selected-call/planned-arguments.js";
+import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 
 export function translateCsharpConstruction(
   node: Node,
@@ -195,7 +196,7 @@ function translateSelectedConstruction(
   }
   return composeCsharpPlannedCall(node, sourceFile, input, diagnostics, undefined, arguments_, (_, args) =>
     planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
-      buildSelectedConstruction(node, selection, sourceFile, input, diagnostics, args)));
+      buildSelectedConstruction(node, selection, sourceFile, input, diagnostics, args), readCsharpNativeExpressionCarrier(input, node)));
 }
 
 function buildSelectedConstruction(
@@ -384,16 +385,19 @@ function translateSourceOwnedConstruction(
     return callee === undefined ? undefined : composeCsharpPlannedCall(node, sourceFile, input, diagnostics, callee, arguments_, (value, args) =>
       planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "InvocationExpression",
         callee: { kind: "SimpleMemberAccessExpression", receiver: value!, name: factory.createMethodName,
-          ...(typeArguments.length === 0 ? {} : { typeArguments: typeArguments as import("../../target-ast/syntax/index.js").CsharpTypeNode[] }) }, arguments: args }));
+          ...(typeArguments.length === 0 ? {} : { typeArguments: typeArguments as import("../../target-ast/syntax/index.js").CsharpTypeNode[] }) }, arguments: args },
+          readCsharpNativeExpressionCarrier(input, node)));
   }
   if (arguments_ !== undefined && getCsharpDelegateSignature(input.types.classifications.resolveNode(calleeNode)) !== undefined &&
     (calleeReference === undefined || !input.program.source.ast.is.IsClassDeclaration(calleeReference.declaration))) {
     const callee = planExpression(calleeNode, sourceFile, input, diagnostics);
     return callee === undefined ? undefined : composeCsharpPlannedCall(node, sourceFile, input, diagnostics, callee, arguments_, (value, args) =>
-      planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "InvocationExpression", callee: value!, arguments: args }));
+      planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "InvocationExpression", callee: value!, arguments: args },
+        readCsharpNativeExpressionCarrier(input, node)));
   }
   return arguments_ === undefined
     ? undefined
     : composeCsharpPlannedCall(node, sourceFile, input, diagnostics, undefined, arguments_, (_, args) =>
-      planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "ObjectCreationExpression", type, arguments: args }));
+      planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "ObjectCreationExpression", type, arguments: args },
+        readCsharpNativeExpressionCarrier(input, node)));
 }

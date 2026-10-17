@@ -2,6 +2,7 @@ import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/di
 import assert from "node:assert/strict";
 import test from "node:test";
 import { captureCsharpPlannedLocation } from "../../../../dist/backend/planner/expressions/planned-locations.js";
+import { planCsharpExpressionCompletion } from "../../../../dist/backend/planner/expressions/planned-value-composition.js";
 import { csharpPlannedValue, sequenceCsharpPlannedValues } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { composeCsharpPlannedCall } from "../../../../dist/backend/planner/expressions/target-members/selected-call/planned-arguments.js";
 import { planSelectedCsharpBinaryOperation } from "../../../../dist/backend/planner/expressions/operators/selected-binary.js";
@@ -174,19 +175,34 @@ test("compound assignment captures its old value before RHS effects and stores t
 
 test("typed ref stores retain original managed storage before a later non-suspending value region", () => {
   const { input, selections, diagnostics } = context();
+  const owner = {};
   const source = {};
   const value = {};
   selections.set(source, location(source));
   input.types = { classifications: { resolveNode: () => csharpVoidTargetType() } };
+  input.program.records.nativeUse = Object.freeze({ expression: subject => subject === owner
+    ? Object.freeze({ use: Object.freeze({ kind: "effect", carrier: csharpVoidTargetType() }) }) : undefined });
   const selected = { kind: "location-store", pointeeType: integer,
     locationType: csharpRuntimeLocationTargetType(integer), location: { kind: "native-ref-return", expression: source }, valueExpression: value };
   const plan = subject => subject === source ? csharpPlannedValue(integer, call("reference"))
     : csharpPlannedValue(integer, identifier("completed"), [effect("valueRegion")]);
-  const planned = planCsharpTypedLocationOperation({}, selected, {}, input, diagnostics, plan, plan);
+  const planned = planCsharpTypedLocationOperation(owner, selected, {}, input, diagnostics, plan, plan);
   assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned.completion.kind, "void");
   assert.equal(planned.prelude[0].refKind, "ref");
   assert.equal(planned.prelude[0].initializer.callee.name, "reference");
   assert.equal(planned.prelude[1].expression.callee.name, "valueRegion");
   assert.equal(planned.prelude[2].expression.left.name, planned.prelude[0].name);
+});
+
+test("an explicitly absent completion carrier is rejected without choosing another native carrier", () => {
+  const diagnostics = [];
+  const input = { program: { records: { nativeUse: {
+    expression: () => assert.fail("an absent supplied carrier cannot become another NativeUse lookup"),
+  } }, source: { ast: { pos: () => 0, end: () => 1, getSourceFile: () => undefined } } },
+    types: { classifications: { resolveNode: () => assert.fail("an absent carrier cannot become a source type lookup") } } };
+  const planned = planCsharpExpressionCompletion({}, {}, input, diagnostics, identifier("missing"), undefined);
+  assert.equal(planned === undefined, true, "missing required completion evidence is never defaulted");
+  assert.equal(diagnostics.length === 1 && diagnostics[0].message ===
+    "Native expression planning requires its exact finalized completion carrier.", true, "the original strict missing-carrier failure");
 });

@@ -17,6 +17,7 @@ import type {
 } from "../expression-planner-types.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { planCsharpExpressionCompletion } from "../planned-value-composition.js";
+import { readCsharpNativeExpressionCarrier } from "../native-uses.js";
 
 export function planPropertyAccessExpression(
   propertyAccess: Node,
@@ -32,7 +33,8 @@ export function planPropertyAccessExpression(
     diagnostics,
   );
   if (projectModuleMember !== undefined) {
-    return planCsharpExpressionCompletion(propertyAccess, sourceFile, input, diagnostics, projectModuleMember);
+    return planCsharpExpressionCompletion(propertyAccess, sourceFile, input, diagnostics, projectModuleMember,
+      readCsharpNativeExpressionCarrier(input, propertyAccess));
   }
   return translateCsharpPropertyAccess(
     propertyAccess,

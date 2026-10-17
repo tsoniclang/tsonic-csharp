@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpBinaryOperation } from "../../policy/operations/index.js";
-import { targetTypeRefKey } from "../../target-model/types/equality.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpValueReadStageIndex } from "../../target-model/records/conversions.js";
@@ -83,9 +83,18 @@ export function analyzeCsharpExpectedTypes(
     let targets = expectedBinaries.get(expression);
     if (targets === undefined) { targets = new Map(); expectedBinaries.set(expression, targets); }
     const existing = targets.get(key);
-    if (existing !== undefined) return existing;
-    const selection = selectCsharpBinaryOperation(policy, expression, evidence.nodeTargetType.get, targetType);
+    if (targets.has(key)) return existing;
+    const contextual = selectCsharpBinaryOperation(policy, expression, evidence.nodeTargetType.get, targetType);
+    const selection = admitCsharpExpectedBinarySelection(targetType, contextual, operations.binaryOperation.get(expression)?.target);
     targets.set(key, selection);
     return selection;
   }
+}
+
+export function admitCsharpExpectedBinarySelection(
+  targetType: TargetTypeRef,
+  contextual: CsharpExpectedBinarySelection,
+  baseline: CsharpExpectedBinarySelection,
+): CsharpExpectedBinarySelection {
+  return contextual?.kind === "resolved" && targetTypeRefEquals(contextual.resultType, targetType) ? contextual : baseline;
 }

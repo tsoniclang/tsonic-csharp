@@ -40,7 +40,8 @@ function sealedConversions(inputs, elementTarget = int64) {
     expectedTypes: { expectedType: Object.freeze({ get: () => [] }), requiredExpectedType: Object.freeze({ get: () => [] }), callableTarget: Object.freeze({ get: () => undefined }) },
     valueReads: { valueRead: Object.freeze({ get: () => undefined }) },
   });
-  return analysis.seal({ entries: Object.freeze([]) }, []);
+  analysis.close({ entries: Object.freeze([]) }, []);
+  return analysis.seal();
 }
 
 const nativeInput = elements => ({ kind: "sequence", expression: {},

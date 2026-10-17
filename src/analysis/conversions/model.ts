@@ -17,5 +17,6 @@ export interface CsharpConversionAnalysis {
     readonly expectedTypes: CsharpExpectedTypeClassifications;
     readonly valueReads: CsharpValueReadClassifications;
   }): CsharpPreparedConversionClassifications;
-  seal(nativeDemand: CsharpNativeDemandAnalysis, requiredRecords: CsharpRequiredRecord[]): CsharpConversionClassifications;
+  close(nativeDemand: CsharpNativeDemandAnalysis, requiredRecords: CsharpRequiredRecord[]): void;
+  seal(): CsharpConversionClassifications;
 }

@@ -27,7 +27,8 @@ function fixture() {
   const union = csharpRuntimeUnionTargetType(arms);
   const semantics = { operations: { propertyAccess: () => ({ receiver: { expression: receiver, type: {} },
       selectedSymbol, selectedDeclaration: declarations[0], optionalChain: false }) },
-    types: { propertyInfos: () => [] }, facts: { selectedSubjects: () => declarations } };
+    types: { propertyInfos: () => [] }, facts: { selectedSubjects: () => declarations },
+    propertyNames: { get: subject => subject === name ? { kind: "resolved", name: "value" } : undefined } };
   const policy = {
     ast: { is: { IsPropertyAccessExpression: subject => subject === access,
         IsIdentifier: subject => subject === name },
@@ -36,6 +37,7 @@ function fixture() {
       getSourceFile: () => sourceFile, typeParameters: () => [],
       as: { AsParameterDeclaration: parameter => parameter } },
     semantics: () => semantics,
+    semanticsFor: () => semantics,
     navigation: { isProjectDeclaration: () => true },
     types: { resolveSelectedValue: () => union, resolveSourceCallParameter: () => incoming,
       resolveSourceCallResult: () => ({ selectedType: integer }), resolveSourceCallTypeArguments: () => [],

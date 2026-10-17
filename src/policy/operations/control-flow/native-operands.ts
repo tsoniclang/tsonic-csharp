@@ -1,7 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetPlanningSourceNavigation } from "@tsonic/target-api/analysis";
 import { sourceDeclarationIsModuleScoped, sourceNodesEqual } from "@tsonic/target-api/source";
-import type { CsharpNativeCallableCreation, CsharpNativeChildUse, CsharpNativeUseSlot } from "../../../target-model/records/native-demand.js";
+import type { CsharpNativeCallableCreation, CsharpNativeChildUse, CsharpNativeUseSlot, CsharpNativeDiscardedGuard } from "../../../target-model/records/native-demand.js";
 import type { CsharpTargetOperationClassifications, CsharpSourceArgumentGrouping } from "../../../target-model/records/operations.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
 import type { CsharpValueReadClassifications } from "../../../target-model/records/conversions.js";
@@ -45,6 +45,7 @@ export interface CsharpNativeOperandSelection {
   readonly refusal?: CsharpNativeOperandRefusal;
   readonly refusalMessage?: string;
   readonly refusalCode?: string;
+  readonly discardedGuard?: CsharpNativeDiscardedGuard;
 }
 
 interface CsharpNativeArgumentRefusal {
@@ -243,8 +244,11 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       case "js-value-operation": {
         const selected = operations.binaryOperation.get(node)?.jsValue;
         if (selected?.kind !== "resolved") return refused("operation-unresolved", selected?.kind === "rejected" ? selected.reason : undefined);
-        return chosen([...use(left, { kind: "operand", position: "left" }), ...use(right, { kind: "operand", position: "right" })],
+        const operands = chosen([...use(left, { kind: "operand", position: "left" }), ...use(right, { kind: "operand", position: "right" })],
           selected.shortCircuit === undefined ? "sequence" : "short-circuit", undefined, selected.resultType);
+        return selected.shortCircuit === undefined ? operands : Object.freeze({ ...operands,
+          discardedGuard: Object.freeze(sourceOperatorFromKindName(ast.operatorKindName(node)) === "??"
+            ? { kind: "coalescing" as const } : { kind: "js-value" as const, ...selected.shortCircuit }) });
       }
       case "destructuring-assignment": {
         const pattern = input.bindingPatterns.bindingPatternProjection.get(node)?.assignmentPattern;
@@ -268,7 +272,11 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
         }
         const flow = selected.targetOperation.kind === "conditional-value" && selected.targetOperation.branch === "conditional" ||
           selected.sourceOperator === "??" || selected.sourceOperator === "??=" ? "short-circuit" : "sequence";
-        return chosen(operands, operands.length === 1 ? "sequence" : flow, undefined, selected.resultType);
+        const result = chosen(operands, operands.length === 1 ? "sequence" : flow, undefined, selected.resultType);
+        return result.flow !== "short-circuit" ? result : Object.freeze({ ...result,
+          discardedGuard: Object.freeze(selected.sourceOperator === "??" || selected.sourceOperator === "??="
+            ? { kind: "coalescing" as const }
+            : { kind: "boolean" as const, whenTrue: selected.sourceOperator === "&&" ? "right" as const : "left" as const }) });
       }
       default: return refused("operation-unresolved");
     }

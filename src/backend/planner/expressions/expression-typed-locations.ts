@@ -35,6 +35,7 @@ import {
 } from "../types/target-types.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue, projectCsharpPlannedValue, planCsharpExpressionCompletion } from "./planned-value-composition.js";
+import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 import { captureCsharpPlannedLocation } from "./planned-locations.js";
 import { translateCsharpPropertyAccess } from "./target-members/selected-property.js";
 import { sourceNodesEqual } from "@tsonic/target-api/source";
@@ -174,7 +175,7 @@ export function planCsharpTypedLocationOperation(node: Node, operation: Extract<
         const prelude = [...captured.prelude, ...value.prelude];
         return value.completion.kind === "never" ? { prelude, completion: value.completion }
           : value.completion.kind === "void" ? undefined : planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
-            assignment(captured.completion.expression, value.completion.expression), undefined, prelude);
+            assignment(captured.completion.expression, value.completion.expression), readCsharpNativeExpressionCarrier(input, node), prelude);
       }
       return location === undefined || value === undefined ? undefined
         : buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [location, value],

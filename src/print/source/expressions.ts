@@ -38,6 +38,9 @@ export function printCsharpExpression(
     case "LiteralExpression":
       return printLiteral(expression.value, expression.stringStyle);
     case "NumericLiteralExpression":
+      if (expression.suffix === "F" || expression.suffix === "M") {
+        return printExactNumericLiteral(expression.token, expression.suffix);
+      }
       return expression.token !== undefined
         ? printExactNumericLiteral(expression.token, expression.suffix)
         : printNumericLiteral(expression.value, expression.suffix);

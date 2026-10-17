@@ -4,6 +4,7 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { getCsharpClassFactory } from "../../../target-model/types/carriers/class-factories.js";
+import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 import {
   sourceOperatorFromKindName,
 } from "../../../target-model/syntax/operators.js";
@@ -128,7 +129,7 @@ export function tryPlanTypeTestExpression(
       planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: owner,
       name: factory.instanceTestMethodName }, arguments: [
       { kind: "Argument", expression: values[0]! }, { kind: "Argument", expression: values[1]! },
-    ] }));
+    ] }, readCsharpNativeExpressionCarrier(input, node)));
   }
   const fact = input.program.records.binaryOperation.get(node)?.instanceTest;
   const sourceCarrier = input.types.classifications.resolveNode(left, sourceFile);

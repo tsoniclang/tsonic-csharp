@@ -94,6 +94,7 @@ import { qualifiedCsharpType } from "../types/index.js";
 import type { CsharpPromiseDiscard } from "../../../target-model/records/promise-results.js";
 import type { CsharpStatement } from "../../target-ast/syntax/index.js";
 import { requireExpressionPlan } from "./required-plan.js";
+import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 
 export function planExpression(
   node: Node,
@@ -140,7 +141,7 @@ function planExpressionCore(
   state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
   const complete = (expression: CsharpExpression | undefined): CsharpPlannedValue | undefined =>
-    planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression);
+    planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression, readCsharpNativeExpressionCarrier(input, node));
   if (input.program.source.ast.is.IsClassExpression(node)) {
     const factory = input.program.records.classFactory.get(node);
     if (factory !== undefined) return planClassFactoryExpression(factory, sourceFile, input, diagnostics, state);

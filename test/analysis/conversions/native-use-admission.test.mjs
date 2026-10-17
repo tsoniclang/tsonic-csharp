@@ -10,6 +10,7 @@ import { analyzeCsharpCallableCreations } from "../../../dist/analysis/callables
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpProviderArgumentSourceCarrier } from "../../../dist/policy/operations/members/selection/native-use-arguments.js";
+import { analyzeCsharpConversions } from "../../../dist/analysis/conversions/analyze.js";
 
 test("separately rendered provider conversions consume the exact source carrier once", () => {
   const source = csharpSourcePrimitiveTargetType("float64");
@@ -27,6 +28,52 @@ test("separately rendered provider conversions consume the exact source carrier 
   }
   assert.equal(csharpProviderArgumentSourceCarrier({ kind: "checked-source", effectiveArgumentIndex: 0, targetType: target }) === undefined,
     true, "a checked source parameter has no fabricated provider conversion");
+});
+
+test("actual native expression conversions complete while structural registration is open, then every view is lookup-only", () => {
+  const expression = {};
+  const other = {};
+  const source = csharpSourcePrimitiveTargetType("int32");
+  const target = csharpSourcePrimitiveTargetType("int64");
+  const boolean = csharpSourcePrimitiveTargetType("bool");
+  const none = Object.freeze({ get: () => undefined });
+  let structuralClosed = false;
+  let registrations = 0;
+  const policy = { sourceFiles: [], target: {},
+    ast: { is: { IsCallExpression: () => false, IsIdentifier: () => false }, getSourceFile: () => undefined },
+    navigation: { referenceFor: () => undefined }, projectTypes: { directSupertypes: () => [] },
+    providers: { findTargetBindingByTargetId: () => undefined }, literalValues: { literalValue: none } };
+  const shapes = { resolveNode: () => undefined, resolveTarget: () => undefined,
+    registerStructuralInterface(subject, from, to) {
+      assert.equal(structuralClosed, false, "no conversion registers a shape after publication");
+      assert.equal(subject === expression && from === source && to === target, true, "only the exact consumed correspondence is registered");
+      registrations++;
+      return false;
+    } };
+  const analysis = analyzeCsharpConversions(policy, {}, shapes);
+  const prepared = analysis.prepare({ operations: { selectedCall: none, selectedConstruction: none },
+    expectedTypes: {}, valueReads: {} });
+  assert.throws(() => analysis.seal(), /closed preparation/u, "final publication cannot compute or close preparation itself");
+  const site = csharpNativeUseSite(expression, { kind: "return" });
+  const use = Object.freeze({ kind: "converted", expression, carrier: source, target, mode: "implicit",
+    input: Object.freeze({ kind: "value", type: source }), completion: Object.freeze({ kind: "value", type: target }),
+    children: Object.freeze([]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
+  analysis.close({ entries: Object.freeze([Object.freeze({ site, use })]) }, []);
+  assert.equal(registrations, 1, "the one actual expression key is completed once");
+  structuralClosed = true;
+  const sealed = analysis.seal();
+  assert.equal(analysis.seal() === sealed, true, "publication is one pure completed-index lookup");
+  assert.equal(prepared.expressionConversion.get(expression, source, target, "implicit") ===
+    sealed.expressionConversion.get(expression, source, target, "implicit"), true, "prepared and published views read the same admitted selection");
+  assert.equal(prepared.expressionConversion.get(other, source, target, "implicit") === undefined, true,
+    "an absent expression cannot fall back to a pair or classify late");
+  assert.equal(prepared.expressionConversion.get(expression, target, source, "explicit") === undefined, true,
+    "a different pair or mode cannot compute through the prepared view");
+  assert.equal(prepared.conversion.get(target, boolean, "implicit") === undefined, true, "no speculative cross-product pair exists");
+  assert.equal(registrations, 1, "no lookup or final seal touches the closed structural registry");
+  assert.equal(Object.isFrozen(prepared.exactLiteralRequests) && Object.isFrozen(prepared.issues) && Object.isFrozen(sealed), true,
+    "closed preparation and publication expose immutable data");
+  assert.throws(() => analysis.close({ entries: [] }, []), /exactly once/u, "a closed preparation cannot be reopened");
 });
 
 function owners(sourceText, surface) {

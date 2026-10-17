@@ -393,8 +393,10 @@ export function analyzeCsharpTargetProgram(
     return failTargetAnalysisInvariant("tsonic-csharp",
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
   }
-  const conversions = analysis.conversionAnalysis.seal(nativeDemand, analysis.requiredRecords);
+  analysis.conversionAnalysis.close(nativeDemand, analysis.requiredRecords);
+  const conversions = analysis.conversionAnalysis.seal();
   if (conversions.issues.length > 0) return rejectCsharpAnalysisIssues(conversions.issues);
+  const objectShapes = analysis.objectShapes.seal();
   const typeDefinitions = analysis.typeDefinitions.seal();
   const records = createCsharpProgramRecords({
     nativeValueCarriers,
@@ -431,7 +433,7 @@ export function analyzeCsharpTargetProgram(
       source.ast,
       sourceStorage.nodes,
     ),
-    objectShapes: analysis.objectShapes,
+    objectShapes,
     names: names.seal(),
     sourceModuleConstructions: Object.freeze({
       entries: sourceModuleConstructions.index.entries,
@@ -561,10 +563,9 @@ function analyzeIteration(
     expectedTypes,
     valueReads,
   });
-  const sealedObjectShapes = objectShapes.seal();
   const storage = sealCsharpStorage(policy,
     Object.freeze({ ...sourceEvidence, inspectClosedArrayStorage: evidence.inspectClosedArrayStorage }),
-    operations, sealedObjectShapes, storageRepresentations);
+    operations, objectShapes, storageRepresentations);
   return resolvedTargetStage(Object.freeze({
     policy,
     typeDefinitions,
@@ -573,7 +574,7 @@ function analyzeIteration(
     sourceEvidence,
     operations,
     declarations,
-    objectShapes: sealedObjectShapes,
+    objectShapes,
     callables,
     expectedTypes,
     conversions,

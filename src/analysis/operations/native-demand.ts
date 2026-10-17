@@ -1,15 +1,18 @@
 import type { Node } from "@tsonic/tsts";
 import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { sourceExpressionResultDisposition, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { selectCsharpNativeConstructSteps } from "../../policy/operations/control-flow/native-constructs.js";
 import { selectCsharpNativeOperandUses, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "../../policy/operations/control-flow/native-operands.js";
 import { selectCsharpNativeCompletion, type CsharpNativeCompletionFlow } from "../../policy/operations/control-flow/native-completion.js";
 import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeChildUse, type CsharpNativeCompletion,
-  type CsharpNativeEvaluation, type CsharpNativeOrderStep, type CsharpNativeUse } from "../../target-model/records/native-demand.js";
+  type CsharpNativeEvaluation, type CsharpNativeOrderStep, type CsharpNativeUse, type CsharpNativeDiscardedPresence } from "../../target-model/records/native-demand.js";
 import { csharpConstructorBaseCall } from "../callables/constructor-entry.js";
 import { isCsharpUnusedTupleDefault } from "../control-flow/binding-patterns.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { isCsharpRecordDictionaryTargetType } from "../../target-model/types/carriers/collections.js";
+import { csharpVoidTargetType } from "../../target-model/types/carriers/scalar-types.js";
+import { csharpCarrierAdmitsSourceAbsence, isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpNativePropertyKey } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpNativeDemandAnalysis, CsharpNativeDemandAnalysisInput, CsharpNativeUnadmittedReason } from "./native-demand-model.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
@@ -18,6 +21,7 @@ interface VisitedUse {
   readonly site: TargetUseSiteRef;
   readonly expression: Node;
   readonly completion: CsharpNativeCompletion | undefined;
+  readonly discardedPresence?: CsharpNativeDiscardedPresence;
 }
 
 interface UseState {
@@ -60,6 +64,7 @@ export function analyzeCsharpNativeDemand(
   const orders = new Map<Node, readonly CsharpNativeOrderStep[]>();
   const constructs = new Set<Node>();
   const requiredBindingRoots = new Set<Node>();
+  const erasedExpressions = new WeakMap<Node, "discarded-callable" | "erased-statement" | false>();
   const slots = new Map<object, Map<string, ExpectedSlot>>();
   const slot = (site: TargetUseSiteRef): ExpectedSlot => {
     let owner = slots.get(site.subject);
@@ -104,7 +109,9 @@ export function analyzeCsharpNativeDemand(
       }
       emissions.set(use.expression, entry);
     }
-    return Object.freeze({ site, expression: use.expression, completion: use.kind === "erased" ? undefined : use.completion });
+    return Object.freeze({ site, expression: use.expression, completion: use.kind === "erased" ? Object.freeze({ kind: "void" as const }) : use.completion,
+      ...(use.kind === "erased" ? { discardedPresence: constantPresence(use.cause === "discarded-callable", []) }
+        : use.discardedPresence === undefined ? {} : { discardedPresence: use.discardedPresence }) });
   }
 
   function pending(site: TargetUseSiteRef, expression: Node, reason: CsharpNativeUnadmittedReason, message?: string, code?: string): VisitedUse {
@@ -144,6 +151,13 @@ export function analyzeCsharpNativeDemand(
   function visitUse(child: CsharpNativeChildUse, exact?: TargetUseSiteRef): VisitedUse {
     let site = exact ?? csharpNativeUseSite(child.owner, child.slot, child.context);
     const expression = child.expression;
+    const erased = erasedExpression(expression);
+    if (erased !== false) {
+      const existing = published.get(site.subject)?.get(targetUseSiteIdentity(site));
+      return existing === undefined ? publish(site, { kind: "erased", expression, cause: erased })
+        : Object.freeze({ site, expression, completion: Object.freeze({ kind: "void" as const }),
+          discardedPresence: constantPresence(existing.kind === "erased" && existing.cause === "discarded-callable", []) });
+    }
     if (exact === undefined) {
       const candidates = slots.get(site.subject)?.get(site.role);
       const matching = candidates?.expressions.get(expression) ?? [];
@@ -182,9 +196,6 @@ export function analyzeCsharpNativeDemand(
 
   function evaluate(child: CsharpNativeChildUse, site: TargetUseSiteRef): VisitedUse {
     const expression = child.expression;
-    if (input.evidence.compileTimeMetadata.get(expression) || input.participation.get(expression) === "erased") {
-      return publish(site, { kind: "erased", expression, cause: "discarded-callable" });
-    }
     const expected = input.expected.expectedUse.get(site);
     const withheld = exactPending.get(site.subject)?.get(targetUseSiteIdentity(site));
     if (withheld !== undefined) return pending(site, expression, "expected-use-pending", withheld.message);
@@ -224,19 +235,18 @@ export function analyzeCsharpNativeDemand(
       visitStep(step, steps, visited);
     }
     if (!orders.has(expression)) orders.set(expression, Object.freeze(steps));
-    if (selected.flow === "sequence" && runtime.length === 1 &&
-      (ast.is.IsParenthesizedExpression(expression) || ast.is.IsSatisfiesExpression(expression)) &&
-      published.get(runtime[0]!.visited.site.subject)?.get(targetUseSiteIdentity(runtime[0]!.visited.site))?.kind === "erased") {
-      return publish(site, { kind: "erased", expression, cause: "discarded-callable" });
-    }
     if (selected.refusal !== undefined) return pending(site, expression, selected.refusal, selected.refusalMessage, selected.refusalCode);
     if (expected === undefined && child.context?.target !== undefined &&
       (selected.carrier === undefined || !targetTypeRefEquals(child.context.target, selected.carrier))) return pending(site, expression, "expected-use-pending");
-    const physical = expected?.carrier ?? selected.carrier;
-    const flow = completionFlow(selected, runtime);
-    if (flow === undefined || physical === undefined) return pending(site, expression, "completion-unresolved");
-    const inputCompletion = selectCsharpNativeCompletion(physical, flow);
+    const discarded = runtime.some(entry => entry.visited.completion?.kind === "void") &&
+      sourceExpressionResultDisposition(ast, expression).kind === "discarded";
+    const flow = completionFlow(selected, runtime, discarded);
+    if (flow === undefined) return pending(site, expression, "completion-unresolved");
+    const selectedCarrier = expected?.carrier ?? selected.carrier;
+    const inputCompletion = selectCsharpNativeCompletion(selectedCarrier, flow);
     if (inputCompletion === undefined) return pending(site, expression, "completion-unresolved");
+    const physical = inputCompletion.kind === "void" && discarded ? csharpVoidTargetType() : selectedCarrier;
+    if (physical === undefined) return pending(site, expression, "completion-unresolved");
     let propertyKeys: readonly CsharpNativePropertyKey[] | undefined;
     if (ast.is.IsObjectLiteralExpression(expression) && isCsharpRecordDictionaryTargetType(physical) && inputCompletion.kind !== "never") {
       const bindings = input.propertyKeyBindings(expression, physical);
@@ -255,9 +265,11 @@ export function analyzeCsharpNativeDemand(
     }
     const evaluation = evaluationOf(selected, runtime);
     if (evaluation === undefined) return pending(site, expression, "completion-unresolved");
+    const discardedPresence = !discarded || inputCompletion.kind !== "void" ? undefined
+      : selectDiscardedPresence(expression, selected, runtime);
     const projections: TargetUseSiteRef[] = [];
     const operation = expected?.binary ?? input.operations.binaryOperation.get(expression)?.target;
-    if (operation?.kind === "resolved" && operation.targetOperation.kind === "conditional-value" &&
+    if (inputCompletion.kind === "value" && operation?.kind === "resolved" && operation.targetOperation.kind === "conditional-value" &&
       operation.targetOperation.branch !== "right" && runtime[0]?.visited.completion?.kind === "value") {
       const references = expected === undefined
         ? slots.get(expression)?.get("present-payload")?.expressions.get(operation.left)?.map(entry => entry.site) ?? []
@@ -290,11 +302,14 @@ export function analyzeCsharpNativeDemand(
         objectShape, defaultValue, propertyKeys, completion });
     }
     const common = { expression, carrier: physical, children, evaluation, completion: inputCompletion,
+      ...(discardedPresence === undefined ? {} : { discardedPresence }),
+      ...(expected?.exactInteger === true ? { exactInteger: true as const } : {}),
       ...(expected?.literal === undefined ? {} : { literal: expected.literal }),
       ...(expected?.binary === undefined ? {} : { binary: expected.binary }),
       ...(objectShape === undefined ? {} : { objectShape }),
       ...(propertyKeys === undefined ? {} : { propertyKeys }),
       ...(defaultValue === undefined ? {} : { defaultValue }) };
+    if (inputCompletion.kind === "void" && discarded) return publish(site, { ...common, kind: "effect" });
     if (expected?.representation === "convert") {
       const completion = selectCsharpNativeCompletion(expected.target, { kind: "sequence", children: [{ completion: inputCompletion }] });
       return completion === undefined ? pending(site, expression, "completion-unresolved")
@@ -305,6 +320,76 @@ export function analyzeCsharpNativeDemand(
     return child.slot.kind === "effect" ? publish(site, { ...common, kind: "effect" })
       : publish(site, { ...common, kind: "value", handler: input.operations.nativeHandler.get(expression) });
   }
+
+  function erasedExpression(expression: Node): "discarded-callable" | "erased-statement" | false {
+    const cached = erasedExpressions.get(expression);
+    if (cached !== undefined) return cached;
+    const operand = sourceTransparentExpressionOperand(ast, expression);
+    const erased = input.evidence.compileTimeMetadata.get(expression) ? "erased-statement" : input.participation.get(expression) === "erased"
+      ? "discarded-callable" : operand === undefined ? false : erasedExpression(operand);
+    erasedExpressions.set(expression, erased);
+    return erased;
+  }
+
+  function selectDiscardedPresence(expression: Node, selected: CsharpNativeOperandSelection,
+    runtime: readonly NativeRuntimeChild[]): CsharpNativeDiscardedPresence | undefined {
+    if (selected.flow === "conditional" && runtime.length === 3) return Object.freeze({ kind: "conditional",
+      condition: runtime[0]!.visited.site, whenTrue: presenceOf(runtime[1]!.visited), whenFalse: presenceOf(runtime[2]!.visited) });
+    if (selected.flow === "short-circuit" && runtime.length === 2) {
+      const guard = selected.discardedGuard;
+      if (guard === undefined) return failTargetAnalysisInvariant("tsonic-csharp", "Discarded short-circuit presence requires its selected guard.", expression);
+      const left = presenceOf(runtime[0]!.visited);
+      const right = presenceOf(runtime[1]!.visited);
+      return guard.kind === "coalescing" ? Object.freeze({ kind: "coalescing", left, right })
+        : Object.freeze({ kind: "short-circuit", guard, left: runtime[0]!.visited.site, leftPresence: left, right });
+    }
+    const operation = input.operations.binaryOperation.get(expression)?.target;
+    if (sourceTransparentExpressionOperand(ast, expression) !== undefined || operation?.kind === "resolved" &&
+      (operation.targetOperation.kind === "sequence" || operation.targetOperation.kind === "conditional-value")) {
+      const last = runtime[runtime.length - 1];
+      if (last !== undefined) return Object.freeze({ kind: "sequence",
+        effects: Object.freeze(runtime.slice(0, -1).map(entry => entry.visited.site)), result: presenceOf(last.visited) });
+    }
+    return undefined;
+  }
+
+  function presenceOf(use: VisitedUse): CsharpNativeDiscardedPresence {
+    if (use.discardedPresence !== undefined) {
+      const known = knownPresence(use.discardedPresence);
+      return known === undefined ? use.discardedPresence : constantPresence(known, [use.site]);
+    }
+    const completion = use.completion;
+    if (completion === undefined) return failTargetAnalysisInvariant("tsonic-csharp", "Discarded presence requires a completed admitted child.", use.expression);
+    if (completion.kind === "never") return Object.freeze({ kind: "never", site: use.site });
+    if (completion.kind === "void" || isCsharpAbsenceTargetType(completion.type)) return constantPresence(false, [use.site]);
+    return csharpCarrierAdmitsSourceAbsence(completion.type) ? Object.freeze({ kind: "value", site: use.site })
+      : constantPresence(true, [use.site]);
+  }
+}
+
+function constantPresence(present: boolean, effects: readonly TargetUseSiteRef[]): CsharpNativeDiscardedPresence {
+  return Object.freeze({ kind: "constant", present, effects: Object.freeze([...effects]) });
+}
+
+function knownPresence(value: CsharpNativeDiscardedPresence): boolean | undefined {
+  switch (value.kind) {
+    case "constant": return value.present;
+    case "value": case "never": return undefined;
+    case "sequence": return knownPresence(value.result);
+    case "conditional": {
+      const present = knownPresence(value.whenTrue);
+      return present !== undefined && present === knownPresence(value.whenFalse) ? present : undefined;
+    }
+    case "coalescing": {
+      const left = knownPresence(value.left);
+      return left === true ? true : left === false ? knownPresence(value.right)
+        : knownPresence(value.right) === true ? true : undefined;
+    }
+    case "short-circuit": {
+      const left = knownPresence(value.leftPresence);
+      return left !== undefined && left === knownPresence(value.right) ? left : undefined;
+    }
+  }
 }
 
 interface NativeRuntimeChild {
@@ -312,12 +397,13 @@ interface NativeRuntimeChild {
   readonly visited: VisitedUse;
 }
 
-function completionFlow(selected: CsharpNativeOperandSelection, runtime: readonly NativeRuntimeChild[]): CsharpNativeCompletionFlow | undefined {
+function completionFlow(selected: CsharpNativeOperandSelection, runtime: readonly NativeRuntimeChild[], discarded: boolean): CsharpNativeCompletionFlow | undefined {
+  const effect = discarded ? { discarded: true as const } : {};
   if (selected.flow === "creation") return { kind: "creation" };
-  if (selected.flow === "conditional") return { kind: "conditional", condition: runtime[0]?.visited.completion,
+  if (selected.flow === "conditional") return { ...effect, kind: "conditional", condition: runtime[0]?.visited.completion,
     whenTrue: runtime[1]?.visited.completion, whenFalse: runtime[2]?.visited.completion };
-  if (selected.flow === "short-circuit") return { kind: "short-circuit", left: runtime[0]?.visited.completion, right: runtime[1]?.visited.completion };
-  return { kind: "sequence", children: runtime.map(entry => ({ completion: entry.visited.completion, guarded: entry.child.guard !== undefined })) };
+  if (selected.flow === "short-circuit") return { ...effect, kind: "short-circuit", left: runtime[0]?.visited.completion, right: runtime[1]?.visited.completion };
+  return { ...effect, kind: "sequence", children: runtime.map(entry => ({ completion: entry.visited.completion, guarded: entry.child.guard !== undefined })) };
 }
 
 function evaluationOf(selected: CsharpNativeOperandSelection, runtime: readonly NativeRuntimeChild[]): CsharpNativeEvaluation | undefined {

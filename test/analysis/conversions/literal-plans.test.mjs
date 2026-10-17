@@ -510,7 +510,8 @@ function sealedProviderCallConversions(fixture) {
       exactIntegerConversion: Object.freeze({ get: () => false }) },
     valueReads: { valueRead: Object.freeze({ get: node => node === literal ? { source: read } : undefined }) },
   });
-  const conversions = analysis.seal({ entries: Object.freeze([]) }, []);
+  analysis.close({ entries: Object.freeze([]) }, []);
+  const conversions = analysis.seal();
   assert.equal(conversions.issues.length, 0, "conversion analysis seals without issues");
   return { analysis, conversions, prepared };
 }

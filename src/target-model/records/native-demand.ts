@@ -8,6 +8,7 @@ import type { CsharpNativeHandler } from "./native-handlers.js";
 import type { CsharpExactLiteralRecipe, CsharpNativePropertyKey } from "../conversions/exact-literals.js";
 import type { CsharpResolvedBinaryOperation } from "./operator-selection.js";
 import type { CsharpDefaultValueContract } from "./value-projections.js";
+import type { CsharpJsValueInvocation } from "../operations/js-values.js";
 
 export type CsharpNativeUseSlot =
   | { readonly kind: "effect" | "initializer" | "return" | "thrown" | "condition" | "receiver" | "callee" | "key" |
@@ -116,6 +117,22 @@ export type CsharpNativeEvaluation =
   | { readonly kind: "short-circuit"; readonly left: TargetUseSiteRef; readonly right: TargetUseSiteRef }
   | { readonly kind: "creation" };
 
+export type CsharpNativeDiscardedGuard =
+  | { readonly kind: "coalescing" }
+  | { readonly kind: "boolean"; readonly whenTrue: "left" | "right" }
+  | { readonly kind: "js-value"; readonly condition: CsharpJsValueInvocation; readonly whenTrue: "left" | "right" };
+
+export type CsharpNativeDiscardedPresence =
+  | { readonly kind: "constant"; readonly present: boolean; readonly effects: readonly TargetUseSiteRef[] }
+  | { readonly kind: "value" | "never"; readonly site: TargetUseSiteRef }
+  | { readonly kind: "sequence"; readonly effects: readonly TargetUseSiteRef[]; readonly result: CsharpNativeDiscardedPresence }
+  | { readonly kind: "conditional"; readonly condition: TargetUseSiteRef;
+      readonly whenTrue: CsharpNativeDiscardedPresence; readonly whenFalse: CsharpNativeDiscardedPresence }
+  | { readonly kind: "coalescing"; readonly left: CsharpNativeDiscardedPresence; readonly right: CsharpNativeDiscardedPresence }
+  | { readonly kind: "short-circuit"; readonly left: TargetUseSiteRef;
+      readonly guard: Exclude<CsharpNativeDiscardedGuard, { readonly kind: "coalescing" }>;
+      readonly leftPresence: CsharpNativeDiscardedPresence; readonly right: CsharpNativeDiscardedPresence };
+
 interface CsharpNativeEvaluatedUse {
   readonly expression: Node;
   readonly carrier: TargetTypeRef;
@@ -127,6 +144,8 @@ interface CsharpNativeEvaluatedUse {
   readonly binary?: CsharpResolvedBinaryOperation;
   readonly objectShape?: CsharpObjectShapeFact;
   readonly defaultValue?: CsharpDefaultValueContract;
+  readonly exactInteger?: true;
+  readonly discardedPresence?: CsharpNativeDiscardedPresence;
 }
 
 export type CsharpNativeUse =

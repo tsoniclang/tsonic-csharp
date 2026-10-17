@@ -14,6 +14,7 @@ export function sealCsharpConversionUses(
   demand: CsharpNativeDemandAnalysis,
   operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
   classify: (expression: Node, source: TargetTypeRef, target: TargetTypeRef, mode: CsharpConversionMode,
+    exactInteger: boolean,
     boundary?: { readonly selection: CsharpConversionSelection; readonly identityRequired: boolean }) =>
     { readonly key: string; readonly classification: CsharpExpressionConversionClassification } | undefined,
   classifyValue: (expression: Node, source: TargetTypeRef, target: TargetTypeRef) => CsharpConversionSelection | undefined,
@@ -43,7 +44,7 @@ export function sealCsharpConversionUses(
     const source = use.kind === "converted" && use.input.kind === "value" ? use.input.type : use.carrier;
     const target = use.kind === "converted" ? use.target : use.carrier;
     const mode = use.kind === "converted" ? use.mode : "implicit";
-    admit(use.expression, source, target, mode);
+    admit(use.expression, source, target, mode, undefined, use.exactInteger === true);
   }
   return Object.freeze({ expressions, issues: Object.freeze(issues) });
 
@@ -94,8 +95,8 @@ export function sealCsharpConversionUses(
   }
 
   function admit(expression: Node, source: TargetTypeRef, target: TargetTypeRef, mode: CsharpConversionMode,
-    boundary?: { readonly selection: CsharpConversionSelection; readonly identityRequired: boolean }): void {
-    const admitted = classify(expression, source, target, mode, boundary);
+    boundary?: { readonly selection: CsharpConversionSelection; readonly identityRequired: boolean }, exactInteger = false): void {
+    const admitted = classify(expression, source, target, mode, exactInteger, boundary);
     if (admitted === undefined) {
       if (preparationIssues.some(issue => issue.code === "CSHARP_CONVERSION_CLASSIFICATION_LIMIT_EXCEEDED")) return;
       return failTargetAnalysisInvariant("tsonic-csharp", "A consumed native expression requires one exact completed conversion classification.", expression);

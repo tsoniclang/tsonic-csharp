@@ -27,7 +27,7 @@ export function planVoidExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-  expectedTargetType?: TargetTypeRef,
+  target: TargetTypeRef,
 ): CsharpPlannedValue | undefined {
   if (!input.program.source.ast.is.IsVoidExpression(node)) {
     return undefined;
@@ -46,9 +46,8 @@ export function planVoidExpression(
     return undefined;
   }
   const operandType = operand === undefined ? undefined : input.types.classifications.resolveNode(operand, sourceFile);
-  const target = expectedTargetType ?? input.types.classifications.resolveNode(node, sourceFile);
-  const resultType = target === undefined ? undefined : csharpTypeFromTargetTypeRef(target, input.scope.typeParameterNames);
-  if (operand === undefined || operandType === undefined || target === undefined || resultType === undefined) {
+  const resultType = csharpTypeFromTargetTypeRef(target, input.scope.typeParameterNames);
+  if (operand === undefined || operandType === undefined || resultType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
       "C# void translation requires exact sealed operand and result carriers.",

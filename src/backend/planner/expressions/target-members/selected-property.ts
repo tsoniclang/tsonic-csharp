@@ -29,6 +29,7 @@ import { csharpRecordOptionalRead } from "../../objects/indexed-records.js";
 import { planCsharpUnionProperty } from "../union-properties.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { planCsharpExpressionCompletion, projectCsharpPlannedValue } from "../planned-value-composition.js";
+import { readCsharpNativeExpressionCarrier } from "../native-uses.js";
 import { translateCsharpSourceOwnedMember } from "./source-owned-members.js";
 import { planCsharpReceiverCallProperty } from "./receiver-call-property.js";
 
@@ -184,7 +185,7 @@ function translateSelectedProperty(
   if (selection.receiver.kind === "none") {
     const receiver = targetStaticReceiver(input.scope.typeParameterNames, member, node, diagnostics);
     return receiver === undefined ? undefined : planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
-      { kind: "SimpleMemberAccessExpression", receiver, name: member.targetName });
+      { kind: "SimpleMemberAccessExpression", receiver, name: member.targetName }, readCsharpNativeExpressionCarrier(input, node));
   }
   const receiver = translateCsharpSelectedReceiver(
         selection.source.receiver,

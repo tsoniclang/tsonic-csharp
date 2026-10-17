@@ -15,6 +15,7 @@ import {
 } from "./expression-literal-carriers.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { composeCsharpPlannedValues, planCsharpExpressionCompletion } from "./planned-value-composition.js";
+import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 
 export function planTemplateExpression(
   node: Node,
@@ -46,5 +47,6 @@ export function planTemplateExpression(
   }
   return composeCsharpPlannedValues(node, sourceFile, input, diagnostics, operands, expressions =>
     planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "InterpolatedStringExpression",
-      parts: parts.map(part => typeof part === "number" ? { kind: "Interpolation", expression: expressions[part]! } : part) }));
+      parts: parts.map(part => typeof part === "number" ? { kind: "Interpolation", expression: expressions[part]! } : part) },
+      readCsharpNativeExpressionCarrier(input, node)));
 }

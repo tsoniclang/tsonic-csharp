@@ -53,6 +53,7 @@ import {
 import { planCsharpAwaitCompletion } from "./await-completions.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
+import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 
 export function tryPlanSourceSyntaxExpression(
   node: Node,
@@ -61,7 +62,8 @@ export function tryPlanSourceSyntaxExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpPlannedValue | undefined {
-  const value = (expression: CsharpExpression | undefined) => planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression);
+  const value = (expression: CsharpExpression | undefined) => planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression,
+    readCsharpNativeExpressionCarrier(input, node));
   switch (SourceKind(input.program.source.ast, node)) {
     case KindStringLiteral:
       return value({ kind: "LiteralExpression", value: Node_Text(input.program.source.ast, AsStringLiteral(input.program.source.ast, node)) });

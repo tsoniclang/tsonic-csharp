@@ -27,7 +27,7 @@ import type {
   CsharpExpectedUseSiteDemand,
 } from "./model.js";
 
-export type CsharpExpectedBinarySelection = ReturnType<typeof selectCsharpBinaryOperation>;
+export type CsharpExpectedBinarySelection = ReturnType<typeof selectCsharpBinaryOperation> | undefined;
 
 export interface CsharpExpectedTypePropagation {
   readonly propagate: (pending: CsharpExpectedTypePending) => void;

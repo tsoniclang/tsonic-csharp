@@ -21,6 +21,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { planCsharpNativeMemoryCall } from "./native-memory.js";
 import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue, planCsharpExpressionCompletion, projectCsharpPlannedValue } from "./planned-value-composition.js";
+import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 import type { CsharpNativeHandler } from "../../../target-model/records/native-handlers.js";
 
 export function planCsharpNativePointerOperation(node: Node, selection: Extract<CsharpNativeHandler, { readonly kind: "native-pointer" }>["selection"], sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state: DestructuringPlannerState | undefined
@@ -67,7 +68,8 @@ export function planCsharpNativePointerOperation(node: Node, selection: Extract<
     }, selection.resultType);
   }
   if (selection.kind === "layout-query") {
-    return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "NumericLiteralExpression", value: selection.value });
+    return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "NumericLiteralExpression", value: selection.value },
+      readCsharpNativeExpressionCarrier(input, node));
   }
   if (selection.kind === "raw-identity") {
     const receiver = csharpTypeFromTargetTypeRef(selection.carrier, input.scope.typeParameterNames);

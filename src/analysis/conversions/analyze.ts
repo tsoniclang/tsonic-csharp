@@ -1,5 +1,4 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { Node_Initializer } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import {
   selectCsharpConversion,
@@ -11,13 +10,7 @@ import type {
 } from "../../policy/conversions/index.js";
 import {
   csharpAbsenceTargetType,
-  csharpNullableTargetType,
   csharpTsValueTargetType,
-  getCsharpNullableElementTargetType,
-  isCsharpJsValueTargetType,
-  isCsharpJsValueObjectShapeTargetType,
-  isCsharpRecordDictionaryTargetType,
-  projectCsharpJsValueObjectLiteralShape,
   getCsharpGeneratorProtocol,
   getCsharpJsArrayElementTargetType,
   getCsharpArrayLiteralElementTargetType,
@@ -26,7 +19,6 @@ import {
   isSourceOwnedProjectReference,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
-import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import {
   directCsharpSourceYieldExpression,
 } from "../../target-model/syntax/yield-expression.js";
@@ -126,11 +118,11 @@ export function analyzeCsharpConversions(
       preparedClassifications = Object.freeze({ ...classifications, exactLiteralRequests: Object.freeze([...literalRequests.requests]) });
       return preparedClassifications;
     },
-    seal(nativeDemand, requiredRecords) {
-      if (sealedClassifications !== undefined) return sealedClassifications;
+    close(nativeDemand, requiredRecords) {
+      if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "Native conversion preparation closes exactly once.");
       if (preparedClassifications === undefined || preparedOperations === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Native conversion uses require completed preparation.");
-      const admitted = sealCsharpConversionUses(nativeDemand, preparedOperations, (expression, source, target, mode, boundary) => {
-        const selected = boundary === undefined ? classifyExpression(expression, source, target, mode) : boundary.selection;
+      const admitted = sealCsharpConversionUses(nativeDemand, preparedOperations, (expression, source, target, mode, exactInteger, boundary) => {
+        const selected = boundary === undefined ? classifyExpression(expression, source, target, mode, exactInteger) : boundary.selection;
         if (selected === undefined) return undefined;
         if (boundary === undefined) classifyPair(source, target, mode, expression);
         const key = pairKey(source, target, mode);
@@ -146,6 +138,7 @@ export function analyzeCsharpConversions(
       issues.push(...admitted.issues);
       delegateAdapters = sealCsharpDelegateAdapterIdentities(policy, admitted.expressions, issues);
       closed = true;
+      Object.freeze(issues);
       const sealedIssues = Object.freeze([...issues]);
       const sealed: CsharpConversionClassifications = {
         issues: sealedIssues,
@@ -169,7 +162,9 @@ export function analyzeCsharpConversions(
         } }),
       };
       sealedClassifications = Object.freeze(sealed);
-      return sealedClassifications;
+    },
+    seal() {
+      return sealedClassifications ?? failTargetAnalysisInvariant("tsonic-csharp", "Native conversion publication requires its closed preparation.");
     },
   };
   return Object.freeze(analysis);
@@ -184,61 +179,15 @@ export function analyzeCsharpConversions(
     if (evidence.compileTimeMetadata.get(node)) return;
     if (operations.nativeUnreachable.get(node)) return;
     const sourceTypes = exactSourceTypes(node, valueReads, expectedTypes.callableTarget.get(node));
-    const sourceType = sourceTypes[0];
     literalRequests.requestReads(node, sourceTypes, expectedTypes.expectedType.get(node), operations);
     const borrowedSequence = operations.borrowedSequence.get(node);
     if (borrowedSequence !== undefined) {
       const element = getCsharpCollectionElementTargetType(borrowedSequence.sourceCarrier);
       if (element !== undefined) classifyBorrowedSequencePairs(borrowedSequence, element);
     }
-    for (const candidate of sourceTypes) {
-      classifyPair(candidate, candidate, "implicit", node);
-      const element = getCsharpGenericOptionalParts(candidate)?.element ?? getCsharpNullableElementTargetType(candidate);
-      if (element !== undefined) classifyPair(element, candidate, "implicit", node);
-      const parent = policy.ast.parent(node);
-      if (candidate.kind === "type-parameter" && getCsharpGenericOptionalParts(candidate) === undefined &&
-        parent !== undefined && policy.ast.is.IsBindingElement(parent) && Node_Initializer(policy.ast, parent) === node) {
-        classifyPair(candidate, csharpNullableTargetType(candidate), "implicit", node);
-      }
-    }
     for (const targetType of expectedTypes.expectedType.get(node)) {
-      if (!policy.ast.is.IsObjectLiteralExpression(node)) {
-        for (const candidate of sourceTypes) {
-          classifyExpression(node, candidate, targetType, "implicit", expectedTypes.exactIntegerConversion.get(node, targetType));
-        }
-      }
-      classifyArrayCarrier(node, targetType, expectedTypes, operations, valueReads);
-      if (policy.ast.is.IsObjectLiteralExpression(node)) {
-        const unionCarrier = objectShapes.resolveObjectLiteralUnionCarrier(node, targetType);
-        const constructionTarget = unionCarrier ?? getCsharpNullableElementTargetType(targetType) ?? targetType;
-        const dictionary = isCsharpRecordDictionaryTargetType(constructionTarget) ? constructionTarget
-          : sourceTypes.find(isCsharpRecordDictionaryTargetType);
-        if (dictionary !== undefined) {
-          classifyExpression(node, dictionary, targetType, "implicit");
-        } else {
-          const shape = objectShapes.resolveTarget(constructionTarget) ?? objectShapes.resolveNode(node);
-          const construction = objectShapes.resolveObjectLiteralTargetShape(shape, node, sourceFile);
-          if (construction?.kind === "resolved") {
-            const projection = isCsharpJsValueTargetType(targetType) &&
-              !isCsharpJsValueObjectShapeTargetType(construction.shape.targetType)
-              ? projectCsharpJsValueObjectLiteralShape(construction.shape) : undefined;
-            const constructed = projection?.kind === "resolved" ? projection.shape.targetType
-              : construction.shape.targetType;
-            classifyExpression(node, constructed, targetType, "implicit");
-          }
-        }
-        classifyPair(unionCarrier, targetType, "implicit", node);
-      }
+      classifyArraySpreadElements(node, targetType, operations, valueReads);
     }
-    if (
-      sourceType !== undefined &&
-      expressionMayHaveSpecificConversion(node, sourceFile)
-    ) {
-      for (const candidate of sourceTypes) {
-        classifyExpression(node, candidate, candidate, "implicit");
-      }
-    }
-    classifyAssertion(node, valueReads);
     classifyUndefinedInitializer(node);
     classifyYieldResume(node);
     classifyCallUses(node, operations);
@@ -251,41 +200,6 @@ export function analyzeCsharpConversions(
         }
       },
     );
-  }
-
-  function classifyAssertion(
-    node: Node,
-    valueReads: CsharpValueReadClassifications,
-  ): void {
-    if (policy.ast.is.IsNonNullExpression(node)) {
-      const expression = policy.ast.as.AsNonNullExpression(node)?.Expression;
-      const targetType = valueReads.valueRead.get(node)?.assertedValue;
-      if (expression !== undefined) {
-        for (const sourceType of exactSourceTypes(expression, valueReads)) {
-          classifyExpression(expression, sourceType, targetType, "explicit");
-        }
-      }
-      return;
-    }
-    if (
-      !policy.ast.is.IsAsExpression(node) &&
-      !policy.ast.is.IsTypeAssertion(node)
-    ) {
-      return;
-    }
-    const assertion = policy.ast.is.IsAsExpression(node)
-      ? policy.ast.as.AsAsExpression(node)
-      : policy.ast.as.AsTypeAssertion(node);
-    const expression = assertion?.Expression;
-    const targetNode = assertion?.Type;
-    if (expression === undefined || targetNode === undefined) {
-      return;
-    }
-    const targetType = evidence.nodeTargetType.get(targetNode);
-    for (const sourceType of exactSourceTypes(expression, valueReads)) {
-      classifyExpression(expression, sourceType, targetType, "explicit");
-      classifyExpression(expression, sourceType, targetType, "implicit");
-    }
   }
 
   function exactSourceTypes(
@@ -310,22 +224,15 @@ export function analyzeCsharpConversions(
     return Object.freeze([...byIdentity.values()]);
   }
 
-  function classifyArrayCarrier(
+  function classifyArraySpreadElements(
     node: Node,
     targetType: TargetTypeRef,
-    expectedTypes: CsharpExpectedTypeClassifications,
     operations: CsharpTargetOperationClassifications,
     valueReads: CsharpValueReadClassifications,
   ): void {
     if (!policy.ast.is.IsArrayLiteralExpression(node)) {
       return;
     }
-    classifyPair(
-      expectedTypes.arrayLiteralCarrier.get(node, targetType),
-      targetType,
-      "implicit",
-      node,
-    );
     const elementTarget = getCsharpArrayLiteralElementTargetType(targetType);
     if (elementTarget === undefined) return;
     for (const contribution of policy.ast.elements(node)) {
@@ -643,6 +550,7 @@ export function analyzeCsharpConversions(
     mode: CsharpConversionMode,
     node: Node | undefined,
   ): CsharpConversionSelection | undefined {
+    if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "A closed conversion preparation cannot classify another native pair.", node);
     if (source === undefined || target === undefined) {
       return unavailableConversion;
     }
@@ -666,6 +574,7 @@ export function analyzeCsharpConversions(
     mode: CsharpConversionMode,
     exactInteger = false,
   ): CsharpConversionSelection | undefined {
+    if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "A closed conversion preparation cannot classify another native expression.", expression);
     if (source === undefined || target === undefined) {
       return unavailableConversion;
     }
@@ -723,23 +632,6 @@ export function analyzeCsharpConversions(
     }
     selections.set(key, Object.freeze({ source, target, selection: selected }));
     return selected;
-  }
-
-  function expressionMayHaveSpecificConversion(
-    node: Node,
-    sourceFile: SourceFile,
-  ): boolean {
-    return objectShapes.resolveNode(node) !== undefined ||
-      isSourceOwnedCallableRuntimeCarrierSubject(node, sourceFile, policy) ||
-      policy.ast.is.IsArrayLiteralExpression(node) ||
-      policy.ast.is.IsStringLiteral(node) ||
-      policy.ast.is.IsNoSubstitutionTemplateLiteral(node) ||
-      policy.ast.is.IsNumericLiteral(node) ||
-      policy.ast.is.IsBigIntLiteral(node) ||
-      policy.ast.is.IsPrefixUnaryExpression(node) ||
-      policy.ast.is.IsCallExpression(node) ||
-      policy.ast.kindName(node) === "KindTrueKeyword" ||
-      policy.ast.kindName(node) === "KindFalseKeyword";
   }
 
   function reserveClassification(node: Node | undefined): boolean {

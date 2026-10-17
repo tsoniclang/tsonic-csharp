@@ -4,6 +4,7 @@ import { targetUseSiteIdentity } from "@tsonic/target-api/analysis";
 import * as expressionEntry from "../../../../dist/backend/planner/expressions/index.js";
 import { createCsharpExpectedUseCollection } from "../../../../dist/analysis/expected-types/collection.js";
 import { createCsharpExpectedTypePropagation } from "../../../../dist/analysis/expected-types/propagation.js";
+import { admitCsharpExpectedBinarySelection } from "../../../../dist/analysis/expected-types/analyze.js";
 import { planCsharpNativeExpression } from "../../../../dist/backend/planner/expressions/expression-expected-types.js";
 import { selectCsharpNativeUseRepresentation } from "../../../../dist/policy/conversions/native-use-representation.js";
 import { csharpNativeUseSite } from "../../../../dist/target-model/records/native-demand.js";
@@ -40,7 +41,7 @@ function context({ baseline, eligible, contextual }) {
     { record: (node, target) => operands.push({ node, target }) }, (node, target) => {
       reads.push({ node, target });
       if (contextual === "untouched") assert.fail("the contextual selection must not be read");
-      return contextual;
+      return admitCsharpExpectedBinarySelection(target, contextual, baseline);
     });
   return { ast, reads, operands, propagation };
 }
@@ -93,7 +94,7 @@ test("a contextual selection with stored false eligibility is not admitted inste
   assert.equal(current.reads.length === 0 && current.operands.length === 0, true, "false eligibility cannot activate a contextual selection");
 });
 
-test("a selected binary result differing from the target retains its own carrier and requires an explicit conversion", () => {
+test("an eligible contextual binary result differing from the target never replaces the baseline", () => {
   const selected = selection(float64);
   const children = [
     { site: csharpNativeUseSite(binary, { kind: "operand", position: "left" }, { target: int32 }), expression: left, target: int32 },
@@ -103,8 +104,12 @@ test("a selected binary result differing from the target retains its own carrier
   propagate(current, binary, int32);
   assert.equal(current.reads.length === 1 && current.reads[0].node === binary && current.reads[0].target === int32, true,
     "the owning analysis makes exactly one contextual selection");
-  assert.equal(current.operands.length === 2 && current.operands.every(entry => entry.target === int32), true,
-    "operand demands come from the selected operation, not a fabricated target result");
+  assert.equal(current.operands.length, 0, "the absent baseline is not replaced with a mismatching contextual result");
+  const baseline = selection(int32);
+  assert.equal(admitCsharpExpectedBinarySelection(int32, selected, baseline) === baseline, true,
+    "a present baseline remains authoritative when the eligible contextual result differs");
+  assert.equal(admitCsharpExpectedBinarySelection(int32, selected, undefined) === undefined, true,
+    "a mismatching contextual result cannot invent a missing baseline");
   const represented = selectCsharpNativeUseRepresentation({ ast: current.ast, expression: binary, target: int32,
     source: float64, mode: "implicit", absent: false, literal: { kind: "not-applicable" }, binary: selected,
     callable: undefined, children: new Map(children.map(entry => [targetUseSiteIdentity(entry.site), entry])) });

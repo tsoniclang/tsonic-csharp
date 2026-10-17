@@ -139,6 +139,7 @@ export function admitCsharpExpectedNativeUses(
     if (active.length === 0) return unresolved ? { kind: "pending", reason: "forwarding-owner-unresolved" } : { kind: "inactive" };
     const request = active[0]!;
     if (request.kind === "pending") return { kind: "pending", reason: request.reason };
+    if (final.callableCreation.get(request.expression)?.kind === "discarded") return { kind: "inactive" };
     for (const other of active) {
       if (other.kind === "pending") return { kind: "pending", reason: other.reason };
       if (other.expression !== request.expression || !targetTypeRefEquals(other.targetType, request.targetType) || other.mode !== request.mode) {

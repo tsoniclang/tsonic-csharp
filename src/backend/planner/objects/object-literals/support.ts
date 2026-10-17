@@ -8,7 +8,6 @@ import type {
 } from "@tsonic/tsts";
 import {
   targetTypeRefEquals,
-  type TargetTypeRef,
 } from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
@@ -28,17 +27,14 @@ import {
 } from "../../diagnostics.js";
 import {
   getCsharpObjectShapeFactForNode,
-  getCsharpObjectShapeFactForTargetType,
 } from "../fact-queries.js";
 
 export function getExpectedObjectShapeFact(
   expectedTypeSubject: Node | undefined,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
-  expectedTargetType?: TargetTypeRef,
 ): CsharpObjectShapeFact | undefined {
-  return getCsharpObjectShapeFactForTargetType(expectedTargetType, input) ??
-    getCsharpObjectShapeFactForNode(expectedTypeSubject, sourceFile, input);
+  return getCsharpObjectShapeFactForNode(expectedTypeSubject, sourceFile, input);
 }
 
 export function findObjectShapeMember(

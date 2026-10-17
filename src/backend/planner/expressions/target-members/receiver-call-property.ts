@@ -9,6 +9,7 @@ import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { translateCsharpSelectedReceiver } from "../receivers.js";
 import { planCsharpExpressionCompletion, planCsharpOptionalReceiverValue, projectCsharpPlannedValue } from "../planned-value-composition.js";
+import { readCsharpNativeExpressionCarrier } from "../native-uses.js";
 
 export function planCsharpReceiverCallProperty(
   node: Node,
@@ -41,6 +42,6 @@ export function planCsharpReceiverCallProperty(
   });
   return selection.source.optionalChain
     ? planCsharpOptionalReceiverValue(node, sourceFile, input, diagnostics, receiver,
-        value => planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, invoke(value)))
+        value => planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, invoke(value), readCsharpNativeExpressionCarrier(input, node)))
     : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, invoke);
 }

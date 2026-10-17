@@ -43,7 +43,9 @@ function fixture({ siblings = false, nested = false, authored = false } = {}) {
 
 function planningContext(policy) {
   const analysis = analyzeCsharpConversions(policy, {}, {});
-  const conversions = analysis.seal({ operations: {}, expectedTypes: {}, valueReads: {} });
+  analysis.prepare({ operations: {}, expectedTypes: {}, valueReads: {} });
+  analysis.close({ entries: Object.freeze([]) }, []);
+  const conversions = analysis.seal();
   return { program: { source: { ast: { pos: () => 0, end: () => 5 } },
     records: { conversion: conversions.conversion },
     typeDefinitions: policy.typeDefinitions }, scope: {}, names: { temporaryName: name => name } };
