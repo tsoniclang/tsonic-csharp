@@ -1,6 +1,7 @@
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { createSourceOwnershipQuery, createSourceStorageBudget, defaultSourceStorageLimits,
+import { analyzeSourceGenericAdoption, sourceGenericAdoptionDiagnosticCode, sourceGenericAdoptionDiagnosticMessage,
+  createSourceOwnershipQuery, createSourceStorageBudget, defaultSourceStorageLimits,
   type SourceOwnershipPremises, type SourceOwnershipUnresolved, type SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { sourceExpressionResultDisposition, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { classifyCsharpSourceProfileType } from "../../policy/types/resolution/source-profile.js";
@@ -16,6 +17,7 @@ import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js"
 
 export function analyzeCsharpPromiseResults(input: {
   readonly source: TargetSourceProgram;
+  readonly projectRoot: string;
   readonly storage: SourceStorageQueries;
   readonly nodes: readonly Node[];
   readonly records: Pick<CsharpProgramRecords, "valueRead" | "selectedCall" | "selectedConstruction">;
@@ -25,9 +27,18 @@ export function analyzeCsharpPromiseResults(input: {
 }): { readonly results: CsharpPromiseResults; readonly diagnostics: readonly TargetDiagnostic[] } {
   const results = new Map<Node, CsharpPromiseResult>();
   const diagnostics: TargetDiagnostic[] = [];
-  if (input.nativePlacement.length !== 0) return Object.freeze({ results, diagnostics: input.nativePlacement });
   const budget = createSourceStorageBudget(defaultSourceStorageLimits);
   const { ast } = input.source;
+  const adoption = analyzeSourceGenericAdoption({ source: input.source, projectRoot: input.projectRoot, nodes: input.storage.nodes,
+    budget: createSourceStorageBudget(defaultSourceStorageLimits) });
+  if (adoption.kind === "unresolved") diagnostics.push(Object.freeze({ code: "CSHARP_ASYNC_RESULT_USE_NOT_PROVEN",
+    category: "error", source: "tsonic-csharp", sourceNode: adoption.at, message: adoption.reason }));
+  else for (const issue of adoption.issues) diagnostics.push(Object.freeze({ code: sourceGenericAdoptionDiagnosticCode,
+    category: "error", source: "tsonic-csharp", sourceNode: issue.site, sourceSpan: issue.sourceSpan,
+    message: sourceGenericAdoptionDiagnosticMessage,
+    evidence: issue.evidence }));
+  if (input.nativePlacement.length !== 0) return Object.freeze({ results,
+    diagnostics: Object.freeze([...input.nativePlacement, ...diagnostics]) });
   const unresolved = (at: Node, reason: string): SourceOwnershipUnresolved => Object.freeze({ kind: "unresolved", at, reason });
   const select = (carrier: TargetTypeRef, depth = 0): CsharpPromiseDiscard | undefined => {
     if (depth > 128) return undefined;
@@ -98,14 +109,14 @@ export function analyzeCsharpPromiseResults(input: {
       const declaration = call?.sourceSelectedSignatureKind === "resolved"
         ? semantics.declarations.signatureDeclaration(call.selectedSignature) : undefined;
       if (declaration !== undefined && ast.body(declaration) !== undefined) return undefined;
-      if (isCall && input.records.selectedCall.get(value.node) === undefined &&
-        input.records.selectedConstruction.get(value.node) === undefined) return undefined;
+      if (isCall && call?.sourceSelectedSignatureKind !== "resolved") return undefined;
       const checked = input.storage.typeFor(value);
       if (checked.kind === "unresolved") return unresolved(value.node, checked.reason);
       const carrier = input.sourceCarrier(checked.type, checked.sourceFile);
       if (carrier === undefined) return undefined;
       const task = select(carrier);
-      if (!isCall && task === undefined) return undefined;
+      if (isCall && task === undefined && input.records.selectedCall.get(value.node) === undefined &&
+        input.records.selectedConstruction.get(value.node) === undefined) return undefined;
       return Object.freeze({ kind: task === undefined ? "never" : "may-suspend", value,
         contractDeclaration: declaration ?? value.node, checkedType: checked.type });
     },

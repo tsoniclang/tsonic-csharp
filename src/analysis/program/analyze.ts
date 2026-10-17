@@ -400,7 +400,8 @@ export function analyzeCsharpTargetProgram(
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
   }
   if (analysis.refLikeDiagnostics.length > 0) return rejectedTargetStage(analysis.refLikeDiagnostics);
-  const promiseResults = analyzeCsharpPromiseResults({ source, storage: sourceStorage, nodes: sourceStorage.nodes,
+  const promiseResults = analyzeCsharpPromiseResults({ source, projectRoot: input.paths.projectRoot,
+    storage: sourceStorage, nodes: sourceStorage.nodes,
     records: { valueRead: analysis.valueReads.valueRead, selectedCall: analysis.operations.selectedCall,
       selectedConstruction: analysis.operations.selectedConstruction },
     definitions: analysis.typeDefinitions, nativePlacement: analysis.refLikeDiagnostics,
