@@ -4,6 +4,7 @@ import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { createSourceControlFlowDomain } from "@tsonic/target-api/analysis";
 
 const header = `import type { int32 } from "@tsonic/core/types.js";
 import { Span } from "@tsonic/dotnet/System.js";
@@ -23,10 +24,18 @@ test("missing owned binding evidence refuses instead of silently skipping livene
   const binding = nodes.find(node => source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "retained");
   assert.equal(declaration !== undefined && binding !== undefined, true, "both exact source owners exist");
   const issues = [];
-  analyzeCsharpRefLikeLiveness(source, declaration, new Set([binding]), (node, code) => issues.push({ node, code }));
+  analyzeCsharpRefLikeLiveness(source, declaration, new Set([binding]), (node, code) => issues.push({ node, code }), { kind: "source" });
   assert.equal(issues.length, 1, "one missing owner proof is retained");
   assert.equal(issues[0].node === binding, true, "the diagnostic names the unproven binding");
   assert.equal(issues[0].code, "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN", "missing graph evidence never grants permission");
+  const selected = createSourceControlFlowDomain(source, nodes);
+  assert.equal(selected.kind, "resolved", "the same checked source inventory has an explicit selected domain");
+  const selectedIssues = [];
+  analyzeCsharpRefLikeLiveness(source, declaration, new Set([binding]),
+    (node, code) => selectedIssues.push({ node, code }), selected.domain);
+  assert.equal(selectedIssues.length, 1, "selected-domain graphs retain the exact missing-owner rejection");
+  assert.equal(selectedIssues[0].node === binding, true, "selected-domain rejection keeps the original binding identity");
+  assert.equal(selectedIssues[0].code, "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN", "selection never invents missing liveness proof");
 });
 
 test("a bounded lexical-owner query cannot silently admit unproven ref-like lifetimes", () => {

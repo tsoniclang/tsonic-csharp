@@ -30,7 +30,7 @@ export function selectCsharpGenericFrameClosures(
         issues.push({ node, code: "CSHARP_GENERIC_CALLABLE_CONTRACT_NOT_CLOSED",
           message: "A generic callable value requires its exact quantified native invocation contract." });
       } else {
-        const lexical = sourceLexicalCaptures(node, [node], source.ast, source.navigation);
+        const lexical = sourceLexicalCaptures(node, [node], source.ast, source.navigation, "source");
         const captures = lexical.captures.filter(capture => !evidence.compileTimeMetadata.get(capture.declaration));
         capturesCount += captures.length + lexical.receivers.length + 1;
         if (capturesCount > maximumGenericClosureCaptures) {
