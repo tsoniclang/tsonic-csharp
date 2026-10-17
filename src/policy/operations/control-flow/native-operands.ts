@@ -347,16 +347,17 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     }));
   }
   if (ast.is.IsObjectLiteralExpression(node)) {
+    const inputs = sourceExpressionValueInputs(ast, node);
+    if (inputs === undefined) return refused("expression-form-unresolved");
+    const memberUses = new Map<number, CsharpNativeChildUse>();
+    for (const entry of inputs) if (entry.slot.kind === "member") memberUses.set(entry.slot.index, entry);
     const runtime: CsharpNativeChildUse[] = [];
     const planning: CsharpNativeOperandStep[] = [];
     for (const [index, member] of ast.children(node).entries()) {
       if (member === undefined) continue;
-      if (ast.is.IsPropertyAssignment(member)) {
-        const children = use(ast.as.AsPropertyAssignment(member)?.Initializer, { kind: "member", index });
-        runtime.push(...children); planning.push(...plan(children));
-      } else if (ast.is.IsShorthandPropertyAssignment(member) || ast.is.IsSpreadAssignment(member)) {
-        const children = use(ast.is.IsShorthandPropertyAssignment(member) ? ast.name(member) : ast.as.AsSpreadAssignment(member)?.Expression, { kind: "member", index });
-        runtime.push(...children); planning.push(...plan(children));
+      const child = memberUses.get(index);
+      if (child !== undefined) {
+        runtime.push(child); planning.push(Object.freeze({ kind: "use", use: child }));
       } else if (ast.is.IsMethodDeclaration(member) || ast.is.IsGetAccessorDeclaration(member) || ast.is.IsSetAccessorDeclaration(member)) {
         planning.push(Object.freeze({ kind: "construct", node: member }));
       }
