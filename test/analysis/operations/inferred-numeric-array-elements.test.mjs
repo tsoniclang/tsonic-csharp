@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
 import { getCsharpArrayLiteralElementTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { isCsharpStringTargetType, isCsharpJsStringTargetType } from "../../../dist/target-model/types/identity.js";
+import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 
 const header = 'import type { float32, float64, int16, uint16, int32, uint32, int64 } from "@tsonic/core/types.js";';
-const compile = (surface, body) => compileCsharpSource({ surface, sourceText: `${header}\n${body}` });
+const compile = (surface, body) => compileCsharpNativeUseSource({ surface, sourceText: `${header}\n${body}` });
 const accepted = compiled => {
   assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
   assert.equal(compiled.result.program !== undefined && compiled.targetDiagnostics.length === 0, true,
@@ -115,15 +116,19 @@ function actualUnionDestinationEvidence(program, label) {
   assert.equal(nodes.length, 1, `${label}: the original physical construction is observed`);
   const expression = nodes[0];
   const use = program.records.nativeUse.expression(expression)?.use;
-  const arms = getCsharpRuntimeUnionArms(getCsharpArrayLiteralElementTargetType(use?.carrier), program.typeDefinitions);
+  const element = getCsharpArrayLiteralElementTargetType(use?.carrier);
+  const arms = getCsharpRuntimeUnionArms(element, program.typeDefinitions);
   assert.equal(use?.kind === "constructed" && arms?.length === 2 &&
     arms.some(arm => arm.kind === "source-primitive" && arm.name === "float64") &&
     arms.some(arm => isCsharpStringTargetType(arm) || isCsharpJsStringTargetType(arm)), true,
   `${label}: an actual closed heterogeneous destination reaches the single native construction`);
   for (const node of ast.elements(expression).slice(1)) {
     const literal = program.records.exactLiteral.get(node, csharpSourcePrimitiveTargetType("float64"));
-    assert.equal(literal?.kind === "resolved" && literal.recipe.kind === "float" && literal.recipe.precision === "float64", true,
-      `${label}: existing final native literal admission owns the exact floating endpoint`);
+    const native = program.records.nativeUse.expression(node)?.use;
+    assert.equal(literal?.kind === "source-representation" && native?.kind === "converted" &&
+      native.input.kind === "value" && native.input.type.kind === "source-primitive" && native.input.type.name === "float64" &&
+      targetTypeRefKey(native.target) === targetTypeRefKey(element), true,
+    `${label}: source-representation literals reach their actual admitted native double union endpoint`);
   }
 }
 
@@ -283,8 +288,8 @@ for (const surface of ["native", "js"]) {
   ]) test(`${surface} a self-inferred ${name} is not an authored rounding destination`, () => {
     const compiled = compile(surface, body);
     assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
-    const issue = compiled.targetDiagnostics[0];
-    const ast = compiled.source.ast;
+    const issue = compiled.nativeStage.diagnostics[0];
+    const ast = compiled.nativeStage.source.ast;
     const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
     const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
     assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
@@ -303,8 +308,8 @@ for (const surface of ["native", "js"]) {
   ]) test(`${surface} a self-inferred ${name} is not an explicit closed union destination`, () => {
     const compiled = compile(surface, body);
     assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
-    const issue = compiled.targetDiagnostics[0];
-    const ast = compiled.source.ast;
+    const issue = compiled.nativeStage.diagnostics[0];
+    const ast = compiled.nativeStage.source.ast;
     const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
     const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
     assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
@@ -320,8 +325,8 @@ for (const surface of ["native", "js"]) {
       export function run(narrow: float32, signed: int32): void {
         const values = [narrow, signed]; single(values); double(values); }`);
     assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
-    const issue = compiled.targetDiagnostics[0];
-    const ast = compiled.source.ast;
+    const issue = compiled.nativeStage.diagnostics[0];
+    const ast = compiled.nativeStage.source.ast;
     const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
     const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
     assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
@@ -366,9 +371,9 @@ for (const surface of ["native", "js"]) {
   ]) test(`${surface} every inferred union fallback proves exact canonical integers (${name})`, () => {
     const compiled = compile(surface, `export function run(signed: int32, unsigned: uint32) { const values = [${elements}]; return values; }`);
     assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
-    const issues = compiled.targetDiagnostics;
+    const issues = compiled.nativeStage.diagnostics;
     const issue = issues[0];
-    const ast = compiled.source.ast;
+    const ast = compiled.nativeStage.source.ast;
     const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
     const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
     assert.equal(issues.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&

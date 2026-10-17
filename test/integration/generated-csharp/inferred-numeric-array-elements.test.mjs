@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { getCsharpArrayLiteralElementTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
@@ -165,7 +166,7 @@ function nativeArrayElements(program) {
 
 for (const surface of ["native", "js"]) test(`${surface} inferred numeric arrays preserve values, physical arms, rounding boundaries and native costs`,
   { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ sourceText, surface });
+    const compiled = compileCsharpNativeUseSource({ sourceText, surface });
     assertCsharpCompilationSucceeded(compiled);
     const selected = carriers(compiled.result.program);
     const arms = name => {
@@ -410,7 +411,7 @@ function expectedOperationRefusals(operation, size) {
 }
 
 test("C130 js plain key relations and numeric-union join remain native", { timeout: 300_000 }, () => {
-  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+  const compiled = compileCsharpNativeUseSource({ surface: "js", sourceText: `
     import type { int32, uint32 } from "@tsonic/core/types.js";
     export function check(): boolean {
       const numbers: number[] = [1, 2, 1]; const strings: string[] = ["a", "b", "a"];
@@ -430,14 +431,14 @@ test("C130 js plain key relations and numeric-union join remain native", { timeo
 });
 
 for (const operation of ["includes", "indexOf", "lastIndexOf"]) test(`C130 js optional numeric-union ${operation} refuses the same unproven key relation`, () => {
-  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+  const compiled = compileCsharpNativeUseSource({ surface: "js", sourceText: `
     import type { int32, uint32 } from "@tsonic/core/types.js";
     export function run(value: int32 | uint32 | undefined): boolean {
       const values = [value, value]; return ${operation === "includes" ? `values.${operation}(value)` : `values.${operation}(value) >= 0`};
     }` });
   assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
-  const issue = compiled.targetDiagnostics[0];
-  const ast = compiled.source.ast;
+  const issue = compiled.nativeStage.diagnostics[0];
+  const ast = compiled.nativeStage.source.ast;
   const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
   const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end).trim();
   assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "TS9101001" &&
@@ -448,7 +449,7 @@ for (const operation of ["includes", "indexOf", "lastIndexOf"]) test(`C130 js op
 });
 
 test("C130 js reports every winning numeric-union key refusal before program incompleteness", () => {
-  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+  const compiled = compileCsharpNativeUseSource({ surface: "js", sourceText: `
     import type { int32, uint32 } from "@tsonic/core/types.js";
     export function run(signed: int32, unsigned: uint32): void {
       const values = [signed, unsigned];
@@ -459,11 +460,11 @@ test("C130 js reports every winning numeric-union key refusal before program inc
     ["includes", "values.includes(signed)"], ["indexOf", "values.indexOf(unsigned)"],
     ["lastIndexOf", "values.lastIndexOf(signed)"],
   ];
-  const ast = compiled.source.ast;
+  const ast = compiled.nativeStage.source.ast;
   assert.equal(compiled.targetDiagnostics.length === expected.length, true,
     "all three actual selected boundaries report, rather than returning only the first policy group");
   for (const [operation, expression] of expected) {
-    const issues = compiled.targetDiagnostics.filter(issue => issue.message ===
+    const issues = compiled.nativeStage.diagnostics.filter(issue => issue.message ===
       `Array.${operation} over a numeric union requires an exact native cross-arm key equality relation.`);
     const issue = issues[0];
     const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
@@ -484,13 +485,13 @@ for (const surface of ["native", "js"]) for (const [formName, form, size] of phy
       const sourceText = 'import type { int32, uint32 } from "@tsonic/core/types.js";\n' +
         `export function check(signed: int32, unsigned: uint32): boolean { const values = ${form}; ` +
         body.replace("EXPECTED_JSON", JSON.stringify(expectedJson)).replace("EXPECTED_SORT", JSON.stringify(expectedSort)) + " }";
-      const compiled = compileCsharpSource({ surface, sourceText });
+      const compiled = compileCsharpNativeUseSource({ surface, sourceText });
       assert.equal(compiled.sourceDiagnosticsText === "", true, `${operation}: ${compiled.sourceDiagnosticsText}`);
-      const errors = compiled.targetDiagnostics.filter(issue => issue.category === "error");
+      const errors = compiled.nativeStage.diagnostics.filter(issue => issue.category === "error");
       const root = new URL(`../../../.temp/C01-inferred-numeric-array-elements/operations/${surface}/${formName}/${operation.replace(/[^a-z]/giu, "-")}/`, import.meta.url);
       mkdirSync(root, { recursive: true });
       const diagnostic = issue => {
-        const ast = compiled.source.ast;
+        const ast = compiled.nativeStage.source.ast;
         const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
         const text = range?.kind !== "authored" ? undefined
           : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end).trim();
