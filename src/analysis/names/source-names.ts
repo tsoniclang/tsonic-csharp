@@ -90,25 +90,6 @@ export function createCsharpSourceNameBuilder(
   host.sourceFiles.forEach(visit);
   host.sourceFiles.forEach(visitNames);
 
-  function resolve(
-    nameNode: Node | undefined,
-    selectedDeclaration?: Node,
-  ): CsharpSourceNameResolution {
-    if (nameNode === undefined) {
-      return rejected("The source declaration has no name node.");
-    }
-    const selectedName = !privateNameNodes.has(nameNode) ||
-        selectedDeclaration === undefined
-      ? undefined
-      : privateNames.get(selectedDeclaration);
-    if (selectedName !== undefined) {
-      return { kind: "resolved", name: selectedName };
-    }
-    return resolutions.get(nameNode) ?? rejected(
-      "The source name is outside the sealed C# target-name classification index.",
-    );
-  }
-
   let sealed: CsharpNamePlan | undefined;
   let sealedBindingRoots: ReadonlySet<Node> | undefined;
   return Object.freeze({
@@ -176,6 +157,25 @@ export function createCsharpSourceNameBuilder(
       return sealed;
     },
   });
+
+  function resolve(
+    nameNode: Node | undefined,
+    selectedDeclaration?: Node,
+  ): CsharpSourceNameResolution {
+    if (nameNode === undefined) {
+      return rejected("The source declaration has no name node.");
+    }
+    const selectedName = !privateNameNodes.has(nameNode) ||
+        selectedDeclaration === undefined
+      ? undefined
+      : privateNames.get(selectedDeclaration);
+    if (selectedName !== undefined) {
+      return { kind: "resolved", name: selectedName };
+    }
+    return resolutions.get(nameNode) ?? rejected(
+      "The source name is outside the sealed C# target-name classification index.",
+    );
+  }
 
   function visitNames(node: Node): void {
     if (host.ast.is.IsIdentifier(node)) {
