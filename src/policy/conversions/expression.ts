@@ -181,7 +181,7 @@ export function selectCsharpFlowReadConversion(
   input: Pick<
     CsharpPolicyContext,
     "typeDefinitions" | "projectTypes" | "providers" | "target"
-  >,
+  > & CsharpConversionShapeQueries,
   storageType: TargetTypeRef,
   selectedReadType: TargetTypeRef,
 ): CsharpConversionSelection {

@@ -4,10 +4,13 @@ import { selectCsharpFlowReadProjection } from "../../policy/types/objects/read-
 import type { CsharpFlowReadClassifications, CsharpFlowReadProjection, CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
+import type { CsharpObjectShapeClassifications } from "../objects/model.js";
 import { admitCsharpConversionSelection } from "./validation.js";
 
 export function analyzeCsharpFlowReadProjections(
-  policy: CsharpPolicyContext,
+  policy: Pick<CsharpPolicyContext, "ast" | "sourceFiles" | "navigation" | "typeDefinitions" | "projectTypes" | "providers" | "target"> & {
+    readonly objectShapes: Pick<CsharpObjectShapeClassifications, "resolveNode" | "resolveTarget">;
+  },
   evidence: CsharpSourceEvidenceIndex,
   operations: CsharpTargetOperationClassifications,
   valueReads: CsharpValueReadClassifications,

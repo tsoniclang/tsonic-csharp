@@ -1,11 +1,10 @@
-import type { CsharpPolicyContext } from "../../model/context.js";
 import { selectCsharpFlowReadConversion } from "../../conversions/expression.js";
 import type { CsharpFlowReadProjection, CsharpValueRefinementClassification } from "../../../target-model/records/source-evidence.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 export function selectCsharpFlowReadProjection(
-  policy: CsharpPolicyContext,
+  policy: Parameters<typeof selectCsharpFlowReadConversion>[0],
   storageType: TargetTypeRef | undefined,
   selectedType: TargetTypeRef | undefined,
   refinement: CsharpValueRefinementClassification | undefined,

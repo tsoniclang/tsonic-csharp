@@ -333,8 +333,12 @@ export function analyzeCsharpTargetProgram(
       source: "tsonic-csharp",
     })));
   }
-  const { classFactories, captureStorage, callableCreations, flowReads, nativeParticipation, classInitialization,
-    numericRepresentations, exactLiterals, nativeDemand, bindingPatterns, conversions } = analysis;
+  const { classFactories, captureStorage, callableCreations, nativeParticipation, classInitialization,
+    exactLiterals, nativeDemand, bindingPatterns, conversions } = analysis;
+  const flowReads = analyzeCsharpFlowReadProjections({ ...analysis.policy, objectShapes: analysis.objectShapes },
+    analysis.sourceEvidence, analysis.operations, analysis.valueReads);
+  const numericRepresentations = analyzeCsharpNumericRepresentations({ source, sourceFiles,
+    evidence: analysis.sourceEvidence, operations: analysis.operations });
   if (classFactories.issues.length > 0) return rejectedTargetStage(classFactories.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));
@@ -552,15 +556,12 @@ function analyzeIteration(
     ast: source.ast, nodes: sourceStorage.nodes, captures: captureStorage, contracts: callables,
     expectedTypes, storage: storageRepresentations, evidence: sourceEvidence, conversions: preparedConversions,
   });
-  const flowReads = analyzeCsharpFlowReadProjections(policy, sourceEvidence, operations, valueReads);
   const nativeParticipation = analyzeCsharpNativeParticipation({
     ast: source.ast, nodes: sourceStorage.nodes, navigation: source.navigation,
     captureClosure: captureStorage.captureClosure, lambdaCreation: captureStorage.lambdaCreation,
     objectShapes, compileTimeMetadata: sourceEvidence.compileTimeMetadata, requiredRecords,
   });
   const classInitialization = analyzeCsharpClassInitialization(source, classFactories);
-  const numericRepresentations = analyzeCsharpNumericRepresentations({ source, sourceFiles,
-    evidence: sourceEvidence, operations });
   const exactLiterals = analyzeCsharpExactLiteralSelections(typeHost.literalValues, [
     ...preparedConversions.exactLiteralRequests,
     ...expectedTypes.constructions.propertyKeyRequests,
@@ -618,10 +619,8 @@ function analyzeIteration(
     classFactories,
     captureStorage,
     callableCreations,
-    flowReads,
     nativeParticipation,
     classInitialization,
-    numericRepresentations,
     exactLiterals,
     nativeDemand,
     bindingPatterns,

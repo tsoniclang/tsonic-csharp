@@ -18,6 +18,56 @@ import { createStructuralObjectShapeTarget } from "../../../dist/policy/types/ob
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
+import { analyzeCsharpFlowReadProjections } from "../../../dist/analysis/conversions/flow-read-projections.js";
+
+test("flow admission consumes the completed actual shape view and publishes pure reads without a missing-edge fallback", () => {
+  const file = Object.freeze({});
+  const expression = Object.freeze({});
+  const declaration = Object.freeze({});
+  const storage = Object.freeze({ kind: "target-named", id: "Owner.Stored", csharpAllowsRefLikeTypeArguments: [] });
+  const selected = Object.freeze({ kind: "target-named", id: "Owner.Actual", csharpAllowsRefLikeTypeArguments: [] });
+  const actualShape = Object.freeze({ targetType: storage, members: Object.freeze([]), implements: Object.freeze([selected]) });
+  const none = Object.freeze({ get: () => undefined });
+  const evidence = { compileTimeMetadata: none, valueRefinement: { get: node => node === expression
+    ? { source: { kind: "resolved", refinement: { kind: "exact" } }, flowReadTargetType: selected } : undefined } };
+  const operations = { nativeUnreachable: none };
+  const valueReads = { valueRead: { get: node => node === expression
+    ? { flowReadStorage: storage, flowReadValue: selected } : undefined } };
+  let shapeReads = 0;
+  const actualShapes = Object.freeze({ resolveNode: () => undefined, resolveTarget(type) {
+    shapeReads++;
+    return type === storage ? actualShape : undefined;
+  } });
+  const policy = { ast: { is: { IsIdentifier: node => node === expression,
+    IsPropertyAccessExpression: () => false, IsElementAccessExpression: () => false },
+    forEachChild(node, visit) { if (node === file) visit(expression); }, parent: () => undefined },
+    sourceFiles: [file], navigation: { sourceReferenceFor: node => node === expression ? { declaration } : undefined,
+      declarationUses: () => [{ kind: "runtime", role: "read", reference: expression }] },
+    projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined },
+    target: {}, objectShapes: actualShapes };
+  const admitted = analyzeCsharpFlowReadProjections(policy, evidence, operations, valueReads);
+  const projection = admitted.flowReadProjection.get(expression);
+  assert.equal(admitted.issues.length, 0, "the exact completed structural implementation edge is admitted");
+  assert.equal(projection?.kind === "conversion" && projection.source === storage && projection.target === selected &&
+    projection.selection.kind === "implicit" && projection.selection.proof === "object-shape-interface", true,
+  "the flow selection consumes the same actual native implementation graph as conversion admission");
+  assert.equal(shapeReads > 0, true, "the actual completed shape reader supplies the native relation");
+  const completedReads = shapeReads;
+  for (let index = 0; index < 3; index++) {
+    assert.equal(admitted.flowReadProjection.get(expression) === projection, true, "published reads retain exact decision identity");
+    assert.equal(admitted.flowReadProjection.get({}) === undefined, true, "a foreign expression has no published projection");
+  }
+  assert.equal(shapeReads, completedReads, "published flow reads never call the closed shape owner");
+  assert.equal(Object.isFrozen(admitted) && Object.isFrozen(admitted.flowReadProjection) && Object.isFrozen(projection), true,
+    "the complete flow publication is immutable");
+  const missing = analyzeCsharpFlowReadProjections({ ...policy,
+    objectShapes: Object.freeze({ resolveNode: () => undefined, resolveTarget: () => undefined }) }, evidence, operations, valueReads);
+  assert.equal(missing.flowReadProjection.get(expression) === undefined, true, "missing physical evidence cannot borrow the other run's edge");
+  assert.equal(missing.issues.length, 1, "one precise missing-relation diagnostic owns the actual source read");
+  assert.equal(missing.issues[0].node === expression && missing.issues[0].code === "CSHARP_FLOW_READ_PROJECTION_NOT_PROVEN" &&
+    missing.issues[0].message === "The exact source flow narrows 'target:Owner.Stored<>' to 'target:Owner.Actual<>', but C# has no closed storage-read projection for that relation.",
+  true, "no raw policy, late shape registration or synthetic native relation supplies missing evidence");
+});
 
 test("early backing exposes no incomplete field store and finalizes exactly once", () => {
   const prepared = prepareCsharpNativeBacking({ ast: {} }, { pointerBackingDemands: [],
