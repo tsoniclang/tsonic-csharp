@@ -23,9 +23,15 @@ function tuple(): number {
   const [value] = [19] as const;
   return value;
 }
+function exactKey(): number {
+  const { key } = { key: "value" } as const;
+  interface Holder { [key]: number; }
+  const value: Holder = { [key]: 23 };
+  return value[key];
+}
 export function run(): boolean {
   return direct() === 7 && choose(true) === 11 && choose(false) === 13 &&
-    nonNull() === 17 && tuple() === 19;
+    nonNull() === 17 && tuple() === 19 && exactKey() === 23;
 }
 `;
 
@@ -37,8 +43,9 @@ static double NativeChoose(bool flag) {
 var direct = new NativeValue(7);
 var nonNull = new NativeValue(17);
 var tuple = new System.ValueTuple<double>(19);
+var exactKey = new NativeValue(23);
 if (!Tsonic.Generated.Index.run() || direct.Value != 7 || NativeChoose(true) != 11 ||
-  NativeChoose(false) != 13 || nonNull.Value != 17 || tuple.Item1 != 19) {
+  NativeChoose(false) != 13 || nonNull.Value != 17 || tuple.Item1 != 19 || exactKey.Value != 23) {
   throw new System.Exception("native contextual initializer counterpart");
 }
 readonly record struct NativeValue(double Value);
