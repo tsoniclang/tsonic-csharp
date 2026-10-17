@@ -302,7 +302,7 @@ test("owning issues reject before the late registrations finish and before the o
     ["class-factory issues", rejection("classFactories.issues.length > 0")],
     ["capture storage", rejection("captureStorage.issues.length > 0")],
     ["flow reads", rejection("flowReads.issues.length > 0")],
-    ["actual source refusals", rejection("sourceRefusals.length > 0")],
+    ["actual source and pending refusals", rejection("refusals.length > 0")],
     ["native values", calling("analyzeCsharpNativeValueCarriers")],
     ["native-value issues", rejection("nativeValueCarriers.issues.length > 0")],
     ["binding-pattern issues", rejection("bindingPatterns.issues.length > 0")],
@@ -312,6 +312,17 @@ test("owning issues reject before the late registrations finish and before the o
     ["program literal", statement => ownDeclaration(statement, "program") !== undefined],
   ];
   const indexes = steps.map(([label, predicate]) => topLevelIndex(programStatements, predicate, `rejection order: ${label}`));
+  const collections = programStatements.flatMap(statement => ownDeclaration(statement, "refusals") ?? []);
+  assert.equal(collections.length === 1 && callsTo(collections[0], "nativeDemand.unadmitted.flatMap").length === 1, true,
+    "source and pending refusals are transported by one collection over the completed native demand");
+  const sourceBranch = descendants(collections[0]).find(node => ast.is.IsIfStatement(node) &&
+    text(ast.as.AsIfStatement(node).Expression) === 'use.kind === "source-refusal"');
+  const returned = sourceBranch === undefined ? undefined : ast.as.AsIfStatement(sourceBranch).ThenStatement;
+  assert.equal(returned !== undefined && ast.is.IsReturnStatement(returned) &&
+    text(ast.as.AsReturnStatement(returned).Expression) === "[use.diagnostic]", true,
+    "the same collection preserves each exact owning source refusal instead of returning before pending refusals");
+  assert.equal(callsTo(collections[0], "analysis.operations.selectedConstruction.get").length === 1, true,
+    "pending constructor refusals use their one existing selected construction, not a second selection");
   assert.equal(indexes.every((index, position_) => position_ === 0 || indexes[position_ - 1] < index), true,
     `rejection order: ${steps.map(([label]) => label).join(" < ")}`);
   const iterationSteps = [
