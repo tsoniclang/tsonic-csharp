@@ -21,6 +21,7 @@ const paths = Object.freeze({
   conversionModel: "src/analysis/conversions/model.ts",
   conversionUses: "src/analysis/conversions/use-admission.ts",
   nativeValues: "src/analysis/objects/value-carriers.ts",
+  artifactDemand: "src/analysis/objects/native-demand.ts",
 });
 const checked = createCompilerSessionFromFiles({
   currentDirectory: "/csharp",
@@ -408,7 +409,7 @@ test("storage and class factories take the list as a mandatory parameter and par
     "native handler input: a mandatory CsharpRequiredRecord[] list");
 });
 
-test("requirement state stays inside analysis, in exactly fourteen files", () => {
+test("requirement state stays inside analysis, in exactly fifteen files", () => {
   const users = sourceFiles(sourceRoot)
     .filter(path => /requiredRecords|CsharpRequiredRecord|requireCsharpRecord|assertCsharpRequiredRecords/u.test(readFileSync(path, "utf8")))
     .map(path => path.slice(repositoryRoot.length + 1)).sort();
@@ -427,7 +428,8 @@ test("requirement state stays inside analysis, in exactly fourteen files", () =>
     paths.conversionModel,
     paths.conversionUses,
     paths.nativeValues,
-  ].sort().join(), true, `requirement users: exactly the fourteen analysis files, found ${users.join(", ")}`);
+    paths.artifactDemand,
+  ].sort().join(), true, `requirement users: exactly the fifteen analysis files, found ${users.join(", ")}`);
 });
 
 test("each seal name and producer is mentioned only by its owner and the composition", () => {
@@ -436,9 +438,9 @@ test("each seal name and producer is mentioned only by its owner and the composi
     ["requiredRecords", [paths.participation, paths.analyze, paths.classFactories, paths.storage,
       paths.nativeDemand, paths.bindingPatterns, paths.conversions, paths.conversionModel, paths.conversionUses, paths.nativeValues]],
     ["CsharpRequiredRecord", [paths.participation, paths.operations, paths.nativeHandlers, paths.analyze, paths.create, requiredRecordsModule,
-      paths.classFactories, paths.storage, paths.nativeDemand, paths.bindingPatterns, paths.conversionModel, paths.conversionUses, paths.nativeValues]],
+      paths.classFactories, paths.storage, paths.nativeDemand, paths.bindingPatterns, paths.conversionModel, paths.conversionUses, paths.nativeValues, paths.artifactDemand]],
     ["requireCsharpRecord", [paths.participation, paths.nativeHandlers, requiredRecordsModule, paths.classFactories, paths.storage,
-      paths.nativeDemand, paths.bindingPatterns, paths.conversionUses, paths.nativeValues]],
+      paths.nativeDemand, paths.bindingPatterns, paths.conversionUses, paths.nativeValues, paths.artifactDemand]],
     ["assertCsharpRequiredRecords", [paths.create, requiredRecordsModule]],
     ["createCsharpProgramRecords", [paths.analyze, paths.create]],
     ["analyzeCsharpClassFactories", [paths.analyze, paths.classFactories]],

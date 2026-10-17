@@ -3,7 +3,7 @@ import test from "node:test";
 import { collectCsharpReferenceClosure } from "../../../../dist/analysis/objects/native-demand-references.js";
 import { targetTypeRefKey } from "../../../../dist/target-model/types/equality.js";
 import { inheritedObjectShapeCapabilities } from "../../../../dist/analysis/objects/native-demand-closure.js";
-import { maximumArtifactCount } from "../../../../dist/backend/planner/artifacts/graph/model.js";
+import { maximumArtifactCount } from "../../../../dist/analysis/objects/native-demand-batches.js";
 
 function sourceClass(id, arguments_ = []) {
   return {

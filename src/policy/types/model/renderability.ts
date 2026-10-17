@@ -131,6 +131,11 @@ function namedShapeRejection(
   shape: NamedRenderShape,
   typeArgumentCount: number,
 ): CsharpTargetTypeRenderingRejection | undefined {
+  const invalidPart = [...(shape.namespace ?? []), ...(shape.usingNamespace ?? [])]
+    .find(part => tryCsharpIdentifier(part) === undefined);
+  if (invalidPart !== undefined) {
+    return { reason: "invalid-name", subject: type, name: invalidPart };
+  }
   if (
     shape.usingNamespace !== undefined &&
     (shape.usingNamespace.length === 0 || (shape.namespace ?? []).length > 0 || shape.externAlias !== undefined)
@@ -166,6 +171,9 @@ function segmentsRejection(
   const sliced = arity === 0 ? 0 : Math.max(0, Math.min(arity, typeArgumentCount - argumentOffset));
   if (sliced !== arity) {
     return { reason: "segment-arity", subject: type };
+  }
+  if (tryCsharpIdentifier(segment.name) === undefined) {
+    return { reason: "invalid-name", subject: type, name: segment.name };
   }
   return segmentsRejection(type, rest, withoutNested, typeArgumentCount, argumentOffset + arity);
 }

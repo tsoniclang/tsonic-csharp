@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpRequiredRecordSource, csharpRecordInput } from "../../helpers/required-records.mjs";
 import { createCsharpProgramRecords } from "../../../dist/analysis/program/records/create.js";
 import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/records/required-records.js";
@@ -47,6 +47,9 @@ for (const surface of ["native", "js"]) for (const [name, body] of programs) {
     const missing = Object.freeze({ ...demand, get: key => key === row.key ? undefined : demand.get(key) });
     assert.throws(() => createCsharpProgramRecords({ ...csharpRecordInput(program.records), objectShapeDemand: missing }, [row]),
       /Required C# semantic plan 'objectShapeArtifact'/u, "a missing actual artifact prevents publication");
+    const invalidContext = createCsharpPlanningContext({ ...program, records: { ...program.records, objectShapeArtifact: missing } });
+    assert.throws(() => invalidContext.artifacts.objectShapeHasCapability(demand.artifacts[0].fact, "json-serialization"),
+      /sealed artifact record/u, "an impossible missing record cannot become a false capability answer");
     assert.throws(() => assertCsharpRequiredRecords(program.records, [{ ...row, key: "foreign-owner" }]),
       /Required C# semantic plan 'objectShapeArtifact'/u, "a different artifact is not evidence for this owner");
   });
@@ -77,7 +80,6 @@ test("the pre-seal renderer predicate and syntax renderer agree on the existing 
     { kind: "source-primitive", name: "int32" },
     { kind: "opaque", id: "unsupported" },
     named({ kind: "named", name: "Value" }),
-    named({ kind: "named", name: "value-with-hyphen", namespace: ["namespace-with-hyphen"] }),
     named({ kind: "named", name: "Value", usingNamespace: [] }),
     named({ kind: "predefined", name: "int" }),
     named({ kind: "nullable" }),
@@ -90,11 +92,27 @@ test("the pre-seal renderer predicate and syntax renderer agree on the existing 
     assert.equal(csharpTargetTypeRenderingRejection(type) === undefined, syntax !== undefined, `renderer admission control ${index}`);
     assert.equal(csharpTargetTypeRendersAsUnqualifiedIdentifier(type), syntax?.kind === "IdentifierName", `unqualified identifier control ${index}`);
   }
+  const invalid = named({ kind: "named", name: "value-with-hyphen", namespace: ["namespace-with-hyphen"] });
+  assert.throws(() => csharpTypeFromTargetTypeRef(invalid, undefined), /Invalid C# identifier/u, "the existing renderer refuses invalid native names");
+  assert.equal(csharpTargetTypeRenderingRejection(invalid)?.reason, "invalid-name", "the identical refusal is available before planning");
+  assert.equal(csharpTargetTypeRendersAsUnqualifiedIdentifier(invalid), false, "invalid native names cannot be generated identifiers");
 });
 
 test("erased metadata is not an extra demand root and retained source refusals still precede planning", () => {
+  const options = { targetOptions: { languageDialect: "csharp15-preview", memorySafetyRules: "preview" } };
+  const plain = compileCsharpSource({ ...options, sourceText: header + "export const count: int32 = 1;" });
+  const erased = compileCsharpSource({ ...options, sourceText: header + `
+    import { safety } from "@tsonic/core/lang.js";
+    safety(() => { const ignored = { nested: { count: 5 as int32 } }; return ignored; }).requiresunsafe();
+    export const count: int32 = 1;
+  ` });
+  assertCsharpCompilationSucceeded(plain);
+  assertCsharpCompilationSucceeded(erased);
+  assert.deepEqual([...erased.artifacts], [...plain.artifacts], "erased bodies cannot add native declarations or effects");
+  assert.equal(erased.result.program.records.objectShapeArtifact.artifacts.length, plain.result.program.records.objectShapeArtifact.artifacts.length,
+    "erased bodies do not create artifact roots");
   const compiled = compileCsharpSource({ sourceText: header + `
-    import { safety, sharedborrow } from "@tsonic/core/lang.js";
+    import { sharedborrow } from "@tsonic/core/lang.js";
     export function main(value: int32): int32 { sharedborrow(value); return value; }
   ` });
   assert.equal(compiled.sourceDiagnosticsText, "", "source checking succeeds for the actual native rejection control");
@@ -102,4 +120,14 @@ test("erased metadata is not an extra demand root and retained source refusals s
     "the source-flow rejection happens before seal, planning and emission");
   assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_SOURCE_FLOW_MARKER_UNSUPPORTED"), true,
     "the existing precise source rejection is not relabelled as an invariant");
+});
+
+test("participating unsupported construction retains its native rejection before publication", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: "export const value = new Proxy({}, {});" });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the checked constructor reaches the actual native refusal owner");
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "an actual unsupported construction is refused before publication and never emulated");
+  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&
+    diagnostic.message === "Proxy traps redefine object operations dynamically and have no closed C# source-to-source representation."), true,
+    "the exact supported diagnostic is retained, not an internal failure");
 });

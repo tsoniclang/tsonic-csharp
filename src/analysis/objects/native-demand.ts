@@ -14,6 +14,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpBindingPatternClassifications } from "../../target-model/records/value-projections.js";
 import type { CsharpNativeValueCarriers } from "../../target-model/records/native-value-carriers.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpNativeParticipationInput, CsharpNativeUse } from "../../target-model/records/native-demand.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
@@ -46,6 +47,7 @@ export interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemand
   readonly bindingPatterns: CsharpBindingPatternClassifications;
   readonly conversions: CsharpConversionClassifications;
   readonly nativeValueCarriers: CsharpNativeValueCarriers;
+  readonly sourceEvidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata">;
 }
 
 export function analyzeCsharpNativeArtifactDemand(
@@ -156,7 +158,8 @@ export function analyzeCsharpNativeArtifactDemand(
   }
 
   function visitConstruct(node: Node): void {
-    if (constructs.has(node) || input.participation.get(node) === "erased") return;
+    if (constructs.has(node) || input.participation.get(node) === "erased" ||
+      input.sourceEvidence.compileTimeMetadata.get(node) || input.operations.nativeUnreachable.get(node)) return;
     const order = input.nativeDemand.nativeUse.order(node);
     if (order === undefined) return;
     constructs.add(node);

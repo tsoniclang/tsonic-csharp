@@ -395,7 +395,7 @@ export function analyzeCsharpTargetProgram(
     objectShapes: structuralForwarding.objectShapes, projectTypes, typeDefinitions,
     valueReads: analysis.valueReads, operations: analysis.operations, storage: analysis.storage,
     callables: analysis.callables, captureStorage, declarations: analysis.declarations,
-    bindingPatterns, conversions, nativeValueCarriers,
+    bindingPatterns, conversions, nativeValueCarriers, sourceEvidence: analysis.sourceEvidence,
   }, analysis.requiredRecords);
   if (objectShapeDemand.kind === "rejected") return objectShapeDemand;
   const records = createCsharpProgramRecords({

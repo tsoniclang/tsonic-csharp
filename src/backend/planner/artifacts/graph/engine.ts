@@ -36,23 +36,23 @@ export function createCsharpArtifactGraph(host: CsharpArtifactGraphHost): Csharp
   const read = (fact: CsharpObjectShapeFact, facet: CsharpArtifactFacet) => {
     const key = objectShapeArtifactKey(fact);
     dependOn(scope, key, facet);
-    return host.objectShapeArtifacts.get(key);
+    return host.objectShapeArtifacts.get(key) ?? failTargetPlannerInvariant("tsonic-csharp",
+      "An admitted native shape requires its sealed artifact record.");
   };
   return Object.freeze({
     get revision() { return contracts.revision; },
     contractGraph: contracts,
     objectShape: fact => {
       dependOn(scope, objectShapeArtifactKey(fact), "object-shape-materialization");
-      const artifact = read(fact, "object-shape-type-surface");
-      return artifact ?? failTargetPlannerInvariant("tsonic-csharp", "An admitted native shape requires its sealed artifact record.");
+      return read(fact, "object-shape-type-surface");
     },
     captureDependencies: <Value>(owner: string,
       dependencies: readonly import("@tsonic/target-api/artifacts").TargetArtifactDependency<CsharpArtifactFacet>[], build: () => Value) =>
       captureDependencies(scope, owner, dependencies, build),
-    objectShapeHasCapability: (fact, capability) => read(fact, "object-shape-behavior")?.capabilities.includes(capability) === true,
-    objectShapeProjections: fact => read(fact, "object-shape-behavior")?.projections ?? Object.freeze([]),
+    objectShapeHasCapability: (fact, capability) => read(fact, "object-shape-behavior").capabilities.includes(capability),
+    objectShapeProjections: fact => read(fact, "object-shape-behavior").projections,
     objectShapeMethodUsesReceiver: (fact, member) =>
-      read(fact, "object-shape-type-surface")?.receiverBoundMethodKeys.includes(csharpObjectShapeMemberContractKey(member)) === true,
+      read(fact, "object-shape-type-surface").receiverBoundMethodKeys.includes(csharpObjectShapeMemberContractKey(member)),
     objectShapeArtifacts: () => host.objectShapeArtifacts.artifacts,
     requireGeneratedHelper: helper => requireGeneratedHelper(scope, helper),
     generatedHelpers: helpers.required,
