@@ -32,12 +32,11 @@ export function selectCsharpStructuralInterface(
     if (read.kind !== "resolved" || write.kind !== "resolved" || open.kind !== "resolved" ||
       destinationMember.kind !== "resolved") return undefined;
     const declaration = pair.source.declarations.length === 1 ? pair.source.declarations[0] : undefined;
+    if (read.member.memberKind === "method" && declaration !== undefined &&
+      !policy.ast.is.IsMethodDeclaration(declaration) && !policy.ast.is.IsMethodSignatureDeclaration(declaration)) return undefined;
     members.push(Object.freeze({ source: read.member, destination: write.member, openSource: open.member,
       openDestination: destinationMember.member,
       ...(declaration === undefined ? {} : { declaration }),
-      parameterDefaults: Object.freeze(declaration === undefined ||
-        !policy.ast.is.IsMethodDeclaration(declaration) && !policy.ast.is.IsMethodSignatureDeclaration(declaration) ? [] : policy.ast.parameters(declaration).map(parameter =>
-        policy.ast.as.AsParameterDeclaration(parameter)?.Initializer !== undefined)),
     }));
   }
   const selectedImplementation = selectCsharpStructuralInterfaceImplementation({ sourceNode: expression, source, destination, members: Object.freeze(members) });

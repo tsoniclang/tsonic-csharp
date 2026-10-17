@@ -18,6 +18,11 @@ import type {
   CsharpTypeParameterConstraint,
   CsharpTypeParameterConstraintResolution,
 } from "../../target-model/types/generic-constraints.js";
+import type { CsharpPolicyContext } from "../model/context.js";
+import type { CsharpConversionShapeQueries } from "../conversions/shape-queries.js";
+import { namedTargetTypeImplicitlyAccepts } from "../conversions/carriers.js";
+import { csharpTargetBindingFact, type CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
+import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType } from "../../target-model/types/index.js";
 
 export type {
   CsharpTypeParameterConstraint,
@@ -47,6 +52,55 @@ const numericSourcePrimitives = new Set([
   "int128",
   "uint128",
 ]);
+
+export function csharpTypeParameterConstraintsImply(
+  policy: Pick<CsharpPolicyContext, "projectTypes" | "providers" | "typeDefinitions"> & CsharpConversionShapeQueries,
+  source: readonly CsharpTypeParameterConstraint[],
+  required: readonly CsharpTypeParameterConstraint[],
+  parameters: ReadonlyMap<string, readonly CsharpTypeParameterConstraint[]>,
+): boolean {
+  const inherited = [...source];
+  const visited = new Set<string>();
+  for (let index = 0; index < inherited.length; index += 1) {
+    const constraint = inherited[index]!;
+    if (constraint.kind !== "type" || constraint.type.kind !== "type-parameter" || visited.has(constraint.type.identity)) continue;
+    visited.add(constraint.type.identity);
+    const stored = parameters.get(constraint.type.identity);
+    const resolution = constraint.type.csharpConstraints;
+    const constraints = stored ?? (resolution?.kind === "resolved" ? resolution.constraints : undefined);
+    if (constraints !== undefined) inherited.push(...constraints);
+  }
+  const keyword = (name: Extract<CsharpTypeParameterConstraint, { readonly kind: "keyword" }>["keyword"]): boolean =>
+    inherited.some(constraint => constraint.kind === "keyword" && constraint.keyword === name);
+  const nativeClass = (type: TargetTypeRef): boolean => {
+    if (type.kind !== "target-named" || getCsharpNullableElementTargetType(type) !== undefined || isCsharpNullableReferenceTargetType(type)) return false;
+    const definition = policy.projectTypes.catalog.definitionForTarget(type);
+    const binding = csharpTargetBindingFact(policy.providers.findTargetBindingByTargetId(type.id));
+    return definition?.kind === "class" || (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "class" || binding?.kind === "class";
+  };
+  return required.every(constraint => {
+    if (constraint.kind === "type") return inherited.some(candidate => candidate.kind === "type" &&
+      namedTargetTypeImplicitlyAccepts(policy, candidate.type, constraint.type, new Set()));
+    if (constraint.kind === "constructor") return source.some(candidate => candidate.kind === "constructor" ||
+      candidate.kind === "keyword" && (candidate.keyword === "struct" || candidate.keyword === "unmanaged"));
+    switch (constraint.keyword) {
+      case "class": return keyword("class") || inherited.some(candidate => candidate.kind === "type" && nativeClass(candidate.type));
+      case "struct": return keyword("struct") || keyword("unmanaged");
+      case "unmanaged": return keyword("unmanaged");
+      case "notnull": return keyword("notnull") || keyword("class") || keyword("struct") || keyword("unmanaged") ||
+        inherited.some(candidate => candidate.kind === "type" && candidate.type.kind === "target-named" &&
+          getCsharpNullableElementTargetType(candidate.type) === undefined && !isCsharpNullableReferenceTargetType(candidate.type));
+    }
+  });
+}
+
+export function csharpTypeParameterConstraintsEqual(
+  left: readonly CsharpTypeParameterConstraint[], right: readonly CsharpTypeParameterConstraint[],
+): boolean {
+  const expected = new Set(left.map(constraintKey));
+  const actual = new Set(right.map(constraintKey));
+  return expected.size === actual.size && [...expected].every(key => actual.has(key));
+}
 
 function numericConstraint(constraint: Node, sourceFile: SourceFile, host: CsharpTypeParameterConstraintPolicyHost): boolean {
   if (host.ast.is.IsUnionTypeNode(constraint)) {

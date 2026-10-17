@@ -250,10 +250,20 @@ test("callable contracts and forwarding consume the actual attempt's mandatory f
     "final callable admission reads the same completed shape publication that physical backing used");
   assert.equal(ast.properties(stableInput).map(candidate => text(ast.name(candidate))).join(),
     "ast,navigation,typeDefinitions,projectTypes,providers,target,objectShapes", "the final view cannot expose the mutable source policy");
-  for (const callee of ["analyzeCsharpProjectCallableAdapters", "finalizeCsharpStructuralInterfaceForwarding"]) {
-    const call = composedCall(callee, program, "stable callable input");
-    assert.equal(text(ast.arguments(call)[0]), "callablePolicy", `${callee}: the one actual conversion view is mandatory`);
-  }
+  const call = composedCall("analyzeCsharpProjectCallableAdapters", program, "stable callable input");
+  assert.equal(text(ast.arguments(call)[0]), "callablePolicy", "the one actual conversion view remains mandatory");
+  assert.equal(ast.arguments(call).length === 5 && ast.arguments(call).map(text).join() ===
+    "callablePolicy,analysis.callables,analysis.objectShapes,analysis.declarations,analysis.typeProjections.genericProjection", true,
+  "one canonical owner receives actual contracts, the complete shape publication, exact native defaults and the existing projection index");
+  assert.equal(callsTo(file(paths.analyze), "finalizeCsharpStructuralInterfaceForwarding").length === 0 &&
+    identifiers(file(paths.analyze), "finalizeCsharpStructuralInterfaceForwarding").length === 0, true,
+  "the composing program has no competing finalizer call or stale import");
+  const publication = programStatements.map(statement => ownDeclaration(statement, "program")).find(node => node !== undefined);
+  const literal = ast.arguments(ast.as.AsVariableDeclaration(publication).Initializer)[0];
+  const finalShape = property(literal, "objectShapes");
+  assert.equal(finalShape !== undefined && ast.is.IsPropertyAssignment(finalShape) &&
+    text(ast.as.AsPropertyAssignment(finalShape).Initializer) === "callableAdapters.objectShapes", true,
+  "the published program consumes the canonical owner's already-final pure shape reader");
 });
 
 test("unclosed native participation rejects before its reader or any native demand is consumed", () => {
@@ -298,7 +308,6 @@ test("owning issues reject before the late registrations finish and before the o
     ["binding-pattern issues", rejection("bindingPatterns.issues.length > 0")],
     ["pending native uses", rejection("pendingUses.length > 0")],
     ["ref-like placement", rejection("analysis.refLikeDiagnostics.length > 0")],
-    ["structural forwarding", rejection("structuralForwarding.issues.length > 0")],
     ["assembly", calling("createCsharpProgramRecords")],
     ["program literal", statement => ownDeclaration(statement, "program") !== undefined],
   ];
@@ -316,9 +325,12 @@ test("owning issues reject before the late registrations finish and before the o
   assert.equal(iterationCalls.every((call, index) => index === 0 || position(iterationCalls[index - 1]) < position(call)), true,
     `owning physical closure: ${iterationSteps.join(" < ")}`);
   const issueLists = descendants(program).filter(node => ast.is.IsVariableDeclaration(node) && named(node, "analysisIssues"));
-  assert.equal(issueLists.length === 1 && text(ast.as.AsVariableDeclaration(issueLists[0]).Initializer)
-    .includes("...analysis.conversions.issues"), true,
-  "owning conversion issues are included in the first rejection gate, before any final requirement assembly");
+  assert.equal(issueLists.length === 1 && ["...analysis.conversions.issues", "...callableAdapters.issues"]
+    .every(value => text(ast.as.AsVariableDeclaration(issueLists[0]).Initializer).includes(value)), true,
+  "owning conversion, callable and structural forwarding issues are included in the first rejection gate, before any final requirement assembly");
+  assert.equal(position(composedCall("analyzeCsharpProjectCallableAdapters", program, "canonical rejection owner")) <
+    position(programStatements[indexes[0]]), true,
+  "all canonical interface method/property issues are complete before the earlier single rejection gate");
 });
 
 test("the published program literal carries no requirement state", () => {

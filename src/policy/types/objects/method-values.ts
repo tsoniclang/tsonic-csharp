@@ -9,10 +9,7 @@ import { csharpNullableTargetType } from "../../../target-model/types/carriers/n
 import type { CsharpObjectShapeMemberFact, CsharpStructuralInterfaceImplementation } from "../../../target-model/types/model.js";
 import type { CsharpStructuralInterfaceEvidence } from "../../../target-model/records/heritage.js";
 import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
-import { csharpObjectShapeMemberTypeKey } from "../../../target-model/types/object-shape-identity.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeMemberTargetTypeParameters, substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
 
@@ -50,6 +47,8 @@ export function selectCsharpStructuralInterfaceImplementation(
   const parameterIdentities = destinationTemplate === undefined ? new Set<string>()
     : csharpFreeTypeParameterIdentities([destinationTemplate.targetType]);
   const arguments_ = new Map<string, TargetTypeRef>();
+  const inferredArguments = new Map<string, TargetTypeRef>();
+  const ambiguousArguments = new Set<string>();
   const methods: CsharpStructuralInterfaceImplementation["methods"][number][] = [];
   const properties: CsharpStructuralInterfaceImplementation["properties"][number][] = [];
   for (const pair of evidence.members) {
@@ -60,13 +59,15 @@ export function selectCsharpStructuralInterfaceImplementation(
       (!readonlyDestination && (read.readonly === true || read.accessor?.setter === false))) return undefined;
     if (destinationTemplate !== undefined) {
       const bindings = inferStructuralMemberTypeArguments(pair.openDestination, pair.openSource, parameterIdentities);
-      if (bindings === undefined) return undefined;
-      for (const [identity, type] of bindings) {
-        const existing = arguments_.get(identity);
-        if (existing !== undefined && !targetTypeRefEquals(existing, type)) return undefined;
-        arguments_.set(identity, type);
+      for (const [identity, type] of bindings ?? []) {
+        if (ambiguousArguments.has(identity)) continue;
+        const existing = inferredArguments.get(identity);
+        if (existing !== undefined && !targetTypeRefEquals(existing, type)) {
+          inferredArguments.delete(identity);
+          ambiguousArguments.add(identity);
+        } else inferredArguments.set(identity, type);
       }
-    } else if (!targetTypeRefEquals(pair.openSource.type, read.type)) return undefined;
+    }
     if (read.memberKind === "property") {
       if (!targetTypeRefEquals(read.type, write.type) && !readonlyDestination) return undefined;
       if (read.accessor === undefined || !targetTypeRefEquals(read.type, write.type)) {
@@ -74,22 +75,8 @@ export function selectCsharpStructuralInterfaceImplementation(
       }
       continue;
     }
-    if (csharpObjectShapeMemberTypeKey(read) === csharpObjectShapeMemberTypeKey(write)) continue;
-    const from = getCsharpDelegateSignature(read.type);
-    const to = getCsharpDelegateSignature(write.type);
-    if (pair.declaration === undefined || (read.typeParameters?.length ?? 0) !== 0 ||
-      from === undefined || to === undefined || !targetTypeRefEquals(from.returnType, to.returnType) ||
-      from.parameters.length !== to.parameters.length || from.restParameterIndex !== to.restParameterIndex) return undefined;
-    const defaults: number[] = [];
-    for (const [index, parameter] of from.parameters.entries()) {
-      const expected = to.parameters[index]!;
-      if (targetTypeRefEquals(parameter, expected)) continue;
-      const element = getCsharpNullableElementTargetType(expected);
-      if (element === undefined || !targetTypeRefEquals(parameter, element) || pair.parameterDefaults[index] !== true) return undefined;
-      defaults.push(index);
-    }
-    methods.push({ sourceName: read.targetName, declaration: pair.declaration, member: pair.openDestination,
-      defaultArguments: Object.freeze(defaults) });
+    if (pair.declaration === undefined) return undefined;
+    methods.push({ sourceName: read.targetName, declaration: pair.declaration, member: pair.openDestination });
   }
   const sourceParameters = csharpFreeTypeParameterIdentities([template.targetType]);
   if (destinationTemplate !== undefined) {
@@ -97,9 +84,12 @@ export function selectCsharpStructuralInterfaceImplementation(
     const sourceArguments = inferCsharpTargetTypeParameterBindings(template.targetType, source.targetType, sourceParameters);
     if (supplied === undefined || sourceArguments === undefined) return undefined;
     for (const [identity, actual] of supplied) {
-      const inferred = arguments_.get(identity);
-      if (inferred === undefined) arguments_.set(identity, actual);
-      else if (!targetTypeRefEquals(substituteTargetTypeParameters(inferred, sourceArguments), actual)) return undefined;
+      const inferred = inferredArguments.get(identity);
+      const free = inferred === undefined ? new Set<string>() : csharpFreeTypeParameterIdentities([inferred]);
+      const exactSourceRelationship = inferred !== undefined && free.size > 0 &&
+        [...free].every(parameter => sourceParameters.has(parameter)) &&
+        targetTypeRefEquals(substituteTargetTypeParameters(inferred, sourceArguments), actual);
+      arguments_.set(identity, exactSourceRelationship ? inferred! : actual);
     }
   }
   const interfaceType = destinationTemplate === undefined ? destination.targetType

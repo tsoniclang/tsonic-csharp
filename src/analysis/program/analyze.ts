@@ -127,7 +127,6 @@ import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/proje
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
 import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
-import { finalizeCsharpStructuralInterfaceForwarding } from "../objects/structural-forwarding.js";
 import { analyzeCsharpNativeArtifactDemand } from "../objects/native-demand.js";
 
 interface CsharpRepresentationContract {
@@ -280,7 +279,9 @@ export function analyzeCsharpTargetProgram(
     typeDefinitions: analysis.policy.typeDefinitions, projectTypes: analysis.policy.projectTypes,
     providers: analysis.policy.providers, target: analysis.policy.target, objectShapes: analysis.objectShapes,
   });
-  const callableAdapters = analyzeCsharpProjectCallableAdapters(callablePolicy, analysis.callables);
+  const callableAdapters = analyzeCsharpProjectCallableAdapters(
+    callablePolicy, analysis.callables, analysis.objectShapes, analysis.declarations, analysis.typeProjections.genericProjection,
+  );
   const analysisIssues = [
     ...callableAdapters.issues,
     ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
@@ -399,10 +400,6 @@ export function analyzeCsharpTargetProgram(
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
   }
   if (analysis.refLikeDiagnostics.length > 0) return rejectedTargetStage(analysis.refLikeDiagnostics);
-  const structuralForwarding = finalizeCsharpStructuralInterfaceForwarding(
-    callablePolicy, analysis.objectShapes, callableAdapters, analysis.declarations,
-  );
-  if (structuralForwarding.issues.length > 0) return rejectCsharpAnalysisIssues(structuralForwarding.issues);
   const promiseResults = analyzeCsharpPromiseResults({ source, storage: sourceStorage, nodes: sourceStorage.nodes,
     records: { valueRead: analysis.valueReads.valueRead, selectedCall: analysis.operations.selectedCall,
       selectedConstruction: analysis.operations.selectedConstruction },
@@ -417,7 +414,7 @@ export function analyzeCsharpTargetProgram(
   const objectShapeDemand = analyzeCsharpNativeArtifactDemand({
     ast: source.ast, sourceFiles, propertyNames: sourceSyntax.propertyNames,
     nativeDemand, participation: nativeParticipation.participation,
-    objectShapes: structuralForwarding.objectShapes, projectTypes, typeDefinitions,
+    objectShapes: callableAdapters.objectShapes, projectTypes, typeDefinitions,
     valueReads: analysis.valueReads, operations: analysis.operations, storage: analysis.storage,
     callables: analysis.callables, captureStorage, declarations: analysis.declarations,
     bindingPatterns, conversions, nativeValueCarriers, sourceEvidence: analysis.sourceEvidence,
@@ -452,7 +449,7 @@ export function analyzeCsharpTargetProgram(
     sourceNavigation: snapshotTargetPlanningSourceNavigation(source),
     sourceFiles,
     projectTypes,
-    objectShapes: structuralForwarding.objectShapes,
+    objectShapes: callableAdapters.objectShapes,
     names: analysis.names.seal(),
     sourceModuleConstructions: Object.freeze({
       entries: sourceModuleConstructions.index.entries,

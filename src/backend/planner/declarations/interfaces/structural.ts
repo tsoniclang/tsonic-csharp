@@ -8,6 +8,7 @@ import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { planCsharpCallableArguments } from "../callables/parameter-adapters.js";
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";
+import { csharpGeneratedTypeParameterNames } from "../../../../target-model/names/type-parameters.js";
 
 export function planCsharpStructuralInterfaceMembers(
   shape: CsharpObjectShapeFact, node: Node,
@@ -47,38 +48,52 @@ export function planCsharpStructuralInterfaceMembers(
           method.declaration);
       }
       const { forwarding } = method;
-      const returnType = csharpTypeFromTargetTypeRef(forwarding.contract.returnType, input.scope.typeParameterNames);
-      const parameters = forwarding.contract.parameters.map(parameter => renderParameter(parameter.targetParameter, input));
+      const binders = forwarding.typeParameters;
+      const binderIds = new Set(binders.map(parameter => parameter.identity));
+      const bareName = (name: string): string => name.startsWith("@") ? name.slice(1) : name;
+      const methodNames = csharpGeneratedTypeParameterNames(binders.map(parameter => ({ identity: parameter.identity,
+        name: input.scope.typeParameterNames?.get(parameter.identity) ?? parameter.name })), [
+        ...forwarding.contract.parameters.map(parameter => bareName(parameter.targetParameter.name)),
+        ...(shape.targetType.kind === "target-named" ? shape.targetType.typeArguments ?? [] : [])
+          .flatMap(type => type.kind === "type-parameter" ? [bareName(input.scope.typeParameterNames?.get(type.identity) ?? type.name)] : []),
+        ...[...input.scope.typeParameterNames ?? []].filter(([identity]) => !binderIds.has(identity)).map(([, name]) => bareName(name)),
+      ]);
+      const methodInput = binders.length === 0 ? input : { ...input, scope: { ...input.scope,
+        typeParameterNames: new Map([...input.scope.typeParameterNames ?? [], ...methodNames]) } };
+      const returnType = csharpTypeFromTargetTypeRef(forwarding.contract.returnType, methodInput.scope.typeParameterNames);
+      const typeArguments = forwarding.typeArguments.map(type => csharpTypeFromTargetTypeRef(type, methodInput.scope.typeParameterNames));
+      const parameters = forwarding.contract.parameters.map(parameter => renderParameter(parameter.targetParameter, methodInput));
       const incoming = forwarding.implementation.parameters.map((parameter, index): CsharpParameter | undefined => {
-        const selected = renderParameter(parameter.targetParameter, input);
+        const selected = renderParameter(parameter.targetParameter, methodInput);
         if (selected === undefined || parameter.targetParameter.optional !== true) return selected;
         return { ...selected, defaultValue: forwarding.parameterDefaults[index]?.kind === "nullable"
           ? { kind: "LiteralExpression", value: null } : { kind: "DefaultExpression", type: selected.type } };
       });
       if (explicitInterface === undefined || returnType === undefined || parameters.some(parameter => parameter === undefined) ||
-        incoming.some(parameter => parameter === undefined)) {
+        incoming.some(parameter => parameter === undefined) || typeArguments.some(type => type === undefined)) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "An analyzed interface method has no exact native forwarding signature."));
         continue;
       }
       const planned = planCsharpCallableArguments(method.declaration, forwarding.contract, parameters as CsharpParameter[],
-        incoming as CsharpParameter[], forwarding.parameters, sourceFile, input, diagnostics);
+        incoming as CsharpParameter[], forwarding.parameters, sourceFile, methodInput, diagnostics);
       if (planned === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "An analyzed interface method has no renderable selected native arguments."));
         continue;
       }
       const call: CsharpExpression = { kind: "InvocationExpression", callee: {
         kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: method.sourceName,
+        ...(typeArguments.length === 0 ? {} : { typeArguments: typeArguments as NonNullable<typeof typeArguments[number]>[] }),
       }, arguments: planned.arguments.map((expression, index) => ({ kind: "Argument", expression,
         ...(incoming[index]?.passing === undefined ? {} : { passing: incoming[index]!.passing }) })) };
-      const value = applyCsharpConversionSelection(method.declaration, sourceFile, input, diagnostics,
+      const value = applyCsharpConversionSelection(method.declaration, sourceFile, methodInput, diagnostics,
         forwarding.result.source, forwarding.result.target, forwarding.result.conversion, call);
       if (value === undefined) continue;
-      const typeParameters = (method.member.typeParameters ?? []).map(parameter => {
+      const typeParameters = binders.map(parameter => {
         const rendered = csharpTypeFromTargetTypeRef({
           kind: "type-parameter", identity: parameter.identity, name: parameter.name,
-        }, input.scope.typeParameterNames);
+        }, methodInput.scope.typeParameterNames);
         if (rendered?.kind !== "IdentifierName") return failCsharpPlannerInvariant(
-          "An admitted structural method binder has no native identifier rendering.", parameter.declaration);
+          "An admitted structural method binder has no native identifier rendering.", parameter.csharpDeclaration ?? method.declaration);
         return { name: rendered.name };
       });
       result.push({ kind: "MethodDeclaration", name: method.member.targetName, explicitInterface, modifiers: [], returnType,

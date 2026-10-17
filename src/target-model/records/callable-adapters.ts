@@ -8,7 +8,6 @@ export interface CsharpProjectCallableAdapter {
   readonly contract: CsharpSourceCallableContract;
   readonly parameters: readonly CsharpCallableParameterAdapter[];
   readonly result: CsharpCallableValueAdapter;
-  readonly interfaceType?: TargetTypeRef;
 }
 
 export interface CsharpProjectCallableDispatch {
