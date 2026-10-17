@@ -9,6 +9,7 @@ export interface CsharpObjectShapeProjectionDeclaration {
   readonly receiver: CsharpObjectShapeFact;
   readonly selection: CsharpObjectShapeProjection;
   readonly methodName: string;
+  readonly receiverRequiresNullCheck: boolean;
   readonly typeParameters: readonly Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[];
   readonly typeParameterNames: readonly { readonly identity: string; readonly name: string }[];
   readonly conversions: readonly {

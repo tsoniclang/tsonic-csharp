@@ -4,7 +4,8 @@ import type { CsharpObjectShapeProjectionDeclaration } from "../../target-model/
 import type { CsharpObjectShapeFact, CsharpObjectShapeProjection, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import { csharpAuthoredTypeParameterNames, csharpGeneratedTypeParameterNames } from "../../target-model/names/type-parameters.js";
-import { csharpFreeTypeParameterIdentities, closeCsharpOwnerTypeParameterEnvironment, visitCsharpTargetTypeParameters } from "../../target-model/types/generic-references.js";
+import { closeCsharpOwnerTypeParameterEnvironment, visitCsharpTargetTypeParameters } from "../../target-model/types/generic-references.js";
+import { isCsharpReferenceCarrier } from "../../target-model/types/identity.js";
 import { csharpObjectShapeAssignmentMembers, csharpObjectShapeProjectionMembers, csharpObjectShapeProjectionMethodName } from "../../target-model/types/object-shape-projection.js";
 import { getCsharpJsArrayElementTargetType } from "../../target-model/types/carriers/collections.js";
 
@@ -72,12 +73,11 @@ export function objectShapeProjectionDeclaration(
   conversions: CsharpObjectShapeProjectionDeclaration["conversions"],
 ): CsharpObjectShapeProjectionDeclaration {
   const types = [receiver.targetType, selection.resultType, ...(selection.kind === "assign" ? [selection.sourceShape.targetType] : [])];
-  const free = csharpFreeTypeParameterIdentities(types);
-  const parameters = new Map<string, Extract<TargetTypeRef, { readonly kind: "type-parameter" }>>();
+  const parameters: Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[] = [];
   for (const type of types) visitCsharpTargetTypeParameters(type, parameter => {
-    if (free.has(parameter.identity)) parameters.set(parameter.identity, parameter);
+    parameters.push(parameter);
   });
-  const closed = closeCsharpOwnerTypeParameterEnvironment([...parameters.values()], parameter => parameter.csharpConstraints ??
+  const closed = closeCsharpOwnerTypeParameterEnvironment(parameters, parameter => parameter.csharpConstraints ??
     failTargetAnalysisInvariant("tsonic-csharp", "An admitted object projection requires exact sealed native generic constraints."));
   const classIdentities = new Set(declarationNames.map(parameter => parameter.identity));
   const typeParameters = Object.freeze(closed.filter(parameter => !classIdentities.has(parameter.identity)));
@@ -88,6 +88,6 @@ export function objectShapeProjectionDeclaration(
       "An admitted object projection requires representable native generic constraints.", parameter.csharpDeclaration);
   }
   return Object.freeze({ receiver, selection, methodName: csharpObjectShapeProjectionMethodName(receiver, selection),
-    typeParameters, typeParameterNames, conversions });
+    receiverRequiresNullCheck: isCsharpReferenceCarrier(receiver.targetType), typeParameters, typeParameterNames, conversions });
 }
 

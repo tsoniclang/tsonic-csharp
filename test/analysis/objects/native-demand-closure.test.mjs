@@ -86,8 +86,11 @@ for (const surface of ["native", "js"]) test(`${surface}: source-only generic me
   assert.equal(selected !== undefined && selected.kind !== "erased" && selected.objectShape !== undefined && logical !== undefined, true,
     "the control has both its source storage view and its actual native construction");
   const physical = selected.objectShape;
-  assert.equal(program.records.objectShapeArtifact.get(objectShapeArtifactKey(physical))?.fact === physical, true,
-    "the actual native body carrier is retained by identity");
+  const completed = program.records.objectShapeArtifact.targetShapes[targetTypeRefKey(physical.targetType)];
+  assert.equal(completed !== undefined && program.records.objectShapeArtifact.get(objectShapeArtifactKey(physical))?.fact === completed, true,
+    "the actual native body carrier is retained by its canonical completed identity");
+  assert.equal(physical.methodImplementation !== undefined && completed.methodImplementation?.identity === physical.methodImplementation.identity, true,
+    "completion preserves the exact admitted native method implementation rather than manufacturing a body from its source-only view");
   assert.equal(targetTypeRefKey(logical) !== targetTypeRefKey(physical.targetType), true,
     "the source-only generic method view is not mistaken for its physical implementation");
   assert.equal(program.records.objectShapeArtifact.get(`object-shape:${targetTypeRefKey(logical)}`) === undefined, true,

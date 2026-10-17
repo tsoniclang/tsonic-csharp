@@ -3,7 +3,13 @@ import test from "node:test";
 import { createCsharpObjectShapeDemandEngine } from "../../../dist/analysis/objects/native-demand-requests.js";
 import { renderObjectShapeProjectionMethods } from "../../../dist/backend/planner/objects/closed-object-shapes.js";
 import { objectShapeArtifactKey } from "../../../dist/target-model/records/object-shape-demand.js";
-import { csharpJsArrayTargetType, csharpStringTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/index.js";
+import { csharpStringTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/index.js";
+import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
+import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
+import { objectShapeProjectionDeclaration } from "../../../dist/analysis/objects/native-demand-declarations.js";
+import { printCsharpCompilationUnit } from "../../../dist/print/source/index.js";
+import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 const integer = { kind: "source-primitive", name: "int32" };
 const text = csharpStringTargetType();
@@ -126,4 +132,179 @@ test("projection source identity cannot silently switch its admitted native rece
   const wrong = current.engine.requireObjectShapeProjection(subject, second.targetType, {}, "keys", resultType("keys", second), "object-shape");
   assert.equal(wrong.kind, "rejected", "identical key results are not proof of a different native receiver");
   assert.equal(current.engine.seal().projection(subject).receiver === first, true, "the original receiver identity is never replaced");
+});
+
+function projectedParameter(kind) {
+  const dependency = { kind: "type-parameter", identity: `Caller:${kind}:Source`, name: "Value",
+    csharpConstraints: { kind: "resolved", constraints: [{ kind: "keyword", keyword: "class" }] } };
+  const projection = csharpProjectedType(kind === "optional"
+    ? { kind: "optional", part: "storage", arguments: [dependency] }
+    : { kind: "conditional", declaration: {}, identity: "Caller:Conditional", sourceName: "Selected",
+      sourceArguments: [], arguments: [dependency] });
+  return { dependency, projected: { ...projection, csharpConstraints: { kind: "resolved",
+    constraints: kind === "conditional" ? [{ kind: "type", type: dependency }] : [] } } };
+}
+
+for (const kind of ["optional", "conditional"]) for (const reversed of [false, true]) {
+  test(`${kind} physical projections bind their emitted native parameter in ${reversed ? "reverse" : "forward"} order`, () => {
+    const { projected, dependency } = projectedParameter(kind);
+    const current = fixture([projected, integer]);
+    const subjects = [];
+    for (const receiver of reversed ? [...current.instances].reverse() : current.instances) {
+      for (const projection of ["assign", "keys", "values", "entries", "has-own"]) {
+        const subject = {};
+        assert.equal(current.engine.requireObjectShapeProjection(subject, receiver.targetType, {}, projection,
+          resultType(projection, receiver), "object-shape", projection === "assign" ? { node: {}, type: receiver.targetType } : undefined).kind,
+        "accepted", "the actual optional or conditional carrier has an admitted physical operation");
+        subjects.push({ subject, receiver });
+      }
+    }
+    const published = current.engine.seal();
+    for (const { subject, receiver } of subjects) {
+      const binding = published.projection(subject);
+      assert.equal(binding.receiver === receiver, true, "physical receiver identity is unchanged");
+      assert.equal(binding.typeParameters.some(parameter => parameter.identity === projected.identity), receiver.members[0].type === projected,
+        "the rendered physical projection parameter itself, not just its source dependency, is bound");
+      if (receiver.members[0].type === projected) {
+        assert.equal(binding.typeParameters.some(parameter => parameter.identity === dependency.identity), kind === "conditional",
+          "only an actual emitted constraint dependency becomes an additional native binder");
+      }
+      const diagnostics = [];
+      const methods = renderObjectShapeProjectionMethods({ scope: { typeParameterNames: new Map() } }, [binding], diagnostics);
+      assert.equal(diagnostics.length === 0 && methods.length === 1, true, "the full physical binder environment is renderable");
+      if (receiver.members[0].type === projected) {
+        const name = binding.typeParameterNames.find(parameter => parameter.identity === projected.identity).name;
+        assert.equal(methods[0].parameters[0].type.typeArguments[0].name, name,
+          "the receiver uses the exact bound physical parameter name");
+      }
+    }
+  });
+}
+
+test("a projected parameter already owned by the declaration is not redeclared by its physical method", () => {
+  const { projected } = projectedParameter("optional");
+  const receiver = { targetType: target(projected), members: [field(projected)] };
+  const selected = { kind: "has-own", resultType: { kind: "source-primitive", name: "bool" }, propertyOrder: ["value"] };
+  const binding = objectShapeProjectionDeclaration(receiver, selected, [{ identity: projected.identity, name: "Storage" }], []);
+  assert.equal(binding.typeParameters.length, 0, "the existing class binder satisfies the emitted physical parameter");
+  const diagnostics = [];
+  const methods = renderObjectShapeProjectionMethods({ scope: { typeParameterNames: new Map([[projected.identity, "Storage"]]) } }, [binding], diagnostics);
+  assert.equal(diagnostics.length, 0);
+  assert.equal(methods[0].parameters[0].type.typeArguments[0].name, "Storage", "no source dependency is substituted for the physical class binder");
+});
+
+test("physical projection publication refuses missing native binder constraints", () => {
+  const projected = csharpProjectedType({ kind: "optional", part: "storage", arguments: [parameter] });
+  const receiver = { targetType: target(projected), members: [field(projected)] };
+  assert.throws(() => objectShapeProjectionDeclaration(receiver,
+    { kind: "has-own", resultType: { kind: "source-primitive", name: "bool" }, propertyOrder: ["value"] }, [], []),
+  /exact sealed native generic constraints/u, "source projection evidence does not manufacture an unconstrained native binder");
+});
+
+test("null checks are selected only for exact native reference receivers, never value or unconstrained carriers", () => {
+  const reference = { kind: "type-parameter", identity: "Receiver:Reference", name: "Reference",
+    csharpConstraints: { kind: "resolved", constraints: [{ kind: "keyword", keyword: "class" }] } };
+  for (const [name, type, expected] of [
+    ["native reference", target(integer), true],
+    ["native struct", { ...target(integer), csharpValueType: true, csharpSourceDeclarationKind: "struct" }, false],
+    ["ref-like native struct", { ...target(integer), csharpValueType: true, csharpByRefLike: true }, false],
+    ["constrained reference", reference, true],
+    ["unconstrained native parameter", parameter, false],
+  ]) {
+    const receiver = { targetType: type, members: [] };
+    const binding = objectShapeProjectionDeclaration(receiver,
+      { kind: "has-own", resultType: { kind: "source-primitive", name: "bool" }, propertyOrder: [] }, [], []);
+    assert.equal(binding.receiverRequiresNullCheck, expected, `${name}: one pre-seal reference obligation`);
+    const diagnostics = [];
+    const methods = renderObjectShapeProjectionMethods({ scope: { typeParameterNames: new Map() } }, [binding], diagnostics);
+    assert.equal(diagnostics.length, 0, `${name}: render without boxing or weaker generic evidence`);
+    assert.equal(methods[0].body.statements[0].kind === "IfStatement", expected, `${name}: syntax reads only the admitted null-check obligation`);
+  }
+});
+
+test("actual optional and conditional physical projection methods compile and retain native identity and zero-cost assignment", { timeout: 300_000 }, () => {
+  const bindings = [];
+  for (const kind of ["optional", "conditional"]) {
+    const { projected } = projectedParameter(kind);
+    const current = fixture([projected]);
+    const receiver = current.instances[0];
+    const subjects = [];
+    for (const projection of ["assign", "keys", "values", "entries", "has-own"]) {
+      const subject = {};
+      assert.equal(current.engine.requireObjectShapeProjection(subject, receiver.targetType, {}, projection,
+        resultType(projection, receiver), "object-shape", projection === "assign" ? { node: {}, type: receiver.targetType } : undefined).kind,
+      "accepted", `${kind} ${projection}: native proof consumes admitted metadata`);
+      subjects.push(subject);
+    }
+    const published = current.engine.seal();
+    for (const subject of subjects) bindings.push(published.projection(subject));
+  }
+  const inverseTypes = [
+    ["NativeValue", { kind: "target-named", id: "ProjectionProof.NativeValue", csharpRender: { kind: "named", name: "NativeValue" },
+      csharpAllowsRefLikeTypeArguments: [], csharpValueType: true, csharpSourceDeclarationKind: "struct" }],
+    ["NativeRefValue", { kind: "target-named", id: "ProjectionProof.NativeRefValue", csharpRender: { kind: "named", name: "NativeRefValue" },
+      csharpAllowsRefLikeTypeArguments: [], csharpValueType: true, csharpByRefLike: true }],
+    ["int", { kind: "type-parameter", identity: "Receiver:Unconstrained", name: "Unconstrained",
+      csharpConstraints: { kind: "resolved", constraints: [] } }],
+  ];
+  const inverses = inverseTypes.map(([name, type]) => ({ name, binding: objectShapeProjectionDeclaration({ targetType: type, members: [] },
+    { kind: "has-own", resultType: { kind: "source-primitive", name: "bool" }, propertyOrder: [] },
+    [{ identity: parameter.identity, name: "Value" }], []) }));
+  for (const { binding } of inverses) assert.equal(binding.receiverRequiresNullCheck, false,
+    "native struct, ref-like and unconstrained physical receivers never acquire a boxing null check");
+  const diagnostics = [];
+  const methods = renderObjectShapeProjectionMethods({ scope: { typeParameterNames: new Map([[parameter.identity, "Value"]]) } },
+    [...bindings, ...inverses.map(inverse => inverse.binding)], diagnostics);
+  assert.equal(diagnostics.length, 0, "every complete typed native method is rendered");
+  const syntax = printCsharpCompilationUnit({ kind: "CompilationUnit", usings: [], members: [{ kind: "NamespaceDeclaration", name: "ProjectionProof", members: [
+    { kind: "ClassDeclaration", name: "Projection", modifiers: ["public", "sealed"], typeParameters: [{ name: "Value" }], members: [
+      { kind: "FieldDeclaration", name: "value", modifiers: ["public"], type: { kind: "IdentifierName", name: "Value" } },
+      { kind: "ConstructorDeclaration", name: "Projection", modifiers: ["public"],
+        parameters: [{ name: "value", type: { kind: "IdentifierName", name: "Value" } }], body: { kind: "Block", statements: [
+          { kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" },
+            left: { kind: "SimpleMemberAccessExpression", receiver: { kind: "ThisExpression" }, name: "value" },
+            right: { kind: "IdentifierName", name: "value" } } },
+        ] } },
+      ...methods,
+    ] },
+  ] }] });
+  const compiled = compileCsharpSource({ sourceText: "export function run(): boolean { return true; }" });
+  compiled.artifacts.set("generated/C02ProjectionProof.cs", syntax);
+  const call = (binding, receiver = "receiver") => `Projection<int>.${binding.methodName}<${binding.typeParameters.map(() => "string").join(", ")}>(${receiver}${binding.selection.kind === "assign" ? ", source" : binding.selection.kind === "has-own" ? ', "value"' : ""})`;
+  const observations = bindings.map(binding => {
+    const expression = call(binding);
+    const condition = binding.selection.kind === "assign" ? `ReferenceEquals(${expression}, receiver)`
+      : binding.selection.kind === "has-own" ? expression
+      : binding.selection.kind === "keys" ? `${expression}[0] == "value"`
+      : binding.selection.kind === "entries" ? `${expression}[0].Item2 == "after"` : `${expression}[0] == "after"`;
+    return `if (!(${condition})) throw new Exception("${binding.selection.kind}: physical native carrier");
+ExpectNull(() => { _ = ${call(binding, "null!")}; });`;
+  }).join("\n");
+  const assign = bindings.find(binding => binding.selection.kind === "assign");
+  const inverseCalls = inverses.map(({ name, binding }) => `Projection<int>.${binding.methodName}${name === "int" ? "<int>" : ""}(${name === "int" ? "7" : `new ${name}()`}, "absent")`);
+  const output = executeCsharpConstruction(compiled, "physical-projection-binder-native", false, false, [], `
+using System;
+using ProjectionProof;
+var receiver = new Projection<string>("before");
+var source = new Projection<string>("after");
+${observations}
+for (int iteration = 0; iteration < 8192; iteration++) { _ = ${call(assign)}; receiver.value = source.value; }
+long before = GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 4096; iteration++) {
+    if (!ReferenceEquals(${call(assign)}, receiver)) throw new Exception("native receiver copy");
+    if (${inverseCalls.join(" || ")}) throw new Exception("native value receiver observation");
+}
+long generated = GC.GetAllocatedBytesForCurrentThread() - before;
+before = GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 4096; iteration++) receiver.value = source.value;
+long native = GC.GetAllocatedBytesForCurrentThread() - before;
+if (generated != native || native != 0) throw new Exception($"projection allocation {generated} != {native}");
+Console.Write("0:0");
+static void ExpectNull(Action action) {
+    try { action(); } catch (NullReferenceException) { return; }
+    throw new Exception("native null receiver was not rejected");
+}
+namespace ProjectionProof { public struct NativeValue { } public ref struct NativeRefValue { } }
+`);
+  assert.equal(output, "0:0", "actual emitted projected methods compile, preserve failure identity and match the zero-allocation native assignment");
 });

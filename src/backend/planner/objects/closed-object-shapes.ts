@@ -31,6 +31,7 @@ import {
 import type { CsharpObjectShapeProjectionDeclaration } from "../../../target-model/records/object-shape-demand.js";
 import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../types/type-parameters.js";
 import type { CsharpTypeParameter } from "../../target-ast/syntax/index.js";
+import { qualifiedCsharpType } from "../types/csharp-type-primitives.js";
 
 const stringTargetType = csharpStringTargetType();
 const boolTargetType = csharpSourcePrimitiveTargetType("bool");
@@ -119,7 +120,16 @@ export function renderObjectShapeProjectionMethod(
         : [])],
       body: {
         kind: "Block",
-        statements: projection.kind === "assign"
+        statements: [
+          ...(declaration.receiverRequiresNullCheck ? [{
+            kind: "IfStatement" as const,
+            condition: { kind: "NullPatternExpression" as const,
+              expression: { kind: "IdentifierName" as const, name: "receiver" }, negated: false },
+            thenBody: { kind: "Block" as const, statements: [{ kind: "ThrowStatement" as const,
+              expression: { kind: "ObjectCreationExpression" as const,
+                type: qualifiedCsharpType("System", "NullReferenceException"), arguments: [] } }] },
+          }] : []),
+          ...(projection.kind === "assign"
           ? [
               ...(assignment?.kind === "resolved" ? assignment.statements : []),
               {
@@ -127,7 +137,8 @@ export function renderObjectShapeProjectionMethod(
                 expression: { kind: "IdentifierName" as const, name: "receiver" },
               },
             ]
-          : [{ kind: "ReturnStatement", expression: expression.expression }],
+          : [{ kind: "ReturnStatement" as const, expression: expression.expression }]),
+        ],
       },
     },
   };
