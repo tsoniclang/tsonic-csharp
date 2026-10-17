@@ -44,7 +44,8 @@ export function analyzeCsharpProjectCallableAdapters(
   declarations: Pick<CsharpDeclarationClassifications, "runtimeDefault">,
   projections: CsharpGenericProjectionIndex["genericProjection"],
 ): CsharpProjectCallableAdapters & {
-  readonly objectShapes: CsharpObjectShapeClassifications<CsharpFinalStructuralInterfaceImplementation>;
+  readonly objectShapes: CsharpObjectShapeClassifications<CsharpFinalStructuralInterfaceImplementation> &
+    Pick<CsharpObjectShapeAnalysis, "targetShapes">;
 } {
   const byDeclaration = new Map<Node, CsharpProjectCallableDispatch>();
   const requests = new Map<string, { readonly type: TargetTypeRef; readonly interfaces: Map<string, MethodRequest> }>();
