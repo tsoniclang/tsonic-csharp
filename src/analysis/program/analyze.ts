@@ -237,16 +237,17 @@ export function analyzeCsharpTargetProgram(
     maximumEvaluations: 64,
   });
   if (closure.kind === "rejected") {
-    if (closure.cause !== undefined) return closure.cause;
-    return rejectedTargetStage([{
+    const failure = closure.failures[0]!;
+    if (closure.failures.length === 1 && failure.cause !== undefined) return failure.cause;
+    return rejectedTargetStage(closure.failures.flatMap(failure => failure.cause?.diagnostics ?? [{
       code: "CSHARP_TARGET_CONTRACT_CLOSURE_REJECTED",
-      category: "error",
+      category: "error" as const,
       source: "tsonic-csharp",
-      message: closure.reason,
+      message: failure.reason,
       evidence: Object.freeze([
-        `target.contract=${closure.contractId ?? csharpTargetRepresentationContractId}`,
+        `target.contract=${failure.contractId ?? csharpTargetRepresentationContractId}`,
       ]),
-    }]);
+    }]));
   }
   const stable = closure.program.get(csharpTargetRepresentationContractId)!;
   const evaluated = analyzeIteration(
