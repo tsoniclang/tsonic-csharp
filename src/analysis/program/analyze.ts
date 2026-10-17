@@ -283,7 +283,6 @@ export function analyzeCsharpTargetProgram(
     ...callableAdapters.issues,
     ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
     ...analysis.sourceEvidence.memoryMetadataIssues,
-    ...analysis.sourceEvidence.typeOnlyIssues,
     ...analysis.sourceEvidence.fixedArrayIssues,
     ...analysis.typeSystem.projectTypes.issues,
     ...analysis.typeSystem.nativeConstruction.issues,

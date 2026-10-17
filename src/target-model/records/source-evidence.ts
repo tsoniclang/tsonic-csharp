@@ -66,7 +66,6 @@ export interface CsharpFlowReadClassifications {
 export interface CsharpSourceEvidenceIndex {
   readonly bindingProjection: { readonly get: (node: Node) => import("./binding-projection-policy.js").CsharpBindingProjection | undefined };
   readonly memoryMetadataIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
-  readonly typeOnlyIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
   readonly fixedArrayIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
   readonly pointerBackingDemands: readonly import("@tsonic/source-core/facts").TsonicPointerBackingDemand[];
   readonly compileTimeMetadata: { readonly get: (node: Node) => boolean };

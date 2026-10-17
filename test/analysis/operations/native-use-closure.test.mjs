@@ -643,6 +643,38 @@ test("actual native key refusals precede expected-slot pending and retain every 
   assert.equal(demand.nativeUse.expression(expression) === undefined, true, "a refused expression never receives a fabricated native use");
 });
 
+for (const surface of ["native", "js"]) test(`${surface} actual ambient admission precedes pending slots without observing an erased body`, () => {
+  const value = owners(`
+declare const external: number;
+export function run(): number {
+  function hidden(): number { return external; }
+  return 42;
+}`, surface);
+  const hidden = value.nodes.find(node => value.ast.is.IsFunctionDeclaration(node) && value.ast.text(value.ast.name(node)) === "hidden");
+  const reference = value.nodes.find(node => value.ast.is.IsIdentifier(node) && value.ast.text(node) === "external" &&
+    value.ast.is.IsReturnStatement(value.ast.parent(node)));
+  assert.equal(hidden !== undefined && reference !== undefined && value.records.nativeParticipation.get(hidden) === "erased", true,
+    "the real canonical producer erases the exact original dormant body and retains its checked reference");
+  const dormant = analyzeCsharpNativeDemand(value.input, []);
+  assert.equal(dormant.unadmitted.length === 0 && dormant.nativeUse.expression(reference) === undefined, true,
+    "native demand does not invent an implementation obligation for an erased body");
+  const site = csharpNativeUseSite(value.ast.parent(reference), { kind: "return" });
+  const demand = analyzeCsharpNativeDemand({ ...value.input,
+    participation: { get: node => node === hidden ? "body" : value.input.participation.get(node) },
+    expected: { ...value.input.expected, pending: [{ site, expression: reference, reason: "inconsistent-request" }] },
+  }, []);
+  const refusals = demand.unadmitted.filter(entry => entry.kind === "source-refusal");
+  const refusal = refusals[0];
+  assert.equal(refusals.length === 1 && refusal.requiredBy === reference && refusal.diagnostic.sourceNode === reference &&
+    refusal.diagnostic.code === "CSHARP_AMBIENT_VALUE_IMPLEMENTATION_MISSING" &&
+    refusal.diagnostic.message === "A runtime read of an authored ambient variable requires an exact native implementation.", true,
+  "the same actual runtime reference reports its original source refusal before an expected-slot pending or missing-fact invariant");
+  assert.equal(demand.unadmitted.some(entry => entry.kind === "pending-use" && entry.expression === reference), false,
+    "the precise implementation refusal is not replaced by pending carrier evidence");
+  assert.equal(demand.nativeUse.expression(reference) === undefined, true,
+    "refused actual use cannot publish an invented native binding or expression");
+});
+
 for (const [label, body, expression, family] of [
   ["call", "function make(): number { return 1; } export const result = make();", "make()", "selectedCall"],
   ["construction", "class Box { value = 1; } export const result = new Box();", "new Box()", "selectedConstruction"],

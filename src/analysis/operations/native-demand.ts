@@ -166,6 +166,24 @@ export function analyzeCsharpNativeDemand(
     return true;
   }
 
+  function refuseAmbientValueUse(expression: Node): boolean {
+    const declaration = input.navigation.sourceReferenceFor(expression)?.declaration;
+    if (declaration === undefined || !ast.is.IsVariableDeclaration(declaration) ||
+      !input.navigation.isProjectDeclaration(declaration) || !input.evidence.compileTimeMetadata.get(declaration)) return false;
+    const list = ast.parent(declaration);
+    const statement = list === undefined ? undefined : ast.parent(list);
+    if (statement === undefined || !ast.is.IsVariableStatement(statement) ||
+      ast.as.AsVariableStatement(statement)?.DeclarationList !== list || !ast.hasModifierKind(statement, "ambient")) return false;
+    if (!refusedSourceExpressions.has(expression)) {
+      refusedSourceExpressions.add(expression);
+      unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy: expression, diagnostic: Object.freeze({
+        code: "CSHARP_AMBIENT_VALUE_IMPLEMENTATION_MISSING", category: "error", source: "tsonic-csharp", sourceNode: expression,
+        message: "A runtime read of an authored ambient variable requires an exact native implementation.",
+      }) }));
+    }
+    return true;
+  }
+
   function visitStep(step: CsharpNativeOperandStep, steps: CsharpNativeOrderStep[], visited?: ReadonlyMap<CsharpNativeChildUse, VisitedUse>): void {
     if (step.kind === "construct") {
       visitConstruct(step.node);
@@ -186,7 +204,7 @@ export function analyzeCsharpNativeDemand(
         : Object.freeze({ site, expression, completion: Object.freeze({ kind: "void" as const }),
           discardedPresence: constantPresence(existing.kind === "erased" && existing.cause === "discarded-callable", []) });
     }
-    if (refuseSourceExpression(expression)) return Object.freeze({ site, expression, completion: undefined });
+    if (refuseSourceExpression(expression) || refuseAmbientValueUse(expression)) return Object.freeze({ site, expression, completion: undefined });
     if (exact === undefined) {
       const candidates = slots.get(site.subject)?.get(site.role);
       const matching = candidates?.expressions.get(expression) ?? [];

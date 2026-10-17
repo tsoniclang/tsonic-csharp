@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createSourceStorageQuery, defaultSourceStorageLimits } from "@tsonic/target-api/analysis";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
 import { analyzeCsharpNativeParticipation } from "../../../dist/analysis/callables/participation.js";
+import { analyzeCsharpTypeOnlyDeclarations } from "../../../dist/analysis/declarations/type-only.js";
 import { compileCsharpTarget } from "../../../dist/backend/compile.js";
 
 function analyze(sourceText, surface = "native") {
@@ -36,6 +38,113 @@ function labels(value) {
     return [`${ast.kindName(node)}:${owner}:${selected}`];
   });
 }
+
+const ambientOriginal = active => `
+declare const external: number;
+export function run(): number {
+  function hidden(): number { return external; }
+  return ${active ? "hidden()" : "42"};
+}`;
+const ambientCases = [
+  { name: "original dormant", sourceText: ambientOriginal(false), errors: 0, references: 1, call: "Subject.run()",
+    erased: ["hidden"], forbidden: ["external", "hidden"] },
+  { name: "original active", sourceText: ambientOriginal(true), errors: 1, references: 1 },
+  { name: "erased callable subtree", sourceText: `declare const external: number;
+    export function run(): number {
+      const unused = () => { function nested(): number { return external; } return nested(); };
+      void unused; return 42;
+    }`, errors: 0, references: 1, call: "Subject.run()", erased: [], forbidden: ["external", "unused", "nested"] },
+  { name: "type-only query", sourceText: `declare const external: number;
+    export type External = typeof external;
+    export function run(value: External): number { return value; }`, errors: 0, references: 0,
+    call: "Subject.run(42D)", erased: [], forbidden: ["external"] },
+  { name: "ordinary shadow", sourceText: `declare const external: number;
+    export function run(): number { const external = 42; return external; }`, errors: 0, references: 0,
+    call: "Subject.run()", erased: [], forbidden: [] },
+  { name: "actual alias", sourceText: `declare const external: number;
+    export function run(): number { const value = external; return value; }`, errors: 1, references: 1 },
+  { name: "retained callback", sourceText: `declare const external: number;
+    export function run(): () => number { return () => external; }`, errors: 1, references: 1 },
+  { name: "actual module initializer", sourceText: `declare const external: number;
+    export const value = external;`, errors: 1, references: 1 },
+  { name: "distinct actual references", sourceText: `declare const external: number;
+    export function run(): number { const first = external; const second = external; return first + second; }`, errors: 2, references: 2 },
+];
+
+for (const surface of ["native", "js"]) for (const example of ambientCases) test(
+  `${surface} ambient implementation is required only by actual native use (${example.name})`, { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ sourceText: example.sourceText, surface });
+  assertCsharpCheckingSucceeded(compiled);
+  const source = createTargetSourceProgram(compiled.source);
+  const ast = source.ast;
+  const nodes = [];
+  const visit = node => {
+    nodes.push(node);
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of source.navigation.sourceFiles) visit(file);
+  const ambient = nodes.find(node => {
+    if (!ast.is.IsVariableDeclaration(node) || ast.text(ast.name(node)) !== "external") return false;
+    const list = ast.parent(node);
+    const statement = list === undefined ? undefined : ast.parent(list);
+    return statement !== undefined && ast.is.IsVariableStatement(statement) && ast.hasModifierKind(statement, "ambient");
+  });
+  assert.equal(ambient !== undefined, true, `${example.name}: the original ambient source declaration is preserved`);
+  const references = source.navigation.declarationUses(ambient).filter(use => use.kind !== "type-only" && use.kind !== "source-linkage");
+  assert.equal(references.length, example.references, `${example.name}: checked source references are not filtered or rewritten`);
+  if (example.errors !== 0) {
+    const issues = compiled.targetDiagnostics;
+    assert.equal(issues.length === example.errors && issues.every(issue =>
+      issue.code === "CSHARP_AMBIENT_VALUE_IMPLEMENTATION_MISSING" && issue.category === "error" && issue.source === "tsonic-csharp" &&
+      issue.message === "A runtime read of an authored ambient variable requires an exact native implementation." &&
+      references.some(reference => reference.reference === issue.sourceNode)), true,
+    `${example.name}: every actual reference retains the original precise code, message, owner and source identity`);
+    assert.equal(new Set(issues.map(issue => issue.sourceNode)).size, example.errors,
+      `${example.name}: diagnostics deduplicate by actual reference, never globally by declaration`);
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+      `${example.name}: an unimplemented actual native read publishes no program, plan or artifact`);
+    return;
+  }
+  assertCsharpCompilationSucceeded(compiled);
+  const program = compiled.result.program;
+  assert.equal(program.records.compileTimeMetadata.get(ambient), true,
+    `${example.name}: source-only declaration metadata remains available without an invented native binding`);
+  if (example.name === "original dormant") {
+    const declarations = analyzeCsharpTypeOnlyDeclarations(source, source.navigation.sourceFiles);
+    assert.equal(declarations.has(ambient) && declarations.has(ast.parent(ast.parent(ambient))), true,
+      "the one metadata producer preserves both original ambient declaration identities");
+    assert.equal(Object.hasOwn(declarations, "issues") || Object.hasOwn(declarations, "declarations"), false,
+      "the old mixed metadata/runtime-issue API is removed, not retained beside the actual-use validator");
+  }
+  for (const name of example.erased) {
+    const declaration = nodes.find(node => ast.is.IsFunctionDeclaration(node) && ast.text(ast.name(node)) === name);
+    assert.equal(declaration !== undefined && program.records.nativeParticipation.get(declaration) === "erased", true,
+      `${example.name}: the canonical native participation owner, not a diagnostic filter, erases ${name}`);
+  }
+  for (const reference of references) assert.equal(program.records.nativeUse.expression(reference.reference) === undefined, true,
+    `${example.name}: an erased checked reference is not published as a runtime native use`);
+  const output = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
+  for (const name of example.forbidden) assert.equal(output.includes(name), false,
+    `${example.name}: no erased body or invented ambient runtime binding for ${name}`);
+  const nativeOutput = executeCsharpConstruction(compiled, `native-ambient-${surface}-${example.name.replaceAll(" ", "-")}`, false, false, [], `
+    using Subject = Tsonic.Generated.Index;
+    static double Native() => 42D;
+    if (${example.call} != 42D) throw new System.Exception("the retained native program must return42");
+    for (int index = 0; index < 20000; index++) { _ = ${example.call}; _ = Native(); }
+    long before = System.GC.GetAllocatedBytesForCurrentThread();
+    double generated = 0;
+    for (int index = 0; index < 20000; index++) generated += ${example.call};
+    long generatedBytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
+    before = System.GC.GetAllocatedBytesForCurrentThread();
+    double handwritten = 0;
+    for (int index = 0; index < 20000; index++) handwritten += Native();
+    long nativeBytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
+    if (generated != handwritten || generated != 840000D || generatedBytes != nativeBytes || nativeBytes != 0)
+      throw new System.Exception("erased ambient bodies must add no native allocation or change the retained value");
+    System.Console.WriteLine("actual native ambient admission passed");`);
+  assert.equal(nativeOutput.includes("actual native ambient admission passed"), true,
+    `${example.name}: native execution preserves42 and the exact handwritten zero-allocation cost`);
+});
 
 for (const surface of ["native", "js"]) {
   test(`${surface} native participation is decided once per callable declaration`, () => {

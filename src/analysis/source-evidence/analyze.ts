@@ -73,7 +73,7 @@ export function analyzeCsharpSourceEvidence(
   const pointerBacking = createTsonicPointerBackingDemands(source);
   const arrayStorage = createTsonicClosedArrayStorageQueries(source, 131_072);
   const typeOnlyDeclarations = analyzeCsharpTypeOnlyDeclarations(source, sourceFiles);
-  const compileTimeMetadata = new WeakSet<Node>(typeOnlyDeclarations.declarations);
+  const compileTimeMetadata = new WeakSet<Node>(typeOnlyDeclarations);
   const memoryMetadataIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
   const fixedArrayIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
   const nativeExpressionIssues = new Map<Node, {
@@ -534,7 +534,6 @@ export function analyzeCsharpSourceEvidence(
     }))]),
     fixedArrayIssues: Object.freeze(fixedArrayIssues),
     compileTimeMetadata: Object.freeze({ get: node => compileTimeMetadata.has(node) }),
-    typeOnlyIssues: typeOnlyDeclarations.issues,
     classConstructorType: Object.freeze({ get: node => cachedValue(classConstructorTypes.get(node)) }),
     targetTypes: Object.freeze([...targetTypes.values()]),
     nodeTargetType: Object.freeze({ get(node) {
