@@ -67,8 +67,17 @@ export function planCsharpStructuralInterfaceMembers(
       const value = applyCsharpConversionSelection(method.declaration, sourceFile, input, diagnostics,
         forwarding.result.source, forwarding.result.target, forwarding.result.conversion, call);
       if (value === undefined) continue;
+      const typeParameters = (method.member.typeParameters ?? []).map(parameter => {
+        const rendered = csharpTypeFromTargetTypeRef({
+          kind: "type-parameter", identity: parameter.identity, name: parameter.name,
+        }, input.scope.typeParameterNames);
+        if (rendered?.kind !== "IdentifierName") return failCsharpPlannerInvariant(
+          "An admitted structural method binder has no native identifier rendering.", parameter.declaration);
+        return { name: rendered.name };
+      });
       result.push({ kind: "MethodDeclaration", name: method.member.targetName, explicitInterface, modifiers: [], returnType,
         parameters: parameters as CsharpParameter[],
+        ...(typeParameters.length === 0 ? {} : { typeParameters }),
         body: { kind: "Block", statements: [...planned.statements, isCsharpVoidTargetType(forwarding.contract.returnType)
           ? { kind: "ExpressionStatement", expression: value } : { kind: "ReturnStatement", expression: value }] },
       });

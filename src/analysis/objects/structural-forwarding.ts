@@ -4,7 +4,6 @@ import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from
 import type { CsharpProjectCallableAdapters } from "../../target-model/records/callable-adapters.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpFinalStructuralInterfaceImplementation, CsharpStructuralMethodForwarding } from "../../target-model/records/heritage.js";
-import type { CsharpSourceCallContract } from "../../target-model/records/source-callable-contract.js";
 import type { CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
@@ -45,8 +44,7 @@ export function finalizeCsharpStructuralInterfaceForwarding(
           ...(signature.restParameterIndex === index ? { paramsArray: true } : {}),
           ...(signature.optionalParameterIndexes?.includes(index) === true ? { optional: true } : {}),
         }));
-        const contract: CsharpSourceCallContract = Object.freeze({
-          methodTypeParameterIdentities: Object.freeze((method.member.typeParameters ?? []).map(parameter => parameter.identity)),
+        const contract: CsharpStructuralMethodForwarding["contract"] = Object.freeze({
           parameters: Object.freeze(parameters.map(targetParameter => Object.freeze({ targetParameter }))),
           returnType: signature.returnType,
         });

@@ -10,7 +10,7 @@ import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { qualifiedCsharpType } from "../../types/index.js";
 
 export function planCsharpCallableArguments(
-  declaration: Node, source: CsharpSourceCallContract, parameters: readonly CsharpParameter[],
+  declaration: Node, source: Pick<CsharpSourceCallContract, "parameters">, parameters: readonly CsharpParameter[],
   implementationParameters: readonly CsharpParameter[], adapters: readonly CsharpCallableParameterAdapter[],
   sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
 ): { readonly statements: readonly CsharpStatement[]; readonly arguments: readonly CsharpExpression[] } | undefined {
