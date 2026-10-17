@@ -20,7 +20,7 @@ export interface CsharpStructuralInterfaceEvidence {
 }
 
 export interface CsharpStructuralMethodForwarding {
-  readonly contract: CsharpSourceCallContract;
+  readonly contract: Pick<CsharpSourceCallContract, "parameters" | "returnType">;
   readonly implementation: CsharpSourceCallableContract;
   readonly parameterDefaults: readonly (CsharpDefaultParameterContract | undefined)[];
   readonly parameters: readonly CsharpCallableParameterAdapter[];
