@@ -10,6 +10,7 @@ import type { CsharpExactLiteralSelectionIndex, CsharpNativePropertyKeyBinding }
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpSourceEvidenceResult } from "../source-evidence/model.js";
+import type { CsharpBindingPatternAnalysis } from "../control-flow/binding-patterns.js";
 
 export interface CsharpNativeDemandAnalysisInput extends Omit<CsharpNativeConstructInput, "baseCalls" | "unusedDefault">,
   Omit<CsharpNativeOperandInput, "unusedDefault"> {
@@ -19,6 +20,7 @@ export interface CsharpNativeDemandAnalysisInput extends Omit<CsharpNativeConstr
   readonly propertyKeyBindings: (expression: Node, carrier: TargetTypeRef) => readonly CsharpNativePropertyKeyBinding[] | undefined;
   readonly exactLiteral: CsharpExactLiteralSelectionIndex["exactLiteral"];
   readonly nativeExpressionIssues: CsharpSourceEvidenceResult["nativeExpressionIssues"];
+  readonly bindingPatterns: CsharpBindingPatternAnalysis;
 }
 
 export type CsharpNativeUnadmittedReason =

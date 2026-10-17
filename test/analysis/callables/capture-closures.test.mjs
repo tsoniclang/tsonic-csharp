@@ -3,6 +3,8 @@ import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { selectCsharpFrameClosures } from "../../../dist/analysis/callables/capture-closures.js";
+import { csharpRuntimeParameterDefault } from "../../../dist/target-model/types/parameter-defaults.js";
+import { selectCsharpDefaultValueContract } from "../../../dist/policy/types/objects/binding-projection-policy.js";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
 const callable = Object.freeze({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [true], id: "System.Func", typeArguments: [scalar] });
@@ -50,8 +52,11 @@ function fixture(text) {
   };
   const select = (groups = new Map(), physicalType = (_declaration, type) => type, valueOwned = new Set()) => {
     const issues = [];
+    const defaultValue = csharpRuntimeParameterDefault(scalar);
+    const runtimeDefault = Object.freeze({ ...defaultValue, acceptsOmission: true,
+      native: selectCsharpDefaultValueContract(defaultValue.parameterType, defaultValue.valueType, false) });
     const selected = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, valueOwned,
-      { declarations: { runtimeDefault: Object.freeze({ get: node => runtimeDefaults.has(node) ? {} : undefined }) },
+      { declarations: { runtimeDefault: Object.freeze({ get: node => runtimeDefaults.has(node) ? runtimeDefault : undefined }) },
         storage: { nativeBacking: Object.freeze({ get: node => nativeBackings.get(node) }), typedLocationIdentity: Object.freeze({ get: () => false }) },
         expectedTypes: { callableTarget: Object.freeze({ get: () => undefined }) } });
     return { ...selected, groups, issues };

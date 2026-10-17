@@ -4,7 +4,7 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../context.js";
-import { targetPolicyDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { mapCsharpPlannedValue } from "./planned-values.js";
@@ -19,12 +19,7 @@ export function planCsharpJsStringConversion(
   planExpression: ExpressionPlanner,
 ): CsharpPlannedValue | undefined {
   if (selection.kind === "rejected") {
-    diagnostics.push(targetPolicyDiagnostic(
-      node,
-      "CSHARP_JS_STRING_CONVERSION_REJECTED",
-      selection.reason,
-    ));
-    return undefined;
+    return failCsharpPlannerInvariant("A selected JS string refusal must be rejected before native publication.", node);
   }
   return mapCsharpPlannedValue(
       planExpression(

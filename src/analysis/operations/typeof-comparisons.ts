@@ -18,16 +18,13 @@ export function classifyTypeofComparison(
   if (runtimeKind === undefined) {
     return undefined;
   }
-  return Object.freeze({
-    operand: guard.sourceOperand,
+  const selection = selectCsharpTypeofComparison(
+    policy.types.resolveNode(guard.sourceOperand, sourceFile),
     runtimeKind,
-    selection: selectCsharpTypeofComparison(
-      policy.types.resolveNode(guard.sourceOperand, sourceFile),
-      runtimeKind,
-      guard.negated,
-      policy.typeDefinitions,
-    ),
-  });
+    guard.negated,
+    policy.typeDefinitions,
+  );
+  return selection === undefined ? undefined : Object.freeze({ operand: guard.sourceOperand, runtimeKind, selection });
 }
 
 function runtimeKindLiteral(

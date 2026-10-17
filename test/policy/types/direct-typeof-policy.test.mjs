@@ -11,12 +11,21 @@ import {
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { getCsharpTypeofResult } from "../../../dist/target-model/types/runtime-kind.js";
 import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { createCsharpTypeDefinitionRegistry } from "../../../dist/analysis/project-types/type-definitions.js";
 import { selectCsharpClosedTypeTestPlan } from "../../../dist/policy/operations/operators/type-tests.js";
 
 function categorySelection(sourceCarrier, runtimeKind, negated) {
   return { kind: "runtime-category-test", sourceCarrier, category: getCsharpTypeofResult(sourceCarrier), runtimeKind, negated };
 }
+
+test("an already selected JS-value carrier retains its runtime typeof owner rather than a native category refusal", () => {
+  const selected = csharpTsValueTargetType();
+  assert.equal(selectCsharpTypeofComparison(selected, "object", false), undefined,
+    "dynamic category observation is not a closed native category specialization");
+  assert.equal(selectCsharpTypeofComparison({ ...selected, id: "renamed:actual-js-carrier" }, "function", true), undefined,
+    "the actual carrier metadata, not its spelling, owns the existing JS runtime operation");
+});
 
 test("native categories retain exact declaration authority after definition sealing", () => {
   let lookups = 0;

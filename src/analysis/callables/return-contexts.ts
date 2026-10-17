@@ -15,7 +15,8 @@ export function selectCsharpCallableReturnContext(
   callable: CsharpSourceCallableContract,
   contextualTarget?: TargetTypeRef,
 ): CsharpReturnContext | undefined {
-  const selectedReturnType = getCsharpLambdaSignature(contextualTarget)?.returnType ?? callable.returnType;
+  const selectedReturnType = policy.ast.typeNode(callable.sourceDeclaration) === undefined
+    ? getCsharpLambdaSignature(contextualTarget)?.returnType ?? callable.returnType : callable.returnType;
   if (evidence.generator.get(callable.sourceDeclaration) !== undefined) {
     return returnContext(getCsharpGeneratorProtocol(selectedReturnType)?.returnType);
   }

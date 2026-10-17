@@ -1,5 +1,4 @@
-import { targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
-import { targetPolicyDiagnostic, unsupportedNodeDiagnostic, failCsharpPlannerInvariant } from "../../../diagnostics.js";
+import { targetPolicyDiagnostic, failCsharpPlannerInvariant } from "../../../diagnostics.js";
 import { planCsharpJsValueCall } from "./js-values.js";
 import { buildCsharpPlannedValue, projectCsharpPlannedValue } from "../../planned-value-composition.js";
 import type { CsharpPlannedValue } from "../../planned-values.js";
@@ -91,8 +90,7 @@ function translateCsharpCallExpressionCore(
   if (form.kind === "js-value") {
     const jsValueOperation = form.operation;
     if (jsValueOperation.kind === "rejected") {
-      diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
-      return undefined;
+      return failCsharpPlannerInvariant("A JS-value call refusal must be rejected before native publication.", node);
     }
     return planCsharpJsValueCall(node, sourceFile, input, diagnostics, jsValueOperation, sourceCall, planExpression);
   }
@@ -133,33 +131,9 @@ function translateCsharpCallExpressionCore(
         state,
       );
     case "rejected":
-      diagnostics.push(targetDiagnosticFromExtension(
-        node,
-        selection.diagnostic,
-      ));
-      return undefined;
     case "missing":
-      diagnostics.push(targetPolicyDiagnostic(
-        node,
-        "CSHARP_TARGET_CALL_NOT_CLOSED",
-        selection.reason,
-      ));
-      return undefined;
     case "conflict":
-      diagnostics.push(targetPolicyDiagnostic(
-        node,
-        "CSHARP_TARGET_CALL_IDENTITY_CONFLICT",
-        selection.reason,
-      ));
-      return undefined;
     case "ambiguous":
-      diagnostics.push(targetPolicyDiagnostic(
-        node,
-        "CSHARP_TARGET_CALL_AMBIGUOUS",
-        selection.reason,
-        selection.candidates.map((candidate) =>
-          `candidate=${candidate}`),
-      ));
-      return undefined;
+      return failCsharpPlannerInvariant("An unadmitted target call must be rejected before native publication.", node);
   }
 }

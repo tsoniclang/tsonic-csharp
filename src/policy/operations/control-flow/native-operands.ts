@@ -38,6 +38,10 @@ export type CsharpNativeOperandStep =
   | { readonly kind: "use"; readonly use: CsharpNativeChildUse }
   | { readonly kind: "construct"; readonly node: Node };
 
+export type CsharpNativeOperandSourceRefusal =
+  | { readonly kind: "extension"; readonly diagnostic: ExtensionDiagnostic }
+  | { readonly kind: "target"; readonly code: string; readonly message: string; readonly evidence?: readonly string[] };
+
 export interface CsharpNativeOperandSelection {
   readonly runtime: readonly CsharpNativeChildUse[];
   readonly planning: readonly CsharpNativeOperandStep[];
@@ -47,7 +51,7 @@ export interface CsharpNativeOperandSelection {
   readonly refusal?: CsharpNativeOperandRefusal;
   readonly refusalMessage?: string;
   readonly refusalCode?: string;
-  readonly sourceDiagnostic?: ExtensionDiagnostic;
+  readonly sourceRefusal?: CsharpNativeOperandSourceRefusal;
   readonly discardedGuard?: CsharpNativeDiscardedGuard;
 }
 
@@ -89,9 +93,18 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     planning: readonly CsharpNativeOperandStep[] = plan(runtime), own = carrier): CsharpNativeOperandSelection =>
     Object.freeze({ runtime: Object.freeze([...runtime]), planning: Object.freeze([...planning]), flow, resultUse, carrier: own });
   const refused = (refusal: CsharpNativeOperandRefusal, refusalMessage?: string, refusalCode?: string,
-    sourceDiagnostic?: ExtensionDiagnostic): CsharpNativeOperandSelection =>
+    extensionDiagnostic?: ExtensionDiagnostic): CsharpNativeOperandSelection =>
     Object.freeze({ ...chosen([]), refusal, ...(refusalMessage === undefined ? {} : { refusalMessage }),
-      ...(refusalCode === undefined ? {} : { refusalCode }), ...(sourceDiagnostic === undefined ? {} : { sourceDiagnostic }) });
+      ...(refusalCode === undefined ? {} : { refusalCode }), ...(extensionDiagnostic === undefined ? {} : {
+        sourceRefusal: Object.freeze({ kind: "extension" as const, diagnostic: extensionDiagnostic }),
+      }) });
+  const sourceRefused = (code: string, message: string, evidence?: readonly string[]): CsharpNativeOperandSelection =>
+    Object.freeze({ ...chosen([]), sourceRefusal: Object.freeze({ kind: "target" as const, code, message,
+      ...(evidence === undefined ? {} : { evidence: Object.freeze([...evidence]) }),
+    }) });
+  const argumentRefused = (refusal: CsharpNativeArgumentRefusal): CsharpNativeOperandSelection =>
+    refusal.reason === "argument-refused" ? sourceRefused("CSHARP_UNSUPPORTED_AST", refusal.message)
+      : refused(refusal.reason, refusal.message);
   const sourceSelection = (flow: CsharpNativeOperandSelection["flow"] = "sequence"): CsharpNativeOperandSelection => {
     const inputs = sourceExpressionValueInputs(ast, node);
     return inputs === undefined ? refused("expression-form-unresolved") : chosen(inputs, flow);
@@ -117,17 +130,16 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
   }
   if (evidence.sourceDefaultValue.get(node) !== undefined) return chosen([]);
   const passing = evidence.sourceArgument.get(node);
-  if (passing?.kind === "rejected") return refused("source-argument-rejected", passing.reason);
+  if (passing?.kind === "rejected") return sourceRefused("CSHARP_UNSUPPORTED_AST", passing.reason);
   if (passing?.kind === "resolved" && !sourceNodesEqual(ast, passing.argument.storageExpression, node)) {
     return chosen(use(passing.argument.storageExpression, { kind: "operand", position: "only" }, undefined, "location"));
   }
   const handler = operations.nativeHandler.get(node);
   if (handler !== undefined) {
-    const selection = handler.selection;
-    if (selection.kind === "rejected") return refused("operation-unresolved");
     switch (handler.kind) {
       case "memory-binding": {
         const memory = handler.selection;
+        if (memory.kind === "rejected") return sourceRefused("CSHARP_UNSUPPORTED_AST", memory.reason);
         return memory.kind === "field" ? chosen(intrinsic(memory.expression, "value", memory.type))
           : memory.kind === "record" ? chosen(memory.fields.flatMap((field, index) => intrinsic(field.expression, "argument", field.member.type, index)))
           : refused("operation-unresolved");
@@ -138,6 +150,7 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       }
       case "js-string-conversion": {
         const string = handler.selection;
+        if (string.kind === "rejected") return sourceRefused("CSHARP_JS_STRING_CONVERSION_REJECTED", string.reason);
         return string.kind === "resolved" ? chosen(intrinsic(string.sourceValue, "value"), "sequence", undefined, string.resultType)
           : refused("operation-unresolved");
       }
@@ -151,7 +164,8 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
           case "load": return chosen(intrinsic(pointer.pointerExpression, "location", pointer.pointerType));
           case "store": return chosen([...intrinsic(pointer.pointerExpression, "location", pointer.pointerType), ...intrinsic(pointer.valueExpression, "value", pointer.pointeeType)]);
           case "offset": return chosen([...intrinsic(pointer.pointerExpression, "location", pointer.pointerType), ...intrinsic(pointer.offsetExpression, "offset", pointer.offsetType)]);
-          case "rejected": return refused("operation-unresolved");
+          case "rejected": return sourceRefused("CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED",
+            `C# native-pointer '${pointer.operation}' is not mapped: ${pointer.reason}`);
         }
       }
       case "typed-location": {
@@ -166,10 +180,17 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
             return chosen(use(storage.expression, { kind: "intrinsic-operand", operand: "location" }, undefined, "location"));
           }
           case "location-allocate": return chosen(intrinsic(location.initialExpression, "initial", location.pointeeType));
-          case "location-load": return chosen(intrinsic(location.location.expression, "location", location.locationType));
-          case "location-store": return chosen([...intrinsic(location.location.expression, "location", location.locationType), ...intrinsic(location.valueExpression, "value", location.pointeeType)]);
+          case "location-load":
+          case "location-store": {
+            const nativeRef = location.location.kind === "native-ref-return";
+            const address = use(location.location.expression, { kind: "intrinsic-operand", operand: "location" },
+              nativeRef ? location.pointeeType : location.locationType, nativeRef ? "location" : undefined);
+            return chosen([...address, ...(location.kind === "location-store"
+              ? intrinsic(location.valueExpression, "value", location.pointeeType) : [])]);
+          }
           case "location-equal": return chosen([...intrinsic(location.leftExpression, "left", location.parameterType), ...intrinsic(location.rightExpression, "right", location.parameterType)]);
-          case "rejected": return refused("operation-unresolved");
+          case "rejected": return sourceRefused("CSHARP_UNSUPPORTED_AST",
+            `C# '${location.operation}' lowering requires one exact finalized typed-location operation. ${location.reason}`);
         }
       }
     }
@@ -183,8 +204,9 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     switch (call.form.kind) {
       case "type-test": return chosen(use(call.source?.sourceArguments[0]?.expression, { kind: "argument", sourceIndex: 0, effectiveIndex: 0 }));
       case "keep-alive": return chosen(use(call.form.sourceFlow.valueExpression, { kind: "argument", sourceIndex: 0, effectiveIndex: 0 }));
-      case "source-flow-rejected": return refused("operation-unresolved", call.form.sourceFlow.reason, call.form.sourceFlow.code);
+      case "source-flow-rejected": return sourceRefused(call.form.sourceFlow.code, call.form.sourceFlow.reason);
       case "js-value": {
+        if (call.form.operation.kind === "rejected") return sourceRefused("CSHARP_UNSUPPORTED_AST", call.form.operation.reason);
         if (call.form.operation.kind !== "resolved") return refused("operation-unresolved");
         const access = call.source?.sourceCalleeAccess;
         const member = access?.kind === "property" || access?.kind === "element" ? access : undefined;
@@ -197,21 +219,28 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     }
     if (call.target?.kind === "resolved") {
       const bound = targetArguments(call.target.source, call.target.call);
-      if ("reason" in bound) return refused(bound.reason, bound.message);
+      if ("reason" in bound) return argumentRefused(bound);
       const head = call.target.call.receiver.kind === "target-parameter"
         ? use(call.target.source.sourceReceiver?.expression, { kind: "receiver" })
         : call.target.call.receiver.kind === "instance" ? receiverUses(call.target.source.sourceReceiver) : [];
       return call.target.call.receiver.kind === "target-parameter" ? chosen([...head, ...guarded(bound)]) : argumentsFirst(head, guarded(bound));
     }
     if (call.target?.kind === "rejected") return refused("operation-unresolved", undefined, undefined, call.target.diagnostic);
+    if (call.target?.kind === "missing") return sourceRefused("CSHARP_TARGET_CALL_NOT_CLOSED", call.target.reason);
+    if (call.target?.kind === "conflict") return sourceRefused("CSHARP_TARGET_CALL_IDENTITY_CONFLICT", call.target.reason);
+    if (call.target?.kind === "ambiguous") return sourceRefused("CSHARP_TARGET_CALL_AMBIGUOUS", call.target.reason,
+      call.target.candidates.map(candidate => `candidate=${candidate}`));
     if (call.target?.kind !== "source-owned" || call.source === undefined) return refused("operation-unresolved");
+    if (call.unionCall.kind === "rejected") return sourceRefused("CSHARP_UNSUPPORTED_AST", call.unionCall.reason);
     const arguments_ = sourceArguments(call.sourceArgumentGrouping);
-    if ("reason" in arguments_) return refused(arguments_.reason, arguments_.message);
+    if ("reason" in arguments_) return argumentRefused(arguments_);
     if (ast.kindName(call.source.sourceCallee.expression) === "KindSuperKeyword") return argumentsFirst([], arguments_);
     if (call.unionCall.kind === "resolved") return chosen([...use(call.unionCall.receiver, { kind: "receiver" }), ...guarded(arguments_)]);
     const callee = call.sourceCall;
-    if (callee === undefined || callee.kind === "rejected" || callee.kind === "union-method") return refused("operation-unresolved");
-    if (callee.kind === "function" || callee.kind === "value") return argumentsFirst(use(callee.expression, { kind: "callee" }), guarded(arguments_));
+    if (callee?.kind === "rejected") return sourceRefused("CSHARP_UNSUPPORTED_AST", callee.reason);
+    if (callee === undefined || callee.kind === "union-method") return refused("operation-unresolved");
+    if (callee.kind === "function") return argumentsFirst([], guarded(arguments_));
+    if (callee.kind === "value") return argumentsFirst(use(callee.expression, { kind: "callee" }), guarded(arguments_));
     const access = call.source.sourceCalleeAccess;
     const receiver = receiverUses(callee.receiver);
     const key = guarded(access?.kind === "element" ? use(access.argument.expression, { kind: "key" }) : []);
@@ -219,16 +248,21 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
   }
   if (ast.is.IsNewExpression(node)) {
     const construction = operations.selectedConstruction.get(node);
-    if (construction === undefined || construction.jsValue.kind === "rejected") return refused("construction-unresolved");
+    if (construction === undefined) return refused("construction-unresolved");
+    if (construction.jsValue.kind === "rejected") return sourceRefused("CSHARP_UNSUPPORTED_AST", construction.jsValue.reason);
     if (construction.jsValue.kind === "resolved") return chosen([...use(ast.as.AsNewExpression(node)?.Expression, { kind: "callee" }), ...jsArguments()]);
     if (construction.target?.kind === "resolved") {
       const arguments_ = targetArguments(construction.target.source, construction.target.call);
-      return "reason" in arguments_ ? refused(arguments_.reason, arguments_.message) : argumentsFirst([], arguments_);
+      return "reason" in arguments_ ? argumentRefused(arguments_) : argumentsFirst([], arguments_);
     }
     if (construction.target?.kind === "rejected") return refused("construction-unresolved", undefined, undefined, construction.target.diagnostic);
+    if (construction.target?.kind === "missing") return sourceRefused("CSHARP_TARGET_CONSTRUCTION_NOT_CLOSED", construction.target.reason);
+    if (construction.target?.kind === "conflict") return sourceRefused("CSHARP_TARGET_CONSTRUCTION_IDENTITY_CONFLICT", construction.target.reason);
+    if (construction.target?.kind === "ambiguous") return sourceRefused("CSHARP_TARGET_CONSTRUCTION_AMBIGUOUS", construction.target.reason,
+      [...new Set(construction.target.candidates.map(candidate => `candidate=${candidate}`))]);
     if (construction.target?.kind !== "source-owned") return refused("construction-unresolved");
     const arguments_ = sourceArguments(construction.sourceArgumentGrouping);
-    if ("reason" in arguments_) return refused(arguments_.reason, arguments_.message);
+    if ("reason" in arguments_) return argumentRefused(arguments_);
     const callee = construction.target.source.sourceCallee.expression;
     const type = input.valueReads.valueRead.get(callee)?.value;
     const reference = input.navigation.sourceReferenceFor(callee);
@@ -255,7 +289,8 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     switch (operations.operatorForm.get(node)) {
       case "js-value-operation": {
         const selected = operations.binaryOperation.get(node)?.jsValue;
-        if (selected?.kind !== "resolved") return refused("operation-unresolved", selected?.kind === "rejected" ? selected.reason : undefined);
+        if (selected?.kind === "rejected") return sourceRefused("CSHARP_UNSUPPORTED_AST", selected.reason);
+        if (selected?.kind !== "resolved") return refused("operation-unresolved");
         const operands = chosen([...use(left, { kind: "operand", position: "left" }), ...use(right, { kind: "operand", position: "right" })],
           selected.shortCircuit === undefined ? "sequence" : "short-circuit", undefined, selected.resultType);
         return selected.shortCircuit === undefined ? operands : Object.freeze({ ...operands,
@@ -274,7 +309,8 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       case "js-value-write": return chosen([...use(left, { kind: "write-target" }, undefined, "location"), ...use(right, { kind: "operand", position: "right" })]);
       case "selected": {
         const selected = operations.binaryOperation.get(node)?.target;
-        if (selected?.kind !== "resolved") return refused("operation-unresolved", selected?.kind === "rejected" ? selected.reason : undefined);
+        if (selected?.kind === "rejected") return sourceRefused("CSHARP_UNSUPPORTED_AST", selected.reason);
+        if (selected?.kind !== "resolved") return refused("operation-unresolved");
         const assignment = selected.sourceOperator === "=" || selected.sourceOperator.endsWith("=") &&
           !["==", "===", "!=", "!==", "<=", ">="].includes(selected.sourceOperator);
         const operands = [...use(selected.left, assignment ? { kind: "write-target" } : { kind: "operand", position: "left" },
@@ -299,17 +335,20 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     const operand = ast.is.IsPrefixUnaryExpression(node) ? ast.as.AsPrefixUnaryExpression(node)?.Operand : ast.as.AsPostfixUnaryExpression(node)?.Operand;
     if (form === "js-value-operation") {
       const selected = operations.unaryOperation.get(node)?.jsValue;
-      return selected?.kind !== "resolved" ? refused("operation-unresolved", selected?.kind === "rejected" ? selected.reason : undefined)
+      if (selected?.kind === "rejected") return sourceRefused("CSHARP_UNSUPPORTED_AST", selected.reason);
+      return selected?.kind !== "resolved" ? refused("operation-unresolved")
         : chosen(use(operand, { kind: "operand", position: "only" }), "sequence", undefined, selected.resultType);
     }
     if (form === "js-value-object-shape-update") {
       const selected = operand === undefined ? undefined : operations.selectedProperty.get(operand)?.sourceOwned?.jsValueProperty;
       const operator = sourceOperatorFromKindName(ast.operatorKindName(node));
-      return refused("operation-unresolved", selected === undefined ? undefined : selected.kind === "rejected" ? selected.reason
-        : `Closed JS-value object-shape update '${operator}' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden.`);
+      return selected === undefined ? refused("operation-unresolved") : sourceRefused("CSHARP_UNSUPPORTED_AST",
+        selected.kind === "rejected" ? selected.reason
+          : `Closed JS-value object-shape update '${operator}' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden.`);
     }
     const selected = operations.unaryOperation.get(node)?.target;
-    if (selected?.kind !== "resolved") return refused("operation-unresolved", selected?.kind === "rejected" ? selected.reason : undefined);
+    if (selected?.kind === "rejected") return sourceRefused("CSHARP_UNSUPPORTED_AST", selected.reason);
+    if (selected?.kind !== "resolved") return refused("operation-unresolved");
     return chosen(use(selected.operand, selected.sourceOperator === "++" || selected.sourceOperator === "--"
       ? { kind: "update-target" } : { kind: "operand", position: "only" }, selected.operandType,
       selected.sourceOperator === "++" || selected.sourceOperator === "--" ? "location" : undefined), "sequence", undefined, selected.resultType);
@@ -320,16 +359,27 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       (ast.is.IsFunctionDeclaration(reference.declaration) || ast.is.IsVariableDeclaration(reference.declaration) ||
         ast.is.IsBindingElement(reference.declaration) || ast.is.IsExportAssignment(reference.declaration))) return chosen([]);
     const selection = operations.selectedProperty.get(node)?.selection;
-    if (selection?.kind === "resolved") return chosen(selection.receiver.kind === "instance" ? receiverUses(selection.source.receiver) : []);
+    if (selection?.kind === "resolved") return chosen(selection.receiver.kind === "none" ? [] : receiverUses(selection.source.receiver));
     if (selection?.kind === "source-owned") return chosen(receiverUses(selection.source.receiver));
     if (selection?.kind === "rejected") return refused("operation-unresolved", undefined, undefined, selection.diagnostic);
+    if (selection?.kind === "missing") return sourceRefused("CSHARP_TARGET_PROPERTY_NOT_CLOSED", selection.reason);
+    if (selection?.kind === "conflict") return sourceRefused("CSHARP_TARGET_PROPERTY_IDENTITY_CONFLICT", selection.reason);
+    if (selection?.kind === "ambiguous") return sourceRefused("CSHARP_TARGET_PROPERTY_AMBIGUOUS", selection.reason,
+      selection.candidates.map(candidate => `candidate=${candidate}`));
     return selection?.kind === "union-property" ? chosen(use(ast.as.AsPropertyAccessExpression(node)?.Expression, { kind: "receiver" })) : refused("operation-unresolved");
   }
   if (ast.is.IsElementAccessExpression(node)) {
     const element = ast.as.AsElementAccessExpression(node);
     const selected = operations.selectedElement.get(node);
+    if (selected?.jsValue.kind === "rejected") return sourceRefused("CSHARP_UNSUPPORTED_AST", selected.jsValue.reason);
     if (selected?.jsValue.kind === "not-js-value" && selected.target?.kind === "rejected") return refused(
       "operation-unresolved", undefined, undefined, selected.target.diagnostic);
+    if (selected?.jsValue.kind === "not-js-value" && selected.target?.kind === "missing") return sourceRefused(
+      "CSHARP_TARGET_ELEMENT_NOT_CLOSED", selected.target.reason);
+    if (selected?.jsValue.kind === "not-js-value" && selected.target?.kind === "conflict") return sourceRefused(
+      "CSHARP_TARGET_ELEMENT_IDENTITY_CONFLICT", selected.target.reason);
+    if (selected?.jsValue.kind === "not-js-value" && selected.target?.kind === "ambiguous") return sourceRefused(
+      "CSHARP_TARGET_ELEMENT_AMBIGUOUS", selected.target.reason, selected.target.candidates.map(candidate => `candidate=${candidate}`));
     const receiverType = selected?.receiverType;
     const unwrapped = receiverType === undefined ? undefined : getCsharpNullableElementTargetType(receiverType) ?? receiverType;
     if (selected?.jsValue.kind === "not-js-value" && selected.target?.kind === "source-owned" && selected.sourceOwned === undefined &&
@@ -371,7 +421,8 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     const spans = template === undefined || !ast.is.IsTemplateExpression(template) ? [] : sourceExpressionValueInputs(ast, template);
     if (spans === undefined) return refused("expression-form-unresolved");
     return Object.freeze({ ...chosen([...use(tagged?.Tag, { kind: "callee" }), ...spans.flatMap(entry => use(entry.expression, entry.slot))]),
-      refusal: "expression-form-unresolved", refusalMessage: "Expression is outside the current C# planning surface." });
+      sourceRefusal: Object.freeze({ kind: "target" as const, code: "CSHARP_UNSUPPORTED_AST",
+        message: "Expression is outside the current C# planning surface." }) });
   }
   if (ast.is.IsDeleteExpression(node)) {
     const expression = ast.as.AsDeleteExpression(node)?.Expression;

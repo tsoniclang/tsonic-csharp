@@ -7,19 +7,19 @@ export type CsharpExactLiteralPrimitive = Extract<TargetTypeRef, { readonly kind
 export type CsharpExactLiteralRole = "value" | "property-key";
 
 export type CsharpExactLiteralRecipe =
-  | { readonly kind: "signed-zero"; readonly target: CsharpExactLiteralPrimitive; readonly precision: "float64" | "float16" }
+  | { readonly kind: "signed-zero"; readonly target: CsharpExactLiteralPrimitive; readonly precision: "float64" }
   | { readonly kind: "char"; readonly value: string }
   | { readonly kind: "string"; readonly value: string }
   | {
       readonly kind: "float";
       readonly target: CsharpExactLiteralPrimitive;
       readonly precision: "float16";
-      readonly value: number;
+      readonly bits: number;
     }
   | {
       readonly kind: "float";
       readonly target: CsharpExactLiteralPrimitive;
-      readonly precision: "float16" | "float32" | "float64" | "decimal";
+      readonly precision: "float32" | "float64" | "decimal";
       readonly token: CsharpNumericLiteralToken;
       readonly negative: boolean;
     }

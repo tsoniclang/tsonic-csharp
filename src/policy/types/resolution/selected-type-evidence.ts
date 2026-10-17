@@ -1,5 +1,6 @@
 import type { SourceTypeRelationship } from "@tsonic/target-api/source";
 import type {
+  CsharpTargetNamedTypeRef,
   TargetTypeRef,
 } from "../../../target-model/types/model.js";
 import {
@@ -33,6 +34,10 @@ export function reconcileCsharpSelectedTargetType(
   }
   if (selected.kind === "opaque" && selected.id === "never") return authored;
   if (isCsharpIntegralTargetType(authored) && targetTypeRefEquals(selected, csharpBigIntegerTargetType())) return authored;
+  const native = getCsharpNullableElementTargetType(authored) ?? authored;
+  const summary = getCsharpNullableElementTargetType(selected) ?? selected;
+  if (native.kind === "target-named" && (native as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "enum" &&
+    summary.kind === "source-primitive" && summary.name === "float64") return authored;
   const retained = retainCsharpBroadValueCarrier(authored, selected);
   if (retained !== undefined) return retained;
   if (

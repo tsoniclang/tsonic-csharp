@@ -55,3 +55,32 @@ for (const surface of [undefined, "js"]) {
     });
   }
 }
+
+for (const surface of ["native", "js"]) test(`${surface} a JS-value typeof comparison consumes its already selected runtime operation`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    export function run(value: unknown): boolean { return typeof value === "object"; }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const program = compiled.result.program;
+  let comparisons = 0;
+  let runtime = 0;
+  const visit = node => {
+    if (program.source.ast.is.IsBinaryExpression(node)) {
+      comparisons++;
+      assert.equal(program.records.binaryOperation.get(node)?.typeofComparison, undefined,
+        "a native constant/category specialization must not replace the selected dynamic observation");
+    }
+    if (program.source.ast.is.IsTypeOfExpression(node)) {
+      const operand = program.source.ast.as.AsTypeOfExpression(node).Expression;
+      const operation = program.records.jsTypeof.get(operand);
+      runtime++;
+      assert.equal(operation?.kind === "resolved" && operation.runtimeMember === "ApplyDynamicTypeof", true,
+        "one existing runtime owner retains the actual unknown value's category");
+    }
+    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  program.sourceFiles.forEach(visit);
+  assert.equal(comparisons === 1 && runtime === 1, true, "the exact comparison and its sole runtime observation were both found");
+  const output = [...compiled.artifacts.values()].join("\n");
+  assert.equal(output.includes("ApplyDynamicTypeof"), true, "the sealed runtime observation reaches native emission unchanged");
+});

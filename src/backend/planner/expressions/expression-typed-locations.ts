@@ -27,6 +27,7 @@ import {
   type DestructuringPlannerState,
 } from "../bindings/index.js";
 import {
+  failCsharpPlannerInvariant,
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
@@ -44,12 +45,7 @@ import type { CsharpNativeHandler } from "../../../target-model/records/native-h
 export function planCsharpTypedLocationOperation(node: Node, operation: Extract<CsharpNativeHandler, { readonly kind: "typed-location" }>["selection"], sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState
 ): CsharpPlannedValue | undefined {
   if (operation.kind === "rejected") {
-    diagnostics.push(typedLocationDiagnostic(
-      node,
-      operation.operation,
-      operation.reason,
-    ));
-    return undefined;
+    return failCsharpPlannerInvariant("A typed-location refusal must be rejected before native publication.", node);
   }
   const pointeeType = csharpTypeFromTargetTypeRef(operation.pointeeType, input.scope.typeParameterNames);
   const locationType = csharpTypeFromTargetTypeRef(operation.locationType, input.scope.typeParameterNames);

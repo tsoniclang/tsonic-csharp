@@ -6,7 +6,7 @@ import { analyzeCsharpExpectedTypes } from "../../../dist/analysis/expected-type
 import { admitCsharpExpectedNativeUses, collectCsharpExpectedNativeUseSites } from "../../../dist/analysis/expected-types/native-uses.js";
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
-import { analyzeCsharpCallableCreations } from "../../../dist/analysis/callables/creation.js";
+import { prepareCsharpCallableCreations } from "../../../dist/analysis/callables/creation.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpProviderArgumentSourceCarrier } from "../../../dist/policy/operations/members/selection/native-use-arguments.js";
@@ -421,9 +421,11 @@ function nativeCreations(value, overrides = {}) {
       sourceDeclaration: declaration, methodTypeParameterIdentities: [], methodAllowsRefLikeTypeArguments: [], parameters, returnType: result.type,
     };
   };
-  return analyzeCsharpCallableCreations({ ast: value.ast, nodes: value.nodes,
-    captures: records, contracts: { get: identity => contract(identity.declaration), closedInputType: () => undefined }, expectedTypes: records,
-    storage: records, evidence: records, conversions: records, ...overrides });
+  const { captures = records, ...input } = overrides;
+  return prepareCsharpCallableCreations({ ast: value.ast, nodes: value.nodes,
+    contracts: { get: identity => contract(identity.declaration), closedInputType: () => undefined },
+    storage: records, evidence: records, conversions: records, ...input,
+    expectedTypes: { ...records, ...input.expectedTypes } }).seal(captures);
 }
 
 for (const surface of ["native", "js"]) {

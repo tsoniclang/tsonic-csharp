@@ -73,8 +73,7 @@ export function planCallArgumentCore(node: Node, sourceFile: SourceFile, input: 
   if (argument.passingMode !== "by-value" && passing === undefined) {
     return undefined;
   }
-  const propertyProjection = selectedTargetParameter?.csharpValueProjection === "properties" &&
-    !input.program.source.ast.is.IsObjectLiteralExpression(argument.storageExpression);
+  const propertyProjection = selectedTargetParameter?.csharpValueProjection === "properties";
   const original = propertyProjection ? planExpression(argument.storageExpression, sourceFile, input, diagnostics, state) : undefined;
   const expression = propertyProjection && selectedTargetParameter !== undefined
     ? mapCsharpPlannedValue(original, selectedTargetParameter.type, value =>

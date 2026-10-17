@@ -41,9 +41,6 @@ import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
-  planCsharpSourceUndefinedValue,
-} from "../expressions/undefined-values.js";
-import {
   planCsharpTypedLocationIdentityDeclaration,
 } from "./typed-location-identities.js";
 import {
@@ -134,22 +131,12 @@ export function planLocalDeclaration(
   } else if (variable.Initializer !== undefined) {
     initializer = planExpression(variable.Initializer, sourceFile, input, diagnostics, state
     );
-  } else if (inferredTargetType !== undefined) {
-    const undefinedValue = planCsharpSourceUndefinedValue(
-      declarationNode,
-      inferredTargetType,
-      sourceFile,
-      input,
-      diagnostics,
-    );
-    const expression: CsharpExpression = undefinedValue.kind === "resolved"
-      ? undefinedValue.expression
-      : {
-          kind: "DefaultExpression",
-          type,
-          nullForgiving: true,
-        };
-    initializer = csharpPlannedValue(inferredTargetType, expression);
+  } else if (initializerCarrier !== undefined) {
+    initializer = csharpPlannedValue(initializerCarrier, {
+      kind: "DefaultExpression",
+      type,
+      nullForgiving: true,
+    });
   }
   const nativeArray = input.program.records.nativeArray.get(declarationNode);
   if (nativeArray !== undefined && initializer !== undefined) {

@@ -47,20 +47,11 @@ export function planCsharpExactLiteralRecipe(
 ): CsharpExactLiteralConversionPlan {
   switch (recipe.kind) {
     case "signed-zero": {
-      const zero: CsharpExpression = {
+      return { kind: "resolved", expression: {
         kind: "PrefixUnaryExpression",
         operatorToken: { kind: "MinusToken" },
-        operand: recipe.precision === "float64"
-          ? { kind: "NumericLiteralExpression", value: 0, suffix: "D" }
-          : { kind: "NumericLiteralExpression", token: floatingZero, suffix: "F" },
-      };
-      if (recipe.precision !== "float16") return { kind: "resolved", expression: zero };
-      const halfType = csharpTypeFromTargetTypeRef(recipe.target, typeParameterNames);
-      return halfType === undefined
-        ? { kind: "rejected", reason: "C# Half signed-zero conversion requires an exact renderable target type." }
-        : { kind: "resolved", expression: {
-            kind: "CastExpression", type: halfType, expression: zero,
-          } };
+        operand: { kind: "NumericLiteralExpression", value: 0, suffix: "D" },
+      } };
     }
     case "string":
       return { kind: "resolved", expression: { kind: "LiteralExpression", value: recipe.value } };
@@ -73,7 +64,14 @@ export function planCsharpExactLiteralRecipe(
         },
       };
     case "float": {
-      if ("value" in recipe) {
+      if (recipe.precision === "float16") {
+        const exponent = recipe.bits >> 10 & 31;
+        const significand = recipe.bits & 1023;
+        const magnitude = exponent === 0 ? significand * 2 ** -24 : (1024 + significand) * 2 ** (exponent - 25);
+        const expression: CsharpExpression = recipe.bits === 0x8000
+          ? { kind: "PrefixUnaryExpression", operatorToken: { kind: "MinusToken" },
+              operand: { kind: "NumericLiteralExpression", token: floatingZero, suffix: "F" } }
+          : { kind: "LiteralExpression", value: recipe.bits < 0x8000 ? magnitude : -magnitude };
         const type = csharpTypeFromTargetTypeRef(recipe.target, typeParameterNames);
         return type === undefined
           ? {
@@ -85,7 +83,7 @@ export function planCsharpExactLiteralRecipe(
               expression: {
                 kind: "CastExpression",
                 type,
-                expression: { kind: "LiteralExpression", value: recipe.value },
+                expression,
               },
             };
       }
@@ -94,10 +92,7 @@ export function planCsharpExactLiteralRecipe(
       const expression: CsharpExpression = recipe.negative
         ? { kind: "PrefixUnaryExpression", operatorToken: { kind: "MinusToken" }, operand: literal }
         : literal;
-      if (recipe.precision !== "float16") return { kind: "resolved", expression };
-      const type = csharpTypeFromTargetTypeRef(recipe.target, typeParameterNames);
-      return type === undefined ? { kind: "rejected", reason: "C# Half property key requires its exact renderable target type." }
-        : { kind: "resolved", expression: { kind: "CastExpression", type, expression } };
+      return { kind: "resolved", expression };
     }
     case "integer": {
       const expression = planIntegerLiteral(typeParameterNames, recipe.value, recipe.target);

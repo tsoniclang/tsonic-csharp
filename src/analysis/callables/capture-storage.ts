@@ -97,7 +97,7 @@ export function analyzeCsharpCaptureStorage(
     bindings.set(capture.declaration, type);
     groups.set(scope, bindings);
   }
-  const genericClosures = selectCsharpGenericFrameClosures(source, evidence, groups, physicalType, issues);
+  const genericClosures = selectCsharpGenericFrameClosures(source, evidence, groups, physicalType, issues, declarations);
   const genericDeclarations = new Set(genericClosures.map(closure => closure.declaration));
   const frameClosures = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, genericDeclarations,
     { declarations, storage, expectedTypes });
@@ -197,7 +197,7 @@ export function analyzeCsharpCaptureStorage(
   const visitValues = (node: Node): void => {
     if (evidence.compileTimeMetadata.get(node)) return;
     if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
-      if (sourceCallableDefinitionIsDiscarded(node, source.ast)) {
+      if (sourceCallableDefinitionIsDiscarded(node, source.ast, source.navigation)) {
         lambdaCreations.set(node, Object.freeze({ kind: "discarded", staticBody: true }));
         return;
       }

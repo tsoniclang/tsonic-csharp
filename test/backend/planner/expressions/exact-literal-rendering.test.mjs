@@ -86,7 +86,7 @@ test("the literal planner renders each selected recipe without deciding it", () 
   const cases = [
     [{ kind: "signed-zero", target: primitive("float64"), precision: "float64" },
       { kind: "PrefixUnaryExpression", operatorToken: { kind: "MinusToken" }, operand: { kind: "NumericLiteralExpression", value: 0, suffix: "D" } }],
-    [{ kind: "signed-zero", target: half, precision: "float16" },
+    [{ kind: "float", target: half, precision: "float16", bits: 0x8000 },
       { kind: "CastExpression", type: { kind: "IdentifierName", name: "Half", requiredUsingNamespace: "System" },
         expression: { kind: "PrefixUnaryExpression", operatorToken: { kind: "MinusToken" },
           operand: { kind: "NumericLiteralExpression", token: { significand: "0" }, suffix: "F" } } }],
@@ -98,7 +98,7 @@ test("the literal planner renders each selected recipe without deciding it", () 
     [{ kind: "integer", target: primitive("uint32"), width: "uint32", value: 4294967295n },
       { kind: "CastExpression", type: { kind: "PredefinedType", name: "uint" }, expression: { kind: "LiteralExpression", value: 4294967295 } }],
     [{ kind: "char", value: "a" }, { kind: "CharacterLiteralExpression", value: "a" }],
-    [{ kind: "float", target: half, precision: "float16", value: 1.5 },
+    [{ kind: "float", target: half, precision: "float16", bits: 0x3e00 },
       { kind: "CastExpression", type: { kind: "IdentifierName", name: "Half", requiredUsingNamespace: "System" },
         expression: { kind: "LiteralExpression", value: 1.5 } }],
     [{ kind: "float", target: primitive("decimal"), precision: "decimal", token: { significand: "0.1" }, negative: false },

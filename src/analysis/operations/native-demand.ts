@@ -46,12 +46,17 @@ export function analyzeCsharpNativeDemand(
   const baseCalls = new WeakMap<Node, Node>();
   const unusedDefaults = new WeakSet<Node>();
   const requiredCatchBindings = new WeakSet<Node>();
+  const rejectedBindingRoots = new Set(input.bindingPatterns.candidates.map(candidate => candidate.root));
   const indexInputs = (node: Node): void => {
     if (ast.is.IsConstructorDeclaration(node)) {
       const call = csharpConstructorBaseCall(ast, node);
       if (call !== undefined) baseCalls.set(node, call);
     }
     if (isCsharpUnusedTupleDefault(ast, input.bindingPatterns.bindingPatternProjection, node)) unusedDefaults.add(node);
+    if (ast.is.IsParameterDeclaration(node) && input.declarations.runtimeDefault.get(node)?.native.kind === "value") {
+      const initializer = ast.as.AsParameterDeclaration(node)?.Initializer;
+      if (initializer !== undefined) unusedDefaults.add(initializer);
+    }
     if (ast.is.IsIdentifier(node)) {
       const declaration = input.navigation.sourceReferenceFor(node)?.declaration;
       const clause = declaration === undefined ? undefined : ast.parent(declaration);
@@ -149,6 +154,11 @@ export function analyzeCsharpNativeDemand(
       orders.set(node, Object.freeze([]));
       return;
     }
+    if (rejectedBindingRoots.has(node)) {
+      requiredBindingRoots.add(node);
+      orders.set(node, Object.freeze([]));
+      return;
+    }
     if (input.evidence.sourceStruct.get(node) !== undefined) requiredNativeValueDeclarations.add(node);
     const participation = input.participation.get(node);
     if (participation === "body" || participation === "frame-body" || participation === "signature") {
@@ -227,28 +237,54 @@ export function analyzeCsharpNativeDemand(
           discardedPresence: constantPresence(existing.kind === "erased" && existing.cause === "discarded-callable", []) });
     }
     if (refuseSourceExpression(expression) || refuseAmbientValueUse(expression)) return Object.freeze({ site, expression, completion: undefined });
+    if (rejectedBindingRoots.has(expression)) {
+      requiredBindingRoots.add(expression);
+      return Object.freeze({ site, expression, completion: undefined });
+    }
+    let unmatched: { readonly site: TargetUseSiteRef; readonly reason: CsharpNativeUnadmittedReason; readonly message?: string } | undefined;
     if (exact === undefined) {
       const candidates = slots.get(site.subject)?.get(site.role);
       const matching = candidates?.expressions.get(expression) ?? [];
-      if (matching.length > 1) return pending(site, expression, "use-context-unresolved");
-      if (matching.length === 1 && candidates?.pending.length === 0) site = matching[0]!.site;
+      if (matching.length > 1) unmatched = { site, reason: "use-context-unresolved" };
+      else if (matching.length === 1 && candidates?.pending.length === 0) site = matching[0]!.site;
       else if (candidates !== undefined && candidates.pending.length > 0) {
         const refusals = candidates.pending.filter(entry => entry.expression === expression);
-        if (refusals.length === 1) return pending(refusals[0]!.site, expression, "expected-use-pending", refusals[0]!.message);
-        return pending(site, expression, "expected-use-pending");
+        unmatched = refusals.length === 1
+          ? { site: refusals[0]!.site, reason: "expected-use-pending", message: refusals[0]!.message }
+          : { site, reason: "expected-use-pending" };
       }
     }
+    const previous = unmatched === undefined ? states.get(site.subject)?.get(targetUseSiteIdentity(site)) : undefined;
+    if (previous !== undefined) {
+      if (previous.expression !== expression) failTargetAnalysisInvariant("tsonic-csharp", `Native use identity '${site.role}' names different expressions.`, expression);
+      return previous.state === "visiting" ? pending(site, expression, "cyclic-use") : previous.visited;
+    }
+    const expected = input.expected.expectedUse.get(site);
+    const selected: CsharpNativeOperandSelection = expected?.literal === undefined
+      ? selectCsharpNativeOperandUses(policyInput, expression, child.access)
+      : Object.freeze({ runtime: Object.freeze([]), planning: Object.freeze([]), flow: "sequence", carrier: expected.carrier,
+        resultUse: sourceExpressionResultDisposition(ast, expression).kind === "discarded" ? "discarded" : "consumed" });
+    if (selected.sourceRefusal !== undefined) {
+      if (!refusedSourceExpressions.has(expression)) {
+        refusedSourceExpressions.add(expression);
+        const refusal = selected.sourceRefusal;
+        unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy: expression,
+          diagnostic: refusal.kind === "extension" ? targetDiagnosticFromExtension(expression, refusal.diagnostic)
+            : Object.freeze({ source: "tsonic-csharp", category: "error", sourceNode: expression,
+              code: refusal.code, message: refusal.message,
+              ...(refusal.evidence === undefined ? {} : { evidence: refusal.evidence }),
+            }),
+        }));
+      }
+      return Object.freeze({ site, expression, completion: undefined });
+    }
+    if (unmatched !== undefined) return pending(unmatched.site, expression, unmatched.reason, unmatched.message);
     let owner = states.get(site.subject);
     if (owner === undefined) { owner = new Map(); states.set(site.subject, owner); }
     const identity = targetUseSiteIdentity(site);
-    const existing = owner.get(identity);
-    if (existing !== undefined) {
-      if (existing.expression !== expression) failTargetAnalysisInvariant("tsonic-csharp", `Native use identity '${site.role}' names different expressions.`, expression);
-      return existing.state === "visiting" ? pending(site, expression, "cyclic-use") : existing.visited;
-    }
     const unresolved = Object.freeze({ site, expression, completion: undefined });
     owner.set(identity, { expression, state: "visiting", visited: unresolved });
-    const result = evaluate(child, site);
+    const result = evaluate(child, site, selected);
     owner.set(identity, { expression, state: "closed", visited: result });
     if (result.completion?.kind === "value") {
       if (child.slot.kind === "initializer" && ast.is.IsVariableDeclaration(child.owner) ||
@@ -263,7 +299,7 @@ export function analyzeCsharpNativeDemand(
     return result;
   }
 
-  function evaluate(child: CsharpNativeChildUse, site: TargetUseSiteRef): VisitedUse {
+  function evaluate(child: CsharpNativeChildUse, site: TargetUseSiteRef, selected: CsharpNativeOperandSelection): VisitedUse {
     const expression = child.expression;
     const expected = input.expected.expectedUse.get(site);
     const withheld = exactPending.get(site.subject)?.get(targetUseSiteIdentity(site));
@@ -277,18 +313,6 @@ export function analyzeCsharpNativeDemand(
       family: "exactLiteral", subject: expression, target: expected.target,
       construct: "native literal construction", producer: "analyzeCsharpNativeDemand",
     });
-    const selected: CsharpNativeOperandSelection = expected?.literal === undefined
-      ? selectCsharpNativeOperandUses(policyInput, expression, child.access)
-      : Object.freeze({ runtime: Object.freeze([]), planning: Object.freeze([]), flow: "sequence", carrier: expected.carrier,
-        resultUse: sourceExpressionResultDisposition(ast, expression).kind === "discarded" ? "discarded" : "consumed" });
-    if (selected.sourceDiagnostic !== undefined) {
-      if (!refusedSourceExpressions.has(expression)) {
-        refusedSourceExpressions.add(expression);
-        unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy: expression,
-          diagnostic: targetDiagnosticFromExtension(expression, selected.sourceDiagnostic) }));
-      }
-      return Object.freeze({ site, expression, completion: undefined });
-    }
     const expectedChildren = new Map<string, TargetUseSiteRef[]>();
     for (const reference of expected?.construction?.children ?? expected?.children ?? []) {
       const matching = expectedChildren.get(reference.role) ?? [];

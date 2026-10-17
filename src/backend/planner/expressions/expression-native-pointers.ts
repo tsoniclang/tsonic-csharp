@@ -23,15 +23,12 @@ import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values
 import { buildCsharpPlannedValue, planCsharpExpressionCompletion, projectCsharpPlannedValue } from "./planned-value-composition.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 import type { CsharpNativeHandler } from "../../../target-model/records/native-handlers.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planCsharpNativePointerOperation(node: Node, selection: Extract<CsharpNativeHandler, { readonly kind: "native-pointer" }>["selection"], sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state: DestructuringPlannerState | undefined
 ): CsharpPlannedValue | undefined {
   if (selection.kind === "rejected") {
-    diagnostics.push(nativePointerDiagnostic(
-      "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED",
-      `C# native-pointer '${selection.operation}' is not mapped: ${selection.reason}`,
-    ));
-    return undefined;
+    return failCsharpPlannerInvariant("A native-pointer refusal must be rejected before native publication.", node);
   }
   if (selection.kind === "raw-location") {
     if (selection.method === "Reinterpret" && (state?.explicitUnsafeContextDepth ?? 0) === 0) {

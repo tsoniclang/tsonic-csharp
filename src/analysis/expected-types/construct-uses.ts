@@ -1,5 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { isSourceCallableBodyBoundary } from "@tsonic/target-api/source";
+import { isSourceCallableBodyBoundary, sourceConstructValueInputs } from "@tsonic/target-api/source";
 import { csharpCallableValueType } from "../callables/value-type.js";
 import { csharpSourceArgumentExpectedType, csharpTargetParameterValueType, getCsharpGeneratorProtocol,
   resolveCsharpObjectShapeMemberBySelectedSubject } from "../../policy/types/index.js";
@@ -7,7 +7,7 @@ import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings
 import type { CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
 import type { ResolvedSourceCallInfo } from "../../target-model/records/members.js";
-import type { CsharpSourceArgumentGrouping } from "../../target-model/records/operations.js";
+import type { CsharpCallClassification, CsharpSourceArgumentGrouping } from "../../target-model/records/operations.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpExpectedUseCollection } from "./collection.js";
 import type { CsharpExpectedTypeAnalysisInput, CsharpExpectedUseSiteDemand, CsharpExpectedUseWithholding } from "./model.js";
@@ -33,8 +33,11 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     const slot: CsharpNativeUseSlot | undefined = policy.ast.is.IsVariableDeclaration(node) || policy.ast.is.IsPropertyDeclaration(node)
       ? { kind: "initializer" } : policy.ast.is.IsParameterDeclaration(node) || policy.ast.is.IsBindingElement(node) ? { kind: "default" } : undefined;
     if (initializer === undefined) return;
-    const target = policy.ast.is.IsParameterDeclaration(node) ? declarations.runtimeDefault.get(node)?.valueType : undefined;
-    record(initializer, target ?? (typeNode === undefined ? evidence.storageTargetType.get(node) : evidence.nodeTargetType.get(typeNode)),
+    const runtimeDefault = policy.ast.is.IsParameterDeclaration(node) ? declarations.runtimeDefault.get(node) : undefined;
+    if (runtimeDefault?.native.kind === "value") return;
+    const target = runtimeDefault?.valueType;
+    record(initializer, target ?? (policy.ast.is.IsVariableDeclaration(node) || typeNode === undefined
+      ? evidence.storageTargetType.get(node) : evidence.nodeTargetType.get(typeNode)),
       typeNode === undefined ? "contextual" : "required", slot === undefined ? undefined : at(node, slot));
   }
 
@@ -59,7 +62,11 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
       record(argument, pointer.parameterType, "required", intrinsic("argument", index));
     }
     if (location?.kind === "location-allocate") record(location.initialExpression, location.pointeeType, "required", intrinsic("initial"));
-    else if (location?.kind === "location-store") record(location.valueExpression, location.pointeeType, "required", intrinsic("value"));
+    else if (location?.kind === "location-load" || location?.kind === "location-store") {
+      record(location.location.expression, location.location.kind === "native-ref-return" ? location.pointeeType : location.locationType,
+        "required", intrinsic("location"));
+      if (location.kind === "location-store") record(location.valueExpression, location.pointeeType, "required", intrinsic("value"));
+    }
     else if (location?.kind === "location-equal") {
       record(location.leftExpression, location.parameterType, "required", intrinsic("left"));
       record(location.rightExpression, location.parameterType, "required", intrinsic("right"));
@@ -70,7 +77,7 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     if (handler === undefined) {
       const call = operations.selectedCall.get(node);
       if (call?.form.kind === "target") {
-        if (call.target?.kind === "resolved") recordSelectedCall(node, call.target);
+        if (call.target?.kind === "resolved") recordSelectedCall(node, call.target, call.optionalReceiver);
         else if (call.source !== undefined) recordSourceArguments(node, call.source, call.sourceArgumentParameterTypes, call.sourceArgumentGrouping);
       }
       const construction = operations.selectedConstruction.get(node);
@@ -79,7 +86,14 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
         construction.sourceArgumentParameterTypes, construction.sourceArgumentGrouping);
     }
     const switchSelection = operations.switchStatement.get(node);
-    if (switchSelection?.kind === "ordered") for (const [index, clause] of switchSelection.clauses.entries()) {
+    if (switchSelection?.kind === "native") {
+      const inputs = sourceConstructValueInputs(policy.ast, node);
+      const discriminant = inputs.find(entry => entry.slot.kind === "operand" && entry.slot.position === "only");
+      const type = discriminant === undefined ? undefined : input.valueReadStages.get(discriminant.expression)?.returnedValue;
+      for (const entry of inputs) if (entry.slot.kind === "case" || entry === discriminant) {
+        record(entry.expression, type, "required", at(entry.owner, entry.slot));
+      }
+    } else if (switchSelection?.kind === "ordered") for (const [index, clause] of switchSelection.clauses.entries()) {
       if (clause.comparison?.kind !== "resolved") continue;
       record(clause.comparison.left, clause.comparison.leftInputType, "required", at(node, { kind: "operand", position: "left" }));
       record(clause.comparison.right, clause.comparison.rightInputType, "required", at(node, { kind: "case", index }));
@@ -139,11 +153,15 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
         effectiveIndex: binding.effectiveArgumentIndex, sourceParameterIndex: binding.sourceParameterIndex }, withheld });
   }
 
-  function recordSelectedCall(owner: Node, selection: Extract<CsharpTargetCallSelection, { readonly kind: "resolved" }>): void {
+  function recordSelectedCall(owner: Node, selection: Extract<CsharpTargetCallSelection, { readonly kind: "resolved" }>,
+    optionalReceiver?: CsharpCallClassification["optionalReceiver"]): void {
     const call = selection.call;
     if (call.receiver.kind === "target-parameter") {
       const parameter = call.targetMember.parameters[call.receiver.targetParameterIndex];
-      record(selection.source.sourceReceiver?.expression, parameter === undefined ? undefined : csharpTargetParameterValueType(parameter, "value"),
+      const expression = selection.source.sourceReceiver?.expression;
+      const type = optionalReceiver !== undefined && optionalReceiver.expression === expression
+        ? optionalReceiver.storage : parameter === undefined ? undefined : csharpTargetParameterValueType(parameter, "value");
+      record(expression, type,
         "required", at(owner, { kind: "receiver" }));
     }
     const bindings = csharpSelectedTargetArgumentBindings(call);
@@ -173,7 +191,10 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
   }
 
   function sourceArgumentExpectedType(expression: Node | undefined, parameter: Parameters<typeof csharpSourceArgumentExpectedType>[0],
-    sourceForm: Parameters<typeof csharpSourceArgumentExpectedType>[1]): TargetTypeRef {
+    sourceForm: Parameters<typeof csharpSourceArgumentExpectedType>[1]): TargetTypeRef | undefined {
+    if (parameter.csharpValueProjection === "properties") {
+      return expression === undefined ? undefined : input.valueReadStages.get(expression)?.returnedValue;
+    }
     const declared = csharpSourceArgumentExpectedType(parameter, sourceForm);
     if (expression === undefined || parameter.csharpSourceArgumentAdapter === undefined || !isSourceCallableBodyBoundary(policy.ast, expression)) return declared;
     const callable = callables.get({ kind: "declaration", declaration: expression });

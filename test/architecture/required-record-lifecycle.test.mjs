@@ -327,7 +327,7 @@ test("owning issues reject before the late registrations finish and before the o
     `rejection order: ${steps.map(([label]) => label).join(" < ")}`);
   const iterationSteps = [
     "analyzeCsharpTargetOperations", "analyzeCsharpStorage", "prepareCsharpStorage", "analyzeCsharpClassFactories",
-    "analyzeCsharpCaptureStorage", "analyzeCsharpCallableCreations", "analyzeCsharpNativeParticipation",
+    "prepareCsharpCallableCreations", "analyzeCsharpCaptureStorage", "callableCreationPreparation.seal", "analyzeCsharpNativeParticipation",
     "analyzeCsharpClassInitialization", "analyzeCsharpBindingPatterns", "analyzeCsharpNativeDemand",
     "admitCsharpBindingPatterns", "conversionAnalysis.close", "conversionAnalysis.seal", "analyzeCsharpRefLikePlacements",
     "objectShapes.seal", "sealCsharpStorage",

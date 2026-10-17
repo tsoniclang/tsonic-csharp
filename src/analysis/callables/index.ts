@@ -2,7 +2,7 @@ export {
   analyzeCsharpCallableContracts,
   csharpCallableContractIndexesEqual,
 } from "./analyze.js";
-export { analyzeCsharpCallableCreations } from "./creation.js";
+export { prepareCsharpCallableCreations } from "./creation.js";
 export type {
   CsharpCallableContractIndex,
   CsharpCallableCreationIndex,

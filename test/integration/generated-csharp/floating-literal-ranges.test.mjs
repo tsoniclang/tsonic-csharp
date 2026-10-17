@@ -205,8 +205,8 @@ System.Console.WriteLine("negative float16 values: correct");
     assert.deepEqual([
       "Half y = (Half)(-1.5);",
       "Half y = (Half)(-65504);",
-      "Half y = (Half)(-65519.99);",
-      "Half y = (Half)(-0.1);",
+      "Half y = (Half)(-65504);",
+      "Half y = (Half)(-0.0999755859375);",
       "Half y = (Half)(-0F);",
       "return (Half)(-x);",
       "(Half)1.5, (Half)(-1.5)",
