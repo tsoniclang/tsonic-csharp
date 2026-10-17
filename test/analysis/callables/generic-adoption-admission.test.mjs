@@ -399,7 +399,7 @@ nativeEntryInverses.push(...[
 
 for (const [name, sourceText] of nativeEntryInverses) {
   test("C# native callback non-adoption inverse: " + name, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText });
+    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: "export {};\n" + sourceText });
     assert.equal(compiled.result.diagnostics.length, 0,
       JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
     const output = executeCsharpConstruction(compiled, "native-callback-inverse-" + name, false, false, [], "");
@@ -502,7 +502,7 @@ for (const [name, declarations, expression] of nativeOpaquePayloadCases) {
   });
   test("C# ordinary opaque callable input keeps its native value: " + name, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" },
-      sourceText: declarations + "\nconsole.log(await wrap(7));" });
+      sourceText: "export {};\n" + declarations + "\nconsole.log(await wrap(7));" });
     assert.equal(compiled.result.diagnostics.length, 0, JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
     assert.equal(executeCsharpConstruction(compiled, "ordinary-native-opaque-" + name, false, false, [], "").trim(), "7",
       "ordinary Awaited identity does not add a refusal or alter the native callback result");
@@ -542,7 +542,7 @@ for (const [name, declarations] of nativeConstructorCases) {
   });
   test("C# official native constructor preserves its ordinary native value: " + name, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface: "native", targetOptions: { outputType: "Exe" },
-      sourceText: declarations + "\nif ((await wrap(7)) !== 7) throw new Error(\"ordinary constructor payload\");" });
+      sourceText: "export {};\n" + declarations + "\nif ((await wrap(7)) !== 7) throw new Error(\"ordinary constructor payload\");" });
     assert.equal(compiled.result.diagnostics.length, 0,
       JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
     const output = executeCsharpConstruction(compiled, "official-constructor-" + name, false, false, [], "");
@@ -551,7 +551,7 @@ for (const [name, declarations] of nativeConstructorCases) {
 }
 for (const [name, sourceText] of nativeConstructorInverses) {
   test("C# official native constructor inverse: " + name, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ surface: "native", targetOptions: { outputType: "Exe" }, sourceText });
+    const compiled = compileCsharpSource({ surface: "native", targetOptions: { outputType: "Exe" }, sourceText: "export {};\n" + sourceText });
     assert.equal(compiled.result.diagnostics.length, 0,
       JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
     const output = executeCsharpConstruction(compiled, "official-constructor-inverse-" + name, false, false, [], "");
@@ -700,7 +700,8 @@ for (const [name, extra, receiver] of [
 
 test("C# ordinary class receiver retains an executable native payload", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" },
-    sourceText: `class Holder<Value> { constructor(readonly value: Value) {}
+    sourceText: `export {};
+      class Holder<Value> { constructor(readonly value: Value) {}
       async get(): Promise<Value> { return this.value; } }
       async function use(holder: Holder<number>): Promise<number> { return await holder.get(); }
       console.log(await use(new Holder(7)));` });
@@ -743,7 +744,8 @@ for (const recursive of [false, true]) {
     if (count > 0) deliver(callback, value, count - 1); else callback(value);
   }` : "function deliver<Value>(callback: (value: Value) => void, value: Value, count: number): void { callback(value); }";
   test(`C# retains ${recursive ? "recursive" : "direct"} resolver/value correlation in native execution`, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `${helper}
+    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `export {};
+      ${helper}
       function wrap<Value>(value: Value): Promise<number> { return new Promise<number>(resolve => {
         deliver(resolve, 7, 2); deliver(item => { void item; }, value, 2);
       }); }
@@ -779,6 +781,7 @@ test("C# keeps opaque resolver provenance explicitly unresolved for a Promise-va
 
 test("C# preserves an ordinary native actual despite an open symbolic resolver alias", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `
+    export {};
     type Alias<Value> = (resolve: (value: Value) => void) => (value: Value) => void;
     function wrap<Value>(value: Value, alias: Alias<Value>): Promise<Value> {
       return new Promise<Value>(resolve => { const done = alias(resolve); done(value); });
