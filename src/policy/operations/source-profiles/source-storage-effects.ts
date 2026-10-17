@@ -23,7 +23,11 @@ export function createCsharpSourceProfileStorageEffects(source: TargetSourceProg
       const semantics = source.semantics.forNode(node);
       const declaration = semantics.declarations.signatureDeclaration(call.selectedSignature);
       const identity = csharpSourceProfileDeclarationIdentity(source.ast, semantics, source.sourceFacts, declaration);
-      if (identity?.owner !== "js" || identity.declaringName === undefined) return undefined;
+      const nativeConstructor = identity?.owner === csharpTargetId && identity.kind === "construct" &&
+        identity.declaringName === "PromiseConstructor" && identity.declaration === declaration &&
+        source.ast.is.IsNewExpression(node) && declaration !== undefined && source.ast.is.IsConstructSignatureDeclaration(declaration) &&
+        call.sourceSelectedSignatureKind === "resolved";
+      if (identity === undefined || identity.owner !== "js" && !nativeConstructor || identity.declaringName === undefined) return undefined;
       const memberName = identity.kind === "construct" ? "constructor" : identity.kind === "member" ? identity.name : undefined;
       return memberName === undefined ? undefined : jsSourceCallableParameterEffects({ ownerName: identity.declaringName, memberName });
     },
