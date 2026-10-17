@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "./model.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
 import { targetTypeRefKey } from "./equality.js";
 
 export type CsharpTypeParameterConstraint =
@@ -19,14 +19,34 @@ export type CsharpTypeParameterConstraintResolution =
       readonly reason: string;
     };
 
+export function csharpConstraintsRequireReference(
+  constraints: readonly CsharpTypeParameterConstraint[],
+): boolean {
+  const pending = [...constraints];
+  const visited = new Set<string>();
+  for (let index = 0; index < pending.length; index += 1) {
+    const constraint = pending[index]!;
+    if (constraint.kind === "keyword" && constraint.keyword === "class") return true;
+    if (constraint.kind !== "type") continue;
+    const type = constraint.type;
+    if (type.kind === "target-named" &&
+      (type as CsharpTargetNamedTypeRef).csharpConstraintRequiresReferenceType === true) return true;
+    if (type.kind !== "type-parameter" || visited.has(type.identity)) continue;
+    visited.add(type.identity);
+    if (type.csharpConstraints?.kind === "resolved") pending.push(...type.csharpConstraints.constraints);
+  }
+  return false;
+}
+
 export function csharpTypeParameterConstraintResolutionKey(
   resolution: CsharpTypeParameterConstraintResolution | undefined,
 ): string {
   return resolution === undefined ? "missing" : resolution.kind === "unsupported"
     ? JSON.stringify([resolution.kind, resolution.reason])
-    : JSON.stringify(resolution.constraints.map(constraint => constraint.kind === "type"
+    : JSON.stringify([...resolution.constraints.map(constraint => constraint.kind === "type"
       ? [constraint.kind, targetTypeRefKey(constraint.type)] : constraint.kind === "keyword"
-        ? [constraint.kind, constraint.keyword] : [constraint.kind]));
+        ? [constraint.kind, constraint.keyword] : [constraint.kind]),
+      ...(csharpConstraintsRequireReference(resolution.constraints) ? [["reference-proof"]] : [])]);
 }
 
 export function csharpOwnerTypeParameterConstraintKey(type: TargetTypeRef): string {

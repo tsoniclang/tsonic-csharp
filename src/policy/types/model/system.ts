@@ -45,6 +45,8 @@ import {
 import type {
   TargetTypeRef,
 } from "../../../target-model/types/model.js";
+import { createCsharpTypeParameterEnvironment } from "../../constraints/type-parameter-environment.js";
+import { resolveCsharpTypeParameterConstraints } from "../../constraints/type-parameter-constraints.js";
 
 export interface CsharpTypeSystem {
   readonly typeDefinitions: import("../../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
@@ -65,10 +67,22 @@ export function createCsharpTypeSystem(
     if (projectTypes === undefined) throw new Error("C# project heritage was requested before the type system was fully initialized.");
     return projectTypes;
   };
+  const typeParameterConstraints = createCsharpTypeParameterEnvironment(host.ast, (declaration, parameter) => {
+    const sourceFile = host.ast.getSourceFile(declaration);
+    const sourceType = host.semanticsFor(declaration).declarations.declaredType(declaration);
+    if (sourceFile === undefined || sourceType === undefined) return undefined;
+    return resolveCsharpTypeParameterConstraints(declaration, parameter, sourceFile, {
+      ast: host.ast,
+      types: { resolveNode: (node, file) => typeResolution.recursive.resolveNode(node, file, {
+        depth: 0, sourceBindings: new Map([[declaration, { sourceType, targetType: parameter }]]),
+      }) },
+    });
+  });
   const createTypeResolution = (
     representations: CsharpPlanningRepresentationQueries,
   ) => createCsharpTypeResolutionServices({
       ...host,
+      typeParameterConstraints,
       representations,
       projectTypeCatalog,
       closedTypeGuard(node) {
@@ -187,6 +201,7 @@ export function createCsharpTypeSystem(
   const types = typeResolution.policy;
   objectShapes = createCsharpObjectShapePolicy({
     ...host,
+    typeParameterConstraints,
     representations,
     projectTypeCatalog,
     projectTypes: requireProjectTypes,

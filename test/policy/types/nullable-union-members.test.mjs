@@ -49,3 +49,22 @@ test("nullable normalization never manufactures an object payload or nested opti
   assert.equal(targetTypeRefEquals(combineCsharpTargetUnionMembers([integer, integer]), integer), true);
   assert.equal(combineCsharpTargetUnionMembers([]) === undefined, true);
 });
+
+test("bounded generic absence uses native nullable references on every union route", () => {
+  const nominal = csharpTargetNamedType("fixture.NativeClass", undefined, undefined,
+    { allowsRefLikeTypeArguments: [], sourceDeclarationKind: "class", constraintRequiresReferenceType: true });
+  for (const constraints of [[{ kind: "keyword", keyword: "class" }], [{ kind: "type", type: nominal }]]) {
+    const parameter = { kind: "type-parameter", identity: "fixture:T", name: "T", csharpConstraints: { kind: "resolved", constraints } };
+    const nullable = csharpNullableTargetType(parameter);
+    for (const members of [[parameter, csharpAbsenceTargetType()], [csharpAbsenceTargetType(), parameter],
+      [nullable, parameter], [nullable, csharpAbsenceTargetType()], [parameter, csharpVoidTargetType()]]) {
+      const selected = combineCsharpTargetUnionMembers(members);
+      assert.equal(targetTypeRefEquals(selected, nullable), true, "all native absence entry points select identical T? storage");
+      assert.equal(selected.kind === "type-parameter" && selected.csharpNullableReference === true && selected.csharpProjection === undefined, true,
+        "a proven reference-bound parameter has no manufactured storage witness");
+      assert.equal(selected.csharpConstraints === parameter.csharpConstraints, true, "the native constraint evidence is retained");
+      assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(selected), parameter), true,
+        "removing native absence restores the original payload identity");
+    }
+  }
+});

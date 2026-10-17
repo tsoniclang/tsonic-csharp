@@ -20,6 +20,7 @@ export type CsharpStructuralUnionResolution =
   | { readonly kind: "resolved"; readonly type: TargetTypeRef };
 
 export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
+  readonly typeParameterConstraints: import("../../../../target-model/types/generic-references.js").CsharpTypeParameterConstraintResolver;
   readonly representations: CsharpPlanningRepresentationQueries;
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
   projectTypes(): CsharpProjectTypePolicy;

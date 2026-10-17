@@ -53,6 +53,7 @@ export function csharpListTargetType(elementType: TargetTypeRef): CsharpTargetNa
     csharpQualifiedTypeRenderShape("System.Collections.Generic", "List"),
     {
       sourceDeclarationKind: "class",
+      constraintRequiresReferenceType: true,
       allowsRefLikeTypeArguments: [false],
       arrayLiteralElementType: elementType,
       enumerableElementType: elementType,

@@ -5,6 +5,8 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { createCsharpProjectTypeCatalog } from "../../../dist/analysis/project-types/catalog.js";
 import { createCsharpObjectShapePolicy } from "../../../dist/policy/types/objects/object-shape-policy/api.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/policy/constraints/type-parameter-environment.js";
+import { resolveCsharpTypeParameterConstraints } from "../../../dist/policy/constraints/type-parameter-constraints.js";
 
 function fixture() {
   const checked = createCompilerSessionFromFiles({
@@ -34,6 +36,13 @@ function fixture() {
     sourceStorage: createSourceStorageQuery(source, source.navigation.sourceFiles),
     semantics: file => source.semantics.forFile(file),
     semanticsFor,
+    typeParameterConstraints: createCsharpTypeParameterEnvironment(source.ast, (declaration, parameter) => {
+      const sourceFile = source.ast.getSourceFile(declaration);
+      return sourceFile === undefined ? undefined : resolveCsharpTypeParameterConstraints(declaration, parameter, sourceFile, {
+        ast: source.ast,
+        types: { resolveNode: (node, file) => host.typeResolver.resolveNode(node, file, { depth: 0 }) },
+      });
+    }),
     projectTypeCatalog: catalog,
     projectTypes: () => ({ directSupertypes: () => [] }),
     representations: { requiresClosedStructuralContract: () => false },

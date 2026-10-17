@@ -4,6 +4,9 @@ import { substituteTargetTypeParameters } from "../../target-model/types/substit
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
+import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
+import { createCsharpMetadataBudget } from "../../target-model/metadata/immutable.js";
 
 export function csharpCallableParametersEqual(
   left: CsharpSourceCallableContract, right: CsharpSourceCallableContract,
@@ -18,10 +21,38 @@ export function instantiateCsharpInheritedCallable(
   receiver: TargetTypeRef | undefined,
 ): CsharpSourceCallableContract | undefined {
   if (source.methodTypeParameterIdentities.length !== implementation.methodTypeParameterIdentities.length) return undefined;
-  const typeParameters = policy.ast.typeParameters(implementation.sourceDeclaration).map(parameter => parameter === undefined ? undefined
-    : csharpSourceTypeParameter(parameter, policy.ast));
-  if (typeParameters.length !== source.methodTypeParameterIdentities.length || typeParameters.some(parameter => parameter === undefined)) return undefined;
-  const substitutions = new Map(source.methodTypeParameterIdentities.map((identity, index) => [identity, typeParameters[index]!]));
+  const substitutions = new Map<string, TargetTypeRef>();
+  if (source.sourceDeclaration === implementation.sourceDeclaration) {
+    if (source.methodTypeParameterIdentities.some((identity, index) => identity !== implementation.methodTypeParameterIdentities[index])) return undefined;
+  } else {
+    const authored = (contract: CsharpSourceCallableContract) => policy.ast.typeParameters(contract.sourceDeclaration)
+      .map(parameter => parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast));
+    const sourceParameters = authored(source);
+    const implementationParameters = authored(implementation);
+    if (sourceParameters.length !== implementationParameters.length ||
+      sourceParameters.some((parameter, index) => parameter === undefined || parameter.identity !== source.methodTypeParameterIdentities[index]) ||
+      implementationParameters.some((parameter, index) => parameter === undefined || parameter.identity !== implementation.methodTypeParameterIdentities[index])) return undefined;
+    const selected = new Map<string, Extract<TargetTypeRef, { readonly kind: "type-parameter" }>>();
+    const pending = [implementation.returnType, ...implementation.parameters.map(parameter => parameter.targetParameter.type),
+      ...(implementation.sourceReturnType === undefined ? [] : [implementation.sourceReturnType])];
+    const visited = new Set<TargetTypeRef>();
+    const budget = createCsharpMetadataBudget();
+    budget.reserve(pending.length);
+    for (let index = 0; index < pending.length; index += 1) {
+      const type = pending[index]!;
+      if (visited.has(type)) continue;
+      visited.add(type);
+      const element = getCsharpNullableElementTargetType(type) ?? type;
+      if (element.kind === "type-parameter" && selected.get(element.identity)?.csharpConstraints === undefined) selected.set(element.identity, element);
+      const components = csharpTargetTypeComponents(type);
+      budget.reserve(components.length);
+      pending.push(...components);
+    }
+    for (const [index, parameter] of sourceParameters.entries()) {
+      const target = implementationParameters[index]!;
+      substitutions.set(parameter!.identity, selected.get(target.identity) ?? target);
+    }
+  }
   const instantiate = (type: TargetTypeRef): TargetTypeRef | undefined => {
     const selected = policy.projectTypes.instantiateMemberType(source.sourceDeclaration, receiver, type);
     return selected.kind === "resolved" ? substituteTargetTypeParameters(selected.type, substitutions) : undefined;

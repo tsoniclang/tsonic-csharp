@@ -548,7 +548,7 @@ function sourceCallTypeParameterIdentities(
         host.ast.typeParameters(callable.sourceDeclaration!).length !== selected.length) return undefined;
   }
   const identities = selected.map((argument, index) => {
-    const parameter = resolveTypeParameter(argument.typeParameter, queries, host.ast);
+    const parameter = resolveTypeParameter(argument.typeParameter, queries, host.ast, host.typeParameterConstraints);
     if (parameter?.kind !== "type-parameter") return undefined;
     if (!remap) return parameter.identity;
     const checkedParameter = csharpSourceTypeParameter(host.ast.typeParameters(checked!)[index]!, host.ast);

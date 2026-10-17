@@ -33,11 +33,9 @@ export function substituteTargetTypeParameters(
         const projection = csharpTypeProjection(type)?.csharpProjection;
         if (projection?.kind === "optional") {
           const element = substituteTargetTypeParameters(projection.arguments[0], substitutions);
-          if (!targetTypeRefEquals(element, projection.arguments[0])) {
-            const selected = resolveCsharpOptionalStorage(projection, element);
-            if (selected === undefined) throw new Error("A substituted optional carrier has no native storage representation.");
-            return selected;
-          }
+          const selected = resolveCsharpOptionalStorage(projection, element);
+          if (selected === undefined) throw new Error("A substituted optional carrier has no native storage representation.");
+          if (!targetTypeRefEquals(selected, type)) return selected;
         }
         return type.csharpConstraints?.kind !== "resolved" ? type : { ...type,
           csharpConstraints: Object.freeze({ kind: "resolved", constraints:

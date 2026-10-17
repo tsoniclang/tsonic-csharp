@@ -110,7 +110,7 @@ export function resolveTypeWithState(
   if (providerType !== undefined) {
     return providerType;
   }
-  const typeParameter = resolveTypeParameter(type, queries, host.ast);
+  const typeParameter = resolveTypeParameter(type, queries, host.ast, host.typeParameterConstraints);
   if (typeParameter !== undefined) {
     return typeParameter;
   }

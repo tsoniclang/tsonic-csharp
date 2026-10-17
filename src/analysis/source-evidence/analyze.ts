@@ -40,9 +40,6 @@ import type {
 } from "../../target-model/types/model.js";
 import type { CsharpSemanticTypeClassification, CsharpContextualTupleClassification, CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpSourceEvidenceResult } from "./model.js";
-import {
-  resolveCsharpTypeParameterConstraints,
-} from "../../policy/constraints/index.js";
 import type {
   CsharpTypeParameterConstraintResolution,
 } from "../../policy/constraints/index.js";
@@ -480,14 +477,13 @@ export function analyzeCsharpSourceEvidence(
     if (source.ast.is.IsTypeParameterDeclaration(node)) {
       const parameter = csharpSourceTypeParameter(node, source.ast);
       if (parameter !== undefined) {
+        const selected = types.resolveType(source.semantics.forNode(node).declarations.declaredType(node), sourceFile);
+        const constraints = selected?.kind === "type-parameter" && selected.identity === parameter.identity
+          ? selected.csharpConstraints : undefined;
         typeParameterConstraints.set(
           node,
-          resolveCsharpTypeParameterConstraints(
-            node,
-            parameter,
-            sourceFile,
-            { ast: source.ast, types },
-          ),
+          constraints ?? Object.freeze({ kind: "unsupported",
+            reason: `Generic binder '${parameter.name}' has no selected native constraint contract.` }),
         );
       }
     }
