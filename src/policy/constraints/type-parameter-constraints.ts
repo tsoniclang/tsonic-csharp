@@ -118,7 +118,8 @@ export function resolveCsharpTypeParameterConstraints(
   host: CsharpTypeParameterConstraintPolicyHost,
 ): CsharpTypeParameterConstraintResolution {
   const declaration = host.ast.as.AsTypeParameterDeclaration(typeParameter);
-  const constraint = declaration?.Constraint;
+  if (declaration === undefined) return { kind: "unsupported", reason: "The selected generic declaration has no readable source constraint evidence." };
+  const constraint = declaration.Constraint;
   if (constraint === undefined) {
     return { kind: "resolved", constraints: [] };
   }
