@@ -15,7 +15,7 @@ function thenCalls(compiled) {
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   for (const file of sourceFiles) if (!ast.isDeclarationFile(file)) visit(file);
-  return calls.map(node => compiled.result.program.records.call.get(node));
+  return calls.map(node => compiled.result.program.records.selectedCall.get(node));
 }
 
 for (const owner of ["Promise", "PromiseLike"]) {
