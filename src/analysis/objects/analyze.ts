@@ -192,14 +192,17 @@ export function analyzeCsharpObjectShapes(
   }
 
   function closeStructuralShapes(): void {
+    let revision: number;
     do {
+      revision = structuralRevision;
       preparePhysicalShapes();
       closeInheritedStructuralInterfaces();
-    } while (pendingPhysicalTypes.size > 0);
+    } while (pendingPhysicalTypes.size > 0 || revision !== structuralRevision);
   }
 
   function closeInheritedStructuralInterfaces(): void {
     if (structuralRevision === closedStructuralRevision) return;
+    const revision = structuralRevision;
     const issues: CsharpProjectTypeIssue[] = [];
     const rejected = new Set<string>();
     for (const implementations of structuralInterfaces.values()) {
@@ -218,6 +221,11 @@ export function analyzeCsharpObjectShapes(
             const baseKey = targetTypeRefKey(base);
             pending.push(base);
             if (provided.has(baseKey)) continue;
+            const baseShape = byTarget.get(baseKey) ?? policy.objectShapes.resolveTarget(base);
+            const checkedMethodProtocol = baseShape?.sourceType === undefined &&
+              structuralImplementations(request.source).some(implementation => implementation.methods.some(method =>
+                method.member.methodValueContract !== undefined && targetTypeRefEquals(method.member.methodValueContract, base)));
+            if (checkedMethodProtocol) continue;
             const requestKey = JSON.stringify([targetTypeRefKey(request.source), baseKey]);
             if (rejected.has(requestKey)) continue;
             if (!classifications.registerStructuralInterface(request.selected.sourceNode, request.source, base, request.sourceType)) {
@@ -230,7 +238,7 @@ export function analyzeCsharpObjectShapes(
       }
     }
     structuralIssues = Object.freeze(issues);
-    closedStructuralRevision = structuralRevision;
+    closedStructuralRevision = revision;
   }
 
   for (const sourceFile of policy.sourceFiles) {
