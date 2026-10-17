@@ -1,8 +1,8 @@
-import { applyCalleeTypeArguments, isProjectSourceDeclaration } from "./helpers.js";
+import { applyCalleeTypeArguments } from "./helpers.js";
 import { planCsharpUnionDispatcherCall } from "./union.js";
 import { planCsharpSourceUndefinedValue } from "../../undefined-values.js";
 import { translateCallArgument } from "./arguments.js";
-import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
+import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
@@ -46,16 +46,7 @@ export function translateSourceOwnedCall(
   }
   const selected = classification.sourceCall;
   if (selected === undefined || selected.kind === "rejected" || selected.kind === "union-method") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, selected?.kind === "rejected" ? selected.reason
-      : "Source call has no exact sealed callee acquisition contract."));
-    return undefined;
-  }
-  const signatureDeclaration = input.program.records.signatureDeclaration.get(source.selectedSignature);
-  if (!isProjectSourceDeclaration(input, source.sourceCallee.selectedDeclaration) &&
-    !isProjectSourceDeclaration(input, signatureDeclaration)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node,
-      "The exact selected source callee is external to the project and has no C# target relation."));
-    return undefined;
+    return failCsharpPlannerInvariant("A source call requires its exact admitted callee acquisition contract before publication.", node);
   }
   const optionalCallee = classification.optionalCallee !== undefined && !input.scope.presentOptionalValues?.has(classification.optionalCallee.expression)
     ? classification.optionalCallee : undefined;

@@ -4,6 +4,7 @@ import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { getCsharpArrayLiteralElementTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { isCsharpStringTargetType, isCsharpJsStringTargetType } from "../../../dist/target-model/types/identity.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
@@ -374,12 +375,13 @@ if (generated != native) throw new System.Exception($"physical alias allocation 
       "no int64 token is invented and no invalid source reaches native publication");
   });
   test(`${surface} inferred heterogeneous counter-controls preserve exact integers, fractions, signed zero and computed values`, () => {
+    const length = surface === "native" ? "Length" : "length";
     const program = accepted(compile(surface, `export function run(computed: number) {
       const exact = ["text", 9007199254740994];
       const huge = ["text", 1606938044258990275541962092341162602522202993782792835301376];
       const fraction = ["text", 0.1]; const signedZero = ["text", -0];
       const actualFloat = ["text", computed]; const absent = [undefined, 9007199254740994];
-      return exact.length + huge.length + fraction.length + signedZero.length + actualFloat.length + absent.length; }`));
+      return exact.${length} + huge.${length} + fraction.${length} + signedZero.${length} + actualFloat.${length} + absent.${length}; }`));
     const selected = constructedArrays(program);
     for (const name of ["exact", "huge", "fraction", "signedZero", "actualFloat"]) {
       const arms = getCsharpRuntimeUnionArms(selected.get(name), program.typeDefinitions);
@@ -387,6 +389,17 @@ if (generated != native) throw new System.Exception($"physical alias allocation 
         arms.some(arm => isCsharpStringTargetType(arm) || isCsharpJsStringTargetType(arm)), true,
       `${name}: actual exact or computed f64 contributions remain with the existing heterogeneous native carrier`);
     }
+    const absent = getCsharpNullableElementTargetType(selected.get("absent"));
+    assert.equal(absent?.kind === "source-primitive" && absent.name === "float64", true,
+      "the sixth actual contribution retains native absence around its exact canonical floating arm");
+  });
+  if (surface === "native") test("native array length requires its supported native declaration spelling", () => {
+    const compiled = compile(surface, "export function run(values: number[]): number { return values.length; }");
+    assert.equal(compiled.source.diagnostics.length, 1, compiled.sourceDiagnosticsText);
+    assert.match(compiled.sourceDiagnosticsText,
+      /error TS2551: Property 'length' does not exist on type 'number\[\]'\. Did you mean 'Length'\?/u);
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+      "a nonexistent native member is not filtered, widened, aliased or emulated");
   });
   for (const [name, body] of [
     ["generic argument", `function accept<T>(values: T[]): T[] { return values; }

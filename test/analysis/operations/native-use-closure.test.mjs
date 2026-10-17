@@ -12,6 +12,73 @@ import { getCsharpRuntimeUnionArms, isCsharpJsValueTargetType } from "../../../d
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
+import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
+
+test("native Promise continuations keep the original exact external-callee refusal before publication", () => {
+  const expression = "Promise.resolve(1).then((value: number): number => value + 1)";
+  const sourceText = [
+    "export function chain(): Promise<number> {",
+    `  return ${expression};`,
+    "}",
+    "",
+  ].join("\n");
+  const compiled = compileCsharpNativeUseSource({ surface: "native", sourceText });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the original unsupported native API is checked source, not a type error");
+  assert.equal(compiled.targetDiagnostics.length, 1, "only the exact selected source API refusal is reported");
+  const issue = compiled.targetDiagnostics[0];
+  assert.equal(issue.code, "CSHARP_UNSUPPORTED_AST");
+  assert.equal(issue.source, "tsonic-csharp");
+  assert.equal(issue.category, "error");
+  assert.equal(issue.message, "The exact selected source callee is external to the project and has no C# target relation.");
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "unsupported native continuations publish no program, plan or artifacts");
+  const original = compiled.nativeStage.diagnostics[0];
+  const ast = compiled.nativeStage.source.ast;
+  const node = original.sourceNode;
+  assert.equal(node !== undefined && ast.is.IsCallExpression(node), true, "the original call, not its callback or result conversion, owns the refusal");
+  const file = ast.getSourceFile(node);
+  assert.equal(file !== undefined, true, "the exact original checked file owns the rejected call");
+  const range = ast.authoredRange(node);
+  assert.equal(range.kind, "authored", "the rejected call retains its original authored range");
+  assert.equal(ast.getSourceText(file).slice(range.start, range.end), expression,
+    "the source refusal retains the complete original selected continuation call");
+  assert.equal(range.start, sourceText.indexOf(expression),
+    "the unchanged original call starts at index.ts:2:10");
+  assert.equal(range.end, sourceText.indexOf(expression) + expression.length, "the exact original call span is retained");
+});
+
+test("native catch does not acquire a JavaScript continuation relation from its external signature", () => {
+  const expression = "Promise.resolve(1).catch((): number => 7)";
+  const compiled = compileCsharpNativeUseSource({ surface: "native",
+    sourceText: `export function recover(): Promise<number> { return ${expression}; }` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the native profile declares the source method without implementing a JS continuation");
+  const issue = compiled.nativeStage.diagnostics[0];
+  const ast = compiled.nativeStage.source.ast;
+  const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+  assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    issue.message === "The exact selected source callee is external to the project and has no C# target relation." &&
+    range?.kind === "authored" && ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end) === expression, true,
+  "the exact actual continuation call owns its original unsupported-native-API refusal");
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "native catch publishes no partial program, plan or target artifacts");
+});
+
+test("an external direct function keeps its source shape but requires a native implementation before publication", () => {
+  const expression = "external(7)";
+  const compiled = compileCsharpNativeUseSource({ surface: "native",
+    sourceText: `export function run(): number { return ${expression}; }`,
+    files: { "external.d.ts": "declare function external(value: number): number;" } });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the original selected external function is valid checked source");
+  const issue = compiled.nativeStage.diagnostics[0];
+  const ast = compiled.nativeStage.source.ast;
+  const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+  assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    issue.message === "The exact selected source callee is external to the project and has no C# target relation." &&
+    range?.kind === "authored" && ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end) === expression, true,
+  "shape/type information is not a native executable implementation or target relation");
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "an unimplemented external function emits no partial native program or artifact");
+});
 
 for (const surface of ["native", "js"]) test(`${surface} authored Half tokens round once at native precision without a host double round trip`, () => {
   const cases = [
@@ -1106,6 +1173,27 @@ test("actual native key refusals precede expected-slot pending and retain every 
   assert.equal(demand.unadmitted.every((entry, index) => entry.kind === "source-refusal" && entry.requiredBy === expression &&
     entry.diagnostic === issues[index]), true, "the original diagnostic and actual required expression keep separate identities");
   assert.equal(demand.nativeUse.expression(expression) === undefined, true, "a refused expression never receives a fabricated native use");
+});
+
+test("a selected external source callee refuses before unresolved argument grouping", () => {
+  const value = owners("function make(value: number): number { return value; } export const result = make(7);", "native");
+  const node = value.nodes.find(candidate => value.ast.is.IsCallExpression(candidate));
+  const original = value.input.operations.selectedCall.get(node);
+  assert.equal(node !== undefined && original?.target?.kind === "source-owned", true,
+    "the actual checked source-owned call supplies the existing operation boundary");
+  const reason = "The exact selected source callee is external to the project and has no C# target relation.";
+  const selected = Object.freeze({ ...original, sourceCall: Object.freeze({ kind: "rejected", reason }),
+    sourceArgumentGrouping: undefined });
+  const operations = { ...value.input.operations, selectedCall: { get: candidate => candidate === node
+    ? selected : value.input.operations.selectedCall.get(candidate) } };
+  const demand = analyzeCsharpNativeDemand({ ...value.input, operations }, []);
+  const refusal = demand.unadmitted[0];
+  assert.equal(demand.unadmitted.length === 1 && refusal.kind === "source-refusal" && refusal.requiredBy === node &&
+    refusal.diagnostic.sourceNode === node && refusal.diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&
+    refusal.diagnostic.message === reason, true,
+  "the selected source callee owns the one precise refusal, not an argument or result conversion cascade");
+  assert.equal(demand.nativeUse.expression(node) === undefined, true,
+    "an unresolved argument group cannot turn a rejected source API into a fabricated native call");
 });
 
 for (const surface of ["native", "js"]) test(`${surface} actual ambient admission precedes pending slots without observing an erased body`, () => {

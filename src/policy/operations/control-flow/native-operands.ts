@@ -232,12 +232,15 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       call.target.candidates.map(candidate => `candidate=${candidate}`));
     if (call.target?.kind !== "source-owned" || call.source === undefined) return refused("operation-unresolved");
     if (call.unionCall.kind === "rejected") return sourceRefused("CSHARP_UNSUPPORTED_AST", call.unionCall.reason);
-    const arguments_ = sourceArguments(call.sourceArgumentGrouping);
-    if ("reason" in arguments_) return argumentRefused(arguments_);
-    if (ast.kindName(call.source.sourceCallee.expression) === "KindSuperKeyword") return argumentsFirst([], arguments_);
-    if (call.unionCall.kind === "resolved") return chosen([...use(call.unionCall.receiver, { kind: "receiver" }), ...guarded(arguments_)]);
+    if (ast.kindName(call.source.sourceCallee.expression) === "KindSuperKeyword") {
+      const arguments_ = sourceArguments(call.sourceArgumentGrouping);
+      return "reason" in arguments_ ? argumentRefused(arguments_) : argumentsFirst([], arguments_);
+    }
     const callee = call.sourceCall;
     if (callee?.kind === "rejected") return sourceRefused("CSHARP_UNSUPPORTED_AST", callee.reason);
+    const arguments_ = sourceArguments(call.sourceArgumentGrouping);
+    if ("reason" in arguments_) return argumentRefused(arguments_);
+    if (call.unionCall.kind === "resolved") return chosen([...use(call.unionCall.receiver, { kind: "receiver" }), ...guarded(arguments_)]);
     if (callee === undefined || callee.kind === "union-method") return refused("operation-unresolved");
     if (callee.kind === "function") return argumentsFirst([], guarded(arguments_));
     if (callee.kind === "value") return argumentsFirst(use(callee.expression, { kind: "callee" }), guarded(arguments_));
