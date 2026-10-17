@@ -140,6 +140,7 @@ export interface CsharpBindingProjectionPolicyHost {
   readonly navigation: SourceProgramNavigation;
   readonly typeResolver: CsharpRecursiveTypeResolver;
   readonly objectShapes: CsharpRecursiveObjectShapePolicy;
+  scopedTargetType(node: Node): TargetTypeRef | undefined;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
 }
 
@@ -282,6 +283,8 @@ function resolveObjectBindingProjection(
 ): TargetTypeRef | undefined {
   const declaration = host.ast.as.AsBindingElement(binding);
   if (declaration?.DotDotDotToken !== undefined) {
+    const selected = host.scopedTargetType(binding);
+    if (selected !== undefined) return selected;
     const sourceFile = host.ast.getSourceFile(binding);
     return sourceFile === undefined ? undefined : host.objectShapes.resolveTypeWithState(
       host.semantics(sourceFile).declarations.declaredValueType(binding), sourceFile, undefined, nextState(state),

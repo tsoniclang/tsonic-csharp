@@ -272,7 +272,7 @@ function renderObjectShapeDeclaration(
     fact.targetType,
   );
   return {
-    kind: "ClassDeclaration",
+    kind: (fact.targetType as CsharpTargetNamedTypeRef).csharpValueType === true ? "StructDeclaration" : "ClassDeclaration",
     name: targetType.name,
     ...(objectShapeIdentity === undefined ? {} : { objectShapeIdentity }),
     modifiers: ["public"],

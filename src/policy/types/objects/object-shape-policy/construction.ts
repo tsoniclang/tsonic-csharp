@@ -13,7 +13,7 @@ import { isPlainCsharpIdentifier } from "../../../../target-model/names/identifi
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import { csharpObjectShapeTypeParameters, closeCsharpOwnerTypeParameterEnvironment,
   type CsharpTypeParameterConstraintResolver } from "../../../../target-model/types/generic-references.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
 import {
   csharpWellKnownSymbolTargetMemberName,
 } from "../../../../target-model/types/source-member-keys.js";
@@ -79,6 +79,33 @@ export function objectShapeMemberTargetName(sourceName: string): string {
     : `__tsonic_member_${
       createHash("sha256").update(sourceName).digest("hex")
     }`;
+}
+
+export function createCsharpObjectShapeValueStorage(
+  shape: CsharpObjectShapeFact,
+): CsharpObjectShapeFact | undefined {
+  if (shape.targetType.kind !== "target-named" ||
+    !shape.targetType.id.startsWith(csharpStructuralObjectShapeIdPrefix) ||
+    shape.members.length === 0 || (shape.implements?.length ?? 0) !== 0 ||
+    shape.methodImplementation !== undefined || shape.members.some(member =>
+      member.memberKind !== "property" || member.optional === true || member.accessor !== undefined ||
+      member.bound === true || member.methodValueContract !== undefined || member.methodStorageType !== undefined)) return undefined;
+  const target = shape.targetType as CsharpTargetNamedTypeRef;
+  if (target.csharpRender?.kind !== "named" || target.csharpStructuralContract === true ||
+    target.csharpSourceDeclarationKind !== undefined || target.csharpJsValueCarrier === true ||
+    target.csharpConstraintRequiresReferenceType === true || target.csharpBaseType !== undefined ||
+    target.csharpNullableReference === true || target.csharpByRefLike === true) return undefined;
+  if (target.csharpValueType === true) return shape;
+  const identity = createHash("sha256").update(JSON.stringify([target.id, "value-storage"])).digest("hex");
+  const declarationTemplate = shape.declarationTemplate === undefined ? undefined
+    : createCsharpObjectShapeValueStorage(shape.declarationTemplate);
+  if (shape.declarationTemplate !== undefined && declarationTemplate === undefined) return undefined;
+  return Object.freeze({
+    ...shape,
+    targetType: Object.freeze({ ...target, id: `${csharpStructuralObjectShapeIdPrefix}${identity}`,
+      csharpRender: Object.freeze({ ...target.csharpRender, name: `__TsonicShape_${identity}` }), csharpValueType: true as const }),
+    ...(declarationTemplate === undefined ? {} : { declarationTemplate }),
+  });
 }
 
 export function objectShapeMemberTargetNameForKey(
