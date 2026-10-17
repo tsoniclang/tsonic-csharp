@@ -6,6 +6,7 @@ export interface CsharpModuleInitializationIndex {
   readonly asyncModuleInitializer: { readonly get: (sourceFile: SourceFile) => boolean };
   entrypointInitializer(): SourceFile | undefined;
   readonly callableVisibility: { readonly get: (declaration: Node) => "public" | "internal" | undefined };
+  readonly moduleBindingInitialization: { readonly get: (declaration: Node) => "declaration" | "value" | undefined };
 }
 
 export interface CsharpModuleInitializationIssue {
