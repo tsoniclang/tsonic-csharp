@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpTarget } from "../../dist/backend/compile.js";
-import { compileCsharpSource } from "./direct-csharp-session.mjs";
+import { compileCsharpSource } from "../helpers/direct-csharp-session.mjs";
+import { assertNoTargetDiagnostics } from "../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 
 const sourceText = "export function identity(value: number): number { return value; }";
 const mutation = Object.freeze({ extensionId: "fixture", extensionCode: "REFERENCES_CHANGED",
@@ -32,7 +33,7 @@ test("C# session and helper observe the real wrapper's exact program and native 
     return productionResult;
   } });
   assert.deepEqual(events, ["compile", "analysis", "plan", "return"]);
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assertNoTargetDiagnostics(compiled.result.diagnostics);
   assert.equal(request.input.source.ast === compiled.source.ast, true);
   assert.equal(program.source.ast === compiled.source.ast, true);
   assert.equal(compiled.result.program === program, true);
