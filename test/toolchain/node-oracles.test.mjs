@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { nodeOraclePrograms, runNodeOracle, runNativeNodeOracle } from "./node-oracles.mjs";
+import { nodeOraclePrograms, runNodeOracle, runNativeNodeOracle } from "../helpers/node-oracles.mjs";
 import { nodeOraclePrograms as sharedPrograms, runNodeOracle as sharedNodeRunner } from "../../../tsonic/test/fixtures/node-oracle/index.mjs";
-import { compileCsharpSource } from "./direct-csharp-session.mjs";
+import { compileCsharpSource } from "../helpers/direct-csharp-session.mjs";
+import { assertNoTargetDiagnostics } from "../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 
 test("C# consumes the one shared oracle catalogue and Node reference runner", () => {
   assert.equal(nodeOraclePrograms === sharedPrograms, true);
@@ -13,7 +14,7 @@ test("C# consumes the one shared oracle catalogue and Node reference runner", ()
 
 test("C# helper library defaults never infer output kind from the authored main name", () => {
   const compiled = compileCsharpSource({ sourceText: "export function main(): void {}" });
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assertNoTargetDiagnostics(compiled.result.diagnostics);
   assert.equal(compiled.target.options.outputType, "Library");
   assert.equal(compiled.project.targets[0].options.outputType, "Library");
   assert.equal(compiled.artifacts.has("generated/TsonicEntrypoint.cs"), false);
