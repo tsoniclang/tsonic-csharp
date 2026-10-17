@@ -1,5 +1,4 @@
 import { encodeContractParts, objectShapeProjectionContractParts, objectShapeProjectionKey } from "../../../target-model/records/object-shape-demand.js";
-export { encodeContractParts, objectShapeProjectionKey };
 import type {
   TargetArtifactContract,
   TargetArtifactDependency,

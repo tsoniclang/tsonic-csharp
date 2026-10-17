@@ -502,8 +502,9 @@ export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDeman
       sealed = true;
       const artifacts = Object.freeze(operations.objectShapeArtifacts());
       const byKey = new Map(artifacts.map(artifact => [artifact.key, artifact]));
+      const projections = new Map(scope.projections);
       return Object.freeze({ artifacts, get: (key: string) => byKey.get(key),
-        projection: (subject: Node) => scope.projections.get(subject) });
+        projection: (subject: Node) => projections.get(subject) });
     },
   });
 }
