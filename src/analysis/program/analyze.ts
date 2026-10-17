@@ -117,7 +117,7 @@ import { createCsharpSourceProfileCallableAliasQuery } from "../../policy/operat
 import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-demands.js";
 import { createSourceStorageQuery, type SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../../policy/operations/source-profiles/source-storage-effects.js";
-import { analyzeCsharpPromiseResults } from "../callables/promise-results.js";
+import { analyzeCsharpGenericAdoption, analyzeCsharpPromiseResults } from "../callables/promise-results.js";
 import { analyzeCsharpRefLikePlacements } from "../storage/native-placement.js";
 import { analyzeCsharpCallableCreations } from "../callables/creation.js";
 import { analyzeCsharpBindingPatterns, admitCsharpBindingPatterns } from "../control-flow/binding-patterns.js";
@@ -168,6 +168,8 @@ export function analyzeCsharpTargetProgram(
   if (sourceStorageFailure !== undefined) return rejectedTargetStage([{
     code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", category: "error", source: "tsonic-csharp", message: sourceStorageFailure,
   }]);
+  const genericAdoption = analyzeCsharpGenericAdoption({ source, projectRoot: input.paths.projectRoot, storage: sourceStorage });
+  if (genericAdoption.length !== 0) return rejectedTargetStage(genericAdoption);
   const sourceIdentities = createCsharpSourceIdentityPolicy(
     source.ast,
     input.paths.projectRoot,
@@ -400,7 +402,7 @@ export function analyzeCsharpTargetProgram(
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
   }
   if (analysis.refLikeDiagnostics.length > 0) return rejectedTargetStage(analysis.refLikeDiagnostics);
-  const promiseResults = analyzeCsharpPromiseResults({ source, projectRoot: input.paths.projectRoot,
+  const promiseResults = analyzeCsharpPromiseResults({ source, genericAdoption,
     storage: sourceStorage, nodes: sourceStorage.nodes,
     records: { valueRead: analysis.valueReads.valueRead, selectedCall: analysis.operations.selectedCall,
       selectedConstruction: analysis.operations.selectedConstruction },
