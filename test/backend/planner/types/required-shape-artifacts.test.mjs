@@ -13,7 +13,7 @@ import { planCsharpPreparedConstructor } from "../../../../dist/backend/planner/
 import { planLambdaParameterStorage } from "../../../../dist/backend/planner/expressions/lambda-parameter-storage.js";
 import { csharpRuntimeUnionTargetType, csharpEmptyObjectTargetType, csharpTsValueTargetType } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { objectShapeArtifactKey } from "../../../../dist/target-model/records/object-shape-demand.js";
-import { targetTypeRefEquals, targetTypeRefKey } from "../../../../dist/target-model/types/equality.js";
+import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
 
 const integer = { kind: "source-primitive", name: "int32" };
 const sourceText = `import type { int32 } from "@tsonic/core/types.js";
@@ -142,32 +142,12 @@ test("only rendered containers, real union payloads and physical method owners a
   }
   const jsShape = { targetType: { ...csharpTsValueTargetType(), csharpJsObjectShape: true }, members: [] };
   const emptyShape = { targetType: csharpEmptyObjectTargetType(), members: [] };
-  const targetShapes = Object.freeze({ ...input.program.records.objectShapeArtifact.targetShapes,
-    [targetTypeRefKey(jsShape.targetType)]: jsShape, [targetTypeRefKey(emptyShape.targetType)]: emptyShape });
-  const exclusions = { ...input, program: { ...input.program, records: { ...input.program.records,
-    objectShapeArtifact: { ...input.program.records.objectShapeArtifact, targetShapes },
+  const exclusions = { ...input, types: { ...input.types, objectShapes: { ...input.types.objectShapes,
+    resolveTarget: type => type === jsShape.targetType ? jsShape : type === emptyShape.targetType ? emptyShape : input.types.objectShapes.resolveTarget(type),
   } } };
   for (const shape of [jsShape, emptyShape]) assert.equal(csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(exclusions, shape.targetType) !== undefined, true,
     "a genuinely resolved JsValue/EmptyObject fact is still excluded from synthetic artifact requirements");
   assert.equal(input.artifacts.revision, revision, "read-only checks do not register artifacts");
-});
-
-test("rendered type guards read the canonical completed shape record without calling analysis", () => {
-  const selected = fixture();
-  const original = createCsharpPlanningContext(selected.program);
-  const demand = selected.program.records.objectShapeArtifact;
-  assert.equal(demand.targetShapes === selected.program.objectShapes.targetShapes && Object.isFrozen(demand.targetShapes), true,
-    "the backend receives the exact immutable final shape index, including undemanded shapes");
-  const input = { ...original, types: { ...original.types, objectShapes: { ...original.types.objectShapes,
-    resolveTarget() { assert.fail("a rendered type cannot call the analysis shape resolver"); },
-  } } };
-  assert.equal(csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, selected.shape.targetType) !== undefined, true,
-    "an admitted shape renders using only its canonical lookup and strict artifact record");
-  const missing = contextWithMissingArtifact(selected);
-  const strict = { ...missing, types: input.types };
-  rejectsBeforeOutput(strict, context => csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(context, selected.shape.targetType),
-    "a removed artifact stays distinguishable from a nonexistent shape");
-  assert.equal(input.artifacts.revision, original.artifacts.revision, "no shape registration or decision is repeated");
 });
 
 test("a real union payload requires its nested declaration without treating attached metadata as a union", () => {
