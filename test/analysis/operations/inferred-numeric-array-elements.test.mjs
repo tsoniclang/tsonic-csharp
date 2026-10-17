@@ -229,6 +229,27 @@ for (const surface of ["native", "js"]) {
     const program = accepted(compile(surface, source));
     actualUnionDestinationEvidence(program, name);
   });
+  test(`${surface} an actual generic union argument selects the literal's physical storage order`, () => {
+    const program = accepted(compile(surface, `function consume<T>(values: (string | T)[]): void {}
+      export function run(): number {
+        const values = ["text", 9007199254740993, -9007199254740993, 1e100]; consume<number>(values); return 7;
+      }`));
+    const ast = program.source.ast;
+    let call;
+    let array;
+    const visit = node => {
+      if (ast.is.IsArrayLiteralExpression(node)) array = node;
+      if (ast.is.IsCallExpression(node) && ast.text(ast.as.AsCallExpression(node)?.Expression) === "consume") call = node;
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    for (const file of program.sourceFiles) visit(file);
+    assert.equal(call !== undefined && array !== undefined, true, "the actual call and source construction remain present");
+    const grouping = program.records.selectedCall.get(call)?.sourceArgumentGrouping;
+    const constructed = program.records.nativeUse.expression(array)?.use;
+    assert.equal(grouping?.kind === "grouped" && grouping.arguments.length === 1 && constructed?.kind === "constructed" &&
+      targetTypeRefKey(constructed.carrier) === targetTypeRefKey(grouping.arguments[0].type), true,
+    "literal storage is the exact selected native array parameter, not a sorted peer requiring an array conversion or copy");
+  });
   for (const [name, source] of [
     ["nested generic argument", `function accept<T>(values: (string | T)[]): (string | T)[] { return values; }
       export function run(): (string | number)[] { const values = ["text", 9007199254740993, -9007199254740993, 1e100]; return accept<number>(values); }`],

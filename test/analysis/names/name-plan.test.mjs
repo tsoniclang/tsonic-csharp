@@ -9,6 +9,7 @@ import { createCsharpProviderRelationResolver } from "../../../dist/providers/na
 import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
 import { createCsharpSyntheticNames } from "../../../dist/backend/planner/names/synthetic.js";
+import { csharpSourceTypeParameter } from "../../../dist/target-model/names/type-parameters.js";
 
 function checkedNames(sourceText) {
   const checked = createCompilerSessionFromFiles({
@@ -50,7 +51,9 @@ test("the sealed C# name plan is a frozen pure lookup with no allocation port", 
   const plan = builder.seal();
   assert.equal(builder.seal(), plan);
   assert.ok(Object.isFrozen(plan));
-  assert.deepEqual(Object.keys(plan).sort(), ["reservedNames", "resolve"]);
+  assert.deepEqual(Object.keys(plan).sort(), ["reservedNames", "resolve", "typeParameterNames"]);
+  assert.equal(Object.isFrozen(plan.typeParameterNames) && plan.typeParameterNames.length === 0, true,
+    "a source with no type/value conflict has no fabricated binder rename");
   assert.equal("temporaryName" in plan, false);
   assert.ok(Object.isFrozen(plan.reservedNames));
   for (const name of ["makeValue", "inputValue", "fooBar", "_fooBar", "capture0", "@event"]) {
@@ -95,7 +98,7 @@ test("a published C# program carries the sealed plan and planning composes its o
   assert.equal(analysis.kind, "resolved");
   const program = analysis.value;
   assert.ok(Object.isFrozen(program.names));
-  assert.deepEqual(Object.keys(program.names).sort(), ["reservedNames", "resolve"]);
+  assert.deepEqual(Object.keys(program.names).sort(), ["reservedNames", "resolve", "typeParameterNames"]);
   assert.equal("temporaryName" in program.names, false);
   assert.ok(program.classFactories.length > 0);
   for (const factory of program.classFactories) {
@@ -109,4 +112,52 @@ test("a published C# program carries the sealed plan and planning composes its o
   assert.equal(reserved.includes(generated), false);
   assert.deepEqual([...program.names.reservedNames], reserved);
   assert.equal(createCsharpPlanningContext(program).names.temporaryName(program.classFactories[0].environmentName), generated);
+});
+
+test("only a type parameter with an actual value-parameter collision is renamed before seal", () => {
+  const { source, builder, identifiers } = checkedNames(`
+    class Base {}
+    export class Example {
+      read<T extends Base, TValue extends T>(T: T, value: TValue): T { const alias: T = value; return T; }
+      stable<U>(value: U): U { return value; }
+    }
+  `);
+  const plan = builder.seal();
+  assert.equal(Object.isFrozen(plan.typeParameterNames) && plan.typeParameterNames.length === 1 &&
+    Object.isFrozen(plan.typeParameterNames[0]) && plan.typeParameterNames[0].name === "T1", true,
+  "the single binding-safe rename is immutable selected data, not an allocating lookup");
+  let typeUses = 0;
+  let valueUses = 0;
+  for (const identifier of identifiers) {
+    const parent = source.ast.parent(identifier);
+    const declaration = parent !== undefined && source.ast.is.IsTypeParameterDeclaration(parent) && source.ast.name(parent) === identifier
+      ? parent : source.navigation.sourceReferenceFor(identifier)?.declaration;
+    const parameter = declaration === undefined ? undefined : csharpSourceTypeParameter(declaration, source.ast);
+    const spelling = source.ast.text(identifier);
+    const selected = plan.resolve(identifier);
+    if (parameter?.identity === plan.typeParameterNames[0].identity) {
+      typeUses += 1;
+      assert.equal(selected.kind === "resolved" && selected.name === "T1", true,
+        "the declaration, dependent constraint and every bound type use consume the identical pre-seal decision");
+    } else if (spelling === "T") {
+      valueUses += 1;
+      assert.equal(selected.kind === "resolved" && selected.name === "T", true, "the authored value parameter and its uses keep their spelling");
+    } else if (spelling === "U" || spelling === "TValue") {
+      assert.equal(selected.kind === "resolved" && selected.name === spelling, true, "nonconflicting authored type parameters are not renamed");
+    }
+  }
+  assert.equal(typeUses >= 5 && valueUses === 2, true, "real bound type uses and the distinct value binding were all observed");
+});
+
+test("type-parameter suffixes avoid existing native binders and leave conflict-free declarations unchanged", () => {
+  const collision = checkedNames("export function read<T, T1>(T: T, other: T1): T { return T; }");
+  const plan = collision.builder.seal();
+  assert.equal(plan.typeParameterNames.length === 1 && plan.typeParameterNames[0].name === "T2", true,
+    "the first deterministic free suffix cannot capture the authored T1 binder");
+  const stable = checkedNames("interface Stable { read<T>(value: T): T; }");
+  const names = stable.builder.seal();
+  assert.equal(names.typeParameterNames.length === 0, true, "no conflict means no native rename");
+  for (const identifier of stable.identifiers) assert.equal(names.resolve(identifier).kind === "resolved" &&
+    names.resolve(identifier).name === stable.source.ast.text(identifier), true,
+  "every original authored spelling is retained when C# has no value-name collision");
 });

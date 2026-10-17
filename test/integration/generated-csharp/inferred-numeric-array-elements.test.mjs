@@ -410,6 +410,21 @@ function expectedOperationRefusals(operation, size) {
   }
 }
 
+for (const surface of ["native", "js"]) test(`${surface} a nested generic union argument compiles in its actual native array layout`,
+  { timeout: 300_000 }, () => {
+    const compiled = compileCsharpNativeUseSource({ surface, sourceText: `
+      function consume<T>(values: (string | T)[]): void {}
+      export function run(): number {
+        const values = ["text", 9007199254740993, -9007199254740993, 1e100]; consume<number>(values); return 7;
+      }` });
+    assertCsharpCompilationSucceeded(compiled);
+    const output = executeCsharpConstruction(compiled, `C01-selected-generic-array-layout-${surface}`, false, false, [], `
+      if (Tsonic.Generated.Index.run() != 7D) throw new System.Exception("the actual generic array boundary did not compile and run");
+      System.Console.WriteLine("selected generic array layout passed");`);
+    assert.equal(output.includes("selected generic array layout passed"), true,
+      "the original scalar, wide token and generic call reach a real native compiler without an array repair conversion");
+  });
+
 test("C130 js plain key relations and numeric-union join remain native", { timeout: 300_000 }, () => {
   const compiled = compileCsharpNativeUseSource({ surface: "js", sourceText: `
     import type { int32, uint32 } from "@tsonic/core/types.js";

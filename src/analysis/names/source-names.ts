@@ -19,6 +19,7 @@ import type {
   CsharpNamePlan,
   CsharpSourceNameResolution,
 } from "../../target-model/names/model.js";
+import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
 
 export interface CsharpSourceNameResolver {
   temporaryName(preferred: string): string;
@@ -48,6 +49,8 @@ export function createCsharpSourceNameBuilder(
   const privateNameNodes = new WeakSet<Node>();
   const resolutions = new WeakMap<Node, CsharpSourceNameResolution>();
   const sourceNames = new Set<string>();
+  const typeParameterResolutions = new WeakMap<Node, CsharpSourceNameResolution>();
+  const typeParameterNames: { readonly identity: string; readonly name: string }[] = [];
 
   const allocatePrivateName = (declaration: Node): string | undefined => {
     const existing = privateNames.get(declaration);
@@ -67,6 +70,33 @@ export function createCsharpSourceNameBuilder(
   };
 
   const visit = (node: Node): void => {
+    if (host.ast.is.IsMethodDeclaration(node) || host.ast.is.IsMethodSignatureDeclaration(node) ||
+      host.ast.is.IsFunctionDeclaration(node) || host.ast.is.IsFunctionExpression(node) || host.ast.is.IsArrowFunction(node)) {
+      const valueNames = new Set(host.ast.parameters(node).flatMap(parameter => {
+        const name = host.ast.name(parameter);
+        return name !== undefined && host.ast.is.IsIdentifier(name) ? [host.ast.text(name)] : [];
+      }));
+      const parameters = host.ast.typeParameters(node).flatMap(declaration => {
+        const parameter = declaration === undefined ? undefined : csharpSourceTypeParameter(declaration, host.ast);
+        return declaration === undefined || parameter === undefined ? [] : [{ declaration, parameter }];
+      });
+      const reserved = new Set([...valueNames, ...parameters.map(({ parameter }) => parameter.name)]);
+      for (let owner = host.ast.parent(node); owner !== undefined; owner = host.ast.parent(owner)) {
+        for (const declaration of csharpSourceTypeParameters(owner, host.ast)) {
+          const name = host.ast.name(declaration);
+          if (name !== undefined) reserved.add(host.ast.text(name));
+        }
+      }
+      for (const { declaration, parameter } of parameters) {
+        if (!valueNames.has(parameter.name)) continue;
+        let suffix = 1;
+        while (reserved.has(`${parameter.name}${suffix}`)) suffix += 1;
+        const name = `${parameter.name}${suffix}`;
+        reserved.add(name);
+        typeParameterResolutions.set(declaration, Object.freeze({ kind: "resolved", name }));
+        typeParameterNames.push(Object.freeze({ identity: parameter.identity, name }));
+      }
+    }
     if (host.ast.is.IsPrivateIdentifier(node)) {
       const declaration = exactPrivateDeclaration(host, node, undefined);
       if (declaration !== undefined) {
@@ -88,6 +118,8 @@ export function createCsharpSourceNameBuilder(
     if (nameNode === undefined) {
       return rejected("The source declaration has no name node.");
     }
+    const typeParameter = selectedDeclaration === undefined ? undefined : typeParameterResolutions.get(selectedDeclaration);
+    if (typeParameter !== undefined) return typeParameter;
     const selectedName = !privateNameNodes.has(nameNode) ||
         selectedDeclaration === undefined
       ? undefined
@@ -111,7 +143,8 @@ export function createCsharpSourceNameBuilder(
       return name;
     },
     seal(): CsharpNamePlan {
-      sealed ??= Object.freeze({ reservedNames: Object.freeze([...sourceNames]), resolve });
+      sealed ??= Object.freeze({ reservedNames: Object.freeze([...sourceNames]),
+        typeParameterNames: Object.freeze([...typeParameterNames]), resolve });
       return sealed;
     },
   });
@@ -119,7 +152,11 @@ export function createCsharpSourceNameBuilder(
   function visitNames(node: Node): void {
     if (host.ast.is.IsIdentifier(node)) {
       const sourceName = host.ast.text(node);
-      const name = tryCsharpIdentifier(sourceName);
+      const parent = host.ast.parent(node);
+      const declaration = parent !== undefined && host.ast.is.IsTypeParameterDeclaration(parent) && host.ast.name(parent) === node
+        ? parent : host.navigation.sourceReferenceFor(node)?.declaration;
+      const typeParameter = declaration === undefined ? undefined : typeParameterResolutions.get(declaration);
+      const name = tryCsharpIdentifier(typeParameter?.kind === "resolved" ? typeParameter.name : sourceName);
       if (name !== undefined) sourceNames.add(name);
       resolutions.set(
         node,
