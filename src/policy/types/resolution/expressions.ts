@@ -3,7 +3,7 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
 import { sourcePresentCallableType, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { csharpSourcePrimitiveTargetType, isCsharpIntegralTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { nextState } from "./state.js";
 import { resolveBinaryTargetRepresentation, commonTargetRepresentation, getTaskResultType } from "./representation.js";
@@ -25,6 +25,7 @@ import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../.
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
+import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
 
 export function resolveSelectedExpressionType(
   { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveTypeWithState, resolveReadStorage, resolveNonNullExpressionType, resolveMemberAccessTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState, sourceUnions }: CsharpTypeResolutionScope,
@@ -56,12 +57,21 @@ export function resolveSelectedExpressionType(
     const nativeCandidates = sourceElement?.kind !== "source-primitive" ||
       elements.some(element => element?.kind !== "source-primitive") ? []
       : [...new Map(elements.map(element => [targetTypeRefKey(element!), element!])).values()];
-    const commonCandidates = nativeCandidates.filter(candidate => nativeCandidates.every(actual => {
+    const commonCandidates = nativeCandidates.filter(candidate => elements.every((actual, index) => {
+      const entry = sourceElements[index];
+      const literal = entry === undefined || host.ast.is.IsSpreadElement(entry) ? undefined : host.literalValues.literalValue.get(entry);
+      if (isCsharpIntegralTargetType(candidate) && literal?.numeric?.kind === "authored" &&
+        !(literal.numeric.token.negative && literal.numeric.token.coefficient === 0n) &&
+        csharpLiteralIsRepresentableAs(literal, candidate)) return true;
       const selected = commonTargetRepresentation(candidate, actual);
       return selected !== undefined && targetTypeRefEquals(selected, candidate);
     }));
+    const leastCandidates = commonCandidates.filter(candidate => commonCandidates.every(other => {
+      const selected = commonTargetRepresentation(candidate, other);
+      return selected !== undefined && targetTypeRefEquals(selected, other);
+    }));
     const element = isCsharpJsValueTargetType(sourceElement) ? sourceElement
-      : commonCandidates.length === 1 ? commonCandidates[0] : combineCsharpTargetUnionMembers(elements as readonly TargetTypeRef[]);
+      : leastCandidates.length === 1 ? leastCandidates[0] : combineCsharpTargetUnionMembers(elements as readonly TargetTypeRef[]);
     if (element === undefined) return undefined;
     const members = sourceElements.map((entry, index) => {
       if (entry === undefined) return undefined;

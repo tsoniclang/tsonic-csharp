@@ -77,7 +77,9 @@ function fixture(body, overrides = {}) {
     returnContract: { get: node => ({ kind: "resolved", type: node === lambda ? overrides.sourceReturn ?? scopedBinder ?? scalar : scalar }) } };
   const names = { resolve: node => ({ kind: "resolved", name: source.ast.text(node) }) };
   const context = selectCsharpClosedCallableContext(source, policy, operations, lambda);
-  const analyzed = analyzeCsharpCallableContracts(policy, evidence, declarations, names, { genericProjection: Object.freeze({ get: () => [] }) }, source, operations);
+  const analyzed = analyzeCsharpCallableContracts(policy, evidence, declarations, names, { genericProjection: Object.freeze({ get: () => [] }) }, source, operations,
+    Object.freeze({ typeDefinitions: undefined, projectTypes: policy.projectTypes, providers: { findTargetBindingByTargetId: () => undefined }, target: {},
+      objectShapes: Object.freeze({ resolveNode: () => undefined, resolveTarget: () => undefined }) }));
   return { context, scopedType, type: analyzed.closedInputType(lambda), contract: analyzed.get({ kind: "declaration", declaration: lambda }),
     aliasTypes: source.navigation.expressionValueFlow(lambda).aliasDeclarations.map(alias => analyzed.closedInputType(alias)),
   };

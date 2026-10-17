@@ -1,6 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { sourceEnclosingCallable, sourceLexicalFunctionIsUnused, sourceNodesOutsideErasedSubtrees } from "@tsonic/target-api/source";
-import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { rejectedTargetStage, resolvedTargetStage, type TargetStageResult } from "@tsonic/target-api/artifacts";
+import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
 import type { CsharpNativeParticipation, CsharpNativeParticipationInput } from "../../target-model/records/native-demand.js";
@@ -8,10 +9,11 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/sourc
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import type { CsharpObjectShapeClassifications } from "../objects/model.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import { isCsharpSourceCallableArtifactDeclaration } from "../../policy/types/callables/source-callable-contract.js";
 
 export interface CsharpNativeParticipationAnalysisInput {
   readonly ast: AstReader;
-  readonly nodes: readonly Node[];
+  readonly storage: Pick<SourceStorageQueries, "nodes" | "failureReason">;
   readonly navigation: Pick<SourceProgramNavigation, "declarationUseSummary">;
   readonly captureClosure: CsharpCaptureStorage["captureClosure"];
   readonly lambdaCreation: CsharpCaptureStorage["lambdaCreation"];
@@ -20,20 +22,25 @@ export interface CsharpNativeParticipationAnalysisInput {
   readonly requiredRecords: CsharpRequiredRecord[];
 }
 
-export function analyzeCsharpNativeParticipation(input: CsharpNativeParticipationAnalysisInput): CsharpNativeParticipationInput {
+export function analyzeCsharpNativeParticipation(input: CsharpNativeParticipationAnalysisInput): TargetStageResult<CsharpNativeParticipationInput> {
   const { ast } = input;
   const participation = new WeakMap<Node, CsharpNativeParticipation>();
-  const admitted = sourceNodesOutsideErasedSubtrees(ast, input.nodes, node => {
-    if (input.compileTimeMetadata.get(node)) return true;
-    const selected = select(node);
-    if (selected === undefined) return false;
-    requireCsharpRecord(input.requiredRecords, { family: "nativeParticipation", subject: node,
-      construct: "native participation decision", producer: "analyzeCsharpNativeParticipation" });
-    participation.set(node, selected);
-    return selected === "erased";
-  });
-  if (admitted.kind === "unresolved") failTargetAnalysisInvariant("tsonic-csharp", admitted.reason);
-  return Object.freeze({ participation: Object.freeze({ get: (declaration: Node) => participation.get(declaration) }) });
+  const failure = input.storage.failureReason();
+  const admitted = failure !== undefined ? { kind: "unresolved" as const, reason: failure }
+    : sourceNodesOutsideErasedSubtrees(ast, input.storage.nodes, node => {
+      if (input.compileTimeMetadata.get(node)) return true;
+      const selected = select(node);
+      if (selected === undefined) return false;
+      requireCsharpRecord(input.requiredRecords, { family: "nativeParticipation", subject: node,
+        construct: "native participation decision", producer: "analyzeCsharpNativeParticipation" });
+      participation.set(node, selected);
+      return selected === "erased";
+    });
+  if (admitted.kind === "unresolved") return rejectedTargetStage([{
+    code: "CSHARP_NATIVE_PARTICIPATION_NOT_CLOSED", category: "error", source: "tsonic-csharp", message: admitted.reason,
+    evidence: Object.freeze(["target.capability=csharp.native-participation"]),
+  }]);
+  return resolvedTargetStage(Object.freeze({ participation: Object.freeze({ get: (declaration: Node) => participation.get(declaration) }) }));
 
   function select(node: Node): CsharpNativeParticipation | undefined {
     if (ast.is.IsModuleDeclaration(node)) return "erased";
@@ -55,11 +62,13 @@ export function analyzeCsharpNativeParticipation(input: CsharpNativeParticipatio
       return ast.hasModifierKind(node, "abstract") ? "signature" : "body";
     }
     if (ast.is.IsMethodSignatureDeclaration(node)) {
-      const declaringInterface = ast.parent(node);
-      const owner = declaringInterface === undefined ? undefined : ast.parent(declaringInterface);
-      if (declaringInterface === undefined || !ast.is.IsInterfaceDeclaration(declaringInterface) ||
-        owner === undefined || !ast.is.IsSourceFile(owner)) return "erased";
-      const shape = input.objectShapes.resolveNode(declaringInterface, ast.getSourceFile(node));
+      const declaringType = ast.parent(node);
+      if (declaringType === undefined || !isCsharpSourceCallableArtifactDeclaration(ast, node)) return "erased";
+      if (ast.is.IsInterfaceDeclaration(declaringType)) {
+        const owner = ast.parent(declaringType);
+        if (owner === undefined || !ast.is.IsSourceFile(owner)) return "erased";
+      }
+      const shape = input.objectShapes.resolveNode(declaringType, ast.getSourceFile(node));
       const selected = shape === undefined ? undefined : resolveCsharpObjectShapeMemberBySelectedSubject(shape, [node]);
       return selected?.kind === "resolved" && selected.member.optional === true ? "erased" : "signature";
     }

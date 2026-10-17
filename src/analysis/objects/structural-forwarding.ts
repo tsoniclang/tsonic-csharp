@@ -8,13 +8,14 @@ import type { CsharpProjectTypeIssue } from "../../target-model/records/project-
 import type { CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
-import { admitCsharpCallableParameterAdapters, admitCsharpCallableResultAdapter, admitCsharpCallableValueAdapter } from "../callables/adapters.js";
+import { admitCsharpCallableParameterAdapters, admitCsharpCallableResultAdapter, admitCsharpCallableValueAdapter,
+  type CsharpCallableConversionPolicy } from "../callables/adapters.js";
 import { instantiateCsharpInheritedCallable } from "../callables/instantiation.js";
 
 const noImplementations: readonly CsharpFinalStructuralInterfaceImplementation[] = Object.freeze([]);
 
 export function finalizeCsharpStructuralInterfaceForwarding(
-  policy: CsharpPolicyContext,
+  policy: Pick<CsharpPolicyContext, "ast" | "projectTypes"> & CsharpCallableConversionPolicy,
   shapes: CsharpObjectShapeAnalysis,
   callables: CsharpProjectCallableAdapters,
   declarations: CsharpDeclarationClassifications,

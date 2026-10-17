@@ -132,8 +132,18 @@ test("analyzeIteration passes its list to storage and operations and returns it 
   const shorthand = descendants(returned).filter(node => ast.is.IsShorthandPropertyAssignment(node) && named(node, "requiredRecords"));
   assert.equal(ast.is.IsReturnStatement(returned) && shorthand.length === 1, true,
     "iteration state: the final return carries the list as requiredRecords");
-  assert.equal(identifiers(iteration, "requiredRecords").length === 4, true,
-    "iteration state: the list is only declared, passed to storage and operations, and returned");
+  for (const callee of ["analyzeCsharpClassFactories", "analyzeCsharpNativeDemand", "admitCsharpBindingPatterns", "conversionAnalysis.close"]) {
+    const call = composedCall(callee, iteration, "iteration state");
+    assert.equal(text(ast.arguments(call).at(-1)) === "requiredRecords", true,
+      `iteration state: ${callee} receives the same requirement list`);
+  }
+  const participation = composedCall("analyzeCsharpNativeParticipation", iteration, "iteration state");
+  const input = ast.arguments(participation)[0];
+  const inputList = input === undefined || !ast.is.IsObjectLiteralExpression(input) ? undefined : property(input, "requiredRecords");
+  assert.equal(inputList !== undefined && ast.is.IsShorthandPropertyAssignment(inputList), true,
+    "iteration state: participation receives the same requirement list without an alias");
+  assert.equal(identifiers(iteration, "requiredRecords").length === 9, true,
+    "iteration state: one declaration, seven concrete owning producers and one return carry the same list");
 });
 
 test("native handler finalization receives the operations producer's mandatory list before sealing", () => {
@@ -179,33 +189,90 @@ test("the late producers and the assembly receive the stable attempt's list", ()
     text(ast.as.AsCallExpression(evaluated).Expression) === "analyzeIteration" &&
     text(ast.arguments(evaluated).at(-1)) === "stable", true, "stable attempt: evaluated is analyzeIteration over stable");
   assert.equal(text(analysis) === "evaluated.value", true, "stable attempt: analysis is the evaluated result");
-  const factories = composedCall("analyzeCsharpClassFactories", program, "stable attempt");
-  assert.equal(text(ast.arguments(factories).at(-1)) === "analysis.requiredRecords", true,
-    "stable attempt: analyzeCsharpClassFactories receives analysis.requiredRecords");
-  const participation = composedCall("analyzeCsharpNativeParticipation", program, "stable attempt");
+  const factories = composedCall("analyzeCsharpClassFactories", iteration, "stable attempt");
+  assert.equal(text(ast.arguments(factories).at(-1)) === "requiredRecords", true,
+    "stable attempt: class factories complete in the same representation attempt");
+  const participation = composedCall("analyzeCsharpNativeParticipation", iteration, "stable attempt");
   const participationInput = ast.arguments(participation)[0];
   const participationList = participationInput === undefined || !ast.is.IsObjectLiteralExpression(participationInput)
     ? undefined : property(participationInput, "requiredRecords");
-  assert.equal(participationList !== undefined && ast.is.IsPropertyAssignment(participationList) &&
-    text(ast.as.AsPropertyAssignment(participationList).Initializer) === "analysis.requiredRecords", true,
-    "stable attempt: analyzeCsharpNativeParticipation receives analysis.requiredRecords");
+  assert.equal(participationList !== undefined && ast.is.IsShorthandPropertyAssignment(participationList), true,
+    "stable attempt: participation receives the attempt's exact requirement list before physical closure");
   const assembly = composedCall("createCsharpProgramRecords", program, "stable attempt");
   assert.equal(ast.arguments(assembly).length === 2 && text(ast.arguments(assembly)[1]) === "analysis.requiredRecords", true,
     "stable attempt: createCsharpProgramRecords receives analysis.requiredRecords");
   const reads = descendants(program).filter(node => ast.is.IsPropertyAccessExpression(node) && text(node) === "analysis.requiredRecords");
-  assert.equal(reads.length === 7 && identifiers(program, "requiredRecords").length === 8, true,
-    "stable attempt: the list is read by six late producers and the assembly");
+  assert.equal(reads.length === 2 && identifiers(program, "requiredRecords").length === 2, true,
+    "stable attempt: only final native-value admission and assembly read the completed attempt's list");
   const nativeValues = composedCall("analyzeCsharpNativeValueCarriers", program, "stable attempt");
   assert.equal(text(ast.arguments(nativeValues).at(-1)) === "analysis.requiredRecords", true,
     "the actual native-value producer receives the same stable requirement list");
-  const demand = composedCall("analyzeCsharpNativeDemand", program, "stable attempt");
-  const bindings = composedCall("admitCsharpBindingPatterns", program, "stable attempt");
-  const conversions = composedCall("analysis.conversionAnalysis.close", program, "stable attempt");
-  for (const call of [demand, bindings, conversions]) assert.equal(text(ast.arguments(call).at(-1)) === "analysis.requiredRecords", true,
-    "each late native-use admission receives the same stable requirement list");
-  const publication = composedCall("analysis.conversionAnalysis.seal", program, "stable attempt");
+  const demand = composedCall("analyzeCsharpNativeDemand", iteration, "stable attempt");
+  const bindings = composedCall("admitCsharpBindingPatterns", iteration, "stable attempt");
+  const conversions = composedCall("conversionAnalysis.close", iteration, "stable attempt");
+  for (const call of [demand, bindings, conversions]) assert.equal(text(ast.arguments(call).at(-1)) === "requiredRecords", true,
+    "each actual native-use admission receives the same attempt-local requirement list");
+  const publication = composedCall("conversionAnalysis.seal", iteration, "stable attempt");
   assert.equal(ast.arguments(publication).length === 0 && position(conversions) < position(publication), true,
     "conversion publication reads the already-closed records without a second requirement writer");
+  const shapeSeal = composedCall("objectShapes.seal", iteration, "stable attempt");
+  const storageSeal = composedCall("sealCsharpStorage", iteration, "stable attempt");
+  assert.equal(position(publication) < position(shapeSeal) && position(shapeSeal) < position(storageSeal), true,
+    "stable attempt: actual conversion closure precedes the one shape seal and complete physical field closure");
+  assert.equal(callsTo(program, "objectShapes.seal").length === 0 && callsTo(program, "sealCsharpStorage").length === 0, true,
+    "stable attempt: no untracked post-fixed-point shape or physical backing replacement");
+});
+
+test("callable contracts and forwarding consume the actual attempt's mandatory finite shape view", () => {
+  const contracts = composedCall("analyzeCsharpCallableContracts", iteration, "callable input");
+  const conversionArgument = ast.arguments(contracts).at(-1);
+  assert.equal(ast.arguments(contracts).length, 8, "the existing callable owner takes its mandatory conversion input");
+  assert.equal(conversionArgument !== undefined && ast.is.IsCallExpression(conversionArgument) &&
+    text(ast.as.AsCallExpression(conversionArgument).Expression) === "Object.freeze", true,
+    "the actual conversion input is frozen before it is handed to callable contracts");
+  const conversion = ast.arguments(conversionArgument)[0];
+  const shape = property(conversion, "objectShapes");
+  assert.equal(shape !== undefined && ast.is.IsShorthandPropertyAssignment(shape), true,
+    "early callable admission receives the same open actual shape owner, not policy.objectShapes");
+  assert.equal(ast.properties(conversion).map(candidate => text(ast.name(candidate))).join(),
+    "typeDefinitions,projectTypes,providers,target,objectShapes", "the actual view exposes only finite native conversion inputs");
+  const declarations = programStatements.map(statement => ownDeclaration(statement, "callablePolicy")).filter(node => node !== undefined);
+  assert.equal(declarations.length, 1, "stable callable and structural forwarding admission share one finite actual input");
+  const initializer = ast.as.AsVariableDeclaration(declarations[0]).Initializer;
+  const stableInput = ast.arguments(initializer)[0];
+  const stableShape = property(stableInput, "objectShapes");
+  assert.equal(stableShape !== undefined && ast.is.IsPropertyAssignment(stableShape) &&
+    text(ast.as.AsPropertyAssignment(stableShape).Initializer) === "analysis.objectShapes", true,
+    "final callable admission reads the same completed shape publication that physical backing used");
+  assert.equal(ast.properties(stableInput).map(candidate => text(ast.name(candidate))).join(),
+    "ast,navigation,typeDefinitions,projectTypes,providers,target,objectShapes", "the final view cannot expose the mutable source policy");
+  for (const callee of ["analyzeCsharpProjectCallableAdapters", "finalizeCsharpStructuralInterfaceForwarding"]) {
+    const call = composedCall(callee, program, "stable callable input");
+    assert.equal(text(ast.arguments(call)[0]), "callablePolicy", `${callee}: the one actual conversion view is mandatory`);
+  }
+});
+
+test("unclosed native participation rejects before its reader or any native demand is consumed", () => {
+  const call = composedCall("analyzeCsharpNativeParticipation", iteration, "participation result");
+  const input = ast.arguments(call)[0];
+  const storage = property(input, "storage");
+  assert.equal(storage !== undefined && ast.is.IsPropertyAssignment(storage) &&
+    text(ast.as.AsPropertyAssignment(storage).Initializer) === "sourceStorage", true,
+    "the participation owner receives the actual complete storage domain and its failure reason, not only a partial node array");
+  const statements = ast.statements(ast.body(iteration));
+  const index = topLevelIndex(statements, statement => ownDeclaration(statement, "participation") !== undefined, "participation result");
+  const rejection = statements[index + 1];
+  assert.equal(ast.is.IsIfStatement(rejection) && text(ast.as.AsIfStatement(rejection).Expression) === 'participation.kind === "rejected"' &&
+    ast.is.IsReturnStatement(ast.as.AsIfStatement(rejection).ThenStatement) &&
+    text(ast.as.AsReturnStatement(ast.as.AsIfStatement(rejection).ThenStatement).Expression) === "participation", true,
+    "the exact expected rejection is returned immediately before any reader is exposed");
+  const publication = ownDeclaration(statements[index + 2], "nativeParticipation");
+  assert.equal(publication !== undefined && text(ast.as.AsVariableDeclaration(publication).Initializer) === "participation.value", true,
+    "only a resolved native domain publishes the reader used by later admission and the record seal");
+  for (const callee of ["analyzeCsharpClassInitialization", "analyzeCsharpBindingPatterns", "analyzeCsharpNativeDemand", "conversionAnalysis.close"]) {
+    assert.equal(position(rejection) < position(composedCall(callee, iteration, "participation result")), true,
+      `${callee}: no later native admission can run after an unresolved participation domain`);
+  }
 });
 
 test("owning issues reject before the late registrations finish and before the one assembly", () => {
@@ -218,21 +285,36 @@ test("owning issues reject before the late registrations finish and before the o
     ["source-module constructions", rejection("sourceModuleConstructions.issues.length > 0")],
     ["attributes", rejection("attributes.diagnostics.length > 0")],
     ["module initialization", rejection("moduleInitialization.issues.length > 0")],
-    ["class factories", calling("analyzeCsharpClassFactories")],
     ["class-factory issues", rejection("classFactories.issues.length > 0")],
     ["capture storage", rejection("captureStorage.issues.length > 0")],
     ["flow reads", rejection("flowReads.issues.length > 0")],
-    ["participation", calling("analyzeCsharpNativeParticipation")],
-    ["native demand", calling("analyzeCsharpNativeDemand")],
+    ["actual source refusals", rejection("sourceRefusals.length > 0")],
     ["native values", calling("analyzeCsharpNativeValueCarriers")],
     ["native-value issues", rejection("nativeValueCarriers.issues.length > 0")],
-    ["conversion uses", calling("analysis.conversionAnalysis.seal")],
+    ["binding-pattern issues", rejection("bindingPatterns.issues.length > 0")],
+    ["pending native uses", rejection("pendingUses.length > 0")],
+    ["ref-like placement", rejection("analysis.refLikeDiagnostics.length > 0")],
+    ["structural forwarding", rejection("structuralForwarding.issues.length > 0")],
     ["assembly", calling("createCsharpProgramRecords")],
     ["program literal", statement => ownDeclaration(statement, "program") !== undefined],
   ];
   const indexes = steps.map(([label, predicate]) => topLevelIndex(programStatements, predicate, `rejection order: ${label}`));
   assert.equal(indexes.every((index, position_) => position_ === 0 || indexes[position_ - 1] < index), true,
     `rejection order: ${steps.map(([label]) => label).join(" < ")}`);
+  const iterationSteps = [
+    "analyzeCsharpTargetOperations", "analyzeCsharpStorage", "prepareCsharpStorage", "analyzeCsharpClassFactories",
+    "analyzeCsharpCaptureStorage", "analyzeCsharpCallableCreations", "analyzeCsharpNativeParticipation",
+    "analyzeCsharpClassInitialization", "analyzeCsharpBindingPatterns", "analyzeCsharpNativeDemand",
+    "admitCsharpBindingPatterns", "conversionAnalysis.close", "conversionAnalysis.seal", "analyzeCsharpRefLikePlacements",
+    "objectShapes.seal", "sealCsharpStorage",
+  ];
+  const iterationCalls = iterationSteps.map(callee => composedCall(callee, iteration, "owning physical closure"));
+  assert.equal(iterationCalls.every((call, index) => index === 0 || position(iterationCalls[index - 1]) < position(call)), true,
+    `owning physical closure: ${iterationSteps.join(" < ")}`);
+  const issueLists = descendants(program).filter(node => ast.is.IsVariableDeclaration(node) && named(node, "analysisIssues"));
+  assert.equal(issueLists.length === 1 && text(ast.as.AsVariableDeclaration(issueLists[0]).Initializer)
+    .includes("...analysis.conversions.issues"), true,
+  "owning conversion issues are included in the first rejection gate, before any final requirement assembly");
 });
 
 test("the published program literal carries no requirement state", () => {

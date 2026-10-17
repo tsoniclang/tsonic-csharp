@@ -1,11 +1,12 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
-import { admitCsharpCallableValueAdapter } from "../callables/adapters.js";
+import { admitCsharpCallableValueAdapter, type CsharpCallableConversionPolicy } from "../callables/adapters.js";
 import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } from "../callables/instantiation.js";
 
 export function closeCsharpProjectCallableContracts(
-  policy: CsharpPolicyContext, contracts: readonly CsharpSourceCallableContract[],
+  policy: Pick<CsharpPolicyContext, "ast" | "navigation"> & CsharpCallableConversionPolicy,
+  contracts: readonly CsharpSourceCallableContract[],
 ): readonly CsharpSourceCallableContract[] {
   const original = new Map(contracts.map(contract => [contract.sourceDeclaration, contract]));
   const resolved = new Map<Node, CsharpSourceCallableContract>();
