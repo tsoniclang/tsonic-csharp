@@ -8,6 +8,7 @@ import { selectCsharpStructuralInterfaceImplementation } from "../../../dist/pol
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { csharpVariantArgumentImplicitlyAccepts, namedTargetTypeImplicitlyAccepts } from "../../../dist/policy/conversions/carriers.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 const number = Object.freeze({ kind: "source-primitive", name: "float64" });
@@ -58,7 +59,7 @@ test("readonly native property admission publishes the single exact conversion a
 });
 
 test("readonly admission failures remain expected source issues and publish no failed native property", () => {
-  const value = propertyFixture(Object.freeze({ kind: "source-primitive", name: "string" }));
+  const value = propertyFixture(csharpStringTargetType());
   const inherited = Object.freeze({ node: value.sourceNode, code: "CSHARP_UNSUPPORTED_AST",
     message: "An analyzed interface has no exact inherited native implementation." });
   value.shapes.issues = Object.freeze([inherited]);
@@ -136,7 +137,7 @@ function nativeVarianceFixture() {
 
 test("generated native out evidence and the canonical reference relation govern every generic variance slot", () => {
   const value = nativeVarianceFixture();
-  const string = Object.freeze({ kind: "source-primitive", name: "string" });
+  const string = csharpStringTargetType();
   const nullableString = csharpNullableTargetType(string);
   const unknown = Object.freeze({ kind: "type-parameter", identity: "owner:Unknown", name: "Unknown",
     csharpConstraints: Object.freeze({ kind: "resolved", constraints: Object.freeze([]) }) });
@@ -215,16 +216,18 @@ if (Tsonic.Generated.Index.readNumber(new Tsonic.Generated.Box<double>(19)) != 1
     throw new System.Exception("a second generic instantiation never inherits a fixed reference destination");
 var nativeBox = new NativeBox<Tsonic.Generated.DerivedValue>(replacement);
 INativeRead<Tsonic.Generated.BaseValue> nativeView = nativeBox;
-for (int index = 0; index < 8192; index++) { _ = view.value; _ = nativeView.value; }
+if (!System.Object.ReferenceEquals(nativeView, nativeBox)) throw new System.Exception("native baseline covariance preserves backing identity");
+for (int index = 0; index < 8192; index++) { _ = Tsonic.Generated.Index.asRead(box).value; _ = NativeAsRead(nativeBox).value; }
 long generatedBefore = System.GC.GetAllocatedBytesForCurrentThread(); int generatedSum = 0;
-for (int index = 0; index < 8192; index++) generatedSum += view.value.value;
+for (int index = 0; index < 8192; index++) generatedSum += Tsonic.Generated.Index.asRead(box).value.value;
 long generatedBytes = System.GC.GetAllocatedBytesForCurrentThread() - generatedBefore;
 long nativeBefore = System.GC.GetAllocatedBytesForCurrentThread(); int nativeSum = 0;
-for (int index = 0; index < 8192; index++) nativeSum += nativeView.value.value;
+for (int index = 0; index < 8192; index++) nativeSum += NativeAsRead(nativeBox).value.value;
 long nativeBytes = System.GC.GetAllocatedBytesForCurrentThread() - nativeBefore;
 if (generatedSum != 8192 * 7 || nativeSum != generatedSum || generatedBytes != 0 || nativeBytes != 0)
     throw new System.Exception($"native covariance cost: {generatedSum}/{nativeSum}, bytes={generatedBytes}/{nativeBytes}");
 System.Console.Write("native covariance identity; generated=0; native=0");
+static INativeRead<Tsonic.Generated.BaseValue> NativeAsRead(NativeBox<Tsonic.Generated.DerivedValue> body) { return body; }
 interface INativeRead<out Value> { Value value { get; } }
 sealed class NativeBox<Value> : INativeRead<Value> { public Value value { get; } public NativeBox(Value value) { this.value = value; } }
 `;
