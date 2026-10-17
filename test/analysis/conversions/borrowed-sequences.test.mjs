@@ -31,7 +31,7 @@ function sealedConversions(inputs, elementTarget = int64) {
   const evidence = { compileTimeMetadata: { get: () => false },
     valueRefinement: { get: () => undefined },
     nodeTargetType: { get: () => undefined } };
-  const shapes = { resolveNode: () => undefined };
+  const shapes = { resolveNode: () => undefined, resolveTarget: () => undefined };
   const analysis = analyzeCsharpConversions(policy, evidence, shapes);
   analysis.prepare({
     operations: { nativeUnreachable: Object.freeze({ get: () => false }), operationResultType: Object.freeze({ get: () => undefined }), selectedCall: Object.freeze({ get: () => undefined }),

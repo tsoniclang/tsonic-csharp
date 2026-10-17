@@ -5,7 +5,6 @@ import {
   getCsharpCollectionElementTargetType,
   getCsharpImplicitArrayInputElementTargetType,
   getCsharpTaskResultTargetType,
-  getCsharpNullableElementTargetType,
   isCsharpNeverTargetType,
   isCsharpVoidTargetType,
   isCsharpAbsenceTargetType,
@@ -14,7 +13,7 @@ import {
   targetTypeRefKey,
 } from "../../target-model/types/index.js";
 import { csharpConversionIsApplicable } from "../../target-model/conversions/selection.js";
-import { namedTargetTypeImplicitlyAccepts, namedTargetTypesAreRelated, selectDelegateConversion, selectJsValueConversion, selectNullableConversion, selectRuntimeUnionConversion } from "./carriers.js";
+import { csharpObjectShapeImplicitlyAccepts, namedTargetTypeImplicitlyAccepts, namedTargetTypesAreRelated, selectDelegateConversion, selectJsValueConversion, selectNullableConversion, selectRuntimeUnionConversion } from "./carriers.js";
 import { selectProviderConversionOperator } from "./provider-operators.js";
 import { sourcePrimitiveImplicitlyConverts } from "./source-primitives.js";
 import { selectCsharpEmptyRecordConversion } from "./empty-record.js";
@@ -77,12 +76,7 @@ export function selectCsharpConversion(
   if (jsValueConversion !== undefined) {
     return jsValueConversion;
   }
-  const sourceElement = getCsharpNullableElementTargetType(source);
-  const targetElement = getCsharpNullableElementTargetType(target);
-  const objectShape = input.objectShapes?.resolveTarget(sourceElement ?? source);
-  if (objectShape !== undefined && (sourceElement === undefined || targetElement !== undefined) &&
-    targetTypeRefEquals(objectShape.targetType, sourceElement ?? source) &&
-    objectShape.implements?.some(implemented => targetTypeRefEquals(implemented, targetElement ?? target)) === true) {
+  if (csharpObjectShapeImplicitlyAccepts(input, source, target, new Set())) {
     return { kind: "implicit", proof: "object-shape-interface" };
   }
   const nullable = selectNullableConversion(input, source, target, mode);

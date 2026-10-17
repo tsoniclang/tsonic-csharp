@@ -12,11 +12,38 @@ import { createCsharpPlanningContext } from "../../../dist/backend/planner/conte
 import { planCsharpProjectCallableAdapters } from "../../../dist/backend/planner/declarations/classes/callable-adapters.js";
 import { printCsharpCompilationUnit } from "../../../dist/print/source/printer.js";
 
-const host = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined }, target: {} };
+const host = { typeDefinitions: undefined, projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined }, target: {},
+  objectShapes: Object.freeze({ resolveNode: () => undefined, resolveTarget: () => undefined }) };
 const scalar = csharpSourcePrimitiveTargetType("string");
 const unrelated = csharpSourcePrimitiveTargetType("boolean");
 const parameter = (type, flags = {}) => ({ name: "value", passingMode: "by-value", type, ...flags });
 const rest = type => parameter({ kind: "array", element: type }, { paramsArray: true });
+
+test("callable admission uses only its actual completed shape view and preserves native absence", () => {
+  const source = csharpTargetNamedType("Owner.Actual", undefined, undefined, { allowsRefLikeTypeArguments: [] });
+  const middle = csharpTargetNamedType("Owner.Middle", undefined, undefined, { allowsRefLikeTypeArguments: [] });
+  const target = csharpTargetNamedType("Owner.Contract", undefined, undefined, { allowsRefLikeTypeArguments: [] });
+  const shapes = new Map([[source.id, Object.freeze({ targetType: source, members: [], implements: [middle] })],
+    [middle.id, Object.freeze({ targetType: middle, members: [], implements: [target] })]]);
+  let reads = 0;
+  const actual = { ...host, objectShapes: Object.freeze({ resolveNode: () => undefined,
+    resolveTarget(type) { reads++; return shapes.get(type.id); } }) };
+  const admitted = admitCsharpCallableValueAdapter(actual, source, target);
+  assert.equal(admitted?.conversion.kind === "implicit" && admitted.conversion.proof === "object-shape-interface", true,
+    "the exact actual transitive implementation graph supplies the native result relation");
+  assert.equal(reads > 0, true, "admission consults the one completed graph");
+  const completed = reads;
+  for (let index = 0; index < 3; index++) assert.equal(admitted.source === source && admitted.target === target, true,
+    "published adapter reads retain original carrier identities");
+  assert.equal(reads, completed, "reading an admitted adapter never reclassifies its source or target");
+  assert.equal(admitCsharpCallableValueAdapter(host, source, target) === undefined, true,
+    "an exact missing-edge view cannot borrow a relation from another policy store");
+  assert.equal(admitCsharpCallableValueAdapter(actual, csharpNullableTargetType(source), target) === undefined, true,
+    "native callable admission cannot implicitly erase absence");
+  const nullable = admitCsharpCallableValueAdapter(actual, source, csharpNullableTargetType(target));
+  assert.equal(nullable?.conversion.kind === "implicit" && nullable.conversion.proof === "object-shape-interface", true,
+    "the same native reference relation may retain target absence");
+});
 
 test("rest adapters retain logical positions, exact conversion carriers and immutable segments", () => {
   const selected = admitCsharpCallableParameterAdapters(host, [rest(scalar)], [parameter(scalar), rest(scalar)]);

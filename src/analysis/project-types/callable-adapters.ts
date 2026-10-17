@@ -6,14 +6,15 @@ import { isCsharpSourceCallableArtifactDeclaration } from "../../policy/types/ca
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 
 import type { CsharpCallableContractIndex } from "../callables/model.js";
-import { admitCsharpCallableParameterAdapters, admitCsharpCallableResultAdapter } from "../callables/adapters.js";
+import { admitCsharpCallableParameterAdapters, admitCsharpCallableResultAdapter, type CsharpCallableConversionPolicy } from "../callables/adapters.js";
 
 import type { CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
 import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } from "../callables/instantiation.js";
 import { namedTargetTypeImplicitlyAccepts } from "../../policy/conversions/carriers.js";
 
 export function analyzeCsharpProjectCallableAdapters(
-  policy: CsharpPolicyContext, callables: CsharpCallableContractIndex,
+  policy: Pick<CsharpPolicyContext, "ast" | "navigation"> & CsharpCallableConversionPolicy,
+  callables: CsharpCallableContractIndex,
 ): CsharpProjectCallableAdapters {
   const byDeclaration = new Map<Node, CsharpProjectCallableDispatch>();
   const issues: CsharpProjectTypeIssue[] = [];

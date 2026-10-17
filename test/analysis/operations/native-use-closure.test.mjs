@@ -239,7 +239,7 @@ for (const surface of ["native", "js"]) test(`${surface} inferred async returns 
 for (const surface of ["native", "js"]) test(`${surface} numeric spread carriers are order-independent without erasing genuine native unions`,
   { timeout: 300_000 }, () => {
   const sourceText = `
-    import type { int32, uint32, int64 } from "@tsonic/core/types.js";
+    import type { int32, uint32, int64, float64 } from "@tsonic/core/types.js";
     function sum(...values: number[]): number { return values.length; }
     export function run(values: number[]): number {
       const prefix = [1, ...values, 2];
@@ -255,12 +255,34 @@ for (const surface of ["native", "js"]) test(`${surface} numeric spread carriers
     }
     export function nativePairs(signed: int32, unsigned: uint32): boolean {
       const narrow = [signed, 1];
+      const narrowReverse = [1, signed];
+      const narrowLeft = [signed, 1, 2];
+      const narrowMiddle = [1, signed, 2];
+      const narrowRight = [1, 2, signed];
       const bare = [signed, unsigned];
       const explicit: number[] = [signed, unsigned, 0.5];
       void bare;
       return narrow[0] === signed && narrow[1] === 1 &&
+        narrowReverse[0] === 1 && narrowReverse[1] === signed &&
+        narrowLeft[0] === signed && narrowLeft[1] === 1 && narrowLeft[2] === 2 &&
+        narrowMiddle[0] === 1 && narrowMiddle[1] === signed && narrowMiddle[2] === 2 &&
+        narrowRight[0] === 1 && narrowRight[1] === 2 && narrowRight[2] === signed &&
         explicit[0] === signed && explicit[1] === unsigned && explicit[2] === 0.5;
     }
+    export function literalBoundaries(signed: int32): boolean {
+      const boundary = [signed, 2147483648];
+      const explicitDouble = [signed, 1 as float64];
+      return boundary[0] === signed && boundary[1] === 2147483648 &&
+        explicitDouble[0] === signed && explicitDouble[1] === 1;
+    }
+    export function preserveNegativeZero(signed: int32): number {
+      const signedZeros = [signed, -0 as float64];
+      return signedZeros[1];
+    }
+    ${surface !== "js" ? "" : `export function authoredNegativeZero(signed: int32): number {
+      const authoredZeros = [signed, -0];
+      return authoredZeros[1];
+    }`}
     const narrow: int32 = 1;
     const wide: int64 = 9007199254740993n;
     export const distinct = [narrow, wide];
@@ -288,6 +310,14 @@ for (const surface of ["native", "js"]) test(`${surface} numeric spread carriers
     arrays.get(name)?.name === "float64", true, `${name}: actual double spread and numeric literals share the same native carrier`);
   assert.equal(arrays.get("narrow")?.kind === "source-primitive" && arrays.get("narrow")?.name === "int32", true,
     "an actual native int32 and its exact integer literal retain the admitted int32 carrier");
+  for (const name of ["narrowReverse", "narrowLeft", "narrowMiddle", "narrowRight"]) assert.equal(
+    arrays.get(name)?.kind === "source-primitive" && arrays.get(name)?.name === "int32", true,
+    `${name}: native int32 and representable integer literals retain their carrier in every peer position`);
+  for (const name of ["boundary", "explicitDouble", "signedZeros"]) assert.equal(
+    arrays.get(name)?.kind === "source-primitive" && arrays.get(name)?.name === "float64", true,
+    `${name}: native range, explicit float64 and signed zero prevent integral literal retargeting`);
+  if (surface === "js") assert.equal(arrays.get("authoredZeros")?.kind === "source-primitive" &&
+    arrays.get("authoredZeros")?.name === "float64", true, "the actual JS float64 negative-zero literal keeps its native floating carrier");
   const bare = getCsharpRuntimeUnionArms(arrays.get("bare"), program.typeDefinitions);
   assert.equal(bare?.length === 2 && bare.some(type => type.kind === "source-primitive" && type.name === "int32") &&
     bare.some(type => type.kind === "source-primitive" && type.name === "uint32"), true,
@@ -305,6 +335,9 @@ for (const surface of ["native", "js"]) test(`${surface} numeric spread carriers
       : "new Tsonic.CSharp.Js.JSArray<double>(new double[] { 3, 4 })"}) != 8 ||
       !Tsonic.Generated.Index.permutations(-7, 4294967295U) ||
       !Tsonic.Generated.Index.nativePairs(-7, 4294967295U) ||
+      !Tsonic.Generated.Index.literalBoundaries(-7) ||
+      System.BitConverter.DoubleToInt64Bits(Tsonic.Generated.Index.preserveNegativeZero(-7)) != long.MinValue ||
+      ${surface !== "js" ? "" : "System.BitConverter.DoubleToInt64Bits(Tsonic.Generated.Index.authoredNegativeZero(-7)) != long.MinValue ||"}
       Tsonic.Generated.Index.homogeneousWide[0] != 9007199254740993L) throw new System.Exception("native array common carrier");`);
 });
 

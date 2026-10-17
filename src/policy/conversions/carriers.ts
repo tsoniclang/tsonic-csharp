@@ -287,6 +287,21 @@ function rejectedDelegateConversion(
   };
 }
 
+export function csharpObjectShapeImplicitlyAccepts(
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries,
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+  visited: Set<string>,
+): boolean {
+  const sourceElement = getCsharpNullableElementTargetType(source);
+  const targetElement = getCsharpNullableElementTargetType(target);
+  if (sourceElement !== undefined && targetElement === undefined) return false;
+  const physical = sourceElement ?? source;
+  const shape = input.objectShapes?.resolveTarget(physical);
+  return shape !== undefined && targetTypeRefEquals(shape.targetType, physical) &&
+    shape.implements?.some(implemented => namedTargetTypeImplicitlyAccepts(input, implemented, targetElement ?? target, visited)) === true;
+}
+
 export function namedTargetTypesAreRelated(
   input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries,
   source: TargetTypeRef,
@@ -305,6 +320,9 @@ export function namedTargetTypeImplicitlyAccepts(
   if (targetTypeRefEquals(source, target)) {
     return true;
   }
+  if (getCsharpNullableElementTargetType(source) !== undefined && getCsharpNullableElementTargetType(target) === undefined) {
+    return false;
+  }
   if (targetTypeRefEquals(target, csharpObjectTargetType())) {
     return targetTypeImplicitlyConvertsToObject(source);
   }
@@ -317,8 +335,7 @@ export function namedTargetTypeImplicitlyAccepts(
   }
   visited.add(key);
   try {
-    if (input.objectShapes?.resolveTarget(source)?.implements?.some(implemented =>
-      namedTargetTypeImplicitlyAccepts(input, implemented, target, visited)) === true) {
+    if (csharpObjectShapeImplicitlyAccepts(input, source, target, visited)) {
       return true;
     }
     if (source.id === target.id) {

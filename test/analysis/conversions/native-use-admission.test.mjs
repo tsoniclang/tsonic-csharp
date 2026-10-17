@@ -19,6 +19,57 @@ import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.j
 import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { analyzeCsharpFlowReadProjections } from "../../../dist/analysis/conversions/flow-read-projections.js";
+import { isCsharpSourceCallableArtifactDeclaration } from "../../../dist/policy/types/callables/source-callable-contract.js";
+
+test("canonical source callable admission recognizes TypeLiteral signatures without inventing executable bodies", () => {
+  const declaration = {};
+  const interfaceOwner = {};
+  const literalOwner = {};
+  const foreignOwner = {};
+  for (const [label, owner, expected] of [["interface", interfaceOwner, true], ["type literal", literalOwner, true],
+    ["foreign owner", foreignOwner, false], ["missing owner", undefined, false]]) {
+    const ast = { is: {
+      IsFunctionDeclaration: () => false, IsArrowFunction: () => false, IsFunctionExpression: () => false,
+      IsMethodDeclaration: () => false, IsConstructorDeclaration: () => false,
+      IsMethodSignatureDeclaration: node => node === declaration,
+      IsInterfaceDeclaration: node => node === interfaceOwner, IsTypeLiteralNode: node => node === literalOwner,
+    }, parent: () => owner };
+    assert.equal(isCsharpSourceCallableArtifactDeclaration(ast, declaration), expected, `${label}: one exact canonical signature classification`);
+    assert.equal(isCsharpSourceCallableArtifactDeclaration(ast, {}), false, `${label}: a foreign source node never borrows the signature`);
+  }
+});
+
+for (const surface of ["native", "js"]) test(`${surface} actual anonymous generic forwarding gets signature-only metadata from the canonical source owner`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `import type { int32 } from "@tsonic/core/types.js";
+class Body { calls: int32 = 0; read(value: int32 = 7): int32 { this.calls++; return value; } }
+class OuterBody<Outer extends object> { calls: int32 = 0; read(value: int32 = 7): int32 { this.calls++; return value; } }
+class ShadowBody<T> { calls: int32 = 0; read(value: int32 = 7): int32 { this.calls++; return value; } }
+type AnonymousView = { read<T>(value?: int32): int32 };
+export function anonymous(present: boolean): int32 {
+  const body = new Body();
+  const view: AnonymousView = body;
+  const value = present ? view.read<string>(11) : view.read<string>();
+  if (body.calls !== 1) return -100;
+  return value;
+}` });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  const program = compiled.result.program;
+  assert.equal(compiled.result.diagnostics.length === 0 && program !== undefined, true,
+    compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+  const declarations = [];
+  const visit = node => {
+    if (program.source.ast.is.IsMethodSignatureDeclaration(node)) declarations.push(node);
+    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  assert.equal(declarations.length, 1, "the real selected TypeLiteral has one authored method signature");
+  const signature = declarations[0];
+  assert.equal(isCsharpSourceCallableArtifactDeclaration(program.source.ast, signature), true,
+    "the unchanged mandatory callable contract producer receives the actual selected declaration");
+  assert.equal(program.records.nativeParticipation.get(signature), "signature", "generic metadata does not materialize a type-only body");
+  assert.equal(program.source.ast.body(signature) === undefined, true, "the source signature remains body-free");
+  assert.equal(compiled.artifacts.size > 0, true, "actual native generic admission no longer refuses an existing valid source signature");
+});
 
 test("flow admission consumes the completed actual shape view and publishes pure reads without a missing-edge fallback", () => {
   const file = Object.freeze({});

@@ -28,6 +28,7 @@ import type { CsharpClosedCallableContext } from "./contextual-inputs.js";
 import { csharpCallableValueType } from "./value-type.js";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpCallableConversionPolicy } from "./adapters.js";
 
 export function analyzeCsharpCallableContracts(
   policy: CsharpPolicyContext,
@@ -37,6 +38,7 @@ export function analyzeCsharpCallableContracts(
   projections: CsharpGenericProjectionIndex,
   source: TargetSourceProgram,
   operations: CsharpTargetOperationClassifications,
+  conversions: CsharpCallableConversionPolicy,
 ): CsharpCallableContractIndex {
   const byDeclaration = new WeakMap<Node, CsharpSourceCallableContract>();
   const closedContexts = new WeakMap<Node, CsharpClosedCallableContext>();
@@ -47,7 +49,11 @@ export function analyzeCsharpCallableContracts(
   for (const sourceFile of policy.sourceFiles) {
     visit(sourceFile, sourceFile);
   }
-  const nativeDeclarations = closeCsharpProjectCallableContracts(policy, declarationContracts);
+  const nativeDeclarations = closeCsharpProjectCallableContracts({
+    ast: policy.ast, navigation: policy.navigation,
+    typeDefinitions: conversions.typeDefinitions, projectTypes: conversions.projectTypes,
+    providers: conversions.providers, target: conversions.target, objectShapes: conversions.objectShapes,
+  }, declarationContracts);
   for (const [index, contract] of nativeDeclarations.entries()) {
     byDeclaration.set(contract.sourceDeclaration, contract);
     contracts[index] = contract;

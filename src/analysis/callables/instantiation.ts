@@ -14,7 +14,7 @@ export function csharpCallableParametersEqual(
 }
 
 export function instantiateCsharpInheritedCallable(
-  policy: CsharpPolicyContext, source: CsharpSourceCallableContract, implementation: CsharpSourceCallableContract,
+  policy: Pick<CsharpPolicyContext, "ast" | "projectTypes">, source: CsharpSourceCallableContract, implementation: CsharpSourceCallableContract,
   receiver: TargetTypeRef | undefined,
 ): CsharpSourceCallableContract | undefined {
   if (source.methodTypeParameterIdentities.length !== implementation.methodTypeParameterIdentities.length) return undefined;

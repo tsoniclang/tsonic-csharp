@@ -8,6 +8,7 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/sourc
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import type { CsharpObjectShapeClassifications } from "../objects/model.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import { isCsharpSourceCallableArtifactDeclaration } from "../../policy/types/callables/source-callable-contract.js";
 
 export interface CsharpNativeParticipationAnalysisInput {
   readonly ast: AstReader;
@@ -55,11 +56,13 @@ export function analyzeCsharpNativeParticipation(input: CsharpNativeParticipatio
       return ast.hasModifierKind(node, "abstract") ? "signature" : "body";
     }
     if (ast.is.IsMethodSignatureDeclaration(node)) {
-      const declaringInterface = ast.parent(node);
-      const owner = declaringInterface === undefined ? undefined : ast.parent(declaringInterface);
-      if (declaringInterface === undefined || !ast.is.IsInterfaceDeclaration(declaringInterface) ||
-        owner === undefined || !ast.is.IsSourceFile(owner)) return "erased";
-      const shape = input.objectShapes.resolveNode(declaringInterface, ast.getSourceFile(node));
+      const declaringType = ast.parent(node);
+      if (declaringType === undefined || !isCsharpSourceCallableArtifactDeclaration(ast, node)) return "erased";
+      if (ast.is.IsInterfaceDeclaration(declaringType)) {
+        const owner = ast.parent(declaringType);
+        if (owner === undefined || !ast.is.IsSourceFile(owner)) return "erased";
+      }
+      const shape = input.objectShapes.resolveNode(declaringType, ast.getSourceFile(node));
       const selected = shape === undefined ? undefined : resolveCsharpObjectShapeMemberBySelectedSubject(shape, [node]);
       return selected?.kind === "resolved" && selected.member.optional === true ? "erased" : "signature";
     }

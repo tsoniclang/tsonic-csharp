@@ -6,9 +6,15 @@ import { selectCsharpFlowReadConversion } from "../../policy/conversions/express
 import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
 import { csharpCallableParameterConversionRequests, selectCsharpCallableParameterAdapters } from "../../policy/conversions/callable-parameters.js";
+import type { CsharpObjectShapeClassifications } from "../objects/model.js";
+
+export type CsharpCallableConversionPolicy = Pick<CsharpPolicyContext,
+  "typeDefinitions" | "projectTypes" | "providers" | "target"> & {
+  readonly objectShapes: Pick<CsharpObjectShapeClassifications, "resolveNode" | "resolveTarget">;
+};
 
 export function admitCsharpCallableValueAdapter(
-  policy: CsharpPolicyContext, source: TargetTypeRef, target: TargetTypeRef,
+  policy: CsharpCallableConversionPolicy, source: TargetTypeRef, target: TargetTypeRef,
 ): CsharpCallableValueAdapter | undefined {
   const conversion = admitCsharpConversionSelection(policy, source, target, selectCsharpConversion(policy, source, target, "implicit"));
   return csharpConversionIsApplicable(conversion, "implicit")
@@ -16,7 +22,7 @@ export function admitCsharpCallableValueAdapter(
 }
 
 export function admitCsharpCallableResultAdapter(
-  policy: CsharpPolicyContext, implementation: CsharpSourceCallableContract, target: TargetTypeRef,
+  policy: CsharpCallableConversionPolicy, implementation: CsharpSourceCallableContract, target: TargetTypeRef,
 ): CsharpCallableValueAdapter | undefined {
   if (implementation.sourceReturnType === undefined) return admitCsharpCallableValueAdapter(policy, implementation.returnType, target);
   const sourceContract = admitCsharpCallableValueAdapter(policy, implementation.sourceReturnType, target);
@@ -28,7 +34,7 @@ export function admitCsharpCallableResultAdapter(
 }
 
 export function admitCsharpCallableParameterAdapters(
-  policy: CsharpPolicyContext,
+  policy: CsharpCallableConversionPolicy,
   source: readonly CsharpTargetParameter[],
   target: readonly CsharpTargetParameter[],
 ): readonly CsharpCallableParameterAdapter[] | undefined {

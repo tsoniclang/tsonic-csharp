@@ -45,5 +45,5 @@ export function isCsharpSourceCallableArtifactDeclaration(
     return false;
   }
   const parent = ast.parent(declaration);
-  return parent !== undefined && ast.is.IsInterfaceDeclaration(parent);
+  return parent !== undefined && (ast.is.IsInterfaceDeclaration(parent) || ast.is.IsTypeLiteralNode(parent));
 }

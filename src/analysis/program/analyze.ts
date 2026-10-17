@@ -273,7 +273,12 @@ export function analyzeCsharpTargetProgram(
       ]),
     }]);
   }
-  const callableAdapters = analyzeCsharpProjectCallableAdapters(analysis.policy, analysis.callables);
+  const callablePolicy = Object.freeze({
+    ast: analysis.policy.ast, navigation: analysis.policy.navigation,
+    typeDefinitions: analysis.policy.typeDefinitions, projectTypes: analysis.policy.projectTypes,
+    providers: analysis.policy.providers, target: analysis.policy.target, objectShapes: analysis.objectShapes,
+  });
+  const callableAdapters = analyzeCsharpProjectCallableAdapters(callablePolicy, analysis.callables);
   const analysisIssues = [
     ...callableAdapters.issues,
     ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
@@ -335,7 +340,7 @@ export function analyzeCsharpTargetProgram(
   }
   const { classFactories, captureStorage, callableCreations, nativeParticipation, classInitialization,
     exactLiterals, nativeDemand, bindingPatterns, conversions } = analysis;
-  const flowReads = analyzeCsharpFlowReadProjections({ ...analysis.policy, objectShapes: analysis.objectShapes },
+  const flowReads = analyzeCsharpFlowReadProjections({ ...callablePolicy, sourceFiles: analysis.policy.sourceFiles },
     analysis.sourceEvidence, analysis.operations, analysis.valueReads);
   const numericRepresentations = analyzeCsharpNumericRepresentations({ source, sourceFiles,
     evidence: analysis.sourceEvidence, operations: analysis.operations });
@@ -345,7 +350,6 @@ export function analyzeCsharpTargetProgram(
   if (captureStorage.issues.length > 0) return rejectedTargetStage(captureStorage.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));
-  if (analysis.conversions.issues.length > 0) return rejectCsharpAnalysisIssues(analysis.conversions.issues);
   if (flowReads.issues.length > 0) return rejectCsharpAnalysisIssues(flowReads.issues);
   const sourceRefusals = nativeDemand.unadmitted.filter(use => use.kind === "source-refusal");
   if (sourceRefusals.length > 0) return rejectedTargetStage(sourceRefusals.map(use => use.diagnostic));
@@ -367,10 +371,9 @@ export function analyzeCsharpTargetProgram(
     return failTargetAnalysisInvariant("tsonic-csharp",
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
   }
-  if (conversions.issues.length > 0) return rejectCsharpAnalysisIssues(conversions.issues);
   if (analysis.refLikeDiagnostics.length > 0) return rejectedTargetStage(analysis.refLikeDiagnostics);
   const structuralForwarding = finalizeCsharpStructuralInterfaceForwarding(
-    analysis.policy, analysis.objectShapes, callableAdapters, analysis.declarations,
+    callablePolicy, analysis.objectShapes, callableAdapters, analysis.declarations,
   );
   if (structuralForwarding.issues.length > 0) return rejectCsharpAnalysisIssues(structuralForwarding.issues);
   const typeDefinitions = analysis.typeDefinitions.seal();
@@ -438,9 +441,9 @@ function analyzeIteration(
   statementErasure: Parameters<typeof analyzeCsharpTargetOperations>[2],
   previous: CsharpRepresentationContract | undefined,
 ) {
+  const requiredRecords: CsharpRequiredRecord[] = [];
   const source = input.source;
   const names = createCsharpSourceNameBuilder(nameHost);
-  const requiredRecords: CsharpRequiredRecord[] = [];
   let typeSystem: CsharpTypeAnalysis | undefined;
   const planningRepresentations: CsharpPlanningRepresentationQueries = {
     genericProjections(declaration) { return previous?.typeProjections.genericProjection.get(declaration) ?? []; },
@@ -510,6 +513,8 @@ function analyzeIteration(
     typeProjections,
     input.source,
     operations,
+    Object.freeze({ typeDefinitions: policy.typeDefinitions, projectTypes: policy.projectTypes,
+      providers: policy.providers, target: policy.target, objectShapes }),
   );
   const expectedTypes = analyzeCsharpExpectedTypes(
     policy,

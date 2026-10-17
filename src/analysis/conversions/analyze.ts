@@ -79,7 +79,11 @@ export function analyzeCsharpConversions(
   let preparedOperations: CsharpTargetOperationClassifications | undefined;
   let sealedClassifications: CsharpConversionClassifications | undefined;
   const literalRequests = createCsharpExactLiteralRequestCollector(policy.literalValues);
-  const conversionPolicy = { ...policy, objectShapes };
+  const conversionPolicy = Object.freeze({
+    ast: policy.ast, literalValues: policy.literalValues, typeDefinitions: policy.typeDefinitions,
+    projectTypes: policy.projectTypes, providers: policy.providers, target: policy.target,
+    navigation: policy.navigation, sourceFacts: policy.sourceFacts, objectShapes,
+  });
 
   const openClassifications: CsharpConversionClassifications = {
     issues,
