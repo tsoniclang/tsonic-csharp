@@ -7,8 +7,6 @@ import {
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 const sourceText = `
-const nativeKey = "value";
-interface Holder { [nativeKey]: number; }
 function direct(): number {
   const { value } = { value: 7 } as const;
   return value;
@@ -27,13 +25,24 @@ function tuple(): number {
 }
 function exactKey(): number {
   const { key } = { key: "value" } as const;
-  const value: Holder = { [key]: 23 };
+  const value = { [key]: 23 };
   return value[key];
 }
 export function run(): boolean {
   return direct() === 7 && choose(true) === 11 && choose(false) === 13 &&
     nonNull() === 17 && tuple() === 19 && exactKey() === 23;
 }
+`;
+
+const metadataScaffoldSource = `
+const nativeKey = "value";
+interface Holder { [nativeKey]: number; }
+function exactKey(): number {
+  const { key } = { key: "value" } as const;
+  const value: Holder = { [key]: 23 };
+  return value[key];
+}
+export function run(): boolean { return exactKey() === 23; }
 `;
 
 const nativeProgram = `
@@ -53,6 +62,14 @@ readonly record struct NativeValue(double Value);
 `;
 
 for (const surface of [undefined, "js"]) {
+  test(`C# ${surface ?? "native"} metadata-only computed key scaffold preserves the actual source`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: metadataScaffoldSource });
+    assertCsharpCompilationSucceeded(compiled);
+    assert.equal(compiled.result.program !== undefined && compiled.result.plan !== undefined, true, "metadata is not an invalid native program");
+    executeCsharpConstruction(compiled, `contextual-key-metadata-${surface ?? "native"}`,
+      false, false, [], 'if (!Tsonic.Generated.Index.run()) throw new System.Exception("metadata key counterpart");');
+  });
+
   test(`C# ${surface ?? "native"} local initializers keep actual fields and match native values`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText });
     assertCsharpCompilationSucceeded(compiled);

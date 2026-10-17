@@ -9,13 +9,15 @@ import { analyzeCsharpClassFactories } from "../project-types/class-factories.js
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 import { createCsharpProgramRecords } from "./records/create.js";
 import type { CsharpRequiredRecord } from "./records/required-records.js";
-import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
+import { analyzeSourceLiteralValues, sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
 import { analyzeCsharpNativeControlFlow } from "../control-flow/native-control-flow.js";
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
 import { type CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import { csharpCallableValueType } from "../callables/value-type.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { isCsharpStringTargetType } from "../../target-model/types/identity.js";
+import type { CsharpExpectedNativeUse } from "../../target-model/records/native-demand.js";
 import { analyzeCsharpNumericRepresentations } from "../numeric/representations.js";
 import { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
 import { createCsharpTypeDefinitionRegistry } from "../project-types/type-definitions.js";
@@ -620,6 +622,46 @@ function analyzeIteration(
     ast: source.ast, exactLiteral: exactLiterals.exactLiteral, callableCreation: callableCreations.callableCreation,
     valueRead: valueReads.valueRead, operations,
   });
+  const initializerUses = new Map<object, CsharpExpectedNativeUse | null>();
+  for (const entry of expectedUse.entries) if (entry.site.role === "initializer")
+    initializerUses.set(entry.site.subject, initializerUses.has(entry.site.subject) ? null : entry.use);
+  const pendingInitializers = new Set(expectedUse.pending.filter(entry => entry.site.role === "initializer")
+    .map(entry => entry.site.subject));
+  for (const declaration of sourceStorage.nodes) {
+    if (!source.ast.is.IsVariableDeclaration(declaration) || source.ast.variableDeclarationKind(declaration) !== "const" ||
+      !sourceDeclarationIsModuleScoped(declaration, source.ast) || pendingInitializers.has(declaration) ||
+      !sourceDeclarationHasOnlyTypeUses(source.navigation.declarationUseSummary(declaration))) continue;
+    const initializer = source.ast.as.AsVariableDeclaration(declaration)?.Initializer;
+    let use = initializerUses.get(declaration);
+    if (initializer === undefined || use == null || use.expression !== initializer) continue;
+    const effects = source.navigation.expressionEffects(initializer);
+    if (effects.invokes || effects.mutates || effects.suspends || effects.mayThrow) continue;
+    const target = use.target;
+    const visited = new Set<CsharpExpectedNativeUse>();
+    while (use !== undefined && !visited.has(use) && use.representation === "forward" &&
+      use.children.length === 1 && use.binary === undefined && use.construction === undefined &&
+      targetTypeRefEquals(use.carrier, target) && targetTypeRefEquals(use.target, target)) {
+      visited.add(use);
+      use = expectedUse.expectedUse.get(use.children[0]!);
+    }
+    if (use === undefined || visited.has(use) || use.binary !== undefined || use.construction !== undefined ||
+      use.children.length !== 0 || !targetTypeRefEquals(use.carrier, target) || !targetTypeRefEquals(use.target, target)) continue;
+    const literal = typeHost.literalValues.literalValue.get(use.expression);
+    if (literal === undefined) continue;
+    const selected = exactLiterals.exactLiteral.get(use.expression, target);
+    if (selected?.kind === "resolved" && use.representation === "construct" && use.literal === selected.recipe &&
+      target.kind === "source-primitive" && (selected.recipe.kind !== "char" || !/[\uD800-\uDFFF]/u.test(selected.recipe.value))) {
+      evidence.eraseCompileTimeDeclaration(declaration);
+    } else if (selected?.kind === "source-representation" && use.representation === "forward" &&
+      ((literal.form === "string" || literal.form === "template") && isCsharpStringTargetType(target) &&
+          !/[\uD800-\uDFFF]/u.test(literal.text) ||
+        (literal.form === "true" || literal.form === "false") && target.kind === "source-primitive" && target.name === "bool" ||
+        (literal.form === "numeric" || literal.form === "prefix-unary") && literal.numeric !== undefined &&
+          literal.number !== undefined && target.kind === "source-primitive" && target.name === "float64")) {
+      evidence.eraseCompileTimeDeclaration(declaration);
+    }
+  }
+  evidence.sealCompileTimeDeclarations();
   const nativeDemand = analyzeCsharpNativeDemand({
     ast: source.ast, sourceFiles, navigation: source.navigation, evidence: sourceEvidence,
     operations, valueReads, participation: nativeParticipation.participation, declarations, objectShapes,

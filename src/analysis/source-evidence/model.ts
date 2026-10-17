@@ -10,6 +10,8 @@ export interface CsharpSourceEvidenceResult {
     readonly requiredBy: readonly Node[];
   })[];
   inspectClosedArrayStorage(node: Node): TsonicClosedArrayStorage;
+  eraseCompileTimeDeclaration(declaration: Node): void;
+  sealCompileTimeDeclarations(): void;
 }
 
 export interface CsharpSourceEvidenceAnalysis extends CsharpSourceEvidenceIndex {

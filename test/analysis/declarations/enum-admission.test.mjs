@@ -3,6 +3,35 @@ import test from "node:test";
 import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
+const absenceObservations = ["null", "undefined"].flatMap(absence =>
+  ["===", "!==", "==", "!="].flatMap(operator => [
+    `(value ${operator} ${absence}) === ${operator === "===" || operator === "==" ? "!present" : "present"}`,
+    `(${absence} ${operator} value) === ${operator === "===" || operator === "==" ? "!present" : "present"}`,
+  ]));
+const absenceSource = `
+enum Value { First = 1, Second = 2 }
+function observe(value: Value | null | undefined, present: boolean): boolean {
+  return ${absenceObservations.map(expression => `(${expression})`).join(" && ")};
+}
+export function run(flag: boolean): boolean {
+  const selected = flag ? Value.First : undefined;
+  const joined = flag ? Value.Second : null;
+  const copied = selected;
+  return observe(Value.First, true) && observe(null, false) && observe(undefined, false) &&
+    observe(selected, flag) && observe(joined, flag) && observe(copied, flag) &&
+    ((copied ?? Value.First) === Value.First);
+}
+`;
+const absenceProjectionRefusals = [
+  ["nullable numeric peer", "export function use(value: Value | undefined, operand: number): boolean { return value === operand; }"],
+  ["reversed nullable numeric peer", "export function use(value: Value | null, operand: number): boolean { return operand != value; }"],
+  ["shadowed undefined", "export function use(value: Value, undefined: number): boolean { return value === undefined; }"],
+  ["nullable arithmetic", "export function use(value: Value | undefined): number { return (value ?? Value.First) + 1; }"],
+  ["explicit numeric destination", "export function use(value: Value | undefined): number | undefined { const selected: number | undefined = value; return selected; }"],
+  ["explicit numeric assertion", "export function use(value: Value): boolean { return (value as number) === undefined; }"],
+];
+
+
 const numericUses = [
   ["float64 equality", "export function use(value: Value, operand: number): boolean { return value === operand; }"],
   ["int32 equality", "export function use(value: Value, operand: int32): boolean { return value === operand; }"],
@@ -46,6 +75,23 @@ const numericUses = [
   ["inferred collection escape", "export function use(): number { const values = [~Value.First]; return values[0] + 1; }"],
   ["generic call numeric escape", "function identity<T>(value: T): T { return value; } export function use(value: Value): number { const result = identity(~value); return result; }"],
   ["inferred callable return escape", "function produce(value: Value) { return ~value; } export function use(value: Value): number { return produce(value); }"],
+  ["written inferred numeric local","export function use(value: Value): number { let result = ~value; result = 3; return result; }"],
+  ["numeric class field","export class Holder { value: number = Value.First; }"],
+  ["numeric parameter default","export function use(value: number = Value.First): number { return value; }"],
+  ["unknown assertion chain","export function use(value: Value): number { return value as unknown as number; }"],
+  ["any assertion chain","export function use(value: Value): number { return <number><any>value; }"],
+  ["unknown local store","export function use(value: Value): void { const result: unknown = value; }"],
+  ["any local store","export function use(value: Value): void { const result: any = value; }"],
+  ["unknown destination","function accept(value: unknown): void {} export function use(value: Value): void { accept(value); }"],
+  ["object assertion destination","export function use(value: Value): object { return value as unknown as object; }"],
+  ["any destination","function accept(value: any): void {} export function use(value: Value): void { accept(value); }"],
+  ["rest any destination","function accept(...values: any[]): void {} export function use(value: Value): void { accept(value); }"],
+  ["unknown conditional destination","function accept(value: unknown): void {} export function use(left: Value, right: Value, flag: boolean): void { accept(flag ? left : right); }"],
+  ["unknown logical destination","function accept(value: unknown): void {} export function use(left: Value, right: Value): void { accept(left || right); }"],
+  ["unknown nullish destination","function accept(value: unknown): void {} export function use(left: Value | undefined, right: Value): void { accept(left ?? right); }"],
+  ["unknown comma destination","function touch(): void {} function accept(value: unknown): void {} export function use(value: Value): void { accept((touch(), value)); }"],
+  ["unknown wrapped destination","function accept(value: unknown): void {} export function use(value: Value): void { accept(((value)!)); }"],
+  ["mutable union without enum destination","export function use(value: Value): number | undefined { let result: number | undefined = value; result = undefined; return result; }"],
 ];
 
 const stringUses = [
@@ -56,6 +102,12 @@ const stringUses = [
   ["left concatenation", "export function use(value: Value): string { return '' + value; }", false],
   ["right concatenation", "export function use(value: Value): string { return value + ''; }", false],
   ["compound concatenation", "export function use(value: Value): string { let result = ''; result += value; return result; }", false],
+  ["string index", "export function use(values: { [key: string]: number }, key: Value): number { return values[key]; }", false],
+  ["toFixed", "export function use(value: Value): string { return value.toFixed(); }", true],
+  ["toPrecision", "export function use(value: Value): string { return value.toPrecision(); }", true],
+  ["toExponential", "export function use(value: Value): string { return value.toExponential(); }", true],
+  ["toLocaleString", "export function use(value: Value): string { return value.toLocaleString(); }", true],
+  ["computed toFixed", "export function use(value: Value): string { return value['toFixed'](); }", true],
 ];
 
 for (const [label, declaration] of [
@@ -70,6 +122,36 @@ for (const [label, declaration] of [
 }
 
 for (const surface of [undefined, "js"]) {
+  test(`C# ${surface ?? "native"} enum absence observations match the single native absence state`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: absenceSource });
+    assertCsharpCompilationSucceeded(compiled);
+    assert.equal(compiled.result.program !== undefined && compiled.result.plan !== undefined, true,
+      "an absence observation retains the enum domain without numeric projection");
+    executeCsharpConstruction(compiled, `enum-absence-${surface ?? "native"}`, false, false, [], `
+foreach (bool flag in new[] { true, false }) {
+    NativeValue? selected = flag ? NativeValue.First : null;
+    NativeValue? joined = flag ? NativeValue.Second : null;
+    foreach (NativeValue? value in new[] { selected, joined, selected }) {
+        if (value.HasValue != flag || (value == null) != !flag || (null != value) != flag)
+            throw new System.Exception("native enum absence counterpart");
+    }
+    if ((selected ?? NativeValue.First) != NativeValue.First || !Tsonic.Generated.Index.run(flag))
+        throw new System.Exception("native enum absence composition");
+}
+enum NativeValue { First = 1, Second = 2 }
+`);
+  });
+
+  for (const [label, body] of absenceProjectionRefusals) {
+    test(`C# ${surface ?? "native"} absence observation does not admit ${label}`, () => {
+      const compiled = compileCsharpSource({ surface, sourceText: `enum Value { First = 1, Second = 2 } ${body}` });
+      assertCsharpCheckingSucceeded(compiled);
+      assert.equal(compiled.result.diagnostics.length, 1, `${label}: one actual projection`);
+      assert.equal(compiled.result.diagnostics[0]?.code, "TSONIC_ENUM_NUMERIC_USE_NOT_SUPPORTED", `${label}: shared refusal`);
+      assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true, `${label}: rejected before seal`);
+      assert.equal(compiled.result.artifacts.length, 0, `${label}: no native output`);
+    });
+  }
   for (const [label, body] of numericUses) {
     test(`C# ${surface ?? "native"} refuses enum ${label} at shared source admission`, () => {
       const compiled = compileCsharpSource({ surface, sourceText: `
@@ -84,6 +166,43 @@ ${body}
         "the message is identical on both targets");
       assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true, "rejection precedes sealing and planning");
       assert.equal(compiled.result.artifacts.length, 0, "a refused enum use emits no artifact");
+    });
+  }
+
+  if (surface === "js") for (const [label, body] of [
+    ["console log", "export function use(value: Value): void { console.log(value); }"],
+    ["JSON stringify", "export function use(value: Value): string { return JSON.stringify(value); }"],
+    ["Number valueOf", "export function use(value: Value): number { return value.valueOf(); }"],
+    ["Number method value", "export function use(value: Value): () => number { return value.valueOf; }"],
+  ]) {
+    test(`C# ${surface ?? "native"} refuses closed enum ${label} before target planning`, () => {
+      const sourceText = `export enum Value { First = 1, Second = 2 } ${body}`;
+      const compiled = compileCsharpSource({ surface, sourceText });
+      assertCsharpCheckingSucceeded(compiled);
+      assert.equal(compiled.targetDiagnostics.length, 1, `${label}: one actual enum use`);
+      assert.equal(compiled.targetDiagnostics[0]?.code, "TSONIC_ENUM_NUMERIC_USE_NOT_SUPPORTED", `${label}: shared admission owner`);
+      assert.equal(compiled.targetDiagnostics[0]?.message, "Enum value 'Value' is used as a number; enum-numeric operations are not supported yet. Use equality or bitwise operations within the same enum instead.", `${label}: no target-specific or missing-fact refusal`);
+      assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true, `${label}: before seal`);
+      assert.equal(compiled.result.artifacts.length, 0, `${label}: no output`);
+    });
+  }
+
+  for (const [label, body] of [
+    ["same-enum mutable destination", "export function use(value: Value): Value { let result: Value = value; result = value; return result; }"],
+    ["same-enum class field", "export class Holder { value: Value = Value.First; }"],
+    ["same-enum parameter default", "export function use(value: Value = Value.First): Value { return value; }"],
+    ["same-enum assertion", "export function use(value: Value): Value { return value as Value; }"],
+    ["actual instantiated T", "function identity<T>(value: T): T { return value; } export function use(value: Value): Value { return identity<Value>(value); }"],
+    ["enum-containing union destination", "function accept(value: Value | string): void {} export function use(value: Value): void { accept(value); }"],
+    ["fixed tuple enum index", "export function use(values: [number, number]): number { return values[Value.First]; }"],
+    ["static enum key metadata", "interface Named { [Value.First]: number; } export function use(value: Named): number { return value[Value.First]; }"],
+  ]) {
+    test(`C# ${surface ?? "native"} retains closed enum twin ${label}`, () => {
+      const sourceText = `export enum Value { First = 1, Second = 2 } ${body}`;
+      const compiled = compileCsharpSource({ surface, sourceText });
+      assertCsharpCompilationSucceeded(compiled);
+      assert.equal(compiled.result.program !== undefined && compiled.result.plan !== undefined, true, `${label}: actual native program`);
+      assert.equal(compiled.result.artifacts.length > 0, true, `${label}: retained native emission`);
     });
   }
 

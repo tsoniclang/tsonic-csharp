@@ -74,6 +74,7 @@ export function analyzeCsharpSourceEvidence(
   const arrayStorage = createTsonicClosedArrayStorageQueries(source, 131_072);
   const typeOnlyDeclarations = analyzeCsharpTypeOnlyDeclarations(source, sourceFiles);
   const compileTimeMetadata = new WeakSet<Node>(typeOnlyDeclarations.declarations);
+  let compileTimeDeclarationsOpen = true;
   const memoryMetadataIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
   const fixedArrayIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
   const nativePropertyNameIssues = new Map<Node, {
@@ -619,7 +620,18 @@ export function analyzeCsharpSourceEvidence(
     } }),
   };
   return Object.freeze({ index: Object.freeze(index), nativePropertyNameIssues: Object.freeze([...nativePropertyNameIssues].map(([sourceNode, issue]) =>
-    Object.freeze({ ...issue.diagnostic, sourceNode, requiredBy: Object.freeze([...issue.requiredBy]) }))), inspectClosedArrayStorage: arrayStorage.resolve });
+    Object.freeze({ ...issue.diagnostic, sourceNode, requiredBy: Object.freeze([...issue.requiredBy]) }))), inspectClosedArrayStorage: arrayStorage.resolve,
+    eraseCompileTimeDeclaration(declaration: Node): void {
+      if (!compileTimeDeclarationsOpen) failTargetAnalysisInvariant("tsonic-csharp",
+        "Compile-time declaration selection cannot change after native admission is sealed.", declaration);
+      compileTimeMetadata.add(declaration);
+    },
+    sealCompileTimeDeclarations(): void {
+      if (!compileTimeDeclarationsOpen) failTargetAnalysisInvariant("tsonic-csharp",
+        "Compile-time declaration selection must be sealed exactly once.");
+      compileTimeDeclarationsOpen = false;
+    },
+  });
 }
 
 function isCsharpFlowReadEvidenceNode(
