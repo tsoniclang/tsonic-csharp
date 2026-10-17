@@ -106,7 +106,7 @@ test("partially open projections close every actual free native binder and prese
 
 test("typed projection admission refuses missing and source-dependent conversions before publication", () => {
   for (const conversion of [() => undefined, () => ({ kind: "rejected", reason: "unproven exact field conversion" }),
-    () => ({ kind: "explicit", proof: "native-numeric" })]) {
+    () => ({ kind: "cast", proof: "numeric" })]) {
     const current = fixture([integer], conversion);
     const subject = {};
     const receiver = current.instances[0];
