@@ -30,6 +30,7 @@ import type {
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { nextState } from "../../resolution/state.js";
 import {
+  substituteObjectShapeMemberTargetTypeParameters,
   substituteTargetTypeParameters,
 } from "../../../../target-model/types/substitution.js";
 import {
@@ -796,10 +797,7 @@ export function createCsharpObjectShapePolicy(
     return {
       targetType,
       sourceType: declaredType,
-      members: Object.freeze(declaredMembers.map((member) => ({
-        ...member,
-        type: substituteTargetTypeParameters(member.type, substitutions),
-      }))),
+      members: Object.freeze(declaredMembers.map(member => substituteObjectShapeMemberTargetTypeParameters(member, substitutions))),
       ...(implemented.length === 0 ? {} : { implements: implemented }),
     };
   }

@@ -192,7 +192,8 @@ test("structural destination retains a supplied outer argument absent from every
   const destinationTemplate = Object.freeze({ targetType: view(outer), members: Object.freeze([openWrite]) });
   const source = Object.freeze({ targetType: body(integer), members: template.members, declarationTemplate: template });
   const destination = Object.freeze({ targetType: view(integer), members: destinationTemplate.members, declarationTemplate: destinationTemplate });
-  const selected = selectCsharpStructuralInterfaceImplementation({ sourceNode: {}, source, destination, members: [{ source: read, destination: openWrite,
+  const selected = selectCsharpStructuralInterfaceImplementation({ projectTypes: { directSupertypes: () => undefined },
+    providers: { findTargetBindingByTargetId: () => undefined } }, { sourceNode: {}, source, destination, members: [{ source: read, destination: openWrite,
     openSource: read, openDestination: openWrite, declaration: {} }] });
   assert.equal(selected !== undefined, true, "the selected closed destination supplies its actual otherwise-uninferable owner argument");
   assert.equal(selected.interfaceType.typeArguments[0] === integer, true, "no phantom argument is guessed from the nongeneric implementation");
@@ -381,6 +382,7 @@ test("native implicit methods need no bridge while phantom destination binders s
       } : canonicalGet(identity);
       value.policy.ast.parent = node => node === value.declaration ? owner : node === destinationBinder ? destinationDeclaration : undefined;
       value.shapes.structuralImplementations = () => [{ ...selected, methods: [{ ...method, member: { ...method.member,
+        sourceDeclarations: [destinationDeclaration],
         typeParameters: [{ declaration: destinationBinder, identity: "destination:T", name: "T", constraints: [] }] } }] }];
     }
     const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
@@ -412,6 +414,7 @@ test("canonical generic admission alpha-aligns real body parameters and retains 
   const selected = value.shapes.structuralImplementations(value.sourceType)[0];
   const method = selected.methods[0];
   value.shapes.structuralImplementations = () => [{ ...selected, methods: [{ ...method, member: { ...method.member,
+    sourceDeclarations: [destinationDeclaration],
     type: csharpDelegateTargetType("System.Func", [destination], destination),
     typeParameters: [{ declaration: destinationBinder, identity: destination.identity, name: destination.name, constraints: [] }] } }] }];
   value.shapes.resolveTarget = () => ({ targetType: value.sourceType, members: [{ ...method.member,
@@ -542,8 +545,16 @@ test("matching native projection layouts retain all actual binder, permission an
     : identity.declaration === destinationDeclaration ? destinationContract : undefined;
   const bodyShape = value.shapes.resolveTarget(value.sourceType);
   value.shapes.resolveTarget = () => ({ ...bodyShape, members: [{ ...bodyShape.members[0],
+    typeParameters: [...bodyShape.members[0].typeParameters, ...bodyProjections.map(parameter => ({
+      declaration: value.declaration, identity: parameter.identity, name: parameter.name,
+      constraints: parameter.csharpProjectionConstraints,
+    }))],
     type: csharpDelegateTargetType("System.Func", [bodyStorage], integer) }] });
   value.shapes.structuralImplementations = () => [{ ...selected, methods: [{ ...method, member: { ...method.member,
+    typeParameters: [...method.member.typeParameters, ...destinationProjections.map(parameter => ({
+      declaration: destinationDeclaration, identity: parameter.identity, name: parameter.name,
+      constraints: parameter.csharpProjectionConstraints,
+    }))],
     type: csharpDelegateTargetType("System.Func", [destinationStorage], widened) } }] }];
   value.projections.get = declaration => declaration === value.declaration ? bodyProjections
     : declaration === destinationDeclaration ? destinationProjections : Object.freeze([]);
@@ -685,6 +696,7 @@ function adaptedNativeForwarder(control, destinationNames = []) {
     parameters: Object.freeze(control.modes.map((passingMode, index) => Object.freeze({ sourceParameter: Object.freeze({}),
       targetParameter: Object.freeze({ name: `value${index}`, type: integer, passingMode }) }))), returnType: integer });
   const member = Object.freeze({ sourceName: "read", targetName: "read", memberKind: "method", type: signature,
+    sourceDeclarations: Object.freeze([destinationDeclaration]),
     ...(destinationNames.length === 0 ? {} : { typeParameters: Object.freeze(destinationNames.map((name, index) => Object.freeze({
       declaration: Object.freeze({}), identity: `destination:${control.name}:${index}`, name, csharpAllowsRefLike: false, constraints: Object.freeze([]),
     }))) }),

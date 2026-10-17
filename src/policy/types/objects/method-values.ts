@@ -12,6 +12,7 @@ import { isCsharpValueTypeTargetType } from "../../../target-model/types/identit
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeMemberTargetTypeParameters, substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
+import { csharpVariantArgumentImplicitlyAccepts } from "../../conversions/carriers.js";
 
 export function selectCsharpMethodValue(
   owner: TargetTypeRef | undefined, subjects: readonly ExtensionFactSubject[], host: CsharpTypePolicyHost, directCall = false,
@@ -36,6 +37,7 @@ export function selectCsharpMethodValue(
 }
 
 export function selectCsharpStructuralInterfaceImplementation(
+  policy: Parameters<typeof csharpVariantArgumentImplicitlyAccepts>[0],
   evidence: CsharpStructuralInterfaceEvidence,
 ): CsharpStructuralInterfaceImplementation | undefined {
   const { source, destination } = evidence;
@@ -88,7 +90,9 @@ export function selectCsharpStructuralInterfaceImplementation(
       const free = inferred === undefined ? new Set<string>() : csharpFreeTypeParameterIdentities([inferred]);
       const exactSourceRelationship = inferred !== undefined && free.size > 0 &&
         [...free].every(parameter => sourceParameters.has(parameter)) &&
-        targetTypeRefEquals(substituteTargetTypeParameters(inferred, sourceArguments), actual);
+        (targetTypeRefEquals(substituteTargetTypeParameters(inferred, sourceArguments), actual) ||
+          destinationTemplate.covariantTypeParameterIdentities?.includes(identity) === true &&
+          csharpVariantArgumentImplicitlyAccepts(policy, substituteTargetTypeParameters(inferred, sourceArguments), actual, new Set()));
       arguments_.set(identity, exactSourceRelationship ? inferred! : actual);
     }
   }
@@ -118,7 +122,7 @@ function inferStructuralMemberTypeArguments(
   for (const [index, parameter] of from.entries()) {
     const target = to[index]!;
     substitutions.set(parameter.identity, Object.freeze({ kind: "type-parameter", identity: target.identity,
-      name: target.name, csharpDeclaration: target.declaration }));
+      name: target.name, csharpConstraints: Object.freeze({ kind: "resolved", constraints: target.constraints }) }));
   }
   return inferCsharpTargetTypeParameterBindings(pattern.type,
     substituteTargetTypeParameters(actual.type, substitutions), parameterIdentities);
