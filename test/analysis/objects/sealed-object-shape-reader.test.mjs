@@ -87,7 +87,7 @@ test("an instance no producer demanded is a negative lookup, never a late instan
 test("one immutable completed target index retains alias keys and instantiated shapes without reindexing the catalog", () => {
   const alias = Object.freeze({ kind: "target-named", id: "HolderAlias", csharpAllowsRefLikeTypeArguments: Object.freeze([]) });
   for (const resolvesComponent of [false, true]) {
-    const { sealed, counts } = harness({ resolvesComponent, aliases: [alias] });
+    const { sealed, counts, files } = harness({ resolvesComponent, aliases: [alias] });
     const before = counts.policy;
     const data = sealed.targetShapes;
     const adapters = analyzeCsharpProjectCallableAdapters({}, { declarationContracts: [] }, sealed,
@@ -99,6 +99,10 @@ test("one immutable completed target index retains alias keys and instantiated s
     assert.equal(data[targetTypeRefKey(alias)] === sealed.resolveTarget(alias) &&
       data[targetTypeRefKey(alias)] === sealed.resolveTarget(holder.targetType), true,
     "a producer alias retains the identical published shape rather than being lost by a shape-target reindex");
+    assert.equal(sealed.resolveNode(files.holder) === data[targetTypeRefKey(holder.targetType)] &&
+      sealed.knownShapes().find(shape => targetTypeRefEquals(shape.targetType, holder.targetType)) ===
+        data[targetTypeRefKey(holder.targetType)], true,
+    "node and catalog consumers share that canonical completed physical carrier after subject merging");
     assert.equal(sealed.knownShapes().some(shape => targetTypeRefEquals(shape.targetType, alias)), false,
       "the alias is an actual index key, not a separate catalog declaration");
     assert.equal(data[targetTypeRefKey(component)] !== undefined &&

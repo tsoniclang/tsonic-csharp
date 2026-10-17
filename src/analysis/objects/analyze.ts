@@ -390,10 +390,11 @@ export function analyzeCsharpObjectShapes(
       for (const literal of objectLiterals.keys()) propertyOrders.recordEmptyLiteral(literal);
       propertyOrders.seal();
       const completeShape = (shape: CsharpObjectShapeFact): CsharpObjectShapeFact => {
-        const existing = completedShapes.get(shape);
+        const canonical = byTarget.get(targetTypeRefKey(shape.targetType)) ?? shape;
+        const existing = completedShapes.get(canonical);
         if (existing !== undefined) return existing;
-        const selected = Object.freeze(withInterfaces(shape)!);
-        completedShapes.set(shape, selected);
+        const selected = Object.freeze(withInterfaces(canonical)!);
+        completedShapes.set(canonical, selected);
         return selected;
       };
       for (const shape of admittedShapes) completeShape(shape);
