@@ -192,12 +192,19 @@ export function analyzeCsharpObjectShapes(
           if (definition?.kind !== "class" || shape?.sourceType === undefined ||
             policy.projectTypes.catalog.definitionForTarget(inherited)?.kind !== "interface") continue;
           if (!classifications.registerStructuralInterface(definition.declaration, type, inherited, shape.sourceType)) {
-            declaredStructuralIssues.push(Object.freeze({ node: definition.declaration, code: "CSHARP_UNSUPPORTED_AST",
-              message: "An analyzed interface has no exact inherited native implementation." }));
+            declaredStructuralIssues.push(inheritedImplementationIssue(definition.declaration, type, inherited));
           }
         }
       }
     }
+  }
+
+  function inheritedImplementationIssue(node: Node, source: TargetTypeRef, target: TargetTypeRef): CsharpProjectTypeIssue {
+    const targetKey = targetTypeRefKey(target);
+    const shape = byTarget.get(targetKey);
+    const members = shape === undefined ? "unavailable" : shape.members.map(member => member.sourceName).join(", ");
+    return Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST",
+      message: `An analyzed interface has no exact inherited native implementation. Implementing class: ${targetTypeRefKey(source)}; interface: ${targetKey}; required member obligations: [${members}].` });
   }
 
   function closeStructuralShapes(): void {
@@ -239,8 +246,7 @@ export function analyzeCsharpObjectShapes(
             if (rejected.has(requestKey)) continue;
             if (!classifications.registerStructuralInterface(request.selected.sourceNode, request.source, base, request.sourceType)) {
               rejected.add(requestKey);
-              issues.push(Object.freeze({ node: request.selected.sourceNode, code: "CSHARP_UNSUPPORTED_AST",
-                message: "An analyzed interface has no exact inherited native implementation." }));
+              issues.push(inheritedImplementationIssue(request.selected.sourceNode, request.source, base));
             } else provided.add(baseKey);
           }
         }

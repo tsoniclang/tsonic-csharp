@@ -7,6 +7,7 @@ import { emptyCsharpTypeDefinitions } from "../../../dist/target-model/types/sou
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { resolveCsharpOptionalStorage } from "../../../dist/target-model/types/carriers/optional-storage.js";
 import { analyzeCsharpProjectCallableAdapters } from "../../../dist/analysis/project-types/callable-adapters.js";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/relations/resolver.js";
 
 const integer = { kind: "source-primitive", name: "int64" };
 const string = { kind: "source-primitive", name: "string" };
@@ -158,6 +159,7 @@ test("structural implementations are materialized at seal and an unrecorded inst
     ast: { is: { IsObjectLiteralExpression: () => false }, forEachChild: () => {}, parent: () => undefined,
       properties: () => [], authoredRange: () => ({ kind: "unauthored" }) },
     sourceFiles: [], typeDefinitions: emptyCsharpTypeDefinitions,
+    providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
     objectShapes: {
       resolveTarget: type => { assert.equal(closed, false, "native selection precedes publication"); queries += 1; return shapes.get(targetTypeRefKey(type)); },
       resolveCopyShape: () => { assert.equal(closed, false, "copy selection precedes publication"); return undefined; },
