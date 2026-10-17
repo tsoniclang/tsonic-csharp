@@ -52,7 +52,6 @@ export function analyzeCsharpObjectShapes(
   let classificationCount = 0;
   let sealed = false;
   let knownShapes: readonly CsharpObjectShapeFact[] = Object.freeze([]);
-  let targetShapes: CsharpObjectShapeAnalysis["targetShapes"] = Object.freeze({});
   const structuralInterfaces = new Map<string, Map<string, {
     readonly selected: CsharpStructuralInterfaceImplementation;
     readonly source: TargetTypeRef;
@@ -471,10 +470,6 @@ export function analyzeCsharpObjectShapes(
         if (!completeKnownShapes.has(key)) completeKnownShapes.set(key, shape);
       }
       knownShapes = Object.freeze([...completeKnownShapes.values()]);
-      targetShapes = Object.freeze(Object.fromEntries([
-        ...instantiatedShapes,
-        ...[...byTarget].map(([key, shape]) => [key, completeShape(shape)] as const),
-      ]));
       admittedShapes.clear();
       sealed = true;
       return Object.freeze({
@@ -483,7 +478,6 @@ export function analyzeCsharpObjectShapes(
         assignmentSourceOrder: propertyOrders.assignmentSourceOrder,
         structuralImplementations: sealedStructuralImplementation,
         structuralImplementationTypes: Object.freeze(structuralImplementationTypes),
-        targetShapes,
         knownShapes: () => knownShapes,
         methodImplementationHasCopies: classifications.methodImplementationHasCopies,
         resolveCopyShape: (shape: CsharpObjectShapeFact) => copies.get(targetTypeRefKey(shape.targetType)),
@@ -537,7 +531,8 @@ export function analyzeCsharpObjectShapes(
   function completedTargetShape(type: TargetTypeRef | undefined): CsharpObjectShapeFact | undefined {
     if (type === undefined) return undefined;
     const key = targetTypeRefKey(getCsharpNullableElementTargetType(type) ?? type);
-    return targetShapes[key];
+    const shape = byTarget.get(key);
+    return shape === undefined ? instantiatedShapes.get(key) : completedShapes.get(shape);
   }
 
   function sealedStructuralImplementation(type: TargetTypeRef): readonly CsharpStructuralInterfaceImplementation[] {

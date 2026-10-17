@@ -150,20 +150,19 @@ test("exact generated object-shape contracts satisfy their implemented target in
     kind: "target-named", csharpAllowsRefLikeTypeArguments: [],
     id: "tsonic.shape:Input",
   };
-  const shape = Object.freeze({
-    targetType: generatedShape,
-    members: [],
-    implements: [sourceInterface],
-  });
   const fixture = createCallFixture({
     sourceArgumentTargets: [generatedShape],
     targetParameters: [targetParameter("value", sourceInterface)],
     objectShapes: Object.freeze({
       resolveNode() {
-        return shape;
+        return {
+          targetType: generatedShape,
+          members: [],
+          implements: [sourceInterface],
+        };
       },
-      resolveTarget(type) {
-        return type === generatedShape ? shape : undefined;
+      resolveTarget() {
+        return undefined;
       },
     }),
   });

@@ -179,13 +179,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     const typeParameters = resolveCsharpCallableTypeParameters(methodDeclaration, queries.sourceFile, {
       ast: host.ast,
       genericProjections: host.representations.genericProjections,
-      types: { resolveNode: (node, sourceFile) => {
-        const declared = host.typeResolver.resolveNode(node, sourceFile, nextState(state));
-        if (declared === undefined || receiver === undefined) return declared;
-        const selected = host.projectTypes().instantiateMemberType(methodDeclaration, receiver, declared);
-        return selected.kind === "resolved" ? selected.type
-          : selected.kind === "not-project-member" ? declared : undefined;
-      } },
+      types: { resolveNode: (node, sourceFile) => host.typeResolver.resolveNode(node, sourceFile, nextState(state)) },
     });
     if (typeParameters === undefined) return undefined;
     const sourceDeclarations = [...new Set([...declarations, ...(methodDeclaration === undefined ? [] : [methodDeclaration])])];
