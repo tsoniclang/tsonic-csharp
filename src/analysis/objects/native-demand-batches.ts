@@ -1,5 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { CsharpObjectShapeClassifications } from "./model.js";
+import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "./model.js";
 import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
 import type { CsharpObjectShapeArtifact } from "../../target-model/records/object-shape-demand.js";
@@ -23,7 +23,7 @@ export const maximumArtifactCount = 131_072;
 export const maximumJsonClosureDepth = 256;
 
 export interface CsharpObjectShapeDemandHost {
-  readonly objectShapes: CsharpObjectShapeClassifications;
+  readonly objectShapes: CsharpObjectShapeClassifications & Pick<CsharpObjectShapeAnalysis, "targetShapes">;
   readonly projectTypes?: Pick<CsharpProjectTypeClassifications, "heritageForTarget">;
   readonly typeDefinitions?: CsharpTypeDefinitions;
 }

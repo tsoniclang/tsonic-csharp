@@ -548,11 +548,14 @@ export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDeman
     objectShapeArtifacts: operations.objectShapeArtifacts,
     seal(): CsharpObjectShapeDemand {
       requireOpen();
+      const targetShapes = host.objectShapes.targetShapes;
+      if (targetShapes === undefined || !Object.isFrozen(targetShapes)) failTargetAnalysisInvariant("tsonic-csharp",
+        "Native artifact demand requires its immutable completed target-shape index before sealing.");
       sealed = true;
       const artifacts = Object.freeze(operations.objectShapeArtifacts());
       const byKey = new Map(artifacts.map(artifact => [artifact.key, artifact]));
       const projections = new Map(scope.projections);
-      return Object.freeze({ artifacts, get: (key: string) => byKey.get(key),
+      return Object.freeze({ artifacts, targetShapes, get: (key: string) => byKey.get(key),
         projection: (subject: Node) => projections.get(subject) });
     },
   });

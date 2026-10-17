@@ -6,6 +6,7 @@ import { createCsharpProgramRecords } from "../../../dist/analysis/program/recor
 import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/records/required-records.js";
 import { createCsharpObjectShapeDemandEngine } from "../../../dist/analysis/objects/native-demand-requests.js";
 import { objectShapeArtifactKey } from "../../../dist/target-model/records/object-shape-demand.js";
+import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
 import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
 import { monomorphicStructuralOptionalFiles } from "../../../../tsonic/test/fixtures/generic-structural-methods.mjs";
@@ -26,6 +27,8 @@ for (const surface of ["native", "js"]) for (const [name, body] of programs) {
     const { compiled, program, source, nodes } = compileCsharpRequiredRecordSource(header + body, surface);
     const demand = program.records.objectShapeArtifact;
     assert.equal(Object.isFrozen(demand) && Object.isFrozen(demand.artifacts), true, "one immutable artifact publication");
+    assert.equal(demand.targetShapes === program.objectShapes.targetShapes && Object.isFrozen(demand.targetShapes), true,
+      "artifact demand transports the canonical completed target-shape index by identity");
     assert.equal(demand.artifacts.length > 0, true, "participating anonymous storage has emitted artifacts");
     for (const artifact of demand.artifacts) {
       assert.equal(Object.isFrozen(artifact) && demand.get(artifact.key) === artifact, true, "exact immutable shape identity");
@@ -99,18 +102,30 @@ test("artifact demand seals once and the backend cannot reach the native query o
   let reads = 0;
   const type = { kind: "target-named", id: "tsonic.shape:Leaf", csharpAllowsRefLikeTypeArguments: [], csharpRender: { kind: "named", name: "Leaf" } };
   const fact = Object.freeze({ targetType: type, members: Object.freeze([]) });
+  const targetShapes = Object.freeze({ [targetTypeRefKey(type)]: fact });
   const engine = createCsharpObjectShapeDemandEngine({ objectShapes: {
+    targetShapes,
     resolveTarget(selected) { assert.equal(closed, false, "queries run before publication"); reads += 1; return selected === type ? fact : undefined; },
     knownShapes: () => [fact],
   } });
   assert.equal(engine.registerObjectShape(fact, "synthetic").kind, "accepted");
   const demand = engine.seal();
+  assert.equal(demand.targetShapes === targetShapes && Object.isFrozen(demand.targetShapes), true,
+    "the immutable completed lookup is transported without reindexing");
   closed = true;
   const before = reads;
   for (let index = 0; index < 4; index += 1) assert.equal(demand.get(objectShapeArtifactKey(fact)).fact === fact, true, "same fixed record");
   assert.equal(reads, before, "no native-query recomputation after publication");
   assert.throws(() => engine.registerObjectShape(fact, "synthetic"), /artifact demand is sealed/u);
   assert.throws(() => engine.seal(), /artifact demand is sealed/u);
+});
+
+test("artifact demand requires its canonical immutable completed shape index at sealing", () => {
+  for (const targetShapes of [undefined, {}]) {
+    const engine = createCsharpObjectShapeDemandEngine({ objectShapes: { targetShapes, resolveTarget() {} } });
+    assert.throws(() => engine.seal(), /immutable completed target-shape index/u,
+      "a missing or mutable input cannot become a published artifact DTO");
+  }
 });
 
 test("erased metadata is not an extra demand root and retained source refusals still precede planning", () => {

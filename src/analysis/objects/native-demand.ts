@@ -56,7 +56,8 @@ export interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemand
   readonly captureStorage: CsharpCaptureStorage;
   readonly callableAdapters: CsharpProjectCallableAdapters;
   readonly flowReads: CsharpFlowReadClassifications;
-  readonly objectShapes: CsharpObjectShapeClassifications<CsharpFinalStructuralInterfaceImplementation>;
+  readonly objectShapes: CsharpObjectShapeClassifications<CsharpFinalStructuralInterfaceImplementation> &
+    Pick<CsharpObjectShapeDemandHost["objectShapes"], "targetShapes">;
   readonly declarations: CsharpDeclarationClassifications;
   readonly bindingPatterns: CsharpBindingPatternClassifications;
   readonly conversions: CsharpConversionClassifications;

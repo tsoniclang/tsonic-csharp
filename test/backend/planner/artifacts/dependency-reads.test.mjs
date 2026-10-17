@@ -113,7 +113,7 @@ test("publication after an explicit absent-facet snapshot requires reconstructio
 });
 
 test("unavailable object-shape capabilities fail at their exact owner without publication", () => {
-  const demand = createCsharpObjectShapeDemandEngine({ objectShapes: { resolveTarget() {}, resolveNode() {} } });
+  const demand = createCsharpObjectShapeDemandEngine({ objectShapes: { targetShapes: Object.freeze({}), resolveTarget() {}, resolveNode() {} } });
   const requested = demand.requireObjectShapeCapability(undefined,
     { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "MissingShape" }, {}, "json-serialization", "object-shape");
   assert.equal(requested.kind, "rejected");
@@ -125,7 +125,7 @@ test("unavailable object-shape capabilities fail at their exact owner without pu
 });
 
 function artifactFixture() {
-  const demand = createCsharpObjectShapeDemandEngine({ objectShapes: { resolveTarget() {}, resolveNode() {} } });
+  const demand = createCsharpObjectShapeDemandEngine({ objectShapes: { targetShapes: Object.freeze({}), resolveTarget() {}, resolveNode() {} } });
   return createCsharpArtifactGraph({ objectShapeArtifacts: demand.seal() });
 }
 

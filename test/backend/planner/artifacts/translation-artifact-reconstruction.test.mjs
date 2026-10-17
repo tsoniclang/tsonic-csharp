@@ -44,6 +44,7 @@ test("target-owned object shapes reconstruct from canonical artifact state", () 
     ast: {},
     navigation: {},
     objectShapes: {
+      targetShapes: Object.freeze(Object.fromEntries(shapes)),
       resolveTarget(type) {
         return type === undefined
           ? undefined
@@ -106,7 +107,7 @@ test("object-shape receiver requirements strengthen one exact generated type sur
   const demand = createCsharpObjectShapeDemandEngine({
     ast: {},
     navigation: {},
-    objectShapes: { resolveTarget() { return shape; } },
+    objectShapes: { targetShapes: Object.freeze({ [targetTypeRefKey(shape.targetType)]: shape }), resolveTarget() { return shape; } },
   });
 
   assert.deepEqual(demand.registerObjectShape(shape, "synthetic"), {
@@ -148,6 +149,7 @@ function genericReceiverArtifacts() {
   const instance = { targetType: target(integer), members: [member(integer)], declarationTemplate: declaration };
   const shapes = new Map([declaration, instance].map(shape => [targetTypeRefKey(shape.targetType), shape]));
   const demand = createCsharpObjectShapeDemandEngine({ objectShapes: {
+    targetShapes: Object.freeze(Object.fromEntries(shapes)),
     resolveTarget: type => shapes.get(targetTypeRefKey(type)), knownShapes: () => [declaration, instance],
   } });
   return { demand, declaration, instance };
@@ -204,6 +206,7 @@ function genericCapabilityArtifacts() {
   const facts = [declaration, first, second, unrelated];
   const byTarget = new Map(facts.map(fact => [targetTypeRefKey(fact.targetType), fact]));
   const demand = createCsharpObjectShapeDemandEngine({ objectShapes: {
+    targetShapes: Object.freeze(Object.fromEntries(byTarget)),
     resolveTarget: type => type === undefined ? undefined : byTarget.get(targetTypeRefKey(type)),
     resolveNode: () => undefined,
     knownShapes: () => facts,
@@ -261,7 +264,7 @@ test("source-file artifacts cannot be acknowledged by a target-owned reconstruct
   const demand = createCsharpObjectShapeDemandEngine({
     ast: {},
     navigation: {},
-    objectShapes: { resolveTarget() {} },
+    objectShapes: { targetShapes: Object.freeze({}), resolveTarget() {} },
   });
   const artifacts = createCsharpArtifactGraph({ objectShapeArtifacts: demand.seal() });
   const owner = "source-file:index.ts";
