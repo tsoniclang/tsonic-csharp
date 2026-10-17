@@ -128,6 +128,7 @@ test("only a type parameter with an actual value-parameter collision is renamed 
   "the single binding-safe rename is immutable selected data, not an allocating lookup");
   let typeUses = 0;
   let valueUses = 0;
+  let collisionDeclaration;
   for (const identifier of identifiers) {
     const parent = source.ast.parent(identifier);
     const declaration = parent !== undefined && source.ast.is.IsTypeParameterDeclaration(parent) && source.ast.name(parent) === identifier
@@ -136,6 +137,7 @@ test("only a type parameter with an actual value-parameter collision is renamed 
     const spelling = source.ast.text(identifier);
     const selected = plan.resolve(identifier);
     if (parameter?.identity === plan.typeParameterNames[0].identity) {
+      collisionDeclaration = declaration;
       typeUses += 1;
       assert.equal(selected.kind === "resolved" && selected.name === "T1", true,
         "the declaration, dependent constraint and every bound type use consume the identical pre-seal decision");
@@ -147,6 +149,10 @@ test("only a type parameter with an actual value-parameter collision is renamed 
     }
   }
   assert.equal(typeUses >= 5 && valueUses === 2, true, "real bound type uses and the distinct value binding were all observed");
+  const foreign = checkedNames("export const outsideName = 1;");
+  const outside = foreign.identifiers.find(identifier => foreign.source.ast.text(identifier) === "outsideName");
+  assert.equal(collisionDeclaration !== undefined && outside !== undefined && plan.resolve(outside, collisionDeclaration).kind === "rejected", true,
+    "a selected binder cannot admit an unrelated checked source node outside the frozen name plan");
 });
 
 test("type-parameter suffixes avoid existing native binders and leave conflict-free declarations unchanged", () => {

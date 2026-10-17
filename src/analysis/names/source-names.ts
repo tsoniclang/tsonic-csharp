@@ -118,8 +118,6 @@ export function createCsharpSourceNameBuilder(
     if (nameNode === undefined) {
       return rejected("The source declaration has no name node.");
     }
-    const typeParameter = selectedDeclaration === undefined ? undefined : typeParameterResolutions.get(selectedDeclaration);
-    if (typeParameter !== undefined) return typeParameter;
     const selectedName = !privateNameNodes.has(nameNode) ||
         selectedDeclaration === undefined
       ? undefined
