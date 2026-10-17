@@ -19,7 +19,6 @@ import {
   isSourceOwnedProjectReference,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
-import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
 import {
   directCsharpSourceYieldExpression,
