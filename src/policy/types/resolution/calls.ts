@@ -140,7 +140,7 @@ export function resolveSourceCallInstantiation(
   const { host, inferSourceCallTargetTypeArguments, resolveAuthoredAndSelectedSourceType } = scope;
   const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
   const owner = callable?.sourceDeclaration ?? source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
-  const projections = owner === undefined ? [] : host.representations.genericProjections?.(owner) ?? [];
+  const projections = owner === undefined ? [] : host.representations.genericProjections(owner);
   if (expectedTypeParameterIdentities?.length === 0) {
     return {
       arguments: Object.freeze([]),
@@ -521,7 +521,7 @@ export function sourceCallableTypeParametersMatch(
   const identities = sourceCallTypeParameterIdentities(scope, source, callable, kind);
   if (identities === undefined) return false;
   const projections = callable.sourceDeclaration === undefined ? []
-    : host.representations.genericProjections?.(callable.sourceDeclaration) ?? [];
+    : host.representations.genericProjections(callable.sourceDeclaration);
   return selected.length + projections.length === callable.methodTypeParameterIdentities.length &&
     projections.every((projection, index) => projection.identity === callable.methodTypeParameterIdentities[selected.length + index]) &&
     identities.every((identity, index) => identity === callable.methodTypeParameterIdentities[index]);
