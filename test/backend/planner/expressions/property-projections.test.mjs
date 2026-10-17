@@ -22,7 +22,7 @@ function fixture() {
     names: { temporaryName: value => value },
     artifacts: Object.freeze({}),
   };
-  const orders = createCsharpObjectShapePropertyOrderIndex({}, () => {});
+  const orders = createCsharpObjectShapePropertyOrderIndex({}, () => {}, () => []);
   orders.record(shape);
   orders.seal();
   return { source, shape, members, input, conversions, orders };
