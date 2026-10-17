@@ -1,5 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { IsTypeSyntaxNode, sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
+import { IsTypeSyntaxNode, sourceClassFieldIsTypeOnly, sourceConstructValueInputs, type SourceValueInput } from "@tsonic/target-api/source";
 import type { CsharpAttributeApplicationIndex } from "../../../target-model/records/attributes.js";
 import type { CsharpClassInitializationIndex } from "../../../target-model/records/class-initialization.js";
 import type { CsharpNativeParticipationInput } from "../../../target-model/records/native-demand.js";
@@ -63,44 +63,36 @@ export function selectCsharpNativeConstructSteps(input: CsharpNativeConstructInp
     return finish([...attributes, ...parameters(), ...(call === undefined ? [] : use(call, { kind: "effect" })),
       ...(body === undefined ? [] : [construct(body)])]);
   }
+  const sourceInputs = sourceConstructValueInputs(ast, node);
+  const sourceUse = (entry: SourceValueInput): readonly CsharpNativeOperandStep[] => {
+    if (entry.slot.kind === "thrown" && input.operations.exactCatchRethrow.get(node) ||
+      entry.slot.kind === "initializer" && ast.is.IsVariableDeclaration(node) && input.evidence.sourceStruct.get(node) !== undefined) return [];
+    if (entry.slot.kind === "default") return input.unusedDefault.get(entry.expression) ? []
+      : csharpNativeChildUses(entry.owner, entry.expression, entry.slot)
+        .map(child => Object.freeze({ kind: "use" as const, use: Object.freeze({ ...child, guard: "if-absent" as const }) }));
+    return use(entry.expression, entry.slot, entry.owner);
+  };
   if (ast.is.IsForStatement(node)) {
     const statement = ast.as.AsForStatement(node);
     const initializer = statement?.Initializer;
-    return finish([...attributes, ...(initializer === undefined ? [] : isCsharpNativeExpression(ast, initializer)
-      ? use(initializer, { kind: "initializer" }) : [construct(initializer)]), ...use(statement?.Condition, { kind: "condition" }),
-      ...use(statement?.Incrementor, { kind: "effect" }), ...(statement?.Statement === undefined ? [] : [construct(statement.Statement)])]);
+    return finish([...attributes, ...(initializer === undefined || isCsharpNativeExpression(ast, initializer) ? [] : [construct(initializer)]),
+      ...sourceInputs.filter(entry => entry.slot.kind !== "initializer" || isCsharpNativeExpression(ast, entry.expression)).flatMap(sourceUse),
+      ...(statement?.Statement === undefined ? [] : [construct(statement.Statement)])]);
   }
   if (ast.is.IsSwitchStatement(node)) {
     const statement = ast.as.AsSwitchStatement(node);
     const clauses = statement?.CaseBlock === undefined ? [] : ast.children(statement.CaseBlock);
-    return finish([...attributes, ...use(statement?.Expression, { kind: "condition" }), ...clauses.flatMap((clause, index) =>
-      clause === undefined ? [] : [...(ast.is.IsCaseClause(clause) ? use(ast.as.AsCaseOrDefaultClause(clause)?.Expression, { kind: "case", index }) : []), construct(clause)])]);
-  }
-  const uses: CsharpNativeOperandStep[] = [];
-  if (ast.is.IsExpressionStatement(node)) uses.push(...use(ast.as.AsExpressionStatement(node)?.Expression, { kind: "effect" }));
-  else if (ast.is.IsReturnStatement(node)) uses.push(...use(ast.as.AsReturnStatement(node)?.Expression, { kind: "return" }));
-  else if (ast.is.IsThrowStatement(node)) {
-    if (!input.operations.exactCatchRethrow.get(node)) uses.push(...use(ast.as.AsThrowStatement(node)?.Expression, { kind: "thrown" }));
-  } else if (ast.is.IsVariableDeclaration(node)) {
-    if (input.evidence.sourceStruct.get(node) === undefined) uses.push(...use(ast.as.AsVariableDeclaration(node)?.Initializer, { kind: "initializer" }));
-  } else if (ast.is.IsBindingElement(node) || ast.is.IsParameterDeclaration(node)) {
-    const initializer = ast.is.IsBindingElement(node) ? ast.as.AsBindingElement(node)?.Initializer : ast.as.AsParameterDeclaration(node)?.Initializer;
-    if (initializer !== undefined && !input.unusedDefault.get(initializer)) uses.push(...csharpNativeChildUses(node, initializer, { kind: "default" })
-      .map(child => Object.freeze({ kind: "use" as const, use: Object.freeze({ ...child, guard: "if-absent" as const }) })));
-  } else if (ast.is.IsEnumMember(node)) uses.push(...use(ast.as.AsEnumMember(node)?.Initializer, { kind: "initializer" }));
-  else if (ast.is.IsIfStatement(node)) uses.push(...use(ast.as.AsIfStatement(node)?.Expression, { kind: "condition" }));
-  else if (ast.is.IsWhileStatement(node)) uses.push(...use(ast.as.AsWhileStatement(node)?.Expression, { kind: "condition" }));
-  else if (ast.is.IsDoStatement(node)) uses.push(...use(ast.as.AsDoStatement(node)?.Expression, { kind: "condition" }));
-  else if (ast.is.IsForOfStatement(node) || ast.is.IsForInStatement(node)) uses.push(...use(ast.as.AsForInOrOfStatement(node)?.Expression, { kind: "operand", position: "only" }));
-  else if (ast.is.IsExportAssignment(node)) {
-    const assignment = ast.as.AsExportAssignment(node);
-    if (assignment?.IsExportEquals === false) uses.push(...use(assignment.Expression, { kind: "initializer" }));
-  } else if (ast.is.IsArrowFunction(node)) {
-    const body = ast.body(node);
-    if (body !== undefined && !ast.is.IsBlock(body)) uses.push(...use(body, { kind: "return" }));
+    const cases = new Map<number, readonly CsharpNativeOperandStep[]>();
+    for (const entry of sourceInputs) if (entry.slot.kind === "case") cases.set(entry.slot.index, sourceUse(entry));
+    return finish([...attributes, ...sourceInputs.filter(entry => entry.slot.kind !== "case").flatMap(sourceUse),
+      ...clauses.flatMap((clause, index) => {
+        if (clause === undefined) return [];
+        const steps = cases.get(index);
+        return [...(steps === undefined ? [] : steps), construct(clause)];
+      })]);
   }
   const parent = ast.parent(node);
   const skippedCall = parent !== undefined && ast.is.IsConstructorDeclaration(parent) && ast.body(parent) === node ? input.baseCalls.get(parent) : undefined;
   const skipped = skippedCall === undefined ? undefined : ast.parent(skippedCall);
-  return finish([...attributes, ...uses, ...childConstructs(node, skipped)]);
+  return finish([...attributes, ...sourceInputs.flatMap(sourceUse), ...childConstructs(node, skipped)]);
 }
