@@ -4,6 +4,7 @@ import type {
 import type {
   CsharpTargetNamedTypeRef,
 } from "./model.js";
+import { csharpConstraintsRequireReference } from "./generic-constraints.js";
 
 export function isCsharpThrowableTargetType(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "target-named" && (type as CsharpTargetNamedTypeRef).csharpThrowable === true;
@@ -38,6 +39,8 @@ export function isCsharpValueTypeTargetType(type: TargetTypeRef): boolean {
 
 export function isCsharpReferenceCarrier(type: TargetTypeRef): boolean {
   return type.kind === "array" ||
+    type.kind === "type-parameter" && type.csharpConstraints?.kind === "resolved" &&
+      csharpConstraintsRequireReference(type.csharpConstraints.constraints) ||
     type.kind === "target-named" &&
       !isCsharpValueTypeTargetType(type) &&
       !isCsharpVoidTargetType(type);

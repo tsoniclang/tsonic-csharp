@@ -20,7 +20,7 @@ import {
   csharpNullableReferenceTargetType,
   getCsharpNullableElementTargetType,
 } from "./nullable.js";
-import { csharpOptionalStorageProjection, getCsharpGenericOptionalParts } from "../projections.js";
+import { getCsharpGenericOptionalParts } from "../projections.js";
 import { isCsharpVoidTargetType } from "../identity.js";
 import { emptyCsharpTypeDefinitions, type CsharpTypeDefinitions } from "../source-union-definitions.js";
 
@@ -154,9 +154,6 @@ export function combineCsharpTargetUnionMembers(
     return nonNullishMembers.length === 1
       ? nonNullishMembers[0]
       : csharpRuntimeUnionTargetType(nonNullishMembers);
-  }
-  if (nonNullishMembers.length === 1 && nonNullishMembers[0]!.kind === "type-parameter") {
-    return csharpOptionalStorageProjection(nonNullishMembers[0]!);
   }
   const value = nonNullishMembers.length === 1
     ? nonNullishMembers[0]

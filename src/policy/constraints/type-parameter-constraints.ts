@@ -21,8 +21,8 @@ import type {
 import type { CsharpPolicyContext } from "../model/context.js";
 import type { CsharpConversionShapeQueries } from "../conversions/shape-queries.js";
 import { namedTargetTypeImplicitlyAccepts } from "../conversions/carriers.js";
-import { csharpTargetBindingFact, type CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType } from "../../target-model/types/index.js";
+import { csharpConstraintsRequireReference } from "../../target-model/types/generic-constraints.js";
 
 export type {
   CsharpTypeParameterConstraint,
@@ -74,9 +74,7 @@ export function csharpTypeParameterConstraintsImply(
     inherited.some(constraint => constraint.kind === "keyword" && constraint.keyword === name);
   const nativeClass = (type: TargetTypeRef): boolean => {
     if (type.kind !== "target-named" || getCsharpNullableElementTargetType(type) !== undefined || isCsharpNullableReferenceTargetType(type)) return false;
-    const definition = policy.projectTypes.catalog.definitionForTarget(type);
-    const binding = csharpTargetBindingFact(policy.providers.findTargetBindingByTargetId(type.id));
-    return definition?.kind === "class" || (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "class" || binding?.kind === "class";
+    return csharpConstraintsRequireReference([{ kind: "type", type }]);
   };
   return required.every(constraint => {
     if (constraint.kind === "type") return inherited.some(candidate => candidate.kind === "type" &&

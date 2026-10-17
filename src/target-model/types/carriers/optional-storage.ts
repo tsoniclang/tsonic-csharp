@@ -5,6 +5,7 @@ import { csharpTargetNamedType } from "../factories.js";
 import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
 import { isCsharpValueTypeTargetType } from "../identity.js";
 import { getCsharpNullableElementTargetType } from "./nullable.js";
+import { csharpConstraintsRequireReference } from "../generic-constraints.js";
 import {
   combineCsharpTargetUnionMembers,
   csharpAbsenceTargetType,
@@ -16,7 +17,8 @@ export function resolveCsharpOptionalStorage(
   contract: CsharpOptionalTypeProjection,
   element: TargetTypeRef,
 ): TargetTypeRef | undefined {
-  if (element.kind === "type-parameter") {
+  if (element.kind === "type-parameter" && !(element.csharpConstraints?.kind === "resolved" &&
+    csharpConstraintsRequireReference(element.csharpConstraints.constraints))) {
     return csharpProjectedType({ ...contract, arguments: [element] });
   }
   const storage = combineCsharpTargetUnionMembers([element, csharpAbsenceTargetType()]);

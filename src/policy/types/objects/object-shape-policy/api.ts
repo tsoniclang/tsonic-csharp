@@ -47,8 +47,6 @@ import { csharpObjectShapeMethodRequiresProtocol } from "../../../../target-mode
 import { parameterizeCsharpStructuralContract } from "./structural-contracts.js";
 import { selectCsharpCopiedMethodReceiver } from "../../../ownership/copied-methods.js";
 import { retainCsharpGenericCallableValue } from "../../callables/generic-values.js";
-import { createCsharpTypeParameterEnvironment } from "../../../constraints/type-parameter-environment.js";
-import { resolveCsharpTypeParameterConstraints } from "../../../constraints/type-parameter-constraints.js";
 
 import type { CsharpObjectLiteralTargetShapeResolution, CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
 import type { CsharpProjectConstructibleTypeProjection } from "../../../../target-model/records/object-shapes.js";
@@ -57,12 +55,7 @@ import { instantiateCsharpObjectShape } from "./instantiation.js";
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
 ): CsharpRecursiveObjectShapePolicy {
-  const environment = createCsharpTypeParameterEnvironment(host.ast, (declaration, parameter) => {
-    const file = host.ast.getSourceFile(declaration);
-    return file === undefined ? undefined : resolveCsharpTypeParameterConstraints(declaration, parameter, file, {
-      ast: host.ast, types: { resolveNode: (node, sourceFile) => host.typeResolver.resolveNode(node, sourceFile, { depth: 0 }) },
-    });
-  });
+  const environment = host.typeParameterConstraints;
   const { deriveMembers, instantiateMemberEvidence, resolvePropertyType, retainLiteralMemberEvidence } = createCsharpObjectShapeMemberResolver(host);
   const activeNodes = new WeakSet<object>();
   const activeTypes = new WeakSet<object>();

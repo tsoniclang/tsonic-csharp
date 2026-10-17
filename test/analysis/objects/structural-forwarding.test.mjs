@@ -18,8 +18,102 @@ import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { substituteObjectShapeMemberTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 import { printCsharpCompilationUnit } from "../../../dist/print/source/index.js";
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
+import { instantiateCsharpInheritedCallable } from "../../../dist/analysis/callables/instantiation.js";
+import { csharpSourceTypeParameter } from "../../../dist/target-model/names/type-parameters.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
+
+test("a genuine native callable self-instantiation retains its complete projected binder vector", () => {
+  const declaration = Object.freeze({});
+  const parameter = Object.freeze({ kind: "type-parameter", identity: "actual:Value", name: "Value" });
+  const storage = csharpNullableTargetType(parameter);
+  const operations = csharpProjectedType({ kind: "optional", part: "operations", arguments: [parameter] });
+  const identities = Object.freeze([parameter.identity, operations.identity, storage.identity]);
+  const permissions = Object.freeze([false, false, false]);
+  const incoming = Object.freeze({ sourceParameter: Object.freeze({}),
+    targetParameter: Object.freeze({ name: "value", type: storage, passingMode: "by-value" }) });
+  const contract = Object.freeze({ sourceDeclaration: declaration, methodTypeParameterIdentities: identities,
+    methodAllowsRefLikeTypeArguments: permissions, parameters: Object.freeze([incoming]), returnType: integer });
+  const policy = { ast: { typeParameters: () => assert.fail("self-instantiation cannot confuse authored slots with its native projection vector") },
+    projectTypes: { instantiateMemberType(selected, _receiver, type) {
+      assert.equal(selected === declaration, true, "the actual declaration is the native instantiation owner");
+      return { kind: "resolved", type };
+    } } };
+  const selected = instantiateCsharpInheritedCallable(policy, contract, contract, undefined);
+  assert.equal(selected !== undefined, true, "one authored binder plus two real projections is a valid self-instantiation");
+  assert.equal(selected.methodTypeParameterIdentities === identities && selected.methodAllowsRefLikeTypeArguments === permissions, true,
+    "the exact canonical native binder and permission vectors are retained, never reconstructed or defaulted");
+  assert.equal(selected.parameters[0].targetParameter.type === storage, true, "the real optional storage identity is retained");
+});
+
+test("native callable alpha substitution preserves selected bounded parameter metadata", () => {
+  const sourceFile = { path: "/source/bounded.ts" };
+  const sourceParameter = { name: "Source", position: 10 };
+  const implementationParameter = { name: "Native", position: 20 };
+  const sourceDeclaration = { parameters: [sourceParameter] };
+  const implementationDeclaration = { parameters: [implementationParameter] };
+  const ast = {
+    is: { IsTypeParameterDeclaration: node => node === sourceParameter || node === implementationParameter },
+    typeParameters: node => node.parameters,
+    name: node => node.name, text: name => name, getSourceFile: () => sourceFile, getPath: file => file.path,
+    kind: () => 22, pos: node => node.position, end: node => node.position + 5,
+  };
+  const constraint = Object.freeze({ kind: "resolved", constraints: Object.freeze([{ kind: "keyword", keyword: "class" }]) });
+  const sourceType = Object.freeze({ ...csharpSourceTypeParameter(sourceParameter, ast), csharpConstraints: constraint });
+  const implementationType = Object.freeze({ ...csharpSourceTypeParameter(implementationParameter, ast), csharpConstraints: constraint });
+  const contract = (declaration, parameter) => Object.freeze({ sourceDeclaration: declaration,
+    methodTypeParameterIdentities: Object.freeze([parameter.identity]), methodAllowsRefLikeTypeArguments: Object.freeze([false]),
+    parameters: Object.freeze([{ sourceParameter: Object.freeze({}), targetParameter: Object.freeze({ name: "value",
+      type: csharpNullableTargetType(parameter), passingMode: "by-value" }) }]), returnType: parameter });
+  const implementation = contract(implementationDeclaration, implementationType);
+  const selected = instantiateCsharpInheritedCallable({ ast, projectTypes: {
+    instantiateMemberType: (_declaration, _receiver, type) => ({ kind: "resolved", type }),
+  } }, contract(sourceDeclaration, sourceType), implementation, undefined);
+  assert.equal(selected !== undefined, true, "the actual bounded generic callable can be alpha-instantiated");
+  assert.equal(selected.parameters[0].targetParameter.type.csharpNullableReference === true &&
+    selected.parameters[0].targetParameter.type.csharpProjection === undefined, true,
+  "substituting an actual class-bound binder never creates an unknown optional witness");
+  assert.equal(selected.parameters[0].targetParameter.type.csharpConstraints === constraint &&
+    selected.returnType.identity === implementationType.identity, true, "native identity and selected constraints remain authoritative");
+});
+
+test("distinct authored callable binders preserve a matching complete native projection layout", () => {
+  const sourceFile = { path: "/source/projected.ts" };
+  const sourceParameter = { name: "Source", position: 10 };
+  const implementationParameter = { name: "Native", position: 20 };
+  const sourceDeclaration = { parameters: [sourceParameter] };
+  const implementationDeclaration = { parameters: [implementationParameter] };
+  const ast = {
+    is: { IsTypeParameterDeclaration: node => node === sourceParameter || node === implementationParameter },
+    typeParameters: node => node.parameters,
+    name: node => node.name, text: name => name, getSourceFile: () => sourceFile, getPath: file => file.path,
+    kind: () => 22, pos: node => node.position, end: node => node.position + 5,
+  };
+  const contract = (declaration, parameter) => {
+    const operations = csharpProjectedType({ kind: "optional", part: "operations", arguments: [parameter] });
+    const storage = csharpNullableTargetType(parameter);
+    return Object.freeze({ sourceDeclaration: declaration,
+      methodTypeParameterIdentities: Object.freeze([parameter.identity, operations.identity, storage.identity]),
+      methodAllowsRefLikeTypeArguments: Object.freeze([false, false, false]),
+      parameters: Object.freeze([{ sourceParameter: Object.freeze({}), targetParameter: Object.freeze({
+        name: "value", type: storage, passingMode: "by-value", optional: true }) }]), returnType: integer });
+  };
+  const source = contract(sourceDeclaration, csharpSourceTypeParameter(sourceParameter, ast));
+  const implementation = contract(implementationDeclaration, csharpSourceTypeParameter(implementationParameter, ast));
+  const selected = instantiateCsharpInheritedCallable({ ast, projectTypes: {
+    instantiateMemberType: (_declaration, _receiver, type) => ({ kind: "resolved", type }),
+  } }, source, implementation, undefined);
+  assert.equal(selected !== undefined, true, "one actual authored binder aligns without truncating the three native binders");
+  assert.equal(selected.methodTypeParameterIdentities === implementation.methodTypeParameterIdentities &&
+    selected.methodAllowsRefLikeTypeArguments === implementation.methodAllowsRefLikeTypeArguments, true,
+  "the actual complete native binder and permission vectors remain authoritative");
+  assert.equal(targetTypeRefKey(selected.parameters[0].targetParameter.type) ===
+    targetTypeRefKey(implementation.parameters[0].targetParameter.type), true,
+  "the real projected storage is substituted through its checked authored payload");
+  assert.equal(selected.parameters[0].sourceParameter === source.parameters[0].sourceParameter &&
+    selected.parameters[0].targetParameter.optional === true && selected.parameters[0].targetParameter.passingMode === "by-value", true,
+  "parameter identity, omission and native passing are unchanged");
+});
 
 function defaultEvidenceFixture(kind) {
   const declaration = Object.freeze({ kind });

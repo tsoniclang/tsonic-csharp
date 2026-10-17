@@ -43,13 +43,9 @@ export function csharpDelegateTargetType(
     kind: "named",
     name: kind === "System.Action" ? "Action" : "Func",
     usingNamespace: ["System"],
-  }, { allowsRefLikeTypeArguments: typeArguments.map(() => true) });
+  }, { allowsRefLikeTypeArguments: typeArguments.map(() => true), constraintRequiresReferenceType: true });
   return {
-    kind: "target-named",
-    id: targetType.id,
-    csharpAllowsRefLikeTypeArguments: targetType.csharpAllowsRefLikeTypeArguments,
-    ...(targetType.typeArguments !== undefined ? { typeArguments: targetType.typeArguments } : {}),
-    ...(targetType.csharpRender !== undefined ? { csharpRender: targetType.csharpRender } : {}),
+    ...targetType,
     csharpDelegateSignature: {
       parameters,
       parameterPassingModes: Object.freeze(parameters.map(() => "by-value" as const)),
@@ -71,8 +67,8 @@ export function csharpDelegateTargetType(
 
 export function csharpTaskTargetType(resultType: TargetTypeRef): CsharpTaskTargetTypeRef {
   const targetType = isCsharpVoidTargetType(resultType)
-    ? csharpTargetNamedType("System.Threading.Tasks.Task", undefined, csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"), { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [], typeofRuntimeKind: "object" })
-    : csharpTargetNamedType("System.Threading.Tasks.Task`1", [resultType], csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"), { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [false], typeofRuntimeKind: "object" });
+    ? csharpTargetNamedType("System.Threading.Tasks.Task", undefined, csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"), { sourceDeclarationKind: "class", constraintRequiresReferenceType: true, allowsRefLikeTypeArguments: [], typeofRuntimeKind: "object" })
+    : csharpTargetNamedType("System.Threading.Tasks.Task`1", [resultType], csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"), { sourceDeclarationKind: "class", constraintRequiresReferenceType: true, allowsRefLikeTypeArguments: [false], typeofRuntimeKind: "object" });
   return {
     ...targetType,
     csharpTaskResultType: resultType,

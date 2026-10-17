@@ -12,6 +12,15 @@ import { substituteTargetTypeParameters } from "../../../dist/target-model/types
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpObjectShapeContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
 import { csharpObjectShapesEqual } from "../../../dist/target-model/types/object-shape-equality.js";
+import { csharpConstraintsRequireReference, csharpTypeParameterConstraintResolutionKey } from "../../../dist/target-model/types/generic-constraints.js";
+import { resolveTypeParameter } from "../../../dist/policy/types/resolution/source-evidence.js";
+import { csharpTypeParameterConstraintsEqual } from "../../../dist/policy/constraints/type-parameter-constraints.js";
+import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
+import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { csharpListTargetType, csharpEnumerableTargetType } from "../../../dist/target-model/types/carriers/collections.js";
+import { csharpStringTargetType, csharpExceptionTargetType, csharpRuntimeErrorTargetType,
+  csharpObjectTargetType, csharpVoidTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { projectDefinitionTargetType } from "../../../dist/policy/types/project/project-types.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 const parameter = (identity, name = identity) => ({ kind: "type-parameter", identity, name });
@@ -28,6 +37,77 @@ test("nongeneric owners do not allocate or query a generic constraint environmen
   assert.equal(Object.isFrozen(first), true);
   const owner = createStructuralObjectShapeTarget([field(integer)], undefined, environment);
   assert.equal(owner.typeArguments === undefined, true, "no generic arguments manufactured for nongeneric storage");
+});
+
+test("selected transitive class evidence is finite without guessing through unproved cycles", () => {
+  const first = parameter("first");
+  const second = parameter("second");
+  first.csharpConstraints = resolved([typeConstraint(second)]);
+  second.csharpConstraints = resolved([typeConstraint(first)]);
+  assert.equal(csharpConstraintsRequireReference(first.csharpConstraints.constraints), false,
+    "an actual cyclic dependency is not positive native class evidence");
+  second.csharpConstraints = resolved([typeConstraint(first), { kind: "keyword", keyword: "class" }]);
+  assert.equal(csharpConstraintsRequireReference(first.csharpConstraints.constraints), true,
+    "a real terminal class requirement proves reference storage without reopening a declaration");
+  const selected = parameter("selected");
+  selected.csharpConstraints = resolved([{ kind: "type", type: { kind: "target-named", id: "LooksLikeClass",
+    csharpAllowsRefLikeTypeArguments: [], csharpSourceDeclarationKind: "interface" } }]);
+  assert.equal(csharpConstraintsRequireReference(selected.csharpConstraints.constraints), false,
+    "the selected native kind wins over a class-looking name");
+});
+
+test("native constraint equivalence stays separate from direct and transitive reference evidence", () => {
+  const unproved = csharpTargetNamedType("fixture.Base", undefined, undefined,
+    { allowsRefLikeTypeArguments: [], sourceDeclarationKind: "class" });
+  const proved = csharpTargetNamedType("fixture.Base", undefined, undefined,
+    { allowsRefLikeTypeArguments: [], sourceDeclarationKind: "class", constraintRequiresReferenceType: true });
+  const original = resolved([typeConstraint(unproved)]);
+  const selected = resolved([typeConstraint(proved)]);
+  assert.equal(targetTypeRefEquals(unproved, proved), true, "native type identity does not depend on a view's amount of proof");
+  assert.equal(csharpTypeParameterConstraintsEqual(original.constraints, selected.constraints), true,
+    "equivalent actual native clauses cannot require a gratuitous adapter");
+  assert.equal(csharpConstraintsRequireReference(original.constraints), false, "a class-kind stamp alone proves no native reference constraint");
+  assert.equal(csharpConstraintsRequireReference(selected.constraints), true, "the one selected positive fact establishes the native bound");
+  assert.equal(csharpTypeParameterConstraintResolutionKey(original) === JSON.stringify([["type", targetTypeRefKey(unproved)]]), true,
+    "absence of new positive evidence adds no irrelevant physical-owner fingerprint component");
+  assert.equal(csharpTypeParameterConstraintResolutionKey(original) === csharpTypeParameterConstraintResolutionKey(selected), false,
+    "materialization keys retain stronger actual selected proof without changing native identity");
+  const indirectOriginal = resolved([typeConstraint({ ...parameter("dependent"), csharpConstraints: original })]);
+  const indirectSelected = resolved([typeConstraint({ ...parameter("dependent"), csharpConstraints: selected })]);
+  assert.equal(csharpTypeParameterConstraintResolutionKey(indirectOriginal) === csharpTypeParameterConstraintResolutionKey(indirectSelected), false,
+    "a proof upgrade behind a real dependent binder is retained by the same evidence key");
+  const snapshot = snapshotCsharpTargetTypes([{ ...parameter("selected"), csharpConstraints: selected }])[0];
+  assert.equal(snapshot.csharpConstraints.constraints[0].type.csharpConstraintRequiresReferenceType === true, true,
+    "immutable owner snapshots preserve the exact selected category proof");
+  const substituted = substituteTargetTypeParameters({ ...parameter("selected"), csharpConstraints: selected }, new Map());
+  assert.equal(substituted.csharpConstraints.constraints[0].type.csharpConstraintRequiresReferenceType === true, true,
+    "native generic substitution never drops the selected positive proof");
+});
+
+test("known native reference factories publish proof without reclassifying object or interface bounds", () => {
+  for (const [label, type] of [
+    ["string", csharpStringTargetType()], ["exception", csharpExceptionTargetType()], ["runtime-error", csharpRuntimeErrorTargetType()],
+    ["task", csharpTaskTargetType(csharpVoidTargetType())], ["generic-task", csharpTaskTargetType(integer)],
+    ["action", csharpDelegateTargetType("System.Action", [])], ["function", csharpDelegateTargetType("System.Func", [integer], integer)],
+    ["list", csharpListTargetType(integer)],
+  ]) {
+    assert.equal(type.csharpConstraintRequiresReferenceType === true, true, `${label}: the existing actual native producer retains its proof`);
+    assert.equal(csharpConstraintsRequireReference([typeConstraint(type)]), true, `${label}: one canonical reader consumes the native fact`);
+  }
+  for (const [label, type] of [["object", csharpObjectTargetType()], ["interface", csharpEnumerableTargetType(integer)]]) {
+    assert.equal(type.csharpConstraintRequiresReferenceType === undefined, true, `${label}: no native class-bound guarantee is invented`);
+    assert.equal(csharpConstraintsRequireReference([typeConstraint(type)]), false, `${label}: ordinary reference values do not force reference-only arguments`);
+  }
+});
+
+test("source emitted declaration kind alone owns its selected native reference guarantee", () => {
+  for (const kind of ["class", "struct", "enum", "interface"]) {
+    const selected = projectDefinitionTargetType({ kind, id: `fixture.${kind}`, sourceName: "Declared" }, []);
+    assert.equal(selected.csharpConstraintRequiresReferenceType === true, kind === "class",
+      `${kind}: the actual emitted source definition, not its name, selects the bound guarantee`);
+    assert.equal(csharpConstraintsRequireReference([typeConstraint(selected)]), kind === "class",
+      `${kind}: ordinary values and native interface implementers never gain an unproved class constraint`);
+  }
 });
 
 test("a captured binder retains transitive constraint parameters before native owner identity is chosen", () => {
@@ -146,6 +226,21 @@ test("source constraint resolution uses exact declaration identity once and seal
   assert.equal(environment({ ...outer }) === first, true, "one cached native constraint contract");
   assert.equal(first.constraints[0].type.typeArguments[0].name, "int32", "immutable native constraint snapshot");
   assert.equal(calls, 1, "one producer query");
+  const sourceType = Object.freeze({});
+  const symbol = Object.freeze({});
+  const queries = { declarations: {
+    typeSymbol: type => type === sourceType ? symbol : undefined,
+    symbolDeclarations: selected => selected === symbol ? [declaration] : [],
+  } };
+  const selected = resolveTypeParameter(sourceType, queries, ast, environment);
+  const repeated = resolveTypeParameter(sourceType, queries, ast, environment);
+  assert.equal(selected.identity === outer.identity && repeated.identity === outer.identity, true,
+    "ordinary source resolution retains the actual selected binder identity");
+  assert.equal(selected.csharpConstraints === first && repeated.csharpConstraints === first, true,
+    "ordinary source and structural owner reads consume the same immutable cached native contract");
+  assert.equal(calls, 1, "source resolution does not create a second constraint parser or cache");
+  assert.throws(() => resolveTypeParameter(sourceType, queries, ast), TypeError,
+    "the superseded source resolver without its mandatory selected-constraint input is rejected");
   assert.equal(environment({ ...outer, identity: "wrong" }).kind, "unsupported", "identity mismatch fails closed");
   assert.equal(environment(parameter("missing")).kind, "unsupported", "no guessed unconstrained binder");
 });

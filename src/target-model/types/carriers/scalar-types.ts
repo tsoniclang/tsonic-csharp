@@ -58,6 +58,7 @@ export function csharpSourcePrimitiveDotnetMetadataName(kind: SourcePrimitiveKin
 export function csharpStringTargetType(): CsharpTargetNamedTypeRef {
   const type = csharpTargetNamedType("System.String", undefined, { kind: "predefined", name: "string" }, { allowsRefLikeTypeArguments: [],
     specialType: "string",
+    constraintRequiresReferenceType: true,
     typeofRuntimeKind: "string",
   });
   const charType = csharpTargetNamedType("System.Char", undefined, { kind: "predefined", name: "char" }, { allowsRefLikeTypeArguments: [], valueType: true });
@@ -128,6 +129,7 @@ export function csharpBigIntegerTargetType(): CsharpTargetNamedTypeRef {
 export function csharpExceptionTargetType(): CsharpTargetNamedTypeRef {
   return csharpTargetNamedType("System.Exception", undefined, csharpQualifiedTypeRenderShape("System", "Exception"), {
     sourceDeclarationKind: "class",
+    constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
     throwable: true,
     typeofRuntimeKind: "object",
@@ -139,7 +141,7 @@ export function csharpRuntimeErrorTargetType(name: CsharpSourceErrorName = "Erro
     `Tsonic.CSharp.Runtime.${name}`,
     undefined,
     csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", name),
-    { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [], throwable: true, typeofRuntimeKind: "object",
+    { sourceDeclarationKind: "class", constraintRequiresReferenceType: true, allowsRefLikeTypeArguments: [], throwable: true, typeofRuntimeKind: "object",
       baseType: name === "Error" ? csharpExceptionTargetType() : csharpRuntimeErrorTargetType() },
   );
 }
