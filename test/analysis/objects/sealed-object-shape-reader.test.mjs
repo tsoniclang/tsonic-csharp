@@ -38,7 +38,7 @@ function harness({ resolvesComponent, shapeTemplate = template }) {
     ast: { is: { IsObjectLiteralExpression: () => false }, forEachChild: () => {}, parent: () => undefined,
       properties: () => [], authoredRange: () => ({ kind: "unauthored" }) },
     sourceFiles: [files.holder, files.template], typeDefinitions: emptyCsharpTypeDefinitions,
-    projectTypes: { directSupertypes: () => undefined },
+    projectTypes: { directSupertypes: () => undefined, catalog: { definitionForTarget: () => undefined } },
     objectShapes: {
       resolveNode: native("resolveNode", node => node === files.holder ? holder : node === files.template ? shapeTemplate : undefined),
       resolveTarget: native("resolveTarget", type => {
@@ -213,7 +213,7 @@ test("a generic structural implementation is substituted once at seal into froze
       resolveTarget: type => { assert.equal(closed, false, "native selection precedes publication"); queries += 1; return shapes.get(targetTypeRefKey(type)); },
       resolveCopyShape: () => { assert.equal(closed, false, "copy selection precedes publication"); return undefined; },
     },
-    projectTypes: { directSupertypes: () => [] },
+    projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
     semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({
       kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
         source: { property: { symbol: sourceSymbol, rootSymbols: [] }, declarations: [] },

@@ -192,14 +192,17 @@ export function analyzeCsharpObjectShapes(
   }
 
   function closeStructuralShapes(): void {
+    let revision: number;
     do {
+      revision = structuralRevision;
       preparePhysicalShapes();
       closeInheritedStructuralInterfaces();
-    } while (pendingPhysicalTypes.size > 0);
+    } while (pendingPhysicalTypes.size > 0 || revision !== structuralRevision);
   }
 
   function closeInheritedStructuralInterfaces(): void {
     if (structuralRevision === closedStructuralRevision) return;
+    const revision = structuralRevision;
     const issues: CsharpProjectTypeIssue[] = [];
     const rejected = new Set<string>();
     for (const implementations of structuralInterfaces.values()) {
@@ -235,7 +238,7 @@ export function analyzeCsharpObjectShapes(
       }
     }
     structuralIssues = Object.freeze(issues);
-    closedStructuralRevision = structuralRevision;
+    closedStructuralRevision = revision;
   }
 
   for (const sourceFile of policy.sourceFiles) {
