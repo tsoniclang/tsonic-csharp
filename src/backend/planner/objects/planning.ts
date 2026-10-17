@@ -110,6 +110,8 @@ export function materializeObjectShapeDeclarations(
       continue;
     }
     const fact = artifact.fact.declarationTemplate ?? artifact.fact;
+    const declarationArtifact = artifact.fact.declarationTemplate === undefined
+      ? artifact : input.artifacts.objectShape(fact);
     const generatedTypeParameterNames = csharpGeneratedTypeParameterNames(
       fact.targetType.kind === "target-named"
         ? (fact.targetType.typeArguments ?? []).filter(argument => argument.kind === "type-parameter") : [],
@@ -123,10 +125,10 @@ export function materializeObjectShapeDeclarations(
     const declarationInput = { ...input, scope: { ...input.scope, typeParameterNames } };
     const declaration = renderObjectShapeDeclaration(
       declarationInput,
-      artifact.fact,
-      artifact.capabilities,
-      artifact.projections,
-      artifact.receiverBoundMethodKeys,
+      declarationArtifact.fact,
+      declarationArtifact.capabilities,
+      declarationArtifact.projections,
+      declarationArtifact.receiverBoundMethodKeys,
       diagnostics,
     );
     if (declaration === undefined) {
@@ -135,17 +137,17 @@ export function materializeObjectShapeDeclarations(
     const existing = declarations.get(declaration.name);
     if (
       existing !== undefined &&
-      (existing.kind !== declaration.kind || (artifact.fact.methodImplementation !== undefined || input.program.records.captureFrameShape.get(artifact.fact.targetType) !== undefined
+      (existing.kind !== declaration.kind || (declarationArtifact.fact.methodImplementation !== undefined || input.program.records.captureFrameShape.get(declarationArtifact.fact.targetType) !== undefined
         ? JSON.stringify(existing) !== JSON.stringify(declaration)
         : existing.kind === "ClassDeclaration" && !objectShapeDeclarationMatches(
         typeParameterNames,
         existing,
-        artifact.fact.declarationTemplate ?? artifact.fact,
-        artifact.capabilities.includes("json-serialization"),
-        artifact.projections,
-        new Set(artifact.receiverBoundMethodKeys),
-        artifact.capabilities.includes("js-freeze"),
-        artifact.capabilities.includes("reference-identity"),
+        declarationArtifact.fact,
+        declarationArtifact.capabilities.includes("json-serialization"),
+        declarationArtifact.projections,
+        new Set(declarationArtifact.receiverBoundMethodKeys),
+        declarationArtifact.capabilities.includes("js-freeze"),
+        declarationArtifact.capabilities.includes("reference-identity"),
         declaration.kind === "ClassDeclaration" ? declaration.members.filter(member =>
           member.kind === "PropertyDeclaration" && member.explicitInterface !== undefined) : [],
         declaration.kind === "ClassDeclaration" ? declaration.members.filter(isCsharpEnumerableKeysMember) : [],
