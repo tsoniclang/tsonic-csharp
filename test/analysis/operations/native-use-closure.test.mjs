@@ -14,6 +14,38 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
 
+for (const surface of ["native", "js"]) {
+  test(`${surface} generic super construction consumes the exact canonical native base environment`, { timeout: 240_000 }, () => {
+    const compiled = compileCsharpNativeUseSource({ surface, sourceText: `
+      class GenericOptions<T> {
+        constructor(private readonly grouping: T) {}
+        get useGrouping(): T { return this.grouping; }
+      }
+      class NativeOptions extends GenericOptions<boolean> {
+        constructor() { super(false); }
+      }
+      class Forwarded<T> extends GenericOptions<T> {
+        constructor(value: T) { super(value); }
+      }
+      export function run(): boolean {
+        const direct = new NativeOptions();
+        const forwarded = new Forwarded<boolean>(true);
+        return !direct.useGrouping && forwarded.useGrouping;
+      }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the original inherited generic construction is checked source");
+    assert.equal(compiled.targetDiagnostics.length, 0, "the selected base native parameter contract is complete before sealing");
+    assert.equal(compiled.result.program !== undefined && compiled.result.plan !== undefined, true,
+      "the exact direct and forwarded base environments are published together");
+    const output = [...compiled.artifacts.values()].join("\n");
+    assert.match(output, /class NativeOptions : GenericOptions<bool>/u,
+      "the selected closed native base keeps its exact actual generic argument");
+    assert.match(output, /class Forwarded<T> : GenericOptions<T>/u,
+      "the forwarded native base retains the original bound generic identity");
+    executeCsharpConstruction(compiled, `generic-super-native-environment-${surface}`);
+  });
+}
+
 test("native Promise continuations keep the original exact external-callee refusal before publication", () => {
   const expression = "Promise.resolve(1).then((value: number): number => value + 1)";
   const sourceText = [
