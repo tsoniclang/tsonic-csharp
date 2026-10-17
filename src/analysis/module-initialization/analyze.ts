@@ -42,13 +42,16 @@ export function analyzeCsharpModuleInitialization(
 ): CsharpModuleInitializationAnalysis {
   const entries = new Map<string, ModuleInitializationEntry>();
   const directCallables = new WeakMap<Node, "public" | "internal">();
+  const bindingInitialization = new WeakMap<Node, "declaration" | "value">();
   for (const sourceFile of input.sourceFiles) {
     for (const statement of input.source.ast.statements(sourceFile)) {
       const declarations = AsVariableStatement(input.source.ast, statement)?.DeclarationList;
-      if (declarations === undefined || input.source.ast.variableDeclarationKind(declarations) !== "const") continue;
+      if (declarations === undefined) continue;
       for (const declaration of input.source.ast.children(declarations)) {
         if (declaration === undefined || !input.source.ast.is.IsVariableDeclaration(declaration)) continue;
         const initializer = AsVariableDeclaration(input.source.ast, declaration)?.Initializer;
+        bindingInitialization.set(declaration, initializer === undefined ? "declaration" : "value");
+        if (input.source.ast.variableDeclarationKind(declarations) !== "const") continue;
         if (initializer === undefined || !input.source.ast.is.IsArrowFunction(initializer) ||
           input.source.ast.typeParameters(initializer).length !== 0) continue;
         const summary = input.source.navigation.declarationUseSummary(declaration);
@@ -102,6 +105,9 @@ export function analyzeCsharpModuleInitialization(
     },
     callableVisibility: Object.freeze({ get(declaration: Node) {
       return directCallables.get(declaration);
+    } }),
+    moduleBindingInitialization: Object.freeze({ get(declaration: Node) {
+      return bindingInitialization.get(declaration);
     } }),
   });
   return Object.freeze({

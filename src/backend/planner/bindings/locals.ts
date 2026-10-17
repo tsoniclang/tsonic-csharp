@@ -134,7 +134,8 @@ export function planLocalDeclaration(
   } else if (variable.Initializer !== undefined) {
     initializer = planExpression(variable.Initializer, sourceFile, input, diagnostics, state
     );
-  } else if (inferredTargetType !== undefined) {
+  } else if (inferredTargetType !== undefined &&
+    input.program.records.moduleBindingInitialization.get(declarationNode) !== "declaration") {
     const undefinedValue = planCsharpSourceUndefinedValue(
       declarationNode,
       inferredTargetType,
