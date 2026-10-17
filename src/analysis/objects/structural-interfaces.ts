@@ -39,8 +39,7 @@ export function selectCsharpStructuralInterface(
       ...(declaration === undefined ? {} : { declaration }),
     }));
   }
-  const selectedImplementation = selectCsharpStructuralInterfaceImplementation(policy,
-    { sourceNode: expression, source, destination, members: Object.freeze(members) });
+  const selectedImplementation = selectCsharpStructuralInterfaceImplementation({ sourceNode: expression, source, destination, members: Object.freeze(members) });
   if (selectedImplementation === undefined) return undefined;
   if (destination.targetType.kind !== "target-named" ||
     (destination.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") {
