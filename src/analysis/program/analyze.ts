@@ -373,6 +373,12 @@ export function analyzeCsharpTargetProgram(
     analysis.policy, analysis.objectShapes, callableAdapters, analysis.declarations,
   );
   if (structuralForwarding.issues.length > 0) return rejectCsharpAnalysisIssues(structuralForwarding.issues);
+  const promiseResults = analyzeCsharpPromiseResults({ source, storage: sourceStorage, nodes: sourceStorage.nodes,
+    records: { valueRead: analysis.valueReads.valueRead, selectedCall: analysis.operations.selectedCall,
+      selectedConstruction: analysis.operations.selectedConstruction },
+    definitions: analysis.typeDefinitions, nativePlacement: analysis.refLikeDiagnostics,
+    sourceCarrier: (type, file) => analysis.policy.types.resolveType(type, file) });
+  if (promiseResults.diagnostics.length > 0) return rejectedTargetStage(promiseResults.diagnostics);
   const typeDefinitions = analysis.typeDefinitions.seal();
   const records = createCsharpProgramRecords({
     nativeValueCarriers,
@@ -384,9 +390,6 @@ export function analyzeCsharpTargetProgram(
     expectedTypes: analysis.expectedTypes, storage: analysis.storage,
     sourceModuleConstructions: sourceModuleConstructions.index, moduleInitialization: moduleInitialization.index,
   }, analysis.requiredRecords);
-  const promiseResults = analyzeCsharpPromiseResults({ source, storage: sourceStorage, nodes: sourceStorage.nodes, records,
-    definitions: typeDefinitions, sourceCarrier: (type, file) => analysis.policy.types.resolveType(type, file) });
-  if (promiseResults.diagnostics.length > 0) return rejectedTargetStage(promiseResults.diagnostics);
   const binaryExecutionDriver = composeCsharpBinaryExecutionDriver(prerequisiteBinaryExecutionDriver,
     [...promiseResults.results.values()].some(result => result.discard !== undefined) ? csharpJsEventLoopBinaryExecutionDriver : undefined);
   const program: CsharpTargetProgram = Object.freeze({
