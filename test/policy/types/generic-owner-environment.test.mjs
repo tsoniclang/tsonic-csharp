@@ -14,7 +14,7 @@ import { csharpObjectShapeContractKey } from "../../../dist/target-model/types/o
 import { csharpObjectShapesEqual } from "../../../dist/target-model/types/object-shape-equality.js";
 import { csharpConstraintsRequireReference, csharpTypeParameterConstraintResolutionKey } from "../../../dist/target-model/types/generic-constraints.js";
 import { resolveTypeParameter } from "../../../dist/policy/types/resolution/source-evidence.js";
-import { csharpTypeParameterConstraintsEqual } from "../../../dist/policy/constraints/type-parameter-constraints.js";
+import { csharpTypeParameterConstraintsEqual, resolveCsharpTypeParameterConstraints } from "../../../dist/policy/constraints/type-parameter-constraints.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpListTargetType, csharpEnumerableTargetType } from "../../../dist/target-model/types/carriers/collections.js";
@@ -228,7 +228,7 @@ test("source constraint resolution uses exact declaration identity once and seal
   assert.equal(calls, 1, "one producer query");
   const sourceType = Object.freeze({});
   const symbol = Object.freeze({});
-  const queries = { declarations: {
+  const queries = { sourceFile, declarations: {
     typeSymbol: type => type === sourceType ? symbol : undefined,
     symbolDeclarations: selected => selected === symbol ? [declaration] : [],
   } };
@@ -243,6 +243,58 @@ test("source constraint resolution uses exact declaration identity once and seal
     "the superseded source resolver without its mandatory selected-constraint input is rejected");
   assert.equal(environment({ ...outer, identity: "wrong" }).kind, "unsupported", "identity mismatch fails closed");
   assert.equal(environment(parameter("missing")).kind, "unsupported", "no guessed unconstrained binder");
+});
+
+test("virtual generic declarations retain their checked consumer and do not cache missing-context failures", () => {
+  const declarationFile = { path: "tsts-provider://owner.d.ts" };
+  const consumerFile = { path: "/src/use.ts" };
+  const declaration = { name: "Selected", position: 17 };
+  const ast = {
+    is: { IsTypeParameterDeclaration: node => node === declaration },
+    name: node => node.name, text: name => name, getSourceFile: () => declarationFile, getPath: file => file.path,
+    kind: () => 22, pos: node => node.position, end: node => node.position + 8,
+  };
+  const sourceType = Object.freeze({});
+  const symbol = Object.freeze({});
+  const queries = { sourceFile: consumerFile, declarations: {
+    typeSymbol: type => type === sourceType ? symbol : undefined,
+    symbolDeclarations: selected => selected === symbol ? [declaration] : [],
+  } };
+  const bound = typeConstraint(container(integer));
+  const constraints = resolved([{ kind: "keyword", keyword: "class" }, bound]);
+  let sourceQueries = 0;
+  const environment = createCsharpTypeParameterEnvironment(ast, (node, selected, source) => {
+    assert.equal(node === declaration, true, "virtual declaration identity is never normalized to another binder");
+    if (source === undefined) return undefined;
+    assert.equal(source.sourceFile === consumerFile, true, "the included checked consumer, not the virtual declaration file");
+    assert.equal(source.sourceType === sourceType, true, "the selected checker type is retained without another declaration query");
+    assert.equal(selected.csharpDeclaration === declaration, true, "the original declaration still identifies the native binder");
+    sourceQueries += 1;
+    return constraints;
+  });
+  const selected = csharpSourceTypeParameter(declaration, ast);
+  assert.equal(environment(selected).kind, "unsupported", "missing request evidence is not a guessed empty native bound");
+  const first = resolveTypeParameter(sourceType, queries, ast, environment);
+  const second = resolveTypeParameter(sourceType, queries, ast, environment);
+  assert.equal(first.csharpConstraints.kind, "resolved", "a later real consumer is not poisoned by the missing-context request");
+  assert.equal(first.csharpConstraints.constraints.length, 2, "all actual keyword and selected interface constraints remain");
+  assert.equal(first.csharpConstraints.constraints[1].type.typeArguments[0].name, "int32", "the selected native bound is unchanged");
+  assert.equal(second.csharpConstraints === first.csharpConstraints, true, "one canonical immutable constraint result");
+  assert.equal(environment(selected) === first.csharpConstraints, true, "later owner reads consume the same completed native evidence");
+  assert.equal(sourceQueries, 1, "one checked producer query for this exact binder");
+});
+
+test("retained native clauses never depend on the virtual source declaration's token shape", () => {
+  const retained = resolved([{ kind: "keyword", keyword: "unmanaged" }, typeConstraint(container(integer))]);
+  const environment = createCsharpTypeParameterEnvironment({}, () => {
+    assert.fail("already selected native constraints are not reparsed from source syntax");
+  });
+  assert.equal(environment({ ...parameter("native"), csharpConstraints: retained }) === retained, true,
+    "unmanaged, value, class and interface evidence is authoritative before source-context resolution");
+  const ast = { as: { AsTypeParameterDeclaration: () => undefined } };
+  const unreadable = resolveCsharpTypeParameterConstraints({}, parameter("unknown"), {}, { ast, types: {} });
+  assert.equal(unreadable.kind, "unsupported", "unreadable declaration metadata is not proof of an empty native constraint set");
+  assert.equal(unreadable.reason, "The selected generic declaration has no readable source constraint evidence.");
 });
 
 test("outer substitutions update retained constraint dependencies without changing the declared binder", () => {

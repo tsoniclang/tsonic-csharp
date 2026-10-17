@@ -63,7 +63,7 @@ export interface CsharpTypePolicyBaseHost {
 }
 
 export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
-  readonly typeParameterConstraints: import("../../../target-model/types/generic-references.js").CsharpTypeParameterConstraintResolver;
+  readonly typeParameterConstraints: import("../../constraints/type-parameter-environment.js").CsharpTypeParameterEnvironment;
   closedTypeGuard(node: Node): import("@tsonic/target-api/source").SourceNativeGuard<import("../../../target-model/operations/type-tests.js").CsharpClosedTypePredicate> | undefined;
   bindingProjection(node: Node, sourceFile: SourceFile): import("../../../target-model/records/binding-projection-policy.js").CsharpBindingProjection | undefined;
   readonly representations: CsharpPlanningRepresentationQueries;

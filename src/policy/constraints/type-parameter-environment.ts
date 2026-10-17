@@ -1,19 +1,30 @@
-import type { AstReader, Node } from "@tsonic/tsts";
+import type { AstReader, Node, SourceFile, Type } from "@tsonic/tsts";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import { csharpTypeProjection } from "../../target-model/types/projections.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../target-model/types/generic-constraints.js";
-import type { CsharpTypeParameterConstraintResolver } from "../../target-model/types/generic-references.js";
 import { snapshotCsharpTargetTypes } from "../../target-model/types/snapshot.js";
+
+type TypeParameter = Extract<TargetTypeRef, { readonly kind: "type-parameter" }>;
+
+export interface CsharpTypeParameterSourceEvidence {
+  readonly sourceFile: SourceFile;
+  readonly sourceType: Type;
+}
+
+export type CsharpTypeParameterEnvironment = (
+  parameter: TypeParameter,
+  source?: CsharpTypeParameterSourceEvidence,
+) => CsharpTypeParameterConstraintResolution;
 
 export function createCsharpTypeParameterEnvironment(
   ast: AstReader,
-  resolve: (declaration: Node, parameter: Extract<TargetTypeRef, { readonly kind: "type-parameter" }>) =>
+  resolve: (declaration: Node, parameter: TypeParameter, source?: CsharpTypeParameterSourceEvidence) =>
     CsharpTypeParameterConstraintResolution | undefined,
-): CsharpTypeParameterConstraintResolver {
+): CsharpTypeParameterEnvironment {
   const cache = new Map<string, CsharpTypeParameterConstraintResolution>();
   const active = new Set<string>();
-  return parameter => {
+  return (parameter, source) => {
     const declaration = parameter.csharpDeclaration;
     const selected = declaration === undefined ? undefined : csharpSourceTypeParameter(declaration, ast);
     if (declaration !== undefined && selected?.identity !== parameter.identity) return Object.freeze({ kind: "unsupported",
@@ -28,13 +39,14 @@ export function createCsharpTypeParameterEnvironment(
     if (active.has(parameter.identity)) return Object.freeze({ kind: "unsupported",
       reason: `Generic binder '${parameter.name}' constraint resolution reentered an unfinished native contract.` });
     active.add(parameter.identity);
-    let resolution: CsharpTypeParameterConstraintResolution;
+    let resolution: CsharpTypeParameterConstraintResolution | undefined;
     try {
-      resolution = resolve(declaration!, parameter) ?? { kind: "unsupported",
-        reason: `Generic binder '${parameter.name}' has no sealed native constraint evidence.` };
+      resolution = resolve(declaration!, parameter, source);
     } finally {
       active.delete(parameter.identity);
     }
+    if (resolution === undefined) return Object.freeze({ kind: "unsupported",
+      reason: `Generic binder '${parameter.name}' has no sealed native constraint evidence.` });
     const finalized = snapshotCsharpTargetTypes([{ ...parameter, csharpConstraints: resolution }])[0]!;
     if (finalized.kind !== "type-parameter" || finalized.csharpConstraints === undefined) {
       throw new TypeError("A native generic parameter requires finalized constraint evidence.");

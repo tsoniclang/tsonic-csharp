@@ -67,10 +67,11 @@ export function createCsharpTypeSystem(
     if (projectTypes === undefined) throw new Error("C# project heritage was requested before the type system was fully initialized.");
     return projectTypes;
   };
-  const typeParameterConstraints = createCsharpTypeParameterEnvironment(host.ast, (declaration, parameter) => {
-    const sourceFile = host.ast.getSourceFile(declaration);
-    const sourceType = host.semanticsFor(declaration).declarations.declaredType(declaration);
-    if (sourceFile === undefined || sourceType === undefined) return undefined;
+  const typeParameterConstraints = createCsharpTypeParameterEnvironment(host.ast, (declaration, parameter, source) => {
+    const sourceFile = source?.sourceFile ?? host.ast.getSourceFile(declaration);
+    if (sourceFile === undefined || !host.hasSemantics(sourceFile)) return undefined;
+    const sourceType = source?.sourceType ?? host.semantics(sourceFile).declarations.declaredType(declaration);
+    if (sourceType === undefined) return undefined;
     return resolveCsharpTypeParameterConstraints(declaration, parameter, sourceFile, {
       ast: host.ast,
       types: { resolveNode: (node, file) => typeResolution.recursive.resolveNode(node, file, {
