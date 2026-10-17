@@ -13,6 +13,9 @@ import { csharpSourceStorageContext } from "./source-storage-projection.js";
 import { getCsharpCallableValueSignature, getCsharpTaskResultTargetType } from "../../../target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
+import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
+import { resolveTypeParameter } from "./source-evidence.js";
 
 export type CsharpArrayLiteralSelection =
   | { readonly kind: "resolved"; readonly carrier: TargetTypeRef; readonly elementCarriers: readonly TargetTypeRef[] }
@@ -94,9 +97,20 @@ function selectArrayElementDestination(
   let directContext = true;
   const elementOf = (carrier: TargetTypeRef | undefined): TargetTypeRef | undefined =>
     getCsharpCollectionElementTargetType(getCsharpNullableElementTargetType(carrier) ?? carrier);
-  const add = (carrier: TargetTypeRef | undefined): void => {
+  const destinationElement = (carrier: TargetTypeRef | undefined): TargetTypeRef | undefined => {
     const element = elementOf(carrier);
-    if (element?.kind === "source-primitive" && element.name !== "bool") destinations.push(element);
+    if (element === undefined || csharpFreeTypeParameterIdentities([element]).size !== 0) return undefined;
+    const present = getCsharpNullableElementTargetType(element) ?? element;
+    const numeric = (type: TargetTypeRef): boolean => {
+      const value = getCsharpNullableElementTargetType(type) ?? type;
+      return value.kind === "source-primitive" && value.name !== "bool";
+    };
+    return numeric(present) || csharpUnionLeaves(present, host.typeDefinitions)?.some(arm => numeric(arm.carrier))
+      ? element : undefined;
+  };
+  const add = (carrier: TargetTypeRef | undefined): void => {
+    const element = destinationElement(carrier);
+    if (element !== undefined) destinations.push(element);
   };
   const argumentDestination = (argument: SourceClosedCallableArgument, reference: Node, returning: boolean): TargetTypeRef | undefined => {
     const callQueries = host.semanticsFor(argument.call);
@@ -115,21 +129,19 @@ function selectArrayElementDestination(
       return host.ast.hasModifierKind(reference, "async") ? getCsharpTaskResultTargetType(result) : result;
     };
     const component = returning ? returned(formal) : formal;
-    const element = elementOf(component);
-    const parameterType = element?.kind === "type-parameter" ? element
-      : component?.kind === "type-parameter" ? component : undefined;
-    const methodArgument = parameterType === undefined ? undefined : selected.sourceSelectedMethodTypeArguments?.find(entry => {
-      const native = scope.resolveTypeWithState(entry.typeParameter, file, nextState(state));
-      return native !== undefined && targetTypeRefEquals(native, parameterType);
-    });
-    const receiverType = parameterType === undefined || methodArgument !== undefined ? undefined
+    if (component === undefined) return undefined;
+    const parameters = csharpFreeTypeParameterIdentities([component]);
+    const receiverType = parameters.size === 0 ? undefined
       : scope.resolveSourceCallReceiverTargetType(selected, file, nextState(state));
-    const receiverBinding = parameterType === undefined || receiverType === undefined ? undefined
-      : host.projectTypes().instantiateMemberType(parameter.parameterDeclaration, receiverType, parameterType);
-    const authoritative = element?.kind === "source-primitive" && element.name !== "bool" ||
-      parameterType !== undefined && (methodArgument?.explicitTypeNode !== undefined ||
-        receiverBinding?.kind === "resolved" && receiverBinding.type.kind === "source-primitive" && receiverBinding.type.name !== "bool");
-    if (!authoritative) return undefined;
+    const receiverBinding = receiverType === undefined ? undefined
+      : host.projectTypes().instantiateMemberType(parameter.parameterDeclaration, receiverType, component);
+    const unbound = receiverBinding?.kind === "resolved"
+      ? csharpFreeTypeParameterIdentities([receiverBinding.type]) : parameters;
+    if ([...unbound].some(identity => !selected.sourceSelectedMethodTypeArguments?.some(entry => {
+      if (entry.explicitTypeNode === undefined) return false;
+      const native = resolveTypeParameter(entry.typeParameter, callQueries, host.ast);
+      return native?.kind === "type-parameter" && native.identity === identity;
+    }))) return undefined;
     const actual = scope.resolveSourceCallArgumentParameter(selected, binding, file);
     return returning ? returned(actual) : actual;
   };
@@ -166,8 +178,7 @@ function selectArrayElementDestination(
         const formal = resolveNodeWithState(callable.result.authoredTypeNode,
           ownerQueries.sourceFile, nextState(state));
         const native = host.ast.hasModifierKind(owner, "async") ? getCsharpTaskResultTargetType(formal) : formal;
-        const element = elementOf(native);
-        if (element?.kind === "source-primitive" && element.name !== "bool") returned = resolveSourceTypeComponentEvidence(
+        if (destinationElement(native) !== undefined) returned = resolveSourceTypeComponentEvidence(
           callable.result, ownerQueries, nextState(state));
       }
     }

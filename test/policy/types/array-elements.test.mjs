@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpInferredNumericArrayElement } from "../../../dist/policy/types/collections/array-elements.js";
-import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
-import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpBooleanTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpRuntimeUnionTargetType, csharpAbsenceTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { createCsharpTypeResolutionQueryCache } from "../../../dist/policy/types/resolution/query-cache.js";
 
 const primitive = csharpSourcePrimitiveTargetType;
@@ -56,6 +57,43 @@ for (const reverse of [false, true]) {
 test("actual explicit numeric destinations preserve native conversions instead of inferred exactness", () => {
   selected(select([fixed("float32"), fixed("int32")], primitive("float64")), "float64", "number[] is an actual f64 destination");
   selected(select([fixed("float32"), fixed("int32")], primitive("float32")), "float32", "an authored float32[] retains native rounding");
+});
+
+test("actual closed union destinations retain native arm admission rather than inferred integer exactness", () => {
+  const text = Object.freeze({ carrier: csharpStringTargetType(), literal: undefined, literalDefault: undefined });
+  const absent = Object.freeze({ carrier: csharpAbsenceTargetType(), literal: undefined, literalDefault: undefined });
+  for (const scalar of ["float32", "float64", "decimal", "int64"]) {
+    const destination = csharpRuntimeUnionTargetType([text.carrier, primitive(scalar)]);
+    assert.equal(destination !== undefined, true, `${scalar}: an existing closed native union`);
+    for (const value of [literal(9007199254740993n, 0n, 9007199254740993n),
+      literal(9007199254740993n, 0n, -9007199254740993n, "float64", true), literal(1n, 100n)]) {
+      const contributions = Object.freeze([text, value]);
+      const selection = select(contributions, destination);
+      assert.equal(selection.kind === "unavailable" && selection.carriers.length === contributions.length &&
+        selection.carriers.every((carrier, index) => carrier === contributions[index].carrier), true,
+      `${scalar}: the canonical final conversion owns arm selection, range and explicit native rounding`);
+    }
+  }
+  const optional = csharpNullableTargetType(primitive("float64"));
+  const contributions = [absent, literal(9007199254740993n, 0n, 9007199254740993n)];
+  const selection = select(contributions, optional);
+  assert.equal(selection.kind === "unavailable" && selection.carriers.every((carrier, index) =>
+    carrier === contributions[index].carrier), true,
+  "an actual nullable destination preserves absence and the existing native floating conversion without choosing an arm");
+});
+
+test("inferred nonnumeric and absent fallback arms never authorize authored integer rounding", () => {
+  const others = [csharpStringTargetType(), csharpAbsenceTargetType(), csharpBooleanTargetType()];
+  for (const carrier of others) for (const value of [literal(9007199254740993n, 0n, 9007199254740993n),
+    literal(9007199254740993n, 0n, -9007199254740993n, "float64", true), literal(1n, 100n)]) {
+    const other = Object.freeze({ carrier, literal: undefined, literalDefault: undefined });
+    for (const contributions of [[other, value], [value, other], [other, value, literal(5n, -1n)]]) {
+      const selection = select(contributions);
+      assert.equal(selection.kind === "rejected" && selection.reason ===
+        "An inferred numeric union requires an exact canonical carrier for every authored integer literal.", true,
+      "only an actual authored destination bypasses inference; a heterogeneous checked type is not such a destination");
+    }
+  }
 });
 
 test("an authored integer's actual floating default supplies an exact needed carrier, never a fabricated one", () => {

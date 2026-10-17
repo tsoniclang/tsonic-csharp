@@ -10,6 +10,7 @@ import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carrie
 import { csharpEnumerableTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 import { combineCsharpTargetUnionMembers } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+import { isCsharpStringTargetType, isCsharpJsStringTargetType } from "../../../dist/target-model/types/identity.js";
 
 const destinationBodies = {
   Alias: (element, name) => `type ${name}Values = ${element}[];
@@ -44,9 +45,29 @@ const destinationPrograms = Object.entries(destinationBodies).flatMap(([context,
     context, name: `destination${context}${suffix}`, native,
     source: body(element, `destination${context}${suffix}`),
   })));
+const unionDestinationPrograms = Object.entries(destinationBodies).map(([context, body]) => ({
+  context, name: `unionDestination${context}`,
+  source: body("(string | number)", `unionDestination${context}`).replaceAll("[narrow, signed]",
+    '["text", 9007199254740993, -9007199254740993, 1e100]'),
+}));
+unionDestinationPrograms.push(
+  { context: "NestedGenericArgument", name: "unionNestedGenericArgument", source: `
+    function unionNestedAccept<T>(values: (string | T)[]): (string | T)[] { return values; }
+    export function unionNestedGenericArgument(narrow: float32, signed: int32): (string | number)[] {
+      const values = ["text", 9007199254740993, -9007199254740993, 1e100]; return unionNestedAccept<number>(values); }` },
+  { context: "NestedGenericCallback", name: "unionNestedGenericCallback", source: `
+    function unionNestedCall<T>(make: () => (string | T)[]): (string | T)[] { return make(); }
+    export function unionNestedGenericCallback(narrow: float32, signed: int32): (string | number)[] {
+      return unionNestedCall<number>(() => { const values = ["text", 9007199254740993, -9007199254740993, 1e100]; return values; }); }` },
+  { context: "NestedGenericReceiver", name: "unionNestedGenericReceiver", source: `
+    class UnionNestedReceiver<T> { accept(values: (string | T)[]): (string | T)[] { return values; } }
+    export function unionNestedGenericReceiver(narrow: float32, signed: int32): (string | number)[] {
+      const receiver = new UnionNestedReceiver<number>();
+      const values = ["text", 9007199254740993, -9007199254740993, 1e100]; return receiver.accept(values); }` },
+);
 
 const sourceText = `
-import type { float32, float64, int16, uint16, int32, uint32, int64 } from "@tsonic/core/types.js";
+import type { float32, float64, int16, uint16, int32, uint32, int64, decimal as nativeDecimal } from "@tsonic/core/types.js";
 export function bare(signed: int32, unsigned: uint32) { const bareValues = [signed, unsigned]; return bareValues; }
 export function reverse(signed: int32, unsigned: uint32) { const reverseValues = [unsigned, signed]; return reverseValues; }
 export function left(signed: int32, unsigned: uint32) { const leftValues = [signed, unsigned, 1]; return leftValues; }
@@ -79,6 +100,24 @@ export function explicitRounded(signed: int32): number[] { return [signed, 90071
 export function genuineFloatWide(narrow: float32, wide: int64) {
   const floatWideValues = [narrow, wide]; return floatWideValues;
 }
+export function explicitUnionWide(wide: int64): (string | int64)[] {
+  const exactUnionValues: (string | int64)[] = ["text", wide, 9007199254740993]; return exactUnionValues;
+}
+export function explicitUnionDecimal(): (string | nativeDecimal)[] {
+  const decimalUnionValues: (string | nativeDecimal)[] = ["text", 9007199254740993]; return decimalUnionValues;
+}
+export function explicitUnionSingle(): (string | float32)[] {
+  const singleUnionValues: (string | float32)[] = ["text", 16777217]; return singleUnionValues;
+}
+export function explicitOptionalDouble(): (number | undefined)[] {
+  const optionalUnionValues: (number | undefined)[] = [undefined, 9007199254740993]; return optionalUnionValues;
+}
+export function explicitWideFloatUnion(wide: int64, computed: number): (int64 | number)[] {
+  const wideFloatUnionValues: (int64 | number)[] = [wide, computed]; return wideFloatUnionValues;
+}
+export function inferredHeterogeneous(computed: number) {
+  const inferredHeterogeneousValues = ["text", computed, 9007199254740994, 0.1, -0]; return inferredHeterogeneousValues;
+}
 let trace: int32 = 0;
 function signedEffect(): int32 { trace = trace * 10 + 1; return -1; }
 function unsignedEffect(): uint32 { trace = trace * 10 + 2; return 4294967295; }
@@ -87,7 +126,8 @@ export function effects(): boolean {
   trace = 0; const values = [signedEffect(), unsignedEffect(), fractionEffect()];
   return trace === 123 && values[0] === -1 && values[1] === 4294967295 && values[2] === 0.5;
 }
-` + destinationPrograms.map(program => program.source).join("\n");
+` + destinationPrograms.map(program => program.source).join("\n") + "\n" +
+  unionDestinationPrograms.map(program => program.source).join("\n");
 
 function carriers(program) {
   const result = new Map();
@@ -102,6 +142,25 @@ function carriers(program) {
   };
   for (const file of program.sourceFiles) visit(file);
   return result;
+}
+
+function nativeArrayElements(program) {
+  const named = new Map();
+  const unionDestinations = [];
+  const ast = program.source.ast;
+  const visit = node => {
+    if (ast.is.IsArrayLiteralExpression(node)) {
+      const use = program.records.nativeUse.expression(node)?.use;
+      assert.equal(use?.kind === "constructed", true, "every native array has one admitted physical construction");
+      const element = getCsharpArrayLiteralElementTargetType(use.carrier);
+      if (ast.elements(node).length === 4 && ast.is.IsStringLiteral(ast.elements(node)[0])) unionDestinations.push(element);
+      const parent = ast.parent(node);
+      if (parent !== undefined && ast.is.IsVariableDeclaration(parent)) named.set(ast.text(ast.name(parent)), element);
+    }
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  return { named, unionDestinations };
 }
 
 for (const surface of ["native", "js"]) test(`${surface} inferred numeric arrays preserve values, physical arms, rounding boundaries and native costs`,
@@ -157,12 +216,56 @@ for (const surface of ["native", "js"]) test(`${surface} inferred numeric arrays
       "a genuine fixed float/wide union retains both exact native representations");
     const floatArm = floatWide.findIndex(arm => arm.name === "float32") + 1;
     const wideArm = floatWide.findIndex(arm => arm.name === "int64") + 1;
+    const nativeElements = nativeArrayElements(compiled.result.program);
+    assert.equal(nativeElements.unionDestinations.length, unionDestinationPrograms.length,
+      "all ten actual contexts and all three nested generic union bindings have native construction evidence");
+    const unionArms = nativeElements.unionDestinations.map(element => {
+      const arms = getCsharpRuntimeUnionArms(element, compiled.result.program.typeDefinitions);
+      assert.equal(arms?.length === 2 && arms.some(arm => arm.kind === "source-primitive" && arm.name === "float64") &&
+        arms.some(arm => isCsharpStringTargetType(arm) || isCsharpJsStringTargetType(arm)), true,
+      "an actual authored heterogeneous destination retains its exact native string and double arms");
+      return arms;
+    });
+    const unionDestinations = unionDestinationPrograms.map(({ context, name }, index) => {
+      const arms = unionArms[index];
+      const text = arms.findIndex(arm => isCsharpStringTargetType(arm) || isCsharpJsStringTargetType(arm)) + 1;
+      const floating = arms.findIndex(arm => arm.kind === "source-primitive" && arm.name === "float64") + 1;
+      const union = `Tsonic.CSharp.Runtime.Union<${arms.map(arm => arm.kind === "source-primitive" ? "double" : "string").join(", ")}>`;
+      const values = `${union}.From${text}("text"), ${union}.From${floating}(9007199254740993D),
+        ${union}.From${floating}(-9007199254740993D), ${union}.From${floating}(1e100D)`;
+      const storage = surface === "native" ? `${union}[]` : `Tsonic.CSharp.Js.JSArray<${union}>`;
+      const construction = surface === "native" ? `new ${union}[] { ${values} }` : `Tsonic.CSharp.Js.JSArray<${union}>.of([${values}])`;
+      return { name, context,
+        baseline: `static ${storage} Baseline_${name}(float narrow, int signed) => ${construction};`,
+        read: `var ${name} = Subject.${name}(1.5F, 16777217)${context === "Async" ? ".GetAwaiter().GetResult()" : ""};
+          if (!${name}[0].Is${text}() || ${name}[0].As${text}() != "text" ||
+              !${name}[1].Is${floating}() || ${name}[1].As${floating}() != 9007199254740992D ||
+              !${name}[2].Is${floating}() || ${name}[2].As${floating}() != -9007199254740992D ||
+              !${name}[3].Is${floating}() || ${name}[3].As${floating}() != 1e100D)
+            throw new System.Exception("${name}: actual explicit native union destination or scalar rounding changed");`,
+      };
+    });
+    const unionCosts = unionDestinations.filter(destination => ["Alias", "Argument", "Return"].includes(destination.context));
+    const armOf = (name, scalar) => {
+      const arms = getCsharpRuntimeUnionArms(nativeElements.named.get(name), compiled.result.program.typeDefinitions);
+      const index = arms?.findIndex(arm => arm.kind === "source-primitive" && arm.name === scalar);
+      assert.equal(index !== undefined && index >= 0, true, `${name}: actual ${scalar} native union payload`);
+      return index + 1;
+    };
+    const exactLong = armOf("exactUnionValues", "int64");
+    const exactDecimal = armOf("decimalUnionValues", "decimal");
+    const roundedSingle = armOf("singleUnionValues", "float32");
+    const mixedLong = armOf("wideFloatUnionValues", "int64");
+    const mixedDouble = armOf("wideFloatUnionValues", "float64");
+    const inferredDouble = armOf("inferredHeterogeneousValues", "float64");
     const nativeProgram = `
 using Subject = Tsonic.Generated.Index;
 ${methods.map(method => method.baseline).join("\n")}
 ${destinationCosts.map(method => method.baseline).join("\n")}
+${unionCosts.map(method => method.baseline).join("\n")}
 ${methods.map(method => method.read).join("\n")}
 ${destinations.map(method => method.read).join("\n")}
+${unionDestinations.map(method => method.read).join("\n")}
 if (!Subject.reads(-1, 4294967295U) || !Subject.same(1, 1) || Subject.same(-1, 4294967295U) || !Subject.effects())
     throw new System.Exception("source indexed reads, cross-arm equality or once-only order");
 var half = Subject.half(-0F);
@@ -186,9 +289,32 @@ var floatWide = Subject.genuineFloatWide(0.5F, 9007199254740993L);
 if (!floatWide[0].Is${floatArm}() || floatWide[0].As${floatArm}() != 0.5F ||
     !floatWide[1].Is${wideArm}() || floatWide[1].As${wideArm}() != 9007199254740993L)
     throw new System.Exception("a true checked native float/wide union was joined or rounded");
+foreach (long value in new long[] { long.MinValue, 9007199254740993L, long.MaxValue }) {
+    var exactUnion = Subject.explicitUnionWide(value);
+    if (!exactUnion[1].Is${exactLong}() || exactUnion[1].As${exactLong}() != value ||
+        !exactUnion[2].Is${exactLong}() || exactUnion[2].As${exactLong}() != 9007199254740993L)
+        throw new System.Exception("an actual native integer union arm lost its full range or exact authored token");
+    var mixedUnion = Subject.explicitWideFloatUnion(value, 0.1D);
+    if (!mixedUnion[0].Is${mixedLong}() || mixedUnion[0].As${mixedLong}() != value ||
+        !mixedUnion[1].Is${mixedDouble}() || mixedUnion[1].As${mixedDouble}() != 0.1D)
+        throw new System.Exception("a genuine actual heterogeneous destination erased or rounded a native integer");
+}
+var decimalUnion = Subject.explicitUnionDecimal();
+var singleUnion = Subject.explicitUnionSingle();
+var optionalUnion = Subject.explicitOptionalDouble();
+if (!decimalUnion[1].Is${exactDecimal}() || decimalUnion[1].As${exactDecimal}() != 9007199254740993M ||
+    !singleUnion[1].Is${roundedSingle}() || singleUnion[1].As${roundedSingle}() != 16777216F ||
+    optionalUnion[0].HasValue || !optionalUnion[1].HasValue || optionalUnion[1].GetValueOrDefault() != 9007199254740992D)
+    throw new System.Exception("canonical explicit decimal, single or nullable native arm admission changed");
+var inferredUnion = Subject.inferredHeterogeneous(0.5D);
+if (inferredUnion[1].As${inferredDouble}() != 0.5D || inferredUnion[2].As${inferredDouble}() != 9007199254740994D ||
+    inferredUnion[3].As${inferredDouble}() != 0.1D ||
+    System.BitConverter.DoubleToUInt64Bits(inferredUnion[4].As${inferredDouble}()) != 0x8000000000000000UL)
+    throw new System.Exception("exact inferred heterogeneous tokens, computed values or signed zero changed");
 for (int index = 0; index < 512; index++) {
 ${methods.map(({ method }) => `System.GC.KeepAlive(Subject.${method}(-1, 4294967295U)); System.GC.KeepAlive(Baseline_${method}(-1, 4294967295U));`).join("\n")}
 ${destinationCosts.map(({ name }) => `System.GC.KeepAlive(Subject.${name}(1.5F, 16777217)); System.GC.KeepAlive(Baseline_${name}(1.5F, 16777217));`).join("\n")}
+${unionCosts.map(({ name }) => `System.GC.KeepAlive(Subject.${name}(1.5F, 16777217)); System.GC.KeepAlive(Baseline_${name}(1.5F, 16777217));`).join("\n")}
 }
 ${methods.map(({ method }) => `
 long before_${method} = System.GC.GetAllocatedBytesForCurrentThread();
@@ -200,6 +326,15 @@ long native_${method} = System.GC.GetAllocatedBytesForCurrentThread() - before_$
 if (generated_${method} != native_${method}) throw new System.Exception($"${method}: native allocation mismatch {generated_${method}}/{native_${method}}");
 System.Console.WriteLine($"${method}: generated={generated_${method}} native={native_${method}}");`).join("\n")}
 ${destinationCosts.map(({ name }) => `
+long before_${name} = System.GC.GetAllocatedBytesForCurrentThread();
+for (int index = 0; index < 1000; index++) System.GC.KeepAlive(Subject.${name}(1.5F, 16777217));
+long generated_${name} = System.GC.GetAllocatedBytesForCurrentThread() - before_${name};
+before_${name} = System.GC.GetAllocatedBytesForCurrentThread();
+for (int index = 0; index < 1000; index++) System.GC.KeepAlive(Baseline_${name}(1.5F, 16777217));
+long native_${name} = System.GC.GetAllocatedBytesForCurrentThread() - before_${name};
+if (generated_${name} != native_${name}) throw new System.Exception($"${name}: native allocation mismatch {generated_${name}}/{native_${name}}");
+System.Console.WriteLine($"${name}: generated={generated_${name}} native={native_${name}}");`).join("\n")}
+${unionCosts.map(({ name }) => `
 long before_${name} = System.GC.GetAllocatedBytesForCurrentThread();
 for (int index = 0; index < 1000; index++) System.GC.KeepAlive(Subject.${name}(1.5F, 16777217));
 long generated_${name} = System.GC.GetAllocatedBytesForCurrentThread() - before_${name};
