@@ -135,6 +135,24 @@ export function analyzeCsharpProjectCallableAdapters(
       overridesBase: hasProjectBaseContract ? overridesBase : dispatch?.overridesBase === true,
       hasDerivedOverride: dispatch?.hasDerivedOverride === true, adapters: Object.freeze(adapters) }));
   }
+  for (const owner of requests.values()) {
+    for (const request of owner.interfaces.values()) {
+      for (const { method } of request.methods.values()) {
+        const protocol = method.member.methodValueContract;
+        if (protocol === undefined || targetTypeRefEquals(protocol, request.selected.interfaceType)) continue;
+        const shape = shapes.resolveTarget(protocol);
+        const subjects = [...method.member.sourceSubjects ?? [], ...method.member.sourceDeclarations ?? []];
+        const selected = shape === undefined ? undefined : resolveCsharpObjectShapeMemberBySelectedSubject(shape, subjects);
+        if (selected?.kind !== "resolved" || selected.member.memberKind !== "method") {
+          return failTargetAnalysisInvariant("tsonic-csharp",
+            "An inherited method-value protocol lost its checked native member correspondence.", method.declaration);
+        }
+        addMethod(interfaceRequest(owner.type, Object.freeze({ sourceNode: request.selected.sourceNode,
+          sourceType: request.selected.sourceType, interfaceType: protocol, properties: Object.freeze([]), methods: Object.freeze([]) })),
+        Object.freeze({ ...method, member: selected.member }));
+      }
+    }
+  }
   const byType = new Map<string, readonly CsharpFinalStructuralInterfaceImplementation[]>();
   const sourceIds = new Set<string>();
   for (const [key, owner] of requests) {
