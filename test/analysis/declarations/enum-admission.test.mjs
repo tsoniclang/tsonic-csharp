@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 const numericUses = [
   ["float64 equality", "export function use(value: Value, operand: number): boolean { return value === operand; }"],
@@ -25,7 +26,48 @@ const numericUses = [
   ["inferred complement arithmetic", "export function use(value: Value): number { const result = ~value; return result + 1; }"],
   ["unwritten inferred binding", "export function use(value: Value): number { let result = ~value; return result; }"],
   ["shift", "export function use(value: Value): number { return value << 1; }"],
+  ["conditional complement", "export function use(left: Value, right: Value, flag: boolean): number { const result = flag ? ~left : ~right; return result; }"],
+  ["conditional bitwise", "export function use(left: Value, right: Value, flag: boolean): number { const result = flag ? left | right : left & right; return result; }"],
+  ["mixed choice equality", "export function use(left: Value, flag: boolean): boolean { const result = flag ? ~left : 42; return result === left; }"],
+  ["comma complement", "function touch(): void {} export function use(value: Value): number { const result = (touch(), ~value); return result; }"],
+  ["logical-and result", "export function use(left: Value, right: Value): number { const result = (~left) && (~right); return result; }"],
+  ["logical-or result", "export function use(left: Value, right: Value): number { const result = (~left) || (~right); return result; }"],
+  ["logical-or numeric destination", "export function use(left: Value, right: Value): number { return (~left) || (~right); }"],
+  ["logical-or nested wrappers", "export function use(left: Value, right: Value): number { const result = (((~left)!)) || (((~right)!)); return result; }"],
+  ["nullish numeric left context", "export function use(left: number | undefined, right: Value): number { const result = left ?? ~right; return result; }"],
+  ["nullish result", "export function use(right: Value, absent: undefined): number { const result = absent ?? ~right; return result; }"],
+  ["numeric switch discriminant", "export function use(value: number): number { switch (value) { case Value.First: return 1; default: return 0; } }"],
+  ["numeric switch case", "export function use(value: Value): number { switch (value) { case 1: return 1; default: return 0; } }"],
+  ["array numeric index", "export function use(values: number[], key: Value): number { return values[key]; }"],
+  ["number index signature", "export function use(values: { [index: number]: number }, key: Value): number { return values[key]; }"],
+  ["explicit numeric assertion", "export function use(value: Value): number { return value as number; }"],
+  ["angle numeric assertion", "export function use(value: Value): number { return <number>value; }"],
+  ["inferred object field escape", "export function use(): number { const object = { value: ~Value.First }; return object.value + 1; }"],
+  ["inferred collection escape", "export function use(): number { const values = [~Value.First]; return values[0] + 1; }"],
+  ["generic call numeric escape", "function identity<T>(value: T): T { return value; } export function use(value: Value): number { const result = identity(~value); return result; }"],
+  ["inferred callable return escape", "function produce(value: Value) { return ~value; } export function use(value: Value): number { return produce(value); }"],
 ];
+
+const stringUses = [
+  ["template", "export function use(value: Value): string { return `enum:${value}`; }", false],
+  ["global String", "export function use(value: Value): string { return String(value); }", true],
+  ["global String alias", "export function use(value: Value): string { const convert = String; return convert(value); }", true],
+  ["enum toString", "export function use(value: Value): string { return value.toString(); }", true],
+  ["left concatenation", "export function use(value: Value): string { return '' + value; }", false],
+  ["right concatenation", "export function use(value: Value): string { return value + ''; }", false],
+  ["compound concatenation", "export function use(value: Value): string { let result = ''; result += value; return result; }", false],
+];
+
+for (const [label, declaration] of [
+  ["function", 'function String(value: Value): string { return "custom"; }'],
+  ["callable variable", 'var String = (value: Value): string => "custom";'],
+]) {
+  test(`C# native user-global String ${label} is not a builtin conversion`, () => {
+    const compiled = compileCsharpSource({ sourceText: `enum Value { First = 1 } ${declaration} String(Value.First);` });
+    assertCsharpCompilationSucceeded(compiled);
+    assert.equal(compiled.result.artifacts.length > 0, true, "the real non-JS user global remains native code");
+  });
+}
 
 for (const surface of [undefined, "js"]) {
   for (const [label, body] of numericUses) {
@@ -44,6 +86,54 @@ ${body}
       assert.equal(compiled.result.artifacts.length, 0, "a refused enum use emits no artifact");
     });
   }
+
+  for (const [label, body, requiresJsLibrary] of stringUses) {
+    if (requiresJsLibrary && surface !== "js") continue;
+    test(`C# ${surface ?? "native"} refuses enum ${label} with the shared string-conversion reason`, () => {
+      const compiled = compileCsharpSource({ surface, sourceText: `export enum Value { First = 1, Second = 2 } ${body}` });
+      assertCsharpCheckingSucceeded(compiled);
+      assert.equal(compiled.targetDiagnostics.length, 1, `${label}: one actual string conversion`);
+      assert.equal(compiled.targetDiagnostics[0]?.code, "TSONIC_ENUM_NUMERIC_USE_NOT_SUPPORTED", `${label}: shared code`);
+      assert.equal(compiled.targetDiagnostics[0]?.message,
+        "Enum value 'Value' is converted to a string; enum-to-string conversion is not supported yet.", `${label}: no native-name substitution`);
+      assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true, `${label}: rejection before seal`);
+      assert.equal(compiled.result.artifacts.length, 0, `${label}: no miscompiled native output`);
+    });
+  }
+
+  test(`C# ${surface ?? "native"} local String and user formatting functions retain their actual identity`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+export enum Value { First = 1 }
+function String(value: Value): string { return "custom"; }
+function format(value: Value): string { return "named"; }
+export function use(value: Value): string { return String(value) + format(value); }
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    assert.equal(compiled.result.artifacts.length > 0, true, "neither callee spelling nor a string return type creates a conversion");
+  });
+
+  test(`C# ${surface ?? "native"} composed enum values retain native identity and effects`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+export enum Value { First = 1, Second = 2 }
+function touch(state: { count: number }): void { state.count = state.count + 1; }
+export function run(flag: boolean): boolean {
+  const state = { count: 0 };
+  const selected = flag ? ~Value.First : ~Value.Second;
+  const copied = (touch(state), selected);
+  return state.count === 1 && copied === (flag ? ~Value.First : ~Value.Second);
+}
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    executeCsharpConstruction(compiled, `enum-composition-${surface ?? "native"}`, false, false, [], `
+if (!Tsonic.Generated.Index.run(true) || !Tsonic.Generated.Index.run(false))
+    throw new System.Exception("generated enum composition");
+NativeValue left = ~NativeValue.First;
+NativeValue right = ~NativeValue.Second;
+if ((true ? left : right) != ~NativeValue.First || (false ? left : right) != ~NativeValue.Second)
+    throw new System.Exception("native enum composition");
+enum NativeValue { First = 1, Second = 2 }
+`);
+  });
 
   test(`C# ${surface ?? "native"} refuses the checker-equal wide mixed comparison before target selection`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
