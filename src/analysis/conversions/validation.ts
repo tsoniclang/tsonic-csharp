@@ -6,8 +6,9 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpUnionArmMappingsMatch, csharpUnionPathsEqual } from "../../target-model/types/union-relations.js";
 import { csharpMetadataDescriptors } from "../../target-model/metadata/immutable.js";
 import { getCsharpDelegateSignature, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms } from "../../target-model/types/index.js";
+import type { CsharpConversionShapeQueries } from "../../policy/conversions/shape-queries.js";
 
-type CsharpUnionValidationPolicy = Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers">;
+type CsharpUnionValidationPolicy = Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries;
 
 const unionMappingRejected: CsharpConversionSelection = Object.freeze({ kind: "rejected",
   reason: "Union conversion requires exact sealed arm coverage and native absence correspondence." });
