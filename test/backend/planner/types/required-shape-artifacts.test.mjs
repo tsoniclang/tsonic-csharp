@@ -13,6 +13,7 @@ import { planCsharpPreparedConstructor } from "../../../../dist/backend/planner/
 import { planLambdaParameterStorage } from "../../../../dist/backend/planner/expressions/lambda-parameter-storage.js";
 import { csharpRuntimeUnionTargetType, csharpEmptyObjectTargetType, csharpTsValueTargetType } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { objectShapeArtifactKey } from "../../../../dist/target-model/records/object-shape-demand.js";
+import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
 
 const integer = { kind: "source-primitive", name: "int32" };
 const sourceText = `import type { int32 } from "@tsonic/core/types.js";
@@ -21,6 +22,11 @@ export function read(value: { count: int32 }): int32 { return value.count; }
 export function defaulted(value: { count: int32 } = { count: 2 as int32 }): int32 { return value.count; }
 class Base { constructor(value: { count: int32 }) {} }
 export class Derived extends Base { constructor(value: { count: int32 }) { super(value); } }
+class NativePayload { count: int32 = 3; }
+export function adapted(input: NativePayload): int32 {
+  const read: (value: NativePayload) => int32 = (value: { count: int32 }) => value.count;
+  return read(input);
+}
 `;
 let cached;
 function fixture() {
@@ -30,10 +36,21 @@ function fixture() {
   const defaultParameter = nodes.find(node => source.ast.is.IsParameterDeclaration(node) && source.ast.as.AsParameterDeclaration(node)?.Initializer !== undefined);
   const declaration = nodes.find(node => source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "seed");
   const constructor = nodes.find(node => source.ast.is.IsConstructorDeclaration(node) && source.ast.text(source.ast.name(source.ast.parent(node))) === "Derived");
-  const shape = program.objectShapes.resolveTarget(program.records.requiredStorageType.get(parameter));
+  const parameterType = source.ast.as.AsParameterDeclaration(parameter)?.Type;
+  assert.equal(parameterType !== undefined, true, "the checked ordinary parameter retains its authored type");
+  const shape = program.objectShapes.resolveTarget(program.records.nodeTargetType.get(parameterType));
+  const storageParameter = nodes.find(node => source.ast.is.IsParameterDeclaration(node) && source.ast.is.IsArrowFunction(source.ast.parent(node)));
+  const nativeStorageType = program.records.lambdaParameterType.get(storageParameter);
+  const storageType = program.records.requiredStorageType.get(storageParameter);
+  assert.equal(nativeStorageType !== undefined && storageType !== undefined && !targetTypeRefEquals(nativeStorageType, storageType), true,
+    "the real contextual lambda retains distinct native incoming and required source storage carriers");
+  const storageShape = program.objectShapes.resolveTarget(storageType);
+  const defaultShape = program.objectShapes.resolveTarget(program.records.runtimeDefault.get(defaultParameter)?.valueType);
   assert.equal(parameter !== undefined && defaultParameter !== undefined && declaration !== undefined && constructor !== undefined && shape !== undefined, true,
     "all actual checked caller subjects and the published native shape exist");
-  return { ...cached, parameter, defaultParameter, declaration, constructor, shape };
+  assert.equal(storageParameter !== undefined && storageShape !== undefined && defaultShape !== undefined, true,
+    "the required storage and runtime-default callers retain their own published shape identities");
+  return { ...cached, parameter, defaultParameter, declaration, constructor, shape, storageParameter, storageShape, defaultShape };
 }
 
 function contextWithMissingArtifact(fixture, patch = {}) {
@@ -63,31 +80,31 @@ function rejectsBeforeOutput(input, invoke, label) {
 
 test("all seven production caller positions retain the single sealed declaration guard", () => {
   const selected = fixture();
-  const { program, source, parameter, defaultParameter, declaration, constructor, shape } = selected;
+  const { program, source, parameter, defaultParameter, declaration, constructor, shape, storageParameter, storageShape, defaultShape } = selected;
   const file = source.ast.getSourceFile(parameter);
   const state = () => createDestructuringPlannerState(undefined, source.ast);
   const emptyParameters = { parameters: [], prelude: [], entryBindings: [] };
   const cases = [
-    ["node type resolution", {}, input => getCsharpTypeForNode(parameter, file, input, undefined, [])],
-    ["native value field", { nativeValueDeclaration: { get: node => node === declaration ? { fields: [{ carrier: shape.targetType,
+    ["node type resolution", shape, {}, input => getCsharpTypeForNode(parameter, file, input, undefined, [])],
+    ["native value field", shape, { nativeValueDeclaration: { get: node => node === declaration ? { fields: [{ carrier: shape.targetType,
       source: { sourceType: parameter, sourceName: "count", readonly: false } }] } : program.records.nativeValueDeclaration.get(node) } },
     input => planValueTypeDeclaration(declaration, file, input, [])],
-    ["required parameter storage", {}, input => planParametersWithPrelude([parameter], file, input, [], state())],
-    ["runtime default value carrier", {}, input => planCsharpRuntimeParameterDefault(defaultParameter, "incoming", file, input, [], state())],
-    ["runtime default incoming carrier", { runtimeDefault: { get: node => {
+    ["required parameter storage", storageShape, {}, input => planParametersWithPrelude([storageParameter], file, input, [], state())],
+    ["runtime default value carrier", defaultShape, {}, input => planCsharpRuntimeParameterDefault(defaultParameter, "incoming", file, input, [], state())],
+    ["runtime default incoming carrier", defaultShape, { runtimeDefault: { get: node => {
       const original = program.records.runtimeDefault.get(node);
       return node === defaultParameter ? { ...original, valueType: integer } : original;
     } } }, input => planCsharpRuntimeParameterDefault(defaultParameter, "incoming", file, input, [], state())],
-    ["prepared constructor argument", {}, input => planCsharpPreparedConstructor(constructor,
+    ["prepared constructor argument", shape, {}, input => planCsharpPreparedConstructor(constructor,
       source.ast.as.AsConstructorDeclaration(constructor)?.Body, { kind: "ConstructorDeclaration", name: "Derived", modifiers: ["public"], parameters: [] },
       emptyParameters, [{ node: parameter, expectedCarrier: shape.targetType, value: { prelude: [], completion: {
         kind: "value", carrier: shape.targetType, expression: { kind: "IdentifierName", name: "incoming" },
       } } }], file, input, [], state(), true, [])],
-    ["lambda parameter native storage", { lambdaParameterType: { get: node => node === parameter ? integer : program.records.lambdaParameterType.get(node) } },
-    input => planLambdaParameterStorage([parameter], [{ kind: "Parameter", name: "incoming" }], file, input, [], state())],
+    ["lambda parameter native storage", storageShape, {},
+    input => planLambdaParameterStorage([storageParameter], [{ kind: "Parameter", name: "incoming" }], file, input, [], state())],
   ];
   assert.equal(cases.length, 7, "seven call expressions, not the wrapper definition");
-  for (const [name, patch, invoke] of cases) rejectsBeforeOutput(contextWithMissingArtifact(selected, patch), invoke, name);
+  for (const [name, artifact, patch, invoke] of cases) rejectsBeforeOutput(contextWithMissingArtifact({ ...selected, shape: artifact }, patch), invoke, name);
   assert.equal(program.records.objectShapeArtifact.artifacts.length > 0, true, "the original positive checked compilation is untouched");
   const positive = createCsharpPlanningContext(program);
   assert.equal(csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(positive, shape.targetType)?.kind, "IdentifierName", "positive twin renders with its actual admitted fact");
@@ -137,7 +154,10 @@ test("a real union payload requires its nested declaration without treating atta
   const selected = compileCsharpRequiredRecordSource(`import type { int32 } from "@tsonic/core/types.js";
     export function read(value: { nested: { count: int32 } }): int32 { return value.nested.count; }`);
   const parameter = selected.nodes.find(node => selected.source.ast.is.IsParameterDeclaration(node));
-  const outer = selected.program.objectShapes.resolveTarget(selected.program.records.requiredStorageType.get(parameter));
+  const parameterType = selected.source.ast.as.AsParameterDeclaration(parameter)?.Type;
+  assert.equal(parameterType !== undefined, true, "the nested payload parameter retains its authored type");
+  const outer = selected.program.objectShapes.resolveTarget(selected.program.records.nodeTargetType.get(parameterType));
+  assert.equal(outer !== undefined, true, "the authored outer payload has its exact published shape");
   const nested = selected.program.objectShapes.resolveTarget(outer.members.find(member => member.sourceName === "nested").type);
   assert.equal(nested !== undefined, true, "the payload contains a real independently published nested shape");
   const input = contextWithMissingArtifact({ ...selected, shape: nested });
@@ -154,7 +174,9 @@ test("recursive native payload evidence is read once with local revisit accounti
     interface Link { count: int32; next: Link | null; }
     export function read(value: Link): int32 { return value.count; }`);
   const parameter = selected.nodes.find(node => selected.source.ast.is.IsParameterDeclaration(node));
-  const carrier = selected.program.records.requiredStorageType.get(parameter);
+  const parameterType = selected.source.ast.as.AsParameterDeclaration(parameter)?.Type;
+  assert.equal(parameterType !== undefined, true, "the recursive payload parameter retains its authored type");
+  const carrier = selected.program.records.nodeTargetType.get(parameterType);
   const shape = selected.program.objectShapes.resolveTarget(carrier);
   assert.equal(shape !== undefined, true, "actual recursive native payload shape");
   const original = createCsharpPlanningContext(selected.program);
