@@ -108,7 +108,7 @@ test("generated generic scopes reserve authored binders and render nested refere
 test("native generic binding validates derived optional arguments after binding their payload", () => {
   const storage = csharpNullableTargetType(outer);
   const operations = csharpProjectedType({ kind: "optional", part: "operations", arguments: [outer] });
-  const box = typeArguments => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [false, false, false], id: "test.Box", typeArguments });
+  const box = typeArguments => ({ kind: "target-named", csharpAllowsRefLikeTypeArguments: typeArguments.map(() => false), id: "test.Box", typeArguments });
   const pattern = box([operations, storage, outer]);
   const identities = new Set([outer.identity]);
   const carriers = [integer, csharpNullableTargetType(integer), { kind: "source-primitive", name: "string" }, inner];

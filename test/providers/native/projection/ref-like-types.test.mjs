@@ -7,6 +7,12 @@ import { createDotnetReflectionTypeDataProvider } from "../../../helpers/dotnet-
 import { completeDotnetProviderContext,
   validateDotnetModuleModelContract } from "../../../../dist/public/provider-dotnet.js";
 import { dotnetExportToTargetBinding } from "../../../../dist/providers/native/model/index.js";
+import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
+import { csharpNullableValueTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
+import { csharpEnumerableTargetType, csharpReadOnlyListTargetType,
+  csharpListTargetType } from "../../../../dist/target-model/types/carriers/collections.js";
+import { csharpAsyncEnumerableTargetType } from "../../../../dist/target-model/types/carriers/generators.js";
+import { csharpSourcePrimitiveTargetType, csharpVoidTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 
 function requireModule(provider, specifier, requestedExports) {
   const result = provider.getModule(specifier, completeDotnetProviderContext({ requestedExports }));
@@ -20,6 +26,49 @@ function requireType(module, metadataName) {
   assert.equal(type !== undefined, true, `one actual native definition for ${metadataName}`);
   return type;
 }
+
+test("BCL carrier factories retain selected reflected generic-slot metadata", { timeout: 240_000 }, () => {
+  const integer = csharpSourcePrimitiveTargetType("int32");
+  const delegates = Array.from({ length: 17 }, (unusedValue, parameterCount) => {
+    const parameters = Array.from({ length: parameterCount }, () => integer);
+    return [csharpDelegateTargetType("System.Action", parameters),
+      csharpDelegateTargetType("System.Func", parameters, integer)];
+  }).flat();
+  const modules = [
+    ["@tsonic/dotnet/System.js", [...delegates, csharpNullableValueTargetType(integer)]],
+    ["@tsonic/dotnet/System.Threading.Tasks.js", [csharpTaskTargetType(csharpVoidTargetType()),
+      csharpTaskTargetType(integer)]],
+    ["@tsonic/dotnet/System.Collections.Generic.js", [csharpEnumerableTargetType(integer),
+      csharpReadOnlyListTargetType(integer), csharpListTargetType(integer), csharpAsyncEnumerableTargetType(integer)]],
+  ];
+  assert.equal(modules.reduce((count, entry) => count + entry[1].length, 0), 41,
+    "every BCL factory arity and collection carrier participates in the native oracle");
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  for (const [specifier, carriers] of modules) {
+    const module = provider.getModule(specifier, completeDotnetProviderContext({
+      requestedMetadataNames: carriers.map(carrier => carrier.id),
+    }));
+    assert.equal("exports" in module, true, `${specifier}: the selected SDK supplies the native declarations`);
+    assert.equal(validateDotnetModuleModelContract(module), undefined, `${specifier}: actual native metadata is complete`);
+    for (const carrier of carriers) {
+      const declaration = requireType(module, carrier.id);
+      const parameters = declaration.typeParameters ?? [];
+      const allowances = carrier.csharpAllowsRefLikeTypeArguments;
+      assert.equal(Array.isArray(allowances), true, `${carrier.id}: the factory publishes required slot metadata`);
+      assert.equal(allowances.length, parameters.length, `${carrier.id}: factory and reflected arity agree`);
+      assert.equal(carrier.typeArguments?.length ?? 0, parameters.length, `${carrier.id}: every actual generic argument has a slot`);
+      assert.equal(declaration.allowsRefLikeTypeArguments.length, parameters.length,
+        `${carrier.id}: native declaration and reflected parameter arity agree`);
+      for (const [index, parameter] of parameters.entries()) {
+        assert.equal(typeof parameter.allowsRefLike, "boolean", `${carrier.id}[${index}]: reflection supplies the actual permission`);
+        assert.equal(allowances[index], parameter.allowsRefLike,
+          `${carrier.id}[${index}]: the real factory retains the selected reflected permission`);
+        assert.equal(declaration.allowsRefLikeTypeArguments[index], parameter.allowsRefLike,
+          `${carrier.id}[${index}]: the native declaration retains its parameter attribute`);
+      }
+    }
+  }
+});
 
 test("native reflection preserves BCL and named ref-like traits and actual generic anti-constraints", { timeout: 240_000 }, () => {
   const { assembly } = nativeRefLikeFixture();
