@@ -1,6 +1,7 @@
 import {
   rejectedTargetStage,
   runTargetCompilationStages,
+  targetDiagnosticFromExtension,
 } from "@tsonic/target-api/artifacts";
 import type {
   TargetCompilationObserver,
@@ -16,7 +17,6 @@ import type {
 import { planCsharpOutput } from "./planner/program/planning.js";
 import { createCsharpPlanningContext } from "./planner/context.js";
 import { materializeCsharpOutputPlan } from "./emission/materialize.js";
-import { selectedPolicyDiagnostic } from "./planner/diagnostics.js";
 
 export function compileCsharpTarget(
   request: CsharpTargetAnalysisRequest,
@@ -27,7 +27,7 @@ export function compileCsharpTarget(
 ): TargetCompileResult {
   const before = request.providers.validateReferences();
   if (before.length !== 0) {
-    return rejectedTargetStage(before.map(diagnostic => selectedPolicyDiagnostic(undefined, diagnostic)));
+    return rejectedTargetStage(before.map(diagnostic => targetDiagnosticFromExtension(undefined, diagnostic)));
   }
   const result = runTargetCompilationStages({
     analyze: () => analyzeCsharpTargetProgram(request),
@@ -37,6 +37,6 @@ export function compileCsharpTarget(
   const after = request.providers.validateReferences();
   return after.length === 0 ? result : rejectedTargetStage([
     ...result.diagnostics,
-    ...after.map(diagnostic => selectedPolicyDiagnostic(undefined, diagnostic)),
+    ...after.map(diagnostic => targetDiagnosticFromExtension(undefined, diagnostic)),
   ]);
 }

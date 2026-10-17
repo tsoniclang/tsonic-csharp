@@ -1,5 +1,4 @@
 import type {
-  ExtensionDiagnostic,
   Node,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -7,26 +6,6 @@ import { failTargetPlannerInvariant } from "@tsonic/target-api/artifacts";
 
 export function failCsharpPlannerInvariant(message: string, sourceNode?: Node): never {
   return failTargetPlannerInvariant("tsonic-csharp", message, sourceNode);
-}
-
-export function selectedPolicyDiagnostic(
-  node: Node | undefined,
-  diagnostic: ExtensionDiagnostic,
-): TargetDiagnostic {
-  return {
-    code: `TS${diagnostic.numericCode}`,
-    category: diagnostic.category,
-    source: diagnostic.extensionId,
-    message: diagnostic.message,
-    ...(node === undefined ? {} : { sourceNode: node }),
-    ...(diagnostic.evidence === undefined || diagnostic.evidence.length === 0
-      ? {}
-      : {
-          evidence: uniqueEvidence(
-            diagnostic.evidence.map((entry) => entry.message),
-          ),
-        }),
-  };
 }
 
 export function targetPolicyDiagnostic(

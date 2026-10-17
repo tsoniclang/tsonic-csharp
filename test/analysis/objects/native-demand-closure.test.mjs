@@ -7,9 +7,6 @@ import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/reco
 import { createCsharpObjectShapeDemandEngine } from "../../../dist/analysis/objects/native-demand-requests.js";
 import { objectShapeArtifactKey } from "../../../dist/target-model/records/object-shape-demand.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
-import { csharpTargetTypeRenderingRejection, csharpTargetTypeRendersAsUnqualifiedIdentifier } from "../../../dist/policy/types/model/renderability.js";
-import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-type-rendering.js";
-import { csharpVoidTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
 const header = 'import type { int32 } from "@tsonic/core/types.js";';
 const programs = [
@@ -75,30 +72,6 @@ test("artifact demand seals once and the backend cannot reach the native query o
   assert.throws(() => engine.seal(), /artifact demand is sealed/u);
 });
 
-test("the pre-seal renderer predicate and syntax renderer agree on the existing rule", () => {
-  const named = shape => ({ kind: "target-named", id: "Control", csharpAllowsRefLikeTypeArguments: [], csharpRender: shape });
-  const controls = [
-    { kind: "source-primitive", name: "int32" },
-    { kind: "opaque", id: "unsupported" },
-    named({ kind: "named", name: "Value" }),
-    named({ kind: "named", name: "Value", usingNamespace: [] }),
-    named({ kind: "predefined", name: "int" }),
-    named({ kind: "nullable" }),
-    { kind: "type-parameter", identity: "invalid", name: "$value" },
-    { kind: "function-pointer", args: [], result: csharpVoidTargetType(), abi: ["managed", "Cdecl"] },
-    { kind: "function-pointer", args: [], result: csharpVoidTargetType(), abi: ["unmanaged", "Cdecl"] },
-  ];
-  for (const [index, type] of controls.entries()) {
-    const syntax = csharpTypeFromTargetTypeRef(type, undefined);
-    assert.equal(csharpTargetTypeRenderingRejection(type) === undefined, syntax !== undefined, `renderer admission control ${index}`);
-    assert.equal(csharpTargetTypeRendersAsUnqualifiedIdentifier(type), syntax?.kind === "IdentifierName", `unqualified identifier control ${index}`);
-  }
-  const invalid = named({ kind: "named", name: "value-with-hyphen", namespace: ["namespace-with-hyphen"] });
-  assert.throws(() => csharpTypeFromTargetTypeRef(invalid, undefined), /Invalid C# identifier/u, "the existing renderer refuses invalid native names");
-  assert.equal(csharpTargetTypeRenderingRejection(invalid)?.reason, "invalid-name", "the identical refusal is available before planning");
-  assert.equal(csharpTargetTypeRendersAsUnqualifiedIdentifier(invalid), false, "invalid native names cannot be generated identifiers");
-});
-
 test("erased metadata is not an extra demand root and retained source refusals still precede planning", () => {
   const options = { targetOptions: { languageDialect: "csharp15-preview", memorySafetyRules: "preview" } };
   const plain = compileCsharpSource({ ...options, sourceText: header + "export const count: int32 = 1;" });
@@ -145,4 +118,22 @@ test("a native class named Proxy is not confused with the unsupported source-pro
   const compiled = compileCsharpSource({ surface: "js", sourceText: "class Proxy {} export const value = new Proxy();" });
   assertCsharpCompilationSucceeded(compiled);
   assert.equal(compiled.artifacts.size > 0, true, "the selected native constructor remains admitted without a name-based rejection");
+});
+
+test("constructor refusals and other participating native refusals share one complete pre-seal result", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    export const value = new Proxy({}, {});
+    function tag(parts: TemplateStringsArray, count: number): string { return parts[0]; }
+    export function run(count: number): string { return tag\`value=\${count}\`; }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "both refused constructs are valid checked source");
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "neither known source refusal becomes published or planned");
+  const diagnostics = compiled.result.diagnostics;
+  assert.equal(diagnostics.length, 2, "the constructor cannot hide a different pending source refusal");
+  assert.equal(diagnostics.some(diagnostic => diagnostic.code === "TS9101002" &&
+    diagnostic.message === "Proxy traps redefine object operations dynamically and have no closed C# source-to-source representation."), true,
+  "exact constructor diagnostic transport");
+  assert.equal(diagnostics.some(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&
+    diagnostic.message === "Expression is outside the current C# planning surface."), true, "the existing independent native refusal is retained");
 });

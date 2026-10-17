@@ -15,7 +15,11 @@ import type { CsharpStorageClassifications } from "../../target-model/records/st
 import type { CsharpBindingPatternClassifications } from "../../target-model/records/value-projections.js";
 import type { CsharpNativeValueCarriers } from "../../target-model/records/native-value-carriers.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpNativeParticipationInput, CsharpNativeUse } from "../../target-model/records/native-demand.js";
+import type { CsharpFlowReadClassifications } from "../../target-model/records/source-evidence.js";
+import type { CsharpNativeDiscardedPresence, CsharpNativeParticipationInput, CsharpNativeUse } from "../../target-model/records/native-demand.js";
+import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter, CsharpProjectCallableAdapters } from "../../target-model/records/callable-adapters.js";
+import type { CsharpFinalStructuralInterfaceImplementation } from "../../target-model/records/heritage.js";
+import type { CsharpDefaultValueContract } from "../../target-model/records/value-projections.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpRuntimeUnionTargetTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
@@ -25,13 +29,20 @@ import { csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey } f
 import { resolveCsharpObjectShapeMemberBySourceKey } from "../../target-model/types/object-shape-members.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
-import { isCsharpEmptyObjectTargetType, isCsharpJsValueObjectShapeTargetType, isCsharpValueTypeTargetType } from "../../target-model/types/index.js";
+import {
+  csharpObjectShapeAssignmentMembers, csharpObjectShapeProjectionMembers, csharpTsValueTargetType,
+  getCsharpArrayLiteralElementTargetType, getCsharpCollectionElementTargetType, getCsharpGeneratorProtocol,
+  getCsharpJsArrayElementTargetType, getCsharpNullableElementTargetType,
+  isCsharpEmptyObjectTargetType, isCsharpJsValueObjectShapeTargetType, isCsharpJsValueTargetType, isCsharpValueTypeTargetType,
+} from "../../target-model/types/index.js";
+import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
 import { objectShapeArtifactKey, objectShapeMaterialization } from "../../target-model/records/object-shape-demand.js";
 import type { CsharpObjectShapeDemand } from "../../target-model/records/object-shape-demand.js";
 import { csharpTargetTypeRenderingRejection, csharpTargetTypeRendersAsUnqualifiedIdentifier } from "../../policy/types/model/renderability.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 import { createCsharpObjectShapeDemandEngine } from "./native-demand-requests.js";
 import type { CsharpArtifactRequestResult, CsharpObjectShapeDemandHost } from "./native-demand-batches.js";
+import type { CsharpObjectShapeClassifications } from "./model.js";
 
 export interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemandHost, CsharpNativeParticipationInput {
   readonly ast: AstReader;
@@ -43,11 +54,14 @@ export interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemand
   readonly storage: CsharpStorageClassifications;
   readonly callables: CsharpCallableContractIndex;
   readonly captureStorage: CsharpCaptureStorage;
+  readonly callableAdapters: CsharpProjectCallableAdapters;
+  readonly flowReads: CsharpFlowReadClassifications;
+  readonly objectShapes: CsharpObjectShapeClassifications<CsharpFinalStructuralInterfaceImplementation>;
   readonly declarations: CsharpDeclarationClassifications;
   readonly bindingPatterns: CsharpBindingPatternClassifications;
   readonly conversions: CsharpConversionClassifications;
   readonly nativeValueCarriers: CsharpNativeValueCarriers;
-  readonly sourceEvidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata">;
+  readonly sourceEvidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata" | "generatorTargetType" | "yield" | "yieldTargetType">;
 }
 
 export function analyzeCsharpNativeArtifactDemand(
@@ -61,6 +75,7 @@ export function analyzeCsharpNativeArtifactDemand(
   const uses = new Map<object, Set<string>>();
   const frames = new Set<CsharpCaptureFrame>();
   const requiredShapes = new Map<string, Node>();
+  const forwarding = new Set<string>();
   for (const sourceFile of input.sourceFiles) visitConstruct(sourceFile);
   if (issues.length > 0) return rejectedTargetStage(issues);
   const result = engine.seal();
@@ -95,6 +110,18 @@ export function analyzeCsharpNativeArtifactDemand(
     if (!accept(subject, engine.registerObjectShape(shape, materialization))) return;
     if (!isCsharpEmptyObjectTargetType(shape.targetType)) requiredShapes.set(objectShapeArtifactKey(shape), subject);
     for (const component of csharpTargetTypeComponents(shape.targetType, shape)) demandType(component, subject);
+    const key = targetTypeRefKey(shape.targetType);
+    if (!forwarding.has(key)) {
+      forwarding.add(key);
+      for (const implementation of input.objectShapes.structuralImplementations(shape.targetType)) {
+        demandType(implementation.interfaceType, implementation.sourceNode);
+        for (const property of implementation.properties) demandAdapter(implementation.sourceNode, property.read);
+        for (const method of implementation.methods) {
+          demandParameters(method.declaration, method.forwarding.parameters);
+          demandAdapter(method.declaration, method.forwarding.result);
+        }
+      }
+    }
   }
 
   function demandType(type: TargetTypeRef | undefined, subject: Node): void {
@@ -133,10 +160,7 @@ export function analyzeCsharpNativeArtifactDemand(
     selection: CsharpConversionSelection | undefined): void {
     if (selection === undefined) return;
     if (selection.kind === "js-value-box") {
-      const shape = input.objectShapes.resolveTarget(source);
-      if (shape !== undefined && !isCsharpValueTypeTargetType(shape.targetType) && !isCsharpEmptyObjectTargetType(shape.targetType)) {
-        capability(node, shape.targetType, "reference-identity", "object-shape", node);
-      }
+      demandBox(node, source);
     } else if (selection.kind === "nullable-map") {
       demandConversion(node, selection.sourceElement, selection.targetElement, selection.conversion);
     } else if (selection.kind === "implicit" && selection.proof === "runtime-union-arm") {
@@ -154,6 +178,65 @@ export function analyzeCsharpNativeArtifactDemand(
         if (selection.returnConversion.kind !== "void-return") demandConversion(node,
           sourceSignature.returnType, targetSignature.returnType, selection.returnConversion);
       }
+    } else if (selection.kind === "provider-argument-adapter") {
+      demandConversion(node, source, selection.adapter.inputType, selection.sourceToInput);
+      demandConversion(node, selection.adapter.resultType, target, selection.resultToTarget);
+    }
+  }
+
+  function demandBox(node: Node, source: TargetTypeRef): void {
+    if (isCsharpJsValueTargetType(source)) return;
+    const shape = input.objectShapes.resolveTarget(source);
+    if (shape !== undefined && !isCsharpValueTypeTargetType(shape.targetType) &&
+      !isCsharpEmptyObjectTargetType(shape.targetType) && !isCsharpJsValueObjectShapeTargetType(shape.targetType)) {
+      demandShape(shape, node);
+      capability(node, shape.targetType, "reference-identity");
+    }
+  }
+
+  function demandAdapter(node: Node, adapter: CsharpCallableValueAdapter): void {
+    demandType(adapter.source, node);
+    demandType(adapter.target, node);
+    demandConversion(node, adapter.source, adapter.target, adapter.conversion);
+  }
+
+  function demandParameters(node: Node, parameters: readonly CsharpCallableParameterAdapter[]): void {
+    for (const parameter of parameters) {
+      if (parameter.kind === "rest") {
+        demandType(parameter.target, node);
+        for (const segment of parameter.segments) demandAdapter(node, segment.adapter);
+      } else if (parameter.kind !== "omitted") demandAdapter(node, parameter.adapter);
+    }
+  }
+
+  function demandPair(node: Node, source: TargetTypeRef, target: TargetTypeRef, mode: "implicit" | "explicit" = "implicit"): void {
+    if (targetTypeRefEquals(source, target)) return;
+    demandConversion(node, source, target, input.conversions.conversion.get(source, target, mode));
+  }
+
+  function demandDefault(node: Node, contract: CsharpDefaultValueContract): void {
+    if (contract.normalize) demandPair(node, contract.source, contract.storage);
+    if (contract.kind === "value") demandPair(node, contract.storage, contract.target);
+    else if (contract.kind !== "absence") demandPair(node, contract.present, contract.target);
+  }
+
+  function demandUseBox(site: TargetUseSiteRef): void {
+    const use = input.nativeDemand.nativeUse.get(site);
+    if (use === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A selected boxing edge requires its admitted operand.", site.subject);
+    if (use.kind !== "erased" && use.completion.kind === "value") demandBox(use.expression, use.completion.type);
+  }
+
+  function demandDiscarded(recipe: CsharpNativeDiscardedPresence): void {
+    switch (recipe.kind) {
+      case "short-circuit":
+        if (recipe.guard.kind === "js-value") demandUseBox(recipe.left);
+        demandDiscarded(recipe.leftPresence);
+        demandDiscarded(recipe.right);
+        return;
+      case "conditional": demandUseBox(recipe.condition); demandDiscarded(recipe.whenTrue); demandDiscarded(recipe.whenFalse); return;
+      case "coalescing": demandDiscarded(recipe.left); demandDiscarded(recipe.right); return;
+      case "sequence": demandDiscarded(recipe.result); return;
+      case "constant": case "value": case "never": return;
     }
   }
 
@@ -182,7 +265,17 @@ export function analyzeCsharpNativeArtifactDemand(
     if (returned?.kind === "resolved") demandType(returned.type, node);
     demandType(input.storage.storageType.get(node), node);
     const defaulted = input.declarations.runtimeDefault.get(node);
-    if (defaulted !== undefined) { demandType(defaulted.native.source, node); demandType(defaulted.native.target, node); }
+    if (defaulted !== undefined) {
+      demandType(defaulted.native.source, node); demandType(defaulted.native.target, node);
+      demandDefault(node, defaulted.native);
+    }
+    const nativeParameter = input.storage.lambdaParameterType.get(node);
+    const storedParameter = input.storage.requiredStorageType.get(node);
+    if (nativeParameter !== undefined && storedParameter !== undefined && defaulted === undefined) demandPair(node, nativeParameter, storedParameter);
+    for (const adapter of input.callableAdapters.callableDispatch.get(node)?.adapters ?? []) {
+      demandParameters(node, adapter.parameters);
+      demandAdapter(node, adapter.result);
+    }
     const nativeValue = input.nativeValueCarriers.nativeValueDeclaration.get(node);
     if (nativeValue !== undefined) for (const field of nativeValue.fields) {
       demandType(field.carrier, node);
@@ -216,6 +309,7 @@ export function analyzeCsharpNativeArtifactDemand(
     }
     if (binding?.defaultValue !== undefined) {
       demandType(binding.defaultValue.source, node); demandType(binding.defaultValue.target, node);
+      demandDefault(node, binding.defaultValue);
     }
   }
 
@@ -237,6 +331,7 @@ export function analyzeCsharpNativeArtifactDemand(
       demandConversion(use.expression, use.input.type, use.target,
         input.conversions.expressionConversion.get(use.expression, use.input.type, use.target, use.mode));
     }
+    if (use.discardedPresence !== undefined) demandDiscarded(use.discardedPresence);
     demandUseArtifacts(use);
     visitConstruct(use.expression);
     for (const child of use.children) visitUse(child);
@@ -246,6 +341,31 @@ export function analyzeCsharpNativeArtifactDemand(
     const node = use.expression;
     const file = input.ast.getSourceFile(node);
     if (file === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted native use requires its source file.", node);
+    const flow = use.kind === "location" ? undefined : input.flowReads.flowReadProjection.get(node);
+    if (flow?.kind === "conversion") demandConversion(node, flow.source, flow.target, flow.selection);
+    if (input.operations.jsCondition.get(node)?.kind === "resolved" && use.completion.kind === "value") demandBox(node, use.completion.type);
+    const binary = input.operations.binaryOperation.get(node);
+    if (use.discardedPresence === undefined && input.operations.operatorForm.get(node) === "js-value-operation" && binary?.jsValue.kind === "resolved") {
+      const evaluation = use.evaluation;
+      if (evaluation.kind === "short-circuit") { demandUseBox(evaluation.left); demandUseBox(evaluation.right); }
+      else if (evaluation.kind === "sequence") for (const step of evaluation.steps) demandUseBox(step.site);
+    }
+    const element = input.operations.selectedElement.get(node);
+    for (const projection of [input.operations.selectedProperty.get(node)?.receiverProjection, element?.receiverProjection]) {
+      if (projection !== undefined) demandConversion(node, projection.source, projection.target, projection.conversion);
+    }
+    if (element?.target?.kind === "project-indexer" && element.target.selectedReadType !== undefined) {
+      demandConversion(node, element.target.valueType, element.target.selectedReadType, element.flowReadConversion);
+    }
+    if (element?.target?.kind === "resolved" && element.target.invocation.kind === "array-like") {
+      const projection = element.target.invocation.projection;
+      demandConversion(node, projection.source, projection.target, projection.conversion);
+    }
+    const selectedProperty = input.operations.selectedProperty.get(node)?.selection;
+    if (selectedProperty?.kind === "resolved" && selectedProperty.invocation.kind === "array-like") {
+      const projection = selectedProperty.invocation.projection;
+      demandConversion(node, projection.source, projection.target, projection.conversion);
+    }
     const property = input.operations.selectedProperty.get(node);
     const owned = property?.sourceOwned;
     if (property?.selection.kind === "source-owned" && owned?.objectShape !== undefined && owned.shapeMember?.kind === "resolved" &&
@@ -253,12 +373,37 @@ export function analyzeCsharpNativeArtifactDemand(
       capability(node, owned.objectShape.targetType, "method-values");
     }
     if (input.ast.is.IsObjectLiteralExpression(node) && use.objectShape !== undefined) demandLiteral(node, use.objectShape, file);
-    const call = input.operations.selectedCall.get(node)?.target;
+    const selectedCall = input.operations.selectedCall.get(node);
+    const call = selectedCall?.target;
     if (call !== undefined) demandCall(node, call, file);
+    if (selectedCall?.sourceResult !== undefined) demandPair(node, selectedCall.sourceResult.nativeType, selectedCall.sourceResult.selectedType, "explicit");
+    const receiver = selectedCall?.optionalReceiver;
+    if (receiver?.conversion !== undefined && receiver.parameterType !== undefined) demandConversion(receiver.expression,
+      receiver.type, receiver.parameterType, receiver.conversion);
     const construction = input.operations.selectedConstruction.get(node)?.target;
     if (construction !== undefined) demandCall(node, construction, file);
     const binding = input.bindingPatterns.bindingPatternProjection.get(node);
     if (binding?.assignmentPattern !== undefined) visitAssignment(binding.assignmentPattern);
+    if (input.ast.is.IsArrayLiteralExpression(node)) {
+      const target = getCsharpArrayLiteralElementTargetType(use.carrier) ?? getCsharpCollectionElementTargetType(use.carrier);
+      if (target !== undefined) for (const child of input.ast.children(node)) {
+        if (child === undefined || !input.ast.is.IsSpreadElement(child)) continue;
+        const operand = input.ast.as.AsSpreadElement(child)?.Expression;
+        const selected = operand === undefined ? undefined : input.nativeDemand.nativeUse.expression(operand)?.use;
+        if (selected !== undefined && selected.kind !== "erased" && selected.completion.kind === "value") {
+          const source = selected.completion.type;
+          for (const type of source.kind === "tuple" ? source.elements : [getCsharpCollectionElementTargetType(source)]) {
+            if (type !== undefined) demandPair(child, type, target);
+          }
+        }
+      }
+    }
+    const yielded = input.sourceEvidence.yield.get(node);
+    if (yielded !== undefined && use.completion.kind === "value") {
+      const protocol = getCsharpGeneratorProtocol(yielded.yieldKind === "delegate" ? input.sourceEvidence.yieldTargetType.get(node)
+        : input.sourceEvidence.generatorTargetType.get(yielded.generator.declaration));
+      if (protocol !== undefined) demandPair(node, yielded.yieldKind === "delegate" ? protocol.returnType : protocol.nextType, use.completion.type);
+    }
   }
 
   function visitAssignment(pattern: NonNullable<ReturnType<CsharpBindingPatternClassifications["bindingPatternProjection"]["get"]>>["assignmentPattern"]): void {
@@ -302,6 +447,19 @@ export function analyzeCsharpNativeArtifactDemand(
 
   function demandCall(node: Node, selection: CsharpTargetCallSelection, file: SourceFile): void {
     if (selection.kind !== "resolved") return;
+    if (selection.call.origin === "provider") for (const mapping of selection.call.argumentMappings) {
+      if (mapping.kind === "by-value") demandConversion(node, mapping.sourceType, mapping.targetType, mapping.conversion);
+    }
+    for (const sequence of selection.call.sequenceArguments ?? []) for (const element of sequence.elements) {
+      demandConversion(sequence.expression, element.type, sequence.targetElementType, element.conversion);
+    }
+    for (const argument of selection.call.arguments) if (argument.targetParameter.csharpValueProjection === "properties") {
+      const subject = selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
+      const use = subject === undefined ? undefined : input.nativeDemand.nativeUse.expression(subject)?.use;
+      if (subject !== undefined && use !== undefined && use.kind !== "erased" && use.completion.kind === "value") {
+        demandProperties(subject, use.completion.type);
+      }
+    }
     const member = selection.call.targetMember;
     const source = selection.source;
     let projectionCount = 0;
@@ -329,6 +487,26 @@ export function analyzeCsharpNativeArtifactDemand(
       if (projection.kind === "accepted" && (projection.projection === undefined || projectionCount > 1)) {
         refuse(subject, `Selected target call '${member.id}' does not have one exact object-shape projection artifact.`);
       }
+      if (projection.kind === "accepted" && projection.projection !== undefined) {
+        const selected = projection.projection;
+        const shape = input.objectShapes.resolveTarget(requirement.projection === "assign" ? member.returnType : type);
+        if (shape !== undefined && selected.kind === "assign") {
+          for (const pair of csharpObjectShapeAssignmentMembers(shape, selected) ?? []) demandPair(subject, pair.source.type, pair.target.type);
+        } else if (shape !== undefined && (selected.kind === "values" || selected.kind === "entries")) {
+          const element = getCsharpJsArrayElementTargetType(selected.resultType);
+          const target = selected.kind === "entries" && element?.kind === "tuple" ? element.elements[1] : element;
+          if (target !== undefined) for (const value of csharpObjectShapeProjectionMembers(shape, selected) ?? []) demandPair(subject, value.type, target);
+        }
+      }
     }
+  }
+
+  function demandProperties(node: Node, type: TargetTypeRef): void {
+    if (isCsharpJsValueTargetType(type)) return;
+    const present = getCsharpNullableElementTargetType(type);
+    if (present !== undefined) { demandProperties(node, present); return; }
+    const leaves = csharpUnionLeaves(type, input.typeDefinitions);
+    if (leaves !== undefined) { for (const leaf of leaves) demandProperties(node, leaf.carrier); return; }
+    for (const member of input.conversions.propertyProjection.get(node, type) ?? []) demandPair(node, member.type, csharpTsValueTargetType());
   }
 }

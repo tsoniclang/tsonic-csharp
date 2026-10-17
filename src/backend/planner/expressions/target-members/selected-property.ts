@@ -3,12 +3,12 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetPropertySelection } from "../../../../target-model/records/member-selections.js";
 import type {
   CsharpExpression,
 } from "../../../target-ast/syntax/index.js";
 import {
-  selectedPolicyDiagnostic,
   targetPolicyDiagnostic,
   unsupportedNodeDiagnostic,
 } from "../../diagnostics.js";
@@ -69,7 +69,7 @@ export function translateCsharpPropertyAccess(
         classification.sourceOwned, sourceFile, input, diagnostics, receiver);
     }
     case "rejected":
-      diagnostics.push(selectedPolicyDiagnostic(
+      diagnostics.push(targetDiagnosticFromExtension(
         node,
         selection.diagnostic,
       ));
