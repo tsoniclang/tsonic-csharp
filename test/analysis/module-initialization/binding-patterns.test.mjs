@@ -5,6 +5,54 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { moduleBindingPatternFiles, moduleBindingPublicationPrograms } from "../../../../tsonic/test/fixtures/module-binding-patterns.mjs";
 
 for (const surface of [undefined, "js"]) {
+  test(`module initialization selects only exact module binding leaves on ${surface ?? "native"}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+export const { first, nested: { second } } = { first: 1, nested: { second: 2 } };
+export const [, third] = [3, 4] as const;
+export function read(): number {
+  const { local } = { local: 5 };
+  return first + second + third + local;
+}
+` });
+    assert.equal(compiled.result.diagnostics.length, 0,
+      compiled.result.diagnostics.map(issue => `${issue.code}: ${issue.message}`).join("\n").slice(0, 4096));
+    const program = compiled.result.program;
+    assert.equal(program !== undefined, true, "the complete checked binding class seals");
+    const { ast } = program.source;
+    const bindings = new Map();
+    const omitted = [];
+    const patterns = [];
+    const visit = node => {
+      if (ast.is.IsBindingElement(node)) {
+        const name = ast.as.AsBindingElement(node)?.name;
+        if (name === undefined) omitted.push(node);
+        else if (ast.is.IsIdentifier(name)) bindings.set(ast.text(name), node);
+        else patterns.push(node);
+      }
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    for (const sourceFile of program.sourceFiles) visit(sourceFile);
+    for (const [name, mode] of [["first", "value"], ["second", "value"], ["third", "value"], ["local", undefined]]) {
+      const binding = bindings.get(name);
+      assert.equal(binding !== undefined, true, `the actual ${name} source binding exists`);
+      assert.equal(program.records.moduleBindingInitialization.get(binding), mode,
+        `${name} reads its original module-versus-local initialization mode`);
+    }
+    assert.equal(omitted.length, 1, "the checked omitted slot remains one original source subject");
+    assert.equal(omitted.every(node => program.records.moduleBindingInitialization.get(node) === undefined), true,
+      "an omitted slot never creates module storage");
+    assert.equal(patterns.length, 1, "the nested aggregate is distinct from its actual identifier leaf");
+    assert.equal(patterns.every(node => program.records.moduleBindingInitialization.get(node) === undefined), true,
+      "intermediate aggregates never create module fields");
+    const emitted = [...compiled.artifacts.values()].join("\n");
+    assert.equal(/private static[^;{]*__tsonic_destructure/u.test(emitted), false,
+      "initializer temporaries are not retained in private static fields");
+    assert.equal(/__tsonic_destructure\d+ =/u.test(emitted), true,
+      "initializer projections retain their once-only native local temporaries");
+    assert.equal(Object.isFrozen(program.records.moduleBindingInitialization), true,
+      "the backend receives one sealed initialization lookup");
+  });
+
   test(`module patterns preserve roots, leaves, defaults, exports and live aliases on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, files: moduleBindingPatternFiles,
       sourceText: moduleBindingPatternFiles["index.ts"], targetOptions: { outputType: "Exe" } });

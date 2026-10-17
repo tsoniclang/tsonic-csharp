@@ -64,22 +64,20 @@ export function planTopLevelVariableStatement(
       continue;
     }
     const variable = AsVariableDeclaration(input.program.source.ast, declaration)!;
-    const retainedBindings = new Map<string, Node>();
+    const retainedFields: CsharpTypeMember[] = [];
     const destructured = isBindingPattern(variable.name, input)
       ? planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state,
-        (binding, sourceDeclaration) => retainedBindings.set(binding.name, sourceDeclaration))
+        (binding, sourceDeclaration) => retainedFields.push(topLevelBindingMember(
+          binding.name,
+          binding.type,
+          "public",
+          reassignable,
+          input.program.records.nativeModuleField.get(sourceDeclaration),
+        )))
       : undefined;
     if (destructured !== undefined) {
-      const planned = topLevelBindingFields(
-        destructured,
-        diagnostics,
-        declaration,
-        reassignable,
-        retainedBindings,
-        input,
-      );
-      moduleMembers.push(...planned.fields);
-      topLevelStatements.push(...planned.statements);
+      moduleMembers.push(...retainedFields);
+      topLevelStatements.push(...destructured);
       continue;
     }
     const callableVisibility = input.program.records.callableVisibility.get(declaration);
@@ -152,44 +150,6 @@ export function planTopLevelVariableStatement(
       }
     }
   }
-}
-
-interface TopLevelBindingPlan {
-  readonly fields: readonly CsharpTypeMember[];
-  readonly statements: readonly CsharpStatement[];
-}
-
-function topLevelBindingFields(
-  statements: readonly CsharpStatement[],
-  diagnostics: TargetDiagnostic[],
-  diagnosticNode: Node,
-  reassignable: boolean,
-  bindings: ReadonlyMap<string, Node>,
-  input: CsharpPlanningContext,
-): TopLevelBindingPlan {
-  const fields: CsharpTypeMember[] = [];
-  const initializers: CsharpStatement[] = [];
-  for (const statement of statements) {
-    if (statement.kind !== "LocalDeclarationStatement") {
-      diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "Top-level destructuring requires field-initializable binding projections."));
-      continue;
-    }
-    const declaration = bindings.get(statement.name);
-    fields.push(topLevelBindingMember(
-      statement.name,
-      statement.type,
-      declaration === undefined ? "private" : "public",
-      reassignable,
-      declaration !== undefined && input.program.records.nativeModuleField.get(declaration),
-    ));
-    if (statement.initializer !== undefined) {
-      initializers.push(topLevelFieldAssignment(statement.name, statement.initializer));
-    }
-  }
-  return {
-    fields,
-    statements: initializers,
-  };
 }
 
 export function topLevelBindingMember(

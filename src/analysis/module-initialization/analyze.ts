@@ -3,15 +3,20 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import {
   AsExpressionStatement,
+  AsBindingElement,
   AsVariableDeclaration,
   AsVariableStatement,
+  HasSourceKind,
+  KindArrayBindingPattern,
   KindClassDeclaration,
   KindEmptyStatement,
   KindEnumDeclaration,
   KindExportDeclaration,
   KindFunctionDeclaration,
   KindImportDeclaration,
+  KindIdentifier,
   KindInterfaceDeclaration,
+  KindObjectBindingPattern,
   KindTypeAliasDeclaration,
   KindVariableStatement,
   SourceFile_FileName,
@@ -49,8 +54,10 @@ export function analyzeCsharpModuleInitialization(
       if (declarations === undefined) continue;
       for (const declaration of input.source.ast.children(declarations)) {
         if (declaration === undefined || !input.source.ast.is.IsVariableDeclaration(declaration)) continue;
-        const initializer = AsVariableDeclaration(input.source.ast, declaration)?.Initializer;
+        const variable = AsVariableDeclaration(input.source.ast, declaration);
+        const initializer = variable?.Initializer;
         bindingInitialization.set(declaration, initializer === undefined ? "declaration" : "value");
+        if (initializer !== undefined && variable?.name !== undefined) recordPatternBindings(variable.name);
         if (input.source.ast.variableDeclarationKind(declarations) !== "const") continue;
         if (initializer === undefined || !input.source.ast.is.IsArrowFunction(initializer) ||
           input.source.ast.typeParameters(initializer).length !== 0) continue;
@@ -114,6 +121,18 @@ export function analyzeCsharpModuleInitialization(
     index,
     issues: Object.freeze(issues),
   });
+
+  function recordPatternBindings(pattern: Node): void {
+    const { ast } = input.source;
+    if (!HasSourceKind(ast, pattern, KindArrayBindingPattern) &&
+      !HasSourceKind(ast, pattern, KindObjectBindingPattern)) return;
+    for (const element of ast.elements(pattern)) {
+      const binding = AsBindingElement(ast, element);
+      if (element === undefined || binding?.name === undefined) continue;
+      if (HasSourceKind(ast, binding.name, KindIdentifier)) bindingInitialization.set(element, "value");
+      else recordPatternBindings(binding.name);
+    }
+  }
 }
 
 function sourceFileHasDirectRuntimeEffects(
