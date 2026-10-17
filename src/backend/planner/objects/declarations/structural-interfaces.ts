@@ -67,7 +67,7 @@ export function renderCsharpStructuralInterfaceMembers(typeParameterNames: Reado
       if (returnType === undefined || parameters.some(type => type === undefined)) return undefined;
       const issues: TargetDiagnostic[] = [];
       const typeParameters: CsharpTypeParameter[] = (member.typeParameters ?? []).map(parameter => ({
-        name: typeParameterNames?.get(parameter.identity) ?? parameter.name, constraints: parameter.constraints.flatMap(constraint => {
+        name: parameter.name, constraints: parameter.constraints.flatMap(constraint => {
           const result = csharpGenericConstraintFromTargetTypeParameterConstraint(typeParameterNames, constraint, parameter.declaration, issues);
           return result === undefined ? [] : [result];
         }),

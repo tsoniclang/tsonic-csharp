@@ -9,6 +9,7 @@ import {
 } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { sourceNodesEqual } from "@tsonic/target-api/source";
 import type {
   CsharpCatchClause,
   CsharpStatement,
@@ -18,7 +19,7 @@ import {
   allocateCatchValue,
   declareCsharpLocalBindingName,
 } from "../bindings/index.js";
-import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import {
   probeCarrierFromResolution,
   missingCarrierDiagnosticDetail,
@@ -28,6 +29,7 @@ import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import {
   csharpCatchExceptionType,
   csharpThrownValueToValueExpression,
+  isExactUnmodifiedCatchRethrow,
 } from "../expressions/exception-flow.js";
 import {
   isCsharpJsValueTargetType,
@@ -100,9 +102,7 @@ function planCatchClause(
         },
       };
     }
-    const order = input.program.records.nativeUse.order(node);
-    if (order === undefined) failCsharpPlannerInvariant("A catch clause requires its admitted native construction order.", node);
-    if (!order.some(step => step.kind === "construct" && step.construct === clause.VariableDeclaration)) {
+    if (!catchVariableRequiresTargetBinding(variable.name, clause.Block, input)) {
       return {
         kind: "CatchClause",
         body: {
@@ -226,4 +226,44 @@ function planCatchClause(
       statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
     },
   };
+}
+
+function catchVariableRequiresTargetBinding(
+  variableName: Node,
+  catchBlock: Node | undefined,
+  input: CsharpPlanningContext,
+): boolean {
+  const binding = input.program.sourceNavigation.referenceFor(variableName);
+  if (binding === undefined || catchBlock === undefined) {
+    return true;
+  }
+  let required = false;
+  const visit = (node: Node | undefined): void => {
+    if (node === undefined || required) {
+      return;
+    }
+    const reference = input.program.sourceNavigation.referenceFor(node);
+    if (
+      !sourceNodesEqual(input.program.source.ast, node, variableName) &&
+      reference?.symbol === binding.symbol
+    ) {
+      const parent = input.program.source.ast.parent(node);
+      if (
+        parent === undefined ||
+        !input.program.source.ast.is.IsThrowStatement(parent) ||
+        !sourceNodesEqual(
+          input.program.source.ast,
+          input.program.source.ast.as.AsThrowStatement(parent)?.Expression,
+          node,
+        ) ||
+        !isExactUnmodifiedCatchRethrow(parent, node, input)
+      ) {
+        required = true;
+        return;
+      }
+    }
+    input.program.source.ast.forEachChild(node, visit);
+  };
+  visit(catchBlock);
+  return required;
 }

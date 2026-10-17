@@ -45,7 +45,7 @@ function fixture() {
     }),
     projectTypeCatalog: catalog,
     projectTypes: () => ({ directSupertypes: () => [] }),
-    representations: { genericProjections: () => [], requiresClosedStructuralContract: () => false },
+    representations: { requiresClosedStructuralContract: () => false },
     providers: { resolveSelectedTypeRelation: () => undefined },
     memoryBindings: { hasBoundField: () => false },
     typeResolver: {

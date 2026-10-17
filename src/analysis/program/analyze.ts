@@ -447,7 +447,7 @@ export function analyzeCsharpTargetProgram(
     sourceFiles,
     projectTypes,
     objectShapes: callableAdapters.objectShapes,
-    names: analysis.names.seal(nativeDemand.requiredBindingRoots),
+    names: analysis.names.seal(),
     sourceModuleConstructions: Object.freeze({
       entries: sourceModuleConstructions.index.entries,
       from: sourceModuleConstructions.index.from,

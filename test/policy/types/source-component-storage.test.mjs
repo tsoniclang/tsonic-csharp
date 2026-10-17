@@ -100,7 +100,6 @@ test("callable results establish their own storage owner rather than retaining t
   const callable = { parameters: [], result: { declaration: owner, selectedType: {} } };
   const resolved = resolveCallableEvidence({
     host: { ast: { typeParameters: node => { assert.equal(node === owner, true); return []; }, is: typeOnlyPredicates },
-      representations: { genericProjections: node => { assert.equal(node === owner, true); return []; } },
       sourceStorage: { subject(node, kind) { assert.equal(node === owner && kind === "return", true);
         return { kind: "resolved", subject: resultSubject }; } } },
     resolveSignatureParameterEvidence() { assert.fail("the callable has no parameters"); },

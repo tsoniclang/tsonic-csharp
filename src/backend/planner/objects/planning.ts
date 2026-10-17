@@ -110,16 +110,15 @@ export function materializeObjectShapeDeclarations(
       continue;
     }
     const fact = artifact.fact.declarationTemplate ?? artifact.fact;
-    const generatedTypeParameterNames = csharpGeneratedTypeParameterNames(
+    const typeParameterNames = csharpGeneratedTypeParameterNames(
       fact.targetType.kind === "target-named"
         ? (fact.targetType.typeArguments ?? []).filter(argument => argument.kind === "type-parameter") : [],
-      [...fact.members.flatMap(member => (member.typeParameters ?? []).map(parameter => input.scope.typeParameterNames?.get(parameter.identity) ?? parameter.name)),
+      [...fact.members.flatMap(member => (member.typeParameters ?? []).map(parameter => parameter.name)),
         ...(input.program.records.captureFrameShape.get(fact.targetType)?.methods.flatMap(method =>
           csharpAuthoredTypeParameterNames(method.declaration, input.program.source.ast)) ?? []),
         ...(fact.methodImplementation === undefined ? [] : csharpAuthoredTypeParameterNames(
           fact.methodImplementation.declaration, input.program.source.ast))],
     );
-    const typeParameterNames = new Map([...input.scope.typeParameterNames ?? [], ...generatedTypeParameterNames]);
     const declarationInput = { ...input, scope: { ...input.scope, typeParameterNames } };
     const declaration = renderObjectShapeDeclaration(
       declarationInput,

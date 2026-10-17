@@ -45,23 +45,12 @@ export function analyzeCsharpNativeDemand(
   const { ast } = input;
   const baseCalls = new WeakMap<Node, Node>();
   const unusedDefaults = new WeakSet<Node>();
-  const requiredCatchBindings = new WeakSet<Node>();
   const indexInputs = (node: Node): void => {
     if (ast.is.IsConstructorDeclaration(node)) {
       const call = csharpConstructorBaseCall(ast, node);
       if (call !== undefined) baseCalls.set(node, call);
     }
     if (isCsharpUnusedTupleDefault(ast, input.bindingPatterns.bindingPatternProjection, node)) unusedDefaults.add(node);
-    if (ast.is.IsIdentifier(node)) {
-      const declaration = input.navigation.sourceReferenceFor(node)?.declaration;
-      const clause = declaration === undefined ? undefined : ast.parent(declaration);
-      if (declaration !== undefined && ast.is.IsVariableDeclaration(declaration) && clause !== undefined &&
-        ast.is.IsCatchClause(clause) && ast.name(declaration) !== node) {
-        const parent = ast.parent(node);
-        if (parent === undefined || !ast.is.IsThrowStatement(parent) || ast.as.AsThrowStatement(parent)?.Expression !== node ||
-          !input.operations.exactCatchRethrow.get(parent)) requiredCatchBindings.add(declaration);
-      }
-    }
     ast.forEachChild(node, child => { if (child !== undefined) indexInputs(child); });
   };
   for (const file of input.sourceFiles) indexInputs(file);
@@ -153,13 +142,6 @@ export function analyzeCsharpNativeDemand(
     const participation = input.participation.get(node);
     if (participation === "body" || participation === "frame-body" || participation === "signature") {
       for (const parameter of ast.parameters(node)) if (parameter !== undefined) requiredBindingRoots.add(parameter);
-      if (ast.is.IsFunctionDeclaration(node) && participation === "body") requiredBindingRoots.add(node);
-    }
-    if (ast.is.IsVariableDeclaration(node) && ast.as.AsVariableDeclaration(node)?.Initializer === undefined) {
-      const list = ast.parent(node);
-      const owner = list === undefined ? undefined : ast.parent(list);
-      if (list === undefined || !ast.is.IsVariableDeclarationList(list) || owner === undefined ||
-        !(ast.is.IsForOfStatement(owner) || ast.is.IsForInStatement(owner))) requiredBindingRoots.add(node);
     }
     const steps: CsharpNativeOrderStep[] = [];
     if (ast.is.IsExpressionStatement(node) && input.operations.erasedStatement.get(node)) {
@@ -169,11 +151,7 @@ export function analyzeCsharpNativeDemand(
         publish(site, { kind: "erased", expression, cause: "erased-statement" });
         steps.push(Object.freeze({ kind: "use", site }));
       }
-    } else for (const step of selected.steps) {
-      if (ast.is.IsCatchClause(node) && step.kind === "construct" &&
-        ast.as.AsCatchClause(node)?.VariableDeclaration === step.node && !requiredCatchBindings.has(step.node)) continue;
-      visitStep(step, steps);
-    }
+    } else for (const step of selected.steps) visitStep(step, steps);
     orders.set(node, Object.freeze(steps));
   }
 

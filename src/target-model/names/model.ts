@@ -6,6 +6,5 @@ export type CsharpSourceNameResolution =
 
 export interface CsharpNamePlan {
   readonly reservedNames: readonly string[];
-  readonly typeParameterNames: readonly { readonly identity: string; readonly name: string }[];
   resolve(nameNode: Node | undefined, selectedDeclaration?: Node): CsharpSourceNameResolution;
 }

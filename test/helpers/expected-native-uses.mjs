@@ -1,27 +1,6 @@
-import assert from "node:assert/strict";
 import { analyzeSourceLiteralValues, createTargetSourceProgram } from "@tsonic/target-api/source";
 import { analyzeCsharpExpectedTypes } from "../../dist/analysis/expected-types/analyze.js";
-import { compileCsharpTarget } from "../../dist/backend/compile.js";
 import { createCsharpProviderRelationResolver } from "../../dist/providers/native/relations/resolver.js";
-import { compileCsharpSource } from "./direct-csharp-session.mjs";
-
-export function compileCsharpNativeUseSource(options) {
-  let nativeStage;
-  const compiled = compileCsharpSource({ ...options, compileTarget(request, observer) {
-    const result = compileCsharpTarget(request, observer);
-    nativeStage = { source: request.input.source, diagnostics: result.diagnostics };
-    return result;
-  } });
-  if (compiled.sourceDiagnosticsText === "") assert.equal(nativeStage !== undefined, true,
-    "checked native-use controls reach the actual target compiler once");
-  if (nativeStage !== undefined) assert.equal(compiled.targetDiagnostics.length === nativeStage.diagnostics.length &&
-    compiled.targetDiagnostics.every((issue, index) => {
-      const original = nativeStage.diagnostics[index];
-      return issue.code === original.code && issue.category === original.category && issue.message === original.message &&
-        issue.source === original.source && issue.evidence === original.evidence;
-    }), true, "the public diagnostic projection retains every native code, category, message, owner and evidence");
-  return { ...compiled, nativeStage };
-}
 
 export function createExpectedNativeUseOwner(compiled) {
   const program = compiled.result.program;

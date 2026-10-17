@@ -87,7 +87,7 @@ test("selected values replace an enclosing operation owner for both syntax and c
             assert.equal(selected === node, true, kind);
             return available ? { kind: "resolved", subject: operand } : { kind: "unresolved", reason: "no exact owner" };
           } },
-          representations: { genericProjections: () => [], scopedTargetType: () => undefined },
+          representations: { scopedTargetType: () => undefined },
           semantics: () => queries,
         },
         sourceValueDeclaration: () => undefined,

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createSourceStorageQuery, defaultSourceStorageLimits } from "@tsonic/target-api/analysis";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
 import { analyzeCsharpNativeParticipation } from "../../../dist/analysis/callables/participation.js";
@@ -73,9 +73,9 @@ const ambientCases = [
 
 for (const surface of ["native", "js"]) for (const example of ambientCases) test(
   `${surface} ambient implementation is required only by actual native use (${example.name})`, { timeout: 300_000 }, () => {
-  const compiled = compileCsharpNativeUseSource({ sourceText: example.sourceText, surface });
+  const compiled = compileCsharpSource({ sourceText: example.sourceText, surface });
   assertCsharpCheckingSucceeded(compiled);
-  const source = compiled.nativeStage.source;
+  const source = createTargetSourceProgram(compiled.source);
   const ast = source.ast;
   const nodes = [];
   const visit = node => {
@@ -93,7 +93,7 @@ for (const surface of ["native", "js"]) for (const example of ambientCases) test
   const references = source.navigation.declarationUses(ambient).filter(use => use.kind !== "type-only" && use.kind !== "source-linkage");
   assert.equal(references.length, example.references, `${example.name}: checked source references are not filtered or rewritten`);
   if (example.errors !== 0) {
-    const issues = compiled.nativeStage.diagnostics;
+    const issues = compiled.targetDiagnostics;
     assert.equal(issues.length === example.errors && issues.every(issue =>
       issue.code === "CSHARP_AMBIENT_VALUE_IMPLEMENTATION_MISSING" && issue.category === "error" && issue.source === "tsonic-csharp" &&
       issue.message === "A runtime read of an authored ambient variable requires an exact native implementation." &&

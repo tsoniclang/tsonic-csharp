@@ -124,7 +124,7 @@ export function createCsharpPlanningContext(
     artifacts,
     outputIdentities,
     names,
-    scope: Object.freeze({ typeParameterNames: new Map(program.names.typeParameterNames.map(parameter => [parameter.identity, parameter.name])) }),
+    scope: Object.freeze({}),
   });
 }
 
