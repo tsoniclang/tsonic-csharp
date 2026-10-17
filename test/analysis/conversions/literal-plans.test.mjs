@@ -6,7 +6,8 @@ import { createCsharpExactLiteralRequestCollector } from "../../../dist/analysis
 import { applyCsharpConversionSelection } from "../../../dist/backend/planner/expressions/conversions.js";
 import { selectCsharpExactLiteralConversion, selectCsharpExactPropertyKeyConversion } from "../../../dist/policy/conversions/literals.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
+import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/index.js";
+import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { compileCsharpSource, checkCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { createTargetSourceProgram, analyzeSourceLiteralValues } from "@tsonic/target-api/source";
@@ -460,6 +461,104 @@ test("exact literal requests are private frozen preparation data, not sealed con
   assert.equal(Array.isArray(prepared.exactLiteralRequests) && Object.isFrozen(prepared.exactLiteralRequests), true,
     "the private completed request list is frozen");
   assert.equal(Object.hasOwn(conversions, "exactLiteralRequests"), false, "the final conversion port carries no preparation state");
+});
+
+test("the literal collector closes once and validates later exact endpoints without adding requests", () => {
+  const expression = {};
+  const source = primitive("float64");
+  const target = primitive("float32");
+  const collector = createCsharpExactLiteralRequestCollector(literals([[expression,
+    Object.freeze({ form: "numeric", number: 1.25 })]]));
+  const literal = Object.freeze({ kind: "implicit", proof: "literal" });
+  collector.requestConversion(expression, source, target, literal);
+  const requests = collector.seal();
+  assert.equal(requests === collector.requests && Object.isFrozen(requests), true, "one immutable request set is published");
+  collector.requestConversion(expression, source, target, literal);
+  assert.equal(requests.length, 1, "a later admitted endpoint is validation only");
+  assert.throws(() => collector.requestConversion(expression, source, primitive("decimal"), literal),
+    /exact endpoint before literal publication/u, "a different native endpoint cannot appear after publication");
+  assert.equal(requests.length, 1, "a refused late endpoint leaves the exact request set unchanged");
+  assert.throws(() => collector.seal(), /close exactly once/u, "the collector cannot be reopened or resealed");
+  assert.throws(() => collector.requestReads(expression, [source], [target], { unaryOperation: { get: () => undefined } }),
+    /cannot read another source use/u, "post-close source collection cannot mutate a frozen literal plan");
+});
+
+test("actual literal uses prepare their selected union inner endpoint before the one literal snapshot", () => {
+  const expression = {};
+  const sourceFile = {};
+  const source = primitive("float64");
+  const target = csharpRuntimeUnionTargetType([primitive("float32"), csharpStringTargetType()]);
+  const [literal] = checkedSourceLiteralValues(["1.25"]);
+  const literalValues = literals([[expression, literal]]);
+  const none = Object.freeze({ get: () => undefined });
+  const policy = { sourceFiles: [sourceFile], target: {}, literalValues,
+    ast: { is: { IsCallExpression: () => false, IsIdentifier: () => false, IsVariableDeclaration: () => false,
+      IsReturnStatement: () => false, IsArrayLiteralExpression: () => false },
+      getSourceFile: () => undefined, forEachChild: (node, visit) => { if (node === sourceFile) visit(expression); } },
+    navigation: { referenceFor: () => undefined }, projectTypes: { directSupertypes: () => [] },
+    providers: { findTargetBindingByTargetId: () => undefined } };
+  const analysis = analyzeCsharpConversions(policy, { compileTimeMetadata: { get: () => false } },
+    { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false });
+  const prepared = analysis.prepare({
+    operations: { nativeUnreachable: { get: () => false }, borrowedSequence: none, selectedCall: none,
+      selectedConstruction: none, unaryOperation: none },
+    expectedTypes: { callableTarget: none, expectedType: { get: node => node === expression ? [target] : [] },
+      exactIntegerConversion: { get: () => false } },
+    valueReads: { valueRead: { get: node => node === expression ? { value: source, source } : undefined } },
+  });
+  const requests = prepared.exactLiteralRequests;
+  const exact = analyzeCsharpExactLiteralSelections(literalValues, requests);
+  const inner = exact.exactLiteral.get(expression, primitive("float32"));
+  assert.equal(inner?.kind === "resolved" && inner.recipe.kind === "float" && inner.recipe.precision === "float32" &&
+    inner.recipe.token.significand === "1.25", true, "the selected inner target exists before NativeDemand consumes exact literals");
+  const site = csharpNativeUseSite(expression, { kind: "return" });
+  const use = Object.freeze({ kind: "converted", expression, carrier: source, target, mode: "implicit",
+    input: Object.freeze({ kind: "value", type: source }), completion: Object.freeze({ kind: "value", type: target }),
+    children: Object.freeze([]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
+  const count = requests.length;
+  analysis.close({ entries: [{ site, use }] }, []);
+  const sealed = analysis.seal();
+  const selected = sealed.expressionConversion.get(expression, source, target, "implicit");
+  assert.equal(selected?.kind === "implicit" && selected.proof === "runtime-union-arm" &&
+    selected.sourceToArm.proof === "literal", true, "the actual consumed union conversion reuses the prepared correspondence");
+  assert.equal(requests.length === count && Object.isFrozen(requests) && sealed.issues.length === 0, true,
+    "closing the actual uses cannot add endpoints, rebuild literals or hide a conversion issue");
+  assert.equal(exact.exactLiteral.get(expression, primitive("decimal")) === undefined, true,
+    "an unrelated representable native literal target remains unrequested");
+});
+
+for (const surface of ["native", "js"]) test(`${surface} actual literal union return renders its prepared inner native endpoint`,
+  { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    import type { float32 } from "@tsonic/core/types.js";
+    export function literalUnion(): float32 | string { return 1.25; }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  assert.equal(compiled.targetDiagnostics.length === 0 && compiled.result.program !== undefined, true,
+    compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+  const program = compiled.result.program;
+  const ast = program.source.ast;
+  let declaration;
+  let expression;
+  const visit = node => {
+    if (ast.is.IsFunctionDeclaration(node) && ast.text(ast.name(node)) === "literalUnion") declaration = node;
+    if (ast.is.IsReturnStatement(node)) expression = ast.as.AsReturnStatement(node).Expression;
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  assert.equal(declaration !== undefined && expression !== undefined, true, "the actual checked return and literal are present");
+  const inner = program.records.exactLiteral.get(expression, primitive("float32"));
+  assert.equal(inner?.kind === "resolved" && inner.recipe.kind === "float" && inner.recipe.precision === "float32" &&
+    inner.recipe.token.significand === "1.25", true, "the selected union payload owns the exact prepared float32 recipe");
+  const contract = program.records.returnContract.get(declaration);
+  const arms = contract?.kind === "resolved" ? getCsharpRuntimeUnionArms(contract.type, program.typeDefinitions) : undefined;
+  const index = arms?.findIndex(arm => arm.kind === "source-primitive" && arm.name === "float32");
+  assert.equal(index !== undefined && index >= 0 && arms.length === 2, true, "the native union retains its actual float32 and string arms");
+  executeCsharpConstruction(compiled, `literal-union-inner-${surface}`, false, false, [], `
+    var value = Tsonic.Generated.Index.literalUnion();
+    if (!value.Is${index + 1}() || value.As${index + 1}() != 1.25F)
+      throw new System.Exception("selected native literal union payload");
+  `);
 });
 
 function providerAdapterCall(read, inputType) {

@@ -381,7 +381,15 @@ export function analyzeCsharpObjectShapes(
         sealedStructuralImplementations.set(key, Object.freeze(structuralImplementations(type)));
         structuralImplementationTypes.push(type);
       }
-      knownShapes = Object.freeze([...byTarget.values()].map(completeShape));
+      const completeKnownShapes = new Map([...byTarget.values()].map(shape => {
+        const completed = completeShape(shape);
+        return [targetTypeRefKey(completed.targetType), completed] as const;
+      }));
+      for (const shape of returnedShapes) {
+        const key = targetTypeRefKey(shape.targetType);
+        if (!completeKnownShapes.has(key)) completeKnownShapes.set(key, shape);
+      }
+      knownShapes = Object.freeze([...completeKnownShapes.values()]);
       admittedShapes.clear();
       sealed = true;
       return Object.freeze({

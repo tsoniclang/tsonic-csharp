@@ -14,7 +14,7 @@ export function analyzeCsharpClassFactories(
   source: TargetSourceProgram,
   catalog: CsharpProjectTypeCatalog,
   evidence: CsharpSourceEvidenceIndex,
-  storage: CsharpStorageClassifications,
+  storage: Pick<CsharpStorageClassifications, "storageType">,
   names: CsharpSourceNameResolver,
   requiredRecords: CsharpRequiredRecord[],
 ): CsharpClassFactoryIndex {

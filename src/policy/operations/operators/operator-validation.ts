@@ -1,6 +1,6 @@
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
-import { csharpBigIntegerTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpJsValueTargetType, isCsharpIntegralTargetType, isCsharpAbsenceTargetType, isCsharpStringTargetType, isCsharpValueTypeTargetType, isCsharpVoidTargetType, targetTypeRefEquals } from "../../types/index.js";
+import { csharpBigIntegerTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpJsValueTargetType, isCsharpIntegralTargetType, isCsharpAbsenceTargetType, isCsharpStringTargetType, isCsharpReferenceCarrier, targetTypeRefEquals } from "../../types/index.js";
 import type { CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
 
 export function validateBinaryTargetSemantics(
@@ -154,13 +154,6 @@ function isNullishCapable(type: TargetTypeRef): boolean {
       type.kind === "target-named" &&
       (type as CsharpTargetNamedTypeRef).csharpRuntimeUnionArms !== undefined
     );
-}
-
-export function isCsharpReferenceCarrier(type: TargetTypeRef): boolean {
-  return type.kind === "array" ||
-    type.kind === "target-named" &&
-      !isCsharpValueTypeTargetType(type) &&
-      !isCsharpVoidTargetType(type);
 }
 
 function supportsIntrinsicEquality(
