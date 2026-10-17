@@ -9,6 +9,7 @@ import type {
   CsharpExpression,
 } from "../../target-ast/syntax/index.js";
 import {
+  failCsharpPlannerInvariant,
   selectedPolicyDiagnostic,
   targetPolicyDiagnostic,
   unsupportedNodeDiagnostic,
@@ -62,8 +63,7 @@ export function translateCsharpConstruction(
   }
   const jsValueOperation = classification.jsValue;
   if (jsValueOperation.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
-    return undefined;
+    return failCsharpPlannerInvariant("A participating construction refusal must be rejected before publication.", node);
   }
   if (jsValueOperation.kind === "resolved") {
     const sourceArguments = input.program.source.ast.arguments(node)

@@ -3,7 +3,7 @@ import test from "node:test";
 import { planCsharpPropertyValueProjection } from "../../../../dist/backend/planner/expressions/property-value-projection.js";
 import { createCsharpObjectShapePropertyOrderIndex } from "../../../../dist/analysis/objects/property-order.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType } from "../../../../dist/target-model/types/index.js";
-import { requireObjectShapeProjection } from "../../../../dist/backend/planner/artifacts/graph/object-shapes/requests.js";
+import { requireObjectShapeProjection } from "../../../../dist/analysis/objects/native-demand-requests.js";
 
 function fixture() {
   const source = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Options", csharpSourceDeclarationKind: "class" };
@@ -20,7 +20,7 @@ function fixture() {
     records: { propertyProjection: { get: () => members },
       conversion: { get(type) { conversions.push(type); return { kind: "js-value-box" }; } } } }, types: { objectShapes: { resolveTarget: () => shape } }, scope: {},
     names: { temporaryName: value => value },
-    artifacts: { requireObjectShapeProjection() { assert.fail("native options are not a generic class capability"); } },
+    artifacts: Object.freeze({}),
   };
   const orders = createCsharpObjectShapePropertyOrderIndex({}, () => {});
   orders.record(shape);

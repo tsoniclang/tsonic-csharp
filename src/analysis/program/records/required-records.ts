@@ -18,6 +18,7 @@ export interface CsharpRequiredNodeRecord extends CsharpRequiredRecordOrigin {
 }
 
 export type CsharpRequiredRecord = CsharpRequiredNodeRecord
+  | CsharpRequiredRecordOrigin & { readonly family: "objectShapeArtifact"; readonly key: string }
   | CsharpRequiredRecordOrigin & { readonly family: "nativeUse"; readonly site: TargetUseSiteRef }
   | CsharpRequiredRecordOrigin & { readonly family: "exactLiteral"; readonly target: TargetTypeRef | undefined; readonly role?: CsharpExactLiteralRole }
   | CsharpRequiredRecordOrigin & { readonly family: "conversion" | "expressionConversion";
@@ -45,6 +46,8 @@ export function assertCsharpRequiredRecords(
 
 function csharpRequiredRecordPublished(records: CsharpProgramRecords, requirement: CsharpRequiredRecord): boolean {
   switch (requirement.family) {
+    case "objectShapeArtifact":
+      return records.objectShapeArtifact.get(requirement.key) !== undefined;
     case "classFactory":
       return records.classFactory.get(requirement.subject) !== undefined;
     case "requiredStorageType":

@@ -1,9 +1,9 @@
-import type { CsharpArtifactGraphScope } from "../engine.js";
-import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../../target-model/types/index.js";
-import { targetTypeRefEquals } from "../../../../../target-model/types/index.js";
+import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
+import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/index.js";
+import { targetTypeRefEquals } from "../../target-model/types/index.js";
 
 export function resolveCsharpSourceClassStorage(
-  { host }: CsharpArtifactGraphScope,
+  { host }: CsharpObjectShapeDemandScope,
   type: TargetTypeRef,
 ): { readonly declaration: CsharpObjectShapeFact; readonly baseType?: TargetTypeRef } | undefined {
   if (type.kind !== "target-named" ||

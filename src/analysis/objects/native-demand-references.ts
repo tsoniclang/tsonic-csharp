@@ -1,12 +1,12 @@
-import type { CsharpArtifactGraphScope } from "../engine.js";
-import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../../target-model/types/index.js";
-import { isCsharpValueTypeTargetType, targetTypeRefEquals, targetTypeRefKey, isSourceDeclaredNominalShape } from "../../../../../target-model/types/index.js";
-import { objectShapeArtifactKey } from "./identity.js";
-import { maximumArtifactCount } from "../model.js";
-import { resolveCsharpSourceClassStorage } from "./native-storage.js";
+import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
+import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/index.js";
+import { isCsharpValueTypeTargetType, targetTypeRefEquals, targetTypeRefKey, isSourceDeclaredNominalShape } from "../../target-model/types/index.js";
+import { objectShapeArtifactKey } from "../../target-model/records/object-shape-demand.js";
+import { maximumArtifactCount } from "./native-demand-batches.js";
+import { resolveCsharpSourceClassStorage } from "./native-demand-storage.js";
 
 export function collectCsharpReferenceClosure(
-  scope: CsharpArtifactGraphScope,
+  scope: CsharpObjectShapeDemandScope,
   type: TargetTypeRef,
   preferred: CsharpObjectShapeFact | undefined,
   pending: ReadonlyMap<string, CsharpObjectShapeFact>,

@@ -14,7 +14,6 @@ import { planOuterTypeParameters, planTypeParameters } from "../../types/type-pa
 import { planClassMembers } from "./members.js";
 import { csharpJsonValueInterfaceType, objectShapeRequiresJsonSerialization, renderJsonSerializableObjectShapeMethod } from "../../objects/json-object-shapes.js";
 import { getCsharpObjectShapeFactForNode } from "../../objects/fact-queries.js";
-import { registerSourceObjectShape } from "../../objects/index.js";
 import { planImplicitForwardingConstructors } from "../../project/type-constructors.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { csharpSafetyModifiersForDeclaration } from "../../safety/explicit-safety.js";
@@ -42,9 +41,6 @@ export function planClassDeclaration(
   const heritage = planClassHeritage(node, input, diagnostics);
   const interfaces = [...heritage.interfaces, csharpClosedValueCarrierInterfaceType()];
   if (factory?.identity !== undefined) interfaces.push(csharpTypeFromTargetTypeRef(factory.identity.type, input.scope.typeParameterNames)!);
-  if (objectShape !== undefined) {
-    registerSourceObjectShape(input, objectShape, diagnostics, node);
-  }
   const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
   const memberNodes = sourceObjectMemberDeclarations(input.program.source.ast, node).filter(member => factory === undefined && !staticCompanion ||
     member === undefined || !input.program.source.ast.hasModifierKind(member, "static") && !input.program.source.ast.is.IsClassStaticBlockDeclaration(member));

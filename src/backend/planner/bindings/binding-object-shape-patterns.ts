@@ -6,7 +6,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
-import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { csharpConstructibleTypeFromObjectShapeFact, objectShapeStorageMemberName } from "../objects/index.js";
 import { planObjectShapeDefaultProjection } from "../objects/object-shape-defaults.js";
@@ -30,15 +30,6 @@ export function planObjectShapeBindingPattern(
     if (element?.name === undefined || projection === undefined) return failCsharpPlannerInvariant(
       "Object binding requires its admitted native element projection.", elementNode);
     if (projection.kind === "object-shape-rest") {
-      for (const { source } of projection.members) {
-        if (source.memberKind !== "method") continue;
-        const required = input.artifacts.requireObjectShapeCapability(undefined, objectShape.targetType,
-          sourceFile, "method-values", "object-shape");
-        if (required.kind === "rejected") {
-          diagnostics.push(unsupportedNodeDiagnostic(elementNode, required.reason));
-          return [];
-        }
-      }
       const type = csharpConstructibleTypeFromObjectShapeFact(input, projection.restShape, diagnostics, elementNode);
       if (type === undefined) return [];
       const assignments = projection.members.map(({ rest, source }) => ({

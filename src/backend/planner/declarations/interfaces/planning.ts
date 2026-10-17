@@ -39,9 +39,6 @@ import {
 import {
   getCsharpObjectShapeFactForNode,
 } from "../../objects/fact-queries.js";
-import {
-  registerSourceObjectShape,
-} from "../../objects/index.js";
 import { csharpInheritedStructuralInterfaces, renderCsharpStructuralInterfaceMembers, shadowCsharpInheritedInterfaceMembers } from "../../objects/declarations/structural-interfaces.js";
 import { objectShapeStorageMemberName } from "../../objects/object-shape-storage.js";
 import { renderObjectShapeProjectionMethods } from "../../objects/closed-object-shapes.js";
@@ -61,13 +58,6 @@ export function planInterfaceDeclaration(
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "interface declaration", diagnostics);
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
   const interfaces = planInterfaceHeritage(node, input, diagnostics);
-  if (objectShape !== undefined) {
-    registerSourceObjectShape(input, objectShape, diagnostics, node);
-    if (objectShape.members.some(member => member.memberKind === "method" && member.optional === true)) {
-      const selected = input.artifacts.requireObjectShapeCapability(undefined, objectShape.targetType, sourceFile, "method-values", "object-shape");
-      if (selected.kind === "rejected") diagnostics.push(unsupportedNodeDiagnostic(node, selected.reason));
-    }
-  }
   const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
   const members = (declaration.Members?.Nodes ?? []).flatMap((member): CsharpInterfaceMember[] => {
     if (member === undefined) {

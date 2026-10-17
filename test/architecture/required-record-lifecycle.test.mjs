@@ -202,11 +202,14 @@ test("the late producers and the assembly receive the stable attempt's list", ()
   assert.equal(ast.arguments(assembly).length === 2 && text(ast.arguments(assembly)[1]) === "analysis.requiredRecords", true,
     "stable attempt: createCsharpProgramRecords receives analysis.requiredRecords");
   const reads = descendants(program).filter(node => ast.is.IsPropertyAccessExpression(node) && text(node) === "analysis.requiredRecords");
-  assert.equal(reads.length === 2 && identifiers(program, "requiredRecords").length === 2, true,
-    "stable attempt: only final native-value admission and assembly read the completed attempt's list");
+  assert.equal(reads.length === 3 && identifiers(program, "requiredRecords").length === 3, true,
+    "stable attempt: final native-value admission, artifact demand and assembly read the completed attempt's list");
   const nativeValues = composedCall("analyzeCsharpNativeValueCarriers", program, "stable attempt");
   assert.equal(text(ast.arguments(nativeValues).at(-1)) === "analysis.requiredRecords", true,
     "the actual native-value producer receives the same stable requirement list");
+  const artifacts = composedCall("analyzeCsharpNativeArtifactDemand", program, "stable attempt");
+  assert.equal(text(ast.arguments(artifacts).at(-1)) === "analysis.requiredRecords" && position(artifacts) < position(assembly), true,
+    "the actual artifact-demand producer registers its exact requirements before the one assembly");
   const demand = composedCall("analyzeCsharpNativeDemand", iteration, "stable attempt");
   const bindings = composedCall("admitCsharpBindingPatterns", iteration, "stable attempt");
   const conversions = composedCall("conversionAnalysis.close", iteration, "stable attempt");

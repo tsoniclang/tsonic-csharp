@@ -1,4 +1,4 @@
-import { selectedPolicyDiagnostic, targetPolicyDiagnostic, unsupportedNodeDiagnostic } from "../../../diagnostics.js";
+import { selectedPolicyDiagnostic, targetPolicyDiagnostic, unsupportedNodeDiagnostic, failCsharpPlannerInvariant } from "../../../diagnostics.js";
 import { planCsharpJsValueCall } from "./js-values.js";
 import { buildCsharpPlannedValue, projectCsharpPlannedValue } from "../../planned-value-composition.js";
 import type { CsharpPlannedValue } from "../../planned-values.js";
@@ -85,13 +85,7 @@ function translateCsharpCallExpressionCore(
     }));
   }
   if (form.kind === "source-flow-rejected") {
-    const sourceFlow = form.sourceFlow;
-    diagnostics.push(targetPolicyDiagnostic(
-      node,
-      sourceFlow.code,
-      sourceFlow.reason,
-    ));
-    return undefined;
+    return failCsharpPlannerInvariant("A participating source-flow refusal must be rejected before publication.", node);
   }
   if (form.kind === "js-value") {
     const jsValueOperation = form.operation;

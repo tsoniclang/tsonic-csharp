@@ -7,7 +7,6 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import { sourceCallableUsesLexicalThis } from "@tsonic/target-api/source";
 import { type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
@@ -59,24 +58,6 @@ export function planObjectShapeMethodMemberAssignment(
   if (member === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method must match a finalized provider object-shape member."));
     return undefined;
-  }
-  const usesLexicalThis = sourceCallableUsesLexicalThis(input.program.source.ast, methodNode);
-  if (usesLexicalThis && member.memberKind !== "method") {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      methodNode,
-      `Object literal callable property '${member.sourceName}' cannot bind lexical 'this' without an exact receiver-bearing method contract.`,
-    ));
-    return undefined;
-  }
-  if (usesLexicalThis) {
-    const required = input.artifacts.requireObjectShapeMethodReceiver(
-      objectShape,
-      member,
-    );
-    if (required.kind === "rejected") {
-      diagnostics.push(unsupportedNodeDiagnostic(methodNode, required.reason));
-      return undefined;
-    }
   }
   const receiverBound = member.memberKind === "method" &&
     input.artifacts.objectShapeMethodUsesReceiver(objectShape, member);

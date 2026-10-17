@@ -121,14 +121,6 @@ export function translateCsharpSourceOwnedMember(
       "An extracted quantified nominal method has no supported native callable-value owner."));
     return undefined;
   }
-  if (methodValue) {
-    const required = input.artifacts.requireObjectShapeCapability(undefined, objectShape.targetType,
-      sourceFile, "method-values", "object-shape");
-    if (required.kind === "rejected") {
-      diagnostics.push(unsupportedNodeDiagnostic(node, required.reason));
-      return undefined;
-    }
-  }
   const resolvedName = jsValueOperation.kind === "resolved" ? undefined
     : planCsharpSourceMemberName(node, declaration, classification, methodValue, input, diagnostics);
   if (jsValueOperation.kind === "resolved" && jsValueSourceName === undefined) {

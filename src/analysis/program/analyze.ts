@@ -127,6 +127,7 @@ import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-proje
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
 import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
 import { finalizeCsharpStructuralInterfaceForwarding } from "../objects/structural-forwarding.js";
+import { analyzeCsharpNativeArtifactDemand } from "../objects/native-demand.js";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -361,6 +362,13 @@ export function analyzeCsharpTargetProgram(
   if (bindingPatterns.issues.length > 0) return rejectCsharpAnalysisIssues(bindingPatterns.issues);
   const pendingUses = nativeDemand.unadmitted.filter(use => use.kind === "pending-use");
   if (pendingUses.length > 0) {
+    const constructionRefusals = pendingUses.flatMap(use => {
+      if (use.reason !== "construction-unresolved") return [];
+      const selection = analysis.operations.selectedConstruction.get(use.expression)?.jsValue;
+      return selection?.kind === "rejected"
+        ? [{ node: use.expression, code: "CSHARP_UNSUPPORTED_AST", message: selection.reason }] : [];
+    });
+    if (constructionRefusals.length > 0) return rejectCsharpAnalysisIssues(constructionRefusals);
     const refusals = pendingUses.filter(use =>
       use.message !== undefined || use.reason === "argument-refused" || use.reason === "source-argument-rejected" || use.reason === "property-key-refused");
     if (refusals.length > 0) return rejectCsharpAnalysisIssues(refusals.map(use => ({
@@ -377,7 +385,21 @@ export function analyzeCsharpTargetProgram(
   );
   if (structuralForwarding.issues.length > 0) return rejectCsharpAnalysisIssues(structuralForwarding.issues);
   const typeDefinitions = analysis.typeDefinitions.seal();
+  const projectTypes = sealCsharpProjectTypeClassifications(
+    analysis.typeSystem.projectTypes, source.ast, sourceStorage.nodes, analysis.objectShapes,
+  );
+  const sourceSyntax = targetSourceSyntaxProgram(source);
+  const objectShapeDemand = analyzeCsharpNativeArtifactDemand({
+    ast: source.ast, sourceFiles, propertyNames: sourceSyntax.propertyNames,
+    nativeDemand, participation: nativeParticipation.participation,
+    objectShapes: structuralForwarding.objectShapes, projectTypes, typeDefinitions,
+    valueReads: analysis.valueReads, operations: analysis.operations, storage: analysis.storage,
+    callables: analysis.callables, captureStorage, declarations: analysis.declarations,
+    bindingPatterns, conversions, nativeValueCarriers,
+  }, analysis.requiredRecords);
+  if (objectShapeDemand.kind === "rejected") return objectShapeDemand;
   const records = createCsharpProgramRecords({
+    objectShapeDemand: objectShapeDemand.value,
     nativeValueCarriers,
     literalValues, exactLiterals, nativeParticipation, nativeDemand, bindingPatterns,
     flowReads, valueReads: analysis.valueReads,
@@ -404,15 +426,10 @@ export function analyzeCsharpTargetProgram(
     }),
     configuration,
     project: project.value,
-    source: targetSourceSyntaxProgram(source),
+    source: sourceSyntax,
     sourceNavigation: snapshotTargetPlanningSourceNavigation(source),
     sourceFiles,
-    projectTypes: sealCsharpProjectTypeClassifications(
-      analysis.typeSystem.projectTypes,
-      source.ast,
-      sourceStorage.nodes,
-      analysis.objectShapes,
-    ),
+    projectTypes,
     objectShapes: structuralForwarding.objectShapes,
     names: analysis.names.seal(),
     sourceModuleConstructions: Object.freeze({

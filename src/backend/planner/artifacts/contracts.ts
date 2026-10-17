@@ -1,3 +1,5 @@
+import { encodeContractParts, objectShapeProjectionContractParts, objectShapeProjectionKey } from "../../../target-model/records/object-shape-demand.js";
+export { encodeContractParts, objectShapeProjectionKey };
 import type {
   TargetArtifactContract,
   TargetArtifactDependency,
@@ -141,31 +143,6 @@ export function csharpObjectShapeContractCandidate(
   };
 }
 
-export function objectShapeProjectionKey(
-  projection: CsharpObjectShapeProjection,
-): string {
-  return encodeContractParts(objectShapeProjectionContractParts(projection));
-}
-
-function objectShapeProjectionContractParts(
-  projection: CsharpObjectShapeProjection,
-): readonly string[] {
-  return [
-    projection.kind,
-    targetTypeRefKey(projection.resultType),
-    ...projection.propertyOrder,
-    ...(projection.kind === "assign"
-      ? [
-          targetTypeRefKey(projection.sourceShape.targetType),
-          ...projection.assignments.flatMap((assignment) => [
-            assignment.sourceName,
-            assignment.targetName,
-          ]),
-        ]
-      : []),
-  ];
-}
-
 export function csharpObjectShapeTypeSurface(
   fact: CsharpObjectShapeFact,
   receiverBoundMethodKeys: readonly string[] = [],
@@ -191,8 +168,4 @@ export function csharpObjectShapeTypeSurface(
       encodeContractParts(["receiver-bound-method", memberKey])
     ),
   ]);
-}
-
-export function encodeContractParts(parts: readonly string[]): string {
-  return parts.map((part) => `${part.length}:${part}`).join("");
 }

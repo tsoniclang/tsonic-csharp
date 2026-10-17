@@ -80,7 +80,7 @@ function readingRecords(base, reads) {
 test("the record input fixture is the exact inverse of the mandatory assembly", () => {
   const assembled = createCsharpProgramRecords(csharpRecordInput(records), []);
   const names = Object.keys(records);
-  assert.equal(Object.isFrozen(assembled) && Object.keys(assembled).length === 117 && names.length === 117, true,
+  assert.equal(Object.isFrozen(assembled) && Object.keys(assembled).length === 118 && names.length === 118, true,
     "the assembly returns every current record family, frozen");
   assert.equal(names.every(family => assembled[family] === records[family]), true, "every assembled reader is the published reader");
 });

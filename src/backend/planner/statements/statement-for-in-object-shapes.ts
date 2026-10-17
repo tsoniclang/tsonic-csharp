@@ -74,13 +74,6 @@ export function planObjectShapeForInStatement(
     return [];
   }
   const objectShape = selectedIteration.lowering.objectShape;
-  const requirement = input.artifacts.requireObjectShapeCapability(
-    statement.Expression, objectShape.targetType, sourceFile, "enumerable-keys", "object-shape",
-  );
-  if (requirement.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, requirement.reason));
-    return [];
-  }
   const collectionType = csharpTypeFromTargetTypeRef(objectShape.targetType, input.scope.typeParameterNames);
   if (collectionType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Object-shape for-in requires a renderable object-shape target type before C# emission."));
