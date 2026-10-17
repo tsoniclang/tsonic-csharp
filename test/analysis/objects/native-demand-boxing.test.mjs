@@ -3,7 +3,8 @@ import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpRequiredRecordSource } from "../../helpers/required-records.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-type-rendering.js";
+import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
+import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../../dist/backend/planner/types/target-type-object-shapes.js";
 import { printCsharpType } from "../../../dist/print/source/printer.js";
 
 const header = 'import type { int32 } from "@tsonic/core/types.js";';
@@ -201,11 +202,17 @@ function originalNativeProgram(name, selected) {
   assert.equal(carrier !== undefined, true, `${name}: the authored parameter type has its sealed carrier`);
   const shape = selected.program.objectShapes.resolveTarget(carrier);
   assert.equal(shape !== undefined, true, `${name}: real sealed parameter shape`);
-  const nativeType = printCsharpType(csharpTypeFromTargetTypeRef(carrier));
+  const planning = createCsharpPlanningContext(selected.program);
+  const syntax = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(planning, carrier, [], parameter);
+  assert.equal(syntax !== undefined, true, `${name}: the sealed carrier has its published native declaration name`);
+  const nativeType = printCsharpType(syntax);
   if (name === "destructured-rest") return nativeCostProgram("return Index.read(input);", "return input.first + input.second;",
     `sealed class NativeInput : ${nativeType} { public int first { get; set; } = 3; public int second { get; set; } = 4; }`, "var input = new NativeInput();");
   const nested = shape.members.find(member => member.sourceName === "nested");
-  const nestedType = printCsharpType(csharpTypeFromTargetTypeRef(nested.type));
+  assert.equal(nested !== undefined, true, "the original nested payload member remains present");
+  const nestedSyntax = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(planning, nested.type, [], parameter);
+  assert.equal(nestedSyntax !== undefined, true, "the nested carrier uses its published native declaration name");
+  const nestedType = printCsharpType(nestedSyntax);
   return nativeCostProgram("return Index.read(input);", "return input.nested.count;",
     `sealed class NativeLeaf : ${nestedType} { public int count { get; set; } = 7; }
      sealed class NativeInput : ${nativeType} { public ${nestedType} nested { get; set; } = new NativeLeaf(); }`, "var input = new NativeInput();");
