@@ -21,4 +21,3 @@ export * from "../../target-model/types/carriers/js.js";
 export * from "./resolution/index.js";
 export * from "./objects/object-shape-policy.js";
 export * from "./objects/binding-projection-policy.js";
-export * from "./model/system.js";

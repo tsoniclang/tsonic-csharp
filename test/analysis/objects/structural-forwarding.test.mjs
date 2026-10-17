@@ -21,9 +21,33 @@ import { csharpProjectedType } from "../../../dist/target-model/types/projection
 import { instantiateCsharpInheritedCallable } from "../../../dist/analysis/callables/instantiation.js";
 import { csharpSourceTypeParameter } from "../../../dist/target-model/names/type-parameters.js";
 import { createCsharpObjectShapePolicy } from "../../../dist/policy/types/objects/object-shape-policy/api.js";
+import { mergeCsharpObjectShapeSubjects } from "../../../dist/policy/types/objects/object-shape-policy/construction.js";
+import { finalizeCsharpStructuralInterfaceForwarding } from "../../../dist/analysis/objects/structural-forwarding.js";
 import { retainCsharpMethodValueContracts, csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/object-shape-policy/method-values.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
+
+test("a physical method protocol retains checked source and generic declaration provenance when completed", () => {
+  const targetType = Object.freeze({ kind: "target-named", id: "tsonic.shape:checked-method-protocol",
+    csharpAllowsRefLikeTypeArguments: Object.freeze([]) });
+  const sourceType = Object.freeze({});
+  const declaration = Object.freeze({});
+  const member = Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "read" }),
+    sourceName: "read", targetName: "read", memberKind: "method",
+    type: csharpDelegateTargetType("System.Func", [integer], integer) });
+  const template = Object.freeze({ targetType, sourceType, members: Object.freeze([member]) });
+  const protocol = Object.freeze({ targetType, members: Object.freeze([member]) });
+  const checked = Object.freeze({ targetType, sourceType, declarationTemplate: template,
+    members: Object.freeze([{ ...member, sourceDeclarations: Object.freeze([declaration]) }]) });
+  for (const [label, left, right] of [["protocol first", protocol, checked], ["checked first", checked, protocol]]) {
+    const merged = mergeCsharpObjectShapeSubjects(left, right);
+    assert.equal(merged.sourceType === sourceType, true, `${label}: checked correspondence cannot disappear behind physical interning`);
+    assert.equal(merged.declarationTemplate === template, true, `${label}: the genuine generic declaration remains authoritative`);
+    assert.equal(merged.members[0].sourceDeclarations.length === 1 &&
+      merged.members[0].sourceDeclarations[0] === declaration, true, `${label}: the exact selected declaration is retained`);
+    assert.equal(merged.targetType === targetType, true, `${label}: native identity and representation do not change`);
+  }
+});
 
 test("every actual authored native method uses the same body and copy protocol", () => {
   const declaration = Object.freeze({});
@@ -349,6 +373,32 @@ function fixture(passingMode = "by-value") {
     projections: { get: () => Object.freeze([]) }, reads: () => reads };
 }
 
+test("structural method admission rejects every unrenderable selected native signature slot before publication", () => {
+  const value = fixture();
+  const admitted = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+  assert.equal(admitted.issues.length, 0, "the complete unmodified native forwarding contract is admitted");
+  const selected = admitted.objectShapes.structuralImplementations(value.sourceType)[0];
+  const original = selected.methods[0];
+  const opaque = Object.freeze({ kind: "opaque", id: "unrenderable-selected-native-slot" });
+  for (const slot of ["interface", "return", "parameter", "incoming", "type argument"]) {
+    const contract = slot === "return" ? { ...original.forwarding.contract, returnType: opaque }
+      : slot === "parameter" ? { ...original.forwarding.contract, parameters: original.forwarding.contract.parameters.map(parameter =>
+        ({ ...parameter, targetParameter: { ...parameter.targetParameter, type: opaque } })) } : original.forwarding.contract;
+    const implementation = slot === "incoming" ? { ...original.forwarding.implementation,
+      parameters: original.forwarding.implementation.parameters.map(parameter =>
+        ({ ...parameter, targetParameter: { ...parameter.targetParameter, type: opaque } })) } : original.forwarding.implementation;
+    const method = { ...original, forwarding: { ...original.forwarding, contract, implementation,
+      ...(slot === "type argument" ? { typeArguments: Object.freeze([opaque]) } : {}) } };
+    const checked = finalizeCsharpStructuralInterfaceForwarding(value.policy,
+      { ...selected, ...(slot === "interface" ? { interfaceType: opaque } : {}) }, [method]);
+    assert.equal(checked.issues.length === 1 && checked.issues[0].node === original.declaration &&
+      checked.issues[0].code === "CSHARP_UNSUPPORTED_AST" &&
+      checked.issues[0].message === "An analyzed interface method has no exact native forwarding signature.", true,
+    `${slot}: the actual selected native slot is refused at admission, not mislabeled as an internal failure`);
+    assert.equal(checked.implementation.methods.length, 0, `${slot}: no partially renderable method enters the sealed graph`);
+  }
+});
+
 test("structural forwarding publishes canonical completed contracts and pure immutable native reads", () => {
   const value = fixture();
   const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
@@ -651,7 +701,7 @@ for (const passingMode of ["by-value", "byref-readonly", "byref-readwrite", "byr
     const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
     assert.equal(finalized.issues.length, 0, "identical native passing contracts need no new adaptation capability");
     const diagnostics = [];
-    const planned = planCsharpStructuralInterfaceMembers({ targetType: value.sourceType }, value.declaration, {
+    const planned = planCsharpStructuralInterfaceMembers({ targetType: value.sourceType }, {
       program: { objectShapes: finalized.objectShapes, source: { ast: {
         getSourceFile: () => ({}), parameters: () => assert.fail("the renderer cannot plan method parameters or defaults again"),
       } } }, scope: {},
@@ -781,7 +831,7 @@ function adaptedNativeForwarder(control, destinationNames = []) {
   assert.equal(forwarding?.parameters.every(adapter => adapter.kind === "value" && adapter.adapter.conversion.kind === "identity"), true,
     `${control.name}: byref values never convert, copy or acquire a temporary`);
   const diagnostics = [];
-  const planned = planCsharpStructuralInterfaceMembers({ targetType: sourceType }, declaration, {
+  const planned = planCsharpStructuralInterfaceMembers({ targetType: sourceType }, {
     program: { objectShapes: finalized.objectShapes, source: { ast: { getSourceFile: () => ({}),
       parameters: () => assert.fail("native rendering cannot re-read parameter/default syntax") } } },
     names: { temporaryName: () => assert.fail("identity byref forwarding cannot allocate a native temporary") }, scope: {},

@@ -101,9 +101,11 @@ export function mergeCsharpObjectShapeSubjects(
   );
   return {
     ...left,
-    ...(left.declarationTemplate === undefined || right.declarationTemplate === undefined
-      ? {}
-      : { declarationTemplate: mergeCsharpObjectShapeSubjects(left.declarationTemplate, right.declarationTemplate) }),
+    ...(left.sourceType === undefined && right.sourceType !== undefined ? { sourceType: right.sourceType } : {}),
+    ...(right.declarationTemplate === undefined ? {} : {
+      declarationTemplate: left.declarationTemplate === undefined ? right.declarationTemplate
+        : mergeCsharpObjectShapeSubjects(left.declarationTemplate, right.declarationTemplate),
+    }),
     members: left.members.map((member) => {
       const other = rightMembers.get(
         csharpObjectShapeMemberContractKey(member),

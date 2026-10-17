@@ -1,5 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { orderEnumerableOwnStringProperties } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact, CsharpObjectShapeProjectionKind, TargetTypeRef } from "../../target-model/types/model.js";
 import { isSourceDeclaredNominalShape, isCsharpObjectShapeGeneratedMemberName } from "../../target-model/types/object-shape-projection.js";
 import type { CsharpObjectShapePropertyOrderSelection } from "./model.js";
@@ -35,6 +36,11 @@ export function createCsharpObjectShapePropertyOrderIndex(
 ) {
   const emptyLiterals = new WeakSet<Node>();
   const byType = new WeakMap<TargetTypeRef, WeakMap<CsharpObjectShapeFact["members"], PropertyOrders>>();
+  const occurrences = new WeakMap<Node, {
+    readonly type: TargetTypeRef;
+    readonly members: CsharpObjectShapeFact["members"];
+    readonly orders: PropertyOrders;
+  }>();
   let sealed = false;
   const record = (shape: CsharpObjectShapeFact): void => {
     if (sealed) throw new Error("C# own-property order analysis is sealed.");
@@ -50,6 +56,14 @@ export function createCsharpObjectShapePropertyOrderIndex(
   };
   return Object.freeze({
     record,
+    recordOccurrence(node: Node, authored: CsharpObjectShapeFact, completed: CsharpObjectShapeFact): void {
+      if (sealed) return failTargetAnalysisInvariant("tsonic-csharp", "C# own-property order analysis is sealed.", node);
+      const orders = byType.get(authored.targetType)?.get(authored.members);
+      if (orders === undefined || byType.get(completed.targetType)?.has(completed.members) !== true) {
+        return failTargetAnalysisInvariant("tsonic-csharp", "C# own-property occurrence requires its completed authored order.", node);
+      }
+      occurrences.set(node, Object.freeze({ type: completed.targetType, members: completed.members, orders }));
+    },
     recordEmptyLiteral(node: Node): void {
       if (sealed) throw new Error("C# own-property order analysis is sealed.");
       if (emptyLiterals.has(node) || !ast.is.IsObjectLiteralExpression(node) || ast.properties(node).length !== 0) return;
@@ -59,7 +73,10 @@ export function createCsharpObjectShapePropertyOrderIndex(
     seal(): void { sealed = true; },
     propertyOrder(shape: CsharpObjectShapeFact, sourceValue: Node | undefined,
       projection: CsharpObjectShapeProjectionKind): CsharpObjectShapePropertyOrderSelection {
-      const selected = selection(shape)?.projections[projection];
+      const completed = selection(shape);
+      const occurrence = sourceValue === undefined ? undefined : occurrences.get(sourceValue);
+      const selected = (occurrence !== undefined && occurrence.type === shape.targetType && occurrence.members === shape.members
+        ? occurrence.orders : completed)?.projections[projection];
       if (selected === undefined) return missingProjectionOrder;
       return selected.kind !== "empty" ? selected
         : sourceValue !== undefined && emptyLiterals.has(sourceValue) ? emptyOrder

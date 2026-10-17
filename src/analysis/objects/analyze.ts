@@ -388,7 +388,6 @@ export function analyzeCsharpObjectShapes(
         if (shape.declarationTemplate !== undefined) admittedShapes.add(shape.declarationTemplate);
       }
       for (const literal of objectLiterals.keys()) propertyOrders.recordEmptyLiteral(literal);
-      propertyOrders.seal();
       const completeShape = (shape: CsharpObjectShapeFact): CsharpObjectShapeFact => {
         const canonical = byTarget.get(targetTypeRefKey(shape.targetType)) ?? shape;
         const existing = completedShapes.get(canonical);
@@ -398,7 +397,12 @@ export function analyzeCsharpObjectShapes(
         return selected;
       };
       for (const shape of admittedShapes) completeShape(shape);
-      for (const [node, shape] of byNode) byNode.set(node, completeShape(shape));
+      for (const [node, shape] of byNode) {
+        const completed = completeShape(shape);
+        propertyOrders.recordOccurrence(node, shape, completed);
+        byNode.set(node, completed);
+      }
+      propertyOrders.seal();
       for (const shape of byTarget.values()) {
         const selected = completeShape(shape);
         if (selected.targetType.kind === "target-named" && (selected.targetType.typeArguments?.length ?? 0) > 0 &&

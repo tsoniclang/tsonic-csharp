@@ -65,6 +65,41 @@ test("exact source occurrences preserve order independently of equal native carr
   assert.throws(() => index.recordEmptyLiteral(first.owner), /sealed/u);
 });
 
+test("completed shared carriers retain exact authored occurrence orders without lending them to foreign shapes", () => {
+  const first = fixture(["right", "left"]);
+  const second = fixture(["left", "right"]);
+  second.shape.targetType = first.shape.targetType;
+  const merged = { targetType: first.shape.targetType,
+    members: first.shape.members.map(member => ({ ...member, sourceDeclarations: [
+      ...member.sourceDeclarations,
+      ...second.shape.members.find(candidate => candidate.sourceName === member.sourceName).sourceDeclarations,
+    ] })) };
+  const index = createCsharpObjectShapePropertyOrderIndex(first.ast, () => {});
+  index.record(first.shape);
+  index.record(second.shape);
+  index.record(merged);
+  index.recordOccurrence(first.owner, first.shape, merged);
+  index.recordOccurrence(second.owner, second.shape, merged);
+  index.seal();
+  first.ast.parent = () => { throw new Error("completed occurrences cannot read source owners"); };
+  first.ast.properties = () => { throw new Error("completed occurrences cannot classify source properties"); };
+  for (const projection of ["keys", "values", "entries"]) {
+    const left = index.propertyOrder(merged, first.owner, projection);
+    const right = index.propertyOrder(merged, second.owner, projection);
+    assert.equal(left.kind === "resolved" && left.propertyOrder.join(",") === "right,left", true,
+      `${projection}: the first authored occurrence retains its own sealed order`);
+    assert.equal(right.kind === "resolved" && right.propertyOrder.join(",") === "left,right", true,
+      `${projection}: the second authored occurrence retains its own sealed order`);
+    for (const unknown of [undefined, { ...first.owner }]) {
+      assert.equal(index.propertyOrder(merged, unknown, projection).kind, "rejected",
+        `${projection}: an unproven occurrence cannot borrow a shared carrier's order`);
+    }
+    assert.equal(index.propertyOrder({ ...merged, members: [...merged.members] }, first.owner, projection).kind,
+      "rejected", `${projection}: source identity cannot admit a foreign member layout`);
+  }
+  assert.throws(() => index.recordOccurrence(first.owner, first.shape, merged), /sealed/u);
+});
+
 test("empty enumeration requires its exact admitted empty literal without a shape-node cross product", () => {
   const current = fixture([]);
   const index = createCsharpObjectShapePropertyOrderIndex(current.ast, () => {});

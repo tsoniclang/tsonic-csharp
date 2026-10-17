@@ -535,7 +535,7 @@ export function createCsharpObjectShapePolicy(
         genericShapes.set(canonical.targetType.id, canonical);
       }
     }
-    return canonical;
+    return shape;
   }
 
   function resolveStructShape(

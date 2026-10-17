@@ -1,17 +1,16 @@
-import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact, CsharpTargetParameter } from "../../../../target-model/types/model.js";
 import { isCsharpVoidTargetType } from "../../../../target-model/types/identity.js";
 import type { CsharpExpression, CsharpParameter, CsharpTypeMember } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planCsharpCallableArguments } from "../callables/parameter-adapters.js";
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";
 import { csharpGeneratedTypeParameterNames } from "../../../../target-model/names/type-parameters.js";
 
 export function planCsharpStructuralInterfaceMembers(
-  shape: CsharpObjectShapeFact, node: Node,
+  shape: CsharpObjectShapeFact,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeMember[] {
   const result: CsharpTypeMember[] = [];
@@ -23,8 +22,7 @@ export function planCsharpStructuralInterfaceMembers(
         "An admitted structural interface property lost its checked source declaration file.", implementation.sourceNode);
       const type = csharpTypeFromTargetTypeRef(property.member.type, input.scope.typeParameterNames);
       if (explicitInterface === undefined || type === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "An analyzed interface property has no exact native forwarding type."));
-        continue;
+        return failCsharpPlannerInvariant("An admitted structural property lost its exact native forwarding type.", implementation.sourceNode);
       }
       const access: CsharpExpression = { kind: "SimpleMemberAccessExpression",
         receiver: { kind: "IdentifierName", name: "this" }, name: property.sourceName };
@@ -71,14 +69,12 @@ export function planCsharpStructuralInterfaceMembers(
       });
       if (explicitInterface === undefined || returnType === undefined || parameters.some(parameter => parameter === undefined) ||
         incoming.some(parameter => parameter === undefined) || typeArguments.some(type => type === undefined)) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "An analyzed interface method has no exact native forwarding signature."));
-        continue;
+        return failCsharpPlannerInvariant("An admitted structural method lost its exact native forwarding signature.", method.declaration);
       }
       const planned = planCsharpCallableArguments(method.declaration, forwarding.contract, parameters as CsharpParameter[],
         incoming as CsharpParameter[], forwarding.parameters, sourceFile, methodInput, diagnostics);
       if (planned === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "An analyzed interface method has no renderable selected native arguments."));
-        continue;
+        return failCsharpPlannerInvariant("An admitted structural method lost its canonical native argument adaptation.", method.declaration);
       }
       const call: CsharpExpression = { kind: "InvocationExpression", callee: {
         kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: method.sourceName,

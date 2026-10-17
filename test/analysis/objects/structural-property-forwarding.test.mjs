@@ -74,6 +74,20 @@ test("readonly admission failures remain expected source issues and publish no f
   assert.equal(Object.isFrozen(finalized.issues), true, "the program's pre-seal rejection input is immutable");
 });
 
+test("readonly property admission refuses unrenderable selected carriers without publishing a native member", () => {
+  for (const target of [{ kind: "opaque", id: "unrenderable-property" },
+    { kind: "target-named", id: "test.PropertyWithoutNativeRendering", csharpAllowsRefLikeTypeArguments: [] }]) {
+    const value = propertyFixture(target);
+    const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+    assert.equal(finalized.issues.length === 1 && finalized.issues[0].node === value.sourceNode &&
+      finalized.issues[0].code === "CSHARP_UNSUPPORTED_AST" &&
+      finalized.issues[0].message === "An analyzed interface property has no exact native forwarding type.", true,
+    `${target.kind}: exact selected native rendering is proved before conversion publication`);
+    assert.equal(finalized.objectShapes.structuralImplementations(value.sourceType)[0].properties.length, 0,
+      `${target.kind}: no partial property or invented carrier reaches the planner`);
+  }
+});
+
 test("writable structural properties require exact storage while readonly reads reach canonical admission", () => {
   const sourceNode = Object.freeze({});
   const targetType = (name, kind) => csharpTargetNamedType(`test.${name}`, undefined, { kind: "named", name },
