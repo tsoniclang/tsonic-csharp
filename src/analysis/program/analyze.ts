@@ -126,7 +126,6 @@ import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/proje
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
 import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
-import { finalizeCsharpStructuralInterfaceForwarding } from "../objects/structural-forwarding.js";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -278,7 +277,9 @@ export function analyzeCsharpTargetProgram(
     typeDefinitions: analysis.policy.typeDefinitions, projectTypes: analysis.policy.projectTypes,
     providers: analysis.policy.providers, target: analysis.policy.target, objectShapes: analysis.objectShapes,
   });
-  const callableAdapters = analyzeCsharpProjectCallableAdapters(callablePolicy, analysis.callables);
+  const callableAdapters = analyzeCsharpProjectCallableAdapters(
+    callablePolicy, analysis.callables, analysis.objectShapes, analysis.declarations,
+  );
   const analysisIssues = [
     ...callableAdapters.issues,
     ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
@@ -372,10 +373,6 @@ export function analyzeCsharpTargetProgram(
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
   }
   if (analysis.refLikeDiagnostics.length > 0) return rejectedTargetStage(analysis.refLikeDiagnostics);
-  const structuralForwarding = finalizeCsharpStructuralInterfaceForwarding(
-    callablePolicy, analysis.objectShapes, callableAdapters, analysis.declarations,
-  );
-  if (structuralForwarding.issues.length > 0) return rejectCsharpAnalysisIssues(structuralForwarding.issues);
   const typeDefinitions = analysis.typeDefinitions.seal();
   const records = createCsharpProgramRecords({
     nativeValueCarriers,
@@ -413,7 +410,7 @@ export function analyzeCsharpTargetProgram(
       sourceStorage.nodes,
       analysis.objectShapes,
     ),
-    objectShapes: structuralForwarding.objectShapes,
+    objectShapes: callableAdapters.objectShapes,
     names: analysis.names.seal(),
     sourceModuleConstructions: Object.freeze({
       entries: sourceModuleConstructions.index.entries,

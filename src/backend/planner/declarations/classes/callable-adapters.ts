@@ -17,7 +17,6 @@ export function planCsharpProjectCallableAdapters(
   const methods: CsharpMethodDeclaration[] = [];
   for (const adapter of dispatch.adapters) {
     const returnType = csharpTypeFromTargetTypeRef(adapter.contract.returnType, input.scope.typeParameterNames);
-    const interfaceType = adapter.interfaceType === undefined ? undefined : csharpTypeFromTargetTypeRef(adapter.interfaceType, input.scope.typeParameterNames);
     const rendered = adapter.contract.parameters.map(({ sourceParameter, targetParameter }): CsharpParameter | undefined => {
       const type = csharpTypeFromTargetTypeRef(targetParameter.type, input.scope.typeParameterNames);
       if (type === undefined) return undefined;
@@ -28,12 +27,12 @@ export function planCsharpProjectCallableAdapters(
       return { name: input.names.temporaryName(targetParameter.name), type,
         ...(passing === undefined ? {} : { passing }),
         ...(targetParameter.paramsArray ? { isParams: true } : {}),
-        ...((omission?.acceptsOmission ?? targetParameter.optional) && interfaceType === undefined
+        ...((omission?.acceptsOmission ?? targetParameter.optional)
           ? { defaultValue: omission?.kind === "nullable" ? { kind: "LiteralExpression", value: null } as const
             : { kind: "DefaultExpression", type } as const } : {}),
       };
     });
-    if (rendered.some(parameter => parameter === undefined) || returnType === undefined || adapter.interfaceType !== undefined && interfaceType === undefined) {
+    if (rendered.some(parameter => parameter === undefined) || returnType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "A sealed callable adapter has an unrenderable native signature."));
       continue;
     }
@@ -52,8 +51,7 @@ export function planCsharpProjectCallableAdapters(
       adapter.result.target, adapter.result.conversion, call);
     if (value === undefined) continue;
     methods.push({ kind: "MethodDeclaration", name: method.name,
-      modifiers: interfaceType === undefined ? ["public", "override"] : [],
-      ...(interfaceType === undefined ? {} : { explicitInterface: interfaceType }),
+      modifiers: ["public", "override"],
       typeParameters: method.typeParameters?.map(parameter => ({ name: parameter.name })),
       returnType, parameters: rendered as CsharpParameter[],
       body: { kind: "Block", statements: [...planned.statements, isCsharpVoidTargetType(adapter.contract.returnType)

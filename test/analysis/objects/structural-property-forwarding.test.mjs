@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { finalizeCsharpStructuralInterfaceForwarding } from "../../../dist/analysis/objects/structural-forwarding.js";
+import { analyzeCsharpProjectCallableAdapters } from "../../../dist/analysis/project-types/callable-adapters.js";
 import { selectCsharpStructuralInterfaceImplementation } from "../../../dist/policy/types/objects/method-values.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 
@@ -25,15 +25,15 @@ function propertyFixture(target = number) {
     projectTypes: { directSupertypes: () => [], catalog: { definitionForDeclaration: () => undefined } },
     objectShapes: { resolveNode: () => undefined, resolveTarget() { shapeReads += 1; return undefined; } } };
   const shapes = { issues: Object.freeze([]), structuralImplementationTypes: Object.freeze([sourceType]),
-    structuralImplementations: () => Object.freeze([selected]) };
+    structuralImplementations: () => Object.freeze([selected]), resolveTarget: () => undefined };
   const forbidden = () => assert.fail("property admission has no callable or default dependency");
   return { sourceNode, sourceType, property, selected, policy, shapes, reads: () => shapeReads,
-    callables: { callableDispatch: { get: forbidden } }, declarations: { runtimeDefault: { get: forbidden } } };
+    callables: { declarationContracts: Object.freeze([]), get: forbidden }, declarations: { runtimeDefault: { get: forbidden } } };
 }
 
 test("readonly native property admission publishes the single exact conversion and lookup-only evidence", () => {
   const value = propertyFixture();
-  const finalized = finalizeCsharpStructuralInterfaceForwarding(value.policy, value.shapes, value.callables, value.declarations);
+  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations);
   const implementations = finalized.objectShapes.structuralImplementations(value.sourceType);
   const property = implementations[0]?.properties[0];
   assert.equal(finalized.issues.length, 0, "native int32-to-number reads are admitted without changing their backing storage");
@@ -58,7 +58,7 @@ test("readonly admission failures remain expected source issues and publish no f
   const inherited = Object.freeze({ node: value.sourceNode, code: "CSHARP_UNSUPPORTED_AST",
     message: "An analyzed interface has no exact inherited native implementation." });
   value.shapes.issues = Object.freeze([inherited]);
-  const finalized = finalizeCsharpStructuralInterfaceForwarding(value.policy, value.shapes, value.callables, value.declarations);
+  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations);
   assert.equal(finalized.issues.length, 2, "all existing inherited and property admission failures are collected together");
   assert.equal(finalized.issues[0] === inherited, true, "the existing graph owner issue is not dropped or relabelled");
   assert.equal(finalized.issues[1]?.node === value.sourceNode && finalized.issues[1]?.code === "CSHARP_UNSUPPORTED_AST" &&
@@ -84,11 +84,31 @@ test("writable structural properties require exact storage while readonly reads 
     const selected = selectCsharpStructuralInterfaceImplementation({ sourceNode,
       source: { targetType: targetType("Body", "class"), members: [read] },
       destination: { targetType: targetType("View", "interface"), members: [write] },
-      members: [{ source: read, destination: write, openSource: read, openDestination: write, parameterDefaults: [] }] });
+      members: [{ source: read, destination: write, openSource: read, openDestination: write }] });
     assert.equal(selected !== undefined, admitted, `${label}: the existing native storage rule`);
     if (selected !== undefined) assert.equal(selected.properties[0]?.sourceType === integer, true,
       `${label}: selected reads retain the original native storage width`);
   }
+});
+
+test("a supplied readonly generic destination is authoritative rather than unified with native field storage", () => {
+  const parameter = Object.freeze({ kind: "type-parameter", identity: "view:T", name: "T" });
+  const target = argument => csharpTargetNamedType("test.GenericView", [argument], { kind: "named", name: "GenericView" },
+    { sourceDeclarationKind: "interface", allowsRefLikeTypeArguments: [false] });
+  const read = Object.freeze({ sourceKey: { kind: "property", name: "value" }, sourceName: "value", targetName: "value",
+    memberKind: "property", type: integer });
+  const open = Object.freeze({ ...read, readonly: true, type: parameter });
+  const write = Object.freeze({ ...open, type: number });
+  const source = Object.freeze({ targetType: csharpTargetNamedType("test.NarrowBody", undefined, undefined,
+    { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [] }), members: [read] });
+  const destination = Object.freeze({ targetType: target(number), members: [write],
+    declarationTemplate: Object.freeze({ targetType: target(parameter), members: [open] }) });
+  const selected = selectCsharpStructuralInterfaceImplementation({ sourceNode: {}, source, destination,
+    members: [{ source: read, destination: write, openSource: read, openDestination: open }] });
+  assert.equal(selected !== undefined, true, "readonly native widening is not an owner-argument equality constraint");
+  assert.equal(selected.interfaceType.typeArguments[0] === number && selected.properties[0].member.type === number, true,
+    "the authored destination argument controls the physical interface and its selected read type");
+  assert.equal(selected.properties[0].sourceType === integer, true, "original exact backing storage is not changed to satisfy inference");
 });
 
 const readonlySource = `import type { int32 } from "@tsonic/core/types.js";
@@ -153,10 +173,81 @@ export function update(body: MutableBody, value: int32): int32 {
   const base: MutableBase = child;
   base.value = value;
   return body.value;
-}`;
+}
+interface GenericRead<T> { readonly value: T; }
+export function readGenericNumeric(): number { const value: GenericRead<number> = new ReadBody(); return value.value; }
+export function readGenericNullable(): int32 | null { const value: GenericRead<int32 | null> = new ReadBody(); return value.value; }
+export function readGenericReference(body: ReferenceBody): BaseValue { const value: GenericRead<BaseValue> = body; return value.value; }
+export function readGenericNullableReference(body: NullableBody): BaseValue | null {
+  const value: GenericRead<BaseValue | null> = body; return value.value;
+}
+interface MethodNumber { read(): number; }
+export class DirectMethodBody implements MethodNumber {
+  calls: int32 = 0;
+  read(): int32 { this.calls += 1; return 7; }
+}
+export function observeMethod(body: DirectMethodBody): number { const value: MethodNumber = body; return value.read(); }
+class MethodBaseBody { read(): int32 { return 13; } }
+class InheritedMethodBody extends MethodBaseBody implements MethodNumber {}
+export function readInheritedMethod(): number { const value: MethodNumber = new InheritedMethodBody(); return value.read(); }
+interface ReferenceMethod { read(): BaseValue; }
+export class ReferenceMethodBody implements ReferenceMethod {
+  calls: int32 = 0;
+  value: DerivedValue = new DerivedValue();
+  read(): DerivedValue { this.calls += 1; return this.value; }
+}
+export function observeReferenceMethod(body: ReferenceMethodBody): BaseValue { const value: ReferenceMethod = body; return value.read(); }
+interface DefaultNumber { read(value?: int32): number; }
+let defaultMethodCalls: int32 = 0;
+function nextMethodValue(): int32 { defaultMethodCalls += 1; return 37; }
+class DefaultNumberBody implements DefaultNumber { read(value: int32 = nextMethodValue()): int32 { return value; } }
+export function readDefaultMethod(): number { const value: DefaultNumber = new DefaultNumberBody(); return value.read() + defaultMethodCalls; }
+interface GenericNumber { read<T>(): number; }
+export class GenericNumberBody implements GenericNumber {
+  calls: int32 = 0;
+  read<Native>(): int32 { this.calls += 1; return 31; }
+}
+export function readGenericMethod(): number { const value: GenericNumber = new GenericNumberBody(); return value.read<string>(); }
+export function observeGenericMethod(body: GenericNumberBody): number { const value: GenericNumber = body; return value.read<string>(); }
+interface GenericResult<T> { read<Argument>(): T; }
+class GenericResultBody { read<Native>(): int32 { return 41; } }
+export function readGenericResult(): number { const value: GenericResult<number> = new GenericResultBody(); return value.read<string>(); }
+interface PhantomNative { read<T>(value?: int32): int32; }
+class PhantomNativeBody implements PhantomNative { read(value: int32 = 43): int32 { return value; } }
+export function readPhantomNative(): int32 { const value: PhantomNative = new PhantomNativeBody(); return value.read<string>(); }
+interface ConstrainedNumber { read<T extends BaseValue>(): number; }
+class ConstrainedNumberBody implements ConstrainedNumber { read<Native extends BaseValue>(): int32 { return 47; } }
+export function readConstrainedMethod(): number { const value: ConstrainedNumber = new ConstrainedNumberBody(); return value.read<DerivedValue>(); }
+interface ExactNative { echo<T>(value: T): T; }
+class ExactNativeBody implements ExactNative { echo<Native>(value: Native): Native { return value; } }
+export function readExactNative(): int32 { const value: ExactNative = new ExactNativeBody(); return value.echo<int32>(53); }
+class CovariantBase { read(): BaseValue { return new BaseValue(); } }
+class CovariantChild extends CovariantBase { override read(): DerivedValue { return new DerivedValue(); } }
+export function readClassOverride(): BaseValue { const value: CovariantBase = new CovariantChild(); return value.read(); }
+interface NamedGeneric { read<T>(T: T): number; }
+class NamedGenericBody implements NamedGeneric { read<Native>(value: Native): int32 { return 59; } }
+export function readNamedGeneric(): number { const value: NamedGeneric = new NamedGenericBody(); return value.read<string>("x"); }
+interface KeywordMethod { read(event: int32): number; }
+class KeywordMethodBody implements KeywordMethod { read(event: int32): int32 { return event; } }
+export function readKeywordMethod(): number { const value: KeywordMethod = new KeywordMethodBody(); return value.read(61); }
+`;
 
 const nativeObserver = `
 if (Tsonic.Generated.Index.readInherited() != 7) throw new System.Exception("inherited readonly native value");
+if (Tsonic.Generated.Index.readGenericNumeric() != 7 || Tsonic.Generated.Index.readGenericNullable() != 7)
+    throw new System.Exception("actual supplied readonly numeric and nullable generic arguments");
+var method = new Tsonic.Generated.DirectMethodBody();
+if (Tsonic.Generated.Index.observeMethod(method) != 7 || method.calls != 1 ||
+    Tsonic.Generated.Index.readInheritedMethod() != 13 || Tsonic.Generated.Index.readDefaultMethod() != 38 ||
+    Tsonic.Generated.Index.readGenericMethod() != 31 || Tsonic.Generated.Index.readGenericResult() != 41 ||
+    Tsonic.Generated.Index.readPhantomNative() != 43 || Tsonic.Generated.Index.readConstrainedMethod() != 47 ||
+    Tsonic.Generated.Index.readExactNative() != 53) throw new System.Exception("one canonical native method admission");
+if (Tsonic.Generated.Index.readClassOverride().value != 11) throw new System.Exception("native class covariant override remains intact");
+if (Tsonic.Generated.Index.readNamedGeneric() != 59 || Tsonic.Generated.Index.readKeywordMethod() != 61)
+    throw new System.Exception("truthful native parameter names and generic binders remain hygienic");
+var referenceMethod = new Tsonic.Generated.ReferenceMethodBody();
+if (!System.Object.ReferenceEquals(Tsonic.Generated.Index.observeReferenceMethod(referenceMethod), referenceMethod.value) || referenceMethod.calls != 1)
+    throw new System.Exception("method result covariance preserves native reference identity");
 if (Tsonic.Generated.Index.readDeclared() != 7 || Tsonic.Generated.Index.readDeclaredDefault() != 23 ||
     Tsonic.Generated.Index.readDeclaredGeneric() != 29 || Tsonic.Generated.Index.readNativeBase() != 7 ||
     Tsonic.Generated.Index.updateDeclared() != 17) throw new System.Exception("declared native interface obligations");
@@ -168,10 +259,15 @@ if (Tsonic.Generated.Index.observeNumeric(numeric) != 7 || numeric.calls != 1)
     throw new System.Exception("exactly one readonly source getter");
 if (!System.Object.ReferenceEquals(Tsonic.Generated.Index.observeReference(reference), reference.value))
     throw new System.Exception("readonly reference identity");
+if (!System.Object.ReferenceEquals(Tsonic.Generated.Index.readGenericReference(reference), reference.value) ||
+    Tsonic.Generated.Index.readGenericNullableReference(nullable) != null)
+    throw new System.Exception("actual supplied readonly reference and nullable generic arguments");
 if (Tsonic.Generated.Index.observeNullable(nullable) != null) throw new System.Exception("one native absence");
 nullable.value = reference.value; nativeNullable.value = nativeReference.value;
 if (!System.Object.ReferenceEquals(Tsonic.Generated.Index.observeNullable(nullable), reference.value))
     throw new System.Exception("nullable readonly reference identity");
+if (!System.Object.ReferenceEquals(Tsonic.Generated.Index.readGenericNullableReference(nullable), reference.value))
+    throw new System.Exception("generic nullable readonly reference identity");
 if (Tsonic.Generated.Index.update(mutable, 19) != 19 || mutable.value != 19)
     throw new System.Exception("inherited writable field aliases original storage");
 for (int index = 0; index < 8192; index++) { _ = Generated(); _ = Native(); }
@@ -185,11 +281,30 @@ long nativeBytes = System.GC.GetAllocatedBytesForCurrentThread() - nativeBefore;
 if (generatedSum != 8192 * 29.0 || nativeSum != generatedSum || generatedBytes != 0 || nativeBytes != 0 ||
     numeric.calls - generatedCalls != 8192 || nativeNumeric.calls - nativeCalls != 8192)
     throw new System.Exception($"readonly cost or evaluation: bytes={generatedBytes}/{nativeBytes}, sum={generatedSum}/{nativeSum}");
+var genericMethod = new Tsonic.Generated.GenericNumberBody();
+var nativeMethod = new NativeMethod(); var nativeReferenceMethod = new NativeReferenceMethod(); var nativeGenericMethod = new NativeGenericMethod();
+for (int index = 0; index < 8192; index++) { _ = GeneratedMethods(); _ = NativeMethods(); }
+int methodCalls = method.calls, referenceMethodCalls = referenceMethod.calls, genericMethodCalls = genericMethod.calls;
+int nativeMethodCalls = nativeMethod.calls, nativeReferenceMethodCalls = nativeReferenceMethod.calls, nativeGenericMethodCalls = nativeGenericMethod.calls;
+long methodBefore = System.GC.GetAllocatedBytesForCurrentThread(); double methodSum = 0;
+for (int index = 0; index < 8192; index++) methodSum += GeneratedMethods();
+long methodBytes = System.GC.GetAllocatedBytesForCurrentThread() - methodBefore;
+long nativeMethodBefore = System.GC.GetAllocatedBytesForCurrentThread(); double nativeMethodSum = 0;
+for (int index = 0; index < 8192; index++) nativeMethodSum += NativeMethods();
+long nativeMethodBytes = System.GC.GetAllocatedBytesForCurrentThread() - nativeMethodBefore;
+if (methodSum != 8192 * 49.0 || nativeMethodSum != methodSum || methodBytes != 0 || nativeMethodBytes != 0 ||
+    method.calls - methodCalls != 8192 || referenceMethod.calls - referenceMethodCalls != 8192 || genericMethod.calls - genericMethodCalls != 8192 ||
+    nativeMethod.calls - nativeMethodCalls != 8192 || nativeReferenceMethod.calls - nativeReferenceMethodCalls != 8192 || nativeGenericMethod.calls - nativeGenericMethodCalls != 8192)
+    throw new System.Exception($"native method cost/evaluation: bytes={methodBytes}/{nativeMethodBytes}, sum={methodSum}/{nativeMethodSum}");
 System.Console.Write($"readonly native-equivalent; generated={generatedBytes}; native={nativeBytes}");
 double Generated() { return Tsonic.Generated.Index.observeNumeric(numeric) +
     Tsonic.Generated.Index.observeReference(reference).value + Tsonic.Generated.Index.observeNullable(nullable)!.value; }
 double Native() { return NativeBaseline.Numeric(nativeNumeric) + NativeBaseline.Reference(nativeReference).value +
     NativeBaseline.Nullable(nativeNullable)!.value; }
+double GeneratedMethods() { return Tsonic.Generated.Index.observeMethod(method) +
+    Tsonic.Generated.Index.observeReferenceMethod(referenceMethod).value + Tsonic.Generated.Index.observeGenericMethod(genericMethod); }
+double NativeMethods() { return NativeBaseline.Method(nativeMethod) + NativeBaseline.ReferenceMethod(nativeReferenceMethod).value +
+    NativeBaseline.GenericMethod(nativeGenericMethod); }
 interface INativeNumericBase { double value { get; } }
 interface INativeNumericChild : INativeNumericBase { new int value { get; } }
 sealed class NativeNumeric : INativeNumericChild {
@@ -199,6 +314,24 @@ sealed class NativeNumeric : INativeNumericChild {
 }
 class NativeBaseValue { public int value = 11; }
 sealed class NativeDerivedValue : NativeBaseValue { public int extra = 13; }
+interface INativeMethod { double read(); }
+sealed class NativeMethod : INativeMethod {
+    public int calls;
+    public int read() { calls++; return 7; }
+    double INativeMethod.read() { return this.read(); }
+}
+interface INativeReferenceMethod { NativeBaseValue read(); }
+sealed class NativeReferenceMethod : INativeReferenceMethod {
+    public int calls; public NativeDerivedValue value = new NativeDerivedValue();
+    public NativeDerivedValue read() { calls++; return value; }
+    NativeBaseValue INativeReferenceMethod.read() { return this.read(); }
+}
+interface INativeGenericMethod { double read<T>(); }
+sealed class NativeGenericMethod : INativeGenericMethod {
+    public int calls;
+    public int read<Native>() { calls++; return 31; }
+    double INativeGenericMethod.read<T>() { return this.read<T>(); }
+}
 interface INativeReferenceBase { NativeBaseValue value { get; } }
 interface INativeReferenceChild : INativeReferenceBase { new NativeDerivedValue value { get; } }
 sealed class NativeReference : INativeReferenceChild {
@@ -214,6 +347,9 @@ sealed class NativeNullable : INativeNullableChild {
     NativeBaseValue? INativeNullableBase.value { get { return this.value; } }
 }
 static class NativeBaseline {
+    public static double Method(NativeMethod body) { INativeMethod value = body; return value.read(); }
+    public static NativeBaseValue ReferenceMethod(NativeReferenceMethod body) { INativeReferenceMethod value = body; return value.read(); }
+    public static double GenericMethod(NativeGenericMethod body) { INativeGenericMethod value = body; return value.read<string>(); }
     public static double Numeric(NativeNumeric body) { INativeNumericChild child = body; INativeNumericBase parent = child; return parent.value; }
     public static NativeBaseValue Reference(NativeReference body) { INativeReferenceChild child = body; INativeReferenceBase parent = child; return parent.value; }
     public static NativeBaseValue? Nullable(NativeNullable body) { INativeNullableChild child = body; INativeNullableBase parent = child; return parent.value; }
@@ -229,12 +365,29 @@ for (const surface of ["native", "js"]) {
     assert.equal(/public int value = 7;/u.test(generated), true, "the native int32 backing is never widened to the base read type");
     assert.equal(/double ReadBase\.value/u.test(generated), true, "the true inherited native numeric obligation is emitted");
     assert.equal(/DerivedValue\?? value/u.test(generated), true, "reference backing retains its concrete selected native carrier");
+    assert.equal((generated.match(/double MethodNumber\.read\(/gu) ?? []).length, 2,
+      "the direct body and inherited derived body each emit exactly one bridge at their own native class");
+    assert.equal((generated.match(/BaseValue ReferenceMethod\.read\(/gu) ?? []).length, 1,
+      "reference covariance has one canonical explicit implementation, not competing producers");
+    assert.equal((generated.match(/ExactNative\.echo</gu) ?? []).length, 0,
+      "an alpha-equivalent native generic method gains no gratuitous interface adapter");
+    assert.equal(/override DerivedValue read\(/u.test(generated), true,
+      "the original native class covariant-override path remains separate and unchanged");
     const captureRoot = new URL("../../../.temp/C19-structural-property-forwarding/", import.meta.url);
     mkdirSync(captureRoot, { recursive: true });
     writeFileSync(new URL(`${surface}.json`, captureRoot), JSON.stringify({ sourceText: readonlySource, nativeProgram: nativeObserver, artifacts: [...compiled.artifacts] }) + "\n");
     const output = executeCsharpConstruction(compiled, `C19-readonly-closure-${surface}`, false, false, [], nativeObserver);
     assert.equal(output, "readonly native-equivalent; generated=0; native=0",
       "complete native projects prove exact getter counts, identity, native absence, writable aliasing and zero extra allocation");
+    let removed = 0;
+    const omitted = new Map([...compiled.artifacts].map(([path, source]) => [path, source.replace(/this\.read<[^>]+>\(\)/gu, () => {
+      removed += 1;
+      return "this.read()";
+    })]));
+    assert.equal(removed >= 3, true, "the actual return-only generic bodies require selected invocation arguments");
+    assert.throws(() => executeCsharpConstruction({ ...compiled, artifacts: omitted }, `C19-generic-arguments-omitted-${surface}`,
+      false, false, [], nativeObserver), error => String(error.message).includes("CS0411"),
+    "Roslyn rejects omitted real body type arguments; a source metadata/import error is not a valid native inverse");
   });
 
   test(`writable structural widening refuses before any native artifacts are published (${surface})`, () => {
@@ -251,5 +404,19 @@ export function run(): number { const view: WritableView = new NarrowBody(); vie
     assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true,
       "a rejected source never becomes a sealed program or planner input");
     assert.equal(compiled.artifacts.size, 0, "no source/native member is silently omitted from a partially published artifact");
+  });
+
+  test(`supplied writable generic widening remains refused without published artifacts (${surface})`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `import type { int32 } from "@tsonic/core/types.js";
+interface WritableView<T> { value: T; }
+class NarrowBody { value: int32 = 7; }
+export function run(): number { const view: WritableView<number> = new NarrowBody(); view.value = 1.5; return view.value; }` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the native inverse is a checked writable generic relation");
+    assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
+      /^No exact C# implicit conversion relates /u.test(issue.message)), true, "canonical writable storage remains exact");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+      "no failed writable native contract can reach publication");
+    assert.equal(compiled.result.diagnostics.some(issue => String(issue.code).includes("INTERNAL")), false,
+      "a genuine native conversion refusal is not disguised as an invariant");
   });
 }

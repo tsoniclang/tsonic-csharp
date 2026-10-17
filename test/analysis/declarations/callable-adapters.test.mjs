@@ -6,10 +6,10 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { admitCsharpCallableParameterAdapters, admitCsharpCallableValueAdapter } from "../../../dist/analysis/callables/adapters.js";
 import { csharpCallableParameterConversionRequests, selectCsharpCallableParameterAdapters } from "../../../dist/policy/conversions/callable-parameters.js";
-import { csharpSourcePrimitiveTargetType, csharpNullableTargetType, csharpTargetNamedType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
+import { csharpSourcePrimitiveTargetType, csharpNullableTargetType, csharpTargetNamedType, csharpDelegateTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
-import { planCsharpProjectCallableAdapters } from "../../../dist/backend/planner/declarations/classes/callable-adapters.js";
+import { planCsharpStructuralInterfaceMembers } from "../../../dist/backend/planner/declarations/interfaces/structural.js";
 import { printCsharpCompilationUnit } from "../../../dist/print/source/printer.js";
 
 const host = { typeDefinitions: undefined, projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined }, target: {},
@@ -149,18 +149,25 @@ function classForwarder(control) {
   assert.equal(result?.conversion.kind === "implicit" && result.conversion.proof === "numeric", true,
     `${control.name}: the native result is genuinely widened`);
   const interfaceType = csharpTargetNamedType(`Proof.I${control.name}`, undefined, { kind: "named", namespace: ["Proof"], name: `I${control.name}` }, { allowsRefLikeTypeArguments: [], sourceDeclarationKind: "interface" });
-  const dispatch = Object.freeze({ implementation, overridesBase: false, hasDerivedOverride: false,
-    adapters: Object.freeze([Object.freeze({ contract, parameters, result, interfaceType })]) });
-  const selected = Object.freeze({ ...program, records: Object.freeze({ ...program.records,
-    callableDispatch: Object.freeze({ get: node => node === declaration ? dispatch : program.records.callableDispatch.get(node) }) }) });
+  const sourceType = csharpTargetNamedType(`Proof.Generated${control.name}`, undefined,
+    { kind: "named", namespace: ["Proof"], name: `Generated${control.name}` }, { allowsRefLikeTypeArguments: [] });
+  const signature = csharpDelegateTargetType("System.Func", control.modes.map(() => integer), widened);
+  const member = Object.freeze({ sourceName: "read", targetName: "read", memberKind: "method",
+    type: Object.freeze({ ...signature, csharpDelegateSignature: Object.freeze({ ...signature.csharpDelegateSignature,
+      parameterPassingModes: Object.freeze([...control.modes]) }) }) });
+  const forwarding = Object.freeze({ contract: Object.freeze({ parameters: contract.parameters, returnType: contract.returnType }),
+    implementation, typeArguments: Object.freeze([]), parameters, result,
+    parameterDefaults: Object.freeze(implementation.parameters.map(() => undefined)) });
+  const interfaceImplementation = Object.freeze({ sourceNode: declaration, sourceType, interfaceType, properties: Object.freeze([]),
+    methods: Object.freeze([Object.freeze({ sourceName: "read", declaration, member, forwarding })]) });
+  const selected = Object.freeze({ ...program, objectShapes: Object.freeze({ ...program.objectShapes,
+    structuralImplementations: type => type === sourceType ? Object.freeze([interfaceImplementation]) :
+      program.objectShapes.structuralImplementations(type) }) });
   const context = createCsharpPlanningContext(selected);
   const passing = mode => mode === "by-value" ? undefined : mode === "byref-readonly" ? "in"
     : mode === "byref-readwrite" ? "ref" : "out";
-  const method = { kind: "MethodDeclaration", name: "read", modifiers: ["public"], returnType: { kind: "PredefinedType", name: "int" },
-    parameters: control.modes.map((mode, index) => ({ name: control.names[index], type: { kind: "PredefinedType", name: "int" }, passing: passing(mode) })),
-    body: { kind: "Block", statements: [] } };
   const diagnostics = [];
-  const planned = planCsharpProjectCallableAdapters(declaration, method, ast.getSourceFile(declaration), context, diagnostics);
+  const planned = planCsharpStructuralInterfaceMembers({ targetType: sourceType }, declaration, context, diagnostics);
   assert.equal(diagnostics.length, 0, `${control.name}: actual native class forwarder renders`);
   assert.equal(planned.length, 1, `${control.name}: one explicit interface forwarder`);
   const forwarder = planned[0];

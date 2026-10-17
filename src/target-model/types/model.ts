@@ -83,7 +83,6 @@ export interface CsharpStructuralInterfaceImplementation {
     readonly sourceName: string;
     readonly declaration: Node;
     readonly member: CsharpObjectShapeMemberFact;
-    readonly defaultArguments: readonly number[];
   }[];
 }
 

@@ -10,7 +10,6 @@ export interface CsharpStructuralInterfaceMemberEvidence {
   readonly openSource: CsharpObjectShapeMemberFact;
   readonly openDestination: CsharpObjectShapeMemberFact;
   readonly declaration?: Node;
-  readonly parameterDefaults: readonly boolean[];
 }
 
 export interface CsharpStructuralInterfaceEvidence {
@@ -23,6 +22,7 @@ export interface CsharpStructuralInterfaceEvidence {
 export interface CsharpStructuralMethodForwarding {
   readonly contract: Pick<CsharpSourceCallContract, "parameters" | "returnType">;
   readonly implementation: CsharpSourceCallableContract;
+  readonly typeArguments: readonly import("../types/model.js").TargetTypeRef[];
   readonly parameterDefaults: readonly (CsharpDefaultParameterContract | undefined)[];
   readonly parameters: readonly CsharpCallableParameterAdapter[];
   readonly result: CsharpCallableValueAdapter;
