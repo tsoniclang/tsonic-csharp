@@ -35,6 +35,10 @@ import {
   createCsharpProjectConstructorPolicy,
 } from "./project-type-constructors.js";
 
+export type CsharpProjectTargetIdentity =
+  | Pick<Extract<TargetTypeRef, { readonly kind: "target-named" }>, "kind" | "id">
+  | Pick<Exclude<TargetTypeRef, { readonly kind: "target-named" }>, "kind">;
+
 export interface CsharpProjectTypeCatalog {
   readonly definitions: readonly CsharpProjectTypeDefinition[];
   readonly issues: readonly CsharpProjectTypeIssue[];
@@ -45,7 +49,7 @@ export interface CsharpProjectTypeCatalog {
     declaration: Node | undefined,
   ): CsharpProjectTypeDefinition | undefined;
   definitionForTarget(
-    type: TargetTypeRef | undefined,
+    type: CsharpProjectTargetIdentity | undefined,
   ): CsharpProjectTypeDefinition | undefined;
   targetTypeForDeclaration(
     declaration: Node | undefined,

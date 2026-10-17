@@ -499,8 +499,7 @@ export function implementedConstraintType(
   substitutions: ReadonlyMap<string, TargetTypeRef>,
 ): TargetTypeRef | undefined {
   const arguments_ = constraint.typeArguments?.map(argument => substituteTargetTypeParameters(argument, substitutions)) ?? [];
-  const definition = input.projectTypes.catalog.definitionForTarget({ kind: "target-named", id: constraint.contract,
-    typeArguments: arguments_ });
+  const definition = input.projectTypes.catalog.definitionForTarget({ kind: "target-named", id: constraint.contract });
   if (definition !== undefined) {
     return input.projectTypes.catalog.targetTypeForDeclaration(definition.declaration, arguments_);
   }
