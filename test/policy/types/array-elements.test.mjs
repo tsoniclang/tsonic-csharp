@@ -58,14 +58,16 @@ test("actual explicit numeric destinations preserve native conversions instead o
   selected(select([fixed("float32"), fixed("int32")], primitive("float32")), "float32", "an authored float32[] retains native rounding");
 });
 
-test("an inexact integer literal never creates a new inferred float/integer physical union", () => {
+test("an authored integer's actual floating default supplies an exact needed carrier, never a fabricated one", () => {
   const onePastPrecision = literal(16777217n, 0n, 16777217n, "int32");
   for (const inputs of [[fixed("float32"), onePastPrecision], [onePastPrecision, fixed("float32")]]) {
-    const selection = select(inputs);
-    assert.equal(selection.kind === "rejected" && selection.reason ===
-      "Inferred array elements require an exact common native numeric carrier; an explicit native array destination is required for a rounding conversion.", true,
-    "no new physical float/int union or artificial candidate rescues a failed exact-native selection");
+    selected(select(inputs), "float64", "16777217 has an actual exact f64 default and cannot be rounded to f32");
   }
+  const noFloatingDefault = Object.freeze({ ...onePastPrecision, literalDefault: undefined });
+  const selection = select([fixed("float32"), noFloatingDefault]);
+  assert.equal(selection.kind === "rejected" && selection.reason ===
+    "Inferred array elements require an exact common native numeric carrier; an explicit native array destination is required for a rounding conversion.", true,
+  "a missing source default is not permission to invent a float carrier or a new physical union");
   selected(select([fixed("float32"), onePastPrecision], primitive("float32")), "float32",
     "an actual explicit destination still authorizes the existing native rounding conversion");
 });
@@ -126,11 +128,56 @@ test("a canonical floating union arm never rounds an authored exact integer", ()
   }
 });
 
+test("every inferred physical-union fallback proves authored integer exactness", () => {
+  const inexact = literal(9007199254740993n, 0n, 9007199254740993n);
+  const negative = literal(9007199254740993n, 0n, -9007199254740993n, "float64", true);
+  const hugeInexact = literal(1n, 100n);
+  for (const value of [inexact, negative, hugeInexact]) {
+    const other = Object.freeze({ carrier: Object.freeze({ kind: "array", element: primitive("int32") }),
+      literal: undefined, literalDefault: undefined });
+    for (const inputs of [[fixed("int32"), value], [value, fixed("int32")], [other, value],
+      [fixed("int64"), value, fixed("float32")],
+      [fixed("int32"), fixed("uint32"), value, literal(5n, -1n)]]) {
+      const checked = inputs.some(input => input.carrier.name === "int64")
+        ? csharpRuntimeUnionTargetType([primitive("int64"), primitive("float32"), primitive("float64")])
+        : primitive("float64");
+      const selection = select(inputs, undefined, checked);
+      assert.equal(selection.kind === "rejected" && selection.reason ===
+        "An inferred numeric union requires an exact canonical carrier for every authored integer literal.", true,
+      "one fixed peer, genuine checked unions, nonnumeric arms and additional fractions cannot bypass exact fallback admission");
+    }
+    selected(select([fixed("int32"), value], primitive("float64")), "float64",
+      "authored explicit f64 storage retains its native rounding contract");
+  }
+});
+
+test("authored integral tokens beyond bounded integer materialization stay flexible and exact", () => {
+  const hugeExact = literal(1n << 200n, 0n);
+  const largeExact = literal(9007199254740994n, 0n, 9007199254740994n);
+  for (const value of [hugeExact, largeExact]) {
+    selected(select([fixed("int32"), value]), "float64", "exact binary values above2^53 are not artificially capped");
+    for (const inputs of [[fixed("int32"), fixed("uint32"), value],
+      [value, fixed("uint32"), fixed("int32")]]) {
+      const selection = select(inputs);
+      assert.equal(selection.kind === "unavailable" && selection.carriers.length === 3 &&
+        new Set(selection.carriers.map(carrier => carrier.name)).size === 3 &&
+        selection.carriers[inputs.indexOf(value)].name === "float64", true,
+      "an integer token is not a fixed floating rescue merely because its bounded integer field is absent");
+    }
+  }
+});
+
 test("genuine checked native unions stay with the existing union owner", () => {
-  const inputs = [fixed("int32"), fixed("int64")];
-  const selection = select(inputs, undefined, csharpRuntimeUnionTargetType(inputs.map(input => input.carrier)));
-  assert.equal(selection.kind === "unavailable" && selection.carriers.every((carrier, index) => carrier === inputs[index].carrier),
-    true, "neither width is erased by a numeric inference pass");
+  for (const inputs of [[fixed("int32"), fixed("int64")], [fixed("float32"), fixed("int64")]]) {
+    const selection = select(inputs, undefined, csharpRuntimeUnionTargetType(inputs.map(input => input.carrier)));
+    assert.equal(selection.kind === "unavailable" && selection.carriers.every((carrier, index) => carrier === inputs[index].carrier),
+      true, "neither width nor a genuine float/integer source arm is erased or spuriously refused");
+  }
+  for (const value of [literal(1n, 0n, 1n), literal(9007199254740993n, 0n, 9007199254740993n)]) {
+    const inputs = [fixed("int64"), value];
+    selected(select(inputs, undefined, csharpRuntimeUnionTargetType(inputs.map(input => input.carrier))), "int64",
+      "an exact fitting authored literal uses its single native integer peer before the genuine-union gate");
+  }
 });
 
 test("native signed zero and integer literal range remain actual constraints", () => {

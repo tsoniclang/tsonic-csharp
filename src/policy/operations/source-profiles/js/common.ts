@@ -22,7 +22,7 @@ import {
 
 export type JsSourceProfileTargetMemberFactory = (
   context: CsharpSourceProfileCallPolicyContext,
-) => CsharpTargetMember | undefined;
+) => CsharpTargetMember | Extract<CsharpSourceProfileCallPolicyResult, { readonly kind: "rejected" }> | undefined;
 
 export function jsMemberIdentity(
   declaringName: string,
@@ -98,6 +98,7 @@ export function jsCallPolicy(
       context: CsharpSourceProfileCallPolicyContext,
     ): CsharpSourceProfileCallPolicyResult {
       const targetMember = createTargetMember(context);
+      if (targetMember?.kind === "rejected") return targetMember;
       const targetMethodTypeArguments =
         options.targetMethodTypeArguments === undefined
           ? []

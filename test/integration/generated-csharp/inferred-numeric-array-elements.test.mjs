@@ -5,6 +5,45 @@ import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../hel
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { getCsharpArrayLiteralElementTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
+import { csharpEnumerableTargetType } from "../../../dist/target-model/types/carriers/collections.js";
+import { combineCsharpTargetUnionMembers } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+
+const destinationBodies = {
+  Alias: (element, name) => `type ${name}Values = ${element}[];
+    export function ${name}(narrow: float32, signed: int32): ${name}Values {
+      const values: ${name}Values = [narrow, signed]; return values; }`,
+  Argument: (element, name) => `function ${name}Accept(values: ${element}[]): ${element}[] { return values; }
+    export function ${name}(narrow: float32, signed: int32): ${element}[] {
+      const values = [narrow, signed]; return ${name}Accept(values); }`,
+  Return: (element, name) => `export function ${name}(narrow: float32, signed: int32): ${element}[] {
+    const values = [narrow, signed]; const alias = values; return alias; }`,
+  Async: (element, name) => `export async function ${name}(narrow: float32, signed: int32): Promise<${element}[]> {
+    const values = [narrow, signed]; return values; }`,
+  Concise: (element, name) => `export function ${name}(narrow: float32, signed: int32): ${element}[] {
+    const make = (): ${element}[] => [narrow, signed]; return make(); }`,
+  Nested: (element, name) => `function ${name}Call(make: () => ${element}[]): ${element}[] { return make(); }
+    export function ${name}(narrow: float32, signed: int32): ${element}[] {
+      return ${name}Call(() => { const values = [narrow, signed]; return values; }); }`,
+  GenericArgument: (element, name) => `function ${name}Accept<T>(values: T[]): T[] { return values; }
+    export function ${name}(narrow: float32, signed: int32): ${element}[] {
+      const values = [narrow, signed]; return ${name}Accept<${element}>(values); }`,
+  GenericCallback: (element, name) => `function ${name}Call<T>(make: () => T[]): T[] { return make(); }
+    export function ${name}(narrow: float32, signed: int32): ${element}[] {
+      return ${name}Call<${element}>(() => { const values = [narrow, signed]; return values; }); }`,
+  Receiver: (element, name) => `class ${name}Receiver<T> { accept(values: T[]): T[] { return values; } }
+    export function ${name}(narrow: float32, signed: int32): ${element}[] {
+      const receiver = new ${name}Receiver<${element}>(); const values = [narrow, signed]; return receiver.accept(values); }`,
+  TypedCallback: (element, name) => `export function ${name}(narrow: float32, signed: int32): ${element}[] {
+    const make: () => ${element}[] = () => { const values = [narrow, signed]; return values; }; return make(); }`,
+};
+const destinationPrograms = Object.entries(destinationBodies).flatMap(([context, body]) =>
+  [["Single", "float32", "float"], ["Double", "number", "double"]].map(([suffix, element, native]) => ({
+    context, name: `destination${context}${suffix}`, native,
+    source: body(element, `destination${context}${suffix}`),
+  })));
 
 const sourceText = `
 import type { float32, float64, int16, uint16, int32, uint32, int64 } from "@tsonic/core/types.js";
@@ -31,6 +70,15 @@ export function small(narrow: float32, signed: int16, unsigned: uint16) { return
 export function explicitDouble(narrow: float32, signed: int32): number[] { return [narrow, signed]; }
 export function explicitSingle(narrow: float32, signed: int32): float32[] { return [narrow, signed]; }
 export function wide() { const value: int64 = 9007199254740993n; return [value, value]; }
+export function fittingWide() { const value: int64 = 9007199254740993n; return [value, 1, 9007199254740993]; }
+export function integerPastSingle(narrow: float32) { return [narrow, 16777217]; }
+export function exactHuge(signed: int32, unsigned: uint32) {
+  const hugeValues = [signed, unsigned, 1606938044258990275541962092341162602522202993782792835301376]; return hugeValues;
+}
+export function explicitRounded(signed: int32): number[] { return [signed, 9007199254740993]; }
+export function genuineFloatWide(narrow: float32, wide: int64) {
+  const floatWideValues = [narrow, wide]; return floatWideValues;
+}
 let trace: int32 = 0;
 function signedEffect(): int32 { trace = trace * 10 + 1; return -1; }
 function unsignedEffect(): uint32 { trace = trace * 10 + 2; return 4294967295; }
@@ -39,7 +87,7 @@ export function effects(): boolean {
   trace = 0; const values = [signedEffect(), unsignedEffect(), fractionEffect()];
   return trace === 123 && values[0] === -1 && values[1] === 4294967295 && values[2] === 0.5;
 }
-`;
+` + destinationPrograms.map(program => program.source).join("\n");
 
 function carriers(program) {
   const result = new Map();
@@ -75,24 +123,46 @@ for (const surface of ["native", "js"]) test(`${surface} inferred numeric arrays
       ["middle", "middleValues", ["int32", "float64", "uint32"]],
       ["right", "rightValues", ["float64", "int32", "uint32"]],
       ["wrapped", "wrappedValues", ["int32", "uint32", "float64"]],
-    ].map(([method, name, values]) => {
+      ["exactHuge", "hugeValues", ["int32", "uint32", "float64"], "System.Math.ScaleB(1D, 200)"],
+    ].map(([method, name, values, literal = "1D"]) => {
       const members = arms(name);
       assert.equal(members.length === values.length && new Set(members.map(arm => arm.name)).size === values.length, true,
         `${name}: the actual constructor uses the required complete physical union`);
       const union = `Tsonic.CSharp.Runtime.Union<${members.map(arm => types[arm.name]).join(", ")}>`;
-      const entries = values.map(kind => `${union}.From${members.findIndex(arm => arm.name === kind) + 1}(${kind === "int32" ? "signed" : kind === "uint32" ? "unsigned" : "1D"})`);
+      const entries = values.map(kind => `${union}.From${members.findIndex(arm => arm.name === kind) + 1}(${kind === "int32" ? "signed" : kind === "uint32" ? "unsigned" : literal})`);
       const storage = surface === "native" ? `${union}[]` : `Tsonic.CSharp.Js.JSArray<${union}>`;
       const construction = surface === "native" ? `new ${union}[] { ${entries.join(", ")} }`
         : `Tsonic.CSharp.Js.JSArray<${union}>.of([${entries.join(", ")}])`;
       const reads = values.map((kind, index) => `!${method}[${index}].Is${members.findIndex(arm => arm.name === kind) + 1}() ||
-        ${method}[${index}].As${members.findIndex(arm => arm.name === kind) + 1}() != ${kind === "int32" ? "-1" : kind === "uint32" ? "4294967295U" : "1D"}`).join(" || ");
+        ${method}[${index}].As${members.findIndex(arm => arm.name === kind) + 1}() != ${kind === "int32" ? "-1" : kind === "uint32" ? "4294967295U" : literal}`).join(" || ");
       return { method, baseline: `static ${storage} Baseline_${method}(int signed, uint unsigned) => ${construction};`,
         read: `var ${method} = Subject.${method}(-1, 4294967295U); if (${reads}) throw new System.Exception("${method}: exact physical contribution");` };
     });
+    const destinations = destinationPrograms.map(({ context, name, native }) => {
+      const storage = surface === "native" ? `${native}[]` : `Tsonic.CSharp.Js.JSArray<${native}>`;
+      const construction = surface === "native" ? `new ${native}[] { narrow, (${native})signed }`
+        : `Tsonic.CSharp.Js.JSArray<${native}>.of([narrow, (${native})signed])`;
+      const asynchronous = context === "Async";
+      return { name, context,
+        baseline: `static ${asynchronous ? `System.Threading.Tasks.Task<${storage}>` : storage} Baseline_${name}(float narrow, int signed) =>
+          ${asynchronous ? `System.Threading.Tasks.Task.FromResult(${construction})` : construction};`,
+        read: `var ${name} = Subject.${name}(1.5F, 16777217)${asynchronous ? ".GetAwaiter().GetResult()" : ""};
+          if (${name}[0] != 1.5${native === "float" ? "F" : "D"} || ${name}[1] != ${native === "float" ? "16777216F" : "16777217D"})
+            throw new System.Exception("${name}: the actual destination did not govern native element storage");`,
+      };
+    });
+    const destinationCosts = destinations.filter(destination => ["Alias", "Argument", "Return"].includes(destination.context));
+    const floatWide = getCsharpRuntimeUnionArms(selected.get("floatWideValues"), compiled.result.program.typeDefinitions);
+    assert.equal(floatWide?.length === 2 && ["float32", "int64"].every(kind => floatWide.some(arm => arm.name === kind)), true,
+      "a genuine fixed float/wide union retains both exact native representations");
+    const floatArm = floatWide.findIndex(arm => arm.name === "float32") + 1;
+    const wideArm = floatWide.findIndex(arm => arm.name === "int64") + 1;
     const nativeProgram = `
 using Subject = Tsonic.Generated.Index;
 ${methods.map(method => method.baseline).join("\n")}
+${destinationCosts.map(method => method.baseline).join("\n")}
 ${methods.map(method => method.read).join("\n")}
+${destinations.map(method => method.read).join("\n")}
 if (!Subject.reads(-1, 4294967295U) || !Subject.same(1, 1) || Subject.same(-1, 4294967295U) || !Subject.effects())
     throw new System.Exception("source indexed reads, cross-arm equality or once-only order");
 var half = Subject.half(-0F);
@@ -108,8 +178,17 @@ var doubles = Subject.explicitDouble(1.5F, 16777217);
 var singles = Subject.explicitSingle(1.5F, 16777217);
 if (doubles[1] != 16777217D || singles[1] != (float)16777217 || Subject.wide()[0] != 9007199254740993L)
     throw new System.Exception("actual native destination or exact int64 contract changed");
+var fittingWide = Subject.fittingWide();
+if (fittingWide[0] != 9007199254740993L || fittingWide[1] != 1L || fittingWide[2] != 9007199254740993L ||
+    Subject.integerPastSingle(1.5F)[1] != 16777217D || Subject.explicitRounded(1)[1] != 9007199254740992D)
+    throw new System.Exception("exact authored native integers or an explicit native floating destination changed");
+var floatWide = Subject.genuineFloatWide(0.5F, 9007199254740993L);
+if (!floatWide[0].Is${floatArm}() || floatWide[0].As${floatArm}() != 0.5F ||
+    !floatWide[1].Is${wideArm}() || floatWide[1].As${wideArm}() != 9007199254740993L)
+    throw new System.Exception("a true checked native float/wide union was joined or rounded");
 for (int index = 0; index < 512; index++) {
 ${methods.map(({ method }) => `System.GC.KeepAlive(Subject.${method}(-1, 4294967295U)); System.GC.KeepAlive(Baseline_${method}(-1, 4294967295U));`).join("\n")}
+${destinationCosts.map(({ name }) => `System.GC.KeepAlive(Subject.${name}(1.5F, 16777217)); System.GC.KeepAlive(Baseline_${name}(1.5F, 16777217));`).join("\n")}
 }
 ${methods.map(({ method }) => `
 long before_${method} = System.GC.GetAllocatedBytesForCurrentThread();
@@ -120,6 +199,15 @@ for (int index = 0; index < 1000; index++) System.GC.KeepAlive(Baseline_${method
 long native_${method} = System.GC.GetAllocatedBytesForCurrentThread() - before_${method};
 if (generated_${method} != native_${method}) throw new System.Exception($"${method}: native allocation mismatch {generated_${method}}/{native_${method}}");
 System.Console.WriteLine($"${method}: generated={generated_${method}} native={native_${method}}");`).join("\n")}
+${destinationCosts.map(({ name }) => `
+long before_${name} = System.GC.GetAllocatedBytesForCurrentThread();
+for (int index = 0; index < 1000; index++) System.GC.KeepAlive(Subject.${name}(1.5F, 16777217));
+long generated_${name} = System.GC.GetAllocatedBytesForCurrentThread() - before_${name};
+before_${name} = System.GC.GetAllocatedBytesForCurrentThread();
+for (int index = 0; index < 1000; index++) System.GC.KeepAlive(Baseline_${name}(1.5F, 16777217));
+long native_${name} = System.GC.GetAllocatedBytesForCurrentThread() - before_${name};
+if (generated_${name} != native_${name}) throw new System.Exception($"${name}: native allocation mismatch {generated_${name}}/{native_${name}}");
+System.Console.WriteLine($"${name}: generated={generated_${name}} native={native_${name}}");`).join("\n")}
 long counterBefore = System.GC.GetAllocatedBytesForCurrentThread();
 for (int index = 0; index < 1000; index++) { System.GC.KeepAlive(Baseline_bare(-1, 4294967295U)); System.GC.KeepAlive(new object()); }
 long counterBytes = System.GC.GetAllocatedBytesForCurrentThread() - counterBefore;
@@ -141,46 +229,136 @@ const physicalForms = [
   ["literalFirst", "[1, signed, unsigned]", 3],
 ];
 const operationControls = [
-  ["number read", "const value: number = values[0]; return value === 1;", ["values[0]"]],
-  ["order", "return !(values[0] < values[1]);", ["values[0] < values[1]"]],
-  ["addition", "return values[0] + values[1] === 2;", ["values[0] + values[1]"]],
-  ["Object.is", "return Object.is(values[0], values[1]);", ["Object.is(values[0], values[1])"]],
-  ["Math.max", "return Math.max(values[0], values[1]) === 1;", ["Math.max(values[0], values[1])"]],
-  ["includes", "const first = [values[0]]; return first.includes(values[1]);", ["first.includes(values[1])"]],
-  ["indexOf", "return values.indexOf(values[1]) === 0;", ["values.indexOf(values[1])"]],
-  ["Set", "const keys = new Set(values); return keys.has(values[1]) && keys.size === 1;", ["new Set(values)", "keys.has(values[1])"]],
-  ["Map", "const keys = new Map<number, boolean>(); keys.set(values[0], true); return keys.has(values[1]);",
-    ["keys.set(values[0], true)", "keys.has(values[1])"]],
-  ["String", 'return String(values[0]) === "1" && String(values[1]) === "1";', ["String(values[0])", "String(values[1])"]],
-  ["template", 'return `${values[0]}:${values[1]}` === "1:1";', ["values[0]", "values[1]"]],
-  ["JSON", "return JSON.stringify(values) === EXPECTED_JSON;", ["JSON.stringify(values)"]],
-  ["sort", "values.sort(); return JSON.stringify(values) === EXPECTED_SORT;", ["values.sort()", "JSON.stringify(values)"]],
+  ["number read", "const value: number = values[0]; return value === 1;"],
+  ["order", "return !(values[0] < values[1]);"],
+  ["addition", "return values[0] + values[1] === 2;"],
+  ["equality", "return values[0] === values[1] && !(values[0] !== values[1]);"],
+  ["Object.is", "return Object.is(values[0], values[1]);"],
+  ["Math.max", "return Math.max(values[0], values[1]) === 1;"],
+  ["includes", "const first = [values[0]]; return first.includes(values[1]);"],
+  ["indexOf", "return values.indexOf(values[1]) === 0;"],
+  ["lastIndexOf", "return values.lastIndexOf(values[1]) === values.length - 1;"],
+  ["Set", "const keys = new Set(values); return keys.has(values[1]) && keys.size === 1;"],
+  ["Map", "const keys = new Map<number, boolean>(); keys.set(values[0], true); return keys.has(values[1]);"],
+  ["String", 'return String(values[0]) === "1" && String(values[1]) === "1";'],
+  ["template", 'return `${values[0]}:${values[1]}` === "1:1";'],
+  ["JSON", "return JSON.stringify(values) === EXPECTED_JSON;"],
+  ["sort", "values.sort(); return JSON.stringify(values) === EXPECTED_SORT;"],
 ];
-const refusalCodes = new Set([
-  "CSHARP_UNSUPPORTED_AST", "CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED", "CSHARP_JS_SOURCE_PROFILE_ELEMENT_NOT_CLOSED",
-  "CSHARP_JS_SOURCE_PROFILE_OPERATION_UNSUPPORTED", "CSHARP_JS_COLLECTION_CONSTRUCTION_NOT_CLOSED",
-  "CSHARP_CALL_ARGUMENT_CONVERSION_NOT_PROVEN", "CSHARP_ELEMENT_READ_CONVERSION_NOT_PROVEN",
-  "CSHARP_MEMBER_RECEIVER_CONVERSION_NOT_PROVEN",
-]);
 
-for (const [formName, form, size] of physicalForms) for (const [operation, body, anchors] of operationControls) {
-  test(`C130 js: ${formName} ${operation} uses native number semantics or a precise pre-seal refusal`,
+function expectedOperationRefusals(operation, size) {
+  const primitive = csharpSourcePrimitiveTargetType;
+  const union = combineCsharpTargetUnionMembers([primitive("int32"), primitive("uint32"),
+    ...(size === 3 ? [primitive("float64")] : [])]);
+  const refused = (message, text, code = "CSHARP_UNSUPPORTED_AST") => ({ code, message, text });
+  const conversion = (text, source = union, target = primitive("float64")) => refused(
+    `No exact C# implicit conversion relates '${targetTypeRefKey(source)}' to '${targetTypeRefKey(target)}'.`, text);
+  switch (operation) {
+    case "number read": return [conversion("values[0]")];
+    case "order": return [refused("C# relational operator '<' requires numeric source-primitive operands or two exact string operands.",
+      "values[0] < values[1]")];
+    case "addition": return [refused("C# arithmetic operator '+' requires numeric source-primitive operands.",
+      "values[0] + values[1]")];
+    case "Math.max": return [conversion("values[0]"), conversion("values[1]")];
+    case "includes": return [refused("Array.includes over a numeric union requires an exact native cross-arm key equality relation.",
+      "first.includes(values[1])", "TS9101001")];
+    case "indexOf": return [refused("Array.indexOf over a numeric union requires an exact native cross-arm key equality relation.",
+      "values.indexOf(values[1])", "TS9101001")];
+    case "lastIndexOf": return [refused("Array.lastIndexOf over a numeric union requires an exact native cross-arm key equality relation.",
+      "values.lastIndexOf(values[1])", "TS9101001")];
+    case "Set": return [conversion("values", csharpJsArrayTargetType(union), csharpEnumerableTargetType(primitive("float64"))),
+      conversion("values[1]")];
+    case "Map": return [conversion("values[0]"), conversion("values[1]")];
+    case "equality": case "Object.is": case "String": case "template": case "JSON": case "sort": return [];
+    default: throw new Error(`No declared C130 operation contract for ${operation}.`);
+  }
+}
+
+test("C130 js plain key relations and numeric-union join remain native", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int32, uint32 } from "@tsonic/core/types.js";
+    export function check(): boolean {
+      const numbers: number[] = [1, 2, 1]; const strings: string[] = ["a", "b", "a"];
+      return numbers.includes(1) && numbers.indexOf(1) === 0 && numbers.lastIndexOf(1) === 2 &&
+        strings.includes("a") && strings.indexOf("a") === 0 && strings.lastIndexOf("a") === 2;
+    }
+    export function join(signed: int32, unsigned: uint32): string {
+      const values = [signed, unsigned]; return values.join(",");
+    }` });
+  assertCsharpCompilationSucceeded(compiled);
+  const output = executeCsharpConstruction(compiled, "C130-proven-array-keys", false, false, [], `
+    if (!Tsonic.Generated.Index.check() || Tsonic.Generated.Index.join(1, 1) != "1,1")
+      throw new System.Exception("proven key relations or numeric-union join changed");
+    System.Console.WriteLine("proven array key relations passed");`);
+  assert.equal(output.includes("proven array key relations passed"), true,
+    "the precise unsupported numeric-union key boundary does not cut ordinary keys or join");
+});
+
+for (const operation of ["includes", "indexOf", "lastIndexOf"]) test(`C130 js optional numeric-union ${operation} refuses the same unproven key relation`, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int32, uint32 } from "@tsonic/core/types.js";
+    export function run(value: int32 | uint32 | undefined): boolean {
+      const values = [value, value]; return ${operation === "includes" ? `values.${operation}(value)` : `values.${operation}(value) >= 0`};
+    }` });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  const issue = compiled.targetDiagnostics[0];
+  const ast = compiled.source.ast;
+  const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+  const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end).trim();
+  assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "TS9101001" &&
+    issue.message === `Array.${operation} over a numeric union requires an exact native cross-arm key equality relation.` &&
+    text === `values.${operation}(value)`, true, "one exact source refusal, including its native key relation and operation node");
+  assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+    "native absence cannot hide an unproven present-payload key operation or publish a partial program");
+});
+
+test("C130 js reports every winning numeric-union key refusal before program incompleteness", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int32, uint32 } from "@tsonic/core/types.js";
+    export function run(signed: int32, unsigned: uint32): void {
+      const values = [signed, unsigned];
+      values.includes(signed); values.indexOf(unsigned); values.lastIndexOf(signed);
+    }` });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  const expected = [
+    ["includes", "values.includes(signed)"], ["indexOf", "values.indexOf(unsigned)"],
+    ["lastIndexOf", "values.lastIndexOf(signed)"],
+  ];
+  const ast = compiled.source.ast;
+  assert.equal(compiled.targetDiagnostics.length === expected.length, true,
+    "all three actual selected boundaries report, rather than returning only the first policy group");
+  for (const [operation, expression] of expected) {
+    const issues = compiled.targetDiagnostics.filter(issue => issue.message ===
+      `Array.${operation} over a numeric union requires an exact native cross-arm key equality relation.`);
+    const issue = issues[0];
+    const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+    const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end).trim();
+    assert.equal(issues.length === 1 && issue.code === "TS9101001" && text === expression, true,
+      `${operation}: one canonical diagnostic retains its exact selected reason and original operation node`);
+  }
+  assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+    "aggregate source refusals never escape as a missing-fact invariant or partial emitted program");
+});
+
+for (const surface of ["native", "js"]) for (const [formName, form, size] of physicalForms) for (const [operation, body] of operationControls) {
+  if (surface === "native" && !["number read", "order", "addition", "equality", "template"].includes(operation)) continue;
+  test(`C130 ${surface}: ${formName} ${operation} uses native number semantics or a precise pre-seal refusal`,
     { timeout: 300_000 }, () => {
       const expectedJson = size === 2 ? "[1,1]" : "[1,1,1]";
       const expectedSort = size === 2 ? "[10,2]" : "[1,10,2]";
       const sourceText = 'import type { int32, uint32 } from "@tsonic/core/types.js";\n' +
         `export function check(signed: int32, unsigned: uint32): boolean { const values = ${form}; ` +
         body.replace("EXPECTED_JSON", JSON.stringify(expectedJson)).replace("EXPECTED_SORT", JSON.stringify(expectedSort)) + " }";
-      const compiled = compileCsharpSource({ surface: "js", sourceText });
+      const compiled = compileCsharpSource({ surface, sourceText });
       assert.equal(compiled.sourceDiagnosticsText === "", true, `${operation}: ${compiled.sourceDiagnosticsText}`);
       const errors = compiled.targetDiagnostics.filter(issue => issue.category === "error");
-      const root = new URL(`../../../.temp/C01-inferred-numeric-array-elements/operations/${formName}/${operation.replace(/[^a-z]/giu, "-")}/`, import.meta.url);
+      const root = new URL(`../../../.temp/C01-inferred-numeric-array-elements/operations/${surface}/${formName}/${operation.replace(/[^a-z]/giu, "-")}/`, import.meta.url);
       mkdirSync(root, { recursive: true });
       const diagnostic = issue => {
         const ast = compiled.source.ast;
         const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
         const text = range?.kind !== "authored" ? undefined
-          : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
+          : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end).trim();
         return { code: issue.code, message: issue.message, text };
       };
       writeFileSync(new URL("source-and-result.json", root), JSON.stringify({ sourceText,
@@ -188,16 +366,12 @@ for (const [formName, form, size] of physicalForms) for (const [operation, body,
       if (errors.length > 0) {
         assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
           "an unsupported cross-arm operation is refused before the seal and emits no artifact");
-        for (const issue of errors) {
-          const observed = diagnostic(issue);
-          assert.equal(refusalCodes.has(issue.code), true, `${operation}: an exact existing source owner (${issue.code}: ${issue.message})`);
-          assert.equal(issue.message.length > 0 && !/missing|not finalized|internal invariant|unresolved|requires.*(?:sealed|completed).*evidence/iu.test(issue.message), true,
-            `${operation}: a precise operation refusal, never an internal missing-evidence failure`);
-          assert.equal(observed.text !== undefined && observed.text.trim().length > 0 &&
-            anchors.some(anchor => observed.text.includes(anchor) || anchor.includes(observed.text)), true,
-          `${operation}: the refusal identifies the actual unsupported authored operation or its operand`);
-        }
-        process.stdout.write(`C130 ${formName} ${operation}: PRESEAL ${errors.map(issue => issue.code).join(",")}\n`);
+        const observed = errors.map(diagnostic).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+        const expected = expectedOperationRefusals(operation, size).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+        assert.equal(observed.length === expected.length && observed.every((issue, index) =>
+          issue.code === expected[index].code && issue.message === expected[index].message && issue.text === expected[index].text), true,
+        `${formName}/${operation}: the complete exact code, native reason and authored source node match its declared operation contract`);
+        process.stdout.write(`C130 ${surface} ${formName} ${operation}: PRESEAL ${errors.map(issue => issue.code).join(",")}\n`);
         return;
       }
       assertCsharpCompilationSucceeded(compiled);
@@ -205,9 +379,9 @@ for (const [formName, form, size] of physicalForms) for (const [operation, body,
         throw new System.Exception("C130 ${formName} ${operation}: cross-arm number semantics");
         System.Console.WriteLine("C130 native operation passed");`;
       writeFileSync(new URL("native-program.cs", root), nativeProgram);
-      const output = executeCsharpConstruction(compiled, `C130-${formName}-${operation.replace(/[^a-z]/giu, "-")}`, false, false, [], nativeProgram);
+      const output = executeCsharpConstruction(compiled, `C130-${surface}-${formName}-${operation.replace(/[^a-z]/giu, "-")}`, false, false, [], nativeProgram);
       writeFileSync(new URL("native-output.txt", root), output);
       assert.equal(output.includes("C130 native operation passed"), true, "the real generated native operation observes exact cross-arm number semantics");
-      process.stdout.write(`C130 ${formName} ${operation}: NATIVE\n`);
+      process.stdout.write(`C130 ${surface} ${formName} ${operation}: NATIVE\n`);
     });
 }

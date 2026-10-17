@@ -643,6 +643,44 @@ test("actual native key refusals precede expected-slot pending and retain every 
   assert.equal(demand.nativeUse.expression(expression) === undefined, true, "a refused expression never receives a fabricated native use");
 });
 
+for (const [label, body, expression, family] of [
+  ["call", "function make(): number { return 1; } export const result = make();", "make()", "selectedCall"],
+  ["construction", "class Box { value = 1; } export const result = new Box();", "new Box()", "selectedConstruction"],
+  ["property", "const box = { value: 1 }; export const result = box.value;", "box.value", "selectedProperty"],
+  ["element", "const values = [1]; export const result = values[0];", "values[0]", "selectedElement"],
+]) test(`a selected ${label} refusal reaches analysis with its canonical code, node, reason and complete evidence`, () => {
+  const value = owners(body, "native");
+  const node = value.nodes.find(candidate => value.text(candidate) === expression &&
+    value.input.operations[family].get(candidate) !== undefined);
+  assert.equal(node !== undefined, true, `${label}: the real operation owner publishes its selected boundary`);
+  const original = value.input.operations[family].get(node);
+  const diagnostic = Object.freeze({ extensionId: "test-source-policy", extensionCode: "EXACT_NATIVE_RELATION",
+    publicCode: "DO_NOT_SUBSTITUTE_PUBLIC_CODE", numericCode: 9101001, category: "error",
+    nodeOrSpan: node, message: `Selected ${label} native relation is not closed.`, evidence: Object.freeze([
+      Object.freeze({ message: "The selected physical carrier is exact." }),
+      Object.freeze({ message: "Its required native relation is absent." }),
+      Object.freeze({ message: "The selected physical carrier is exact." }),
+    ]) });
+  const target = Object.freeze({ kind: "rejected", diagnostic });
+  const selected = label === "property" ? { ...original, selection: target }
+    : { ...original, target };
+  const operations = { ...value.input.operations, [family]: { get: candidate => candidate === node
+    ? selected : value.input.operations[family].get(candidate) } };
+  const demand = analyzeCsharpNativeDemand({ ...value.input, operations }, []);
+  const refusals = demand.unadmitted.filter(entry => entry.kind === "source-refusal");
+  const refusal = refusals[0];
+  assert.equal(refusals.length === 1 && refusal.requiredBy === node && refusal.diagnostic.sourceNode === node &&
+    refusal.diagnostic.code === "TS9101001" && refusal.diagnostic.category === diagnostic.category &&
+    refusal.diagnostic.source === diagnostic.extensionId && refusal.diagnostic.message === diagnostic.message, true,
+  `${label}: the one canonical mapper preserves the actual selected node, numeric code, category, owner and reason`);
+  assert.equal(refusal.diagnostic.evidence?.length === 2 &&
+    refusal.diagnostic.evidence[0] === diagnostic.evidence[0].message &&
+    refusal.diagnostic.evidence[1] === diagnostic.evidence[1].message && Object.isFrozen(refusal.diagnostic.evidence), true,
+  `${label}: all distinct evidence survives once, in its original order`);
+  assert.equal(demand.nativeUse.expression(node) === undefined, true,
+    `${label}: a refused operation is never published as an accepted native use`);
+});
+
 test("an actual selected empty construct differs from an erased construct for native key requirements", () => {
   const value = owners("export function accept(): void {}", "native");
   const declaration = value.nodes.find(node => value.ast.is.IsFunctionDeclaration(node));

@@ -25,11 +25,10 @@ export function selectCsharpInferredNumericArrayElement(
   const original = Object.freeze(contributions.map(contribution => contribution.carrier));
   const unavailable = (carriers = original): CsharpInferredNumericArrayElementSelection =>
     Object.freeze({ kind: "unavailable", carriers });
-  if (contributions.length === 0 || !numeric(checkedElement) || contributions.some(contribution => !numeric(contribution.carrier))) {
-    return unavailable();
-  }
+  if (contributions.length === 0) return unavailable();
   if (destination !== undefined) return numeric(destination)
     ? Object.freeze({ kind: "resolved", carrier: destination }) : unavailable();
+  const allNumeric = contributions.every(contribution => numeric(contribution.carrier));
   const fixed = [...new Map(contributions.filter(contribution => !flexibleInteger(contribution)).map(contribution =>
     [targetTypeRefKey(contribution.carrier), contribution.carrier])).values()];
   const fixedIntegers = fixed.filter(isCsharpIntegralTargetType);
@@ -37,25 +36,29 @@ export function selectCsharpInferredNumericArrayElement(
     !targetTypeRefEquals(left, right) && !sourcePrimitiveImplicitlyConverts(left, right) && !sourcePrimitiveImplicitlyConverts(right, left)));
   const actualFloating = fixed.some(carrier => carrier.kind === "source-primitive" &&
     (carrier.name === "float32" || carrier.name === "float64"));
-  const candidates = [...new Map(contributions.map(contribution =>
-    [targetTypeRefKey(contribution.carrier), contribution.carrier])).values()];
-  const common = candidates.filter(candidate => !(incompatibleIntegers && !actualFloating &&
+  const candidates = [...new Map(contributions.flatMap(contribution => {
+    const canonical = flexibleInteger(contribution) ? contribution.literalDefault : undefined;
+    return [contribution.carrier, ...(canonical === undefined ? [] : [canonical])].map(carrier =>
+      [targetTypeRefKey(carrier), carrier] as const);
+  })).values()];
+  const common = !allNumeric ? [] : candidates.filter(candidate => !(incompatibleIntegers && !actualFloating &&
     candidate.kind === "source-primitive" && (candidate.name === "float32" || candidate.name === "float64")) &&
     contributions.every(contribution => fits(candidate, contribution)));
   const least = common.filter(candidate => common.every(other => targetTypeRefEquals(candidate, other) ||
     sourcePrimitiveImplicitlyConverts(other, candidate)));
-  if (least.length === 1) return Object.freeze({ kind: "resolved", carrier: least[0]! });
-  if (fixed.some(carrier => carrier.kind === "source-primitive" && carrier.name === "float32") &&
+  const inferCommon = numeric(checkedElement) || fixed.length === 1 && contributions.some(flexibleInteger);
+  if (inferCommon && least.length === 1) return Object.freeze({ kind: "resolved", carrier: least[0]! });
+  if (allNumeric && numeric(checkedElement) && fixed.some(carrier => carrier.kind === "source-primitive" && carrier.name === "float32") &&
     contributions.some(contribution => isCsharpIntegralTargetType(contribution.carrier))) return Object.freeze({ kind: "rejected",
     reason: "Inferred array elements require an exact common native numeric carrier; an explicit native array destination is required for a rounding conversion." });
-  if (!incompatibleIntegers) return unavailable();
   const carriers: TargetTypeRef[] = [];
   for (const contribution of contributions) {
     if (!flexibleInteger(contribution)) { carriers.push(contribution.carrier); continue; }
-    const canonical = contribution.literalDefault;
-    if (canonical?.kind !== "source-primitive" || canonical.name !== "float64" ||
-      contribution.literal?.numeric?.kind !== "authored" ||
-      !sourceNumericLiteralIsExactlyRepresentableAsBinaryFloat(contribution.literal.numeric.token, "float64")) {
+    const canonical = incompatibleIntegers ? contribution.literalDefault : contribution.carrier;
+    if (canonical === undefined || contribution.literal?.numeric?.kind !== "authored" ||
+      (canonical.kind === "source-primitive" && (canonical.name === "float32" || canonical.name === "float64")
+        ? !sourceNumericLiteralIsExactlyRepresentableAsBinaryFloat(contribution.literal.numeric.token, canonical.name)
+        : !csharpLiteralIsRepresentableAs(contribution.literal, canonical))) {
       return Object.freeze({ kind: "rejected", reason: "An inferred numeric union requires an exact canonical carrier for every authored integer literal." });
     }
     carriers.push(canonical);
@@ -69,7 +72,7 @@ function numeric(type: TargetTypeRef | undefined): boolean {
 
 function flexibleInteger(contribution: CsharpNumericArrayContribution): boolean {
   const literal = contribution.literal;
-  return literal?.numeric?.kind === "authored" && literal.integer !== undefined &&
+  return literal?.numeric?.kind === "authored" && literal.numeric.token.exponent >= 0n &&
     !(literal.numeric.token.negative && literal.numeric.token.coefficient === 0n);
 }
 

@@ -17,6 +17,7 @@ import {
   getCsharpDelegateSignature,
   getCsharpIndexableLengthMemberName,
   getCsharpJsArrayElementTargetType,
+  getCsharpNullableElementTargetType,
   getCsharpReadOnlyIndexableCollectionElementTargetType,
   isCsharpDenseMutableCollectionTargetType,
   isCsharpValueTypeTargetType,
@@ -29,11 +30,12 @@ import type {
   CsharpSourceProfileElementPolicy,
   CsharpSourceProfilePropertyPolicy,
 } from "../source-profile-policy.js";
-import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { selectCsharpArrayCopy } from "./array-copy.js";
 import { csharpArrayLikeElement } from "../../../../target-model/types/carriers/array-like.js";
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import {
+  type JsSourceProfileTargetMemberFactory,
   instanceMethod,
   jsCallIdentity,
   jsCallPolicy,
@@ -359,8 +361,15 @@ function directArrayMember(
 function readOnlyArrayQueryMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
   row: typeof readOnlyArrayQueryRows[number],
-): CsharpTargetMember | undefined {
+): ReturnType<JsSourceProfileTargetMemberFactory> {
   const shape = readOnlyArrayCallShape(context);
+  const arms = shape === undefined ? undefined : getCsharpRuntimeUnionArms(
+    getCsharpNullableElementTargetType(shape.element) ?? shape.element, context.host.typeDefinitions);
+  if ((row.sourceName === "includes" || row.sourceName === "indexOf" || row.sourceName === "lastIndexOf") &&
+    arms !== undefined && arms.every(arm => arm.kind === "source-primitive" && arm.name !== "bool")) {
+    return { kind: "rejected", diagnostic: csharpSourceProfileDiagnostic("CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED", 9101001,
+      `Array.${row.sourceName} over a numeric union requires an exact native cross-arm key equality relation.`) };
+  }
   return shape === undefined
     ? undefined
     : receiverHelperMethod(

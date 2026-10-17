@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
-import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import { sourceExpressionResultDisposition, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { selectCsharpNativeConstructSteps } from "../../policy/operations/control-flow/native-constructs.js";
 import { selectCsharpNativeOperandUses, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "../../policy/operations/control-flow/native-operands.js";
@@ -241,6 +241,14 @@ export function analyzeCsharpNativeDemand(
       ? selectCsharpNativeOperandUses(policyInput, expression, child.access)
       : Object.freeze({ runtime: Object.freeze([]), planning: Object.freeze([]), flow: "sequence", carrier: expected.carrier,
         resultUse: sourceExpressionResultDisposition(ast, expression).kind === "discarded" ? "discarded" : "consumed" });
+    if (selected.sourceDiagnostic !== undefined) {
+      if (!refusedSourceExpressions.has(expression)) {
+        refusedSourceExpressions.add(expression);
+        unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy: expression,
+          diagnostic: targetDiagnosticFromExtension(expression, selected.sourceDiagnostic) }));
+      }
+      return Object.freeze({ site, expression, completion: undefined });
+    }
     const expectedChildren = new Map<string, TargetUseSiteRef[]>();
     for (const reference of expected?.construction?.children ?? expected?.children ?? []) {
       const matching = expectedChildren.get(reference.role) ?? [];

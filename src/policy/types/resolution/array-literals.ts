@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { sourceEnclosingCallable, sourceExpressionCallArgument, type SourceClosedCallableArgument, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
@@ -10,6 +10,9 @@ import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js
 import { selectedCsharpSourceProfileOwner } from "./source-profile.js";
 import { selectCsharpInferredNumericArrayElement } from "../collections/array-elements.js";
 import { csharpSourceStorageContext } from "./source-storage-projection.js";
+import { getCsharpCallableValueSignature, getCsharpTaskResultTargetType } from "../../../target-model/types/carriers/delegates.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 
 export type CsharpArrayLiteralSelection =
   | { readonly kind: "resolved"; readonly carrier: TargetTypeRef; readonly elementCarriers: readonly TargetTypeRef[] }
@@ -62,10 +65,10 @@ export function resolveCsharpArrayLiteralSelection(
   });
   if (members.some(member => member === undefined)) return unavailable;
   const contributions = members.filter(member => member !== undefined);
-  const context = queries.types.contextualValueSelection(node);
-  const destination = context.kind !== "selected" ? undefined
-    : getCsharpCollectionElementTargetType(resolveTypeWithState(context.type, queries.sourceFile, nextState(state)));
-  const numeric = selectCsharpInferredNumericArrayElement(contributions, sourceElement, destination);
+  const destination = selectArrayElementDestination(scope, node, queries, state);
+  if (destination.kind === "rejected") return destination;
+  const numeric = selectCsharpInferredNumericArrayElement(contributions, sourceElement,
+    destination.kind === "resolved" ? destination.carrier : undefined);
   if (numeric.kind === "rejected") return numeric;
   const contributionCarriers = numeric.kind === "unavailable" ? numeric.carriers : elements;
   const element = isCsharpJsValueTargetType(sourceElement) ? sourceElement
@@ -76,4 +79,107 @@ export function resolveCsharpArrayLiteralSelection(
   if (retained === undefined) return unavailable;
   return resolved(selectedCsharpSourceProfileOwner(host.target) === "js"
     ? csharpJsArrayTargetType(retained) : { kind: "array", element: retained }, [...contributionCarriers]);
+}
+
+function selectArrayElementDestination(
+  scope: CsharpTypeResolutionScope,
+  expression: Node,
+  queries: SourceFileSemantics,
+  state: CsharpTypeResolutionState,
+): { readonly kind: "resolved"; readonly carrier: TargetTypeRef } | { readonly kind: "unavailable" } |
+  { readonly kind: "rejected"; readonly reason: string } {
+  const { host, resolveNodeWithState, resolveSourceTypeComponentEvidence } = scope;
+  const flow = host.navigation.expressionValueFlow(expression);
+  const destinations: TargetTypeRef[] = [];
+  let directContext = true;
+  const elementOf = (carrier: TargetTypeRef | undefined): TargetTypeRef | undefined =>
+    getCsharpCollectionElementTargetType(getCsharpNullableElementTargetType(carrier) ?? carrier);
+  const add = (carrier: TargetTypeRef | undefined): void => {
+    const element = elementOf(carrier);
+    if (element?.kind === "source-primitive" && element.name !== "bool") destinations.push(element);
+  };
+  const argumentDestination = (argument: SourceClosedCallableArgument, reference: Node, returning: boolean): TargetTypeRef | undefined => {
+    const callQueries = host.semanticsFor(argument.call);
+    const selected = callQueries.operations.call(argument.call);
+    if (selected === undefined) return undefined;
+    const matches = selected.sourceArgumentBindings.filter(binding =>
+      binding.sourceArgumentIndex === argument.argumentIndex && binding.sourceForm === "value");
+    const binding = matches.length === 1 ? matches[0] : undefined;
+    const parameter = binding === undefined ? undefined : selected.sourceSelectedSignatureParameters[binding.sourceParameterIndex];
+    if (binding === undefined || parameter?.authoredTypeNode === undefined) return undefined;
+    const file = callQueries.sourceFile;
+    let formal = resolveNodeWithState(parameter.authoredTypeNode, file, nextState(state));
+    if (binding.sourceParameterForm === "rest-element") formal = elementOf(formal);
+    const returned = (carrier: TargetTypeRef | undefined): TargetTypeRef | undefined => {
+      const result = getCsharpCallableValueSignature(getCsharpNullableElementTargetType(carrier) ?? carrier)?.returnType;
+      return host.ast.hasModifierKind(reference, "async") ? getCsharpTaskResultTargetType(result) : result;
+    };
+    const component = returning ? returned(formal) : formal;
+    const element = elementOf(component);
+    const parameterType = element?.kind === "type-parameter" ? element
+      : component?.kind === "type-parameter" ? component : undefined;
+    const methodArgument = parameterType === undefined ? undefined : selected.sourceSelectedMethodTypeArguments?.find(entry => {
+      const native = scope.resolveTypeWithState(entry.typeParameter, file, nextState(state));
+      return native !== undefined && targetTypeRefEquals(native, parameterType);
+    });
+    const receiverType = parameterType === undefined || methodArgument !== undefined ? undefined
+      : scope.resolveSourceCallReceiverTargetType(selected, file, nextState(state));
+    const receiverBinding = parameterType === undefined || receiverType === undefined ? undefined
+      : host.projectTypes().instantiateMemberType(parameter.parameterDeclaration, receiverType, parameterType);
+    const authoritative = element?.kind === "source-primitive" && element.name !== "bool" ||
+      parameterType !== undefined && (methodArgument?.explicitTypeNode !== undefined ||
+        receiverBinding?.kind === "resolved" && receiverBinding.type.kind === "source-primitive" && receiverBinding.type.name !== "bool");
+    if (!authoritative) return undefined;
+    const actual = scope.resolveSourceCallArgumentParameter(selected, binding, file);
+    return returning ? returned(actual) : actual;
+  };
+  for (const declaration of flow.aliasDeclarations) {
+    const authored = host.ast.typeNode(declaration);
+    if (authored !== undefined) {
+      directContext = false;
+      add(resolveNodeWithState(authored, host.semanticsFor(authored).sourceFile, nextState(state)));
+    }
+  }
+  for (const use of flow.uses) {
+    if (use.throughMember || use.role !== "argument" && use.role !== "return") continue;
+    directContext = false;
+    if (use.role === "argument") {
+      const argument = sourceExpressionCallArgument(use.reference, { ast: host.ast, semantics: { forNode: host.semanticsFor } });
+      if (argument !== undefined) add(argumentDestination(argument, use.reference, false));
+      continue;
+    }
+    const owner = sourceEnclosingCallable(use.reference, host.ast);
+    if (owner === undefined) continue;
+    const authored = host.ast.typeNode(owner);
+    const ownerQueries = host.semanticsFor(owner);
+    let returned: TargetTypeRef | undefined;
+    if (authored !== undefined) returned = resolveNodeWithState(authored, ownerQueries.sourceFile, nextState(state));
+    else {
+      const argument = sourceExpressionCallArgument(owner, { ast: host.ast, semantics: { forNode: host.semanticsFor } });
+      if (argument !== undefined) {
+        add(argumentDestination(argument, owner, true));
+        continue;
+      }
+      const contextual = ownerQueries.types.contextualValueSelection(owner);
+      const callable = contextual.kind === "selected" ? ownerQueries.types.callable(contextual.type) : undefined;
+      if (callable?.result.authoredTypeNode !== undefined) {
+        const formal = resolveNodeWithState(callable.result.authoredTypeNode,
+          ownerQueries.sourceFile, nextState(state));
+        const native = host.ast.hasModifierKind(owner, "async") ? getCsharpTaskResultTargetType(formal) : formal;
+        const element = elementOf(native);
+        if (element?.kind === "source-primitive" && element.name !== "bool") returned = resolveSourceTypeComponentEvidence(
+          callable.result, ownerQueries, nextState(state));
+      }
+    }
+    add(host.ast.hasModifierKind(owner, "async") ? getCsharpTaskResultTargetType(returned) : returned);
+  }
+  if (destinations.length === 0 && directContext) {
+    const contextual = queries.types.contextualValueSelection(expression);
+    if (contextual.kind === "selected") add(scope.resolveTypeWithState(contextual.type, queries.sourceFile, nextState(state)));
+  }
+  const selected = destinations[0];
+  if (selected === undefined) return { kind: "unavailable" };
+  return destinations.some(destination => !targetTypeRefEquals(destination, selected))
+    ? { kind: "rejected", reason: "Array construction requires one consistent actual native element destination across its storage and uses." }
+    : { kind: "resolved", carrier: selected };
 }
