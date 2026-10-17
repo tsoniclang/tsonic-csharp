@@ -76,6 +76,7 @@ export function collectCsharpReferenceClosure(
       }
     }
     if (capability === "method-values") {
+      if (shape.declarationTemplate !== undefined) enqueue(shape.declarationTemplate);
       for (const member of shape.members) {
         if (member.methodValueContract === undefined) continue;
         const contract = scope.host.objectShapes.resolveTarget(member.methodValueContract);

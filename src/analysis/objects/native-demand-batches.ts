@@ -138,6 +138,13 @@ export function collectShapeDependencies(
       );
     }
     shapes.set(key, shape);
+    const declaration = shape.declarationTemplate;
+    if (declaration !== undefined && objectShapeArtifactKey(declaration) !== key) {
+      const edges = dependencies.get(key) ?? new Set<string>();
+      edges.add(objectShapeArtifactKey(declaration));
+      dependencies.set(key, edges);
+      queue.push(declaration);
+    }
     const targets = [...csharpTargetTypeComponents(shape.targetType, shape)];
     if (shape.declarationTemplate !== undefined) {
       targets.push(...csharpTargetTypeComponents(shape.declarationTemplate.targetType, shape.declarationTemplate));
@@ -281,8 +288,9 @@ export function validateObjectShapeBatch(
         `Capability-bearing C# object shape '${key}' is absent from the artifact transaction.`,
       );
     }
+    const declarationKey = objectShapeArtifactKey(candidate.declarationTemplate ?? candidate);
     if (capabilitiesByShape.get(key)?.has("method-values") &&
-      ((records.get(key)?.receiverBoundMethodKeys.size ?? 0) > 0 || (receiverBoundMethodsByShape.get(key)?.size ?? 0) > 0)) {
+      ((records.get(declarationKey)?.receiverBoundMethodKeys.size ?? 0) > 0 || (receiverBoundMethodsByShape.get(declarationKey)?.size ?? 0) > 0)) {
       return rejected("Copying a receiver-bearing method requires an exact shared receiver contract; a bound CLR delegate is not equivalent.");
     }
   }
@@ -295,14 +303,15 @@ export function validateObjectShapeBatch(
     }
   }
   for (const [key, methodKeys] of receiverBoundMethodsByShape) {
-    if (methodKeys.size > 0 && (records.get(key)?.capabilities.has("method-values") || capabilitiesByShape.get(key)?.has("method-values"))) {
-      return rejected("A copied method-value contract cannot silently acquire a different receiver ABI.");
-    }
     const candidate = batch.shapes.get(key) ?? records.get(key)?.fact;
     if (candidate === undefined) {
       return rejected(
         `Receiver-bearing C# object shape '${key}' is absent from the artifact transaction.`,
       );
+    }
+    const declarationKey = objectShapeArtifactKey(candidate.declarationTemplate ?? candidate);
+    if (methodKeys.size > 0 && (records.get(declarationKey)?.capabilities.has("method-values") || capabilitiesByShape.get(declarationKey)?.has("method-values"))) {
+      return rejected("A copied method-value contract cannot silently acquire a different receiver ABI.");
     }
     const exactMethodKeys = new Set(
       candidate.members

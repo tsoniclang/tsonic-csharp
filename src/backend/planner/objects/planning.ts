@@ -110,6 +110,8 @@ export function materializeObjectShapeDeclarations(
       continue;
     }
     const fact = artifact.fact.declarationTemplate ?? artifact.fact;
+    const declarationArtifact = artifact.fact.declarationTemplate === undefined
+      ? artifact : input.artifacts.objectShape(fact);
     const typeParameterNames = csharpGeneratedTypeParameterNames(
       fact.targetType.kind === "target-named"
         ? (fact.targetType.typeArguments ?? []).filter(argument => argument.kind === "type-parameter") : [],
@@ -125,7 +127,7 @@ export function materializeObjectShapeDeclarations(
       artifact.fact,
       artifact.capabilities,
       artifact.projections,
-      artifact.receiverBoundMethodKeys,
+      declarationArtifact.receiverBoundMethodKeys,
       diagnostics,
     );
     if (declaration === undefined) {
@@ -142,7 +144,7 @@ export function materializeObjectShapeDeclarations(
         artifact.fact.declarationTemplate ?? artifact.fact,
         artifact.capabilities.includes("json-serialization"),
         artifact.projections,
-        new Set(artifact.receiverBoundMethodKeys),
+        new Set(declarationArtifact.receiverBoundMethodKeys),
         artifact.capabilities.includes("js-freeze"),
         artifact.capabilities.includes("reference-identity"),
         declaration.kind === "ClassDeclaration" ? declaration.members.filter(member =>

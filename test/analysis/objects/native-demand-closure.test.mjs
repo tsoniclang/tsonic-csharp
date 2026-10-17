@@ -7,6 +7,8 @@ import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/reco
 import { createCsharpObjectShapeDemandEngine } from "../../../dist/analysis/objects/native-demand-requests.js";
 import { objectShapeArtifactKey } from "../../../dist/target-model/records/object-shape-demand.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
+import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
+import { monomorphicStructuralOptionalFiles } from "../../../../tsonic/test/fixtures/generic-structural-methods.mjs";
 
 const header = 'import type { int32 } from "@tsonic/core/types.js";';
 const programs = [
@@ -52,6 +54,21 @@ for (const surface of ["native", "js"]) for (const [name, body] of programs) {
       /Required C# semantic plan 'objectShapeArtifact'/u, "a different artifact is not evidence for this owner");
   });
 }
+
+for (const surface of ["native", "js"]) test(`${surface}: authored native method protocols retain their intrinsic receiver ABI`, () => {
+  const { program } = compileCsharpRequiredRecordSource(monomorphicStructuralOptionalFiles["index.ts"], surface);
+  const implementations = program.records.objectShapeArtifact.artifacts.filter(artifact => artifact.fact.methodImplementation !== undefined &&
+    artifact.fact.members.some(member => member.memberKind === "method" && member.methodValueContract !== undefined));
+  assert.equal(implementations.length > 0, true, "the actual optional method body has admitted native implementation evidence");
+  let nativeMethods = 0;
+  for (const artifact of implementations) for (const member of artifact.fact.members) {
+    if (member.memberKind !== "method" || member.methodValueContract === undefined || member.methodStorageType !== undefined) continue;
+    nativeMethods += 1;
+    assert.equal(artifact.receiverBoundMethodKeys.includes(csharpObjectShapeMemberContractKey(member)), false,
+      "an authored native method uses this directly, never a synthetic receiver-delegate ABI");
+  }
+  assert.equal(nativeMethods > 0, true, "the intrinsic receiver assertion covers real native methods");
+});
 
 test("artifact demand seals once and the backend cannot reach the native query owner", () => {
   let closed = false;

@@ -9,16 +9,19 @@ import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
 import type { CsharpArtifactRequestResult, CsharpObjectShapeProjectionRequestResult } from "./native-demand-batches.js";
 import type { CsharpObjectShapeArtifact } from "../../target-model/records/object-shape-demand.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { accepted, rejected } from "./native-demand-batches.js";
 import {
   csharpObjectShapeMemberContractKey,
   resolveCsharpObjectShapeMemberBySourceContract,
+  resolveCsharpObjectShapeMemberBySourceKey,
   targetTypeRefEquals,
   isCsharpEmptyObjectTargetType,
   isSourceDeclaredNominalShape,
 } from "../../target-model/types/index.js";
 import { objectShapeArtifactKey, objectShapeMaterialization } from "../../target-model/records/object-shape-demand.js";
 import { objectShapeProjectionKey } from "../../target-model/records/object-shape-demand.js";
+import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import type { CsharpObjectShapeDemand } from "../../target-model/records/object-shape-demand.js";
 import type { CsharpObjectShapeDemandHost } from "./native-demand-batches.js";
 import {
@@ -379,9 +382,21 @@ export function requireObjectShapeMethodReceiver(
   if (prepared.kind === "rejected") {
     return prepared;
   }
-  const receiverBoundMethodsByShape = new Map([
-    [objectShapeArtifactKey(fact), new Set([memberKey])],
-  ]);
+  const receiverBoundMethodsByShape = new Map<string, Set<string>>();
+  const nativeReceiver = exactMember.methodValueContract !== undefined && exactMember.methodStorageType === undefined &&
+    csharpObjectShapeMethodDeclaration(fact, exactMember) !== undefined;
+  if (!nativeReceiver) {
+    receiverBoundMethodsByShape.set(objectShapeArtifactKey(fact), new Set([memberKey]));
+    if (fact.declarationTemplate !== undefined) {
+      const selected = resolveCsharpObjectShapeMemberBySourceKey(fact.declarationTemplate, exactMember.sourceKey,
+        "checked-object-literal-property");
+      if (selected.kind !== "resolved" || selected.member.memberKind !== "method" || selected.member.targetName !== exactMember.targetName) {
+        return failTargetAnalysisInvariant("tsonic-csharp", "A closed method receiver requires its exact native declaration member.");
+      }
+      receiverBoundMethodsByShape.set(objectShapeArtifactKey(fact.declarationTemplate),
+        new Set([csharpObjectShapeMemberContractKey(selected.member)]));
+    }
+  }
   const capabilitiesByShape = new Map<string, Set<CsharpObjectShapeCapability>>();
   const projectionsByShape = new Map<
     string,
@@ -410,22 +425,39 @@ export function objectShapeArtifacts(
 ): readonly CsharpObjectShapeArtifact[] {
   return [...records]
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, record]) => Object.freeze({
-      key,
-      fact: record.fact,
-      materialization: record.materialization,
-      capabilities: Object.freeze([...record.capabilities].sort()),
-      projections: Object.freeze(
-        [...record.projections.values()].sort((left, right) =>
-          objectShapeProjectionKey(left).localeCompare(objectShapeProjectionKey(right))
+    .map(([key, record]) => {
+      const declaration = record.fact.declarationTemplate;
+      const owner = declaration === undefined ? record : records.get(objectShapeArtifactKey(declaration));
+      if (owner === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "An admitted closed shape requires its canonical native declaration artifact.");
+      const receivers = new Set(record.receiverBoundMethodKeys);
+      if (declaration !== undefined) for (const member of declaration.members) {
+        if (!owner.receiverBoundMethodKeys.has(csharpObjectShapeMemberContractKey(member))) continue;
+        const selected = resolveCsharpObjectShapeMemberBySourceKey(record.fact, member.sourceKey, "checked-object-literal-property");
+        if (selected.kind !== "resolved" || selected.member.memberKind !== "method" || selected.member.targetName !== member.targetName) {
+          return failTargetAnalysisInvariant("tsonic-csharp", "A closed artifact requires its exact native receiver correspondence.");
+        }
+        receivers.add(csharpObjectShapeMemberContractKey(selected.member));
+      }
+      const capabilities = new Set(record.capabilities);
+      if (owner.capabilities.has("method-values")) capabilities.add("method-values");
+      return Object.freeze({
+        key,
+        fact: record.fact,
+        materialization: record.materialization,
+        capabilities: Object.freeze([...capabilities].sort()),
+        projections: Object.freeze(
+          [...record.projections.values()].sort((left, right) =>
+            objectShapeProjectionKey(left).localeCompare(objectShapeProjectionKey(right))
+          ),
         ),
-      ),
-      receiverBoundMethodKeys: Object.freeze(
-        [...record.receiverBoundMethodKeys].sort(),
-      ),
-      dependencies: Object.freeze([...record.dependencies].sort()),
-      dependents: Object.freeze([...record.dependents].sort()),
-    }));
+        receiverBoundMethodKeys: Object.freeze(
+          [...receivers].sort(),
+        ),
+        dependencies: Object.freeze([...record.dependencies].sort()),
+        dependents: Object.freeze([...record.dependents].sort()),
+      });
+    });
 }
 
 export function connect(
