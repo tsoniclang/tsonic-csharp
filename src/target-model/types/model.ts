@@ -71,10 +71,12 @@ export interface CsharpSourceTargetTypeBinding {
 }
 
 export interface CsharpStructuralInterfaceImplementation {
+  readonly sourceNode: Node;
   readonly sourceType: TargetTypeRef;
   readonly interfaceType: TargetTypeRef;
   readonly properties: readonly {
     readonly sourceName: string;
+    readonly sourceType: TargetTypeRef;
     readonly member: CsharpObjectShapeMemberFact;
   }[];
   readonly methods: readonly {

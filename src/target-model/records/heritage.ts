@@ -14,6 +14,7 @@ export interface CsharpStructuralInterfaceMemberEvidence {
 }
 
 export interface CsharpStructuralInterfaceEvidence {
+  readonly sourceNode: Node;
   readonly source: CsharpObjectShapeFact;
   readonly destination: CsharpObjectShapeFact;
   readonly members: readonly CsharpStructuralInterfaceMemberEvidence[];
@@ -28,6 +29,9 @@ export interface CsharpStructuralMethodForwarding {
 }
 
 export interface CsharpFinalStructuralInterfaceImplementation extends CsharpStructuralInterfaceImplementation {
+  readonly properties: readonly (CsharpStructuralInterfaceImplementation["properties"][number] & {
+    readonly read: CsharpCallableValueAdapter;
+  })[];
   readonly methods: readonly (CsharpStructuralInterfaceImplementation["methods"][number] & {
     readonly forwarding: CsharpStructuralMethodForwarding;
   })[];

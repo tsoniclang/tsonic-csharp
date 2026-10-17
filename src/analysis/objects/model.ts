@@ -1,5 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpObjectShapeProjectionKind } from "../../target-model/types/model.js";
+import type { CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
 import type {
   CsharpObjectLiteralTargetShapeResolution,
   CsharpObjectShapeFact,
@@ -30,6 +31,7 @@ export interface CsharpObjectShapeClassifications<StructuralImplementation = imp
 }
 
 export interface CsharpObjectShapeAnalysis extends CsharpObjectShapeClassifications {
+  readonly issues: readonly CsharpProjectTypeIssue[];
   readonly structuralImplementationTypes: readonly TargetTypeRef[];
 }
 

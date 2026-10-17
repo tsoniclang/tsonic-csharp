@@ -17,6 +17,9 @@ export function planCsharpStructuralInterfaceMembers(
   for (const implementation of input.program.objectShapes.structuralImplementations(shape.targetType)) {
     const explicitInterface = csharpTypeFromTargetTypeRef(implementation.interfaceType, input.scope.typeParameterNames);
     for (const property of implementation.properties) {
+      const sourceFile = input.program.source.ast.getSourceFile(implementation.sourceNode);
+      if (sourceFile === undefined) return failCsharpPlannerInvariant(
+        "An admitted structural interface property lost its checked source declaration file.", implementation.sourceNode);
       const type = csharpTypeFromTargetTypeRef(property.member.type, input.scope.typeParameterNames);
       if (explicitInterface === undefined || type === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "An analyzed interface property has no exact native forwarding type."));
@@ -24,8 +27,11 @@ export function planCsharpStructuralInterfaceMembers(
       }
       const access: CsharpExpression = { kind: "SimpleMemberAccessExpression",
         receiver: { kind: "IdentifierName", name: "this" }, name: property.sourceName };
+      const value = applyCsharpConversionSelection(implementation.sourceNode, sourceFile, input, diagnostics,
+        property.read.source, property.read.target, property.read.conversion, access);
+      if (value === undefined) continue;
       result.push({ kind: "PropertyDeclaration", name: property.member.targetName, explicitInterface, modifiers: [], type,
-        getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: access }] },
+        getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: value }] },
         ...(property.member.readonly === true || property.member.accessor?.setter === false ? {} : {
           setter: { kind: "Block" as const, statements: [{ kind: "ExpressionStatement" as const, expression: {
             kind: "AssignmentExpression" as const, operatorToken: { kind: "EqualsToken" as const }, left: access,

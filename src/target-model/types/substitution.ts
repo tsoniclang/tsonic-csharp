@@ -3,6 +3,7 @@ import type {
 } from "./model.js";
 import type {
   CsharpObjectShapeFact,
+  CsharpObjectShapeMemberFact,
   CsharpRuntimeUnionTargetTypeRef,
   CsharpTargetNamedTypeRef,
   CsharpTaskTargetTypeRef,
@@ -299,29 +300,34 @@ export function substituteObjectShapeFactTargetTypeParameters(
             }))),
           }),
         }),
-        members: Object.freeze(objectShape.members.map(member => {
-          const boundParameters = new Set(member.typeParameters?.map(parameter => parameter.identity));
-          const freeSubstitutions = boundParameters.size === 0 ? substitutions
-            : new Map([...substitutions].filter(([identity]) => !boundParameters.has(identity)));
-          return Object.freeze({ ...member,
-            type: substituteTargetTypeParameters(member.type, freeSubstitutions),
-            ...(member.methodStorageType === undefined ? {} : {
-              methodStorageType: substituteTargetTypeParameters(member.methodStorageType, substitutions),
-            }),
-            ...(member.methodValueContract === undefined ? {} : {
-              methodValueContract: substituteTargetTypeParameters(member.methodValueContract, substitutions),
-            }),
-            ...(member.typeParameters === undefined ? {} : {
-              typeParameters: Object.freeze(member.typeParameters.map(parameter => Object.freeze({ ...parameter,
-                constraints: substituteConstraints(parameter.constraints, freeSubstitutions),
-              }))),
-            }),
-          });
-        })),
+        members: Object.freeze(objectShape.members.map(member => substituteObjectShapeMemberTargetTypeParameters(member, substitutions))),
         ...(objectShape.implements === undefined
           ? {}
           : { implements: Object.freeze(objectShape.implements.map((implemented) => substituteTargetTypeParameters(implemented, substitutions))) }),
       });
+}
+
+export function substituteObjectShapeMemberTargetTypeParameters(
+  member: CsharpObjectShapeMemberFact,
+  substitutions: ReadonlyMap<string, TargetTypeRef>,
+): CsharpObjectShapeMemberFact {
+  const boundParameters = new Set(member.typeParameters?.map(parameter => parameter.identity));
+  const freeSubstitutions = boundParameters.size === 0 ? substitutions
+    : new Map([...substitutions].filter(([identity]) => !boundParameters.has(identity)));
+  return Object.freeze({ ...member,
+    type: substituteTargetTypeParameters(member.type, freeSubstitutions),
+    ...(member.methodStorageType === undefined ? {} : {
+      methodStorageType: substituteTargetTypeParameters(member.methodStorageType, substitutions),
+    }),
+    ...(member.methodValueContract === undefined ? {} : {
+      methodValueContract: substituteTargetTypeParameters(member.methodValueContract, substitutions),
+    }),
+    ...(member.typeParameters === undefined ? {} : {
+      typeParameters: Object.freeze(member.typeParameters.map(parameter => Object.freeze({ ...parameter,
+        constraints: substituteConstraints(parameter.constraints, freeSubstitutions),
+      }))),
+    }),
+  });
 }
 
 function substituteConstraints(

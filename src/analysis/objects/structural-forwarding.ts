@@ -8,7 +8,7 @@ import type { CsharpProjectTypeIssue } from "../../target-model/records/project-
 import type { CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
-import { admitCsharpCallableParameterAdapters, admitCsharpCallableResultAdapter } from "../callables/adapters.js";
+import { admitCsharpCallableParameterAdapters, admitCsharpCallableResultAdapter, admitCsharpCallableValueAdapter } from "../callables/adapters.js";
 import { instantiateCsharpInheritedCallable } from "../callables/instantiation.js";
 
 const noImplementations: readonly CsharpFinalStructuralInterfaceImplementation[] = Object.freeze([]);
@@ -24,10 +24,20 @@ export function finalizeCsharpStructuralInterfaceForwarding(
 } {
   const byType = new Map<string, readonly CsharpFinalStructuralInterfaceImplementation[]>();
   const sourceIds = new Set<string>();
-  const issues: CsharpProjectTypeIssue[] = [];
+  const issues: CsharpProjectTypeIssue[] = [...shapes.issues];
   for (const type of shapes.structuralImplementationTypes) {
     const implementations: CsharpFinalStructuralInterfaceImplementation[] = [];
     for (const selected of shapes.structuralImplementations(type)) {
+      const properties: CsharpFinalStructuralInterfaceImplementation["properties"][number][] = [];
+      for (const property of selected.properties) {
+        const read = admitCsharpCallableValueAdapter(policy, property.sourceType, property.member.type);
+        if (read === undefined) {
+          issues.push(Object.freeze({ node: selected.sourceNode, code: "CSHARP_UNSUPPORTED_AST",
+            message: "An analyzed interface property has no exact native forwarding conversion." }));
+          continue;
+        }
+        properties.push(Object.freeze({ ...property, read }));
+      }
       const methods: CsharpFinalStructuralInterfaceImplementation["methods"][number][] = [];
       for (const method of selected.methods) {
         const original = callables.callableDispatch.get(method.declaration)?.implementation;
@@ -61,12 +71,12 @@ export function finalizeCsharpStructuralInterfaceForwarding(
         });
         methods.push(Object.freeze({ ...method, forwarding }));
       }
-      implementations.push(Object.freeze({ ...selected, methods: Object.freeze(methods) }));
+      implementations.push(Object.freeze({ ...selected, properties: Object.freeze(properties), methods: Object.freeze(methods) }));
     }
     byType.set(targetTypeRefKey(type), Object.freeze(implementations));
     if (type.kind === "target-named") sourceIds.add(type.id);
   }
-  const { structuralImplementationTypes: _types, structuralImplementations: _logical, ...readers } = shapes;
+  const { structuralImplementationTypes: _types, structuralImplementations: _logical, issues: _issues, ...readers } = shapes;
   const objectShapes = Object.freeze({ ...readers, structuralImplementations(type: TargetTypeRef) {
     if (type.kind !== "target-named" || !sourceIds.has(type.id)) return noImplementations;
     const selected = byType.get(targetTypeRefKey(type));

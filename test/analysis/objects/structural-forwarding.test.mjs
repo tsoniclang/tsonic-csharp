@@ -6,12 +6,16 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { csharpDelegateTargetType, getCsharpDelegateSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { finalizeCsharpStructuralInterfaceForwarding } from "../../../dist/analysis/objects/structural-forwarding.js";
 import { selectCsharpStructuralInterface } from "../../../dist/analysis/objects/structural-interfaces.js";
+import { analyzeCsharpObjectShapes } from "../../../dist/analysis/objects/analyze.js";
+import { selectCsharpStructuralInterfaceImplementation } from "../../../dist/policy/types/objects/method-values.js";
 import { planCsharpStructuralInterfaceMembers } from "../../../dist/backend/planner/declarations/interfaces/structural.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
+import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+import { substituteObjectShapeMemberTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
 import { printCsharpCompilationUnit } from "../../../dist/print/source/index.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
@@ -33,6 +37,7 @@ function defaultEvidenceFixture(kind) {
   let parameterReads = 0;
   const parameter = Object.freeze({});
   const policy = {
+    projectTypes: { catalog: { definitionForTarget: () => undefined } },
     semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({ kind: "available",
       destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
         source: { property: { symbol: sourceSymbol, rootSymbols: [] }, declarations: [declaration] },
@@ -74,6 +79,93 @@ for (const kind of ["method-declaration", "method-signature"]) {
   });
 }
 
+test("structural destination retains a supplied outer argument absent from every method value type", () => {
+  const outer = Object.freeze({ kind: "type-parameter", identity: "view:Outer", name: "Outer" });
+  const sourceOuter = Object.freeze({ kind: "type-parameter", identity: "body:Outer", name: "Outer" });
+  const methodParameter = Object.freeze({ declaration: {}, identity: "view:read:T", name: "T", csharpAllowsRefLike: false,
+    constraints: Object.freeze([{ kind: "type", type: outer }]) });
+  const member = type => Object.freeze({ sourceKey: { kind: "property", name: "read" }, sourceName: "read", targetName: "read",
+    memberKind: "method", type });
+  const read = member(csharpDelegateTargetType("System.Func", [integer], integer));
+  const openWrite = Object.freeze({ ...member(csharpDelegateTargetType("System.Func", [csharpNullableTargetType(integer)], integer,
+    { optionalParameterIndexes: [0] })), typeParameters: Object.freeze([methodParameter]) });
+  const body = argument => csharpTargetNamedType("test.GenericBody", [argument], { kind: "named", name: "GenericBody" },
+    { allowsRefLikeTypeArguments: [false] });
+  const view = argument => csharpTargetNamedType("test.GenericView", [argument], { kind: "named", name: "GenericView" },
+    { sourceDeclarationKind: "interface", allowsRefLikeTypeArguments: [false] });
+  const template = Object.freeze({ targetType: body(sourceOuter), members: Object.freeze([read]) });
+  const destinationTemplate = Object.freeze({ targetType: view(outer), members: Object.freeze([openWrite]) });
+  const source = Object.freeze({ targetType: body(integer), members: template.members, declarationTemplate: template });
+  const destination = Object.freeze({ targetType: view(integer), members: destinationTemplate.members, declarationTemplate: destinationTemplate });
+  const selected = selectCsharpStructuralInterfaceImplementation({ sourceNode: {}, source, destination, members: [{ source: read, destination: openWrite,
+    openSource: read, openDestination: openWrite, declaration: {}, parameterDefaults: [true] }] });
+  assert.equal(selected !== undefined, true, "the selected closed destination supplies its actual otherwise-uninferable owner argument");
+  assert.equal(selected.interfaceType.typeArguments[0] === integer, true, "no phantom argument is guessed from the nongeneric implementation");
+  assert.equal(selected.methods[0].member.typeParameters[0].constraints[0].type === integer, true,
+    "the same selected substitution closes the destination method's outer constraint");
+  assert.equal(selected.sourceType === template.targetType, true, "the source's own generic declaration remains authoritative");
+});
+
+test("canonical member substitution preserves method shadowing while closing outer constraints and stored contracts", () => {
+  const outer = Object.freeze({ kind: "type-parameter", identity: "owner:T", name: "T" });
+  const local = Object.freeze({ kind: "type-parameter", identity: "method:T", name: "T" });
+  const stored = csharpDelegateTargetType("System.Func", [outer], outer);
+  const member = Object.freeze({ sourceKey: { kind: "property", name: "read" }, sourceName: "read", targetName: "read", memberKind: "method",
+    type: csharpDelegateTargetType("System.Func", [local, outer], local), methodStorageType: stored, methodValueContract: stored,
+    typeParameters: Object.freeze([{ declaration: {}, identity: local.identity, name: local.name, csharpAllowsRefLike: false,
+      constraints: Object.freeze([{ kind: "type", type: outer }]) }]) });
+  const selected = substituteObjectShapeMemberTargetTypeParameters(member,
+    new Map([[outer.identity, integer], [local.identity, { kind: "source-primitive", name: "string" }]]));
+  const signature = getCsharpDelegateSignature(selected.type);
+  assert.equal(signature.parameters[0] === local && signature.returnType === local, true, "the method's own binder shadows same-named owner substitutions");
+  assert.equal(signature.parameters[1] === integer, true, "the distinct outer owner argument is substituted");
+  assert.equal(selected.typeParameters[0].constraints[0].type === integer, true, "the outer constraint is closed through the same helper");
+  for (const field of ["methodStorageType", "methodValueContract"]) {
+    const contract = getCsharpDelegateSignature(selected[field]);
+    assert.equal(contract.parameters[0] === integer && contract.returnType === integer, true, `${field}: the selected physical contract is closed`);
+  }
+  assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.typeParameters) && Object.isFrozen(selected.typeParameters[0].constraints), true,
+    "one immutable substituted member is published");
+});
+
+test("structural publication closes late inherited obligations through its single existing implementation graph", () => {
+  const makeShape = (name, declarationKind) => Object.freeze({
+    targetType: csharpTargetNamedType(`test.${name}`, undefined, { kind: "named", name },
+      { sourceDeclarationKind: declarationKind, allowsRefLikeTypeArguments: [] }),
+    sourceType: Object.freeze({}), members: [Object.freeze({ sourceKey: { kind: "property", name: "value" },
+      sourceName: "value", targetName: "value", memberKind: "property", type: integer, sourceSubjects: [Object.freeze({})] })],
+  });
+  const body = makeShape("Body", "class"), view = makeShape("View", "interface"), base = makeShape("Base", "interface");
+  const shapes = [body, view, base];
+  let correspondenceReads = 0;
+  const policy = {
+    sourceFiles: [], objectShapes: {
+      resolveTarget: type => shapes.find(shape => targetTypeRefKey(shape.targetType) === targetTypeRefKey(type)),
+      resolveCopyShape: shape => shape,
+    }, projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
+    semanticsFor: () => ({ types: { structuralMembers(source, destination) {
+      correspondenceReads += 1;
+      const sourceShape = shapes.find(shape => shape.sourceType === source);
+      const destinationShape = shapes.find(shape => shape.sourceType === destination);
+      assert.equal(sourceShape !== undefined && destinationShape !== undefined, true, "both checked source identities are retained");
+      return { kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
+        source: { property: { symbol: sourceShape.members[0].sourceSubjects[0], rootSymbols: [] }, declarations: [] },
+        destination: { property: { symbol: destinationShape.members[0].sourceSubjects[0], rootSymbols: [] }, declarations: [] },
+      }] };
+    } } }),
+  };
+  const analyzed = analyzeCsharpObjectShapes(policy, { targetTypes: [] }, {});
+  assert.equal(analyzed.registerStructuralInterface({}, body.targetType, view.targetType, body.sourceType), true, "the original checked body/view edge");
+  assert.equal(analyzed.registerStructuralInterface({}, view.targetType, base.targetType, view.sourceType), true, "a later native base obligation");
+  const published = analyzed.knownShapes().find(shape => shape.targetType === body.targetType);
+  assert.equal(published.implements.length, 2, "both native interface obligations are closed before publication");
+  assert.equal(analyzed.structuralImplementations(body.targetType).some(selected => selected.interfaceType === base.targetType), true,
+    "the late inherited interface has its own exact sealed-forwarding input");
+  const closedReads = correspondenceReads;
+  analyzed.knownShapes();
+  assert.equal(correspondenceReads, closedReads, "an unchanged implementation graph never redecides correspondence");
+});
+
 function fixture(passingMode = "by-value") {
   const sourceType = Object.freeze({ kind: "target-named", id: "test.Source", csharpAllowsRefLikeTypeArguments: Object.freeze([]) });
   const interfaceType = Object.freeze({ kind: "target-named", id: "test.View", csharpRender: { kind: "named", name: "View" }, csharpAllowsRefLikeTypeArguments: Object.freeze([]) });
@@ -89,7 +181,7 @@ function fixture(passingMode = "by-value") {
   const member = Object.freeze({ sourceName: "read", targetName: "read", memberKind: "method", type: {
     ...signature, csharpDelegateSignature: { ...signature.csharpDelegateSignature, parameterPassingModes: Object.freeze([passingMode]) },
   } });
-  const selected = Object.freeze({ sourceType, interfaceType, properties: Object.freeze([]), methods: Object.freeze([
+  const selected = Object.freeze({ sourceNode: declaration, sourceType, interfaceType, properties: Object.freeze([]), methods: Object.freeze([
     Object.freeze({ sourceName: "read", declaration, member, defaultArguments: Object.freeze(passingMode === "by-value" ? [0] : []) }),
   ]) });
   const runtimeDefault = Object.freeze({ kind: "nullable", valueType: integer, parameterType: incoming.type, acceptsOmission: true });
@@ -98,8 +190,10 @@ function fixture(passingMode = "by-value") {
   const declarations = { runtimeDefault: { get(node) { reads += 1;
     return node === sourceParameter && passingMode === "by-value" ? runtimeDefault : undefined; } } };
   const policy = { ast: { parent: () => undefined, parameters: () => assert.fail("source parameter analysis cannot run again") },
-    projectTypes: { catalog: { definitionForDeclaration: () => undefined } } };
-  const shapes = { structuralImplementationTypes: Object.freeze([sourceType]),
+    projectTypes: { catalog: { definitionForDeclaration: () => undefined }, directSupertypes: () => [] },
+    objectShapes: Object.freeze({ resolveNode: () => undefined, resolveTarget: () => undefined }),
+    providers: { findTargetBindingByTargetId: () => undefined }, target: {} };
+  const shapes = { issues: Object.freeze([]), structuralImplementationTypes: Object.freeze([sourceType]),
     structuralImplementations: () => Object.freeze([selected]), knownShapes: () => [] };
   return { sourceType, declaration, sourceParameter, implementation, runtimeDefault, callables, declarations, policy, shapes,
     reads: () => reads };
@@ -256,17 +350,18 @@ function adaptedNativeForwarder(control, destinationNames = []) {
       targetParameter: Object.freeze({ name: `value${index}`, type: integer, passingMode }) }))), returnType: integer });
   const member = Object.freeze({ sourceName: "read", targetName: "read", memberKind: "method", type: signature,
     ...(destinationNames.length === 0 ? {} : { typeParameters: Object.freeze(destinationNames.map((name, index) => Object.freeze({
-      declaration: Object.freeze({}), identity: `destination:${control.name}:${index}`, name, constraints: Object.freeze([]),
+      declaration: Object.freeze({}), identity: `destination:${control.name}:${index}`, name, csharpAllowsRefLike: false, constraints: Object.freeze([]),
     }))) }),
   });
-  const selected = Object.freeze({ sourceType, interfaceType, properties: Object.freeze([]), methods: Object.freeze([
+  const selected = Object.freeze({ sourceNode: declaration, sourceType, interfaceType, properties: Object.freeze([]), methods: Object.freeze([
     Object.freeze({ sourceName: "read", declaration, member, defaultArguments: Object.freeze([]) }),
   ]) });
   const policy = { ast: { parent: () => undefined, parameters: () => assert.fail("native forwarding cannot re-plan source parameters") },
     projectTypes: { catalog: { definitionForDeclaration: () => undefined }, directSupertypes: () => [] },
+    objectShapes: Object.freeze({ resolveNode: () => undefined, resolveTarget: () => undefined }),
     providers: { findTargetBindingByTargetId: () => undefined }, target: {} };
   const finalized = finalizeCsharpStructuralInterfaceForwarding(policy,
-    { structuralImplementationTypes: Object.freeze([sourceType]), structuralImplementations: () => Object.freeze([selected]) },
+    { issues: Object.freeze([]), structuralImplementationTypes: Object.freeze([sourceType]), structuralImplementations: () => Object.freeze([selected]) },
     { callableDispatch: { get: node => node === declaration ? { implementation } : undefined } },
     { runtimeDefault: { get: () => undefined } });
   assert.equal(finalized.issues.length, 0, `${control.name}: canonical native admission accepts exact byref parameters and an adapted result`);
@@ -466,6 +561,11 @@ const genericCases = [
     view: "DependentView", args: "Body, Body", owner: "Body" },
   { name: "outer", declaration: "interface OuterView<Outer extends object> { read<T extends Outer>(value?: int32): int32; }",
     view: "OuterView<Body>", args: "Body", owner: "OuterBody<Body>" },
+  { name: "inherited", declaration: `interface InheritedRoot<Outer extends object> { read<T extends Outer>(value?: int32): int32; }
+interface InheritedLeft<Outer extends object> extends InheritedRoot<Outer> {}
+interface InheritedRight<Outer extends object> extends InheritedRoot<Outer> {}
+interface InheritedView<Outer extends object> extends InheritedLeft<Outer>, InheritedRight<Outer> {}`,
+    view: "InheritedView<Body>", args: "Body", owner: "Body" },
   { name: "keyword", declaration: "interface KeywordView { read<event>(value?: int32): int32; }", view: "KeywordView", args: "string", owner: "Body" },
   { name: "shadow", declaration: "interface ShadowView { read<T>(value?: int32): int32; }", view: "ShadowView", args: "string", owner: "ShadowBody<Body>" },
 ];

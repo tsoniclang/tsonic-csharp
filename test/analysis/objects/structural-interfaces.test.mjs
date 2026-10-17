@@ -21,7 +21,8 @@ const field = (symbol, type) => ({ sourceName: "value", targetName: "value", sou
 const destinationTemplate = { targetType: slot(element), sourceType: destinationType, members: [field(destinationSymbol, optional(element))] };
 const destination = { targetType: slot(integer), sourceType: destinationType, members: [field(destinationSymbol, optional(integer))],
   declarationTemplate: destinationTemplate };
-const policy = { semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({
+const policy = { projectTypes: { catalog: { definitionForTarget: () => undefined } },
+  semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({
   kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
     source: { property: { symbol: sourceSymbol, rootSymbols: [] }, declarations: [] },
     destination: { property: { symbol: destinationSymbol, rootSymbols: [] }, declarations: [] },
@@ -35,8 +36,9 @@ test("structural optional interfaces bind their payload and every dependent nati
     const source = { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: generic ? [false] : [], id: "test.Record", typeArguments: generic ? [integer] : [] },
       members: [field(sourceSymbol, optional(integer))], declarationTemplate: template };
     const selected = selectCsharpStructuralInterface(policy, expression, source, destination);
-    assert.deepEqual(selected, { sourceType: template.targetType, interfaceType: slot(generic ? captured : integer), methods: [],
-      properties: [{ sourceName: "value", member: { ...destinationTemplate.members[0], type: optional(generic ? captured : integer) } }],
+    assert.deepEqual(selected, { sourceNode: expression, sourceType: template.targetType, interfaceType: slot(generic ? captured : integer), methods: [],
+      properties: [{ sourceName: "value", sourceType: template.members[0].type,
+        member: { ...destinationTemplate.members[0], type: optional(generic ? captured : integer) } }],
     });
     const mismatched = { ...source, members: [field(sourceSymbol, optional({ kind: "source-primitive", name: "uint64" }))] };
     assert.equal(selectCsharpStructuralInterface(policy, expression, mismatched, destination), undefined);

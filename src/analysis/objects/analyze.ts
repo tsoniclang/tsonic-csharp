@@ -1,4 +1,4 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type {
   CsharpObjectLiteralTargetShapeResolution,
@@ -22,9 +22,10 @@ import { mergeCsharpObjectShapeSubjects } from "../../policy/types/objects/objec
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
-import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
+import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeMemberTargetTypeParameters, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { createCsharpObjectShapePropertyOrderIndex } from "./property-order.js";
 import { instantiateCsharpObjectShape } from "../../policy/types/objects/object-shape-policy/instantiation.js";
+import type { CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
 
 const noExpectedShape = "<none>";
 const maximumObjectShapeClassifications = 131_072;
@@ -51,24 +52,34 @@ export function analyzeCsharpObjectShapes(
   let classificationCount = 0;
   let sealed = false;
   let knownShapes: readonly CsharpObjectShapeFact[] = Object.freeze([]);
-  const structuralInterfaces = new Map<string, Map<string, CsharpStructuralInterfaceImplementation>>();
+  const structuralInterfaces = new Map<string, Map<string, {
+    readonly selected: CsharpStructuralInterfaceImplementation;
+    readonly source: TargetTypeRef;
+    readonly destination: TargetTypeRef;
+    readonly sourceType?: Type;
+  }>>();
+  let structuralRevision = 0;
+  let closedStructuralRevision = 0;
+  const declaredStructuralIssues: CsharpProjectTypeIssue[] = [];
+  let structuralIssues: readonly CsharpProjectTypeIssue[] = Object.freeze([]);
   const sealedStructuralImplementations = new Map<string, readonly CsharpStructuralInterfaceImplementation[]>();
   const instantiatedShapes = new Map<string, CsharpObjectShapeFact>();
   const structuralImplementations = (type: TargetTypeRef): readonly CsharpStructuralInterfaceImplementation[] => {
     if (sealed) return sealedStructuralImplementation(type);
     if (type.kind !== "target-named") return [];
-    return [...structuralInterfaces.get(type.id)?.values() ?? []].map(selected => {
+    return [...structuralInterfaces.get(type.id)?.values() ?? []].map(({ selected }) => {
       const parameters = new Set(selected.sourceType.kind === "target-named"
         ? (selected.sourceType.typeArguments ?? []).flatMap(argument => argument.kind === "type-parameter" ? [argument.identity] : []) : []);
       const bindings = inferCsharpTargetTypeParameterBindings(selected.sourceType, type, parameters);
       if (bindings === undefined) throw new Error("A structural implementation lost its exact source generic instantiation.");
       return Object.freeze({ ...selected, sourceType: type, interfaceType: substituteTargetTypeParameters(selected.interfaceType, bindings),
-        properties: Object.freeze(selected.properties.map(property => Object.freeze({ ...property, member: Object.freeze({ ...property.member,
-          type: substituteTargetTypeParameters(property.member.type, bindings),
-        }) }))),
-        methods: Object.freeze(selected.methods.map(method => Object.freeze({ ...method, member: Object.freeze({ ...method.member,
-          type: substituteTargetTypeParameters(method.member.type, bindings),
-        }) }))),
+        properties: Object.freeze(selected.properties.map(property => Object.freeze({ ...property,
+          sourceType: substituteTargetTypeParameters(property.sourceType, bindings),
+          member: substituteObjectShapeMemberTargetTypeParameters(property.member, bindings),
+        }))),
+        methods: Object.freeze(selected.methods.map(method => Object.freeze({ ...method,
+          member: substituteObjectShapeMemberTargetTypeParameters(method.member, bindings),
+        }))),
       });
     });
   };
@@ -166,9 +177,60 @@ export function analyzeCsharpObjectShapes(
       for (const component of csharpTargetTypeComponents(type, shape)) enqueuePhysicalType(component);
       if (type.kind === "target-named" &&
         (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "class") {
-        for (const inherited of policy.projectTypes.directSupertypes(type) ?? []) enqueuePhysicalType(inherited);
+        const definition = policy.projectTypes.catalog.definitionForTarget(type);
+        for (const inherited of policy.projectTypes.directSupertypes(type) ?? []) {
+          enqueuePhysicalType(inherited);
+          if (definition?.kind !== "class" || shape?.sourceType === undefined ||
+            policy.projectTypes.catalog.definitionForTarget(inherited)?.kind !== "interface") continue;
+          if (!classifications.registerStructuralInterface(definition.declaration, type, inherited, shape.sourceType)) {
+            declaredStructuralIssues.push(Object.freeze({ node: definition.declaration, code: "CSHARP_UNSUPPORTED_AST",
+              message: "An analyzed interface has no exact inherited native implementation." }));
+          }
+        }
       }
     }
+  }
+
+  function closeStructuralShapes(): void {
+    do {
+      preparePhysicalShapes();
+      closeInheritedStructuralInterfaces();
+    } while (pendingPhysicalTypes.size > 0);
+  }
+
+  function closeInheritedStructuralInterfaces(): void {
+    if (structuralRevision === closedStructuralRevision) return;
+    const issues: CsharpProjectTypeIssue[] = [];
+    const rejected = new Set<string>();
+    for (const implementations of structuralInterfaces.values()) {
+      for (const request of implementations.values()) {
+        const provided = new Set(structuralImplementations(request.source).map(selected => targetTypeRefKey(selected.interfaceType)));
+        const pending = [request.destination];
+        const visited = new Set<string>();
+        for (let index = 0; index < pending.length; index += 1) {
+          const type = pending[index]!;
+          const key = targetTypeRefKey(type);
+          if (visited.has(key)) continue;
+          visited.add(key);
+          const shape = withInterfaces(byTarget.get(key) ?? policy.objectShapes.resolveTarget(type));
+          const inherited = [...shape?.implements ?? [], ...policy.projectTypes.directSupertypes(type) ?? []];
+          for (const base of inherited) {
+            const baseKey = targetTypeRefKey(base);
+            pending.push(base);
+            if (provided.has(baseKey)) continue;
+            const requestKey = JSON.stringify([targetTypeRefKey(request.source), baseKey]);
+            if (rejected.has(requestKey)) continue;
+            if (!classifications.registerStructuralInterface(request.selected.sourceNode, request.source, base, request.sourceType)) {
+              rejected.add(requestKey);
+              issues.push(Object.freeze({ node: request.selected.sourceNode, code: "CSHARP_UNSUPPORTED_AST",
+                message: "An analyzed interface has no exact inherited native implementation." }));
+            } else provided.add(baseKey);
+          }
+        }
+      }
+    }
+    structuralIssues = Object.freeze(issues);
+    closedStructuralRevision = structuralRevision;
   }
 
   for (const sourceFile of policy.sourceFiles) {
@@ -252,7 +314,7 @@ export function analyzeCsharpObjectShapes(
     structuralImplementations,
     knownShapes() {
       if (sealed) return knownShapes;
-      preparePhysicalShapes();
+      closeStructuralShapes();
       for (const shape of byTarget.values()) admittedShapes.add(shape);
       return Object.freeze([...byTarget.values()].map(shape => withInterfaces(shape)!));
     },
@@ -282,25 +344,35 @@ export function analyzeCsharpObjectShapes(
       const targetKey = targetTypeRefKey(selected.interfaceType);
       let interfaces = structuralInterfaces.get(key);
       if (interfaces === undefined) { interfaces = new Map(); structuralInterfaces.set(key, interfaces); }
-      const inherited = [...sourceShape?.implements ?? [], ...policy.projectTypes.directSupertypes(source) ?? []];
+      const declared = policy.projectTypes.directSupertypes(source) ?? [];
+      const directlyDeclared = source.kind === "target-named" &&
+        (source as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "class" &&
+        declared.some(type => targetTypeRefEquals(type, selected.interfaceType));
+      const inherited = [...sourceShape.implements ?? [], ...declared].map(type => ({ type,
+        nativeBase: type.kind === "target-named" && (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "class" }));
       const visited = new Set<string>();
+      const nativeBaseInterfaces = new Set<string>();
       for (let index = 0; index < inherited.length; index++) {
-        const type = inherited[index]!;
+        const { type, nativeBase } = inherited[index]!;
         const inheritedKey = targetTypeRefKey(type);
-        if (visited.has(inheritedKey)) continue;
+        if (visited.has(inheritedKey) && (!nativeBase || nativeBaseInterfaces.has(inheritedKey))) continue;
         visited.add(inheritedKey);
-        inherited.push(...policy.projectTypes.directSupertypes(type) ?? []);
+        if (nativeBase) nativeBaseInterfaces.add(inheritedKey);
+        inherited.push(...(policy.projectTypes.directSupertypes(type) ?? []).map(type => ({ type, nativeBase })));
       }
-      if (!interfaces.has(targetKey) && !visited.has(targetKey)) {
+      if (!interfaces.has(targetKey) && (!visited.has(targetKey) || directlyDeclared ||
+        !nativeBaseInterfaces.has(targetKey) && (selected.properties.length > 0 || selected.methods.length > 0))) {
         reserveClassification();
-        interfaces.set(targetKey, selected);
+        interfaces.set(targetKey, Object.freeze({ selected, source, destination,
+          ...(sourceType === undefined ? {} : { sourceType }) }));
+        structuralRevision += 1;
         rememberShape(policy.objectShapes.resolveTarget(selected.interfaceType));
       }
       return true;
     },
     seal() {
       if (sealed) throw new Error("C# object-shape analysis is sealed.");
-      preparePhysicalShapes();
+      closeStructuralShapes();
       for (const shape of byTarget.values()) admittedShapes.add(shape);
       for (const shape of admittedShapes) {
         propertyOrders.record(shape);
@@ -393,6 +465,7 @@ export function analyzeCsharpObjectShapes(
       admittedShapes.clear();
       sealed = true;
       return Object.freeze({
+        issues: Object.freeze([...declaredStructuralIssues, ...structuralIssues]),
         propertyOrder: propertyOrders.propertyOrder,
         assignmentSourceOrder: propertyOrders.assignmentSourceOrder,
         structuralImplementations: sealedStructuralImplementation,

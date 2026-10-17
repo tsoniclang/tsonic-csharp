@@ -1,6 +1,6 @@
 import type { Node, Type } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpObjectShapeFact, CsharpStructuralInterfaceImplementation, TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpStructuralInterfaceMemberEvidence } from "../../target-model/records/heritage.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import { selectCsharpStructuralInterfaceImplementation } from "../../policy/types/objects/method-values.js";
@@ -40,7 +40,20 @@ export function selectCsharpStructuralInterface(
         policy.ast.as.AsParameterDeclaration(parameter)?.Initializer !== undefined)),
     }));
   }
-  return selectCsharpStructuralInterfaceImplementation({ source, destination, members: Object.freeze(members) });
+  const selectedImplementation = selectCsharpStructuralInterfaceImplementation({ sourceNode: expression, source, destination, members: Object.freeze(members) });
+  if (selectedImplementation === undefined) return undefined;
+  if (destination.targetType.kind !== "target-named" ||
+    (destination.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") {
+    return selectedImplementation;
+  }
+  const definition = policy.projectTypes.catalog.definitionForTarget(destination.targetType);
+  if (definition?.kind !== "interface") return selectedImplementation;
+  const ownsMember = (member: CsharpObjectShapeMemberFact): boolean =>
+    member.sourceDeclarations?.some(declaration => policy.ast.parent(declaration) === definition.declaration) === true;
+  return Object.freeze({ ...selectedImplementation,
+    methods: Object.freeze(selectedImplementation.methods.filter(method => ownsMember(method.member))),
+    properties: Object.freeze(selectedImplementation.properties.filter(property => ownsMember(property.member))),
+  });
 }
 
 export interface CsharpStructuralInterfaceRegistration {
