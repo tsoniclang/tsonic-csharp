@@ -58,7 +58,7 @@ export function resolveTypeParameter(
   type: Type,
   queries: SourceFileSemantics,
   ast: AstReader,
-  constraints: import("../../../target-model/types/generic-references.js").CsharpTypeParameterConstraintResolver,
+  constraints: import("../../constraints/type-parameter-environment.js").CsharpTypeParameterEnvironment,
 ): TargetTypeRef | undefined {
   const symbol = queries.declarations.typeSymbol(type);
   if (symbol === undefined) {
@@ -71,7 +71,8 @@ export function resolveTypeParameter(
       continue;
     }
     const parameter = csharpSourceTypeParameter(declaration, ast);
-    if (parameter !== undefined) return Object.freeze({ ...parameter, csharpConstraints: constraints(parameter) });
+    if (parameter !== undefined) return Object.freeze({ ...parameter,
+      csharpConstraints: constraints(parameter, { sourceFile: queries.sourceFile, sourceType: type }) });
   }
   return undefined;
 }
