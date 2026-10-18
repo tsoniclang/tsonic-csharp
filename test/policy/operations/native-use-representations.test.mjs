@@ -10,6 +10,7 @@ import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/c
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 const floating = Object.freeze({ kind: "source-primitive", name: "float64" });
 const checked = checkCsharpSource({ sourceText: `
+  export const literal = 1.0;
   export const binary = 7 / 2;
   export const wrapped = (binary);
   export const list = [binary];
@@ -85,6 +86,20 @@ test("an authored numeric union contribution keeps its selected physical constru
   "the actual floating literal arm is constructed before union injection, not chosen from the integer source default");
   assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.construction) && Object.isFrozen(selected.children), true,
     "the selected scalar stage is immutable data in the existing native-use contract");
+});
+
+test("a selected literal recipe retains its physical construction carrier before conversion", () => {
+  const literal = initializer("literal");
+  const recipe = Object.freeze({ kind: "float", precision: "float64", target: floating,
+    token: Object.freeze({ significand: "1.0" }), negative: false });
+  const selected = selectCsharpNativeUseRepresentation({ ...base(literal), target: integer,
+    constructionCarrier: floating, literal: Object.freeze({ kind: "resolved", recipe }) });
+  assert.equal(selected.kind === "selected" && selected.representation === "convert" && selected.carrier === floating &&
+    selected.construction.carrier === floating && selected.literal === recipe && selected.construction.children.length === 0,
+  true, "the requested integer cannot replace the literal's selected native floating construction");
+  assert.equal(selected.children.length === 1 && selected.children[0] === selected.construction.site &&
+    selected.construction.site.subject === literal && selected.construction.site.role === "constructed-result", true,
+  "the existing constructed-result boundary owns the conversion without a new carrier or recipe");
 });
 
 test("a parenthesized physical contribution forwards to its exact construction carrier before injection", () => {

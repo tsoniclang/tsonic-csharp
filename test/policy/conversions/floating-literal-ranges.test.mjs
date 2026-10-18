@@ -38,10 +38,22 @@ const rows = [
   ["float16", "smallest half subnormal", "5.9604644775390625e-8", true],
 ];
 
+const halfBoundaryBits = new Map([
+  ["65504", 0x7bff],
+  ["65519.99", 0x7bff],
+  ["65519.99999999999", 0x7bff],
+  ["1e-10", 0],
+  ["5.9604644775390625e-8", 1],
+]);
+
 function expectation(name, value, fits) {
   if (!fits) return { kind: "rejected", reason: `Source numeric literal is outside the '${name}' range.` };
-  if (name === "float16") return { kind: "resolved",
-    recipe: { kind: "float", target: primitive(name), precision: name, value: value.number } };
+  if (name === "float16") {
+    const bits = halfBoundaryBits.get(value.numeric.token.decimalText);
+    assert.equal(bits !== undefined, true, "the exact original Half boundary has a native bit-pattern oracle");
+    return { kind: "resolved", recipe: { kind: "float", target: primitive(name), precision: name,
+      bits: bits | (value.numeric.token.negative ? 0x8000 : 0) } };
+  }
   const [significand, exponent] = value.numeric.token.decimalText.split("e");
   return { kind: "resolved", recipe: { kind: "float", target: primitive(name), precision: name,
     token: { significand, ...(exponent === undefined ? {} : { exponent }) }, negative: value.numeric.token.negative } };

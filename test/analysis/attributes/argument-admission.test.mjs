@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 const header = `
   import { attribute as annotate } from "@tsonic/core/lang.js";
@@ -74,8 +75,8 @@ for (const [name, expression] of [
 for (const [name, declarations, expression, parameter, expected] of [
   ["source enum member", "enum Level { Low = 0, High = 1 }", "Level.Low", "Level", "Level.Low"],
   ["wide source enum member", "enum Level { High = 9007199254740993 }", "Level.High", "Level", "Level.High"],
-  ["native numeric cast", "", "1.9 as int32", "int32", "(int)1.9"],
-  ["native numeric promotion", "", "true ? Int32.MaxValue : 1.9", "number", "true ? System.Int32.MaxValue : 1.9"],
+  ["native numeric cast", "", "1.9 as int32", "int32", "(int)1.9D"],
+  ["native numeric promotion", "", "true ? Int32.MaxValue : 1.9", "number", "true ? System.Int32.MaxValue : 1.9D"],
 ]) {
   test(`C# attribute admission retains a ${name} rather than reselecting its carrier`, () => {
     const compiled = compileCsharpSource({ sourceText: header + declarations + `
@@ -88,6 +89,50 @@ for (const [name, declarations, expression, parameter, expected] of [
     assert.ok(emittedCsharp(compiled).includes(`[SelectedAttribute(${expected})]`));
   });
 }
+
+test("native attribute numeric arguments retain their exact CLR types and values under the ordinary Double literal rule", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ sourceText: header + `
+    export class CastAttribute extends Attribute { constructor(value: int32) { super(); } }
+    export class PromotedAttribute extends Attribute { constructor(value: number) { super(); } }
+    annotate<Subject>().add(() => new CastAttribute(1.9 as int32));
+    annotate<Subject>().add(() => new PromotedAttribute(true ? Int32.MaxValue : 1.9));
+    export function literal(): number { return 1.9; }
+    export function cast(): int32 { return 1.9 as int32; }
+    export function promoted(): number { return true ? Int32.MaxValue : 1.9; }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.equal(compiled.extensionDiagnostics.length, 0, "the actual source attributes pass extension admission");
+  assert.equal(compiled.targetDiagnostics.length, 0, "the actual native constants pass target admission");
+  const output = emittedCsharp(compiled);
+  for (const expected of ["[CastAttribute((int)1.9D)]", "[PromotedAttribute(true ? System.Int32.MaxValue : 1.9D)]",
+    "return 1.9D;", "return (int)1.9D;", "return true ? System.Int32.MaxValue : 1.9D;"]) {
+    assert.equal(output.includes(expected), true, `one canonical exact Double spelling: ${expected}`);
+  }
+  const observed = executeCsharpConstruction(compiled, "native-attribute-exact-numeric-arguments", false, false, [], `
+    bool castSeen = false;
+    bool promotedSeen = false;
+    foreach (var attribute in typeof(Tsonic.Generated.Subject).GetCustomAttributesData()) {
+      if (attribute.AttributeType == typeof(Tsonic.Generated.CastAttribute)) {
+        var argument = attribute.ConstructorArguments[0];
+        if (attribute.ConstructorArguments.Count != 1 || argument.ArgumentType != typeof(int) ||
+            argument.Value is not int value || value != 1) throw new System.Exception("native int32 attribute argument");
+        castSeen = true;
+      }
+      if (attribute.AttributeType == typeof(Tsonic.Generated.PromotedAttribute)) {
+        var argument = attribute.ConstructorArguments[0];
+        if (attribute.ConstructorArguments.Count != 1 || argument.ArgumentType != typeof(double) ||
+            argument.Value is not double value || value != 2147483647D) throw new System.Exception("native float64 attribute argument");
+        promotedSeen = true;
+      }
+    }
+    if (!castSeen || !promotedSeen || Tsonic.Generated.Index.literal() != 1.9D ||
+        Tsonic.Generated.Index.cast() != 1 || Tsonic.Generated.Index.promoted() != 2147483647D)
+      throw new System.Exception("attribute and ordinary numeric contexts disagree");
+    System.Console.WriteLine("int32=1; float64=2147483647; ordinary=1.9");
+  `);
+  assert.equal(observed.includes("int32=1; float64=2147483647; ordinary=1.9"), true,
+    "the native compiler and reflected metadata agree on both constructor types and values");
+});
 
 for (const expression of ["null", "undefined"]) {
   test(`C# attribute admission retains ${expression} as the one native absence constant`, () => {
