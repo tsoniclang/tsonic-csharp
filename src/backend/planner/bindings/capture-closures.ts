@@ -2,6 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { CsharpNamedSelfBinding } from "../../../target-model/records/capture-storage.js";
+import { csharpCaptureFrameCachedInstanceName } from "../../../target-model/records/capture-storage.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import { csharpCaptureFrameExpression, csharpCapturedBindingExpression } from "./capture-storage.js";
@@ -54,6 +55,9 @@ export function planCsharpFrameClosureReference(
     if (retained !== undefined) return retained;
     const type = csharpTypeFromObjectShapeFact(input, selected.frame.shape, diagnostics, node);
     if (type === undefined) return undefined;
+    if (input.program.records.lambdaCreation.get(node).kind === "cached") return {
+      kind: "SimpleMemberAccessExpression", receiver: type, name: csharpCaptureFrameCachedInstanceName(selected.method),
+    };
     const assignments: CsharpObjectInitializerAssignment[] = [];
     for (const binding of selected.frame.bindings) {
       const name = input.program.source.ast.name(binding.declaration);

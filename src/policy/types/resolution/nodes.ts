@@ -211,7 +211,7 @@ export function resolveNodeWithState(
   const sourceDeclaration = scope.sourceValueDeclaration(node, declaration);
   const syntax = sourceDeclaration === undefined ? undefined : scope.sourceValueDeclarationSyntax(sourceDeclaration);
   const sourceValue = selectedType !== undefined && sourceDeclaration !== undefined &&
-      (syntax?.type !== undefined || !host.ast.is.IsArrayLiteralExpression(syntax?.initializer))
+      (syntax?.type !== undefined || syntax?.initializer === undefined || !host.ast.is.IsArrayLiteralExpression(syntax.initializer))
     ? undefined : resolveSourceValueDeclaration(node, queries, state);
   if (sourceValue?.kind === "rejected") return undefined;
   const declaredValue = selectedType !== undefined && sourceDeclaration !== undefined

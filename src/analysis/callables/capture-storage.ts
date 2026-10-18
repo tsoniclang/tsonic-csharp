@@ -102,7 +102,8 @@ export function analyzeCsharpCaptureStorage(
   const frameClosures = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, genericDeclarations,
     { declarations, storage, expectedTypes });
   const namedSelfBindings = new Map(frameClosures.namedSelfBindings.map(binding => [binding.declaration, binding]));
-  const captureFreeDeclarations = new Set(frameClosures.captureFreeDeclarations);
+  const captureFreeDeclarations = new Set(frameClosures.captureFreeDeclarations
+    .filter(declaration => source.ast.typeParameters(declaration).length === 0));
   const lambdaCreations = new Map<Node, CsharpLambdaCreation>();
   const closures = [...frameClosures.closures,
     ...genericClosures.filter(closure => closure.scope !== closure.declaration)];
@@ -191,6 +192,9 @@ export function analyzeCsharpCaptureStorage(
     byShape.set(targetTypeRefKey(type), frame);
     valueFrames.push(frame);
   }
+  for (const frame of valueFrames) if (frame.bindings.length === 0 && frame.parents.length === 0 && frame.receivers.length === 0) {
+    for (const method of frame.methods) captureFreeDeclarations.add(method.declaration);
+  }
   const valueDeclarations = new Map<Node, Node[]>();
   const valueCreations = new Map<Node, SourceLexicalValueCreation>();
   const valueNames = new Map<Node, string>();
@@ -215,7 +219,7 @@ export function analyzeCsharpCaptureStorage(
         const fresh = !staticBody && (flow.identityCompared || flow.captured || flow.returned || flow.yielded ||
           flow.storedOutsideBinding || flow.exported || flow.hasUnclassifiedUse || flow.memberWritten ||
           flow.receiverUsed || flow.passedAsArgument && !invocationOnly || selfIdentityObserved);
-        const directlyInvoked = !fresh && flow.aliasDeclarations.length === 0 && flow.uses.length > 0 &&
+        const directlyInvoked = !fresh && !genericDeclarations.has(node) && flow.aliasDeclarations.length === 0 && flow.uses.length > 0 &&
           flow.uses.every(use => use.kind === "direct-call" && use.role === "call-target");
         const creation: CsharpLambdaCreation = fresh ? { kind: "fresh", staticBody }
           : directlyInvoked ? { kind: "direct", staticBody }
