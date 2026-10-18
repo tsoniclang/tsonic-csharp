@@ -648,16 +648,9 @@ function inferCallableReturnType(
   types: CsharpTypePolicy,
 ): TargetTypeRef | undefined {
   const semantics = source.semantics.forFile(sourceFile);
-  const declarationType = semantics.types.expressionType(declaration);
-  if (declarationType === undefined) {
-    return undefined;
-  }
-  const signatures = semantics.types.signatureInfos(declarationType, "call")
-    .filter((signature) =>
-      semantics.declarations.signatureDeclaration(signature.signature) === declaration);
-  return signatures.length === 1
-    ? types.resolveType(signatures[0]!.returnType, sourceFile)
-    : undefined;
+  const signature = semantics.types.declarationSignatureInfo(declaration);
+  return signature === undefined || semantics.declarations.signatureDeclaration(signature.signature) !== declaration
+    ? undefined : types.resolveType(signature.returnType, sourceFile);
 }
 
 function cachedValue<Value>(value: Cached<Value> | undefined): Value | undefined {

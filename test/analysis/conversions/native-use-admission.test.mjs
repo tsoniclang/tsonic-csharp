@@ -31,6 +31,7 @@ test("canonical source callable admission recognizes TypeLiteral signatures with
     const ast = { is: {
       IsFunctionDeclaration: () => false, IsArrowFunction: () => false, IsFunctionExpression: () => false,
       IsMethodDeclaration: () => false, IsConstructorDeclaration: () => false,
+      IsGetAccessorDeclaration: () => false, IsSetAccessorDeclaration: () => false,
       IsMethodSignatureDeclaration: node => node === declaration,
       IsInterfaceDeclaration: node => node === interfaceOwner, IsTypeLiteralNode: node => node === literalOwner,
     }, parent: () => owner };
@@ -410,17 +411,7 @@ test("a required pending request and a cycle stay explicit rather than publishin
 
 function nativeCreations(value, overrides = {}) {
   const records = value.program.records;
-  const contract = declaration => {
-    const result = records.returnContract.get(declaration);
-    if (result?.kind !== "resolved") return undefined;
-    const parameters = value.ast.parameters(declaration).map(parameter => {
-      const type = records.lambdaParameterType.get(parameter);
-      return type === undefined ? undefined : { sourceParameter: parameter, targetParameter: { type, passingMode: "by-value" } };
-    });
-    return parameters.some(parameter => parameter === undefined) ? undefined : {
-      sourceDeclaration: declaration, methodTypeParameterIdentities: [], methodAllowsRefLikeTypeArguments: [], parameters, returnType: result.type,
-    };
-  };
+  const contract = declaration => records.callableTarget.entry(declaration);
   const { captures = records, ...input } = overrides;
   return prepareCsharpCallableCreations({ ast: value.ast, nodes: value.nodes,
     contracts: { get: identity => contract(identity.declaration), closedInputType: () => undefined },

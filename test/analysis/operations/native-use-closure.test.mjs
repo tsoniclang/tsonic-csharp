@@ -1198,6 +1198,7 @@ function owners(sourceText, surface = "js") {
       return use === undefined || use.kind === "erased" ? undefined : use.propertyKeys;
     },
     valueReads: records, participation: records.nativeParticipation, bindingPatterns, callableCreation: { get: () => undefined },
+    callableTarget: records.callableTarget,
     attributeApplications: records, classInitialization: records, projectTypes: program.projectTypes,
     classFactories: { classFactory: records.classFactory, factories: program.classFactories },
     expected: { entries: [], pending: [], inactive: [], expectedUse: { get: () => undefined } } };

@@ -29,6 +29,37 @@ test("finite Task results enter exact union arms without changing Task identity 
   assert.equal(selectCsharpConversion(policy, task, csharpTaskTargetType(unit), "implicit").kind, "implicit");
 });
 
+test("an exact generic scalar enters its unique nested result arm without flattening the Task ABI", () => {
+  const part = Object.freeze({ kind: "type-parameter", identity: "resolve:Part", name: "Part" });
+  const foreign = Object.freeze({ ...part, identity: "foreign:Part" });
+  const number = csharpSourcePrimitiveTargetType("float64");
+  const result = csharpRuntimeUnionTargetType([number, part]);
+  const task = csharpTaskTargetType(result);
+  const input = csharpRuntimeUnionTargetType([result, task]);
+  for (const [carrier, index] of [[part, 1], [number, 0]]) {
+    const selected = selectCsharpConversion(policy, carrier, input, "implicit");
+    assert.equal(selected.kind === "implicit" && selected.proof === "runtime-union-arm" &&
+      selected.armIndex === 0 && selected.armType === result, true,
+    "the first injection selects the original outer result arm, not a flattened ABI");
+    const nested = selected.sourceToArm;
+    assert.equal(nested.kind === "implicit" && nested.proof === "runtime-union-arm" && nested.armIndex === index &&
+      nested.armType === carrier && nested.sourceToArm.kind === "identity", true,
+    "the second injection retains the exact checked scalar identity and nested arm index");
+  }
+  const selectedTask = selectCsharpConversion(policy, task, input, "implicit");
+  assert.equal(selectedTask.kind === "implicit" && selectedTask.proof === "runtime-union-arm" && selectedTask.armIndex === 1 &&
+    selectedTask.armType === task && selectedTask.sourceToArm.kind === "identity", true,
+  "a real Task keeps its outer arm and identity, never an implicit await or unwrap");
+  for (const [label, carrier, destination] of [
+    ["foreign same-spelled binder", foreign, input],
+    ["unproved numeric widening", integer, input],
+    ["different Task result", csharpTaskTargetType(part), input],
+    ["two exact nested paths", part, csharpRuntimeUnionTargetType([result, csharpRuntimeUnionTargetType([part, string])])],
+  ]) assert.equal(selectCsharpConversion(policy, carrier, destination, "implicit").kind, "rejected", label);
+  assert.equal(targetTypeRefEquals(input.typeArguments[0], result) && targetTypeRefEquals(input.typeArguments[1], task), true,
+    "selection does not mutate native generic slot order or Task construction");
+});
+
 test("finite await preserves synchronous values and nullable Task result absence", () => {
   for (const carrier of [integer, string, csharpAbsenceTargetType()]) {
     assert.ok(targetTypeRefEquals(selectCsharpAwaitCompletion(carrier).result, carrier));

@@ -56,7 +56,7 @@ export function csharpRecordInput(records) {
 export function csharpRecordsOmitting(records, family, subject, reads) {
   const reader = records[family];
   assert.equal(typeof reader?.get === "function", true, `${family}: an assembled record family`);
-  return Object.freeze({ ...records, [family]: Object.freeze({ get(node, ...context) {
+  return Object.freeze({ ...records, [family]: Object.freeze({ ...reader, get(node, ...context) {
     reads?.push(family);
     return node === subject ? undefined : reader.get(node, ...context);
   } }) });

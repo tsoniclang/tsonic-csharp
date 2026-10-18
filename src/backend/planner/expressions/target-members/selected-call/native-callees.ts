@@ -5,7 +5,10 @@ import type { CsharpExpression } from "../../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { ExpressionPlanner } from "../../expression-planner-types.js";
 import { csharpPlannedValue, type CsharpPlannedValue, type CsharpPlannedEffectOperand } from "../../planned-values.js";
-import { planIdentifierExpression, tryPlanProjectSourceModuleStaticMemberReference } from "../../expression-source-references.js";
+import { planProjectSourceModuleMemberReference, tryPlanProjectSourceModuleStaticMemberReference } from "../../expression-source-references.js";
+import { getCsharpLocalBindingName } from "../../../bindings/index.js";
+import { planCsharpFrameClosureReference } from "../../../bindings/capture-closures.js";
+import { planIdentifierName } from "../../../names/source-identifiers.js";
 import type { DestructuringPlannerState } from "../../../bindings/binding-state.js";
 import { csharpProjectTypeReceiver, translateCsharpSelectedReceiver } from "../../receivers.js";
 import { planCsharpSourceMemberName } from "../source-member-names.js";
@@ -21,8 +24,15 @@ export function planCsharpNativeFunctionCallee(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState | undefined,
 ): CsharpExpression | undefined {
+  if (input.program.records.captureClosure.get(selected.declaration) !== undefined) {
+    return planCsharpFrameClosureReference(selected.declaration, input, diagnostics, state);
+  }
   const callee = input.program.source.ast.is.IsIdentifier(selected.expression)
-    ? planIdentifierExpression(selected.expression, sourceFile, input, diagnostics, state)
+    ? planProjectSourceModuleMemberReference(selected.expression, sourceFile, input, diagnostics) ?? {
+      kind: "IdentifierName" as const,
+      name: getCsharpLocalBindingName(selected.expression, input, state) ??
+        planIdentifierName(selected.expression, "InvalidNativeFunction", input, diagnostics, "Native function group"),
+    }
     : tryPlanProjectSourceModuleStaticMemberReference(selected.expression, sourceFile, input, diagnostics);
   if (callee === undefined) diagnostics.push(unsupportedNodeDiagnostic(selected.expression,
     "A selected native function group has no exact declaration reference syntax."));

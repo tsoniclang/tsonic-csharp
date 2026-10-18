@@ -1,5 +1,11 @@
 import type { CsharpTargetParameter, TargetTypeRef } from "../types/model.js";
 import type { Node } from "@tsonic/tsts";
+import type { SourceStorageProjection } from "@tsonic/target-api/analysis";
+
+export interface CsharpCallableTargetClassifications {
+  readonly get: (expression: Node) => TargetTypeRef | undefined;
+  readonly entry: (declaration: Node) => CsharpSourceCallableContract | undefined;
+}
 
 export interface CsharpSourceCallableContract extends CsharpSourceCallContract {
   readonly sourceDeclaration: Node;
@@ -18,6 +24,7 @@ export interface CsharpSourceCallContract {
 
 export interface CsharpSourceCallableParameterContract extends CsharpSourceCallParameterContract {
   readonly sourceParameter: Node;
+  readonly sourceProjection: readonly SourceStorageProjection[];
 }
 
 export interface CsharpSourceCallParameterContract {

@@ -208,9 +208,15 @@ export function resolveNodeWithState(
   }
   const selectedType = host.ast.is.IsIdentifier(node) ? queries.types.expressionType(node) : undefined;
   const declaration = selectedType === undefined ? undefined : host.navigation.referenceFor(node)?.declaration;
-  const declaredValue = selectedType !== undefined && scope.sourceValueDeclaration(node, declaration) !== undefined
+  const sourceDeclaration = scope.sourceValueDeclaration(node, declaration);
+  const syntax = sourceDeclaration === undefined ? undefined : scope.sourceValueDeclarationSyntax(sourceDeclaration);
+  const sourceValue = selectedType !== undefined && sourceDeclaration !== undefined &&
+      (syntax?.type !== undefined || !host.ast.is.IsArrayLiteralExpression(syntax?.initializer))
+    ? undefined : resolveSourceValueDeclaration(node, queries, state);
+  if (sourceValue?.kind === "rejected") return undefined;
+  const declaredValue = selectedType !== undefined && sourceDeclaration !== undefined
     ? scope.resolveSelectedValueWithState(node, selectedType, queries.sourceFile, state)
-    : resolveSourceValueDeclaration(node, queries, state);
+    : sourceValue;
   if (declaredValue !== undefined) {
     return declaredValue;
   }

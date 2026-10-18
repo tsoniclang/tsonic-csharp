@@ -4,6 +4,7 @@ import type { CsharpAttributeApplicationIndex } from "../../../target-model/reco
 import type { CsharpClassInitializationIndex } from "../../../target-model/records/class-initialization.js";
 import type { CsharpNativeParticipationInput } from "../../../target-model/records/native-demand.js";
 import type { CsharpProjectTypeClassifications } from "../../../target-model/records/project-types.js";
+import type { CsharpCallableTargetClassifications } from "../../../target-model/records/source-callable-contract.js";
 import { csharpNativeChildUses, isCsharpNativeExpression, type CsharpNativeOperandInput, type CsharpNativeOperandStep } from "./native-operands.js";
 
 export interface CsharpNativeConstructInput extends CsharpNativeOperandInput, CsharpNativeParticipationInput {
@@ -13,10 +14,12 @@ export interface CsharpNativeConstructInput extends CsharpNativeOperandInput, Cs
   readonly projectTypes: Pick<CsharpProjectTypeClassifications, "definitionContainingDeclaration">;
   readonly baseCalls: { readonly get: (constructor: Node) => Node | undefined };
   readonly unusedDefault: { readonly get: (initializer: Node) => boolean };
+  readonly callableTarget: Pick<CsharpCallableTargetClassifications, "entry">;
 }
 
 export type CsharpNativeConstructSelection =
   | { readonly kind: "erased" }
+  | { readonly kind: "pending"; readonly reason: "callable-entry"; readonly steps: readonly CsharpNativeOperandStep[] }
   | { readonly kind: "selected"; readonly steps: readonly CsharpNativeOperandStep[] };
 
 export function selectCsharpNativeConstructSteps(input: CsharpNativeConstructInput, node: Node): CsharpNativeConstructSelection {
@@ -33,9 +36,15 @@ export function selectCsharpNativeConstructSteps(input: CsharpNativeConstructInp
     child === undefined || child === skipped || isCsharpNativeExpression(ast, child) || IsTypeSyntaxNode(ast, child) || ast.is.IsTypeLiteralNode(child) ||
       ast.kindName(child).endsWith("Keyword") || ast.kindName(child).endsWith("Token") || ast.kindName(child) === "KindEndOfFile" ||
       ast.is.IsClassDeclaration(child) && input.classFactories.classFactory.get(child) !== undefined ? [] : [construct(child)]);
-  const parameters = (): readonly CsharpNativeOperandStep[] => ast.parameters(node).flatMap(parameter => parameter === undefined ? [] : [construct(parameter)]);
+  const participation = input.participation.get(node);
+  const entry = participation === "body" || participation === "frame-body" || participation === "signature"
+    ? input.callableTarget.entry(node) : undefined;
+  const pendingEntry = (participation === "body" || participation === "frame-body" || participation === "signature") && entry === undefined;
+  const parameters = (): readonly CsharpNativeOperandStep[] => entry === undefined ? []
+    : [...new Set(entry.parameters.map(parameter => parameter.sourceParameter))].map(construct);
   const finish = (steps: readonly CsharpNativeOperandStep[]): CsharpNativeConstructSelection =>
-    Object.freeze({ kind: "selected", steps: Object.freeze([...steps]) });
+    pendingEntry ? Object.freeze({ kind: "pending", reason: "callable-entry", steps: Object.freeze([...steps]) })
+      : Object.freeze({ kind: "selected", steps: Object.freeze([...steps]) });
   if (ast.is.IsSourceFile(node)) return finish([...input.classFactories.factories.filter(factory => factory.sourceFile === node)
     .map(factory => construct(factory.declaration)), ...childConstructs(node)]);
   if (input.participation.get(node) === "signature") return finish([...attributes, ...parameters()]);
@@ -63,6 +72,10 @@ export function selectCsharpNativeConstructSteps(input: CsharpNativeConstructInp
     return finish([...attributes, ...parameters(), ...(call === undefined ? [] : use(call, { kind: "effect" })),
       ...(body === undefined ? [] : [construct(body)])]);
   }
+  if (participation === "body" || participation === "frame-body") return finish([
+    ...attributes, ...parameters(), ...sourceConstructValueInputs(ast, node).flatMap(entry => use(entry.expression, entry.slot, entry.owner)),
+    ...childConstructs(node).filter(step => step.kind !== "construct" || !ast.is.IsParameterDeclaration(step.node)),
+  ]);
   const sourceInputs = sourceConstructValueInputs(ast, node);
   const sourceUse = (entry: SourceValueInput): readonly CsharpNativeOperandStep[] => {
     if (entry.slot.kind === "thrown" && input.operations.exactCatchRethrow.get(node) ||

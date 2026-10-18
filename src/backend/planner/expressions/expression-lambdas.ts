@@ -2,15 +2,11 @@ import type { CsharpPlanningContext } from "../context.js";
 import {
   AsArrowFunction,
   AsFunctionExpression,
-  AsParameterDeclaration,
   HasSourceKind,
   HasSyntacticModifier,
   KindArrowFunction,
   KindBlock,
   KindFunctionExpression,
-  KindIdentifier,
-  KindObjectBindingPattern,
-  KindArrayBindingPattern,
   ModifierFlagsAsync,
 } from "@tsonic/target-api/source";
 import type {
@@ -22,20 +18,14 @@ import type {
   TargetTypeRef,
 } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpBlock, CsharpExpression, CsharpLambdaParameter, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
+import type { CsharpBlock, CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import {
   createDestructuringPlannerState,
   createNestedPlannerState,
-  declareCsharpLocalBindingName,
-  allocateSyntheticParameter,
 } from "../bindings/index.js";
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
-import {
-  getCsharpTypeForNode,
-  nullableCsharpType,
-} from "../types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../declarations/modifiers.js";
 import { planBlockStatements } from "../statements/index.js";
@@ -50,8 +40,6 @@ import {
   csharpVoidReturnCompletion,
   isCsharpVoidTargetType,
   csharpVoidTargetType,
-  targetTypeRefEquals,
-  targetTypeRefKey,
   getCsharpLambdaSignature,
 } from "../../../target-model/types/index.js";
 import {
@@ -123,31 +111,14 @@ export function planArrowFunctionExpression(node: Node, sourceFile: SourceFile, 
   if (isAsyncExpression(input.program.source.ast, node) && returnContext === undefined) {
     return undefined;
   }
-  const scopedInput = createLambdaPlanningContext(
-    expression.Parameters?.Nodes ?? [],
-    input,
-    diagnostics,
-    targetContext,
-  );
-  if (scopedInput === undefined) {
-    return undefined;
-  }
-  const parameterNodes = expression.Parameters?.Nodes ?? [];
+  if (targetContext === undefined) return undefined;
+  const scopedInput = input;
   const plannerState = state === undefined
     ? createDestructuringPlannerState(node, input.program.source.ast)
     : createNestedPlannerState(state, node, input.program.source.ast);
-  const sourceParameters = planLambdaParameters(
-    parameterNodes,
-    sourceFile,
-    scopedInput,
-    diagnostics,
-    plannerState,
-    targetContext,
-  );
   const parameterPlan = planLambdaParameterStorage(
-    parameterNodes, sourceParameters, sourceFile, scopedInput, diagnostics, plannerState,
+    node, sourceFile, scopedInput, diagnostics, plannerState, targetContext.carrier,
   );
-  if (parameterPlan === undefined) return undefined;
   const parameters = parameterPlan.parameters;
   const parameterIdentityDeclarations = parameterPlan.prelude;
   if (HasSourceKind(input.program.source.ast, expression.Body, KindBlock)) {
@@ -237,16 +208,8 @@ export function planFunctionExpression(
     : planCsharpNamedSelfCaptureContext(self, input, diagnostics, creationState);
   if (self !== undefined && captureContext === undefined) return undefined;
   const plannerState = state === undefined ? creationState : createNestedPlannerState(state, node, input.program.source.ast);
-  const scopedInput = createLambdaPlanningContext(
-    expression.Parameters?.Nodes ?? [],
-    captureContext?.context ?? input,
-    diagnostics,
-    targetContext,
-  );
-  if (scopedInput === undefined) {
-    return undefined;
-  }
-  const parameterNodes = expression.Parameters?.Nodes ?? [];
+  if (targetContext === undefined) return undefined;
+  const scopedInput = captureContext?.context ?? input;
   const methodName = self === undefined ? undefined : input.names.temporaryName(`__tsonic_self_${input.program.source.ast.pos(node)}`);
   const valueName = self === undefined || self.values.length === 0 ? undefined : input.names.temporaryName(`${methodName}Value`);
   if (self !== undefined) {
@@ -270,18 +233,9 @@ export function planFunctionExpression(
         operatorToken: { kind: "EqualsToken" }, right: value } },
     ]);
   };
-  const sourceParameters = planLambdaParameters(
-    parameterNodes,
-    sourceFile,
-    scopedInput,
-    diagnostics,
-    plannerState,
-    targetContext,
-  );
   const parameterPlan = planLambdaParameterStorage(
-    parameterNodes, sourceParameters, sourceFile, scopedInput, diagnostics, plannerState,
+    node, sourceFile, scopedInput, diagnostics, plannerState, targetContext.carrier,
   );
-  if (parameterPlan === undefined) return undefined;
   const parameters = parameterPlan.parameters;
   const parameterIdentityDeclarations = parameterPlan.prelude;
   if (generatorSyntax) {
@@ -404,68 +358,6 @@ function getAuthoredLambdaReturnTypeNode(node: Node, ast: AstReader): Node | und
   return (AsArrowFunction(ast, node) ?? AsFunctionExpression(ast, node))?.Type;
 }
 
-export function planLambdaParameters(
-  parameterNodes: readonly (Node | undefined)[],
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
-  expectedContext?: LambdaTargetContext,
-): readonly CsharpLambdaParameter[] {
-  const expectedParameterTypes = expectedContext?.signature.parameters ?? [];
-  const sourceParameters = parameterNodes
-    .filter((parameterNode): parameterNode is Node => parameterNode !== undefined)
-    .map((parameterNode, index): CsharpLambdaParameter => {
-      const parameter = AsParameterDeclaration(input.program.source.ast, parameterNode)!;
-      diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, parameterNode, "lambda parameter declaration", diagnostics);
-      if (
-        parameter.DotDotDotToken !== undefined &&
-        expectedContext?.signature.restParameterIndex !== index
-      ) {
-        diagnostics.push(unsupportedNodeDiagnostic(
-          parameterNode,
-          "A lambda rest parameter requires exact selected delegate rest-parameter evidence before C# emission.",
-        ));
-      }
-      const bindingPattern = HasSourceKind(input.program.source.ast, parameter.name, KindObjectBindingPattern) ||
-        HasSourceKind(input.program.source.ast, parameter.name, KindArrayBindingPattern);
-      if (!HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier) && !bindingPattern) {
-        diagnostics.push(unsupportedNodeDiagnostic(parameter.name ?? parameterNode, "Lambda parameter binding is outside the current C# planning surface."));
-      }
-      const expectedParameterType = expectedParameterTypes[index];
-      const authoredParameterType = parameter.Type === undefined
-        ? undefined
-        : getCsharpTypeForNode(parameter.Type, sourceFile, input, undefined, diagnostics);
-      const sourceParameterType = authoredParameterType === undefined ||
-          input.program.source.ast.questionToken(parameterNode) === undefined
-        ? authoredParameterType
-        : nullableCsharpType(authoredParameterType);
-      const nativeParameterType = input.program.records.lambdaParameterType.get(parameterNode);
-      const explicitParameterType = nativeParameterType === undefined
-        ? sourceParameterType
-        : csharpTypeFromTargetTypeRef(nativeParameterType, input.scope.typeParameterNames);
-      return {
-        kind: "Parameter",
-        name: bindingPattern
-          ? allocateSyntheticParameter(state)
-          : declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Lambda parameter", "arg"),
-        ...(explicitParameterType !== undefined
-          ? { type: explicitParameterType }
-          : expectedParameterType === undefined
-            ? {}
-            : { type: expectedParameterType }),
-      };
-    });
-  const omittedTargetParameters = expectedParameterTypes
-    .slice(sourceParameters.length)
-    .map((type): CsharpLambdaParameter => ({
-      kind: "Parameter",
-      name: allocateSyntheticParameter(state),
-      type,
-    }));
-  return [...sourceParameters, ...omittedTargetParameters];
-}
-
 export function diagnoseMissingLambdaTargetContext(
   node: Node,
   input: CsharpPlanningContext,
@@ -527,52 +419,6 @@ export function lambdaTargetContextFromTargetRef(typeParameterNames: ReadonlyMap
         : { restParameterIndex: signature.restParameterIndex }),
     },
   };
-}
-
-function createLambdaPlanningContext(
-  parameterNodes: readonly (Node | undefined)[],
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  targetContext: LambdaTargetContext | undefined,
-): CsharpPlanningContext | undefined {
-  if (targetContext === undefined) {
-    return input;
-  }
-  const sourceParameters = parameterNodes.filter(
-    (parameterNode): parameterNode is Node => parameterNode !== undefined,
-  );
-  if (
-    sourceParameters.length >
-      targetContext.signature.parameterTargetTypes.length
-  ) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      sourceParameters[targetContext.signature.parameterTargetTypes.length]!,
-      "The source lambda declares more parameters than its exact selected C# delegate representation.",
-    ));
-    return undefined;
-  }
-  const bindings = sourceParameters.map((parameterNode, index) => ({
-    declaration: parameterNode,
-    targetType: targetContext.signature.parameterTargetTypes[index]!,
-  }));
-  for (const binding of bindings) {
-    const sealedTarget = input.program.records.lambdaParameterType.get(binding.declaration);
-    if (sealedTarget === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        binding.declaration,
-        "C# analysis did not seal the exact selected delegate representation for this lambda parameter.",
-      ));
-      return undefined;
-    }
-    if (!targetTypeRefEquals(sealedTarget, binding.targetType)) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        binding.declaration,
-        `The sealed lambda parameter representation '${targetTypeRefKey(sealedTarget)}' conflicts with its exact selected C# delegate parameter representation '${targetTypeRefKey(binding.targetType)}'.`,
-      ));
-      return undefined;
-    }
-  }
-  return input;
 }
 
 export function isAsyncExpression(ast: AstReader, node: Node): boolean {

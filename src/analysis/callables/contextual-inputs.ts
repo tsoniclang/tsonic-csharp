@@ -8,6 +8,7 @@ import { getCsharpDelegateSignature, getCsharpNullableElementTargetType, isCshar
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
 import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
 import { createCsharpMetadataBudget } from "../../target-model/metadata/immutable.js";
+import { sourceStorageCallableInputSlots, createSourceStorageBudget, defaultSourceStorageLimits } from "@tsonic/target-api/analysis";
 
 export interface CsharpClosedCallableContext {
   readonly inputTypes: readonly (TargetTypeRef | undefined)[];
@@ -20,13 +21,16 @@ export function selectCsharpClosedCallableContext(
   operations: CsharpTargetOperationClassifications,
   expression: Node,
 ): CsharpClosedCallableContext | undefined {
-  const parameters = policy.ast.parameters(expression);
-  if (parameters.some(parameter => parameter === undefined)) return undefined;
-  const broad = (parameters as readonly Node[]).map(parameter => {
-    const syntax = policy.ast.typeNode(parameter);
-    const types = policy.semanticsFor(parameter).types;
-    const type = syntax === undefined ? types.expressionType(parameter) : types.authoredType(syntax);
-    return type !== undefined && (types.isUnknown(type) || types.isAny(type));
+  const semantics = policy.semanticsFor(expression);
+  const checked = semantics.types.declarationSignatureInfo(expression);
+  if (checked === undefined) return undefined;
+  const budget = createSourceStorageBudget(defaultSourceStorageLimits);
+  const parameters = sourceStorageCallableInputSlots(source, expression, semantics,
+    { kind: "selected-signature", signature: checked.signature }, budget.step);
+  if (parameters === undefined) return undefined;
+  const broad = parameters.map(parameter => {
+    const type = checked.parameters[parameter.effectiveIndex]?.type;
+    return type !== undefined && (semantics.types.isUnknown(type) || semantics.types.isAny(type));
   });
   const arguments_ = sourceClosedCallableArguments(expression, source);
   if (arguments_ === undefined) return undefined;

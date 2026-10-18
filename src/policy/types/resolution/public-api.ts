@@ -139,17 +139,22 @@ export function resolveSelectedValueWithState(
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const { host, resolveNodeWithState, resolveMemberAccessTargetType, resolveSourceValueDeclaration, resolveTypeWithState, sourceValueDeclaration } = scope;
+  const { host, resolveNodeWithState, resolveMemberAccessTargetType, resolveSourceValueDeclaration, resolveTypeWithState, sourceValueDeclaration, sourceValueDeclarationSyntax } = scope;
   const reference = host.navigation.referenceFor(node);
   const declaration = sourceValueDeclaration(node, reference?.declaration);
   const storage = host.sourceStorage.subjectFor(node);
   state = { ...state, sourceStorageSubject: storage.kind === "resolved" ? storage.subject : undefined };
+  const queries = host.semantics(sourceFile);
+  const syntax = declaration === undefined ? undefined : sourceValueDeclarationSyntax(declaration);
+  const declared = syntax?.type === undefined && syntax?.initializer !== undefined &&
+      host.ast.is.IsArrayLiteralExpression(syntax.initializer)
+    ? resolveSourceValueDeclaration(node, queries, nextState(state), selectedType) : undefined;
+  if (declared?.kind === "rejected") return undefined;
   const scopedTarget = host.representations.scopedTargetType(
     declaration ?? node,
   ) ?? host.representations.scopedTargetType(node) ??
     (declaration !== undefined && host.ast.is.IsBindingElement(declaration)
       ? host.bindingProjection(declaration, sourceFile)?.bindingCarrier : undefined);
-  const queries = host.semantics(sourceFile);
   const declaredType = declaration === undefined ? undefined : queries.declarations.declaredValueType(declaration);
   if (declaredType !== undefined && queries.types.isUnion(declaredType)) {
     const storage = scopedTarget ?? resolveNodeWithState(declaration, sourceFile, nextState(state));
@@ -224,16 +229,8 @@ export function resolveSelectedValueWithState(
   }
   const member = host.ast.is.IsPropertyAccessExpression(node) || host.ast.is.IsElementAccessExpression(node);
   if (!member && declaration !== undefined) {
-    const declared = resolveSourceValueDeclaration(
-      node,
-      host.semantics(sourceFile),
-      nextState(state),
-      selectedType,
-    );
-    if (declared !== undefined) {
-      return declared;
-    }
-    return undefined;
+    const selection = declared ?? resolveSourceValueDeclaration(node, queries, nextState(state), selectedType);
+    return selection?.kind === "rejected" ? undefined : selection;
   }
   const resolved = member
     ? resolveMemberAccessTargetType(node, queries, nextState(state), "selected", selectedType)

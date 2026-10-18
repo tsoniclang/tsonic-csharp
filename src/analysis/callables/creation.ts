@@ -57,14 +57,16 @@ export function prepareCsharpCallableCreations(input: CsharpCallableCreationInpu
 
     function matches(candidate: TargetTypeRef): boolean {
       const signature = getCsharpLambdaSignature(candidate);
-      const parameters = input.ast.parameters(node);
+      const parameters = contract?.parameters;
       if (contract === undefined || signature === undefined || signature.parameterPassingModes.length !== signature.parameters.length ||
-        parameters.length > signature.parameters.length ||
+        parameters === undefined || parameters.length > signature.parameters.length ||
         signature.parameterPassingModes.slice(parameters.length).some(mode => mode !== "by-value") ||
         !parameters.every((parameter, index) => {
-          if (parameter === undefined) return false;
-          const native = contract.parameters[index]?.targetParameter;
-          const nativeParameter = input.storage.lambdaParameterType.get(parameter);
+          const native = parameter.targetParameter;
+          const component = parameter.sourceProjection[0];
+          const incoming = input.storage.lambdaParameterType.get(parameter.sourceParameter);
+          const nativeParameter = component?.kind === "tuple-element"
+            ? incoming?.kind === "tuple" ? incoming.elements[component.index] : undefined : incoming;
           return native !== undefined && nativeParameter !== undefined && targetTypeRefEquals(nativeParameter, signature.parameters[index]!) &&
             native.passingMode === signature.parameterPassingModes[index] &&
             (native.paramsArray === true) === (signature.restParameterIndex === index);
@@ -82,7 +84,7 @@ export function prepareCsharpCallableCreations(input: CsharpCallableCreationInpu
     callableTarget: Object.freeze({ get: (expression: Node) => {
       const creation = preparations.get(expression)?.contextual;
       return creation?.kind === "selected" ? creation.carrier : undefined;
-    } }),
+    }, entry: (declaration: Node) => input.contracts.get({ kind: "declaration", declaration }) }),
     seal(captures: Pick<CsharpCaptureStorage, "captureClosure" | "lambdaCreation" | "namedSelf">) {
       if (sealed) failTargetAnalysisInvariant("tsonic-csharp", "Native callable creation is sealed exactly once.");
       sealed = true;
@@ -102,7 +104,7 @@ export function prepareCsharpCallableCreations(input: CsharpCallableCreationInpu
         callableTarget: Object.freeze({ get: (expression: Node) => {
           const creation = creations.get(expression);
           return creation?.kind === "selected" ? creation.carrier : undefined;
-        } }),
+        }, entry: (declaration: Node) => input.contracts.get({ kind: "declaration", declaration }) }),
       });
     },
   });

@@ -102,9 +102,15 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     Object.freeze({ ...chosen([]), sourceRefusal: Object.freeze({ kind: "target" as const, code, message,
       ...(evidence === undefined ? {} : { evidence: Object.freeze([...evidence]) }),
     }) });
-  const argumentRefused = (refusal: CsharpNativeArgumentRefusal): CsharpNativeOperandSelection =>
-    refusal.reason === "argument-refused" ? sourceRefused("CSHARP_UNSUPPORTED_AST", refusal.message)
-      : refused(refusal.reason, refusal.message);
+  const argumentRefused = (refusal: CsharpNativeArgumentRefusal, source: ResolvedSourceCallInfo): CsharpNativeOperandSelection => {
+    if (refusal.reason === "argument-refused") return sourceRefused("CSHARP_UNSUPPORTED_AST", refusal.message);
+    if (refusal.reason !== "argument-unresolved") return refused(refusal.reason);
+    const arguments_ = source.sourceArgumentBindings.flatMap(binding => binding.sourceForm !== "value" ? []
+      : use(source.sourceArguments[binding.sourceArgumentIndex]?.expression, { kind: "argument",
+        sourceIndex: binding.sourceArgumentIndex, effectiveIndex: binding.effectiveArgumentIndex,
+        sourceParameterIndex: binding.sourceParameterIndex }));
+    return Object.freeze({ ...refused(refusal.reason), planning: plan(arguments_) });
+  };
   const sourceSelection = (flow: CsharpNativeOperandSelection["flow"] = "sequence"): CsharpNativeOperandSelection => {
     const inputs = sourceExpressionValueInputs(ast, node);
     return inputs === undefined ? refused("expression-form-unresolved") : chosen(inputs, flow);
@@ -219,7 +225,7 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     }
     if (call.target?.kind === "resolved") {
       const bound = targetArguments(call.target.source, call.target.call);
-      if ("reason" in bound) return argumentRefused(bound);
+      if ("reason" in bound) return argumentRefused(bound, call.target.source);
       const head = call.target.call.receiver.kind === "target-parameter"
         ? use(call.target.source.sourceReceiver?.expression, { kind: "receiver" })
         : call.target.call.receiver.kind === "instance" ? receiverUses(call.target.source.sourceReceiver) : [];
@@ -234,12 +240,12 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     if (call.unionCall.kind === "rejected") return sourceRefused("CSHARP_UNSUPPORTED_AST", call.unionCall.reason);
     if (ast.kindName(call.source.sourceCallee.expression) === "KindSuperKeyword") {
       const arguments_ = sourceArguments(call.sourceArgumentGrouping);
-      return "reason" in arguments_ ? argumentRefused(arguments_) : argumentsFirst([], arguments_);
+      return "reason" in arguments_ ? argumentRefused(arguments_, call.source) : argumentsFirst([], arguments_);
     }
     const callee = call.sourceCall;
     if (callee?.kind === "rejected") return sourceRefused("CSHARP_UNSUPPORTED_AST", callee.reason);
     const arguments_ = sourceArguments(call.sourceArgumentGrouping);
-    if ("reason" in arguments_) return argumentRefused(arguments_);
+    if ("reason" in arguments_) return argumentRefused(arguments_, call.source);
     if (call.unionCall.kind === "resolved") return chosen([...use(call.unionCall.receiver, { kind: "receiver" }), ...guarded(arguments_)]);
     if (callee === undefined || callee.kind === "union-method") return refused("operation-unresolved");
     if (callee.kind === "function") return argumentsFirst([], guarded(arguments_));
@@ -256,7 +262,7 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     if (construction.jsValue.kind === "resolved") return chosen([...use(ast.as.AsNewExpression(node)?.Expression, { kind: "callee" }), ...jsArguments()]);
     if (construction.target?.kind === "resolved") {
       const arguments_ = targetArguments(construction.target.source, construction.target.call);
-      return "reason" in arguments_ ? argumentRefused(arguments_) : argumentsFirst([], arguments_);
+      return "reason" in arguments_ ? argumentRefused(arguments_, construction.target.source) : argumentsFirst([], arguments_);
     }
     if (construction.target?.kind === "rejected") return refused("construction-unresolved", undefined, undefined, construction.target.diagnostic);
     if (construction.target?.kind === "missing") return sourceRefused("CSHARP_TARGET_CONSTRUCTION_NOT_CLOSED", construction.target.reason);
@@ -265,7 +271,7 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       [...new Set(construction.target.candidates.map(candidate => `candidate=${candidate}`))]);
     if (construction.target?.kind !== "source-owned") return refused("construction-unresolved");
     const arguments_ = sourceArguments(construction.sourceArgumentGrouping);
-    if ("reason" in arguments_) return argumentRefused(arguments_);
+    if ("reason" in arguments_) return argumentRefused(arguments_, construction.target.source);
     const callee = construction.target.source.sourceCallee.expression;
     const type = input.valueReads.valueRead.get(callee)?.value;
     const reference = input.navigation.sourceReferenceFor(callee);

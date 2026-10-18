@@ -89,7 +89,7 @@ test("all seven production caller positions retain the single sealed declaration
     ["native value field", shape, { nativeValueDeclaration: { get: node => node === declaration ? { fields: [{ carrier: shape.targetType,
       source: { sourceType: parameter, sourceName: "count", readonly: false } }] } : program.records.nativeValueDeclaration.get(node) } },
     input => planValueTypeDeclaration(declaration, file, input, [])],
-    ["required parameter storage", storageShape, {}, input => planParametersWithPrelude([storageParameter], file, input, [], state())],
+    ["required parameter storage", storageShape, {}, input => planParametersWithPrelude(source.ast.parent(storageParameter), file, input, [], state())],
     ["runtime default value carrier", defaultShape, {}, input => planCsharpRuntimeParameterDefault(defaultParameter, "incoming", file, input, [], state())],
     ["runtime default incoming carrier", defaultShape, { runtimeDefault: { get: node => {
       const original = program.records.runtimeDefault.get(node);
@@ -101,7 +101,8 @@ test("all seven production caller positions retain the single sealed declaration
         kind: "value", carrier: shape.targetType, expression: { kind: "IdentifierName", name: "incoming" },
       } } }], file, input, [], state(), true, [])],
     ["lambda parameter native storage", storageShape, {},
-    input => planLambdaParameterStorage([storageParameter], [{ kind: "Parameter", name: "incoming" }], file, input, [], state())],
+    input => planLambdaParameterStorage(source.ast.parent(storageParameter), file, input, [], state(),
+      program.records.callableTarget.get(source.ast.parent(storageParameter)))],
   ];
   assert.equal(cases.length, 7, "seven call expressions, not the wrapper definition");
   for (const [name, artifact, patch, invoke] of cases) rejectsBeforeOutput(contextWithMissingArtifact({ ...selected, shape: artifact }, patch), invoke, name);

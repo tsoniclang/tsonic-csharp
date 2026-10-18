@@ -41,6 +41,9 @@ export function isCsharpSourceCallableArtifactDeclaration(
   if (ast.is.IsConstructorDeclaration(declaration)) {
     return ast.as.AsConstructorDeclaration(declaration)?.Body !== undefined;
   }
+  if (ast.is.IsGetAccessorDeclaration(declaration) || ast.is.IsSetAccessorDeclaration(declaration)) {
+    return ast.body(declaration) !== undefined || ast.hasModifierKind(declaration, "abstract");
+  }
   if (!ast.is.IsMethodSignatureDeclaration(declaration)) {
     return false;
   }

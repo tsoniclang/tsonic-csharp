@@ -1,5 +1,5 @@
 import type { CsharpSourceCallableArtifactIdentity } from "../../policy/types/index.js";
-import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
+import type { CsharpCallableTargetClassifications, CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpNativeCallableCreation } from "../../target-model/records/native-demand.js";
@@ -17,7 +17,5 @@ export interface CsharpCallableCreationIndex {
   readonly callableCreation: {
     readonly get: (expression: Node) => CsharpNativeCallableCreation | undefined;
   };
-  readonly callableTarget: {
-    readonly get: (expression: Node) => TargetTypeRef | undefined;
-  };
+  readonly callableTarget: CsharpCallableTargetClassifications;
 }

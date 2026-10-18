@@ -20,31 +20,34 @@ test("classes and interfaces consume one deduplicated exact sealed heritage cont
   const input = { scope: { typeParameterNames: new Map([["first", "First"], ["second", "Second"]]) },
     types: { projectTypes: { heritageForDeclaration: () => heritage } } };
   for (const owner of [planClassHeritage, planInterfaceHeritage]) {
-    const diagnostics = [];
-    const result = owner({}, input, diagnostics);
+    assert.equal(owner.length, 2, "the renderer no longer accepts a source-diagnostic publication argument");
+    const result = owner({}, input);
     const interfaces = Array.isArray(result) ? result : result.interfaces;
     assert.deepEqual(interfaces.map(contract => contract.typeArguments[0]), [
       { kind: "IdentifierName", name: "First" }, { kind: "IdentifierName", name: "Second" }, { kind: "PredefinedType", name: "long" },
     ], "exact generic identities and native carriers survive structural inheritance");
-    assert.equal(diagnostics.length, 0, "no guessed or duplicate native heritage");
+    assert.equal(interfaces.length, 3, "no guessed or duplicate native heritage");
   }
 });
 
 test("heritage rejects unavailable owner and unrenderable sealed contracts", () => {
   for (const owner of [planClassHeritage, planInterfaceHeritage]) {
-    const diagnostics = [];
-    assert.throws(() => owner({}, {
+    const declaration = {};
+    assert.throws(() => owner(declaration, {
       scope: {}, types: { projectTypes: { heritageForDeclaration: () => undefined } },
-    }, diagnostics), error => error.message.includes("admitted canonical C# project-type model"),
+    }), error => error.message.includes("admitted canonical C# project-type model") &&
+      error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" && error.diagnostic.sourceNode === declaration,
     "an absent admitted owner never emits an alternative native contract");
-    assert.equal(diagnostics.length, 0, "absent internal evidence is not a source rejection");
-    const result = owner({}, {
+    let result;
+    assert.throws(() => { result = owner(declaration, {
       scope: {}, types: { projectTypes: { heritageForDeclaration: () => ({
         interfaces: [{ kind: "opaque", id: "missing" }],
       }) } },
-    }, diagnostics);
-    assert.equal((Array.isArray(result) ? result : result.interfaces).length, 0, "no alternative native contract");
-    assert.equal(diagnostics.length, 1, "an unrenderable native carrier is still refused until C03 proves total rendering");
+    }); }, error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&
+      error.diagnostic.sourceNode === declaration && error.message ===
+        "An admitted canonical C# heritage carrier requires its exact renderable type.",
+    "a corrupt supposedly admitted contract fails only through the canonical internal-invariant owner");
+    assert.equal(result === undefined, true, "no alternative or partial native contract is emitted");
   }
 });
 

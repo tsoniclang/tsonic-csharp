@@ -154,6 +154,13 @@ export function analyzeCsharpNativeDemand(
       orders.set(node, Object.freeze([]));
       return;
     }
+    if (selected.kind === "pending") {
+      const steps: CsharpNativeOrderStep[] = [];
+      for (const step of selected.steps) visitStep(step, steps);
+      pending(csharpNativeUseSite(node, { kind: "effect" }), node, "callable-creation");
+      orders.set(node, Object.freeze(steps));
+      return;
+    }
     if (rejectedBindingRoots.has(node)) {
       requiredBindingRoots.add(node);
       orders.set(node, Object.freeze([]));
@@ -162,7 +169,12 @@ export function analyzeCsharpNativeDemand(
     if (input.evidence.sourceStruct.get(node) !== undefined) requiredNativeValueDeclarations.add(node);
     const participation = input.participation.get(node);
     if (participation === "body" || participation === "frame-body" || participation === "signature") {
-      for (const parameter of ast.parameters(node)) if (parameter !== undefined) requiredBindingRoots.add(parameter);
+      const entry = input.callableTarget.entry(node);
+      if (entry === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+        "A selected callable construct requires its admitted native entry contract.", node);
+      requireCsharpRecord(requiredRecords, { family: "callableTarget", facet: "entry", subject: node,
+        construct: "native callable physical entry", producer: "analyzeCsharpNativeDemand" });
+      for (const parameter of entry.parameters) requiredBindingRoots.add(parameter.sourceParameter);
       if (ast.is.IsFunctionDeclaration(node) && participation === "body") requiredBindingRoots.add(node);
     }
     if (ast.is.IsVariableDeclaration(node) && ast.as.AsVariableDeclaration(node)?.Initializer === undefined) {
@@ -278,13 +290,25 @@ export function analyzeCsharpNativeDemand(
       }
       return Object.freeze({ site, expression, completion: undefined });
     }
-    if (unmatched !== undefined) return pending(unmatched.site, expression, unmatched.reason, unmatched.message);
+    const unresolvedArguments = selected.refusal === "argument-unresolved";
+    if (unmatched !== undefined && !unresolvedArguments) return pending(unmatched.site, expression, unmatched.reason, unmatched.message);
     let owner = states.get(site.subject);
     if (owner === undefined) { owner = new Map(); states.set(site.subject, owner); }
     const identity = targetUseSiteIdentity(site);
+    const retained = unresolvedArguments ? owner.get(identity) : undefined;
+    if (retained !== undefined) {
+      if (retained.expression !== expression) failTargetAnalysisInvariant("tsonic-csharp", `Native use identity '${site.role}' names different expressions.`, expression);
+      return retained.state === "visiting" ? pending(site, expression, "cyclic-use") : retained.visited;
+    }
     const unresolved = Object.freeze({ site, expression, completion: undefined });
     owner.set(identity, { expression, state: "visiting", visited: unresolved });
-    const result = evaluate(child, site, selected);
+    let result: VisitedUse;
+    if (unresolvedArguments) {
+      const steps: CsharpNativeOrderStep[] = [];
+      for (const step of selected.planning) visitStep(step, steps);
+      orders.set(expression, Object.freeze(steps));
+      result = pending(site, expression, "argument-unresolved");
+    } else result = evaluate(child, site, selected);
     owner.set(identity, { expression, state: "closed", visited: result });
     if (result.completion?.kind === "value") {
       if (child.slot.kind === "initializer" && ast.is.IsVariableDeclaration(child.owner) ||
@@ -307,7 +331,7 @@ export function analyzeCsharpNativeDemand(
     requireCsharpRecord(requiredRecords, { family: "sourceArgument", subject: expression,
       construct: "native expression passing", producer: "analyzeCsharpNativeDemand" });
     if (ast.is.IsArrowFunction(expression) || ast.is.IsFunctionExpression(expression)) requireCsharpRecord(requiredRecords, {
-      family: "callableTarget", subject: expression, construct: "native callable creation", producer: "analyzeCsharpNativeDemand",
+      family: "callableTarget", facet: "creation", subject: expression, construct: "native callable creation", producer: "analyzeCsharpNativeDemand",
     });
     if (expected?.literal !== undefined) requireCsharpRecord(requiredRecords, {
       family: "exactLiteral", subject: expression, target: expected.construction?.carrier ?? expected.target,

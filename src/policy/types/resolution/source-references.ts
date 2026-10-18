@@ -30,6 +30,10 @@ import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.j
 import { csharpBoundSourceType, csharpSourceBindings, csharpSourceTemplateState } from "./type-bindings.js";
 import { csharpConditionalDeclaration, resolveCsharpConditionalApplication } from "./conditional-types.js";
 import { csharpSourceStorageContext, csharpSourceStorageComponentContext } from "./source-storage-projection.js";
+import type { CsharpArrayLiteralSelection } from "./array-literals.js";
+
+export type CsharpSourceValueDeclarationSelection = TargetTypeRef |
+  Extract<CsharpArrayLiteralSelection, { readonly kind: "rejected" }>;
 
 export function resolveTypeReferenceNode(
   { host, resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts }: CsharpTypeResolutionScope,
@@ -492,7 +496,7 @@ export function resolveSourceValueDeclaration(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   selectedType?: Type,
-): TargetTypeRef | undefined {
+): CsharpSourceValueDeclarationSelection | undefined {
   const { host, resolveAuthoredAndSelectedSourceType, resolveDirectSourceFacts, resolveNodeWithState, resolveSelectedExpressionType, resolveTypeWithState, sourceValueDeclaration, sourceValueDeclarationSyntax } = scope;
   const reference = host.navigation.referenceFor(node);
   const declaration = sourceValueDeclaration(node, reference?.declaration);
@@ -539,6 +543,10 @@ export function resolveSourceValueDeclaration(
       nextState(state),
     );
     return retainCsharpBroadValueCarrier(declaredTarget, selected) ?? selected ?? declaredTarget;
+  }
+  if (syntax.type === undefined && host.ast.is.IsArrayLiteralExpression(syntax.initializer)) {
+    const construction = scope.resolveArrayLiteralWithState(syntax.initializer, declarationQueries, nextState(state));
+    if (construction.kind === "rejected") return construction;
   }
   const selectedInitializerTarget = resolveDirectSourceFacts(
     [syntax.initializer],
