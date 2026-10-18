@@ -1,6 +1,6 @@
 import { compareSourceNumericLiteralMagnitude, type SourceLiteralValue, type SourceNumericLiteralToken,
   type SourcePropertyNameSelection } from "@tsonic/target-api/source";
-import type { CsharpExactLiteralRecipe, CsharpExactLiteralSelection } from "../../target-model/conversions/exact-literals.js";
+import type { CsharpExactLiteralPrimitive, CsharpExactLiteralRecipe, CsharpExactLiteralSelection } from "../../target-model/conversions/exact-literals.js";
 import {
   csharpBigIntFitsSourcePrimitive,
   csharpNumericLiteralFitsSourcePrimitive,
@@ -110,15 +110,13 @@ export function selectCsharpExactLiteralConversion(
     if (!authoredFloatingLiteralFits(token, targetType.name)) {
       return rejected(`Source numeric literal is outside the '${targetType.name}' range.`);
     }
-    return resolved({ kind: "float", target: targetType, precision: targetType.name,
-      bits: csharpFloat16LiteralBits(token, token.negative) });
+    return resolvedFloat16Literal(targetType, csharpFloat16LiteralBits(token, token.negative));
   }
   if (Object.is(literal?.number, -0)) {
     if (targetType.name === "float64") {
       return resolved({ kind: "signed-zero", target: targetType, precision: targetType.name });
     }
-    if (targetType.name === "float16") return resolved({ kind: "float", target: targetType,
-      precision: targetType.name, bits: 0x8000 });
+    if (targetType.name === "float16") return resolvedFloat16Literal(targetType, 0x8000);
   }
   switch (targetType.name) {
     case "char": {
@@ -140,8 +138,7 @@ export function selectCsharpExactLiteralConversion(
       if (Math.abs(value) >= 65520) {
         return rejected(`Source numeric literal is outside the '${targetType.name}' range.`);
       }
-      return resolved({ kind: "float", target: targetType, precision: targetType.name,
-        bits: csharpFloat16LiteralBits(Math.abs(value), value < 0) });
+      return resolvedFloat16Literal(targetType, csharpFloat16LiteralBits(Math.abs(value), value < 0));
     }
     case "int8":
     case "uint8":
@@ -206,8 +203,8 @@ export function selectCsharpExactPropertyKeyConversion(
       : compareSourceNumericLiteralMagnitude({ coefficient: token.coefficient * 2n, exponent: token.exponent }, decimalOverflowThresholdTwice) < 0
       : compare(physical.name === "float16" ? 65520n : physical.name === "float32" ? float32OverflowThreshold : float64OverflowThreshold) < 0;
     if (!fits) return rejected(`Source numeric property key is outside the '${physical.name}' range.`);
-    if (physical.name === "float16") return resolved({ kind: "float", target: physical, precision: physical.name,
-      bits: csharpFloat16LiteralBits(token ?? { coefficient: magnitude!, exponent: 0n }, negative) });
+    if (physical.name === "float16") return resolvedFloat16Literal(physical,
+      csharpFloat16LiteralBits(token ?? { coefficient: magnitude!, exponent: 0n }, negative));
     return resolved({ kind: "float", target: physical, precision: physical.name,
       token: createCsharpNumericLiteralToken(token === undefined ? magnitude!.toString() : token.decimalText), negative });
   }
@@ -233,6 +230,12 @@ function authoredFloatingLiteralFits(token: SourceNumericLiteralToken, target: "
       return compareSourceNumericLiteralMagnitude({ coefficient: token.coefficient * 2n, exponent: token.exponent },
         decimalOverflowThresholdTwice) < 0;
   }
+}
+
+function resolvedFloat16Literal(target: CsharpExactLiteralPrimitive, bits: number): CsharpExactLiteralSelection {
+  const magnitude = Number(float16SubnormalUnits(bits & 0x7fff)) * 2 ** -24;
+  return resolved({ kind: "float", target, precision: "float16", bits,
+    token: createCsharpNumericLiteralToken(magnitude.toString()), negative: (bits & 0x8000) !== 0 });
 }
 
 function csharpFloat16LiteralBits(
