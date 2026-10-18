@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
+import type { TargetPlanningSourceNavigation, TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import type { CsharpNativeConstructInput } from "../../policy/operations/control-flow/native-constructs.js";
 import type { CsharpNativeOperandInput } from "../../policy/operations/control-flow/native-operands.js";
 import type { CsharpNativeUse, CsharpNativeUseClassifications } from "../../target-model/records/native-demand.js";
@@ -14,6 +14,7 @@ import type { CsharpBindingPatternAnalysis } from "../control-flow/binding-patte
 
 export interface CsharpNativeDemandAnalysisInput extends Omit<CsharpNativeConstructInput, "baseCalls" | "unusedDefault">,
   Omit<CsharpNativeOperandInput, "unusedDefault"> {
+  readonly navigation: CsharpNativeConstructInput["navigation"] & Pick<TargetPlanningSourceNavigation, "declarationUseSummary">;
   readonly expected: CsharpExpectedNativeUseAdmission;
   readonly declarations: Pick<CsharpDeclarationClassifications, "runtimeDefault">;
   readonly objectShapes: Pick<CsharpObjectShapeClassifications, "resolveTarget">;

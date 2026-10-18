@@ -1,4 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
+import { sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import type { CsharpExactLiteralSelection } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpConversionMode } from "../../target-model/conversions/selection.js";
@@ -76,6 +77,8 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
     return Object.freeze({ kind: "selected", representation: "convert", carrier, readProjection: "projected", children: Object.freeze([site]), ...value,
       construction: Object.freeze({ site, carrier, children: Object.freeze([...children]) }) });
   };
+  const forwardedOperand = ast.isConstAssertion(expression) || ast.is.IsParenthesizedExpression(expression) ||
+    ast.is.IsSatisfiesExpression(expression) ? sourceTransparentExpressionOperand(ast, expression) : undefined;
 
   if (input.projection === "present-payload") return input.source === undefined ? pending("source-unresolved")
     : selected(targetTypeRefEquals(input.source, target) ? "forward" : "convert", input.source);
@@ -103,6 +106,8 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
       if (input.sourceLiteral === undefined) return pending("literal-unrequested");
       if (input.sourceLiteral.kind === "rejected") return pending("literal-rejected", input.sourceLiteral.reason);
       if (input.sourceLiteral.kind === "resolved") return construct(input.source, none, input.sourceLiteral.recipe);
+      if (input.sourceLiteral.kind === "source-representation") return construct(input.source, none);
+      if (forwardedOperand !== undefined) return forward(forwardedOperand);
     }
     if (input.literal.kind === "rejected") return pending("literal-rejected", input.literal.reason);
     if (input.literal.kind === "resolved") return construct(input.constructionCarrier ?? target, none, input.literal.recipe);
@@ -113,12 +118,7 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
     return operand !== undefined && site === undefined ? pending("forwarding-child-unresolved")
       : construct(input.constructionCarrier, site === undefined ? none : [site]);
   }
-  if (ast.isConstAssertion(expression)) {
-    const assertion = ast.is.IsAsExpression(expression) ? ast.as.AsAsExpression(expression) : ast.as.AsTypeAssertion(expression);
-    return forward(assertion?.Expression);
-  }
-  if (ast.is.IsParenthesizedExpression(expression)) return forward(ast.as.AsParenthesizedExpression(expression)?.Expression);
-  if (ast.is.IsSatisfiesExpression(expression)) return forward(ast.as.AsSatisfiesExpression(expression)?.Expression);
+  if (forwardedOperand !== undefined) return forward(forwardedOperand);
   if (ast.is.IsConditionalExpression(expression)) {
     const conditional = ast.as.AsConditionalExpression(expression);
     const whenTrue = child(conditional?.WhenTrue, { kind: "branch", branch: "true" }, target);

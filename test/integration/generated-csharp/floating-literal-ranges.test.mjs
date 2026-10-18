@@ -129,6 +129,9 @@ export function actualDecimal(): decimal {
 export function decimalCast(value: float64): decimal { return value as decimal; }
 export function cast(value: float64): float32 { return value as float32; }
 export function explicitLiteral(): float32 { return 1e40 as float32; }
+export function explicitWrapped(): float32 { return (1e40) as float32; }
+export function explicitNegativeWrapped(): float32 { return (-1e40) as float32; }
+export function explicitWrappedMidpoint(): float32 { return (1.00000005960464477539062500000001) as float32; }
 export function defaultFloat(value: float32 = -1.5): float32 { return value; }
 export function readDefault(): float32 { return defaultFloat(); }
 `;
@@ -151,7 +154,9 @@ if (System.BitConverter.SingleToUInt32Bits(Subject.direct()) != 0x3F800001 ||
     System.BitConverter.SingleToUInt32Bits(Subject.realDouble()) != 0x3F800000 ||
     System.BitConverter.SingleToUInt32Bits(Subject.cast(-0D)) != 0x80000000 ||
     !float.IsPositiveInfinity(Subject.cast(1e40D)) || !float.IsNegativeInfinity(Subject.cast(-1e40D)) ||
-    !float.IsPositiveInfinity(Subject.explicitLiteral()) || Subject.readDefault() != -1.5F)
+    !float.IsPositiveInfinity(Subject.explicitLiteral()) || !float.IsPositiveInfinity(Subject.explicitWrapped()) ||
+    !float.IsNegativeInfinity(Subject.explicitNegativeWrapped()) ||
+    System.BitConverter.SingleToUInt32Bits(Subject.explicitWrappedMidpoint()) != 0x3F800000 || Subject.readDefault() != -1.5F)
     throw new System.Exception("authored versus actual double native conversion");
 if (Subject.actualDecimal() != (decimal)9007199254740992D ||
     Subject.decimalCast(-0D) != (decimal)(-0D))

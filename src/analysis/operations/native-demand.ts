@@ -435,7 +435,8 @@ export function analyzeCsharpNativeDemand(
     erasedExpressions.set(expression, false);
     const operand = sourceTransparentExpressionOperand(ast, expression);
     const declaration = ast.is.IsIdentifier(expression) ? input.navigation.sourceReferenceFor(expression)?.declaration : undefined;
-    const initializer = declaration === undefined || !ast.is.IsVariableDeclaration(declaration)
+    const initializer = declaration === undefined || !ast.is.IsVariableDeclaration(declaration) ||
+      !input.navigation.isProjectDeclaration(declaration) || input.navigation.declarationUseSummary(declaration).bindingWritten
       ? undefined : ast.as.AsVariableDeclaration(declaration)?.Initializer;
     const discardedBinding = initializer !== undefined && erasedExpression(initializer) === "discarded-callable";
     const erased = input.evidence.compileTimeMetadata.get(expression) ? "erased-statement" :

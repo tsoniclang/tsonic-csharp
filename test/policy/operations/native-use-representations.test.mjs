@@ -19,6 +19,8 @@ const checked = checkCsharpSource({ sourceText: `
   export const callback = () => binary;
   export const choice = true ? binary : binary;
   export const wide = 1e40;
+  export const wideWrapped = (1e40);
+  export const wideSatisfied = 1e40 satisfies number;
 ` });
 assert.equal(checked.sourceDiagnosticsText === "", true, checked.sourceDiagnosticsText);
 const source = createTargetSourceProgram(checked.source);
@@ -100,11 +102,11 @@ test("an explicit native float32 cast constructs the finite double literal befor
   const input = { ...base(expression), target: single, mode: "explicit",
     literal: selectCsharpExactLiteralConversion(literal, single),
     sourceLiteral: selectCsharpExactLiteralConversion(literal, floating) };
-  assert.equal(input.literal.kind === "rejected" && input.sourceLiteral.kind === "resolved", true,
+  assert.equal(input.literal.kind === "rejected" && input.sourceLiteral.kind === "source-representation", true,
     "the actual token exceeds the direct float32 literal range but remains a finite native double literal");
   const selected = selectCsharpNativeUseRepresentation(input);
   assert.equal(selected.kind === "selected" && selected.representation === "convert" && selected.carrier === floating &&
-    selected.literal === input.sourceLiteral.recipe && selected.construction?.carrier === floating &&
+    selected.literal === undefined && selected.construction?.carrier === floating &&
     selected.children[0] === selected.construction.site, true,
   "one actual double construction precedes the admitted native explicit cast; no out-of-range F token is emitted");
   const implicit = selectCsharpNativeUseRepresentation({ ...input, mode: "implicit" });
@@ -117,6 +119,26 @@ test("an explicit native float32 cast constructs the finite double literal befor
   const rejected = selectCsharpNativeUseRepresentation({ ...input, sourceLiteral: sourceRefusal });
   assert.equal(rejected.kind === "pending" && rejected.reason === "literal-rejected" &&
     rejected.message === sourceRefusal.reason, true, "a rejected source construction is never rescued by its destination cast");
+});
+
+test("an explicit floating cast retains exact wrapper children instead of a direct target literal", () => {
+  const single = Object.freeze({ kind: "source-primitive", name: "float32" });
+  const values = analyzeSourceLiteralValues(ast, source.sourceFiles);
+  for (const name of ["wideWrapped", "wideSatisfied"]) {
+    const expression = initializer(name);
+    const operand = ast.is.IsParenthesizedExpression(expression) ? ast.as.AsParenthesizedExpression(expression).Expression
+      : ast.as.AsSatisfiesExpression(expression).Expression;
+    const literal = values.literalValue.get(expression);
+    const input = { ...base(expression), target: single, mode: "explicit",
+      literal: selectCsharpExactLiteralConversion(literal, single),
+      sourceLiteral: selectCsharpExactLiteralConversion(literal, floating) };
+    assert.equal(selectCsharpNativeUseRepresentation(input).reason, "forwarding-child-unresolved", name);
+    const child = edge(input, operand, { kind: "operand", position: "only" }, single);
+    const selected = selectCsharpNativeUseRepresentation(input);
+    assert.equal(selected.kind === "selected" && selected.representation === "forward" && selected.carrier === single &&
+      selected.literal === undefined && selected.children.length === 1 && selected.children[0] === child, true,
+    `${name}: the actual admitted child performs the native cast once, never a substituted out-of-range F literal`);
+  }
 });
 
 test("the exact native consumer selects raw storage once without undoing unrelated value refinement", () => {
