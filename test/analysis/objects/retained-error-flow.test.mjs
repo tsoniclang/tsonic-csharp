@@ -16,7 +16,7 @@ import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index
 import { createCsharpErrorStorageDemandQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
 import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
 import { collectCsharpCapabilityContributions } from "../../../dist/providers/native/acquisition/contributions.js";
-import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/relations.js";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { csharpExceptionTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
 test("retained-provider catch reads select exact readonly C# Error flow and observation facts", () => {

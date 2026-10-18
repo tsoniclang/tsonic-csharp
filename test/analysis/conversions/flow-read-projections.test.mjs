@@ -4,7 +4,7 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { resolvedTargetStage, runTargetCompilationStages } from "@tsonic/target-api/artifacts";
 import { checkCsharpSource, assertCsharpCheckingSucceeded, compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
-import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/relations.js";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
 import { planFlowReadUseSiteProjection } from "../../../dist/backend/planner/expressions/flow-read-projections.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";

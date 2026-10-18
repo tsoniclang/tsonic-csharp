@@ -3,14 +3,14 @@ import type {
 } from "@tsonic/tsts";
 import type {
   TargetBindingFact,
-} from "../../target-model/types/model.js";
+} from "../../../target-model/types/model.js";
 import type {
   DotnetReflectionTypeDataProvider,
-} from "./acquisition/provider.js";
+} from "../acquisition/provider.js";
 import {
   resolveDotnetProviderTargetRelations,
-} from "./projection/target-relation-resolver.js";
-import type { CsharpProviderTargetRelation } from "../../target-model/identities/provider-relations.js";
+} from "./target-relation-resolver.js";
+import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import {
   assertCsharpProviderPolicyIsNonContradictory,
   createCsharpProviderRejectionCatalog,
@@ -19,18 +19,18 @@ import {
   providerSignatureSourceIdentity,
   providerTypeSourceIdentity,
   providerValueSourceIdentity,
-} from "../model/provider-relations.js";
+} from "../../model/provider-relations.js";
 import type {
   CsharpProviderPolicyContribution,
-} from "../model/provider-policy-contribution.js";
-import { canonicalProviderValue } from "../model/canonical-value.js";
+} from "../../model/provider-policy-contribution.js";
+import { canonicalProviderValue } from "../../model/canonical-value.js";
 import {
   csharpBuiltInProviderPolicies,
-} from "../builtins/source-semantic-relations.js";
+} from "../../builtins/source-semantic-relations.js";
 import type {
   CsharpProviderRelationResolution,
   CsharpProviderRelationResolver,
-} from "../model/relation-resolver.js";
+} from "../../model/relation-resolver.js";
 
 export interface CsharpProviderRelationResolverInputs {
   readonly providers: readonly DotnetReflectionTypeDataProvider[];

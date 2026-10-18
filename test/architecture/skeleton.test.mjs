@@ -10,7 +10,7 @@ test("C# responsibility folders replace their superseded locations", () => {
     ["src/providers/native/reflection", "src/providers/native/acquisition"],
     ["src/providers/native/declarations", "src/providers/native/projection/declarations"],
     ["src/providers/native/modules", "src/providers/native/projection"],
-    ["src/providers/relations", "src/providers/native/relations.ts"],
+    ["src/providers/relations", "src/providers/native/projection/relation-resolution.ts"],
     ["src/policy/js-value-operations", "src/policy/operations/js-values"],
     ["src/policy/conversions/selection", "src/policy/conversions"],
     ["src/target-model/contracts", "src/target-model/identities"],
@@ -26,7 +26,7 @@ test("C# responsibility folders replace their superseded locations", () => {
       assert.equal(statSync(resolve(root, after)).isFile(), true, after);
     }
   }
-  for (const removed of ["src/providers/native/model/contract", "src/providers/native/model/contract.ts", "src/providers/native/projection/modules", "src/providers/native/relations", "src/providers/native/contributions.ts", "src/providers/native/diagnostics.ts", "src/providers/native/provider.ts"]) {
+  for (const removed of ["src/providers/native/model/contract", "src/providers/native/model/contract.ts", "src/providers/native/projection/modules", "src/providers/native/relations", "src/providers/native/relations.ts", "src/providers/native/contributions.ts", "src/providers/native/diagnostics.ts", "src/providers/native/provider.ts"]) {
     assert.equal(existsSync(resolve(root, removed)), false, removed);
   }
   for (const destination of ["src/providers/native/model/normalization/index.ts", "src/providers/native/acquisition/contributions.ts", "src/providers/native/model/diagnostics.ts", "src/providers/native/projection/provider.ts", "src/providers/model/provider-relations.ts", "src/providers/native/projection/module-lookup.ts", "src/providers/native/projection/module-native-array.ts", "src/providers/native/projection/module-request.ts", "src/providers/native/projection/module-slices.ts", "src/providers/native/projection/module-specifier.ts"]) {

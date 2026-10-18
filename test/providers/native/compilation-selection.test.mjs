@@ -3,7 +3,7 @@ import test from "node:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createTestWorkspace } from "../../../../tsonic/test/scripts/test-workspaces.mjs";
-import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/relations.js";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { createDotnetReflectionTypeDataProvider } from "../../helpers/dotnet-reflection-provider.mjs";
 import { providerDeclaration } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
 import { csharpProviderPolicyContribution } from "../../../dist/public/provider.js";

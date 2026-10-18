@@ -6,7 +6,7 @@ import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSourc
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { createCsharpSourceNameBuilder } from "../../../dist/analysis/names/source-names.js";
 import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
-import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/relations.js";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
 import { createCsharpSyntheticNames } from "../../../dist/backend/planner/names/synthetic.js";

@@ -3,7 +3,7 @@ import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
-import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/relations.js";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
 import { getCsharpDelegateSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";

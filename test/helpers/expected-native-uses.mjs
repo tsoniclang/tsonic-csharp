@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { analyzeSourceLiteralValues, createTargetSourceProgram } from "@tsonic/target-api/source";
 import { analyzeCsharpExpectedTypes } from "../../dist/analysis/expected-types/analyze.js";
 import { compileCsharpTarget } from "../../dist/backend/compile.js";
-import { createCsharpProviderRelationResolver } from "../../dist/providers/native/relations.js";
+import { createCsharpProviderRelationResolver } from "../../dist/providers/native/projection/relation-resolution.js";
 import { compileCsharpSource } from "./direct-csharp-session.mjs";
 
 export function compileCsharpNativeUseSource(options) {
