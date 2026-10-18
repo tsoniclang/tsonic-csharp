@@ -97,6 +97,7 @@ export function createCsharpProgramRecords(
     requiresModuleInitializer: input.moduleInitialization.requiresModuleInitializer,
     asyncModuleInitializer: input.moduleInitialization.asyncModuleInitializer,
     callableVisibility: input.moduleInitialization.callableVisibility,
+    moduleBindingInitialization: input.moduleInitialization.moduleBindingInitialization,
     int32Remainder: input.numericRepresentations.int32Remainder,
     awaitCompletion: input.operations.awaitCompletion,
     classPropertyStorage: input.operations.classPropertyStorage,
