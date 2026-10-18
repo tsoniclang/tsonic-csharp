@@ -6,6 +6,7 @@ import { createTestWorkspace } from "../../../../../tsonic/test/scripts/test-wor
 import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/relations/resolver.js";
 import { createDotnetReflectionTypeDataProvider } from "../../../helpers/dotnet-reflection-provider.mjs";
 import { providerDeclaration } from "../../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
+import { csharpProviderPolicyContribution } from "../../../../dist/public/provider.js";
 
 test("compilation selection reuses exact immutable facts, not spelling or partial identities", () => {
   const requests = [];
@@ -47,4 +48,29 @@ test("compilation reference validation retains the reflection provider's actual 
   assert.equal(diagnostics.length, 1);
   assert.equal(diagnostics[0].extensionCode, "DOTNET_REFLECTION_REFERENCES_MUTATED");
   assert.match(diagnostics[0].message, /reference assemblies changed/u);
+});
+
+test("physical target bindings share the exact native relation catalog without inventing source declarations", () => {
+  const binding = {
+    id: "Fixture.IWritable",
+    sourceName: "IWritable",
+    targetName: "Fixture.IWritable",
+    target: "csharp",
+    kind: "interface",
+    csharpType: { kind: "target-named", id: "Fixture.IWritable", csharpAllowsRefLikeTypeArguments: [] },
+  };
+  const contribution = targetBindings => csharpProviderPolicyContribution({ providerId: "fixture.physical", providerVersion: "1", targetBindings, relations: [], rejections: [] });
+  const resolver = createCsharpProviderRelationResolver({ providers: [], providerPolicies: [contribution([binding])] });
+  assert.equal(resolver.findTargetBindingByTargetId(binding.id)?.kind, "interface");
+  assert.equal(resolver.findTargetBindingByMetadataName(binding.targetName)?.id, binding.id);
+  assert.equal(resolver.findTargetBindingByTargetId("Fixture.Other"), undefined);
+  assert.equal(resolver.resolveType(providerDeclaration({ providerId: "fixture.physical", providerVersion: "1" })).kind, "resolved");
+  assert.equal(resolver.resolveType(providerDeclaration({ providerId: "fixture.physical", providerVersion: "1" })).relations.length, 0);
+  const equal = Object.fromEntries(Object.entries(binding).reverse());
+  assert.doesNotThrow(() => createCsharpProviderRelationResolver({ providers: [], providerPolicies: [contribution([binding, equal])] }), "identical native identity independent of object field order");
+  assert.throws(
+    () => createCsharpProviderRelationResolver({ providers: [], providerPolicies: [contribution([binding, { ...binding, kind: "class" }])] }),
+    { message: "C# provider relation contributions define incompatible target binding 'Fixture.IWritable'." },
+    "contradictory physical identity is refused before analysis",
+  );
 });
