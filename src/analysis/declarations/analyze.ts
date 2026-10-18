@@ -33,6 +33,7 @@ import {
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpRuntimeParameterDefault } from "../../target-model/types/parameter-defaults.js";
 import { selectCsharpDefaultValueContract } from "../../policy/types/objects/binding-projection-policy.js";
+import { csharpSourceAnnotationCoversRepresentation } from "../../policy/types/resolution/representation.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpValueReadStageIndex } from "../../target-model/records/conversions.js";
@@ -96,16 +97,15 @@ export function analyzeCsharpDeclarations(
         const signature = contextual === undefined ? undefined : getCsharpDelegateSignature(contextual);
         const index = owner === undefined ? -1 : policy.ast.parameters(owner).indexOf(node);
         const incoming = index < 0 ? undefined : signature?.parameters[index];
-        const value = incoming === undefined ? undefined : getCsharpNullableElementTargetType(incoming);
         const source = evidence.expressionType.get(parameter.Initializer);
         const queries = policy.semanticsFor(node);
         const members = source === undefined ? [] : queries.types.isUnion(source)
           ? queries.types.unionOrIntersectionTypes(source) : [source];
         const presentInitializer = members.length > 0 && members.every(member =>
           member !== undefined && !queries.types.isNullish(member) && !queries.types.isAny(member) && !queries.types.isUnknown(member));
-        const runtimeDefault = incoming !== undefined && value !== undefined && presentInitializer
-          ? csharpRuntimeParameterDefault(parameter.Type === undefined ? value : selected, incoming)
-          : csharpRuntimeParameterDefault(selected);
+        const value = parameter.Type === undefined && incoming !== undefined && presentInitializer
+          ? getCsharpNullableElementTargetType(incoming) ?? incoming : selected;
+        const runtimeDefault = csharpRuntimeParameterDefault(value, incoming);
         if (runtimeDefault !== undefined) {
           const slot = owner === undefined ? undefined : queries.types.declarationSignatureInfo(owner)
             ?.parameters.find(parameter => parameter.declaration === node);
@@ -166,14 +166,24 @@ function classifyReturnContract(
     : evidence.nodeTargetType.get(authoredReturnNode);
   const pointer = evidence.pointerReturn.get(declaration);
   if (authoredReturnNode !== undefined) {
-    return authoredReturnType === undefined
-      ? {
-          kind: "rejected",
-          reason:
-            "The authored source callable return type has no closed C# representation.",
-        }
-      : { kind: "resolved", type: authoredReturnType,
-          ...(pointer === undefined ? {} : { undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined }) };
+    if (authoredReturnType === undefined) return {
+      kind: "rejected", reason: "The authored source callable return type has no closed C# representation.",
+    };
+    const semantics = policy.semanticsFor(authoredReturnNode);
+    const source = semantics.types.authoredType(authoredReturnNode);
+    const observed: TargetTypeRef[] = [];
+    let incomplete = false;
+    collectDirectReturnExpressions(policy, declaration, expression => {
+      const actual = valueReadStages.get(expression)?.returnedValue;
+      if (actual === undefined) incomplete = true;
+      else observed.push(actual);
+    });
+    const candidates = source === undefined ? [] : observed.filter(actual =>
+      csharpSourceAnnotationCoversRepresentation(source, authoredReturnType, actual, semantics, policy.ast, policy.typeDefinitions));
+    const selected = !incomplete && candidates.length > 0
+      ? selectCsharpCommonImplicitTarget(policy, observed, candidates) : undefined;
+    return { kind: "resolved", type: selected?.kind === "resolved" ? selected.target : authoredReturnType,
+      ...(pointer === undefined ? {} : { undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined }) };
   }
   if (baseline === undefined) {
     return {
@@ -289,6 +299,14 @@ function observedNumericCarrierCoversBaseline(
   baseline: TargetTypeRef,
 ): boolean {
   if (targetTypeRefEquals(source, baseline)) return true;
+  const sourceArms = getCsharpRuntimeUnionArms(source, policy.typeDefinitions);
+  const baselineArms = getCsharpRuntimeUnionArms(baseline, policy.typeDefinitions);
+  if (sourceArms !== undefined || baselineArms !== undefined) {
+    const actual = sourceArms ?? [source];
+    const erased = baselineArms ?? [baseline];
+    return actual.every(arm => erased.some(alternative => observedNumericCarrierCoversBaseline(policy, arm, alternative))) &&
+      erased.every(alternative => actual.some(arm => observedNumericCarrierCoversBaseline(policy, arm, alternative)));
+  }
   if (source.kind === "source-primitive") {
     if (nativeIntegralKinds.has(source.name) && targetTypeRefEquals(baseline, csharpBigIntegerTargetType())) return true;
     return baseline.kind === "source-primitive" && baseline.name === "float64" &&

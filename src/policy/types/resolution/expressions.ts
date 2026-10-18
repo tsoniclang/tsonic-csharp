@@ -319,7 +319,8 @@ export function resolveProjectThisTargetType(
   { host }: CsharpTypeResolutionScope,
   node: Node,
 ): TargetTypeRef | undefined {
-  if (host.ast.kindName(node) !== "KindThisKeyword" && !host.ast.is.IsThisTypeNode(node)) {
+  const base = host.ast.kindName(node) === "KindSuperKeyword";
+  if (!base && host.ast.kindName(node) !== "KindThisKeyword" && !host.ast.is.IsThisTypeNode(node)) {
     return undefined;
   }
   let current = host.ast.parent(node);
@@ -354,6 +355,7 @@ export function resolveProjectThisTargetType(
       );
       return owner === undefined
         ? undefined
+        : base ? host.projectTypes().heritageForDeclaration(owner.declaration)?.baseType
         : host.projectTypeCatalog.targetTypeForDeclaration(
             owner.declaration,
             owner.typeParameterBindings,

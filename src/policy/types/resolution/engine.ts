@@ -80,6 +80,7 @@ import {
   targetPreservesAuthoredSourcePrimitiveFacts as targetPreservesAuthoredSourcePrimitiveFactsImplementation,
   collectTargetSourcePrimitiveNames as collectTargetSourcePrimitiveNamesImplementation,
   resolveSourceValueDeclaration as resolveSourceValueDeclarationImplementation,
+  type CsharpSourceValueDeclarationSelection,
 } from "./source-references.js";
 import {
   resolveAuthoredAndSelectedSourceType as resolveAuthoredAndSelectedSourceTypeImplementation,
@@ -350,7 +351,7 @@ export interface CsharpTypeResolutionScope {
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   selectedType?: Type,
-): TargetTypeRef | undefined;
+): CsharpSourceValueDeclarationSelection | undefined;
   resolveAuthoredAndSelectedSourceType(
   authoredTypeNode: Node | undefined,
   authoredSourceFile: SourceFile,

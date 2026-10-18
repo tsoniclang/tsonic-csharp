@@ -63,7 +63,7 @@ export const csharpNativeSourceProfileCallPolicies:
           context.sourceFile,
         );
         const resultType = context.host.types.resolveType(
-          context.source.sourceResultType,
+          context.host.semantics(context.sourceFile).operations.callResult(context.source)?.selectedReturnType,
           context.sourceFile,
         );
         if (

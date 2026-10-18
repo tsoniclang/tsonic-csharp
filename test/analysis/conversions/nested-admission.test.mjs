@@ -5,7 +5,7 @@ import { csharpOperationConversionIssue, csharpSelectedCallConversionIssue } fro
 import { elementSelectedTypes } from "../../../dist/analysis/operations/member-access.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
 import { csharpDelegateTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
-  csharpSourcePrimitiveTargetType, csharpStringTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
+  csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTaskTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
 const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined }, target: {} };
 const stringType = csharpStringTargetType();
@@ -52,6 +52,34 @@ test("runtime-union arm admission checks both the destination arm and its nested
       kind: "rejected", reason: "C# runtime-union construction requires one exact source arm and a renderable closed union carrier.",
     });
   }
+});
+
+test("generic TaskResolve argument admission preserves the complete unique nested injection tree", () => {
+  const part = Object.freeze({ kind: "type-parameter", identity: "resolve:Part", name: "Part" });
+  const number = csharpSourcePrimitiveTargetType("float64");
+  const result = csharpRuntimeUnionTargetType([number, part]);
+  const input = csharpRuntimeUnionTargetType([result, csharpTaskTargetType(result)]);
+  const injection = selectCsharpConversion(policy, part, input, "implicit");
+  assert.equal(injection.kind === "implicit" && injection.proof === "runtime-union-arm" &&
+    injection.sourceToArm.kind === "implicit" && injection.sourceToArm.proof === "runtime-union-arm", true,
+  "the canonical selector supplies both physical native constructors");
+  assertAdmitted(part, input, injection);
+  const source = csharpDelegateTargetType("System.Action", [input]);
+  const target = csharpDelegateTargetType("System.Action", [part]);
+  const selected = selectCsharpConversion(policy, source, target, "implicit");
+  assert.equal(selected.kind === "delegate-adapter" && selected.strategy === "adaptation" &&
+    selected.parameterConversions.length === 1 && selected.parameterConversions[0].proof === "runtime-union-arm" &&
+    selected.parameterConversions[0].sourceToArm.proof === "runtime-union-arm", true,
+  "delegate contravariance consumes the same source-to-input injection, not a reversed or flattened pair");
+  assertAdmitted(source, target, selected);
+  const malformed = { ...injection, sourceToArm: { ...injection.sourceToArm, armIndex: 0 } };
+  assert.equal(admitCsharpConversionSelection(policy, part, input, malformed).kind, "rejected",
+    "a wrong inner arm remains rejected at admission");
+  assert.equal(admitCsharpConversionSelection(policy, { ...part, identity: "foreign:Part" }, input, injection).kind, "rejected",
+    "a foreign same-spelled binder cannot reuse a valid injection");
+  const borrowed = { ...target, csharpDelegateSignature: { ...target.csharpDelegateSignature, parameterPassingModes: ["byref-readonly"] } };
+  assert.equal(selectCsharpConversion(policy, source, borrowed, "implicit").kind, "rejected",
+    "nested value adaptation does not relax an exact native managed-reference contract");
 });
 
 test("delegate admission uses contravariant parameter and covariant return carrier pairs", () => {

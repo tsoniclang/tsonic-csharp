@@ -7,6 +7,8 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import type { CsharpFrameClosure } from "../../target-model/records/capture-storage.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
+import { csharpCallableCaptureRoots } from "./capture-closures.js";
 
 const maximumGenericClosureCaptures = 131_072;
 
@@ -15,6 +17,7 @@ export function selectCsharpGenericFrameClosures(
   groups: Map<Node, Map<Node, TargetTypeRef>>,
   physicalType: (declaration: Node, type: TargetTypeRef) => TargetTypeRef,
   issues: CsharpStorageIssue[],
+  declarations: Pick<CsharpDeclarationClassifications, "runtimeDefault">,
 ): readonly CsharpFrameClosure[] {
   const selected: CsharpFrameClosure[] = [];
   let capturesCount = 0;
@@ -30,7 +33,7 @@ export function selectCsharpGenericFrameClosures(
         issues.push({ node, code: "CSHARP_GENERIC_CALLABLE_CONTRACT_NOT_CLOSED",
           message: "A generic callable value requires its exact quantified native invocation contract." });
       } else {
-        const lexical = sourceLexicalCaptures(node, [node], source.ast, source.navigation, "source");
+        const lexical = sourceLexicalCaptures(node, csharpCallableCaptureRoots(source, node, declarations), source.ast, source.navigation, "source");
         const captures = lexical.captures.filter(capture => !evidence.compileTimeMetadata.get(capture.declaration));
         capturesCount += captures.length + lexical.receivers.length + 1;
         if (capturesCount > maximumGenericClosureCaptures) {

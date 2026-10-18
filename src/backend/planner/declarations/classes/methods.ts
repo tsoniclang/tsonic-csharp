@@ -62,7 +62,7 @@ export function planMethodDeclaration(
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "method declaration", diagnostics, ["public", "private", "protected", "abstract", "override"]);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
   const callable = input.program.records.callableDispatch.get(node)?.implementation;
-  const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
+  const parameters = planParametersWithPrelude(node, sourceFile, input, diagnostics, state);
   const declaredReturnTargetType = callable?.returnType ?? getDeclarationReturnTargetType(
     declaration.Type,
     node,

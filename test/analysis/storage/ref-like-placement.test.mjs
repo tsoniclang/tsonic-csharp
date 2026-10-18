@@ -127,14 +127,20 @@ test("constraint carriers use their single exact source or native producer witho
   const providers = { findTargetBindingByTargetId() { nativeLookups += 1; return undefined; } };
   const arguments_ = new Map([[parameter.identity, integer]]);
   const constraint = { kind: "implements", contract: sourceCarrier.id, typeArguments: [parameter] };
-  const catalog = { definitions: [sourceDefinition], targetTypeForDeclaration(selected, types) {
+  const catalog = { definitionForTarget(selected) {
+    assert.equal(selected.kind, "target-named", "the source lookup uses its canonical declaration identity kind");
+    assert.equal(selected.id, sourceCarrier.id, "the source lookup retains the exact contract identity");
+    assert.equal("typeArguments" in selected || "csharpAllowsRefLikeTypeArguments" in selected, false,
+      "the identity lookup does not fabricate generic arguments or native permission facts");
+    return sourceDefinition;
+  }, targetTypeForDeclaration(selected, types) {
     assert.equal(selected === declaration, true, "the source declaration identity is exact");
     assert.equal(types.length === 1 && types[0] === integer, true, "the canonical producer receives substituted arguments");
     return sourceCarrier;
   } };
   assert.equal(implementedConstraintType({ providers, projectTypes: { catalog } }, constraint, arguments_) === sourceCarrier,
     true, "source generic metadata is retained from its real carrier producer");
-  const missing = { definitions: [sourceDefinition], targetTypeForDeclaration() { return undefined; } };
+  const missing = { ...catalog, targetTypeForDeclaration() { return undefined; } };
   assert.equal(implementedConstraintType({ providers, projectTypes: { catalog: missing } }, constraint, arguments_) === undefined,
     true, "missing known-source proof is not native metadata");
   assert.equal(nativeLookups, 0, "a known source identity never falls through to a native provider");
@@ -142,7 +148,13 @@ test("constraint carriers use their single exact source or native producer witho
     { allowsRefLikeTypeArguments: [true] });
   const binding = { target: "csharp", id: nativeCarrier.id, kind: "interface", csharpType: nativeCarrier,
     typeParameters: [{ ...parameter, csharpAllowsRefLike: true }] };
-  const selected = implementedConstraintType({ projectTypes: { catalog: { definitions: [] } },
+  const selected = implementedConstraintType({ projectTypes: { catalog: { definitionForTarget(selected) {
+    assert.equal(selected.kind, "target-named", "the native lookup starts with the canonical declaration identity kind");
+    assert.equal(selected.id, nativeCarrier.id, "the native contract identity is exact");
+    assert.equal("typeArguments" in selected || "csharpAllowsRefLikeTypeArguments" in selected, false,
+      "a native identity lookup cannot guess its full carrier metadata");
+    return undefined;
+  } } },
     providers: { findTargetBindingByTargetId: id => id === nativeCarrier.id ? binding : undefined } },
   { kind: "implements", contract: nativeCarrier.id, typeArguments: [integer] }, new Map());
   assert.equal(selected?.kind, "target-named", "native constraints retain their real named carrier");

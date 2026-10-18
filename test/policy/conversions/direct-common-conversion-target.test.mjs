@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { csharpSourceAnnotationCoversRepresentation } from "../../../dist/policy/types/resolution/representation.js";
+import { csharpRuntimeParameterDefault } from "../../../dist/target-model/types/parameter-defaults.js";
+import { selectCsharpDefaultValueContract } from "../../../dist/policy/types/objects/binding-projection-policy.js";
 
 import {
   selectCsharpCommonImplicitTarget,
@@ -18,6 +23,9 @@ import {
   csharpVoidTargetType,
   csharpBigIntegerTargetType,
   csharpAbsenceTargetType,
+  targetTypeRefEquals,
+  targetTypeRefKey,
+  csharpTaskTargetType,
 } from "../../../dist/policy/types/index.js";
 import {
   reconcileInferredReturnTargetContract,
@@ -31,6 +39,94 @@ const host = {
 const int32 = csharpSourcePrimitiveTargetType("int32");
 const float64 = csharpSourcePrimitiveTargetType("float64");
 const string = csharpSourcePrimitiveTargetType("string");
+
+test("contextual default input metadata never admits an invalid native incoming-to-body conversion", () => {
+  const wide = csharpSourcePrimitiveTargetType("int64");
+  for (const [name, value, incoming, reason] of [
+    ["tuple width", { kind: "tuple", elements: [int32] },
+      csharpNullableTargetType({ kind: "tuple", elements: [wide] }),
+      "C# tuple implicit conversion requires every corresponding element conversion to be applicable."],
+    ["native width", int32, csharpNullableTargetType(wide)],
+    ["nullable body width", csharpNullableTargetType(int32), csharpNullableTargetType(wide)],
+  ]) {
+    const selected = csharpRuntimeParameterDefault(value, incoming);
+    assert.equal(selected?.valueType === value && selected.parameterType === incoming, true,
+      `${name}: the original exact body and incoming datums remain separate`);
+    const native = selectCsharpDefaultValueContract(selected.parameterType, selected.valueType, false);
+    const conversion = selectCsharpConversion(host, native.present, value, "implicit");
+    assert.equal(conversion.kind, "rejected", `${name}: the sole actual implicit-conversion owner refuses the original mismatch`);
+    assert.equal(conversion.reason, reason ??
+      `No exact C# implicit conversion relates '${targetTypeRefKey(native.present)}' to '${targetTypeRefKey(value)}'.`,
+    `${name}: the original native conversion refusal is precise, not a vocabulary-level unavailable default`);
+  }
+  const payload = csharpTargetNamedType("Fixture.Payload", [], undefined, { allowsRefLikeTypeArguments: [] });
+  const body = csharpTsValueTargetType();
+  const selected = csharpRuntimeParameterDefault(body, payload);
+  assert.equal(selected?.kind, "closed-value", "an actual non-nullable native input needs no fabricated absence state");
+  const native = selectCsharpDefaultValueContract(selected.parameterType, selected.valueType, false);
+  assert.equal(native.kind === "value" && native.source === payload && native.present === payload && native.target === body, true,
+    "the already-present native argument and independent boxed body storage share one actual default contract");
+  assert.equal(selectCsharpConversion(host, native.present, native.target, "implicit").kind, "js-value-box",
+    "the real supported native-to-body conversion remains admitted at its existing owner");
+});
+
+test("source union coverage selects physical storage without making native generic argument order equivalent", () => {
+  const checked = checkCsharpSource({ surface: "native", sourceText: `
+    class NativeBox<Value> {}
+    export function logical(value: string | number): void {}
+    export function optional(value: string | number | undefined): void {}
+    export function array(value: (string | number)[]): void {}
+    export function tuple(value: [string | number, boolean]): void {}
+    export function native(value: NativeBox<string | number>): void {}
+    export function task(value: Promise<string | number>): void {}
+  ` });
+  assert.equal(checked.sourceDiagnosticsText === "", true, checked.sourceDiagnosticsText);
+  const source = createTargetSourceProgram(checked.source);
+  const annotations = new Map();
+  const visit = node => {
+    if (source.ast.is.IsFunctionDeclaration(node)) {
+      const parameter = source.ast.parameters(node)[0];
+      const typeNode = parameter === undefined ? undefined : source.ast.typeNode(parameter);
+      if (typeNode !== undefined) annotations.set(source.ast.text(source.ast.name(node)), typeNode);
+    }
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of source.navigation.sourceFiles) visit(file);
+  const ordered = csharpRuntimeUnionTargetType([string, float64]);
+  const reversed = csharpRuntimeUnionTargetType([float64, string]);
+  const covers = (name, annotation, actual) => {
+    const node = annotations.get(name);
+    assert.equal(node !== undefined, true, `${name}: actual checked authored type node`);
+    const semantics = source.semantics.forNode(node);
+    const type = semantics.types.authoredType(node);
+    assert.equal(type !== undefined, true, `${name}: actual checked source type`);
+    return csharpSourceAnnotationCoversRepresentation(type, annotation, actual, semantics, source.ast);
+  };
+  assert.equal(covers("logical", reversed, ordered), true, "a logical source union covers the same exact native arms");
+  assert.equal(covers("optional", csharpNullableTargetType(reversed), csharpNullableTargetType(ordered)), true,
+    "one native absence state stays unchanged while the present logical arms retain their actual physical order");
+  assert.equal(covers("optional", csharpNullableTargetType(reversed), ordered), false,
+    "physical coverage never discards the actual authored absence state");
+  assert.equal(covers("array", { kind: "array", element: reversed }, { kind: "array", element: ordered }), true,
+    "a source array annotation can retain its actual ordered native element carrier");
+  assert.equal(covers("tuple", { kind: "tuple", elements: [reversed, csharpSourcePrimitiveTargetType("bool")] },
+    { kind: "tuple", elements: [ordered, csharpSourcePrimitiveTargetType("bool")] }), true,
+  "tuple positions stay ordered while their actual logical union elements retain selected arm layout");
+  for (const [label, annotation, actual] of [
+    ["missing arm", reversed, float64],
+    ["different native width", reversed, csharpRuntimeUnionTargetType([string, int32])],
+    ["different arm", reversed, csharpRuntimeUnionTargetType([string, csharpSourcePrimitiveTargetType("bool")])],
+    ["extra absence", reversed, csharpNullableTargetType(ordered)],
+    ["pointer", { kind: "pointer", pointee: reversed }, { kind: "pointer", pointee: ordered }],
+  ]) assert.equal(covers("logical", annotation, actual), false, `${label}: logical coverage never invents a native conversion`);
+  const native = element => csharpTargetNamedType("Fixture.NativeBox", [element], undefined, { allowsRefLikeTypeArguments: [false] });
+  assert.equal(covers("native", native(reversed), native(ordered)), false,
+    "ordinary native generic arguments keep exact physical order even when source arguments contain a union");
+  assert.equal(covers("task", csharpTaskTargetType(reversed), csharpTaskTargetType(ordered)), false,
+    "logical annotation coverage never introduces Task covariance");
+  assert.equal(selectCsharpConversion(host, { kind: "array", element: reversed }, { kind: "array", element: ordered }, "implicit").kind,
+    "rejected", "native arrays with different physical element types remain incompatible, not convertible by copying");
+});
 
 test("never supplies a bottom conversion without admitting void values", () => {
   const never = csharpNeverTargetType();
@@ -154,6 +250,26 @@ test("inferred compound results retain native numeric elements without collectio
   assert.equal(reconcileInferredReturnTargetContract(host,
     csharpNullableTargetType(csharpTargetNamedType("Other.Values", [float64], undefined, { allowsRefLikeTypeArguments: [false],})),
     [csharpTargetNamedType("Fixture.Values", [int32], undefined, { allowsRefLikeTypeArguments: [false],})], false).kind, "rejected");
+});
+
+test("inferred collection returns cover every physical numeric union arm without adding a checker carrier", () => {
+  const native = csharpRuntimeUnionTargetType([int32, csharpSourcePrimitiveTargetType("uint32"), float64]);
+  for (const [source, baseline] of [
+    [{ kind: "array", element: native }, { kind: "array", element: float64 }],
+    [{ kind: "tuple", elements: [native, string] }, { kind: "tuple", elements: [float64, string] }],
+    [csharpTargetNamedType("Fixture.Values", [native], undefined, { allowsRefLikeTypeArguments: [false] }),
+      csharpTargetNamedType("Fixture.Values", [float64], undefined, { allowsRefLikeTypeArguments: [false] })],
+  ]) {
+    const selected = reconcileInferredReturnTargetContract(host, baseline, [source], false);
+    assert.equal(selected.kind === "resolved" && targetTypeRefEquals(selected.type, source), true,
+      "all actual physical arms are preserved; no collection adapter or erased floating element is invented");
+  }
+  for (const [source, baseline] of [
+    [{ kind: "array", element: csharpRuntimeUnionTargetType([int32, string]) }, { kind: "array", element: float64 }],
+    [{ kind: "array", element: int32 }, { kind: "array", element: csharpRuntimeUnionTargetType([float64, string]) }],
+    [{ kind: "array", element: int32 }, { kind: "array", element: csharpRuntimeUnionTargetType([float64, csharpAbsenceTargetType()]) }],
+  ]) assert.equal(reconcileInferredReturnTargetContract(host, baseline, [source], false).kind, "rejected",
+    "both directions retain every genuine nonnumeric or absent baseline arm");
 });
 
 test("tuple conversions apply exact element conversions at equal arity", () => {

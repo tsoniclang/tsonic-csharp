@@ -321,14 +321,11 @@ function visit(
     jsConditionKey,
     selectCsharpJsValueCondition(policy, node, sourceFile),
   );
-  setClassification(
-    builder,
-    node,
-    jsTypeofKey,
-    selectCsharpJsTypeofOperation(policy, node, sourceFile),
-  );
   if (ast.is.IsTypeOfExpression(node)) {
     const operand = ast.as.AsTypeOfExpression(node)?.Expression;
+    if (operand !== undefined) {
+      setClassification(builder, operand, jsTypeofKey, selectCsharpJsTypeofOperation(policy, operand, sourceFile));
+    }
     const selected = operand === undefined ? undefined : getCsharpTypeofResult(policy.types.resolveNode(operand, sourceFile), undefined, policy.typeDefinitions);
     if (operand !== undefined && selected !== undefined) setClassification(builder, operand, typeofRuntimeKindKey, selected);
   }
@@ -453,8 +450,14 @@ function visit(
     if (receiverIssue !== undefined) issues?.push(receiverIssue);
     const optionalReceiver = receiverIssue === undefined ? selectedOptionalReceiver : undefined;
     const optionalCallee = classifyCsharpOptionalCallCallee(policy, source, sourceFile);
-    const sourceCall = source === undefined || target?.kind !== "source-owned" ? undefined
+    const unionCall = classifyCsharpUnionCall(policy, source, sourceFile);
+    let sourceCall = source === undefined || target?.kind !== "source-owned" ? undefined
       : classifyCsharpSourceCallee(policy, source, sourceFile);
+    if (unionCall.kind !== "resolved" && (sourceCall?.kind === "function" || sourceCall?.kind === "method") &&
+      !policy.navigation.isProjectDeclaration(sourceCall.declaration)) {
+      sourceCall = Object.freeze({ kind: "rejected",
+        reason: "The exact selected source callee is external to the project and has no C# target relation." });
+    }
     const sourceMethodValue = source === undefined || sourceCall?.kind !== "value" ? undefined
       : getCsharpMethodValue(policy.types.resolveNode(source.sourceCallee.expression, sourceFile));
     setClassification(builder, node, callKey, Object.freeze({
@@ -462,7 +465,7 @@ function visit(
       ...(sourceMethodValue === undefined ? {} : { sourceMethodValue }),
       ...(optionalReceiver === undefined ? {} : { optionalReceiver }),
       ...(optionalCallee === undefined ? {} : { optionalCallee }),
-      unionCall: classifyCsharpUnionCall(policy, source, sourceFile),
+      unionCall,
       ...(source === undefined ? {} : { source }),
       ...(sourceCall === undefined ? {} : { sourceCall }),
       ...(source === undefined || target?.kind !== "source-owned" && !(target?.kind === "resolved" &&

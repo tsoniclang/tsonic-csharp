@@ -97,7 +97,7 @@ export function analyzeCsharpCaptureStorage(
     bindings.set(capture.declaration, type);
     groups.set(scope, bindings);
   }
-  const genericClosures = selectCsharpGenericFrameClosures(source, evidence, groups, physicalType, issues);
+  const genericClosures = selectCsharpGenericFrameClosures(source, evidence, groups, physicalType, issues, declarations);
   const genericDeclarations = new Set(genericClosures.map(closure => closure.declaration));
   const frameClosures = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, genericDeclarations,
     { declarations, storage, expectedTypes });
@@ -211,15 +211,15 @@ export function analyzeCsharpCaptureStorage(
         const flow = source.navigation.expressionValueFlow(node);
         const invocationOnly = flow.passedAsArgument && hasOnlyInvocationArguments(node, source, operations);
         const selfIdentityObserved = (namedSelfBindings.get(node)?.values.length ?? 0) > 0;
-        const fresh = flow.identityCompared || flow.captured || flow.returned || flow.yielded ||
-          flow.storedOutsideBinding || flow.exported || flow.hasUnclassifiedUse || flow.memberWritten ||
-          flow.receiverUsed || flow.passedAsArgument && !invocationOnly || selfIdentityObserved;
         const staticBody = captureFreeDeclarations.has(node) && !selfIdentityObserved;
+        const fresh = !staticBody && (flow.identityCompared || flow.captured || flow.returned || flow.yielded ||
+          flow.storedOutsideBinding || flow.exported || flow.hasUnclassifiedUse || flow.memberWritten ||
+          flow.receiverUsed || flow.passedAsArgument && !invocationOnly || selfIdentityObserved);
         const directlyInvoked = !fresh && flow.aliasDeclarations.length === 0 && flow.uses.length > 0 &&
           flow.uses.every(use => use.kind === "direct-call" && use.role === "call-target");
         const creation: CsharpLambdaCreation = fresh ? { kind: "fresh", staticBody }
           : directlyInvoked ? { kind: "direct", staticBody }
-          : invocationOnly && staticBody ? { kind: "cached", staticBody: true } : { kind: "inline", staticBody };
+          : staticBody ? { kind: "cached", staticBody: true } : { kind: "inline", staticBody };
         lambdaCreations.set(node, Object.freeze(creation));
       }
     }

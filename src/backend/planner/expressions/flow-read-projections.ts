@@ -13,6 +13,7 @@ import {
 import type {
   CsharpExpression,
 } from "../../target-ast/syntax/index.js";
+import { requireCsharpNativeExpressionUse } from "./native-uses.js";
 
 export function planFlowReadUseSiteProjection(
   node: Node,
@@ -23,16 +24,21 @@ export function planFlowReadUseSiteProjection(
 ): CsharpExpression | undefined {
   if (input.storageExpression === node) return baseExpression;
   const projection = input.program.records.flowReadProjection.get(node);
-  if (projection?.kind === "identity") return baseExpression;
-  if (projection?.kind === "non-null") {
-    return { kind: "PostfixUnaryExpression", operand: baseExpression, operatorToken: { kind: "ExclamationToken" } };
-  }
-  if (projection?.kind !== "conversion" || projection.source === undefined || projection.target === undefined ||
-    projection.selection === undefined || projection.selection.kind === "rejected" || projection.selection.kind === "ambiguous") {
+  if (projection?.kind !== "identity" && projection?.kind !== "non-null" &&
+    (projection?.kind !== "conversion" || projection.source === undefined || projection.target === undefined ||
+    projection.selection === undefined || projection.selection.kind === "rejected" || projection.selection.kind === "ambiguous")) {
     return failCsharpPlannerInvariant(
       "C# planning received a source value without a valid sealed storage-read projection.",
       node,
     );
+  }
+  const use = requireCsharpNativeExpressionUse(input, node).use;
+  if (use.kind === "erased" || use.readProjection !== "storage" && use.readProjection !== "projected") {
+    return failCsharpPlannerInvariant("A native read requires its exact admitted storage or value projection.", node);
+  }
+  if (use.readProjection === "storage" || projection.kind === "identity") return baseExpression;
+  if (projection.kind === "non-null") {
+    return { kind: "PostfixUnaryExpression", operand: baseExpression, operatorToken: { kind: "ExclamationToken" } };
   }
   return applyCsharpConversionSelection(
     node,

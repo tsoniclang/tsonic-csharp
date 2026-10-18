@@ -28,7 +28,6 @@ export function planCsharpPlannedDiscard(
   planned: CsharpPlannedValue, explicit = false,
 ): readonly CsharpStatement[] {
   return consumeCsharpPlannedValue(planned, expression => {
-    if (csharpPlannedExpressionIsStable(expression)) return [];
     const statement = planCsharpDiscardedStatement(expression, planned.completion.carrier, explicit);
     return statement === undefined ? [] : [statement];
   });
@@ -56,6 +55,7 @@ export function planCsharpDiscardedStatement(
   if (isCsharpNeverTargetType(targetType)) {
     return { kind: "ThrowStatement", expression: planCsharpNeverValue(expression, qualifiedCsharpType("System", "Exception")) };
   }
+  if (csharpPlannedExpressionIsStable(expression)) return undefined;
   const discarded = explicit && targetType !== undefined
     ? planExplicitlyDiscardedExpression(expression, targetType)
     : planDiscardedExpression(expression, targetType);

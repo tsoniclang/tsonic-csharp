@@ -13,6 +13,7 @@ import { resolveSelectedValueWithState } from "../../../dist/policy/types/resolu
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { createCsharpSourceUnionIndex } from "../../../dist/policy/types/resolution/source-unions.js";
+import { sourceValueDeclarationSyntax } from "../../../dist/policy/types/resolution/calls.js";
 
 test("native nominal guard selection completes partial typeof evidence through the exact constructor owner", () => {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
@@ -155,6 +156,7 @@ test("selected native values materialize all surviving exact union arms and reta
       closedTypeGuard: () => undefined,
     },
     sourceValueDeclaration: (_node, referenced) => referenced,
+    sourceValueDeclarationSyntax: declaration => sourceValueDeclarationSyntax(scope, declaration),
     resolveTypeWithState: () => bytes,
     resolveNodeWithState: () => { assert.fail("a proven native subset must not reconstruct its checker carrier"); },
   };
@@ -220,6 +222,7 @@ function guardedArraySelection(body) {
       },
     },
     sourceValueDeclaration: (_node, referenced) => referenced,
+    sourceValueDeclarationSyntax: declaration => sourceValueDeclarationSyntax(scope, declaration),
     resolveNodeWithState: () => { assert.fail("scoped native storage must not reconstruct a checker carrier"); },
     resolveTypeWithState: () => { assert.fail("retained exact native source members must not be reclassified"); },
   };
@@ -290,6 +293,7 @@ test("exact nominal subclass evidence remains authoritative inside a native guar
       closedTypeGuard: () => undefined,
     },
     sourceValueDeclaration: (_node, referenced) => referenced,
+    sourceValueDeclarationSyntax: declaration => sourceValueDeclarationSyntax(scope, declaration),
     resolveTypeWithState: () => child,
     resolveNodeWithState: () => { assert.fail("nominal refinement must retain its exact scoped native storage"); },
   };

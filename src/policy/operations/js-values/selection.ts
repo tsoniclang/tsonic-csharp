@@ -284,7 +284,8 @@ export function selectCsharpJsTypeofOperation(
   operand: Node | undefined,
   sourceFile: SourceFile,
 ): CsharpJsValueOperationSelection {
-  const type = operand === undefined
+  const storage = operand === undefined ? undefined : input.types.resolveReadStorage(operand, sourceFile);
+  const type = isCsharpJsValueTargetType(storage) ? storage : operand === undefined
     ? undefined
     : input.types.resolveNode(operand, sourceFile);
   if (isCsharpJsValueTargetType(type)) {

@@ -134,26 +134,17 @@ const readOnlyArrayQueryRows = [
   },
   {
     sourceName: "indexOf",
-    parameters: (element: TargetTypeRef) => [
-      targetParameter("searchElement", element),
-      targetParameter("fromIndex", intType, { optional: true }),
-    ],
+    parameters: readOnlyArrayKeyParameters,
     result: intType,
   },
   {
     sourceName: "lastIndexOf",
-    parameters: (element: TargetTypeRef) => [
-      targetParameter("searchElement", element),
-      targetParameter("fromIndex", intType, { optional: true }),
-    ],
+    parameters: readOnlyArrayKeyParameters,
     result: intType,
   },
   {
     sourceName: "includes",
-    parameters: (element: TargetTypeRef) => [
-      targetParameter("searchElement", element),
-      targetParameter("fromIndex", intType, { optional: true }),
-    ],
+    parameters: readOnlyArrayKeyParameters,
     result: boolType,
   },
 ] as const;
@@ -363,24 +354,30 @@ function readOnlyArrayQueryMember(
   row: typeof readOnlyArrayQueryRows[number],
 ): ReturnType<JsSourceProfileTargetMemberFactory> {
   const shape = readOnlyArrayCallShape(context);
-  const arms = shape === undefined ? undefined : getCsharpRuntimeUnionArms(
-    getCsharpNullableElementTargetType(shape.element) ?? shape.element, context.host.typeDefinitions);
-  if ((row.sourceName === "includes" || row.sourceName === "indexOf" || row.sourceName === "lastIndexOf") &&
-    arms !== undefined && arms.every(arm => arm.kind === "source-primitive" && arm.name !== "bool")) {
-    return { kind: "rejected", diagnostic: csharpSourceProfileDiagnostic("CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED", 9101001,
-      `Array.${row.sourceName} over a numeric union requires an exact native cross-arm key equality relation.`) };
-  }
-  return shape === undefined
-    ? undefined
-    : receiverHelperMethod(
+  if (shape === undefined) return undefined;
+  const parameters = row.parameters(shape.element, context, row.sourceName);
+  if ("kind" in parameters) return parameters;
+  return receiverHelperMethod(
         `Tsonic.CSharp.Js.Array.${row.sourceName}`,
         row.sourceName,
         row.sourceName,
         arrayHelperType,
         shape.receiver,
-        row.parameters(shape.element),
+        parameters,
         row.result,
       );
+}
+
+function readOnlyArrayKeyParameters(
+  element: TargetTypeRef,
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+  sourceName: string,
+): readonly CsharpTargetParameter[] | Extract<ReturnType<JsSourceProfileTargetMemberFactory>, { readonly kind: "rejected" }> {
+  const arms = getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(element) ?? element, context.host.typeDefinitions);
+  return arms !== undefined && arms.every(arm => arm.kind === "source-primitive" && arm.name !== "bool")
+    ? { kind: "rejected", diagnostic: csharpSourceProfileDiagnostic("CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED", 9101001,
+        `Array.${sourceName} over a numeric union requires an exact native cross-arm key equality relation.`) }
+    : [targetParameter("searchElement", element), targetParameter("fromIndex", intType, { optional: true })];
 }
 
 function readOnlyArraySliceMember(

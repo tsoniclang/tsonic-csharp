@@ -13,10 +13,12 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-mode
 const integer = csharpSourcePrimitiveTargetType("int32");
 const number = csharpSourcePrimitiveTargetType("float64");
 const asyncDeclaration = {};
+const authoredDeclaration = {};
 const getter = {};
 const setter = {};
 const policy = { ast: {
   hasModifier: (node) => node === asyncDeclaration,
+  typeNode: node => node === authoredDeclaration ? {} : undefined,
   is: { IsGetAccessorDeclaration: (node) => node === getter },
 } };
 const evidence = { generator: { get: () => undefined } };
@@ -41,10 +43,17 @@ test("a contextual delegate selects the body return target before the declaratio
   assert.equal(awaited !== undefined && targetTypeRefEquals(awaited.target, number), true, "async delegate returns its Task result");
 });
 
+test("an authored return carrier retains the declaration body's native operations under a contextual delegate", () => {
+  const selected = selectCsharpCallableReturnContext(policy, evidence, callable(authoredDeclaration, integer),
+    csharpDelegateTargetType("System.Func", [], number));
+  assert.equal(selected !== undefined && targetTypeRefEquals(selected.target, integer), true,
+    "the declaration body uses native integer semantics; the delegate boundary owns its result conversion");
+});
+
 for (const [asynchronous, factory] of [[false, csharpGeneratorTargetType], [true, csharpAsyncGeneratorTargetType]]) {
   test(`a contextual ${asynchronous ? "async" : "sync"} generator body uses its protocol return type`, () => {
     const declaration = {};
-    const generatorPolicy = { ast: { hasModifier: () => asynchronous } };
+    const generatorPolicy = { ast: { hasModifier: () => asynchronous, typeNode: () => undefined } };
     const generatorEvidence = { generator: { get: node => node === declaration ? {} : undefined } };
     const declared = factory({ yieldType: integer, returnType: integer, nextType: integer });
     const contextual = factory({ yieldType: integer, returnType: number, nextType: integer });

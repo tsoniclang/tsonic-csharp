@@ -48,11 +48,19 @@ test("C# project declaration scopes preserve colliding authored names and exact 
     assert.equal(selected.csharpRender.name, definition.sourceName, "no authored recasing or suffixing");
     assert.deepEqual(selected.csharpRender.namespace, [definition.scopeName]);
     assert.equal(catalog.definitionForTarget(selected) === definition, true, "one identity owner");
+    assert.equal(catalog.definitionForTarget({ kind: "target-named", id: definition.id }) === definition,
+      true, "a canonical identity lookup does not fabricate native generic metadata");
     assert.equal(catalog.targetTypeForDeclaration(definition.declaration, [...arguments_, { kind: "source-primitive", name: "int32" }]) === undefined,
       true, "module scopes do not weaken generic arity");
   }
   assert.equal(scopes.size, 2);
   assert.equal(new Set(scopes.values()).size, 2, "separate source modules retain distinct native scopes");
+  assert.equal(catalog.definitionForTarget({ kind: "source-primitive", name: "int32" }) === undefined,
+    true, "a complete non-named native carrier is not a project declaration identity");
+  assert.equal(catalog.definitionForTarget({ kind: "target-named", id: "Missing.Project.Contract" }) === undefined,
+    true, "an unknown canonical identity cannot select another declaration");
+  assert.equal(catalog.definitionForTarget(undefined) === undefined,
+    true, "absence never manufactures a project declaration");
   const reversed = createCsharpProjectTypeCatalog({ ...host, navigation: { ...host.navigation,
     sourceFiles: [...host.navigation.sourceFiles].reverse() } });
   for (const definition of catalog.definitions) {

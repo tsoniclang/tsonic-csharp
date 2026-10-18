@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
+import type { TargetPlanningSourceNavigation, TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import type { CsharpNativeConstructInput } from "../../policy/operations/control-flow/native-constructs.js";
 import type { CsharpNativeOperandInput } from "../../policy/operations/control-flow/native-operands.js";
 import type { CsharpNativeUse, CsharpNativeUseClassifications } from "../../target-model/records/native-demand.js";
@@ -10,15 +10,18 @@ import type { CsharpExactLiteralSelectionIndex, CsharpNativePropertyKeyBinding }
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpSourceEvidenceResult } from "../source-evidence/model.js";
+import type { CsharpBindingPatternAnalysis } from "../control-flow/binding-patterns.js";
 
 export interface CsharpNativeDemandAnalysisInput extends Omit<CsharpNativeConstructInput, "baseCalls" | "unusedDefault">,
   Omit<CsharpNativeOperandInput, "unusedDefault"> {
+  readonly navigation: CsharpNativeConstructInput["navigation"] & Pick<TargetPlanningSourceNavigation, "declarationUseSummary">;
   readonly expected: CsharpExpectedNativeUseAdmission;
   readonly declarations: Pick<CsharpDeclarationClassifications, "runtimeDefault">;
   readonly objectShapes: Pick<CsharpObjectShapeClassifications, "resolveTarget">;
   readonly propertyKeyBindings: (expression: Node, carrier: TargetTypeRef) => readonly CsharpNativePropertyKeyBinding[] | undefined;
   readonly exactLiteral: CsharpExactLiteralSelectionIndex["exactLiteral"];
   readonly nativeExpressionIssues: CsharpSourceEvidenceResult["nativeExpressionIssues"];
+  readonly bindingPatterns: CsharpBindingPatternAnalysis;
 }
 
 export type CsharpNativeUnadmittedReason =

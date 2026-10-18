@@ -29,6 +29,8 @@ import { csharpCallableValueType } from "./value-type.js";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpCallableConversionPolicy } from "./adapters.js";
+import { sourceStorageCallableInputSlots, createSourceStorageBudget, defaultSourceStorageLimits,
+  type SourceStorageCallableInputSlot } from "@tsonic/target-api/analysis";
 
 export function analyzeCsharpCallableContracts(
   policy: CsharpPolicyContext,
@@ -60,7 +62,7 @@ export function analyzeCsharpCallableContracts(
     contracts[index] = contract;
   }
   for (const { declaration, sourceFile } of checkedDeclarations) {
-    const contract = sourceCallableContract(policy, evidence, declarations, names, declaration, sourceFile, projections, undefined);
+    const contract = sourceCallableContract(policy, evidence, declarations, names, declaration, sourceFile, projections, source, undefined);
     if (contract !== undefined) {
       byDeclaration.set(declaration, contract);
       contracts.push(contract);
@@ -114,6 +116,7 @@ export function analyzeCsharpCallableContracts(
         node,
         sourceFile,
         projections,
+        source,
         context?.inputTypes,
       );
       if (contract !== undefined) {
@@ -167,6 +170,7 @@ function sourceCallableContract(
   declaration: Node,
   sourceFile: SourceFile,
   projections: CsharpGenericProjectionIndex,
+  source: TargetSourceProgram,
   contextualInputs: readonly (TargetTypeRef | undefined)[] | undefined,
 ): CsharpSourceCallableContract | undefined {
   const returnContract = declarations.returnContract.get(declaration);
@@ -179,19 +183,22 @@ function sourceCallableContract(
     return undefined;
   }
   const parameters: CsharpSourceCallableParameterContract[] = [];
-  const checked = policy.semantics(sourceFile).types.declarationSignatureInfo(declaration);
+  const semantics = policy.semantics(sourceFile);
+  const checked = semantics.types.declarationSignatureInfo(declaration);
   if (checked === undefined) return undefined;
-  for (const [index, parameterNode] of
-    policy.ast.parameters(declaration).entries()) {
+  const budget = createSourceStorageBudget(defaultSourceStorageLimits);
+  const slots = sourceStorageCallableInputSlots(source, declaration, semantics,
+    { kind: "selected-signature", signature: checked.signature }, budget.step);
+  if (slots === undefined) return undefined;
+  for (const slot of slots) {
     const parameter = sourceParameterContract(
       policy,
       evidence,
       declarations,
       names,
-      parameterNode,
-      index,
-      contextualInputs?.[index],
-      checked.parameters.find(parameter => parameter.declaration === parameterNode)?.acceptsOmission,
+      slot,
+      contextualInputs?.[slot.effectiveIndex],
+      checked.parameters[slot.effectiveIndex]?.acceptsOmission,
     );
     if (parameter === undefined) {
       return undefined;
@@ -229,29 +236,32 @@ function sourceParameterContract(
   evidence: CsharpSourceEvidenceIndex,
   declarations: CsharpDeclarationClassifications,
   names: CsharpSourceNameResolver,
-  parameterNode: Node | undefined,
-  parameterIndex: number,
+  slot: SourceStorageCallableInputSlot,
   contextualInput: TargetTypeRef | undefined,
   acceptsOmission: boolean | undefined,
 ): CsharpSourceCallableParameterContract | undefined {
-  if (parameterNode === undefined) {
-    return undefined;
-  }
+  const parameterNode = slot.parameter;
+  if (slot.projection === undefined) return undefined;
   const parameter = AsParameterDeclaration(policy.ast, parameterNode);
   if (parameter === undefined) {
     return undefined;
   }
   if (parameter.DotDotDotToken === undefined && acceptsOmission === undefined) return undefined;
   const typeSubject = parameter.Type ?? parameter.name;
-  const selectedType = contextualInput ?? (typeSubject === undefined
+  const authoredType = typeSubject === undefined
     ? undefined
-    : evidence.nodeTargetType.get(typeSubject));
+    : evidence.nodeTargetType.get(typeSubject);
+  const component = slot.projection[0];
+  const selectedType = contextualInput ?? (component?.kind === "tuple-element"
+    ? authoredType?.kind === "tuple" ? authoredType.elements[component.index] : undefined
+    : authoredType);
   if (selectedType === undefined) {
     return undefined;
   }
   const questionToken = policy.ast.questionToken(parameterNode);
-  const targetType: TargetTypeRef = declarations.runtimeDefault.get(parameterNode)?.parameterType ??
-    (questionToken === undefined ? selectedType : csharpNullableTargetType(selectedType));
+  const targetType: TargetTypeRef = component?.kind === "tuple-element" ? selectedType
+    : declarations.runtimeDefault.get(parameterNode)?.parameterType ??
+      (questionToken === undefined ? selectedType : csharpNullableTargetType(selectedType));
   const resolvedName = HasSourceKind(
       policy.ast,
       parameter.name,
@@ -259,21 +269,21 @@ function sourceParameterContract(
     )
     ? names.resolve(parameter.name)
     : undefined;
-  const name = resolvedName?.kind === "resolved"
+  const sourceName = resolvedName?.kind === "resolved"
     ? resolvedName.name
-    : `__tsonic_param${parameterIndex}`;
+    : names.temporaryName(`__tsonic_param${slot.effectiveIndex}`);
+  const name = component?.kind === "tuple-element"
+    ? names.temporaryName(`__tsonic_${sourceName}_${component.index}`) : sourceName;
   const targetParameter: CsharpTargetParameter = Object.freeze({
     name,
     type: targetType,
     passingMode: "by-value",
-    ...(parameter.DotDotDotToken === undefined && acceptsOmission === true
+    ...(!slot.repeated && acceptsOmission === true
       ? { optional: true }
       : {}),
-    ...(parameter.DotDotDotToken === undefined
-      ? {}
-      : { paramsArray: true }),
+    ...(slot.repeated ? { paramsArray: true } : {}),
   });
-  return Object.freeze({ sourceParameter: parameterNode, targetParameter });
+  return Object.freeze({ sourceParameter: parameterNode, sourceProjection: slot.projection, targetParameter });
 }
 
 function constructorReturnType(
@@ -326,6 +336,7 @@ function projectConstructorContract(
     parameters: Object.freeze(constructor.source.parameters.map(
       (parameter, index) => Object.freeze({
         sourceParameter: parameter.parameterDeclaration,
+        sourceProjection: Object.freeze([]),
         targetParameter: constructor.targetMember.parameters[index]!,
       }),
     )),
@@ -364,6 +375,12 @@ function callableContractEquals(
       const other = right.parameters[index];
       return other !== undefined &&
         parameter.sourceParameter === other.sourceParameter &&
+        parameter.sourceProjection.length === other.sourceProjection.length &&
+        parameter.sourceProjection.every((projection, index) => {
+          const selected = other.sourceProjection[index];
+          return selected !== undefined && projection.kind === selected.kind &&
+            (projection.kind !== "tuple-element" || selected.kind === "tuple-element" && projection.index === selected.index);
+        }) &&
         targetParameterEquals(
           parameter.targetParameter,
           other.targetParameter,

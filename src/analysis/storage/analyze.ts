@@ -32,7 +32,9 @@ import type {
 } from "../objects/index.js";
 import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications, CsharpStorageIssue } from "../../target-model/records/storage.js";
 import { canConstructCsharpStorageLiteral } from "./literal-construction.js";
+import { csharpSourceAnnotationCoversRepresentation } from "../../policy/types/resolution/representation.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import type { CsharpSourceEvidenceResult } from "../source-evidence/model.js";
 
 interface MutableStorageContract {
   readonly declaration: Node;
@@ -47,6 +49,7 @@ const maximumStorageContracts = 131_072;
 export function analyzeCsharpStorage(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
+  nativeExpressionIssues: CsharpSourceEvidenceResult["nativeExpressionIssues"],
   operations: CsharpTargetOperationClassifications,
   objectShapes: CsharpObjectShapeClassifications,
   expectedTypes: CsharpExpectedTypeClassifications,
@@ -57,6 +60,7 @@ export function analyzeCsharpStorage(
   requiredRecords: CsharpRequiredRecord[],
 ): CsharpStorageRepresentationClassifications {
   const contracts = new Map<Node, MutableStorageContract>();
+  const refusedProducers = new Set(nativeExpressionIssues.map(issue => issue.sourceNode));
   const issues: CsharpStorageIssue[] = [];
   const nodes: Node[] = [];
 
@@ -171,6 +175,7 @@ export function analyzeCsharpStorage(
         recordPromotedRepresentation(node, expectedType);
       }
     }
+    recordInitializedRepresentation(node);
     recordCallableParameterRequirements(node);
     recordObjectLiteralSetterRequirement(node);
     recordOperationRequirements(node);
@@ -181,37 +186,57 @@ export function analyzeCsharpStorage(
     });
   }
 
+  function recordInitializedRepresentation(node: Node): void {
+    if (!policy.ast.is.IsVariableDeclaration(node)) return;
+    const variable = policy.ast.as.AsVariableDeclaration(node);
+    if (variable?.Type === undefined || variable.Initializer === undefined) return;
+    const annotation = evidence.nodeTargetType.get(variable.Type);
+    const actual = evidence.nodeTargetType.get(variable.Initializer);
+    if (annotation === undefined || actual === undefined || targetTypeRefEquals(annotation, actual)) return;
+    const semantics = policy.semanticsFor(variable.Type);
+    const source = semantics.types.authoredType(variable.Type);
+    if (source !== undefined && csharpSourceAnnotationCoversRepresentation(
+      source, annotation, actual, semantics, policy.ast, policy.typeDefinitions)) requireTargetType(node, node, actual);
+  }
+
   function recordCallableParameterRequirements(node: Node): void {
     const contextual = policy.ast.is.IsArrowFunction(node) || policy.ast.is.IsFunctionExpression(node);
     if (!contextual && !policy.ast.is.IsFunctionDeclaration(node) &&
       !policy.ast.is.IsMethodDeclaration(node) && !policy.ast.is.IsConstructorDeclaration(node)) {
       return;
     }
-    const parameters = policy.ast.parameters(node).filter(
-      (parameter): parameter is Node => parameter !== undefined,
-    );
+    const nativeContract = callables.get({ kind: "declaration", declaration: node });
+    if (nativeContract === undefined) return;
+    const parameters = nativeContract.parameters;
     const callableTarget = contextual ? expectedTypes.callableTarget.get(node) : undefined;
     const selectedSignature = callableTarget === undefined
       ? undefined
       : getCsharpLambdaSignature(callableTarget);
-    const nativeContract = contextual && callableTarget === undefined
-      ? callables.get({ kind: "declaration", declaration: node })
-      : undefined;
     const parameterTypes = selectedSignature === undefined
-      ? nativeContract?.parameters.map(parameter => parameter.targetParameter.type)
+      ? parameters.map(parameter => parameter.targetParameter.type)
       : selectedSignature.parameters;
     if (parameterTypes !== undefined) {
       if (parameters.length > parameterTypes.length) {
         issues.push(issue(
-          parameters[parameterTypes.length]!,
+          parameters[parameterTypes.length]!.sourceParameter,
           "CSHARP_LAMBDA_PARAMETER_ARITY_CONFLICT",
           "The source lambda declares more parameters than its exact selected C# delegate representation.",
         ));
         return;
       }
-      for (let index = 0; index < parameters.length; index += 1) {
-        const parameter = parameters[index]!;
-        const targetType = parameterTypes[index]!;
+      const grouped = new Map<Node, number[]>();
+      for (const [index, parameter] of parameters.entries()) {
+        const entries = grouped.get(parameter.sourceParameter);
+        if (entries === undefined) grouped.set(parameter.sourceParameter, [index]);
+        else entries.push(index);
+      }
+      for (const [parameter, indexes] of grouped) {
+        const index = indexes[0]!;
+        const first = parameters[index]!;
+        const tuple = first.sourceProjection[0]?.kind === "tuple-element";
+        const targetType: TargetTypeRef = tuple
+          ? Object.freeze({ kind: "tuple", elements: Object.freeze(indexes.map(index => parameterTypes[index]!)) })
+          : parameterTypes[index]!;
         const declaration = policy.ast.as.AsParameterDeclaration(parameter);
         const authored = declaration?.Type === undefined
           ? undefined
@@ -224,34 +249,37 @@ export function analyzeCsharpStorage(
           ? authored
           : csharpNullableTargetType(authored);
         const runtimeDefault = declarations.runtimeDefault.get(parameter);
-        if (
-          effectiveAuthored !== undefined &&
-          !targetTypeRefEquals(effectiveAuthored, targetType) &&
-          !(runtimeDefault !== undefined && targetTypeRefEquals(runtimeDefault.parameterType, targetType))
-        ) {
+        const valueType = runtimeDefault?.valueType ?? effectiveAuthored ?? targetType;
+        const incomingValue = runtimeDefault?.native.present ?? targetType;
+        const passingMode = selectedSignature === undefined ? first.targetParameter.passingMode
+          : selectedSignature.parameterPassingModes[index];
+        if (!targetTypeRefEquals(valueType, incomingValue)) {
           const adaptation = conversions.conversion.get(
-            targetType,
-            effectiveAuthored,
+            incomingValue,
+            valueType,
             "implicit",
           );
           if (
+            passingMode !== "by-value" ||
             adaptation === undefined ||
             !csharpConversionIsApplicable(adaptation, "implicit")
           ) {
             issues.push(issue(
               parameter,
               "CSHARP_LAMBDA_PARAMETER_TYPE_CONFLICT",
-              `The authored lambda parameter representation '${targetTypeRefKey(effectiveAuthored)}' cannot accept its exact selected C# delegate parameter representation '${targetTypeRefKey(targetType)}' through one closed implicit conversion.`,
+              `The authored lambda parameter representation '${targetTypeRefKey(valueType)}' cannot accept its exact selected C# delegate parameter representation '${targetTypeRefKey(incomingValue)}' through one closed implicit conversion.`,
             ));
             continue;
           }
+          requireCsharpRecord(requiredRecords, { family: "conversion", subject: parameter, source: incomingValue,
+            target: valueType, mode: "implicit", construct: "native parameter storage conversion", producer: "analyzeCsharpStorage" });
         }
-        requireTargetType(parameter, parameter, runtimeDefault?.valueType ?? effectiveAuthored ?? targetType);
+        requireTargetType(parameter, parameter, valueType);
         const contract = contracts.get(parameter);
         if (contract !== undefined) {
           requireCsharpRecord(requiredRecords, { family: "requiredStorageType", subject: parameter,
             construct: "adapted lambda parameter", producer: "analyzeCsharpStorage" });
-          contract.lambdaParameterType = targetType;
+          if (contextual) contract.lambdaParameterType = targetType;
         }
       }
     }
@@ -335,7 +363,8 @@ export function analyzeCsharpStorage(
           policy.ast.is.IsVariableDeclaration(declaration)
         ) {
           const variable = policy.ast.as.AsVariableDeclaration(declaration);
-          if (variable?.Type === undefined && variable?.Initializer !== undefined) {
+          if (variable?.Initializer !== undefined && (variable.Type === undefined ||
+            annotationCovers(variable.Type, requiredStorageType))) {
             requireTargetType(expression, declaration, requiredStorageType);
           }
         }
@@ -349,7 +378,8 @@ export function analyzeCsharpStorage(
       if (declaration === undefined || !policy.ast.is.IsVariableDeclaration(declaration) ||
         aliases.has(declaration)) return;
       const variable = policy.ast.as.AsVariableDeclaration(declaration);
-      if (variable?.Type !== undefined || variable?.Initializer === undefined) return;
+      if (variable?.Initializer === undefined || variable.Type !== undefined &&
+        !annotationCovers(variable.Type, requiredStorageType)) return;
       aliases.add(declaration);
       if (aliases.size > maximumStorageContracts) {
         issues.push(issue(expression, "CSHARP_STORAGE_ALIAS_BUDGET_EXCEEDED",
@@ -369,6 +399,14 @@ export function analyzeCsharpStorage(
       current = initializer;
     }
     for (const declaration of aliases) requireTargetType(expression, declaration, requiredStorageType);
+  }
+
+  function annotationCovers(typeNode: Node, actual: TargetTypeRef): boolean {
+    const semantics = policy.semanticsFor(typeNode);
+    const source = semantics.types.authoredType(typeNode);
+    const annotation = evidence.nodeTargetType.get(typeNode);
+    return source !== undefined && annotation !== undefined &&
+      csharpSourceAnnotationCoversRepresentation(source, annotation, actual, semantics, policy.ast, policy.typeDefinitions);
   }
 
   function recordOperationRequirements(node: Node): void {
@@ -538,6 +576,11 @@ export function analyzeCsharpStorage(
     expression: Node,
     declaration: Node,
   ): MutableStorageContract | undefined {
+    const variable = policy.ast.is.IsVariableDeclaration(declaration)
+      ? policy.ast.as.AsVariableDeclaration(declaration) : undefined;
+    if (variable?.Type === undefined && variable?.Initializer !== undefined &&
+      policy.ast.is.IsArrayLiteralExpression(variable.Initializer) &&
+      refusedProducers.has(variable.Initializer)) return undefined;
     let contract = contracts.get(declaration);
     if (contract !== undefined) {
       return contract;

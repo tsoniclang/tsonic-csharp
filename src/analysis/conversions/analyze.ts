@@ -205,7 +205,6 @@ export function analyzeCsharpConversions(
     for (const targetType of expectedTypes.expectedType.get(node)) {
       classifyArraySpreadElements(node, targetType, operations, valueReads);
     }
-    classifyUndefinedInitializer(node);
     classifyYieldResume(node);
     classifyCallUses(node, operations);
     classifySelectedTargetCallUses(operations.selectedCall.get(node)?.target ?? operations.selectedConstruction.get(node)?.target, valueReads);
@@ -277,22 +276,6 @@ export function analyzeCsharpConversions(
         classifyPair(element, elementTarget, "implicit", input.expression);
       }
     }
-  }
-
-  function classifyUndefinedInitializer(node: Node): void {
-    if (!policy.ast.is.IsVariableDeclaration(node)) {
-      return;
-    }
-    const declaration = policy.ast.as.AsVariableDeclaration(node);
-    if (declaration?.Initializer !== undefined) {
-      return;
-    }
-    classifyPair(
-      csharpAbsenceTargetType(),
-      evidence.storageTargetType.get(node),
-      "implicit",
-      node,
-    );
   }
 
   function classifyYieldResume(node: Node): void {

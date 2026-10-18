@@ -182,9 +182,15 @@ test("generic method type arguments come only from shared selected call evidence
     ["src/policy/operations/source-profiles/js/promises.ts", 2],
     ["src/policy/operations/source-profiles/js/regexp-protocol.ts", 1],
     ["src/policy/operations/source-profiles/source-profile-result.ts", 1],
+    ["src/policy/types/resolution/array-literals.ts", 1],
     ["src/policy/types/resolution/calls.ts", 3],
     ["src/policy/types/resolution/expressions.ts", 1],
   ]);
+  const arrayLiterals = readFileSync(join(repoRoot, "src/policy/types/resolution/array-literals.ts"), "utf8");
+  assert.match(arrayLiterals, /if \(entry\.explicitTypeNode === undefined\) return false;/u,
+    "array destinations consume an actual checked explicit-binder contribution");
+  assert.match(arrayLiterals, /native\.identity === identity/u,
+    "the actual selected method binder identity must match the demanded component");
 });
 
 test("provider relations never recover identity through optional fallback", () => {

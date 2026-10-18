@@ -4,6 +4,7 @@ import type {
   TargetTypeRef,
 } from "../../types/index.js";
 import { getCsharpTypeofResult, type CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
+import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 export { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
 
@@ -12,7 +13,8 @@ export function selectCsharpTypeofComparison(
   runtimeKind: CsharpTypeofRuntimeKind,
   negated: boolean,
   definitions?: CsharpTypeDefinitions,
-): CsharpTypeofComparisonSelection {
+): CsharpTypeofComparisonSelection | undefined {
+  if (isCsharpJsValueTargetType(operandType)) return undefined;
   if (operandType === undefined) {
     return rejected(
       "The selected typeof comparison has no exact target operand type.",

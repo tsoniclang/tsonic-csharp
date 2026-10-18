@@ -4,7 +4,7 @@ import type { CsharpConversionMode, CsharpConversionSelection } from "../../targ
 import type { CsharpConversionIssue, CsharpExpressionConversionClassification } from "../../target-model/records/conversions.js";
 import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpCallClassification, CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
 import { csharpSelectedTargetArgumentBindings } from "../../policy/operations/members/selection/native-use-arguments.js";
 import { csharpNativeUseSite } from "../../target-model/records/native-demand.js";
@@ -37,7 +37,9 @@ export function sealCsharpConversionUses(
     }
     if (!calls.has(use.expression)) {
       calls.add(use.expression);
-      selectedArgumentUses(use.expression, operations.selectedCall.get(use.expression)?.target);
+      const call = operations.selectedCall.get(use.expression);
+      selectedArgumentUses(use.expression, call?.target);
+      selectedReceiverUse(call);
       selectedArgumentUses(use.expression, operations.selectedConstruction.get(use.expression)?.target);
     }
     if (use.completion.kind !== "value") continue;
@@ -61,6 +63,14 @@ export function sealCsharpConversionUses(
     }
     requireCsharpRecord(requiredRecords, { family: "conversion", subject: expression, source, target, mode: "implicit",
       construct: "consumed native default conversion", producer: "sealCsharpConversionUses" });
+  }
+
+  function selectedReceiverUse(call: CsharpCallClassification | undefined): void {
+    const receiver = call?.optionalReceiver;
+    if (receiver?.conversion === undefined || receiver.parameterType === undefined) return;
+    admit(receiver.expression, receiver.type, receiver.parameterType, "implicit", {
+      selection: receiver.conversion, identityRequired: false,
+    });
   }
 
   function selectedArgumentUses(owner: Node, selection: CsharpTargetCallSelection | undefined): void {

@@ -6,11 +6,577 @@ import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpBindingPatterns } from "../../../dist/analysis/control-flow/binding-patterns.js";
 import { analyzeCsharpNativeDemand } from "../../../dist/analysis/operations/native-demand.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
-import { csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpNeverTargetType, csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { getCsharpArrayLiteralElementTargetType } from "../../../dist/target-model/types/carriers/collections.js";
-import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { getCsharpRuntimeUnionArms, isCsharpJsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
+import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
+import { planCsharpDiscardedStatement, planCsharpPlannedDiscard } from "../../../dist/backend/planner/statements/statement-output.js";
+
+test("the single discard entry omits pure defaults without dropping preludes, effects or never completion", () => {
+  const scalar = csharpSourcePrimitiveTargetType("float64");
+  const absent = { kind: "DefaultExpression" };
+  assert.equal(planCsharpDiscardedStatement(absent, scalar) === undefined, true,
+    "a pure untyped default cannot become an invalid C# discard assignment");
+  const effect = { kind: "ExpressionStatement", expression: { kind: "InvocationExpression",
+    callee: { kind: "IdentifierName", name: "observe" }, arguments: [] } };
+  const statements = planCsharpPlannedDiscard({ prelude: [effect],
+    completion: { kind: "value", carrier: scalar, expression: absent } });
+  assert.equal(statements.length === 1 && statements[0] === effect, true,
+    "omitting a pure result preserves the identical effect prelude exactly once and in order");
+  const call = effect.expression;
+  const discarded = planCsharpDiscardedStatement(call, scalar);
+  assert.equal(discarded?.kind === "ExpressionStatement" && discarded.expression === call, true,
+    "a real invocation is never discarded as a stable value");
+  assert.equal(planCsharpDiscardedStatement(call, csharpNeverTargetType())?.kind, "ThrowStatement",
+    "a native never completion retains its original throw route before purity is considered");
+});
+
+for (const surface of ["native", "js"]) {
+  test(`${surface} generic super construction consumes the exact canonical native base environment`, { timeout: 240_000 }, () => {
+    const compiled = compileCsharpNativeUseSource({ surface, sourceText: `
+      class GenericOptions<T> {
+        constructor(private readonly grouping: T) {}
+        get useGrouping(): T { return this.grouping; }
+      }
+      class NativeOptions extends GenericOptions<boolean> {
+        constructor() { super(false); }
+      }
+      class Forwarded<T> extends GenericOptions<T> {
+        constructor(value: T) { super(value); }
+      }
+      export function run(): boolean {
+        const direct = new NativeOptions();
+        const forwarded = new Forwarded<boolean>(true);
+        return !direct.useGrouping && forwarded.useGrouping;
+      }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the original inherited generic construction is checked source");
+    assert.equal(compiled.targetDiagnostics.length, 0, "the selected base native parameter contract is complete before sealing");
+    assert.equal(compiled.result.program !== undefined && compiled.result.plan !== undefined, true,
+      "the exact direct and forwarded base environments are published together");
+    const output = [...compiled.artifacts.values()].join("\n");
+    assert.match(output, /class NativeOptions : GenericOptions<bool>/u,
+      "the selected closed native base keeps its exact actual generic argument");
+    assert.match(output, /class Forwarded<T> : GenericOptions<T>/u,
+      "the forwarded native base retains the original bound generic identity");
+    executeCsharpConstruction(compiled, `generic-super-native-environment-${surface}`);
+  });
+}
+
+test("native Promise continuations keep the original exact external-callee refusal before publication", () => {
+  const expression = "Promise.resolve(1).then((value: number): number => value + 1)";
+  const sourceText = [
+    "export function chain(): Promise<number> {",
+    `  return ${expression};`,
+    "}",
+    "",
+  ].join("\n");
+  const compiled = compileCsharpNativeUseSource({ surface: "native", sourceText });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the original unsupported native API is checked source, not a type error");
+  assert.equal(compiled.targetDiagnostics.length, 1, "only the exact selected source API refusal is reported");
+  const issue = compiled.targetDiagnostics[0];
+  assert.equal(issue.code, "CSHARP_UNSUPPORTED_AST");
+  assert.equal(issue.source, "tsonic-csharp");
+  assert.equal(issue.category, "error");
+  assert.equal(issue.message, "The exact selected source callee is external to the project and has no C# target relation.");
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "unsupported native continuations publish no program, plan or artifacts");
+  const original = compiled.nativeStage.diagnostics[0];
+  const ast = compiled.nativeStage.source.ast;
+  const node = original.sourceNode;
+  assert.equal(node !== undefined && ast.is.IsCallExpression(node), true, "the original call, not its callback or result conversion, owns the refusal");
+  const file = ast.getSourceFile(node);
+  assert.equal(file !== undefined, true, "the exact original checked file owns the rejected call");
+  const range = ast.authoredRange(node);
+  assert.equal(range.kind, "authored", "the rejected call retains its original authored range");
+  assert.equal(ast.getSourceText(file).slice(range.start, range.end), expression,
+    "the source refusal retains the complete original selected continuation call");
+  assert.equal(range.start, sourceText.indexOf(expression),
+    "the unchanged original call starts at index.ts:2:10");
+  assert.equal(range.end, sourceText.indexOf(expression) + expression.length, "the exact original call span is retained");
+});
+
+test("native catch does not acquire a JavaScript continuation relation from its external signature", () => {
+  const expression = "Promise.resolve(1).catch((): number => 7)";
+  const compiled = compileCsharpNativeUseSource({ surface: "native",
+    sourceText: `export function recover(): Promise<number> { return ${expression}; }` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the native profile declares the source method without implementing a JS continuation");
+  const issue = compiled.nativeStage.diagnostics[0];
+  const ast = compiled.nativeStage.source.ast;
+  const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+  assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    issue.message === "The exact selected source callee is external to the project and has no C# target relation." &&
+    range?.kind === "authored" && ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end) === expression, true,
+  "the exact actual continuation call owns its original unsupported-native-API refusal");
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "native catch publishes no partial program, plan or target artifacts");
+});
+
+test("an external direct function keeps its source shape but requires a native implementation before publication", () => {
+  const expression = "external(7)";
+  const compiled = compileCsharpNativeUseSource({ surface: "native",
+    sourceText: `export function run(): number { return ${expression}; }`,
+    files: { "external.d.ts": "declare function external(value: number): number;" } });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the original selected external function is valid checked source");
+  const issue = compiled.nativeStage.diagnostics[0];
+  const ast = compiled.nativeStage.source.ast;
+  const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+  assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    issue.message === "The exact selected source callee is external to the project and has no C# target relation." &&
+    range?.kind === "authored" && ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end) === expression, true,
+  "shape/type information is not a native executable implementation or target relation");
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "an unimplemented external function emits no partial native program or artifact");
+});
+
+for (const surface of ["native", "js"]) test(`${surface} authored Half tokens round once at native precision without a host double round trip`, () => {
+  const cases = [
+    ["belowOverflow", "65519.999999999999999999999", 0x7bff],
+    ["negativeBelowOverflow", "-65519.999999999999999999999", 0xfbff],
+    ["evenMidpoint", "1.00048828125", 0x3c00],
+    ["aboveMidpoint", "1.0004882812500000000000000000001", 0x3c01],
+    ["oddMidpoint", "1.00146484375", 0x3c02],
+    ["belowOddMidpoint", "1.0014648437499999999999999999999", 0x3c01],
+    ["subnormalMidpoint", "2.98023223876953125e-8", 0x0000],
+    ["aboveSubnormalMidpoint", "2.980232238769531250000000000001e-8", 0x0001],
+    ["negativeSubnormalMidpoint", "-2.98023223876953125e-8", 0x8000],
+    ["underflow", "1e-5000", 0x0000],
+    ["negativeUnderflow", "-1e-5000", 0x8000],
+    ["negativeZero", "-0", 0x8000],
+    ["hexBelowOverflow", "0xffef", 0x7bff],
+    ["parenthesizedBelowOverflow", "(65519.999999999999999999999)", 0x7bff],
+    ["parenthesizedAboveMidpoint", "(1.0004882812500000000000000000001)", 0x3c01],
+  ];
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    import type { float16, float64, int32 } from "@tsonic/core/types.js";
+    ${cases.map(([name, token]) => `export function ${name}(): float16 { return ${token}; }`).join("\n")}
+    export function actual(value: float64): float16 { return value as float16; }
+    export function nativeIntegerZero(): int32 { return -0; }
+    export function nativeFloatingZero(): float64 { return -0; }
+    export function keyBelowOverflow(): Record<float16, number> { return { 65519.999999999999999999999: 7 }; }
+    export function keyAboveMidpoint(): Record<float16, number> { return { 1.0004882812500000000000000000001: 9 }; }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  assert.equal(compiled.result.program !== undefined && compiled.targetDiagnostics.length === 0, true,
+    compiled.targetDiagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
+  const output = [...compiled.artifacts.values()].join("\n");
+  assert.doesNotMatch(output, /65520|Half\.Parse|Convert\.ToHalf|BitConverter/u,
+    "authored Half constants emit their selected exact native value without runtime parsing, allocation or a rounded overflow token");
+  assert.deepEqual(output.match(/new System\.[^\n]*/gu), [
+    "new System.Collections.Generic.Dictionary<Half, double>",
+    "new System.Collections.Generic.Dictionary<Half, double>",
+  ], "only the two authored dictionary constructions allocate; every authored Half constant remains allocation-free");
+  executeCsharpConstruction(compiled, `authored-half-exact-${surface}`, false, false, [], `
+using Subject = Tsonic.Generated.Index;
+static int Bits(System.Half value) => System.BitConverter.HalfToInt16Bits(value) & 0xffff;
+${cases.map(([name, , bits]) => `if (Bits(Subject.${name}()) != ${bits}) throw new System.Exception("${name}: exact Half bits");`).join("\n")}
+if (Bits(Subject.actual(1.00048828125D)) != 0x3c00 || !System.Half.IsPositiveInfinity(Subject.actual(65520D)) ||
+    Bits(Subject.actual(-0D)) != 0x8000)
+    throw new System.Exception("a genuine computed double keeps native explicit conversion semantics");
+if (Subject.nativeIntegerZero() != 0 || System.BitConverter.DoubleToInt64Bits(Subject.nativeFloatingZero()) != long.MinValue)
+    throw new System.Exception("an explicit integer destination or the floating negative-zero sign changed");
+if (!Subject.keyBelowOverflow().TryGetValue(System.Half.MaxValue, out double first) || first != 7D ||
+    !Subject.keyAboveMidpoint().TryGetValue((System.Half)1.0009765625D, out double second) || second != 9D)
+    throw new System.Exception("property keys consume the same exact authored Half-bit selection");
+`);
+});
+
+for (const surface of ["native", "js"]) test(`${surface} native switch labels consume their selected discriminant carrier before sealing`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    import type { int32, int64 } from "@tsonic/core/types.js";
+    export function narrow(value: int32): int32 {
+      switch (value) { case 1: return 7 / 2; case 2147483647: return 9 / 2; default: return 5; }
+    }
+    export function wide(value: int64): int32 {
+      switch (value) { case 9007199254740993n: return 7; case -9007199254740993n: return 9; default: return 11; }
+    }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  assert.equal(compiled.result.program !== undefined && compiled.targetDiagnostics.length === 0, true,
+    compiled.targetDiagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
+  const output = [...compiled.artifacts.values()].join("\n");
+  assert.match(output, /case 1:/u);
+  assert.match(output, /case 2147483647:/u);
+  assert.doesNotMatch(output, /case (?:1|2147483647)D:/u,
+    "native integral labels never acquire an erased source-number double carrier");
+  executeCsharpConstruction(compiled, `native-switch-labels-${surface}`, false, false, [], `
+if (Tsonic.Generated.Index.narrow(1) != 3 || Tsonic.Generated.Index.narrow(int.MaxValue) != 4 ||
+    Tsonic.Generated.Index.narrow(0) != 5 || Tsonic.Generated.Index.wide(9007199254740993L) != 7 ||
+    Tsonic.Generated.Index.wide(-9007199254740993L) != 9 || Tsonic.Generated.Index.wide(0L) != 11)
+    throw new System.Exception("native switch labels, integer division or full-width equality changed");
+`);
+});
+
+for (const surface of ["native", "js"]) test(`${surface} instance native property observations admit their original receiver exactly once`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    let reads: int32 = 0;
+    function make(): Error { reads += 1; return new Error("selected"); }
+    function count(): int32 { return reads; }
+    export function run(): boolean {
+      reads = 0;
+      const name = make().name;
+      const stack = make().stack;
+      return name === "Error" && stack === undefined && count() === 2;
+    }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  assert.equal(compiled.result.program !== undefined && compiled.targetDiagnostics.length === 0, true,
+    compiled.targetDiagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
+  const program = compiled.result.program;
+  const ast = program.source.ast;
+  let receivers = 0;
+  const visit = node => {
+    const selected = program.records.selectedProperty.get(node)?.selection;
+    if (selected?.kind === "resolved" && selected.source.receiver !== undefined &&
+      selected.targetMember.id !== undefined &&
+      (selected.targetMember.id === "Tsonic.CSharp.Runtime.Error.name" || selected.targetMember.id === "Tsonic.CSharp.Runtime.Error.stack")) {
+      const receiver = selected.source.receiver.expression;
+      const use = program.records.nativeUse.expression(receiver);
+      assert.equal(selected.receiver.kind === "instance" && use !== undefined && use.site.subject === node && use.site.role === "receiver" &&
+        use.use.expression === receiver && use.use.kind !== "erased" && use.use.completion.kind === "value" &&
+        targetTypeRefEquals(use.use.carrier, program.records.valueRead.get(receiver)?.value) &&
+        targetTypeRefEquals(use.use.carrier, use.use.completion.type), true,
+      "the actual selected instance property consumes its original checked receiver at the admitted receiver slot");
+      receivers += 1;
+    }
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  assert.equal(receivers, 2, "both original Error observations use their exact selected instance receiver contracts");
+  executeCsharpConstruction(compiled, `native-property-receiver-${surface}`, false, false, [], `
+if (!Tsonic.Generated.Index.run()) throw new System.Exception("instance native getter receiver effects changed");
+`);
+});
+
+for (const surface of ["native", "js"]) test(`${surface} contextual generic callable creation and captured frames use the same nullable native result`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    import type { int32, int64, float64 } from "@tsonic/core/types.js";
+    function invoke<Value>(read: () => Value | null | undefined): Value | null | undefined { return read(); }
+    export function direct(): int64 | null | undefined { return invoke<int64>(() => 9n); }
+    export function captured(): boolean {
+      let total: int64 = 9007199254740993n;
+      const read = (): int64 => { total += 1n; return total; };
+      const first = invoke<int64>(read);
+      const second = invoke<int64>(read);
+      return first === 9007199254740994n && second === 9007199254740995n && total === 9007199254740995n;
+    }
+    export function authored(): float64 {
+      const read: () => float64 = (): int32 => 7 / 2;
+      return read();
+    }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  assert.equal(compiled.result.program !== undefined && compiled.targetDiagnostics.length === 0, true,
+    compiled.targetDiagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
+  const output = [...compiled.artifacts.values()].join("\n");
+  assert.doesNotMatch(output, /Func<System\.Numerics\.BigInteger>/u,
+    "the construction uses the actual nullable long context, not an adapter from a falsely materialized arbitrary-precision delegate");
+  executeCsharpConstruction(compiled, `contextual-native-creation-${surface}`, false, false, [], `
+using Subject = Tsonic.Generated.Index;
+if (Subject.direct() != 9L || !Subject.captured() || Subject.authored() != 3D)
+    throw new System.Exception("native nullable creation, captured mutation or authored integer body semantics changed");
+`);
+});
+
+for (const surface of ["native", "js"]) test(`${surface} a contextual creation cannot admit an out-of-range native literal body`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    import type { int64 } from "@tsonic/core/types.js";
+    function invoke<Value>(read: () => Value | null | undefined): Value | null | undefined { return read(); }
+    export function run(): int64 | null | undefined { return invoke<int64>(() => 9223372036854775808n); }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "actual construction requirements reject the body before publishing a callable or a partial program");
+  assert.equal(compiled.targetDiagnostics.length === 1 && compiled.targetDiagnostics[0].code === "CSHARP_UNSUPPORTED_AST" &&
+    compiled.targetDiagnostics[0].message === "Source bigint literal is outside the exact 'int64' range.", true,
+  "native creation is not permission to skip the exact body admission or replace its source error with an invariant");
+});
+
+for (const surface of ["native", "js"]) test(`${surface} optional ${surface === "native" ? "instance" : "target-parameter"} receivers consume their original storage before the presence guard`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    let reads: int32 = 0;
+    function observe(value: string | undefined): string | undefined { reads += 1; return value; }
+    function suffix(): string { reads += 10; return "${surface === "native" ? "X" : "!"}"; }
+    function count(): int32 { return reads; }
+    export function run(flag: boolean): boolean {
+      reads = 0;
+      const selected = ${surface === "native" ? 'observe(flag ? " X " : undefined)?.Trim().EndsWith(suffix())'
+        : 'observe(flag ? " X " : undefined)?.trim().concat(suffix()).toLowerCase()'};
+      return flag ? selected === ${surface === "native" ? "true" : '"x!"'} && count() === 11 : selected === undefined && count() === 1;
+    }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  assert.equal(compiled.result.program !== undefined && compiled.targetDiagnostics.length === 0, true,
+    compiled.targetDiagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
+  const program = compiled.result.program;
+  const ast = program.source.ast;
+  let receivers = 0;
+  const visit = node => {
+    const call = program.records.selectedCall.get(node);
+    const receiver = call?.optionalReceiver;
+    if (receiver !== undefined && call.target?.kind === "resolved" &&
+      (surface === "native" || call.target.call.receiver.kind === "target-parameter")) {
+      const site = csharpNativeUseSite(node, { kind: "receiver" }, { target: receiver.storage });
+      const use = program.records.nativeUse.get(site);
+      assert.equal(use !== undefined && use.kind !== "erased" && use.completion.kind === "value" &&
+        use.expression === receiver.expression && targetTypeRefKey(use.completion.type) === targetTypeRefKey(receiver.storage), true,
+      "the actual receiver is evaluated once in its original storage, not implicitly unwrapped before its guard");
+      if (surface === "native") {
+        assert.equal(call.target.call.receiver.kind === "instance" && receiver.parameterType === undefined &&
+          receiver.conversion === undefined, true,
+        "the actual native instance ABI needs no fabricated target-parameter conversion");
+      } else assert.equal(receiver.parameterType !== undefined && receiver.conversion !== undefined &&
+          program.records.expressionConversion.get(receiver.expression, receiver.type, receiver.parameterType, "implicit") !== undefined, true,
+        "the exact selected present-value parameter conversion is admitted separately before sealing");
+      receivers += 1;
+    }
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  assert.equal(receivers > 0, true, `the control exercises the actual ${surface === "native" ? "native instance" : "JS target-parameter"} receiver route`);
+  executeCsharpConstruction(compiled, `optional-native-receiver-storage-${surface}`, false, false, [], `
+if (!Tsonic.Generated.Index.run(false) || !Tsonic.Generated.Index.run(true))
+    throw new System.Exception("optional receiver presence, single evaluation or lazy argument changed");
+`);
+});
+
+test("native optional receivers do not acquire an undeclared JS trim alias", () => {
+  const compiled = compileCsharpSource({ surface: "native", sourceText:
+    "export function run(value: string | undefined): string | undefined { return value?.trim(); }" });
+  assert.equal(compiled.source.diagnostics.length, 1, compiled.sourceDiagnosticsText);
+  assert.match(compiled.sourceDiagnosticsText,
+    /error TS2551: Property 'trim' does not exist on type 'string'\. Did you mean 'Trim'\?/u);
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "the precise checked native spelling refusal publishes no program, plan or compatibility path");
+});
+
+test("selected property-projection arguments retain their native input until the one admitted projection", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int64 } from "@tsonic/core/types.js";
+    export class Options { readonly useGrouping: boolean = false; }
+    export function format(options: Options): string {
+      const value: int64 = 9007199254740993n;
+      return value.toLocaleString("en", options);
+    }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  assert.equal(compiled.result.program !== undefined && compiled.targetDiagnostics.length === 0, true,
+    compiled.targetDiagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
+  const program = compiled.result.program;
+  const ast = program.source.ast;
+  let projections = 0;
+  const visit = node => {
+    const selection = program.records.selectedCall.get(node)?.target;
+    if (selection?.kind === "resolved") for (const argument of selection.call.arguments) {
+      if (argument.targetParameter.csharpValueProjection !== "properties") continue;
+      const expression = selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
+      const admitted = expression === undefined ? undefined : program.records.nativeUse.expression(expression);
+      assert.equal(admitted !== undefined && admitted.site.subject === node && admitted.use.kind !== "erased" &&
+        admitted.use.completion.kind === "value" && !isCsharpJsValueTargetType(admitted.use.completion.type), true,
+      "a native selected-properties input is not irreversibly boxed as an opaque TsValue first");
+      const members = program.records.propertyProjection.get(expression, admitted.use.completion.type);
+      assert.equal(members?.length === 1 && members[0].sourceName === "useGrouping", true,
+        "the sole projection consumes the exact pre-seal selected-parameter member correspondence");
+      projections += 1;
+    }
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  assert.equal(projections, 1, "one actual selected property-projection boundary");
+  const output = [...compiled.artifacts.values()].join("\n");
+  assert.equal(output.includes("CreateDynamicObject"), true,
+    "the existing selected-properties native recipe is emitted instead of an opaque native object box");
+  assert.doesNotMatch(output, /TsValue\.from\(options\)/u,
+    "the original native receiver is not substituted for its required selected property values");
+});
+
+for (const surface of ["native", "js"]) test(`${surface} unreachable contextual defaults do not retain a native capture frame`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    export function create(fallback: { count: int32 }): (value: { count: int32 }) => unknown {
+      return (value: unknown = fallback): unknown => value;
+    }
+    export function run(): boolean {
+      const fallback = { count: 0 as int32 }; const value = { count: 7 as int32 };
+      const read = create(fallback); return read(value) === value;
+    }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  assert.equal(compiled.result.program !== undefined && compiled.targetDiagnostics.length === 0, true,
+    compiled.targetDiagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
+  const program = compiled.result.program;
+  const ast = program.source.ast;
+  let closures = 0;
+  const visit = node => {
+    if (ast.is.IsArrowFunction(node)) {
+      closures += 1;
+      const parameter = ast.parameters(node)[0];
+      assert.equal(program.records.runtimeDefault.get(parameter)?.native.kind, "value",
+        "the actual incoming delegate argument cannot execute its authored default");
+      assert.equal(program.records.lambdaCreation.get(node)?.staticBody, true,
+        "the discarded default is not an actual lexical capture");
+      assert.equal(program.records.lambdaCreation.get(node)?.kind, "cached",
+        "a no-capture first-class closure uses the native shared delegate rather than a fresh allocation");
+      assert.equal(program.records.captureClosure.get(node) === undefined, true,
+        "no activation frame is retained solely for an unreachable default reference");
+    }
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  assert.equal(closures, 1, "the actual source arrow is checked once");
+  executeCsharpConstruction(compiled, `contextual-default-capture-cost-${surface}`, false, false, [], `
+if (!Tsonic.Generated.Index.run()) throw new System.Exception("contextual default identity changed");
+System.Func<object> generated = () => Tsonic.Generated.Index.create(null!);
+System.Func<object> native = () => new System.Func<object, object>(static value => value);
+long Measure(System.Func<object> create) {
+    long before = System.GC.GetAllocatedBytesForCurrentThread();
+    for (int index = 0; index < 4096; index++) System.GC.KeepAlive(create());
+    return System.GC.GetAllocatedBytesForCurrentThread() - before;
+}
+_ = Measure(generated); _ = Measure(native);
+long actual = Measure(generated); long expected = Measure(native);
+if (actual != expected) throw new System.Exception("unreachable default capture allocation: " + actual + " != " + expected);
+`);
+});
+
+for (const surface of ["native", "js"]) test(`${surface} capture-free factories share native identity while captured factories remain fresh`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    export function make(): () => number { return () => 7; }
+    export function capture(value: number): () => number { return () => value; }
+    export function run(): boolean { return make() === make() && capture(7) !== capture(7); }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText === "" && compiled.targetDiagnostics.length === 0, true,
+    `${surface}: ${compiled.sourceDiagnosticsText}; ${compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; ")}`);
+  const program = compiled.result.program;
+  assert.equal(program !== undefined, true, "the shared no-capture and fresh captured factories are admitted together");
+  const creations = [];
+  const visit = node => {
+    if (program.source.ast.is.IsArrowFunction(node)) creations.push(program.records.lambdaCreation.get(node));
+    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  assert.equal(creations.length === 2 && creations[0].kind === "cached" && creations[0].staticBody === true &&
+    creations[1].kind === "fresh" && creations[1].staticBody === false, true,
+  "one canonical creation owner distinguishes the exact static body from the captured activation");
+  executeCsharpConstruction(compiled, `native-cached-capture-inverse-${surface}`, false, false, [], `
+using Subject = Tsonic.Generated.Index;
+if (!Subject.run() || !System.Object.ReferenceEquals(Subject.make(), Subject.make()) ||
+    System.Object.ReferenceEquals(Subject.capture(7), Subject.capture(7)) || Subject.capture(9)() != 9D)
+    throw new System.Exception("native closure-expression cache or fresh captured identity changed");
+for (int index = 0; index < 4096; index++) System.GC.KeepAlive(Subject.make());
+long before = System.GC.GetAllocatedBytesForCurrentThread();
+for (int index = 0; index < 4096; index++) System.GC.KeepAlive(Subject.make());
+if (System.GC.GetAllocatedBytesForCurrentThread() != before)
+    throw new System.Exception("a capture-free closure allocated per evaluation");
+`);
+});
+
+for (const surface of ["native", "js"]) test(`${surface} contextual defaults retain incoming, body storage and absent-branch effects independently`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    let defaults: int32 = 0;
+    function make(): unknown { defaults += 1; return { count: 7 as int32 }; }
+    function count(): int32 { return defaults; }
+    function present(read: (value: { count: int32 }) => boolean): boolean { return read({ count: 7 as int32 }); }
+    function optional(read: (value: { count: int32 } | undefined) => boolean, flag: boolean): boolean {
+      return read(flag ? { count: 7 as int32 } : undefined);
+    }
+    export function run(flag: boolean): boolean {
+      defaults = 0;
+      const first = present((value: unknown = make()): boolean => typeof value === "object");
+      if (!first || count() !== 0) return false;
+      const second = optional((value: unknown = make()): boolean => typeof value === "object", flag);
+      return second && count() === (flag ? 0 : 1);
+    }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  assert.equal(compiled.result.program !== undefined && compiled.targetDiagnostics.length === 0, true,
+    compiled.targetDiagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
+  const program = compiled.result.program;
+  const ast = program.source.ast;
+  const contracts = [];
+  const visit = node => {
+    if (ast.is.IsArrowFunction(node)) {
+      const parameter = ast.parameters(node)[0];
+      const contract = parameter === undefined ? undefined : program.records.runtimeDefault.get(parameter);
+      assert.equal(contract !== undefined && targetTypeRefKey(contract.parameterType) === targetTypeRefKey(contract.native.source) &&
+        targetTypeRefKey(contract.valueType) === targetTypeRefKey(contract.native.target), true,
+      "the one declaration default contract publishes the real native input and the independent body storage");
+      contracts.push(contract);
+      const initializer = ast.as.AsParameterDeclaration(parameter)?.Initializer;
+      assert.equal(initializer !== undefined && (program.records.nativeUse.expression(initializer) === undefined) ===
+        (contract.native.kind === "value"), true,
+      "an always-present incoming value has no default runtime expression; the absence-bearing input retains its real default");
+    }
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  assert.equal(contracts.length === 2 && contracts[0].native.kind === "value" && contracts[1].native.kind === "guarded", true,
+    "both actual native header forms are covered without changing omission or body storage into a second default decision");
+  executeCsharpConstruction(compiled, `contextual-native-default-${surface}`, false, false, [], `
+if (!Tsonic.Generated.Index.run(false) || !Tsonic.Generated.Index.run(true))
+    throw new System.Exception("contextual default conversion or absent-branch effects changed");
+`);
+});
+
+for (const surface of ["native", "js"]) test(`${surface} nominal enum return, compound storage and nullable aliases never become a numeric summary`, () => {
+  const compiled = compileCsharpSource({ surface, files: { "flags.ts": `
+    export enum Flags { First = 1, Second = 2 }
+    export enum Wide { First = 4294967296, Second = 8589934592 }
+    export enum Duplicate { First = 1, Again = 1, Second = 2 }
+    export interface Named { [Flags.First]: number; }
+  ` }, sourceText: `
+    import { Flags, Wide, Duplicate } from "./flags.js";
+    export function combine(flag: boolean): Flags { return flag ? (Flags.First | Flags.Second) : Flags.First; }
+    export function conjunction(left: Flags, right: Flags): Flags { return left & right; }
+    export function exclusive(left: Flags, right: Flags): Flags { return left ^ right; }
+    export function complement(value: Flags): Flags { return ~value; }
+    export function wide(): Wide { return Wide.First | Wide.Second; }
+    export function duplicate(): Duplicate { return Duplicate.Again | Duplicate.Second; }
+    export function compound(value: Flags): Flags {
+      let result: Flags = value; result |= Flags.Second; result &= ~Flags.Second; result ^= Flags.First; return result;
+    }
+    export function defaults(value: Flags): boolean {
+      switch (value) { case Flags.First: return false; case Flags.Second: return false; default: return true; }
+    }
+    export function copied(flag: boolean): Flags | undefined {
+      const selected = flag ? Flags.First : undefined; const alias = selected; return alias;
+    }
+    export function run(flag: boolean): boolean {
+      const stored = flag ? (Flags.First | Flags.Second) : Flags.First;
+      return stored === combine(flag) && defaults(stored) === flag &&
+        conjunction(stored, Flags.First) === Flags.First &&
+        exclusive(stored, Flags.Second) === (flag ? Flags.First : (Flags.First | Flags.Second)) &&
+        complement(complement(stored)) === stored &&
+        duplicate() === (Duplicate.First | Duplicate.Second) && wide() === (Wide.First | Wide.Second) &&
+        compound(stored) === (((stored | Flags.Second) & ~Flags.Second) ^ Flags.First);
+    }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  assert.equal(compiled.result.program !== undefined && compiled.targetDiagnostics.length === 0, true,
+    compiled.targetDiagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
+  executeCsharpConstruction(compiled, `nominal-native-enum-${surface}`, false, false, [], `
+using Subject = Tsonic.Generated.Index;
+foreach (bool flag in new[] { false, true }) {
+    var value = Subject.combine(flag);
+    if (!Subject.run(flag) || Subject.complement(Subject.complement(value)) != value ||
+        (long)Subject.wide() != 12884901888L || (int)Subject.duplicate() != 3 || Subject.copied(flag).HasValue != flag ||
+        (flag && (int)Subject.copied(flag)!.Value != 1))
+        throw new System.Exception("nominal enum native operators, layout, value or absence changed");
+}
+for (int iteration = 0; iteration < 8192; iteration++) { _ = Subject.run((iteration & 1) != 0); _ = Subject.copied(true); }
+long before = System.GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 4096; iteration++) {
+    if (!Subject.run((iteration & 1) != 0) || !Subject.copied(true).HasValue) throw new System.Exception("enum observation");
+}
+if (System.GC.GetAllocatedBytesForCurrentThread() != before) throw new System.Exception("native enum observations allocated");
+`);
+});
 
 const emissionPrograms = [
   ["class and static initializers", `
@@ -487,7 +1053,88 @@ test("tagged template operands have finite contexts without changing the retaine
   const errors = compiled.result.diagnostics.filter(diagnostic => diagnostic.category === "error");
   assert.equal(errors.length === 1 && errors[0].code === "CSHARP_UNSUPPORTED_AST" &&
     errors[0].message === "Expression is outside the current C# planning surface.", true,
-    "the unsupported tagged renderer keeps its exact source refusal, never an emission-context invariant");
+    `the unsupported tagged renderer keeps its exact source refusal, never an emission-context invariant: ${errors.map(({ code, message }) => `${code}: ${message}`).join("; ")}`);
+});
+
+for (const surface of ["native", "js"]) test(`${surface} exact native function groups are not acquired as delegate operands`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    let calls = 0;
+    function identity<Value>(value: Value): Value { return value; }
+    function next(value: number): number { calls++; return value + 1; }
+    function fail(): never { calls += 10; throw new Error("argument"); }
+    function invoke(callback: (value: number) => number): number { return callback(6); }
+    export function run(): boolean {
+      if (identity<number>(7) !== 7 || invoke(next) !== 7) return false;
+      let caught = false;
+      try { next(fail()); } catch { caught = true; }
+      return caught && calls === 11;
+    }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText === "" && compiled.targetDiagnostics.length === 0, true,
+    `${surface}: ${compiled.sourceDiagnosticsText}; ${compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; ")}`);
+  const program = compiled.result.program;
+  assert.equal(program !== undefined, true, "the actual checked native function contracts reach one sealed program");
+  const groups = [];
+  let values = 0;
+  const visit = node => {
+    if (program.source.ast.is.IsCallExpression(node)) {
+      const selected = program.records.selectedCall.get(node)?.sourceCall;
+      if (selected?.kind === "function") {
+        groups.push(program.source.ast.text(selected.expression));
+        assert.equal(program.records.nativeUse.expression(selected.expression) === undefined, true,
+          "an exact native method group has no runtime delegate acquisition or fabricated generic carrier");
+      } else if (selected?.kind === "value") {
+        values++;
+        assert.equal(program.records.nativeUse.expression(selected.expression) !== undefined, true,
+          "a real callable value retains its admitted callee read and evaluation order");
+      }
+    }
+    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  assert.equal(groups.sort().join() === "fail,identity,invoke,next" && values === 1, true,
+    "every actual generic, ordinary, throwing-argument and callback call form is observed exactly once");
+  const generated = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
+  assert.equal(/_\s*=\s*(?:global::Tsonic\.Generated\.)?Index\.(?:next|identity)\s*;/u.test(generated), false,
+    "a never argument cannot manufacture an invalid discarded native method group");
+  executeCsharpConstruction(compiled, `native-function-group-completion-${surface}`);
+});
+
+for (const surface of ["native", "js"]) test(`${surface} an erased result boundary keeps the actual native object construction`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    let calls: int32 = 0;
+    class Base { read(): unknown { return undefined; } }
+    class Source extends Base { override read() { calls++; return { count: 7 as int32 }; } }
+    function direct(): unknown { calls++; return { count: 11 as int32 }; }
+    export function run(): boolean {
+      const source: Base = new Source();
+      return typeof source.read() === "object" && typeof direct() === "object" && calls === 2;
+    }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText === "" && compiled.targetDiagnostics.length === 0, true,
+    `${surface}: ${compiled.sourceDiagnosticsText}; ${compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; ")}`);
+  const program = compiled.result.program;
+  assert.equal(program !== undefined, true, "the checked body and its erased result boundary are both admitted");
+  let constructions = 0;
+  const visit = node => {
+    if (program.source.ast.is.IsObjectLiteralExpression(node)) {
+      constructions++;
+      const use = program.records.nativeUse.expression(node)?.use;
+      assert.equal(use?.kind === "converted" && use.input.kind === "value" &&
+        !isCsharpJsValueTargetType(use.carrier) && isCsharpJsValueTargetType(use.target), true,
+      "the source body constructs its actual closed native payload and boxes only at the selected result boundary");
+      assert.equal(use.objectShape !== undefined && use.objectShape.members.length === 1 &&
+        use.objectShape.members[0].type.kind === "source-primitive" && use.objectShape.members[0].type.name === "int32", true,
+      "contextual unknown cannot replace the exact native member storage with dynamic slots");
+    }
+    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  assert.equal(constructions, 2, "both the direct return and the native virtual result adapter retain their physical bodies");
+  const generated = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
+  assert.equal(generated.includes("CreateDynamicObject"), false, "a closed native payload does not acquire a dynamic-object allocation");
+  executeCsharpConstruction(compiled, `native-object-result-boundary-${surface}`);
 });
 
 test("transparent wrappers of discarded callable creation remain erased without a fabricated completion", () => {
@@ -551,6 +1198,7 @@ function owners(sourceText, surface = "js") {
       return use === undefined || use.kind === "erased" ? undefined : use.propertyKeys;
     },
     valueReads: records, participation: records.nativeParticipation, bindingPatterns, callableCreation: { get: () => undefined },
+    callableTarget: records.callableTarget,
     attributeApplications: records, classInitialization: records, projectTypes: program.projectTypes,
     classFactories: { classFactory: records.classFactory, factories: program.classFactories },
     expected: { entries: [], pending: [], inactive: [], expectedUse: { get: () => undefined } } };
@@ -601,7 +1249,7 @@ test("a physical collection carrier survives a never completion before its outer
   const target = csharpObjectTargetType();
   const site = csharpNativeUseSite(declaration, { kind: "initializer" }, { target });
   const stage = csharpNativeUseSite(expression, { kind: "constructed-result" }, { target });
-  const use = Object.freeze({ expression, carrier, target, strength: "required", exactInteger: false, mode: "implicit", representation: "convert",
+  const use = Object.freeze({ expression, carrier, target, readProjection: "projected", strength: "required", exactInteger: false, mode: "implicit", representation: "convert",
     children: Object.freeze([stage]), construction: Object.freeze({ site: stage, carrier, children: Object.freeze([]) }) });
   const expected = { entries: [{ site, use }], pending: [], inactive: [], expectedUse: { get: request =>
     request.subject === site.subject && targetUseSiteIdentity(request) === targetUseSiteIdentity(site) ? use : undefined } };
@@ -619,7 +1267,7 @@ test("different finalized contexts and pending data remain private, not a first-
   const entries = ["int32", "float64"].map(name => {
     const target = csharpSourcePrimitiveTargetType(name);
     return { site: csharpNativeUseSite(declaration, { kind: "initializer" }, { target }), use: {
-      expression, carrier: target, target, strength: "required", exactInteger: false, mode: "implicit", representation: "construct", children: [] } };
+      expression, carrier: target, target, readProjection: "projected", strength: "required", exactInteger: false, mode: "implicit", representation: "construct", children: [] } };
   });
   const demand = analyzeCsharpNativeDemand({ ...value.input, expected: { entries, pending: [], inactive: [], expectedUse: { get: () => undefined } } }, []);
   assert.equal(demand.entries.some(entry => entry.use.expression === expression), false, "neither target is silently selected");
@@ -641,6 +1289,27 @@ test("actual native key refusals precede expected-slot pending and retain every 
   assert.equal(demand.unadmitted.every((entry, index) => entry.kind === "source-refusal" && entry.requiredBy === expression &&
     entry.diagnostic === issues[index]), true, "the original diagnostic and actual required expression keep separate identities");
   assert.equal(demand.nativeUse.expression(expression) === undefined, true, "a refused expression never receives a fabricated native use");
+});
+
+test("a selected external source callee refuses before unresolved argument grouping", () => {
+  const value = owners("function make(value: number): number { return value; } export const result = make(7);", "native");
+  const node = value.nodes.find(candidate => value.ast.is.IsCallExpression(candidate));
+  const original = value.input.operations.selectedCall.get(node);
+  assert.equal(node !== undefined && original?.target?.kind === "source-owned", true,
+    "the actual checked source-owned call supplies the existing operation boundary");
+  const reason = "The exact selected source callee is external to the project and has no C# target relation.";
+  const selected = Object.freeze({ ...original, sourceCall: Object.freeze({ kind: "rejected", reason }),
+    sourceArgumentGrouping: undefined });
+  const operations = { ...value.input.operations, selectedCall: { get: candidate => candidate === node
+    ? selected : value.input.operations.selectedCall.get(candidate) } };
+  const demand = analyzeCsharpNativeDemand({ ...value.input, operations }, []);
+  const refusal = demand.unadmitted[0];
+  assert.equal(demand.unadmitted.length === 1 && refusal.kind === "source-refusal" && refusal.requiredBy === node &&
+    refusal.diagnostic.sourceNode === node && refusal.diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&
+    refusal.diagnostic.message === reason, true,
+  "the selected source callee owns the one precise refusal, not an argument or result conversion cascade");
+  assert.equal(demand.nativeUse.expression(node) === undefined, true,
+    "an unresolved argument group cannot turn a rejected source API into a fabricated native call");
 });
 
 for (const surface of ["native", "js"]) test(`${surface} actual ambient admission precedes pending slots without observing an erased body`, () => {
@@ -738,7 +1407,7 @@ for (const [name, type, expression] of [["integer", "int32", "-2"], ["negative-z
     const literal = value.records.exactLiteral.get(initializer, carrier);
     assert.equal(literal?.kind === "resolved", true, "the real literal producer admits the authored token");
     const site = csharpNativeUseSite(declaration, { kind: "initializer" }, { target: carrier });
-    const use = Object.freeze({ expression: initializer, carrier, target: carrier, strength: "required", exactInteger: false,
+    const use = Object.freeze({ expression: initializer, carrier, target: carrier, readProjection: "projected", strength: "required", exactInteger: false,
       mode: "implicit", representation: "construct", children: Object.freeze([]), literal: literal.recipe });
     const expected = { entries: [{ site, use }], pending: [], inactive: [], expectedUse: { get: request =>
       request.subject === site.subject && targetUseSiteIdentity(request) === targetUseSiteIdentity(site) ? use : undefined } };

@@ -5,7 +5,8 @@ import type { DestructuringPlannerState } from "../../bindings/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { planExpression } from "../../expressions/index.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
-import type { CsharpPlannedValue } from "../../expressions/planned-values.js";
+import { csharpPlannedValue, type CsharpPlannedValue } from "../../expressions/planned-values.js";
+import { convertCsharpPlannedValue } from "../../expressions/planned-value-conversions.js";
 import { planCsharpBindingDefaultValue } from "../../bindings/optional-values.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import type { CsharpDefaultParameterContract } from "../../../../target-model/records/declarations.js";
@@ -60,11 +61,17 @@ function planRuntimeParameterDefault(
     diagnostics.push(unsupportedNodeDiagnostic(node, "A runtime parameter default requires renderable sealed native value and incoming carriers."));
     return undefined;
   }
-  const initializer = planExpression(declaration.Initializer, sourceFile, input, diagnostics, state);
-  if (initializer === undefined) return undefined;
   const incoming: CsharpExpression = { kind: "IdentifierName", name: incomingName };
-  const value = planCsharpBindingDefaultValue(node, sourceFile, input, diagnostics,
-    incoming, contract.native, initializer, state);
+  let value: CsharpPlannedValue | undefined;
+  if (contract.native.kind === "value") {
+    value = convertCsharpPlannedValue(node, sourceFile, input, diagnostics,
+      csharpPlannedValue(incomingType, incoming), contract.valueType, "implicit");
+  } else {
+    const initializer = planExpression(declaration.Initializer, sourceFile, input, diagnostics, state);
+    if (initializer === undefined) return undefined;
+    value = planCsharpBindingDefaultValue(node, sourceFile, input, diagnostics,
+      incoming, contract.native, initializer, state);
+  }
   if (value === undefined) return undefined;
   return {
     valueType, parameterType,

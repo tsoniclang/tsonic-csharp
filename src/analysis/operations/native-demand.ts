@@ -46,12 +46,17 @@ export function analyzeCsharpNativeDemand(
   const baseCalls = new WeakMap<Node, Node>();
   const unusedDefaults = new WeakSet<Node>();
   const requiredCatchBindings = new WeakSet<Node>();
+  const rejectedBindingRoots = new Set(input.bindingPatterns.candidates.map(candidate => candidate.root));
   const indexInputs = (node: Node): void => {
     if (ast.is.IsConstructorDeclaration(node)) {
       const call = csharpConstructorBaseCall(ast, node);
       if (call !== undefined) baseCalls.set(node, call);
     }
     if (isCsharpUnusedTupleDefault(ast, input.bindingPatterns.bindingPatternProjection, node)) unusedDefaults.add(node);
+    if (ast.is.IsParameterDeclaration(node) && input.declarations.runtimeDefault.get(node)?.native.kind === "value") {
+      const initializer = ast.as.AsParameterDeclaration(node)?.Initializer;
+      if (initializer !== undefined) unusedDefaults.add(initializer);
+    }
     if (ast.is.IsIdentifier(node)) {
       const declaration = input.navigation.sourceReferenceFor(node)?.declaration;
       const clause = declaration === undefined ? undefined : ast.parent(declaration);
@@ -149,10 +154,27 @@ export function analyzeCsharpNativeDemand(
       orders.set(node, Object.freeze([]));
       return;
     }
+    if (selected.kind === "pending") {
+      const steps: CsharpNativeOrderStep[] = [];
+      for (const step of selected.steps) visitStep(step, steps);
+      pending(csharpNativeUseSite(node, { kind: "effect" }), node, "callable-creation");
+      orders.set(node, Object.freeze(steps));
+      return;
+    }
+    if (rejectedBindingRoots.has(node)) {
+      requiredBindingRoots.add(node);
+      orders.set(node, Object.freeze([]));
+      return;
+    }
     if (input.evidence.sourceStruct.get(node) !== undefined) requiredNativeValueDeclarations.add(node);
     const participation = input.participation.get(node);
     if (participation === "body" || participation === "frame-body" || participation === "signature") {
-      for (const parameter of ast.parameters(node)) if (parameter !== undefined) requiredBindingRoots.add(parameter);
+      const entry = input.callableTarget.entry(node);
+      if (entry === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+        "A selected callable construct requires its admitted native entry contract.", node);
+      requireCsharpRecord(requiredRecords, { family: "callableTarget", facet: "entry", subject: node,
+        construct: "native callable physical entry", producer: "analyzeCsharpNativeDemand" });
+      for (const parameter of entry.parameters) requiredBindingRoots.add(parameter.sourceParameter);
       if (ast.is.IsFunctionDeclaration(node) && participation === "body") requiredBindingRoots.add(node);
     }
     if (ast.is.IsVariableDeclaration(node) && ast.as.AsVariableDeclaration(node)?.Initializer === undefined) {
@@ -227,28 +249,66 @@ export function analyzeCsharpNativeDemand(
           discardedPresence: constantPresence(existing.kind === "erased" && existing.cause === "discarded-callable", []) });
     }
     if (refuseSourceExpression(expression) || refuseAmbientValueUse(expression)) return Object.freeze({ site, expression, completion: undefined });
+    if (rejectedBindingRoots.has(expression)) {
+      requiredBindingRoots.add(expression);
+      return Object.freeze({ site, expression, completion: undefined });
+    }
+    let unmatched: { readonly site: TargetUseSiteRef; readonly reason: CsharpNativeUnadmittedReason; readonly message?: string } | undefined;
     if (exact === undefined) {
       const candidates = slots.get(site.subject)?.get(site.role);
       const matching = candidates?.expressions.get(expression) ?? [];
-      if (matching.length > 1) return pending(site, expression, "use-context-unresolved");
-      if (matching.length === 1 && candidates?.pending.length === 0) site = matching[0]!.site;
+      if (matching.length > 1) unmatched = { site, reason: "use-context-unresolved" };
+      else if (matching.length === 1 && candidates?.pending.length === 0) site = matching[0]!.site;
       else if (candidates !== undefined && candidates.pending.length > 0) {
         const refusals = candidates.pending.filter(entry => entry.expression === expression);
-        if (refusals.length === 1) return pending(refusals[0]!.site, expression, "expected-use-pending", refusals[0]!.message);
-        return pending(site, expression, "expected-use-pending");
+        unmatched = refusals.length === 1
+          ? { site: refusals[0]!.site, reason: "expected-use-pending", message: refusals[0]!.message }
+          : { site, reason: "expected-use-pending" };
       }
     }
+    const previous = unmatched === undefined ? states.get(site.subject)?.get(targetUseSiteIdentity(site)) : undefined;
+    if (previous !== undefined) {
+      if (previous.expression !== expression) failTargetAnalysisInvariant("tsonic-csharp", `Native use identity '${site.role}' names different expressions.`, expression);
+      return previous.state === "visiting" ? pending(site, expression, "cyclic-use") : previous.visited;
+    }
+    const expected = input.expected.expectedUse.get(site);
+    const selected: CsharpNativeOperandSelection = expected?.literal === undefined
+      ? selectCsharpNativeOperandUses(policyInput, expression, child.access)
+      : Object.freeze({ runtime: Object.freeze([]), planning: Object.freeze([]), flow: "sequence", carrier: expected.carrier,
+        resultUse: sourceExpressionResultDisposition(ast, expression).kind === "discarded" ? "discarded" : "consumed" });
+    if (selected.sourceRefusal !== undefined) {
+      if (!refusedSourceExpressions.has(expression)) {
+        refusedSourceExpressions.add(expression);
+        const refusal = selected.sourceRefusal;
+        unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy: expression,
+          diagnostic: refusal.kind === "extension" ? targetDiagnosticFromExtension(expression, refusal.diagnostic)
+            : Object.freeze({ source: "tsonic-csharp", category: "error", sourceNode: expression,
+              code: refusal.code, message: refusal.message,
+              ...(refusal.evidence === undefined ? {} : { evidence: refusal.evidence }),
+            }),
+        }));
+      }
+      return Object.freeze({ site, expression, completion: undefined });
+    }
+    const unresolvedArguments = selected.refusal === "argument-unresolved";
+    if (unmatched !== undefined && !unresolvedArguments) return pending(unmatched.site, expression, unmatched.reason, unmatched.message);
     let owner = states.get(site.subject);
     if (owner === undefined) { owner = new Map(); states.set(site.subject, owner); }
     const identity = targetUseSiteIdentity(site);
-    const existing = owner.get(identity);
-    if (existing !== undefined) {
-      if (existing.expression !== expression) failTargetAnalysisInvariant("tsonic-csharp", `Native use identity '${site.role}' names different expressions.`, expression);
-      return existing.state === "visiting" ? pending(site, expression, "cyclic-use") : existing.visited;
+    const retained = unresolvedArguments ? owner.get(identity) : undefined;
+    if (retained !== undefined) {
+      if (retained.expression !== expression) failTargetAnalysisInvariant("tsonic-csharp", `Native use identity '${site.role}' names different expressions.`, expression);
+      return retained.state === "visiting" ? pending(site, expression, "cyclic-use") : retained.visited;
     }
     const unresolved = Object.freeze({ site, expression, completion: undefined });
     owner.set(identity, { expression, state: "visiting", visited: unresolved });
-    const result = evaluate(child, site);
+    let result: VisitedUse;
+    if (unresolvedArguments) {
+      const steps: CsharpNativeOrderStep[] = [];
+      for (const step of selected.planning) visitStep(step, steps);
+      orders.set(expression, Object.freeze(steps));
+      result = pending(site, expression, "argument-unresolved");
+    } else result = evaluate(child, site, selected);
     owner.set(identity, { expression, state: "closed", visited: result });
     if (result.completion?.kind === "value") {
       if (child.slot.kind === "initializer" && ast.is.IsVariableDeclaration(child.owner) ||
@@ -263,7 +323,7 @@ export function analyzeCsharpNativeDemand(
     return result;
   }
 
-  function evaluate(child: CsharpNativeChildUse, site: TargetUseSiteRef): VisitedUse {
+  function evaluate(child: CsharpNativeChildUse, site: TargetUseSiteRef, selected: CsharpNativeOperandSelection): VisitedUse {
     const expression = child.expression;
     const expected = input.expected.expectedUse.get(site);
     const withheld = exactPending.get(site.subject)?.get(targetUseSiteIdentity(site));
@@ -271,24 +331,12 @@ export function analyzeCsharpNativeDemand(
     requireCsharpRecord(requiredRecords, { family: "sourceArgument", subject: expression,
       construct: "native expression passing", producer: "analyzeCsharpNativeDemand" });
     if (ast.is.IsArrowFunction(expression) || ast.is.IsFunctionExpression(expression)) requireCsharpRecord(requiredRecords, {
-      family: "callableTarget", subject: expression, construct: "native callable creation", producer: "analyzeCsharpNativeDemand",
+      family: "callableTarget", facet: "creation", subject: expression, construct: "native callable creation", producer: "analyzeCsharpNativeDemand",
     });
     if (expected?.literal !== undefined) requireCsharpRecord(requiredRecords, {
-      family: "exactLiteral", subject: expression, target: expected.target,
+      family: "exactLiteral", subject: expression, target: expected.construction?.carrier ?? expected.target,
       construct: "native literal construction", producer: "analyzeCsharpNativeDemand",
     });
-    const selected: CsharpNativeOperandSelection = expected?.literal === undefined
-      ? selectCsharpNativeOperandUses(policyInput, expression, child.access)
-      : Object.freeze({ runtime: Object.freeze([]), planning: Object.freeze([]), flow: "sequence", carrier: expected.carrier,
-        resultUse: sourceExpressionResultDisposition(ast, expression).kind === "discarded" ? "discarded" : "consumed" });
-    if (selected.sourceDiagnostic !== undefined) {
-      if (!refusedSourceExpressions.has(expression)) {
-        refusedSourceExpressions.add(expression);
-        unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy: expression,
-          diagnostic: targetDiagnosticFromExtension(expression, selected.sourceDiagnostic) }));
-      }
-      return Object.freeze({ site, expression, completion: undefined });
-    }
     const expectedChildren = new Map<string, TargetUseSiteRef[]>();
     for (const reference of expected?.construction?.children ?? expected?.children ?? []) {
       const matching = expectedChildren.get(reference.role) ?? [];
@@ -358,7 +406,7 @@ export function analyzeCsharpNativeDemand(
       const projection = input.expected.expectedUse.get(reference);
       if (projection === undefined) return pending(reference, operation.left, "expected-use-pending");
       const completion: CsharpNativeCompletion = Object.freeze({ kind: "value", type: projection.carrier });
-      const native = { expression: operation.left, carrier: projection.carrier, children: Object.freeze([]),
+      const native = { expression: operation.left, carrier: projection.carrier, readProjection: projection.readProjection, children: Object.freeze([]),
         evaluation: Object.freeze({ kind: "sequence" as const, steps: Object.freeze([]) }) };
       if (projection.representation === "convert") publish(reference, { ...native, kind: "converted", input: completion,
         target: projection.target, mode: projection.mode, completion: Object.freeze({ kind: "value", type: projection.target }) });
@@ -372,15 +420,20 @@ export function analyzeCsharpNativeDemand(
       ? input.objectShapes.resolveTarget(physical) : expected.objectShape;
     if (expected?.construction !== undefined) {
       publish(expected.construction.site, { kind: "constructed", expression, carrier: expected.construction.carrier,
-        children, evaluation, completion: inputCompletion, objectShape: expected.objectShape, propertyKeys });
+        readProjection: "projected",
+        children, evaluation, completion: inputCompletion, objectShape: expected.objectShape, propertyKeys,
+        ...(expected.literal === undefined ? {} : { literal: expected.literal }) });
       const stage = expected.construction.site;
       const completion = selectCsharpNativeCompletion(expected.target, { kind: "sequence", children: [{ completion: inputCompletion }] });
       if (completion === undefined) return pending(site, expression, "completion-unresolved");
       return publish(site, { kind: "converted", expression, carrier: physical, input: inputCompletion, target: expected.target, mode: expected.mode,
+        readProjection: expected.readProjection,
         children: Object.freeze([stage]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([Object.freeze({ site: stage })]) }),
         objectShape, defaultValue, propertyKeys, completion }, presence);
     }
-    const common = { expression, carrier: physical, children, evaluation, completion: inputCompletion,
+    const common = { expression, carrier: physical,
+      readProjection: expected === undefined ? "projected" as const : expected.readProjection,
+      children, evaluation, completion: inputCompletion,
       ...(discardedPresence === undefined ? {} : { discardedPresence }),
       ...(expected?.exactInteger === true ? { exactInteger: true as const } : {}),
       ...(expected?.literal === undefined ? {} : { literal: expected.literal }),
@@ -403,8 +456,15 @@ export function analyzeCsharpNativeDemand(
   function erasedExpression(expression: Node): "discarded-callable" | "erased-statement" | false {
     const cached = erasedExpressions.get(expression);
     if (cached !== undefined) return cached;
+    erasedExpressions.set(expression, false);
     const operand = sourceTransparentExpressionOperand(ast, expression);
-    const erased = input.evidence.compileTimeMetadata.get(expression) ? "erased-statement" : input.participation.get(expression) === "erased"
+    const declaration = ast.is.IsIdentifier(expression) ? input.navigation.sourceReferenceFor(expression)?.declaration : undefined;
+    const initializer = declaration === undefined || !ast.is.IsVariableDeclaration(declaration) ||
+      !input.navigation.isProjectDeclaration(declaration) || input.navigation.declarationUseSummary(declaration).bindingWritten
+      ? undefined : ast.as.AsVariableDeclaration(declaration)?.Initializer;
+    const discardedBinding = initializer !== undefined && erasedExpression(initializer) === "discarded-callable";
+    const erased = input.evidence.compileTimeMetadata.get(expression) ? "erased-statement" :
+      input.participation.get(expression) === "erased" || discardedBinding
       ? "discarded-callable" : operand === undefined ? false : erasedExpression(operand);
     erasedExpressions.set(expression, erased);
     return erased;

@@ -14,10 +14,11 @@ export interface CsharpRequiredRecordOrigin {
 
 export interface CsharpRequiredNodeRecord extends CsharpRequiredRecordOrigin {
   readonly family: "classFactory" | "requiredStorageType" | "nativeParticipation" | "nativeHandler" |
-    "sourceArgument" | "bindingPatternProjection" | "callableTarget" | "nativeValueDeclaration";
+    "sourceArgument" | "bindingPatternProjection" | "nativeValueDeclaration";
 }
 
 export type CsharpRequiredRecord = CsharpRequiredNodeRecord
+  | CsharpRequiredRecordOrigin & { readonly family: "callableTarget"; readonly facet: "creation" | "entry" }
   | CsharpRequiredRecordOrigin & { readonly family: "objectShapeArtifact"; readonly key: string }
   | CsharpRequiredRecordOrigin & { readonly family: "nativeUse"; readonly site: TargetUseSiteRef }
   | CsharpRequiredRecordOrigin & { readonly family: "exactLiteral"; readonly target: TargetTypeRef | undefined; readonly role?: CsharpExactLiteralRole }
@@ -61,7 +62,8 @@ function csharpRequiredRecordPublished(records: CsharpProgramRecords, requiremen
     case "bindingPatternProjection":
       return records.bindingPatternProjection.get(requirement.subject) !== undefined;
     case "callableTarget":
-      return records.callableTarget.get(requirement.subject) !== undefined;
+      return requirement.facet === "creation" ? records.callableTarget.get(requirement.subject) !== undefined
+        : requirement.facet === "entry" && records.callableTarget.entry(requirement.subject) !== undefined;
     case "nativeValueDeclaration":
       return records.nativeValueDeclaration.get(requirement.subject) !== undefined;
     case "nativeUse":

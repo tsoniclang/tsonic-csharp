@@ -12,6 +12,7 @@ import { snapshotCsharpTargetTypes } from "../../target-model/types/snapshot.js"
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeClassifications } from "../objects/model.js";
 import { completeCsharpDeclarationHeritage } from "./heritage.js";
+import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 
 export function sealCsharpProjectTypeClassifications(
   policy: CsharpProjectTypePolicy,
@@ -32,6 +33,7 @@ export function sealCsharpProjectTypeClassifications(
     Node,
     readonly import("../../target-model/records/project-types.js").CsharpProjectForwardingConstructor[]
   >();
+  const issues = [...policy.issues];
 
   for (const definition of policy.catalog.definitions) {
     const authoredHeritage = policy.heritageForDeclaration(definition.declaration);
@@ -39,8 +41,14 @@ export function sealCsharpProjectTypeClassifications(
       authoredHeritage, objectShapes.resolveNode(definition.declaration),
     );
     if (heritage !== undefined) {
-      heritageByDeclaration.set(definition.declaration, heritage);
-      heritageById.set(definition.id, heritage);
+      const types = [...(heritage.baseType === undefined ? [] : [heritage.baseType]), ...heritage.interfaces];
+      if (types.some(type => csharpTargetTypeRenderingRejection(type) !== undefined)) {
+        issues.push(Object.freeze({ node: definition.declaration, code: "CSHARP_UNSUPPORTED_AST",
+          message: "Canonical project heritage contains a target type that cannot be rendered in C#." }));
+      } else {
+        heritageByDeclaration.set(definition.declaration, heritage);
+        heritageById.set(definition.id, heritage);
+      }
     }
     const constructors = policy.implicitConstructorsForDeclaration(
       definition.declaration,
@@ -52,11 +60,10 @@ export function sealCsharpProjectTypeClassifications(
       );
     }
   }
-  const issues = Object.freeze([...policy.issues]);
   const declarationScopeNames = Object.freeze([...new Set(policy.catalog.definitions.flatMap(definition =>
     definition.scopeName === undefined ? [] : [definition.scopeName]))].sort());
   const classifications: CsharpProjectTypeClassifications = {
-    issues,
+    issues: Object.freeze(issues),
     declarationScopeNames,
     definitionContainingDeclaration: (declaration) => declaration === undefined
       ? undefined

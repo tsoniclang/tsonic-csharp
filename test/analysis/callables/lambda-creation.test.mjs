@@ -4,6 +4,13 @@ import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts"
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { analyzeCsharpCaptureStorage } from "../../../dist/analysis/callables/capture-storage.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { compileCsharpRequiredRecordSource } from "../../helpers/required-records.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
+import { planParametersWithPrelude } from "../../../dist/backend/planner/declarations/callables/parameters.js";
+import { planLambdaParameterStorage } from "../../../dist/backend/planner/expressions/lambda-parameter-storage.js";
+import { createDestructuringPlannerState } from "../../../dist/backend/planner/bindings/index.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
 const callable = csharpDelegateTargetType("System.Func", [scalar], scalar);
@@ -51,9 +58,10 @@ function fixture(body, quotation = false) {
     storageType: { get: () => undefined },
     typedLocationIdentity: { get: () => false } };
   const names = { resolve: () => ({ kind: "resolved", name: "selected" }), temporaryName: name => name };
-  const target = quotation ? { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Fixture::Quotation", csharpExpressionTreeDelegateType: callable } : undefined;
+  const target = quotation ? { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Fixture::Quotation", csharpExpressionTreeDelegateType: callable } : callable;
   const selected = analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, storage, evidence,
-    [], names, { runtimeDefault: Object.freeze({ get: () => undefined }) }, { selectedCall: Object.freeze({ get: node => operations.get(node) }) }, { callableTarget: Object.freeze({ get: () => target }) });
+    [], names, { runtimeDefault: Object.freeze({ get: () => undefined }) }, { selectedCall: Object.freeze({ get: node => operations.get(node) }) },
+    { callableTarget: Object.freeze({ get: node => lambdas.includes(node) ? target : undefined }) });
   assert.equal(selected.issues.length === 0, true, "closed capture storage");
   assert.equal(lambdas.length, 1, "one exact authored callable");
   return { selected, lambda: lambdas[0], operations, source };
@@ -66,7 +74,7 @@ for (const [name, body] of [
   ["inline named recursion", "return invoke(function recurse(entry: number): number { return entry === 0 ? 1 : recurse(entry - 1); });"],
   ["immutable aliases", "const mapper = (entry: number) => entry + 1; const alias = mapper; invoke(alias); return invoke(mapper);"],
 ]) {
-  test(`only sealed invocation arguments cache capture-free ${name}`, () => {
+  test(`capture-free ${name} selects the native cached delegate`, () => {
     const input = fixture(body);
     const selected = input.selected.lambdaCreation.get(input.lambda);
     assert.equal(selected.kind, "cached");
@@ -87,13 +95,20 @@ for (const [name, body, staticBody = true] of [
   ["unproved declaration annotation", "const mapper: (entry: number) => number = entry => entry + 1; return invoke(mapper);"],
   ["named self value", "return invoke(function self(entry: number): number { const alias = self; return alias === self ? entry : -1; });", false],
 ]) {
-  test(`${name} preserves fresh native creation despite stateless bodies`, () => {
+  test(`${name} follows the native capture and shared-identity contract`, () => {
     const input = fixture(body);
     const selected = input.selected.lambdaCreation.get(input.lambda);
-    assert.equal(selected.kind, "fresh");
+    assert.equal(selected.kind, staticBody ? "cached" : "fresh");
     assert.equal(selected.staticBody, staticBody, "observed self values require their exact nonstatic identity binding");
   });
 }
+
+test("returned capturing closures retain their fresh native activation", () => {
+  const input = fixture("return (entry: number) => entry + value;");
+  const selected = input.selected.lambdaCreation.get(input.lambda);
+  assert.equal(selected.kind, "fresh", "an actual lexical capture is not shared across evaluations");
+  assert.equal(selected.staticBody, false, "the captured argument requires its own native environment");
+});
 
 test("invocation-only captured callbacks use their native activation without static caches", () => {
   const input = fixture("return invoke((entry: number) => entry + value);");
@@ -119,3 +134,120 @@ for (const body of ["return invoke((entry: number) => entry + 1);", "return invo
     assert.equal(Object.isFrozen(selected), true);
   });
 }
+
+for (const surface of ["native", "js"]) test(`${surface} checked physical entries erase this and reconstruct one native fixed tuple without allocation`,
+  { timeout: 240_000 }, () => {
+    const selected = compileCsharpRequiredRecordSource(`import type { int32, float64 } from "@tsonic/core/types.js";
+      function identity(this: void, value: int32): int32 { return value; }
+      export function pair(...items: [left: int32, right: int32]): int32 {
+        items[0] = items[0] + 1;
+        return items[0] + items[1];
+      }
+      function rest(...items: int32[]): int32 { return items[0] + items[1]; }
+      export function adapted(): float64 {
+        const callback: (left: int32, right: int32) => float64 = (...items: [float64, float64]): float64 => {
+          items[0] += 0.5;
+          return items[0] + items[1];
+        };
+        return callback(3, 4);
+      }
+      function make(this: void, seed: int32): () => int32 { return () => { seed++; return seed; }; }
+      class Cell {
+        private current: int32 = 0;
+        get value(): int32 { return this.current; }
+        set value(next: int32) { this.current = next; }
+      }
+      export function run(): boolean {
+        const first = make(2);
+        const second = make(7);
+        const callback: (value: int32, index: int32) => int32 = (...items: [int32, int32]): int32 => items[0] + items[1];
+        let stored: int32 = 0;
+        const literal = { get value(): int32 { return stored; }, set value(next: int32) { stored = next; } };
+        const cell = new Cell();
+        literal.value = 11;
+        cell.value = 13;
+        return identity(7) === 7 && pair(3, 4) === 8 && rest(2, 5) === 7 && callback(3, 4) === 7 &&
+          first() === 3 && first() === 4 && second() === 8 && literal.value === 11 && cell.value === 13;
+      }`, surface);
+    const { source, program, nodes } = selected;
+    const declaration = name => nodes.find(node => source.ast.is.IsFunctionDeclaration(node) && source.ast.text(source.ast.name(node)) === name);
+    const identity = declaration("identity");
+    const pair = declaration("pair");
+    const rest = declaration("rest");
+    const erased = source.ast.parameters(identity)[0];
+    const ordinary = source.ast.parameters(identity)[1];
+    const identityEntry = program.records.callableTarget.entry(identity);
+    assert.equal(identityEntry?.sourceDeclaration === identity && identityEntry.parameters.length === 1 &&
+      identityEntry.parameters[0].sourceParameter === ordinary && identityEntry.parameters[0].sourceProjection.length === 0, true,
+    "the native entry retains the actual checked value parameter, never the authored receiver metadata slot");
+    assert.equal(program.records.nativeUse.order(erased) === undefined && program.records.nativeUse.order(ordinary) !== undefined, true,
+      "the erased receiver is outside the admitted native binding/construct domain");
+    const entry = program.records.callableTarget.entry(pair);
+    const tupleParameter = source.ast.parameters(pair)[0];
+    assert.equal(entry?.parameters.length === 2 && entry.parameters.every((parameter, index) =>
+      parameter.sourceParameter === tupleParameter && parameter.sourceProjection.length === 1 &&
+      parameter.sourceProjection[0].kind === "tuple-element" && parameter.sourceProjection[0].index === index &&
+      parameter.targetParameter.paramsArray !== true && parameter.targetParameter.passingMode === "by-value"), true,
+    "finite tuple components retain original source identity, ordered native slots and non-params ABI");
+    const storage = program.records.requiredStorageType.get(tupleParameter);
+    assert.equal(program.records.lambdaParameterType.get(tupleParameter) === undefined && storage?.kind === "tuple" && storage.elements.length === 2 &&
+      entry.parameters.every((parameter, index) => targetTypeRefEquals(parameter.targetParameter.type, storage.elements[index])), true,
+      "the original mutable body binding keeps its complete native tuple, not one arbitrarily selected component");
+    const restEntry = program.records.callableTarget.entry(rest);
+    assert.equal(restEntry?.parameters.length === 1 && restEntry.parameters[0].targetParameter.paramsArray === true &&
+      restEntry.parameters[0].sourceProjection[0]?.kind === "array-element", true,
+    "a genuine array rest remains one native params collection, distinct from a fixed tuple entry");
+    assert.equal(Object.isFrozen(identityEntry) && Object.isFrozen(entry) && Object.isFrozen(entry.parameters) &&
+      entry.parameters.every(parameter => Object.isFrozen(parameter) && Object.isFrozen(parameter.sourceProjection)), true,
+    "the canonical entry and source projection vectors are immutable before emission");
+    assert.equal(program.records.callableTarget.entry({}) === undefined, true, "a foreign declaration cannot borrow any physical entry");
+    const adapted = nodes.find(node => source.ast.is.IsArrowFunction(node) && source.ast.parameters(node).some(parameter => {
+      const bodyType = program.records.requiredStorageType.get(parameter);
+      return bodyType?.kind === "tuple" && bodyType.elements.every(element => element.kind === "source-primitive" && element.name === "float64");
+    }));
+    const adaptedParameter = adapted === undefined ? undefined : source.ast.parameters(adapted)[0];
+    const adaptedInput = program.records.lambdaParameterType.get(adaptedParameter);
+    const adaptedStorage = program.records.requiredStorageType.get(adaptedParameter);
+    const adaptation = program.records.conversion.get(adaptedInput, adaptedStorage, "implicit");
+    assert.equal(adaptedParameter !== undefined && adaptedInput?.kind === "tuple" &&
+      adaptedInput.elements.every(element => element.kind === "source-primitive" && element.name === "int32") &&
+      adaptedStorage?.kind === "tuple" && adaptedStorage.elements.every(element => element.kind === "source-primitive" && element.name === "float64") &&
+      adaptation?.kind === "implicit" && adaptation.proof === "tuple", true,
+    "the same storage owner admits the complete native incoming tuple to authored body tuple conversion before emission");
+    const context = createCsharpPlanningContext(program);
+    const file = source.ast.getSourceFile(pair);
+    const diagnostics = [];
+    const planned = planParametersWithPrelude(pair, file, context, diagnostics);
+    assert.equal(diagnostics.length === 0 && planned.parameters.length === 2, true, "the backend consumes the exact two admitted scalar slots");
+    const initializers = planned.prelude.filter(statement => statement.kind === "LocalDeclarationStatement" && statement.initializer?.kind === "TupleExpression");
+    assert.equal(initializers.length === 1 && initializers[0].initializer.elements.length === 2, true,
+      "the original body binding is constructed once as a stack tuple, never an array allocation");
+    assert.equal(planned.parameters.every(parameter => parameter.isParams !== true), true, "neither fixed tuple slot becomes params");
+    assert.throws(() => planParametersWithPrelude(source.ast.parameters(pair), file, context, [], createDestructuringPlannerState()),
+      error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&
+        error.message === "An emitted callable requires its exact sealed physical entry contract.",
+    "the removed raw parameter-array entry API is rejected, not accepted as a compatibility overload");
+    const arrow = nodes.find(node => source.ast.is.IsArrowFunction(node) && source.ast.parameters(node).some(parameter =>
+      source.ast.as.AsParameterDeclaration(parameter)?.DotDotDotToken !== undefined));
+    const carrier = program.records.callableTarget.get(arrow);
+    assert.equal(carrier !== undefined, true, "the tuple-rest lambda has its one actual selected creation carrier");
+    assert.throws(() => planLambdaParameterStorage(source.ast.parameters(arrow), file, context, [], createDestructuringPlannerState(), carrier),
+      error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&
+        error.message === "An emitted callable requires its exact sealed physical entry contract.",
+    "the lambda renderer also rejects the removed raw array form");
+    executeCsharpConstruction(selected.compiled, `physical-native-entry-${surface}`, false, false, [], `
+      if (!Tsonic.Generated.Index.run()) throw new System.Exception("entry identity/default/capture/body semantics");
+      if (Tsonic.Generated.Index.adapted() != 7.5D) throw new System.Exception("sealed tuple parameter conversion/body mutation");
+      _ = Tsonic.Generated.Index.pair(3, 4);
+      long before = System.GC.GetAllocatedBytesForCurrentThread();
+      int sum = 0;
+      for (int index = 0; index < 20000; index++) sum += Tsonic.Generated.Index.pair(3, 4);
+      long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+      if (sum != 160000 || allocated != 0) throw new System.Exception("fixed tuple entry requires zero per-call heap allocation");
+      before = System.GC.GetAllocatedBytesForCurrentThread();
+      double adaptedSum = 0D;
+      for (int index = 0; index < 20000; index++) adaptedSum += Tsonic.Generated.Index.adapted();
+      allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+      if (adaptedSum != 150000D || allocated != 0) throw new System.Exception("native tuple parameter conversion must not allocate or round away body mutation");
+    `);
+  });

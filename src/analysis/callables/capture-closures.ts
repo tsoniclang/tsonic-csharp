@@ -10,7 +10,6 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import { csharpConstructorRequiresPreparation } from "./constructor-entry.js";
-import { getCsharpExpressionTreeDelegateType } from "../../target-model/types/carriers/delegates.js";
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 
 export function selectCsharpFrameClosures(
@@ -39,7 +38,8 @@ export function selectCsharpFrameClosures(
   };
   for (const file of source.navigation.sourceFiles) visit(file);
   const captures = candidates.map(declaration => {
-    const lexical = sourceLexicalCaptures(declaration, [declaration], source.ast, source.navigation, "source");
+    const lexical = sourceLexicalCaptures(declaration,
+      csharpCallableCaptureRoots(source, declaration, constructorEntry.declarations), source.ast, source.navigation, "source");
     return { declaration, namedSelf: selectCsharpNamedSelfBinding(source, declaration, lexical, evidence, issues), selected: { ...lexical,
       captures: lexical.captures.filter(capture => !evidence.compileTimeMetadata.get(capture.declaration)),
     } };
@@ -107,9 +107,9 @@ export function selectCsharpFrameClosures(
           declaration: capture.declaration, scope, type: physicalType(capture.declaration, logicalType),
         };
       });
-      const expected = constructorEntry.expectedTypes.callableTarget.get(candidate.declaration);
-      const type = getCsharpExpressionTreeDelegateType(expected) === undefined
-        ? evidence.nodeTargetType.get(candidate.declaration) : expected;
+      const type = source.ast.is.IsFunctionDeclaration(candidate.declaration)
+        ? evidence.nodeTargetType.get(candidate.declaration)
+        : constructorEntry.expectedTypes.callableTarget.get(candidate.declaration);
       const receivers = candidate.selected.receivers.map(receiver => {
         const reference = receiver.references[0];
         const type = reference === undefined ? undefined : evidence.nodeTargetType.get(reference);
@@ -157,4 +157,23 @@ export function selectCsharpFrameClosures(
     captureFreeDeclarations: Object.freeze(captures.filter(candidate =>
       candidate.selected.captures.length === 0 && candidate.selected.receivers.length === 0).map(candidate => candidate.declaration)),
   });
+}
+
+export function csharpCallableCaptureRoots(
+  source: TargetSourceProgram,
+  declaration: Node,
+  declarations: Pick<CsharpDeclarationClassifications, "runtimeDefault">,
+): readonly Node[] {
+  const roots: Node[] = [];
+  for (const parameter of source.ast.parameters(declaration)) {
+    if (parameter === undefined) continue;
+    const selected = source.ast.as.AsParameterDeclaration(parameter);
+    if (selected?.name !== undefined && !source.ast.is.IsIdentifier(selected.name)) roots.push(selected.name);
+    if (selected?.Initializer !== undefined && declarations.runtimeDefault.get(parameter)?.native.kind !== "value") {
+      roots.push(selected.Initializer);
+    }
+  }
+  const body = source.ast.body(declaration);
+  if (body !== undefined) roots.push(body);
+  return Object.freeze(roots);
 }

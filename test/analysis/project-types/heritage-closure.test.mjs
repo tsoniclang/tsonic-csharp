@@ -4,6 +4,8 @@ import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpProjectTypePolicy } from "../../../dist/analysis/project-types/catalog/resolution.js";
 import { createCsharpProjectTypePolicy } from "../../../dist/policy/types/project/project-types.js";
 import { csharpEnumerableTargetType } from "../../../dist/target-model/types/carriers/collections.js";
+import { sealCsharpProjectTypeClassifications } from "../../../dist/analysis/project-types/analyze.js";
+import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 
 const header = 'import type { int32, int64 } from "@tsonic/core/types.js";\n';
 
@@ -95,6 +97,56 @@ test("native heritage admission retains class implements Iterable through the se
   const selected = value.policy.heritageForDeclaration(value.declaration);
   assert.equal(selected?.interfaces.length, 1, "one selected interface");
   assert.equal(selected?.interfaces[0] === target, true, "exact selected native interface and argument retained");
+});
+
+for (const kind of ["class", "interface"]) for (const source of ["authored", "completed structural"]) {
+  test(`${kind} heritage refuses an unrenderable ${source} carrier before publishing a sealed contract`, () => {
+    const declaration = {};
+    const definition = { kind, declaration, id: `project:${kind}`, typeParameterBindings: [] };
+    const unavailable = { kind: "opaque", id: "unrenderable-native-contract" };
+    const heritage = { definition, interfaces: source === "authored" ? [unavailable] : [] };
+    const constructors = Object.freeze([]);
+    const selected = sealCsharpProjectTypeClassifications({
+      catalog: { definitions: [definition] }, issues: [],
+      heritageForDeclaration: node => {
+        assert.equal(node === declaration, true, "the original checked declaration supplies its authored contract");
+        return heritage;
+      },
+      implicitConstructorsForDeclaration: () => constructors,
+    }, { parent: () => undefined }, [declaration], { resolveNode: node => {
+      assert.equal(node === declaration, true, "completion reads this exact declaration's already selected shape");
+      return source === "completed structural" ? { implements: [unavailable] } : undefined;
+    } });
+    const issue = selected.issues[0];
+    assert.equal(selected.issues.length === 1 && issue.node === declaration && issue.code === "CSHARP_UNSUPPORTED_AST" &&
+      issue.message === "Canonical project heritage contains a target type that cannot be rendered in C#.", true,
+    "the original rendering refusal is precise and belongs to the actual pre-publication owner");
+    assert.equal(selected.heritageForDeclaration(declaration) === undefined &&
+      selected.heritageForTarget(csharpTargetNamedType(definition.id, [], { kind: "named", name: "RejectedHeritage" },
+        { allowsRefLikeTypeArguments: [], sourceDeclarationKind: kind })) === undefined, true,
+    "neither declaration nor target identity can expose a partially admitted heritage contract");
+    assert.equal(selected.implicitConstructorsForDeclaration(declaration)?.length === 0 &&
+      Object.isFrozen(selected.implicitConstructorsForDeclaration(declaration)), true,
+      "the independent constructor snapshot stays complete and immutable");
+    assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.issues) && Object.isFrozen(issue), true,
+      "the completed refusal is immutable data, not deferred renderer work");
+  });
+}
+
+test("completed heritage retains exact generic bindings and renderable structural contributions", () => {
+  const declaration = {};
+  const parameter = { kind: "type-parameter", name: "Value", identity: "heritage:Value" };
+  const definition = { kind: "interface", declaration, id: "project:GenericView", typeParameterBindings: [parameter] };
+  const view = { kind: "target-named", id: "native:View", name: "View", typeArguments: [parameter],
+    csharpAllowsRefLikeTypeArguments: [false], csharpRender: { kind: "named", name: "View" } };
+  const heritage = { definition, interfaces: [view] };
+  const selected = sealCsharpProjectTypeClassifications({ catalog: { definitions: [definition] }, issues: [],
+    heritageForDeclaration: () => heritage, implicitConstructorsForDeclaration: () => undefined,
+  }, { parent: () => undefined }, [declaration], { resolveNode: () => ({ implements: [{ ...view }] }) });
+  const admitted = selected.heritageForDeclaration(declaration);
+  assert.equal(selected.issues.length === 0 && admitted?.interfaces.length === 1 &&
+    admitted.interfaces[0].id === view.id && admitted.interfaces[0].typeArguments[0] === parameter, true,
+    "completion keeps exact native identity and bound generic identity while deduplicating only equivalent physical contracts");
 });
 const cases = [
   ["int32 property", `interface Box<T> { value: T; }

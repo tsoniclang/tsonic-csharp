@@ -77,12 +77,25 @@ test("binary and unary forms are recorded once in the planner's order", () => {
     "operator a.length = 0 => js-array-mutation",
     "operator x.a = 1 => js-value-write",
     "operator o.p = 1 => js-value-write",
-    "operator typeof v === \"string\" => typeof-comparison",
+    "operator typeof v === \"string\" => selected",
     "operator v instanceof A => type-test",
     "operator o + 1 => js-value-operation",
     "operator n < m => selected",
     "operator -n => selected",
   ]);
+  const program = compiled.result.program;
+  const observations = [];
+  const visit = node => {
+    if (program.source.ast.is.IsTypeOfExpression(node)) {
+      const operand = program.source.ast.as.AsTypeOfExpression(node).Expression;
+      observations.push(program.records.jsTypeof.get(operand));
+    }
+    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  assert.equal(observations.length === 1 && observations[0]?.kind === "resolved" &&
+    observations[0].runtimeMember === "ApplyDynamicTypeof", true,
+  "the actual TsValue operand keeps its sole closed JS-typeof owner rather than a fabricated native category");
 });
 
 test("operator form readers are frozen, repeatable and absent for foreign and non-operator subjects", () => {

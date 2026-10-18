@@ -135,7 +135,7 @@ for (const surface of ["native", "js"]) {
       const selected = records.nativeHandler.get(node);
       return selected?.kind === "typed-location" ? selected.selection : undefined;
     } }) });
-    const storage = analyzeCsharpStorage(policy, records, operations, program.objectShapes, expected, records, records,
+    const storage = analyzeCsharpStorage(policy, records, Object.freeze([]), operations, program.objectShapes, expected, records, records,
       callables, records, rows);
     assert.equal(storage.issues.length === 0, true, "the owner closes this source without issues");
     assert.equal(nodes.every(node => sameType(storage.lambdaParameterType.get(node), records.lambdaParameterType.get(node)) &&

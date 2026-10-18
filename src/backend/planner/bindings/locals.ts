@@ -35,14 +35,8 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
 import {
-  targetTypeRefEquals,
-} from "../../../target-model/types/index.js";
-import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
-import {
-  planCsharpSourceUndefinedValue,
-} from "../expressions/undefined-values.js";
 import {
   planCsharpTypedLocationIdentityDeclaration,
 } from "./typed-location-identities.js";
@@ -109,20 +103,14 @@ export function planLocalDeclaration(
     declarationNode,
   );
   const storageType = input.program.records.storageType.get(declarationNode);
-  const requiredStorageType = storageType !== undefined &&
-      inferredTargetType !== undefined &&
-      !targetTypeRefEquals(storageType, inferredTargetType)
-    ? csharpTypeFromTargetTypeRef(storageType, input.scope.typeParameterNames)
-    : undefined;
+  const selectedStorageType = storageType === undefined ? undefined
+    : csharpTypeFromTargetTypeRef(storageType, input.scope.typeParameterNames);
   const type = (nativeRefTargetType === undefined
       ? undefined
       : csharpTypeFromTargetTypeRef(nativeRefTargetType, input.scope.typeParameterNames)) ??
-    requiredStorageType ??
+    selectedStorageType ??
     explicitType ??
     inferredLambdaType ??
-    (storageType === undefined
-      ? undefined
-      : csharpTypeFromTargetTypeRef(storageType, input.scope.typeParameterNames)) ??
     getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
   const name = declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "Local binding name", "LocalDeclarationStatement");
   const initializerCarrier = nativeRefTargetType ?? storageType ?? expectedTargetType ?? inferredTargetType;
@@ -134,23 +122,13 @@ export function planLocalDeclaration(
   } else if (variable.Initializer !== undefined) {
     initializer = planExpression(variable.Initializer, sourceFile, input, diagnostics, state
     );
-  } else if (inferredTargetType !== undefined &&
+  } else if (initializerCarrier !== undefined &&
     input.program.records.moduleBindingInitialization.get(declarationNode) !== "declaration") {
-    const undefinedValue = planCsharpSourceUndefinedValue(
-      declarationNode,
-      inferredTargetType,
-      sourceFile,
-      input,
-      diagnostics,
-    );
-    const expression: CsharpExpression = undefinedValue.kind === "resolved"
-      ? undefinedValue.expression
-      : {
-          kind: "DefaultExpression",
-          type,
-          nullForgiving: true,
-        };
-    initializer = csharpPlannedValue(inferredTargetType, expression);
+    initializer = csharpPlannedValue(initializerCarrier, {
+      kind: "DefaultExpression",
+      type,
+      nullForgiving: true,
+    });
   }
   const nativeArray = input.program.records.nativeArray.get(declarationNode);
   if (nativeArray !== undefined && initializer !== undefined) {
