@@ -54,8 +54,8 @@ export function sealCsharpConversionUses(
       if (preparationIssues.some(issue => issue.code === "CSHARP_CONVERSION_CLASSIFICATION_LIMIT_EXCEEDED")) return;
       return failTargetAnalysisInvariant("tsonic-csharp", "A consumed native default requires its completed conversion classification.", expression);
     }
-    if (selected.kind === "rejected") {
-      issues.push(Object.freeze({ node: expression, code: selected.code ?? "CSHARP_UNSUPPORTED_AST",
+    if (selected.kind === "rejected" || selected.kind === "ambiguous") {
+      issues.push(Object.freeze({ node: expression, code: selected.kind === "rejected" ? selected.code ?? "CSHARP_UNSUPPORTED_AST" : "CSHARP_UNSUPPORTED_AST",
         message: selected.reason }));
       return;
     }
@@ -104,8 +104,9 @@ export function sealCsharpConversionUses(
     const selections = expressions.get(expression) ?? new Map();
     selections.set(admitted.key, admitted.classification);
     expressions.set(expression, selections);
-    if (admitted.classification.selection.kind === "rejected") {
-      issues.push(Object.freeze({ node: expression, code: admitted.classification.selection.code ?? "CSHARP_UNSUPPORTED_AST",
+    if (admitted.classification.selection.kind === "rejected" || admitted.classification.selection.kind === "ambiguous") {
+      issues.push(Object.freeze({ node: expression, code: admitted.classification.selection.kind === "rejected"
+        ? admitted.classification.selection.code ?? "CSHARP_UNSUPPORTED_AST" : "CSHARP_UNSUPPORTED_AST",
         message: admitted.classification.selection.reason }));
       return;
     }

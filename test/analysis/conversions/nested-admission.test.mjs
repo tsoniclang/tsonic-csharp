@@ -155,6 +155,30 @@ test("member admission issues retain rejected and ambiguous selections at their 
   assert.equal(csharpOperationConversionIssue(subject, undefined, "CSHARP_ELEMENT_READ_CONVERSION_NOT_PROVEN"), undefined);
 });
 
+test("conversion admission validates integer refinements, absence and provider storage before publication", () => {
+  const unsigned = csharpSourcePrimitiveTargetType("uint32");
+  const refinement = Object.freeze({ kind: "integer-refinement", source: "int32", target: "uint32", proof: "nonnegative" });
+  assertAdmitted(integerType, unsigned, refinement);
+  for (const [source, target, selected] of [
+    [booleanType, unsigned, refinement],
+    [integerType, integerType, refinement],
+    [integerType, unsigned, { ...refinement, proof: "wrong" }],
+    [integerType, csharpNullableTargetType(integerType), { kind: "absence" }],
+  ]) assert.equal(admitCsharpConversionSelection(policy, source, target, selected).kind, "rejected",
+    "an invalid native conversion is refused by admission, never by the planner");
+  const source = csharpNullableTargetType(integerType);
+  const target = csharpNullableTargetType(unsigned);
+  const selected = Object.freeze({ kind: "lifted-provider-argument-adapter", sourceElementType: integerType,
+    targetElementType: unsigned, adapter: providerAdapter(integerType, unsigned) });
+  assertAdmitted(source, target, selected);
+  assert.equal(admitCsharpConversionSelection(policy, source, target, { ...selected, sourceElementType: booleanType }).kind,
+    "rejected", "a provider's lifted adapter cannot replace its admitted native element pair");
+  const unsupported = { kind: "cast", proof: "reference" };
+  const refused = admitCsharpConversionSelection(policy, integerType, { kind: "opaque", id: "unrenderable" }, unsupported);
+  assert.equal(refused.kind, "rejected", "an unrenderable required native conversion is refused before sealing");
+  assert.equal(refused.reason, "C# conversion requires a renderable target type.", "the owning failure remains precise");
+});
+
 test("optional project indexers admit present-value conversion before native absence is lifted", () => {
   const source = { receiver: { expression: {} }, accessMode: "read", optionalChain: true };
   const selected = { kind: "project-indexer", source, valueType: wide, selectedReadType: narrow };

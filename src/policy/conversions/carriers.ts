@@ -178,7 +178,8 @@ export function selectNullableConversion(
       return { ...elementConversion, target };
     }
     if (conversionIsImplicitlyApplicable(elementConversion)) {
-      if (sourceElement === undefined) return elementConversion;
+      if (sourceElement === undefined) return elementConversion.kind === "identity"
+        ? { kind: "implicit", proof: "nullable" } : elementConversion;
       if (elementConversion.kind === "identity" ||
         elementConversion.kind === "implicit" && elementConversion.proof !== "runtime-union-arm") {
         return { kind: "implicit", proof: "nullable" };

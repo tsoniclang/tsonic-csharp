@@ -55,22 +55,17 @@ test("C# conversion planning fails closed when its sealed classification is abse
         } } } },
   };
 
-  const result = readCsharpConversionClassification(
+  assert.throws(() => readCsharpConversionClassification(
     node,
     input,
     diagnostics,
     { kind: "source-primitive", name: "int32" },
     { kind: "source-primitive", name: "float64" },
     "implicit",
-  );
-
-  assert.equal(result, undefined);
-  assert.deepEqual(diagnostics, [{
-    code: "CSHARP_UNSUPPORTED_AST",
-    category: "error",
-    source: "tsonic-csharp",
-    message:
-      "C# planning requires a sealed target conversion classification that analysis did not produce.",
-    sourceNode: node,
-  }]);
+  ), error => error instanceof Error && error.phase === "planning" &&
+    error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&
+    error.diagnostic.source === "tsonic-csharp" && error.diagnostic.sourceNode === node &&
+    error.message === "C# planning requires a sealed target conversion classification that analysis did not produce.",
+  "a corrupted sealed conversion record uses the registered planner-invariant route");
+  assert.equal(diagnostics.length, 0, "an impossible missing record is not relabelled as a source diagnostic");
 });
