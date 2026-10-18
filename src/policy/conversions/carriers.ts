@@ -37,6 +37,7 @@ import type { CsharpConversionMode, CsharpConversionSelection } from "../../targ
 import type { CsharpPolicyContext } from "../model/context.js";
 import { csharpUnionLeaves, csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "../../target-model/types/union-relations.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
+import { csharpNativeRepresentationMatches } from "../../target-model/conversions/native-representation.js";
 
 export function selectJsValueConversion(
   source: TargetTypeRef,
@@ -49,7 +50,10 @@ export function selectJsValueConversion(
     return undefined;
   }
   if (sourceJsValue && targetJsValue) {
-    return { kind: "identity" };
+    if (targetTypeRefEquals(source, target)) return { kind: "identity" };
+    return csharpNativeRepresentationMatches(source, target)
+      ? { kind: "implicit", proof: "native-representation" }
+      : { kind: "rejected", reason: "C# JsValue conversion requires one exact closed non-generic native representation." };
   }
   if (targetJsValue) {
     return { kind: "js-value-box" };

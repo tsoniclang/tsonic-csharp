@@ -11,6 +11,7 @@ import { csharpCarrierAdmitsSourceAbsence, getCsharpDelegateSignature, getCsharp
 import type { CsharpConversionShapeQueries } from "../../policy/conversions/shape-queries.js";
 import { csharpUnsignedIntegerCounterpart } from "../../target-model/conversions/integer-refinement.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
+import { csharpNativeRepresentationMatches } from "../../target-model/conversions/native-representation.js";
 
 type CsharpUnionValidationPolicy = Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries;
 
@@ -99,6 +100,13 @@ export function admitCsharpConversionSelection(
         descend(selected, [{ kind: "enter", source: sourceElement, target: targetElement, selection: selected.conversion }]);
         break;
       case "implicit": {
+        if (selected.proof === "native-representation") {
+          if (current.source === undefined || current.target === undefined ||
+            !csharpNativeRepresentationMatches(current.source, current.target)) {
+            return { kind: "rejected", reason: "C# native representation conversion requires distinct closed non-generic JsValue carriers with the same canonical native render." };
+          }
+          break;
+        }
         if (selected.proof !== "runtime-union-arm") break;
         const arm = getCsharpRuntimeUnionArms(targetElement ?? current.target, policy.typeDefinitions)?.[selected.armIndex];
         if (arm === undefined || !targetTypeRefEquals(arm, selected.armType)) {

@@ -11,6 +11,7 @@ import {
   csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  csharpTsValueTargetType,
 } from "../../../dist/target-model/types/index.js";
 
 const policy = {
@@ -57,6 +58,87 @@ test("identity admission requires the same complete carrier and exact generic bi
     assert.equal(admitted.kind, "rejected", "a different complete pair cannot carry an identity leaf");
     assert.equal(admitted.reason, identityReason, "failure retains the exact identity contract");
   }
+});
+
+test("closed JsValue facets preserve their logical identities under an explicit native representation proof", () => {
+  const native = csharpTsValueTargetType();
+  const left = Object.freeze({ ...native, id: "logical:left", csharpJsObjectShape: true });
+  const right = Object.freeze({ ...native, id: "logical:right", csharpJsObjectShape: true });
+  for (const [source, target] of [[native, left], [left, native], [left, right]]) {
+    const selected = selectCsharpConversion(policy, source, target, "implicit");
+    assert.equal(selected.kind, "implicit", "a different complete logical pair is not identity");
+    assert.equal(selected.proof, "native-representation", "the exact canonical native render owns the no-op");
+    assert.equal(admitCsharpConversionSelection(policy, source, target, selected) === selected, true,
+      "pre-seal admission checks the same physical evidence");
+    assert.equal(admitCsharpConversionSelection(policy, source, target, identity).kind, "rejected",
+      "the logical identity comparator remains strict for every faceted pair");
+    const expression = Object.freeze({ kind: "IdentifierName", name: "value" });
+    const diagnostics = [];
+    assert.equal(applyCsharpConversionSelection({}, {}, {}, diagnostics, source, target, selected, expression) === expression,
+      true, "the native representation proof adds no cast, wrapper, allocation, boxing or copy node");
+    assert.equal(diagnostics.length, 0, "rendering makes no conversion decision");
+  }
+});
+
+test("native representation admission refuses foreign binders, non-JsValue carriers and different native renders", () => {
+  const native = csharpTsValueTargetType();
+  const binder = Object.freeze({ kind: "type-parameter", name: "T", identity: "owner:first:T" });
+  const foreign = Object.freeze({ ...binder, identity: "owner:second:T" });
+  const generic = Object.freeze({ ...native, id: "logical:generic", typeArguments: [binder] });
+  const foreignGeneric = Object.freeze({ ...generic, typeArguments: [foreign] });
+  const selected = Object.freeze({ kind: "implicit", proof: "native-representation" });
+  for (const [source, target] of [[generic, foreignGeneric], [native, generic], [binder, foreign], [native, native],
+    [native, integerType], [native, { ...native, id: "logical:nominal", csharpJsValueCarrier: undefined }],
+    [native, { ...native, id: "logical:class", csharpRender: { kind: "named", name: "NativeClass" } }],
+    [native, { ...native, id: "logical:namespace", csharpRender: { ...native.csharpRender, namespace: ["Other", "Runtime"] } }],
+    [native, { ...native, id: "logical:arity", csharpRender: { ...native.csharpRender, genericArity: 1 } }],
+    [native, { ...native, id: "logical:alias", csharpRender: { ...native.csharpRender, externAlias: "other" } }],
+    [native, { ...native, id: "logical:nested", csharpRender: { ...native.csharpRender, nested: [{ name: "Inner" }] } }],
+    [native, { ...native, id: "logical:nullable", csharpNullableReference: true }],
+  ]) {
+    const admitted = admitCsharpConversionSelection(policy, source, target, selected);
+    assert.equal(admitted.kind, "rejected", "a flag, spelling or different binder never establishes a physical identity");
+    assert.equal(admitted.reason,
+      "C# native representation conversion requires distinct closed non-generic JsValue carriers with the same canonical native render.",
+      "the one pre-seal contract gives the exact rejection");
+  }
+  assert.equal(selectCsharpConversion(policy, generic, foreignGeneric, "implicit").kind, "rejected",
+    "a later conversion selector cannot erase a foreign generic binder");
+  assert.equal(selectCsharpConversion(policy, native,
+    { ...native, id: "logical:wrong-native", csharpRender: { kind: "named", name: "NativeClass" } }, "implicit").kind,
+  "rejected", "the producer refuses mismatched physical renders rather than falling through");
+});
+
+test("checked JSON structural views preserve native value identity without a conversion adapter", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    export function readTitle(text: string): string | undefined {
+      const value = JSON.parse(text) as { title?: unknown };
+      if (typeof value.title !== "string") return undefined;
+      return value.title;
+    }
+    export function same(text: string): boolean {
+      const raw = JSON.parse(text);
+      const left = raw as { title?: unknown };
+      const right = raw as { title?: unknown };
+      return left === right;
+    }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const output = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
+  assert.equal(output.includes("Tsonic.CSharp.Runtime.TsValue value = Tsonic.CSharp.Js.JSON.parse(text);"), true,
+    "the actual native TsValue is stored directly under its checked structural view");
+  assert.equal(output.includes("Tsonic.CSharp.Runtime.TsValue left = raw;") &&
+    output.includes("Tsonic.CSharp.Runtime.TsValue right = raw;"), true, "facets retain the same native value");
+  const observed = executeCsharpConstruction(compiled, "native-json-structural-views", false, false, [], `
+    if (Tsonic.Generated.Index.readTitle("""{"title":"ok"}""") != "ok" ||
+        Tsonic.Generated.Index.readTitle("""{"title":1}""") != null ||
+        Tsonic.Generated.Index.readTitle("""{}""") != null ||
+        !Tsonic.Generated.Index.same("""{"title":"ok"}"""))
+      throw new System.Exception("native JSON structural view identity");
+    System.Console.WriteLine("title=ok; nonstring=null; absent=null; identity=true");
+  `);
+  assert.equal(observed.includes("title=ok; nonstring=null; absent=null; identity=true"), true,
+    "native execution proves presence, narrowing, one absence state and preserved identity");
 });
 
 test("nullable mapping retains a nonidentity subtree and rejects a foreign element identity", () => {

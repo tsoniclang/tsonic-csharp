@@ -36,6 +36,7 @@ export type CsharpConversionSelection =
   | {
       readonly kind: "implicit";
       readonly proof:
+        | "native-representation"
         | "numeric"
         | "literal"
         | "checked-floating-literal"
