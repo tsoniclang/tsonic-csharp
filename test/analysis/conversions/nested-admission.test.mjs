@@ -6,7 +6,8 @@ import { csharpOperationConversionIssue, csharpSelectedCallConversionIssue } fro
 import { elementSelectedTypes } from "../../../dist/analysis/operations/member-access.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
 import { csharpAbsenceTargetType, csharpDelegateTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
-  csharpSourcePrimitiveTargetType, csharpStringTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
+  csharpNeverTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpVoidTargetType,
+  targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
 const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined }, target: {} };
 const stringType = csharpStringTargetType();
@@ -239,4 +240,44 @@ test("authored absence into required native storage retains its exact refusal at
     "native declaration defaults never waive an authored incompatible absence conversion");
   assert.equal(admitted.issues[0].node === expression && admitted.issues[0].code === "CSHARP_UNSUPPORTED_AST" &&
     admitted.issues[0].message === selected.reason, true, "admission retains the exact reachable source refusal and subject");
+});
+
+test("void and never native completions admit no present-value conversion", () => {
+  for (const [kind, carrier] of [["void", csharpVoidTargetType()], ["never", csharpNeverTargetType()]]) {
+    const expression = Object.freeze({});
+    const use = Object.freeze({ kind: "effect", expression, carrier, completion: Object.freeze({ kind }),
+      children: Object.freeze([]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
+    const requiredRecords = [];
+    const admitted = sealCsharpConversionUses({ entries: [{ use }] }, {
+      selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
+    }, () => assert.fail(`${kind} has no consumed value conversion`),
+    () => assert.fail(`${kind} has no present-value conversion`), requiredRecords, [],
+    new Map([[expression, Object.freeze({ source: carrier, target: carrier })]]));
+    assert.equal(admitted.issues.length, 0, `${kind} does not manufacture an absence or value rejection`);
+    assert.equal(admitted.expressions.size, 0, `${kind} publishes no expression conversion`);
+    assert.equal(requiredRecords.length, 0, `${kind} requires no value conversion record`);
+  }
+});
+
+test("native call completion admission requires its exact pair only once across value uses", () => {
+  const expression = Object.freeze({});
+  const target = csharpNullableTargetType(booleanType);
+  const use = Object.freeze({ kind: "value", expression, carrier: target,
+    completion: Object.freeze({ kind: "value", type: target }), children: Object.freeze([]),
+    evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
+  const requiredRecords = [];
+  let presentConversions = 0;
+  const admitted = sealCsharpConversionUses({ entries: [{ use }, { use }] }, {
+    selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
+  }, (node, source, target) => ({ key: "same-carrier",
+    classification: { source, target, selection: selectCsharpConversion(policy, source, target, "implicit") },
+  }), (node, source, target) => {
+    presentConversions++;
+    return selectCsharpConversion(policy, source, target, "implicit");
+  }, requiredRecords, [], new Map([[expression, Object.freeze({ source: booleanType, target })]]));
+  assert.equal(admitted.issues.length, 0, "duplicate consuming sites retain valid native optional bool admission");
+  assert.equal(presentConversions, 1, "the selected present-result conversion is admitted once");
+  assert.equal(requiredRecords.filter(record => record.family === "conversion" && record.subject === expression &&
+    targetTypeRefEquals(record.source, booleanType) && targetTypeRefEquals(record.target, target)).length, 1,
+  "the exact present-to-optional required-record pair is published once");
 });

@@ -28,6 +28,7 @@ export function sealCsharpConversionUses(
   const expressions = new Map<Node, Map<string, CsharpExpressionConversionClassification>>();
   const issues: CsharpConversionIssue[] = [];
   const calls = new Set<Node>();
+  const completedCalls = new Set<Node>();
   for (const entry of demand.entries) {
     const use = entry.use;
     if (use.kind === "erased") continue;
@@ -40,10 +41,13 @@ export function sealCsharpConversionUses(
       calls.add(use.expression);
       selectedArgumentUses(use.expression, operations.selectedCall.get(use.expression)?.target);
       selectedArgumentUses(use.expression, operations.selectedConstruction.get(use.expression)?.target);
-      const completion = callCompletionConversions.get(use.expression);
-      if (completion !== undefined) admitValue(use.expression, completion.source, completion.target);
     }
     if (use.completion.kind !== "value") continue;
+    const completion = callCompletionConversions.get(use.expression);
+    if (completion !== undefined && !completedCalls.has(use.expression)) {
+      completedCalls.add(use.expression);
+      admitValue(use.expression, completion.source, completion.target);
+    }
     const source = use.kind === "converted" && use.input.kind === "value" ? use.input.type : use.carrier;
     const target = use.kind === "converted" ? use.target : use.carrier;
     const mode = use.kind === "converted" ? use.mode : "implicit";
