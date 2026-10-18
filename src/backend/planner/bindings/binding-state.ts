@@ -348,11 +348,10 @@ export function allocateCatchValue(state: DestructuringPlannerState): string {
 
 export function allocateControlLabel(
   state: DestructuringPlannerState,
-  sourceName: string,
   purpose: "BreakStatement" | "ContinueStatement",
 ): string {
   const suffix = purpose === "BreakStatement" ? "break" : "continue";
-  return allocateSyntheticName(state, `__tsonic_label_${sourceName}_${suffix}`, "nextControlLabelIndex");
+  return allocateSyntheticName(state, `__tsonic_label_${suffix}`, "nextControlLabelIndex");
 }
 
 export function allocateDestructuringTemp(state: DestructuringPlannerState): string {

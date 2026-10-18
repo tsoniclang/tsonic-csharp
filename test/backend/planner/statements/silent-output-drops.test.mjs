@@ -9,6 +9,24 @@ import { admitCsharpStatementBindings } from "../../../../dist/analysis/control-
 
 const throwMessage = "Throw statements require C# type syntax for the sealed thrown carrier 'target:example.Unrendered<>' before C# emission.";
 
+for (const surface of ["native", "js"]) {
+  test(`an unrepresentable public native throw is refused before publication on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { float16 } from "@tsonic/csharp/types.js";
+      export function fail(value: float16): void { throw value; }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the native half-precision argument has checked source types");
+    assert.equal(compiled.targetDiagnostics.length, 1, "the single statement-admission owner refuses the unsupported error carrier");
+    assert.equal(compiled.targetDiagnostics[0].code, "CSHARP_UNSUPPORTED_AST", "the original native throw refusal code is preserved");
+    assert.equal(compiled.targetDiagnostics[0].message,
+      "Throw statements require finalized TSTS/provider exception-carrier facts before C# emission. Resolved thrown expression carrier is not a target throwable carrier.",
+      "the original native error-carrier refusal reason is preserved");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true,
+      "the real admission aggregation rejects before native program and plan publication");
+    assert.equal(compiled.artifacts.size, 0, "an unsupported native throw cannot emit partial artifacts");
+  });
+}
+
 test("a thrown carrier without native syntax is refused at admission; corrupt published evidence is an invariant", () => {
   const compiled = compileCsharpSource({ sourceText: "export function fail(error: Error): void { throw error; }" });
   const program = compiled.result.program;

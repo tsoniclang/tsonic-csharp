@@ -23,7 +23,7 @@ export function planCsharpLoopContinuation(
   const region = state.loopContinuations[state.loopContinuations.length - 1];
   if (region?.loop !== loop) failCsharpPlannerInvariant("A planned loop region requires its exact active native continuation owner.", loop);
   const target = [...state.controlLabels].reverse().find(target => target.loop === loop);
-  const label = target?.continueLabel ?? allocateControlLabel(state, "region", "ContinueStatement");
+  const label = target?.continueLabel ?? allocateControlLabel(state, "ContinueStatement");
   if (target !== undefined) target.continueOwned = true;
   region.label = label;
   return label;

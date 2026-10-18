@@ -17,7 +17,6 @@ import {
 } from "../bindings/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import type { ControlLabelTarget } from "../bindings/binding-state.js";
-import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 
 export type NestedStatementBodyPlanner = (
   node: Node | undefined,
@@ -35,12 +34,13 @@ export function planLabeledStatement(
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementBodyPlanner,
 ): CsharpStatement {
-  const sourceName = requireCsharpIdentifier(Node_Text(input.program.source.ast, statement.Label!), diagnostics, "Statement label");
+  const sourceName = Node_Text(input.program.source.ast, statement.Label!);
+  const iteration = labeledIteration(statement.Statement, input);
   const target: ControlLabelTarget = {
     sourceName,
-    breakLabel: allocateControlLabel(state, sourceName, "BreakStatement"),
-    ...(isIterationStatement(statement.Statement, input)
-      ? { continueLabel: allocateControlLabel(state, sourceName, "ContinueStatement"), loop: statement.Statement }
+    breakLabel: allocateControlLabel(state, "BreakStatement"),
+    ...(iteration !== undefined
+      ? { continueLabel: allocateControlLabel(state, "ContinueStatement"), loop: iteration }
       : {}),
   };
   state.controlLabels.push(target);
@@ -93,12 +93,15 @@ function planSingleStatement(
   };
 }
 
-function isIterationStatement(node: Node | undefined, input: CsharpPlanningContext): boolean {
+function labeledIteration(node: Node | undefined, input: CsharpPlanningContext): Node | undefined {
+  while (node !== undefined && input.program.source.ast.is.IsLabeledStatement(node)) {
+    node = AsLabeledStatement(input.program.source.ast, node)?.Statement;
+  }
   return HasSourceKind(input.program.source.ast, node, KindWhileStatement) ||
     HasSourceKind(input.program.source.ast, node, KindDoStatement) ||
     HasSourceKind(input.program.source.ast, node, KindForStatement) ||
     HasSourceKind(input.program.source.ast, node, KindForInStatement) ||
-    HasSourceKind(input.program.source.ast, node, KindForOfStatement);
+    HasSourceKind(input.program.source.ast, node, KindForOfStatement) ? node : undefined;
 }
 
 function attachContinueLabel(statement: CsharpStatement, label: string): CsharpStatement {

@@ -6,6 +6,55 @@ import {
 } from "../../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 
+for (const surface of ["native", "js"]) {
+  test(`generic initializer-less absence uses its selected native witness on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      function absent<T>(input: T, flag: boolean): boolean {
+        let value: T | undefined;
+        if (flag) value = input;
+        return value === undefined;
+      }
+      export function checkInt(flag: boolean): boolean { return absent<int>(7, flag); }
+      export function checkString(flag: boolean): boolean { return absent<string>("value", flag); }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "native generic optional storage is checked source");
+    assert.equal(compiled.targetDiagnostics.length, 0, "generic absence uses the one selected storage contract");
+    const output = compiled.artifacts.get("src/Index.cs");
+    assert.match(output, /\.From1\(null\)/u, "the optional-storage witness explicitly constructs its absent arm");
+    assert.doesNotMatch(output, /\bvalue = default/u, "generic absence never guesses the storage's default tag");
+    executeCsharpConstruction(compiled, `generic-local-absence-${surface}`, false, false, [], `
+using Index = Tsonic.Generated.Index;
+for (var warmup = 0; warmup < 1000; warmup++) {
+    var flag = (warmup & 1) == 0;
+    if (Index.checkInt(flag) != !flag || Index.checkString(flag) != !flag)
+        throw new System.Exception("generic native absence witness");
+}
+var before = System.GC.GetAllocatedBytesForCurrentThread();
+var generated = 0;
+for (var iteration = 0; iteration < 10000; iteration++) {
+    var flag = (iteration & 1) == 0;
+    if (Index.checkInt(flag)) generated++;
+    if (Index.checkString(flag)) generated++;
+}
+var generatedBytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
+before = System.GC.GetAllocatedBytesForCurrentThread();
+var native = 0;
+for (var iteration = 0; iteration < 10000; iteration++) {
+    var flag = (iteration & 1) == 0;
+    int? number = null;
+    string? text = null;
+    if (flag) { number = 7; text = "value"; }
+    if (number is null) native++;
+    if (text is null) native++;
+}
+var nativeBytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
+if (generated != 10000 || generated != native || generatedBytes != nativeBytes)
+    throw new System.Exception($"generic absence {generated}/{native}, allocation {generatedBytes}/{nativeBytes}");
+`);
+  });
+}
+
 test("direct C# translation initializes undefined storage and closes recursive local callables", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({
     sourceText: `

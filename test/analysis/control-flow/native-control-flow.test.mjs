@@ -35,6 +35,9 @@ test("checked-source admission excludes malformed binding and control-flow gramm
     { label: "multiple setter parameters", sourceText: "export class View { set value(first: number, second: number) {} }" },
     { label: "multiple index signature keys", sourceText: "export interface View { [first: string, second: string]: number; }" },
     { label: "interface property initializer", sourceText: "export interface View { value: number = 1; }" },
+    { label: "unbound break label", sourceText: "export function run(): void { while (true) { break missing; } }" },
+    { label: "unbound continue label", sourceText: "export function run(): void { while (true) { continue missing; } }" },
+    { label: "continue to a non-iteration label", sourceText: "export function run(): void { target: { continue target; } }" },
   ]) {
     const compiled = compileCsharpSource({ sourceText: control.sourceText });
     assert.equal(compiled.sourceDiagnosticsText.length > 0, true, `${control.label}: checked syntax is refused`);
@@ -43,6 +46,36 @@ test("checked-source admission excludes malformed binding and control-flow gramm
     assert.equal(compiled.artifacts.size, 0, `${control.label}: malformed grammar never emits native artifacts`);
   }
 });
+
+for (const surface of ["native", "js"]) {
+  test(`checked source labels use native synthetic endpoints without spelling constraints on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      export function run(): int {
+        let result: int = 0;
+        event: while (true) { result += 1; break event; }
+        $done: { result += 1; break $done; }
+        outer: inner: for (let index: int = 0; index < 3; index++) {
+          if (index === 1) continue outer;
+          result += 1;
+        }
+        return result;
+      }
+      export function other(): int { event: while (true) { break event; } return 5; }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "all source labels have exact checked break/continue targets");
+    assert.equal(compiled.targetDiagnostics.length, 0, "native synthetic endpoints impose no authored identifier restriction");
+    const output = compiled.artifacts.get("src/Index.cs");
+    assert.doesNotMatch(output, /__tsonic_label_(?:event|@|\$|outer|inner)/u,
+      "authored labels are source identities, never native endpoint fragments");
+    assert.match(output, /goto __tsonic_label_break\d+;/u, "checked break targets use deterministic synthetic names");
+    assert.match(output, /goto __tsonic_label_continue\d+;/u, "nested checked continue targets retain the selected loop");
+    executeCsharpConstruction(compiled, `native-control-labels-${surface}`, false, false, [], `
+if (Tsonic.Generated.Index.run() != 4 || Tsonic.Generated.Index.other() != 5)
+    throw new System.Exception("native checked label identity");
+`);
+  });
+}
 
 for (const surface of ["native", "js"]) {
   test(`retained destructuring publishes exact extraction, destination and admitted conversion on ${surface}`, () => {
