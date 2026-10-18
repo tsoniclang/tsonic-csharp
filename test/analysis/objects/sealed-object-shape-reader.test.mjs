@@ -250,6 +250,7 @@ test("a generic structural implementation is substituted once at seal into froze
     ast: { is: { IsObjectLiteralExpression: () => false }, forEachChild: () => {}, parent: () => undefined,
       properties: () => [], authoredRange: () => ({ kind: "unauthored" }) },
     sourceFiles: [], typeDefinitions: emptyCsharpTypeDefinitions,
+    providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
     objectShapes: {
       resolveTarget: type => { assert.equal(closed, false, "native selection precedes publication"); queries += 1; return shapes.get(targetTypeRefKey(type)); },
       resolveCopyShape: () => { assert.equal(closed, false, "copy selection precedes publication"); return undefined; },

@@ -17,7 +17,7 @@ import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDe
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "./model.js";
-import { selectCsharpStructuralInterface, type CsharpStructuralInterfaceRegistration } from "./structural-interfaces.js";
+import { collectCsharpInheritedInterfaces, selectCsharpStructuralInterface, type CsharpStructuralInterfaceRegistration } from "./structural-interfaces.js";
 import { mergeCsharpObjectShapeSubjects } from "../../policy/types/objects/object-shape-policy/construction.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
@@ -203,8 +203,17 @@ export function analyzeCsharpObjectShapes(
     const targetKey = targetTypeRefKey(target);
     const shape = byTarget.get(targetKey);
     const members = shape === undefined ? "unavailable" : shape.members.map(member => member.sourceName).join(", ");
+    const sourceName = policy.projectTypes.catalog.definitionForTarget(source)?.sourceName ??
+      JSON.stringify(targetTypeRefKey(source));
+    const targetNames = new Set(shape?.members.flatMap(member => member.sourceDeclarations ?? []).flatMap(declaration => {
+      const owner = policy.ast.parent(declaration);
+      const name = owner === undefined ? undefined : policy.ast.name(owner);
+      return name === undefined ? [] : [policy.ast.text(name)];
+    }));
+    const targetName = policy.projectTypes.catalog.definitionForTarget(target)?.sourceName ??
+      (targetNames.size === 0 ? JSON.stringify(targetKey) : [...targetNames].join(" | "));
     return Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST",
-      message: `An analyzed interface has no exact inherited native implementation. Implementing class: ${targetTypeRefKey(source)}; interface: ${targetKey}; required member obligations: [${members}].` });
+      message: `An analyzed interface has no exact inherited native implementation. Implementing class: ${sourceName} (${JSON.stringify(targetTypeRefKey(source))}); interface: ${targetName} (${JSON.stringify(targetKey)}); required member obligations: [${members}].` });
   }
 
   function closeStructuralShapes(): void {
@@ -224,6 +233,12 @@ export function analyzeCsharpObjectShapes(
     for (const implementations of structuralInterfaces.values()) {
       for (const request of implementations.values()) {
         const provided = new Set(structuralImplementations(request.source).map(selected => targetTypeRefKey(selected.interfaceType)));
+        const sourceShape = byTarget.get(targetTypeRefKey(request.source));
+        if (sourceShape === undefined) throw new Error("An admitted structural implementation lost its original source shape.");
+        for (const inherited of collectCsharpInheritedInterfaces(policy, sourceShape, type =>
+          withInterfaces(byTarget.get(targetTypeRefKey(type)) ?? policy.objectShapes.resolveTarget(type))).nativeBase) {
+          provided.add(inherited);
+        }
         const pending = [request.destination];
         const visited = new Set<string>();
         for (let index = 0; index < pending.length; index += 1) {
@@ -371,20 +386,10 @@ export function analyzeCsharpObjectShapes(
       const directlyDeclared = source.kind === "target-named" &&
         (source as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "class" &&
         declared.some(type => targetTypeRefEquals(type, selected.interfaceType));
-      const inherited = [...sourceShape.implements ?? [], ...declared].map(type => ({ type,
-        nativeBase: type.kind === "target-named" && (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "class" }));
-      const visited = new Set<string>();
-      const nativeBaseInterfaces = new Set<string>();
-      for (let index = 0; index < inherited.length; index++) {
-        const { type, nativeBase } = inherited[index]!;
-        const inheritedKey = targetTypeRefKey(type);
-        if (visited.has(inheritedKey) && (!nativeBase || nativeBaseInterfaces.has(inheritedKey))) continue;
-        visited.add(inheritedKey);
-        if (nativeBase) nativeBaseInterfaces.add(inheritedKey);
-        inherited.push(...(policy.projectTypes.directSupertypes(type) ?? []).map(type => ({ type, nativeBase })));
-      }
-      if (!interfaces.has(targetKey) && (!visited.has(targetKey) || directlyDeclared ||
-        !nativeBaseInterfaces.has(targetKey) && (selected.properties.length > 0 || selected.methods.length > 0))) {
+      const inherited = collectCsharpInheritedInterfaces(policy, sourceShape, type =>
+        withInterfaces(byTarget.get(targetTypeRefKey(type)) ?? policy.objectShapes.resolveTarget(type)));
+      if (!interfaces.has(targetKey) && (!inherited.all.has(targetKey) || directlyDeclared ||
+        !inherited.nativeBase.has(targetKey) && (selected.properties.length > 0 || selected.methods.length > 0))) {
         reserveClassification();
         interfaces.set(targetKey, Object.freeze({ selected, source, destination,
           ...(sourceType === undefined ? {} : { sourceType }) }));
