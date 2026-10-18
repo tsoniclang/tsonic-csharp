@@ -27,6 +27,7 @@ export function resolveCsharpSourceLiteralTargetType(
   }
   if (
     selectedCsharpSourceProfileOwner(host.target) === csharpTargetId &&
+    !Object.is(value, -0) &&
     Number.isInteger(value) &&
     value >= -2147483648 &&
     value <= 2147483647

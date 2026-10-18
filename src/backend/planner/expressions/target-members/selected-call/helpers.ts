@@ -1,5 +1,4 @@
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
-import { sourceFileIdentity } from "@tsonic/target-api/source";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
@@ -71,18 +70,6 @@ export function sourceCallIsOptional(
   }
   return input.program.source.ast.as.AsPropertyAccessExpression(access)?.QuestionDotToken !==
     undefined;
-}
-
-export function isProjectSourceDeclaration(
-  input: CsharpPlanningContext,
-  declaration: Node | undefined,
-): boolean {
-  const sourceFile = input.program.source.ast.getSourceFile(declaration);
-  return sourceFile !== undefined &&
-    !sourceFile.IsDeclarationFile &&
-    input.program.sourceFiles.some((candidate) =>
-      sourceFileIdentity(input.program.source.ast, candidate) ===
-        sourceFileIdentity(input.program.source.ast, sourceFile));
 }
 
 export function targetArgumentOrderIsRepresentable(

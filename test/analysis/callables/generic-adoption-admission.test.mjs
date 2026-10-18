@@ -1,10 +1,51 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 const code = "TSONIC_GENERIC_ASYNC_ADOPTION_UNSUPPORTED";
 const identity = "async function identity<Value>(value: Value) { return value; }";
+
+for (const surface of ["native", "js"]) {
+  test(`C# canonical Promise resolve source arity admits void omission and generic payloads: ${surface}`, () => {
+    const checked = checkCsharpSource({ surface, sourceText: `
+      export function generic<Value>(value: Value): Promise<Value> {
+        return new Promise<Value>(resolve => { resolve(value); });
+      }
+      export function complete(): Promise<void> { return new Promise<void>(resolve => { resolve(); }); }
+    ` });
+    assert.equal(checked.sourceDiagnosticsText, "", "the canonical checked signature preserves both valid source contracts");
+    assert.equal(checked.extensionDiagnostics.length, 0, "void omission does not require an extension escape");
+  });
+
+  test(`C# canonical Promise resolve source arity rejects omitted nonvoid payloads: ${surface}`, () => {
+    const checked = checkCsharpSource({ surface, sourceText: `
+      export function incomplete(): Promise<number> { return new Promise<number>(resolve => { resolve(); }); }
+    ` });
+    assert.equal(checked.source.diagnostics.length, 1, "exactly one original nonvoid arity error");
+    assert.match(checked.sourceDiagnosticsText, /TS2794: Expected 1 arguments, but got 0\. Did you forget to include 'void' in your type argument to 'Promise'\?/u,
+      "the native checked signature retains the precise nonvoid argument requirement");
+    assert.equal(checked.extensionDiagnostics.length, 0, "the source arity refusal is not an extension fallback");
+  });
+}
+
+test("C# recursive closure creations preserve disjoint local stores at a shared invocation", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `
+    export {};
+    function factory(count: number, seed: number): () => number {
+      if (count > 0) return factory(count - 1, seed);
+      return () => { let local = seed; local += 1; return local; };
+    }
+    function invoke(callback: () => number): number { return callback(); }
+    console.log(invoke(factory(1, 1)));
+    console.log(invoke(factory(0, 10)));
+  ` });
+  assert.equal(compiled.result.diagnostics.length, 0,
+    JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
+  const output = executeCsharpConstruction(compiled, "recursive-capture-store-prefix", false, false, [], "");
+  assert.deepEqual(output.trim().split(/\r?\n/u), ["2", "11"],
+    "different real factory/caller creations cannot merge their private local stores");
+});
 
 const nativeEntryCases = [
   [
@@ -399,7 +440,7 @@ nativeEntryInverses.push(...[
 
 for (const [name, sourceText] of nativeEntryInverses) {
   test("C# native callback non-adoption inverse: " + name, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText });
+    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: "export {};\n" + sourceText });
     assert.equal(compiled.result.diagnostics.length, 0,
       JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
     const output = executeCsharpConstruction(compiled, "native-callback-inverse-" + name, false, false, [], "");
@@ -502,7 +543,7 @@ for (const [name, declarations, expression] of nativeOpaquePayloadCases) {
   });
   test("C# ordinary opaque callable input keeps its native value: " + name, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" },
-      sourceText: declarations + "\nconsole.log(await wrap(7));" });
+      sourceText: "export {};\n" + declarations + "\nconsole.log(await wrap(7));" });
     assert.equal(compiled.result.diagnostics.length, 0, JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
     assert.equal(executeCsharpConstruction(compiled, "ordinary-native-opaque-" + name, false, false, [], "").trim(), "7",
       "ordinary Awaited identity does not add a refusal or alter the native callback result");
@@ -542,7 +583,7 @@ for (const [name, declarations] of nativeConstructorCases) {
   });
   test("C# official native constructor preserves its ordinary native value: " + name, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface: "native", targetOptions: { outputType: "Exe" },
-      sourceText: declarations + "\nif ((await wrap(7)) !== 7) throw new Error(\"ordinary constructor payload\");" });
+      sourceText: "export {};\n" + declarations + "\nif ((await wrap(7)) !== 7) throw new Error(\"ordinary constructor payload\");" });
     assert.equal(compiled.result.diagnostics.length, 0,
       JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
     const output = executeCsharpConstruction(compiled, "official-constructor-" + name, false, false, [], "");
@@ -551,7 +592,7 @@ for (const [name, declarations] of nativeConstructorCases) {
 }
 for (const [name, sourceText] of nativeConstructorInverses) {
   test("C# official native constructor inverse: " + name, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ surface: "native", targetOptions: { outputType: "Exe" }, sourceText });
+    const compiled = compileCsharpSource({ surface: "native", targetOptions: { outputType: "Exe" }, sourceText: "export {};\n" + sourceText });
     assert.equal(compiled.result.diagnostics.length, 0,
       JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
     const output = executeCsharpConstruction(compiled, "official-constructor-inverse-" + name, false, false, [], "");
@@ -700,7 +741,8 @@ for (const [name, extra, receiver] of [
 
 test("C# ordinary class receiver retains an executable native payload", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" },
-    sourceText: `class Holder<Value> { constructor(readonly value: Value) {}
+    sourceText: `export {};
+      class Holder<Value> { constructor(readonly value: Value) {}
       async get(): Promise<Value> { return this.value; } }
       async function use(holder: Holder<number>): Promise<number> { return await holder.get(); }
       console.log(await use(new Holder(7)));` });
@@ -743,7 +785,8 @@ for (const recursive of [false, true]) {
     if (count > 0) deliver(callback, value, count - 1); else callback(value);
   }` : "function deliver<Value>(callback: (value: Value) => void, value: Value, count: number): void { callback(value); }";
   test(`C# retains ${recursive ? "recursive" : "direct"} resolver/value correlation in native execution`, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `${helper}
+    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `export {};
+      ${helper}
       function wrap<Value>(value: Value): Promise<number> { return new Promise<number>(resolve => {
         deliver(resolve, 7, 2); deliver(item => { void item; }, value, 2);
       }); }
@@ -771,7 +814,7 @@ test("C# keeps opaque resolver provenance explicitly unresolved for a Promise-va
   const { ast } = compiled.source;
   assert.equal(ast.kindName(issue.sourceNode), "KindCallExpression", "the original unresolved operation is the diagnostic site");
   assert.equal(Buffer.from(ast.getSourceText(ast.getSourceFile(issue.sourceNode)))
-    .subarray(ast.pos(issue.sourceNode), ast.end(issue.sourceNode)).toString("utf8").trim(), "done(value)",
+    .subarray(ast.pos(issue.sourceNode), ast.end(issue.sourceNode)).toString("utf8").trim(), "opaque(resolve)",
   "the precise same source operation is reported on both targets");
   assert.equal(compiled.result.program === undefined && compiled.result.artifacts.length === 0, true,
     "the unresolved source summary publishes no program or artifacts");
@@ -779,6 +822,7 @@ test("C# keeps opaque resolver provenance explicitly unresolved for a Promise-va
 
 test("C# preserves an ordinary native actual despite an open symbolic resolver alias", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `
+    export {};
     type Alias<Value> = (resolve: (value: Value) => void) => (value: Value) => void;
     function wrap<Value>(value: Value, alias: Alias<Value>): Promise<Value> {
       return new Promise<Value>(resolve => { const done = alias(resolve); done(value); });

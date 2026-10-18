@@ -2,7 +2,6 @@ import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
 import { isCsharpVoidTargetType } from "./identity.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "./carriers/nullable.js";
 import { isCsharpJsValueTargetType } from "./carriers/runtime-carriers.js";
-import { targetTypeRefEquals } from "./equality.js";
 
 export type CsharpRuntimeParameterDefault = {
   readonly kind: "nullable" | "closed-value";
@@ -11,14 +10,12 @@ export type CsharpRuntimeParameterDefault = {
 };
 
 export function csharpRuntimeParameterDefault(type: TargetTypeRef, incomingType?: TargetTypeRef): CsharpRuntimeParameterDefault | undefined {
+  if (incomingType !== undefined) return (type.kind === "array" || type.kind === "tuple" ||
+    type.kind === "target-named" || type.kind === "source-primitive") && !isCsharpVoidTargetType(type)
+    ? Object.freeze({ kind: getCsharpNullableElementTargetType(incomingType) === undefined ? "closed-value" : "nullable",
+        valueType: type, parameterType: incomingType }) : undefined;
   if (getCsharpNullableElementTargetType(type) !== undefined) {
-    return incomingType === undefined || targetTypeRefEquals(type, incomingType)
-      ? Object.freeze({ kind: "nullable", valueType: type, parameterType: type }) : undefined;
-  }
-  if (incomingType !== undefined) {
-    return getCsharpNullableElementTargetType(type) === undefined &&
-      targetTypeRefEquals(csharpNullableTargetType(type), incomingType)
-      ? Object.freeze({ kind: "nullable", valueType: type, parameterType: incomingType }) : undefined;
+    return Object.freeze({ kind: "nullable", valueType: type, parameterType: type });
   }
   if (isCsharpJsValueTargetType(type) && type.kind === "target-named" &&
     (type as CsharpTargetNamedTypeRef).csharpAbsorbsNullish === true) {

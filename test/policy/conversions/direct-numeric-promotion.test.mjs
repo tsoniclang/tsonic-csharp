@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { csharpBigIntegerTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
-import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
+import { analyzeSourceLiteralValues, createTargetSourceProgram } from "@tsonic/target-api/source";
 
 import {
   csharpSourcePrimitiveTargetType,
@@ -49,22 +50,23 @@ test("C# numeric promotion follows exact predefined target arithmetic", () => {
 });
 
 test("C# numeric promotion uses exact representable literal evidence", () => {
+  const { input: actualInput, literal: actualNumericLiteral } = checkedNumericLiterals();
   assert.deepEqual(
     selectCsharpNumericBinaryPromotion(
-      input,
+      actualInput,
       value,
       primitive("int32"),
-      numericLiteral("2"),
+      actualNumericLiteral("2"),
       primitive("float64"),
     ),
     promoted("int32"),
   );
   assert.deepEqual(
     selectCsharpNumericBinaryPromotion(
-      input,
+      actualInput,
       value,
       primitive("float32"),
-      numericLiteral("1.5"),
+      actualNumericLiteral("1.5"),
       primitive("float64"),
     ),
     promoted("float32"),
@@ -72,12 +74,13 @@ test("C# numeric promotion uses exact representable literal evidence", () => {
 });
 
 test("C# numeric promotion honors an exact enclosing result type only for representable operands", () => {
+  const { input: actualInput, literal: actualNumericLiteral } = checkedNumericLiterals();
   assert.deepEqual(
     selectCsharpNumericBinaryPromotion(
-      input,
-      numericLiteral("7"),
+      actualInput,
+      actualNumericLiteral("7"),
       primitive("float64"),
-      numericLiteral("2"),
+      actualNumericLiteral("2"),
       primitive("float64"),
       primitive("int32"),
     ),
@@ -85,10 +88,10 @@ test("C# numeric promotion honors an exact enclosing result type only for repres
   );
   assert.deepEqual(
     selectCsharpNumericBinaryPromotion(
-      input,
-      numericLiteral("1.5"),
+      actualInput,
+      actualNumericLiteral("1.5"),
       primitive("float64"),
-      numericLiteral("2.5"),
+      actualNumericLiteral("2.5"),
       primitive("float64"),
       primitive("float32"),
     ),
@@ -96,10 +99,10 @@ test("C# numeric promotion honors an exact enclosing result type only for repres
   );
   assert.deepEqual(
     selectCsharpNumericBinaryPromotion(
-      input,
-      numericLiteral("7"),
+      actualInput,
+      actualNumericLiteral("7"),
       primitive("float64"),
-      numericLiteral("2.5"),
+      actualNumericLiteral("2.5"),
       primitive("float64"),
       primitive("int32"),
     ),
@@ -107,10 +110,10 @@ test("C# numeric promotion honors an exact enclosing result type only for repres
   );
   assert.deepEqual(
     selectCsharpNumericBinaryPromotion(
-      input,
+      actualInput,
       value,
       primitive("float64"),
-      numericLiteral("2"),
+      actualNumericLiteral("2"),
       primitive("float64"),
       primitive("int32"),
     ),
@@ -180,4 +183,30 @@ function primitive(name) {
 
 function numericLiteral(text) {
   return { kind: "numeric", kindName: "KindNumericLiteral", text };
+}
+
+function checkedNumericLiterals() {
+  const checked = createCompilerSessionFromFiles({
+    currentDirectory: "/project",
+    files: { "/project/index.ts": "export const values = [2, 1.5, 7, 2.5];" },
+    compilerOptions: { strict: true, target: "es2022", module: "esnext" },
+  }).checkSource();
+  assert.equal(checked.diagnostics.length, 0, formatDiagnostics(checked.diagnostics));
+  const source = createTargetSourceProgram(checked);
+  const literals = analyzeSourceLiteralValues(source.ast, source.navigation.sourceFiles);
+  const nodes = new Map();
+  const visit = node => {
+    if (source.ast.is.IsNumericLiteral(node)) nodes.set(source.ast.text(node), node);
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  source.navigation.sourceFiles.forEach(visit);
+  return {
+    input: { literalValues: literals },
+    literal(text) {
+      const node = nodes.get(text);
+      assert.equal(node !== undefined && literals.literalValue.get(node)?.numeric?.kind === "authored", true,
+        `${text}: native precision evidence comes from the original checked source token`);
+      return node;
+    },
+  };
 }

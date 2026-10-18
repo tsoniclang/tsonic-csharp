@@ -1,9 +1,10 @@
-import type { SourceLiteralIndex } from "@tsonic/target-api/source";
-import type { AstReader, Node } from "@tsonic/tsts";
+import { sourceArrayElementType, type SourceFileSemantics, type SourceLiteralIndex } from "@tsonic/target-api/source";
+import type { AstReader, Node, Type } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { getCsharpGenericOptionalParts, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpGenericOptionalParts, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpArrayLiteralElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { getCsharpAwaitResultTargetType } from "../../operations/control-flow/await-completions.js";
 import { isCsharpDestructuringAssignmentPattern, isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 import { selectCsharpNumericBinaryPromotion } from "../../operations/numeric/promotion.js";
@@ -11,6 +12,50 @@ import { sourcePrimitiveImplicitlyConverts } from "../../conversions/source-prim
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 import { resolveCsharpShortCircuitResult } from "./short-circuit-values.js";
+import { classifyCsharpSourceProfileType } from "./source-profile.js";
+
+export function csharpSourceAnnotationCoversRepresentation(
+  source: Type,
+  annotation: TargetTypeRef,
+  actual: TargetTypeRef,
+  semantics: SourceFileSemantics,
+  ast: AstReader,
+  definitions?: CsharpTypeDefinitions,
+): boolean {
+  if (targetTypeRefEquals(annotation, actual)) return true;
+  if (semantics.types.isUnion(source)) {
+    const annotatedNullable = getCsharpNullableElementTargetType(annotation);
+    const actualNullable = getCsharpNullableElementTargetType(actual);
+    if (annotatedNullable !== undefined || actualNullable !== undefined) {
+      const present = semantics.types.unionOrIntersectionTypes(source).filter(member => !semantics.types.isNullish(member));
+      if (annotatedNullable === undefined || actualNullable === undefined || present.length === 0) return false;
+      if (present.length === 1) return csharpSourceAnnotationCoversRepresentation(
+        present[0]!, annotatedNullable, actualNullable, semantics, ast, definitions);
+    }
+    const annotatedArms = getCsharpRuntimeUnionArms(annotatedNullable ?? annotation, definitions);
+    const actualArms = getCsharpRuntimeUnionArms(actualNullable ?? actual, definitions);
+    return annotatedArms !== undefined && actualArms !== undefined && annotatedArms.length === actualArms.length &&
+      annotatedArms.every(arm => actualArms.some(candidate => targetTypeRefEquals(arm, candidate))) &&
+      actualArms.every(arm => annotatedArms.some(candidate => targetTypeRefEquals(arm, candidate)));
+  }
+  if (semantics.types.isTuple(source)) {
+    const elements = semantics.types.tupleElementTypes(source);
+    return annotation.kind === "tuple" && actual.kind === "tuple" && elements.length === annotation.elements.length &&
+      elements.length === actual.elements.length && elements.every((element, index) =>
+        csharpSourceAnnotationCoversRepresentation(element, annotation.elements[index]!, actual.elements[index]!, semantics, ast, definitions));
+  }
+  const profile = classifyCsharpSourceProfileType(source, semantics, ast);
+  if (profile?.kind !== "array" && profile?.kind !== "readonly-array") return false;
+  const sourceElement = sourceArrayElementType(source, semantics);
+  const annotatedElement = getCsharpArrayLiteralElementTargetType(annotation);
+  const actualElement = getCsharpArrayLiteralElementTargetType(actual);
+  const sameContainer = annotation.kind === "array" && actual.kind === "array"
+    ? (annotation.rank ?? 1) === (actual.rank ?? 1)
+    : annotation.kind === "target-named" && actual.kind === "target-named" &&
+      targetTypeRefEquals({ ...actual, typeArguments: annotation.typeArguments }, annotation);
+  return sameContainer && sourceElement !== undefined && annotatedElement !== undefined && actualElement !== undefined &&
+    csharpSourceAnnotationCoversRepresentation(sourceElement, annotatedElement, actualElement, semantics, ast, definitions);
+}
 
 export function resolveBinaryTargetRepresentation(
   ast: AstReader,

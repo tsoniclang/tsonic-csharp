@@ -37,7 +37,7 @@ export function analyzeCsharpClassFactories(
       construct: "local class definition", producer: "analyzeCsharpClassFactories" });
     const type = evidence.classConstructorType.get(declaration);
     const contract = getCsharpClassFactory(type);
-    const selected = sourceLexicalCaptures(declaration, [declaration], source.ast, source.navigation);
+    const selected = sourceLexicalCaptures(declaration, [declaration], source.ast, source.navigation, "source");
     const captures = selected.captures.map((capture, index): CsharpClassCapture | undefined => {
       const reference = capture.references[0];
       const type = storage.storageType.get(capture.declaration) ?? evidence.storageTargetType.get(capture.declaration) ??

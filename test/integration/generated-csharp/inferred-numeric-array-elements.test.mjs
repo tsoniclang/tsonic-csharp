@@ -102,7 +102,7 @@ export function genuineFloatWide(narrow: float32, wide: int64) {
   const floatWideValues = [narrow, wide]; return floatWideValues;
 }
 export function explicitUnionWide(wide: int64): (string | int64)[] {
-  const exactUnionValues: (string | int64)[] = ["text", wide, 9007199254740993]; return exactUnionValues;
+  const exactUnionValues: (string | int64)[] = ["text", wide, 9007199254740993n]; return exactUnionValues;
 }
 export function explicitUnionDecimal(): (string | nativeDecimal)[] {
   const decimalUnionValues: (string | nativeDecimal)[] = ["text", 9007199254740993]; return decimalUnionValues;

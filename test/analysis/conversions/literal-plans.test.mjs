@@ -105,11 +105,17 @@ test("exact property-key floating tokens render native D without parsing or an i
     const planned = planCsharpExactLiteralRecipe(undefined, admitted.recipe);
     assert.equal(planned.kind === "resolved", true, `${precision}: the exact token renders`);
     const text = printCsharpExpression(planned.expression);
-    const suffix = precision === "float32" ? "F" : precision === "decimal" ? "M" : "D";
-    assert.equal(text.endsWith(`1.0${suffix}`), true, `${precision}: the authored token and native suffix survive`);
-    assert.equal(precision !== "float16" || planned.expression.kind === "CastExpression" &&
-      planned.expression.expression.token === admitted.recipe.token && planned.expression.expression.suffix === "D", true,
-    `${precision}: Half does not round through a float32 intermediary`);
+    if (precision === "float16") {
+      assert.equal(admitted.recipe.kind === "float" && admitted.recipe.bits === 0x3c00, true,
+        "Half: the exact selected native value is one, encoded once as binary16");
+      assert.equal(planned.expression.kind === "CastExpression" &&
+        planned.expression.expression.kind === "LiteralExpression" &&
+        planned.expression.expression.value === 1, true,
+      "Half: the exact bit recipe renders one without a float32 intermediary");
+    } else {
+      const suffix = precision === "float32" ? "F" : precision === "decimal" ? "M" : "D";
+      assert.equal(text.endsWith(`1.0${suffix}`), true, `${precision}: the authored token and native suffix survive`);
+    }
   }
 });
 
@@ -512,7 +518,7 @@ test("actual literal uses prepare their selected union inner endpoint before the
   assert.equal(inner?.kind === "resolved" && inner.recipe.kind === "float" && inner.recipe.precision === "float32" &&
     inner.recipe.token.significand === "1.25", true, "the selected inner target exists before NativeDemand consumes exact literals");
   const site = csharpNativeUseSite(expression, { kind: "return" });
-  const use = Object.freeze({ kind: "converted", expression, carrier: source, target, mode: "implicit",
+  const use = Object.freeze({ kind: "converted", expression, carrier: source, target, mode: "implicit", readProjection: "projected",
     input: Object.freeze({ kind: "value", type: source }), completion: Object.freeze({ kind: "value", type: target }),
     children: Object.freeze([]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
   const count = requests.length;

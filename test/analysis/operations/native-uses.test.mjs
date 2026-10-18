@@ -23,6 +23,7 @@ function owners(sourceText, surface = "native") {
   const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: program.sourceFiles, participation, evidence: records,
     operations: records, valueReads: records, objectShapes: program.objectShapes });
   const input = { ast, sourceFiles: program.sourceFiles, navigation: program.sourceNavigation, evidence: records, operations: records,
+    callableTarget: records.callableTarget,
     nativeExpressionIssues: [],
     declarations: records, objectShapes: program.objectShapes,
     exactLiteral: records.exactLiteral, propertyKeyBindings: expression => {
@@ -44,7 +45,8 @@ function owners(sourceText, surface = "native") {
     semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode, typeDefinitions: program.typeDefinitions }, records, records, program.objectShapes,
     { declarationContracts: contracts, closedInputType: () => undefined, get: () => undefined },
     { get: node => { const read = records.valueRead.get(node); return read === undefined ? undefined
-      : { literalTarget: read.selectedOperation ?? read.source, operationValue: read.selectedOperation ?? read.source }; } }, records);
+      : { returnedValue: read.storedValue, literalTarget: read.selectedOperation ?? read.source,
+          operationValue: read.selectedOperation ?? read.source }; } }, records);
   const exact = analyzeCsharpExactLiteralSelections(literalValues, [
     ...expected.constructions.propertyKeyRequests,
     ...expected.nativeUseSites.requests.flatMap(request =>
@@ -78,6 +80,32 @@ for (const surface of ["native", "js"]) test(`${surface} finite native uses cove
   assert.equal(Object.isFrozen(demand) && Object.isFrozen(demand.entries) && demand.entries.every(entry => Object.isFrozen(entry.use)), true, "native-uses:67: Object.isFrozen(demand) && Object.isFrozen(demand.entries) && demand.entries.every(entry =");
   assert.equal(Object.hasOwn(value.program.records, "nativeUse"), true, "the final owner publishes the one canonical native-use family");
   assert.equal(typeof value.program.records.nativeUse.expression, "function", "the backend consumes exact sealed emission contexts");
+});
+
+for (const surface of ["native", "js"]) test(`${surface} pending physical entries retain actual body refusals without inventing parameter entries`, () => {
+  const value = owners(`import type { int32 } from "@tsonic/core/types.js";
+    export function run(value: int32): int32[] { return [value]; }`, surface);
+  const declaration = value.nodes.find(node => value.ast.is.IsFunctionDeclaration(node));
+  const array = value.nodes.find(node => value.ast.is.IsArrayLiteralExpression(node));
+  assert.equal(declaration !== undefined && array !== undefined, true, "the original callable and its exact body expression exist");
+  const diagnostic = Object.freeze({ source: "tsonic-csharp", category: "error", code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH",
+    sourceNode: array, message: "The actual authored array elements have no exact common native carrier." });
+  const requiredRecords = [];
+  const demand = analyzeCsharpNativeDemand({ ...value.input,
+    callableTarget: { entry: node => node === declaration ? undefined : value.records.callableTarget.entry(node) },
+    nativeExpressionIssues: [{ ...diagnostic, requiredBy: Object.freeze([array]) }],
+  }, requiredRecords);
+  const refusals = demand.unadmitted.filter(entry => entry.kind === "source-refusal");
+  const pending = demand.unadmitted.filter(entry => entry.kind === "pending-use");
+  assert.equal(refusals.length === 1 && refusals[0].diagnostic.sourceNode === array &&
+    refusals[0].diagnostic.code === diagnostic.code && refusals[0].diagnostic.message === diagnostic.message, true,
+  "a rejected body carrier reaches the unchanged canonical source-refusal channel before incomplete entry publication");
+  assert.equal(pending.some(entry => entry.expression === declaration && entry.reason === "callable-creation" && entry.message === undefined), true,
+    "an incomplete internal entry has no fabricated generic source-rejection message");
+  assert.equal(requiredRecords.some(entry => entry.family === "callableTarget" && entry.subject === declaration), false,
+    "a rejected callable never receives an admitted physical entry requirement");
+  assert.equal(demand.requiredBindingRoots.some(node => value.ast.is.IsParameterDeclaration(node)), false,
+    "a missing admitted entry never falls back to raw source parameters");
 });
 
 test("class initialization, base constructor arguments and callable defaults each have one native root", () => {

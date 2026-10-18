@@ -29,7 +29,6 @@ import {
 import {
   lambdaTargetContextFromTargetRef,
   planLambdaBlockBody,
-  planLambdaParameters,
 } from "../../expressions/expression-lambdas.js";
 import {
   findObjectShapeMember,
@@ -207,18 +206,9 @@ function planSetter(
     ));
     return undefined;
   }
-  const parameters = planLambdaParameters(
-    parameterNodes,
-    sourceFile,
-    input,
-    diagnostics,
-    state,
-    bodyTarget,
-  );
   const parameterPlan = planLambdaParameterStorage(
-    parameterNodes, parameters, sourceFile, input, diagnostics, state,
+    accessorNode, sourceFile, input, diagnostics, state, sourceTarget,
   );
-  if (parameterPlan === undefined) return undefined;
   const body = planLambdaBlockBody(
     accessorNode,
     declaration.Body,

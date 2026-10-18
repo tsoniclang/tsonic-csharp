@@ -327,7 +327,7 @@ test("owning issues reject before the late registrations finish and before the o
     `rejection order: ${steps.map(([label]) => label).join(" < ")}`);
   const iterationSteps = [
     "analyzeCsharpTargetOperations", "analyzeCsharpStorage", "prepareCsharpStorage", "analyzeCsharpClassFactories",
-    "analyzeCsharpCaptureStorage", "analyzeCsharpCallableCreations", "analyzeCsharpNativeParticipation",
+    "prepareCsharpCallableCreations", "analyzeCsharpCaptureStorage", "callableCreationPreparation.seal", "analyzeCsharpNativeParticipation",
     "analyzeCsharpClassInitialization", "analyzeCsharpBindingPatterns", "analyzeCsharpNativeDemand",
     "admitCsharpBindingPatterns", "conversionAnalysis.close", "conversionAnalysis.seal", "analyzeCsharpRefLikePlacements",
     "objectShapes.seal", "sealCsharpStorage",
@@ -385,7 +385,22 @@ for (const [label, path, producer, list, family, guard, publications] of [
 ]) {
   test(`${label}: one registration into the producer's own list precedes its publication under the same conditions`, () => {
     const owner = functionNamed(path, producer);
-    const registrations = callsTo(owner, "requireCsharpRecord");
+    const allRegistrations = callsTo(owner, "requireCsharpRecord");
+    assert.equal(allRegistrations.length === (label === "storage" ? 2 : 1), true,
+      `${label} registration: only the exact native storage conversion adds a distinct required family`);
+    if (label === "storage") assert.equal(allRegistrations.map(call => {
+      const requirement = ast.arguments(call)[1];
+      const selected = requirement !== undefined && ast.is.IsObjectLiteralExpression(requirement)
+        ? property(requirement, "family") : undefined;
+      return text(ast.as.AsPropertyAssignment(selected)?.Initializer);
+    }).join() === '"conversion","requiredStorageType"', true,
+    "storage registration: one exact incoming conversion and one adapted parameter storage requirement remain separately mandatory");
+    const registrations = allRegistrations.filter(call => {
+      const requirement = ast.arguments(call)[1];
+      const selected = requirement !== undefined && ast.is.IsObjectLiteralExpression(requirement)
+        ? property(requirement, "family") : undefined;
+      return text(ast.as.AsPropertyAssignment(selected)?.Initializer) === `"${family}"`;
+    });
     assert.equal(registrations.length === 1, true, `${label} registration: exactly one requireCsharpRecord call`);
     const [registration] = registrations;
     const [target, requirement] = ast.arguments(registration);

@@ -168,45 +168,6 @@ export function tryPlanTypeofComparisonExpression(
   if (comparison === undefined) {
     return undefined;
   }
-  const negated = sourceOperator === "!==" || sourceOperator === "!=";
-  const jsValueOperation = input.program.records.jsTypeof.get(
-    comparison.operand,
-  );
-  if (jsValueOperation === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "C# planning received a typeof comparison without a sealed operation classification.",
-    ));
-    return undefined;
-  }
-  if (jsValueOperation.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
-    return undefined;
-  }
-  if (jsValueOperation.kind === "resolved") {
-    const planned = planExpression(
-      comparison.operand,
-      sourceFile,
-      input,
-      diagnostics,
-    );
-    return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, planned, value => {
-      const runtimeTypeof = translateCsharpJsValueInvocation(input.scope.typeParameterNames, jsValueOperation, undefined, [value]);
-      return runtimeTypeof === undefined ? undefined : {
-          kind: "BinaryExpression",
-          left: runtimeTypeof,
-          operatorToken: {
-            kind: negated
-              ? "ExclamationEqualsToken"
-              : "EqualsEqualsToken",
-          },
-          right: {
-            kind: "LiteralExpression",
-            value: comparison.runtimeKind,
-          },
-        };
-    });
-  }
   const selection = comparison.selection;
   if (selection.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));

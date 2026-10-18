@@ -15,6 +15,7 @@ import type {
   CsharpObjectShapeFact,
 } from "../../../../target-model/types/index.js";
 import {
+  failCsharpPlannerInvariant,
   unsupportedNodeDiagnostic,
 } from "../../diagnostics.js";
 import {
@@ -33,7 +34,6 @@ import {
   csharpDelegateSignatureFromTargetTypeRef,
   lambdaTargetContextFromTargetRef,
   planLambdaBlockBody,
-  planLambdaParameters,
 } from "../../expressions/expression-lambdas.js";
 import {
   findObjectShapeMemberForProperty,
@@ -139,13 +139,11 @@ function planObjectLiteralMethodAsLambda(
         objectShape.targetType,
       );
   const targetContext = lambdaTargetContextFromTargetRef(input.scope.typeParameterNames, expectedTargetType);
-  const parameterNodes = method.Parameters?.Nodes ?? [];
+  if (targetContext === undefined) return failCsharpPlannerInvariant(
+    "An admitted object method requires its exact native delegate entry context.", methodNode);
   const parameterPlan = planLambdaParameterStorage(
-    parameterNodes,
-    planLambdaParameters(parameterNodes, sourceFile, scopedInput, diagnostics, state, targetContext),
-    sourceFile, scopedInput, diagnostics, state, targetContext?.signature.parameterTargetTypes,
+    methodNode, sourceFile, scopedInput, diagnostics, state, targetContext.carrier,
   );
-  if (parameterPlan === undefined) return undefined;
   const body = planLambdaBlockBody(
     methodNode,
     method.Body,

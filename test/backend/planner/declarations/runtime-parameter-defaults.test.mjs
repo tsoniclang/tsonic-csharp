@@ -30,7 +30,14 @@ function compiledParameters() {
 }
 
 function withRuntimeDefault(program, node, contract) {
+  const entries = program.records.callableTarget;
   return { ...program, records: { ...program.records,
+    callableTarget: { ...entries, entry: declaration => {
+      const entry = entries.entry(declaration);
+      return entry === undefined ? undefined : { ...entry, parameters: entry.parameters.map(parameter =>
+        parameter.sourceParameter !== node ? parameter : { ...parameter,
+          targetParameter: { ...parameter.targetParameter, type: contract.parameterType } }) };
+    } },
     runtimeDefault: { get: candidate => candidate === node ? contract : program.records.runtimeDefault.get(candidate) } } };
 }
 
@@ -61,7 +68,7 @@ test("a parameter list never loses a runtime-default parameter without a diagnos
     native: selectCsharpDefaultValueContract(unrendered, unrendered, false) });
   const context = { ...createCsharpPlanningContext(program), program: changed };
   const diagnostics = [];
-  const planned = planParametersWithPrelude([withDefault], ast.getSourceFile(withDefault), context, diagnostics);
+  const planned = planParametersWithPrelude(ast.parent(withDefault), ast.getSourceFile(withDefault), context, diagnostics);
   assert.equal(planned.parameters.length === 0, true, "the unlowered parameter is not emitted");
   assert.equal(diagnostics.length === 1, true, "the parameter list reports exactly one diagnostic");
   assert.equal(diagnostics[0]?.message === defaultMessage && diagnostics[0]?.sourceNode === withDefault, true,
@@ -83,7 +90,7 @@ test("an authored runtime default still lowers to one nullable native parameter"
   const { program, ast, withDefault } = compiledParameters();
   const context = createCsharpPlanningContext(program);
   const diagnostics = [];
-  const planned = planParametersWithPrelude([withDefault], ast.getSourceFile(withDefault), context, diagnostics);
+  const planned = planParametersWithPrelude(ast.parent(withDefault), ast.getSourceFile(withDefault), context, diagnostics);
   assert.equal(diagnostics.length === 0, true, "the authored default plans without diagnostics");
   assert.equal(planned.parameters.length === 1, true, "the parameter is emitted once");
   assert.equal(planned.parameters[0]?.type?.kind === "NullableType", true, "the incoming parameter is nullable");

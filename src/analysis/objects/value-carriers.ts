@@ -120,7 +120,7 @@ export function analyzeCsharpObjectMethodSources(
     if (methods.length === 0) continue;
     const captures = new WeakMap<Node, readonly CsharpObjectMethodSourceCapture[]>();
     for (const method of methods) {
-      const lexical = sourceLexicalCaptures(literal, [method], ast, navigation);
+      const lexical = sourceLexicalCaptures(literal, [method], ast, navigation, "source");
       captures.set(method, Object.freeze(lexical.captures
         .filter(capture => callOnlyAlias(capture.declaration) === undefined)
         .flatMap(capture => capture.references[0] === undefined ? [] : [Object.freeze({

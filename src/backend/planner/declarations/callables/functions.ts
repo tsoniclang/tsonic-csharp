@@ -51,7 +51,7 @@ export function planSourceFunctionDeclaration(
   const selectedName = name ?? planIdentifierName(declaration.name, "__anonymous", input, diagnostics, "Function name");
   const state = parent === undefined ? createDestructuringPlannerState(node, input.program.source.ast)
     : createNestedPlannerState(parent, node, input.program.source.ast);
-  const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
+  const parameters = planParametersWithPrelude(node, sourceFile, input, diagnostics, state);
   const declaredReturnTargetType = getDeclarationReturnTargetType(
     declaration.Type,
     node,

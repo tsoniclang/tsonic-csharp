@@ -178,7 +178,12 @@ export function createCsharpExpectedTypePropagation(
   ): void {
     const construction = objectShapes.resolveObjectLiteralUnionCarrier(expression, targetType) ?? targetType;
     const carrier = getCsharpNullableElementTargetType(construction) ?? construction;
-    const indexedValueType = isCsharpJsValueTargetType(carrier) ? carrier
+    const jsDestination = isCsharpJsValueTargetType(carrier);
+    const source = jsDestination
+      ? objectShapes.resolveObjectLiteralTargetShape(objectShapes.resolveNode(expression), expression) : undefined;
+    const nativeConstruction = source?.kind === "resolved" && !isCsharpJsValueTargetType(source.shape.targetType)
+      ? source : undefined;
+    const indexedValueType = jsDestination && nativeConstruction === undefined ? carrier
       : isCsharpRecordDictionaryTargetType(carrier) && carrier.kind === "target-named"
       ? carrier.typeArguments?.[1] : undefined;
     const positions = childPositions(expression);
@@ -189,7 +194,6 @@ export function createCsharpExpectedTypePropagation(
         recordDictionaryKeys(expression, carrier);
       }
       else {
-        const source = objectShapes.resolveObjectLiteralTargetShape(objectShapes.resolveNode(expression), expression);
         const projection = source?.kind === "resolved" ? projectCsharpJsValueObjectLiteralShape(source.shape) : undefined;
         if (projection?.kind !== "resolved") return;
         recordObjectShape(expression, targetType, projection.shape);
@@ -213,10 +217,8 @@ export function createCsharpExpectedTypePropagation(
     }
     const expectedShape = targetTypeRefEquals(carrier, csharpObjectTargetType())
       ? objectShapes.resolveNode(expression) : objectShapes.resolveTarget(construction);
-    const resolution = objectShapes.resolveObjectLiteralTargetShape(
-      expectedShape,
-      expression,
-    );
+    const resolution = nativeConstruction === undefined
+      ? objectShapes.resolveObjectLiteralTargetShape(expectedShape, expression) : nativeConstruction;
     if (resolution?.kind !== "resolved") {
       return;
     }

@@ -51,6 +51,7 @@ export function createExpectedNativeUseOwner(compiled) {
     valueReadStages: { get: node => {
       const read = records.valueRead.get(node);
       return read === undefined ? undefined : {
+        returnedValue: read.storedValue,
         literalTarget: read.selectedOperation ?? read.source,
         operationValue: read.selectedOperation ?? read.source,
       };

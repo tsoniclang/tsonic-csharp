@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { sourceValueDeclaration } from "../../../dist/policy/types/resolution/calls.js";
 import { resolveSelectedValueWithState, resolveStorage } from "../../../dist/policy/types/resolution/public-api.js";
+import { resolveSourceValueDeclaration } from "../../../dist/policy/types/resolution/source-references.js";
 
 function fixture(kind, project) {
   const expression = { kind };
@@ -109,4 +110,62 @@ test("selected values replace an enclosing operation owner for both syntax and c
       assert.equal(state.sourceStorageSubject === enclosing, true, "the enclosing operation is immutable");
     }
   }
+});
+
+function refusedArrayFixture() {
+  const node = {};
+  const declaration = {};
+  const initializer = {};
+  const sourceFile = {};
+  const checkedType = {};
+  const subject = { kind: "value", node: declaration, projection: [] };
+  const previous = { kind: "array", element: { kind: "source-primitive", name: "float64" } };
+  const rejected = Object.freeze({ kind: "rejected", reason: "The original array producer has conflicting native destinations." });
+  const queries = { sourceFile, declarations: { declaredValueType: () => checkedType } };
+  let selections = 0;
+  const scope = {
+    host: {
+      ast: { is: { IsVariableDeclaration: value => value === declaration, IsBindingElement: () => false,
+        IsArrayLiteralExpression: value => value === initializer },
+      getSourceFile: value => value === declaration ? sourceFile : undefined,
+      typeNode: () => undefined, parent: () => undefined },
+      navigation: { referenceFor: value => {
+        assert.equal(value === node, true, "the selected value keeps its exact checked declaration reference");
+        return { declaration };
+      } },
+      semantics: file => {
+        assert.equal(file === sourceFile, true, "the canonical source producer keeps its checked source context");
+        return queries;
+      },
+      sourceStorage: { subjectFor: () => ({ kind: "resolved", subject }) },
+      representations: { scopedTargetType: () => assert.fail("an existing physical carrier cannot rescue a rejected source producer") },
+    },
+    sourceValueDeclaration: () => declaration,
+    sourceValueDeclarationSyntax: () => ({ initializer }),
+    resolveTypeWithState: () => previous,
+    resolveArrayLiteralWithState: (value, selectedQueries) => {
+      assert.equal(value === initializer && selectedQueries === queries, true, "the one canonical array selector owns the actual initializer");
+      selections += 1;
+      return rejected;
+    },
+    resolveDirectSourceFacts: () => assert.fail("a rejected producer cannot become an inferred native source fact"),
+    resolveSelectedExpressionType: () => assert.fail("a rejected producer cannot be reselected from its checker result"),
+    resolveNodeWithState: () => assert.fail("a rejected producer has no physical fallback"),
+  };
+  scope.resolveSourceValueDeclaration = (...arguments_) => resolveSourceValueDeclaration(scope, ...arguments_);
+  return { scope, node, queries, checkedType, sourceFile, rejected, selections: () => selections };
+}
+
+test("source-value resolution transports the original rejected array selection without a declared-carrier fallback", () => {
+  const current = refusedArrayFixture();
+  const selected = resolveSourceValueDeclaration(current.scope, current.node, current.queries, { depth: 0 });
+  assert.equal(selected === current.rejected, true, "the same canonical rejected Result and reason are retained by identity");
+  assert.equal(current.selections(), 1, "the owning source-value query performs only its one canonical selection");
+});
+
+test("selected native storage cannot rescue or revalidate a canonically rejected array producer", () => {
+  const current = refusedArrayFixture();
+  const selected = resolveSelectedValueWithState(current.scope, current.node, current.checkedType, current.sourceFile, { depth: 0 });
+  assert.equal(selected === undefined, true, "neither previous physical storage nor checked float64 inference publishes a target carrier");
+  assert.equal(current.selections(), 1, "the consumer propagates the owning Result without a second array validator");
 });

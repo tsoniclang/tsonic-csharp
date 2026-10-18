@@ -63,7 +63,7 @@ for (const family of families) {
 assert.equal(ordinaryParameters.length === 5, true, "five ordinary function and constructor parameters");
 
 function requirement(family, subject) {
-  return { family, subject, construct, producer };
+  return { family, subject, construct, producer, ...(family === "callableTarget" ? { facet: "creation" } : {}) };
 }
 
 function failure(family, subject) {
@@ -71,7 +71,7 @@ function failure(family, subject) {
 }
 
 function readingRecords(base, reads) {
-  return Object.freeze(Object.fromEntries(Object.keys(base).map(family => [family, Object.freeze({ get(...key) {
+  return Object.freeze(Object.fromEntries(Object.keys(base).map(family => [family, Object.freeze({ ...base[family], get(...key) {
     reads.push(family);
     return base[family].get(...key);
   } })])));
@@ -88,6 +88,45 @@ test("the record input fixture is the exact inverse of the mandatory assembly", 
 test("the assembly has no optional requirement list", () => {
   assert.throws(() => createCsharpProgramRecords(csharpRecordInput(records)), TypeError, "the removed one-argument form fails");
   assert.throws(() => createCsharpProgramRecords(csharpRecordInput(records), undefined), TypeError, "an absent list is not an empty list");
+});
+
+test("the existing callableTarget family requires its exact creation or entry facet without a default", () => {
+  const [present, omitted] = subjects.callableTarget;
+  const row = subject => ({ family: "callableTarget", facet: "entry", subject, construct, producer });
+  const reader = records.callableTarget;
+  assert.equal(reader.entry(present)?.sourceDeclaration === present && reader.entry(omitted)?.sourceDeclaration === omitted, true,
+    "two actual native creations retain their own original checked callable entry");
+  const reads = [];
+  const withoutEntry = Object.freeze({ ...records, callableTarget: Object.freeze({ ...reader, entry(subject) {
+    reads.push(subject);
+    return subject === omitted ? undefined : reader.entry(subject);
+  } }) });
+  assert.equal(withoutEntry.callableTarget.get(omitted) !== undefined, true,
+    "the independent creation carrier remains present when the exact entry is omitted");
+  assertCsharpRequiredRecords(withoutEntry, [requirement("callableTarget", omitted)]);
+  assert.throws(() => createCsharpProgramRecords(csharpRecordInput(withoutEntry), [row(present), row(omitted)]),
+    failure("callableTarget", omitted), "a sibling entry and the same node's creation carrier do not satisfy the omitted entry facet");
+  assert.equal(reads.length === 2 && reads[0] === present && reads[1] === omitted, true,
+    "entry validation reads the same canonical pure reader once for each exact subject and stops at the missing row");
+  const withoutCreation = csharpRecordsOmitting(records, "callableTarget", omitted);
+  assert.equal(withoutCreation.callableTarget.entry(omitted) === reader.entry(omitted), true,
+    "the exact entry remains published independently of the omitted creation carrier");
+  assertCsharpRequiredRecords(withoutCreation, [row(omitted)]);
+  assert.throws(() => assertCsharpRequiredRecords(withoutCreation, [requirement("callableTarget", omitted)]), failure("callableTarget", omitted),
+    "an entry never discharges the independently required creation carrier");
+  for (const facet of [undefined, "legacy", ""]) assert.throws(() => assertCsharpRequiredRecords(records,
+    [{ family: "callableTarget", subject: present, construct, producer, facet }]), failure("callableTarget", present),
+  "the removed unspecified/unknown facet has no compatibility default");
+  let planned = false;
+  let materialized = false;
+  const rejected = runTargetCompilationStages({
+    analyze: () => resolvedTargetStage(createCsharpProgramRecords(csharpRecordInput(withoutEntry), [row(omitted)])),
+    plan: value => { planned = true; return resolvedTargetStage(value); },
+    materialize: () => { materialized = true; return { artifacts: [] }; },
+  });
+  assert.equal(rejected.kind === "rejected" && rejected.diagnostics.length === 1 &&
+    rejected.diagnostics[0].code === "TSONIC_INTERNAL_ANALYSIS_INVARIANT" && !planned && !materialized, true,
+  "an omitted actual entry is rejected by the one pre-seal assembly before planning, output or native failure");
 });
 
 test("native-use requirements preserve owner, semantic slot and context, not just the expression", () => {

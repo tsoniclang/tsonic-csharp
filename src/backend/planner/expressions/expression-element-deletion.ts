@@ -2,7 +2,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../context.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "./expression-planner-types.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue } from "./planned-value-composition.js";
@@ -17,8 +17,7 @@ export function planCsharpElementDeletion(
 ): CsharpPlannedValue | undefined {
   const selection = input.program.records.elementDeletion.get(node);
   if (selection?.kind !== "resolved") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, selection?.reason ?? "Element deletion requires a sealed native operation."));
-    return undefined;
+    return failCsharpPlannerInvariant("An admitted deletion requires its exact sealed native operation.", node);
   }
   const keyType = csharpTypeFromTargetTypeRef(selection.keyType, input.scope.typeParameterNames);
   const receiver = planExpression(selection.receiver, sourceFile, input, diagnostics);

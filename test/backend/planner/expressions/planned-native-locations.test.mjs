@@ -181,7 +181,7 @@ test("typed ref stores retain original managed storage before a later non-suspen
   selections.set(source, location(source));
   input.types = { classifications: { resolveNode: () => csharpVoidTargetType() } };
   input.program.records.nativeUse = Object.freeze({ expression: subject => subject === owner
-    ? Object.freeze({ use: Object.freeze({ kind: "effect", carrier: csharpVoidTargetType() }) }) : undefined });
+    ? Object.freeze({ use: Object.freeze({ kind: "effect", carrier: csharpVoidTargetType(), readProjection: "projected" }) }) : undefined });
   const selected = { kind: "location-store", pointeeType: integer,
     locationType: csharpRuntimeLocationTargetType(integer), location: { kind: "native-ref-return", expression: source }, valueExpression: value };
   const plan = subject => subject === source ? csharpPlannedValue(integer, call("reference"))

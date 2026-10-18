@@ -131,7 +131,7 @@ test("an unsupported pattern stays a candidate issue with its pattern root and n
   const compiled = compileCsharpSource({ sourceText, surface: "js" });
   const errors = compiled.targetDiagnostics.filter(diagnostic => diagnostic.category === "error");
   assert.equal(errors.length === 1 && errors[0].code === candidate.code && errors[0].message === candidate.message, true,
-    "actual demand admission rejects at the same owner before conversions and publication");
+    `actual demand admission rejects at the same owner before conversions and publication: ${errors.map(({ code, message }) => `${code}: ${message}`).join(" | ")}`);
   assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
     "the admitted source refusal never publishes a partially sealed program");
 });

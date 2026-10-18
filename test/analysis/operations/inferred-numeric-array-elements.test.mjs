@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { getCsharpArrayLiteralElementTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { isCsharpStringTargetType, isCsharpJsStringTargetType } from "../../../dist/target-model/types/identity.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
@@ -262,11 +264,87 @@ for (const surface of ["native", "js"]) {
   ]) test(`${surface} actual ${name} union bindings are authoritative native destinations`, () => {
     actualUnionDestinationEvidence(accepted(compile(surface, source)), name);
   });
+  test(`${surface} logical union return and annotated aliases retain the selected generic native layout without copying`, () => {
+    const compiled = compile(surface, `
+      type Values = (string | number)[];
+      function selected<T>(values: (string | T)[]): (string | T)[] { return values; }
+      export function logical(flag: boolean): Values {
+        const initial = ["text", 9007199254740993, -9007199254740993, 1e100];
+        const physical = selected<number>(initial);
+        const alias: Values = physical;
+        alias[0] = "changed";
+        if (alias !== physical) throw new Error("native alias identity");
+        if (flag) return alias;
+        return selected<number>(physical);
+      }`);
+    const program = accepted(compiled);
+    const ast = program.source.ast;
+    let declaration;
+    let alias;
+    const selectedCalls = [];
+    const visit = node => {
+      if (ast.is.IsFunctionDeclaration(node) && ast.text(ast.name(node)) === "logical") declaration = node;
+      if (ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "alias") alias = node;
+      if (ast.is.IsCallExpression(node) && ast.text(ast.as.AsCallExpression(node)?.Expression) === "selected") selectedCalls.push(node);
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    for (const file of program.sourceFiles) visit(file);
+    const contract = program.records.returnContract.get(declaration);
+    const storage = program.records.storageType.get(alias);
+    assert.equal(contract?.kind === "resolved" && storage !== undefined && selectedCalls.length === 2, true,
+      "both returns and the annotated alias have one actual selected native contract");
+    for (const call of selectedCalls) {
+      const value = program.records.valueRead.get(call)?.value;
+      assert.equal(value !== undefined && targetTypeRefKey(value) === targetTypeRefKey(contract.type) &&
+        targetTypeRefKey(storage) === targetTypeRefKey(contract.type), true,
+      "logical source arm coverage never sorts a substituted generic native ABI");
+    }
+    const arms = getCsharpRuntimeUnionArms(getCsharpArrayLiteralElementTargetType(storage), program.typeDefinitions);
+    assert.equal(arms?.length === 2 && (isCsharpStringTargetType(arms[0]) || isCsharpJsStringTargetType(arms[0])) &&
+      arms[1].kind === "source-primitive" && arms[1].name === "float64", true,
+    "the selected generic string,T slot order remains string,double");
+    const output = [...compiled.artifacts.values()].join("\n");
+    assert.doesNotMatch(output, /\.ToArray\(|\.Select\(|Array\.ConvertAll|new System\.Func/u,
+      "retaining physical return/storage evidence requires no array copy or adapter");
+    const union = "Tsonic.CSharp.Runtime.Union<string, double>";
+    const container = surface === "native" ? `${union}[]` : `Tsonic.CSharp.Js.JSArray<${union}>`;
+    const elements = `${union}.From1("changed"), ${union}.From2(9007199254740993D), ${union}.From2(-9007199254740993D), ${union}.From2(1e100D)`;
+    const construct = surface === "native" ? `new ${union}[] { ${elements} }` : `Tsonic.CSharp.Js.JSArray<${union}>.of([${elements}])`;
+    executeCsharpConstruction(compiled, `logical-union-layout-${surface}`, false, false, [], `
+using Subject = Tsonic.Generated.Index;
+static ${container} Baseline() => ${construct};
+foreach (bool flag in new[] { false, true }) {
+    var values = Subject.logical(flag);
+    if (!values[0].Is1() || values[0].As1() != "changed" || !values[1].Is2() || values[1].As2() != 9007199254740992D ||
+        !values[2].Is2() || values[2].As2() != -9007199254740992D || !values[3].Is2() || values[3].As2() != 1e100D)
+        throw new System.Exception("logical annotation changed the selected native carrier");
+}
+for (int index = 0; index < 20; index++) { System.GC.KeepAlive(Subject.logical(true)); System.GC.KeepAlive(Baseline()); }
+long before = System.GC.GetAllocatedBytesForCurrentThread();
+for (int index = 0; index < 1000; index++) System.GC.KeepAlive(Subject.logical(true));
+long generated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+before = System.GC.GetAllocatedBytesForCurrentThread();
+for (int index = 0; index < 1000; index++) System.GC.KeepAlive(Baseline());
+long native = System.GC.GetAllocatedBytesForCurrentThread() - before;
+if (generated != native) throw new System.Exception($"physical alias allocation {generated}/{native}");
+`);
+  });
+  test(`${surface} a real native parameter layout is not rewritten to match another generic ABI`, () => {
+    const compiled = compile(surface, `
+      function selected<T>(values: (string | T)[]): (string | T)[] { return values; }
+      export function fixed(values: (string | number)[]): (string | number)[] { return selected<number>(values); }`);
+    assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+      "an incompatible existing mutable parameter is refused before publication, never copied");
+    assert.equal(compiled.nativeStage.diagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
+      issue.message.startsWith("No exact C# implicit conversion relates '") && issue.sourceNode !== undefined), true,
+    "the actual native conversion owner reports the exact incompatible physical parameter");
+  });
   test(`${surface} explicit heterogeneous and nullable native destinations retain their real selected widths`, () => {
     const program = accepted(compile(surface, `
       import type { decimal } from "@tsonic/core/types.js";
       export function exact(wide: int64): (string | int64)[] {
-        const values: (string | int64)[] = ["text", wide, 9007199254740993]; return values; }
+        const values: (string | int64)[] = ["text", wide, 9007199254740993n]; return values; }
       export function optional(): (number | undefined)[] {
         const optionalValues: (number | undefined)[] = [undefined, 9007199254740993]; return optionalValues; }
       export function decimalUnion(): (string | decimal)[] {
@@ -285,13 +363,25 @@ for (const surface of ["native", "js"]) {
     assert.equal(mixed?.length === 2 && ["int64", "float64"].every(kind => mixed.some(arm => arm.name === kind)), true,
       "an actual heterogeneous destination preserves the full native integer arm as well as a genuine computed float");
   });
+  test(`${surface} an unsuffixed authored number is not contextually admitted as an int64 union value`, () => {
+    const compiled = compile(surface, `
+      export function exact(wide: int64): (string | int64)[] {
+        const values: (string | int64)[] = ["text", wide, 9007199254740993]; return values; }`);
+    assert.equal(compiled.source.diagnostics.length, 1, compiled.sourceDiagnosticsText);
+    assert.match(compiled.sourceDiagnosticsText,
+      /error TS2322: Type 'number' is not assignable to type 'string \| bigint'\./u,
+      "the exact original unsuffixed source is rejected by the source numeric-form contract");
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+      "no int64 token is invented and no invalid source reaches native publication");
+  });
   test(`${surface} inferred heterogeneous counter-controls preserve exact integers, fractions, signed zero and computed values`, () => {
+    const length = surface === "native" ? "Length" : "length";
     const program = accepted(compile(surface, `export function run(computed: number) {
       const exact = ["text", 9007199254740994];
       const huge = ["text", 1606938044258990275541962092341162602522202993782792835301376];
       const fraction = ["text", 0.1]; const signedZero = ["text", -0];
       const actualFloat = ["text", computed]; const absent = [undefined, 9007199254740994];
-      return exact.length + huge.length + fraction.length + signedZero.length + actualFloat.length + absent.length; }`));
+      return exact.${length} + huge.${length} + fraction.${length} + signedZero.${length} + actualFloat.${length} + absent.${length}; }`));
     const selected = constructedArrays(program);
     for (const name of ["exact", "huge", "fraction", "signedZero", "actualFloat"]) {
       const arms = getCsharpRuntimeUnionArms(selected.get(name), program.typeDefinitions);
@@ -299,6 +389,17 @@ for (const surface of ["native", "js"]) {
         arms.some(arm => isCsharpStringTargetType(arm) || isCsharpJsStringTargetType(arm)), true,
       `${name}: actual exact or computed f64 contributions remain with the existing heterogeneous native carrier`);
     }
+    const absent = getCsharpNullableElementTargetType(selected.get("absent"));
+    assert.equal(absent?.kind === "source-primitive" && absent.name === "float64", true,
+      "the sixth actual contribution retains native absence around its exact canonical floating arm");
+  });
+  if (surface === "native") test("native array length requires its supported native declaration spelling", () => {
+    const compiled = compile(surface, "export function run(values: number[]): number { return values.length; }");
+    assert.equal(compiled.source.diagnostics.length, 1, compiled.sourceDiagnosticsText);
+    assert.match(compiled.sourceDiagnosticsText,
+      /error TS2551: Property 'length' does not exist on type 'number\[\]'\. Did you mean 'Length'\?/u);
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+      "a nonexistent native member is not filtered, widened, aliased or emulated");
   });
   for (const [name, body] of [
     ["generic argument", `function accept<T>(values: T[]): T[] { return values; }

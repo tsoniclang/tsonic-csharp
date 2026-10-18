@@ -2,7 +2,7 @@ import type { AstReader, Node } from "@tsonic/tsts";
 import { createHash } from "node:crypto";
 import { sourceFileIdentity } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpProjectTypeCatalog, CsharpProjectTypeCatalogHost } from "../../policy/types/project/project-types.js";
+import type { CsharpProjectTargetIdentity, CsharpProjectTypeCatalog, CsharpProjectTypeCatalogHost } from "../../policy/types/project/project-types.js";
 import type { CsharpProjectTypeDefinition, CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
 import {
   projectDefinitionTargetType,
@@ -109,7 +109,7 @@ export function createCsharpProjectTypeCatalog(
       }
       return undefined;
     },
-    definitionForTarget(type: TargetTypeRef | undefined) {
+    definitionForTarget(type: CsharpProjectTargetIdentity | undefined) {
       return type?.kind === "target-named" ? byId.get(type.id) : undefined;
     },
     targetTypeForDeclaration(

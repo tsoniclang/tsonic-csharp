@@ -12,12 +12,13 @@ const methodDeclaration = { kind: "method" };
 const variableDeclaration = { kind: "variable" };
 const delegate = csharpDelegateTargetType("System.Action", []);
 const owner = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "owner", csharpRender: { kind: "name", namespace: [], name: "Owner" } };
-function classify(declaration, selected, access, carrier = delegate, isStatic = false) {
+function classify(declaration, selected, access, carrier = delegate, isStatic = false, project = true) {
   return classifyCsharpSourceCallee({
     ast: { is: { IsFunctionDeclaration: node => node?.kind === "function", IsMethodDeclaration: node => node?.kind === "method",
       IsClassDeclaration: node => node?.kind === "class" }, parent: node => node.parent,
       kindName: node => node.kind, hasModifierKind: () => isStatic },
-    navigation: { sourceReferenceFor: () => declaration === undefined ? undefined : { declaration } },
+    navigation: { sourceReferenceFor: () => declaration === undefined ? undefined : { declaration },
+      isProjectDeclaration: node => node === selected ? project : node === declaration },
     projectTypes: { catalog: { definitionForDeclaration: () => undefined } },
     types: { resolveSelectedValue: node => node === expression ? carrier : owner },
   }, { sourceCallee: { expression, selectedDeclaration: selected }, sourceCalleeAccess: access }, {});
@@ -33,7 +34,8 @@ test("source direct functions do not become delegate operands", () => {
 test("exact direct functions never request a first-class delegate projection", () => {
   const selected = classifyCsharpSourceCallee({
     ast: { is: { IsFunctionDeclaration: node => node === functionDeclaration } },
-    navigation: { sourceReferenceFor: () => ({ declaration: functionDeclaration }) },
+    navigation: { sourceReferenceFor: () => ({ declaration: functionDeclaration }),
+      isProjectDeclaration: node => node === functionDeclaration },
     projectTypes: { catalog: {} },
     types: { resolveSelectedValue: () => { throw new Error("unnecessary callable projection"); } },
   }, { sourceCallee: { expression, selectedDeclaration: functionDeclaration } }, {});
@@ -45,6 +47,46 @@ test("function-selected alias storage remains a real callable value", () => {
     const selected = classify(declaration, functionDeclaration);
     assert.equal(selected.kind, "value");
     assert.equal(selected.type, delegate);
+  }
+});
+
+test("external direct function shapes stay available to type and profile queries before admission", () => {
+  const selected = classify(functionDeclaration, functionDeclaration, undefined, delegate, false, false);
+  assert.equal(selected.kind === "function" && selected.declaration === functionDeclaration && selected.expression === expression, true,
+    "shape selection is not executable implementation admission");
+  assert.equal(Object.isFrozen(selected), true);
+});
+
+test("external direct method and signature shapes stay available to exact native profile selection", () => {
+  for (const declaration of [methodDeclaration, { kind: "KindMethodSignature" },
+    { kind: "method", parent: { kind: "class" } }]) {
+    for (const kind of ["property", "element"]) {
+      const selected = classify(declaration, declaration, { kind, expression, receiver: { expression: receiver } },
+        delegate, declaration.parent !== undefined, false);
+      assert.equal(selected.kind === "method" && selected.declaration === declaration &&
+        selected.receiver.expression === receiver && selected.receiver.type === owner, true,
+      `${declaration.kind}/${kind}: pure shape data does not prematurely refuse a native or JS target relation`);
+    }
+  }
+});
+
+test("project callable storage is not rejected merely because its selected signature is external", () => {
+  for (const declaration of [variableDeclaration, { kind: "parameter" }, { kind: "property" }]) {
+    for (const carrier of [delegate, csharpNullableTargetType(delegate)]) {
+      const selected = classify(declaration, functionDeclaration, undefined, carrier, false, false);
+      assert.equal(selected.kind === "value" && selected.type === carrier && selected.expression === expression, true,
+        `${declaration.kind}: actual native storage is distinct from an external direct callee`);
+    }
+  }
+});
+
+test("project method signatures retain their exact callable protocol without a spelling exception", () => {
+  const declaration = { kind: "KindMethodSignature", name: "then" };
+  for (const kind of ["property", "element"]) {
+    const selected = classify(declaration, declaration, { kind, expression, receiver: { expression: receiver } });
+    assert.equal(selected.kind === "method" && selected.declaration === declaration &&
+      selected.receiver.expression === receiver && selected.receiver.type === owner, true,
+    `${kind}: checked project ownership, not the name then, decides the native method`);
   }
 });
 

@@ -122,7 +122,7 @@ import { createSourceStorageQuery, type SourceStorageQueries } from "@tsonic/tar
 import { createCsharpSourceProfileStorageEffects } from "../../policy/operations/source-profiles/source-storage-effects.js";
 import { analyzeCsharpGenericAdoption, analyzeCsharpPromiseResults } from "../callables/promise-results.js";
 import { analyzeCsharpRefLikePlacements } from "../storage/native-placement.js";
-import { analyzeCsharpCallableCreations } from "../callables/creation.js";
+import { prepareCsharpCallableCreations } from "../callables/creation.js";
 import { analyzeCsharpBindingPatterns, admitCsharpBindingPatterns } from "../control-flow/binding-patterns.js";
 import { admitCsharpExpectedNativeUses } from "../expected-types/native-uses.js";
 import { analyzeCsharpNativeDemand } from "../operations/native-demand.js";
@@ -407,6 +407,7 @@ export function analyzeCsharpTargetProgram(
   const projectTypes = sealCsharpProjectTypeClassifications(
     analysis.typeSystem.projectTypes, source.ast, sourceStorage.nodes, analysis.objectShapes,
   );
+  if (projectTypes.issues.length > 0) return rejectCsharpAnalysisIssues(projectTypes.issues);
   const sourceSyntax = targetSourceSyntaxProgram(source);
   const names = analysis.names.seal(nativeDemand.requiredBindingRoots);
   const objectShapeDemand = analyzeCsharpNativeArtifactDemand({
@@ -567,6 +568,7 @@ function analyzeIteration(
   const storageRepresentations = analyzeCsharpStorage(
     policy,
     sourceEvidence,
+    evidence.nativeExpressionIssues,
     operations,
     objectShapes,
     expectedTypes,
@@ -589,12 +591,14 @@ function analyzeIteration(
   const storagePreparation = prepareCsharpStorage(policy, backingEvidence, operations, storageRepresentations);
   const classFactories = analyzeCsharpClassFactories(source, typeSystem.projectTypes.catalog, sourceEvidence,
     storagePreparation.captures, names, requiredRecords);
-  const captureStorage = analyzeCsharpCaptureStorage(source, objectShapes, storagePreparation.captures, sourceEvidence,
-    classFactories.factories.flatMap(factory => factory.captures), names, declarations, operations, expectedTypes);
-  const callableCreations = analyzeCsharpCallableCreations({
-    ast: source.ast, nodes: sourceStorage.nodes, captures: captureStorage, contracts: callables,
+  const callableCreationPreparation = prepareCsharpCallableCreations({
+    ast: source.ast, nodes: sourceStorage.nodes, contracts: callables,
     expectedTypes, storage: storageRepresentations, evidence: sourceEvidence, conversions: preparedConversions,
   });
+  const captureStorage = analyzeCsharpCaptureStorage(source, objectShapes, storagePreparation.captures, sourceEvidence,
+    classFactories.factories.flatMap(factory => factory.captures), names, declarations, operations,
+    { callableTarget: callableCreationPreparation.callableTarget });
+  const callableCreations = callableCreationPreparation.seal(captureStorage);
   const participation = analyzeCsharpNativeParticipation({
     ast: source.ast, storage: sourceStorage, navigation: source.navigation,
     captureClosure: captureStorage.captureClosure, lambdaCreation: captureStorage.lambdaCreation,
@@ -661,6 +665,7 @@ function analyzeIteration(
     ast: source.ast, sourceFiles, navigation: source.navigation, evidence: sourceEvidence,
     operations, valueReads, participation: nativeParticipation.participation, declarations, objectShapes,
     bindingPatterns: bindingCandidates, callableCreation: callableCreations.callableCreation, attributeApplications: attributes.index,
+    callableTarget: callableCreations.callableTarget,
     propertyKeyBindings: expectedTypes.constructions.propertyKeys, exactLiteral: exactLiterals.exactLiteral,
     classInitialization, projectTypes: typeSystem.projectTypes.catalog, classFactories, expected: expectedUse,
     nativeExpressionIssues: evidence.nativeExpressionIssues,

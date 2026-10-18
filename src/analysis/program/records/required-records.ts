@@ -14,11 +14,13 @@ export interface CsharpRequiredRecordOrigin {
 
 export interface CsharpRequiredNodeRecord extends CsharpRequiredRecordOrigin {
   readonly family: "classFactory" | "requiredStorageType" | "nativeParticipation" | "nativeHandler" |
-    "sourceArgument" | "bindingPatternProjection" | "callableTarget" | "nativeValueDeclaration";
+    "sourceArgument" | "bindingPatternProjection" | "nativeValueDeclaration";
 }
 
 export type CsharpRequiredRecord = CsharpRequiredNodeRecord
-  | CsharpRequiredRecordOrigin & { readonly family: "objectShapeArtifact"; readonly key: string }
+  | CsharpRequiredRecordOrigin & { readonly family: "callableTarget"; readonly facet: "creation" | "entry" }
+  | CsharpRequiredRecordOrigin & { readonly family: "objectShapeArtifact"; readonly role: "artifact"; readonly key: string }
+  | CsharpRequiredRecordOrigin & { readonly family: "objectShapeArtifact"; readonly role: "projection" | "spread" }
   | CsharpRequiredRecordOrigin & { readonly family: "nativeUse"; readonly site: TargetUseSiteRef }
   | CsharpRequiredRecordOrigin & { readonly family: "exactLiteral"; readonly target: TargetTypeRef | undefined; readonly role?: CsharpExactLiteralRole }
   | CsharpRequiredRecordOrigin & { readonly family: "conversion" | "expressionConversion";
@@ -46,8 +48,19 @@ export function assertCsharpRequiredRecords(
 
 function csharpRequiredRecordPublished(records: CsharpProgramRecords, requirement: CsharpRequiredRecord): boolean {
   switch (requirement.family) {
-    case "objectShapeArtifact":
-      return records.objectShapeArtifact.get(requirement.key) !== undefined;
+    case "objectShapeArtifact": {
+      switch (requirement.role) {
+        case "artifact": return records.objectShapeArtifact.get(requirement.key) !== undefined;
+        case "projection":
+        case "spread": {
+          const selected = requirement.role === "projection"
+            ? records.objectShapeArtifact.projection(requirement.subject)
+            : records.objectShapeArtifact.spread(requirement.subject);
+          return selected !== undefined && Array.isArray(selected.memberBindings) && Object.isFrozen(selected.memberBindings);
+        }
+      }
+      return false;
+    }
     case "classFactory":
       return records.classFactory.get(requirement.subject) !== undefined;
     case "requiredStorageType":
@@ -61,7 +74,8 @@ function csharpRequiredRecordPublished(records: CsharpProgramRecords, requiremen
     case "bindingPatternProjection":
       return records.bindingPatternProjection.get(requirement.subject) !== undefined;
     case "callableTarget":
-      return records.callableTarget.get(requirement.subject) !== undefined;
+      return requirement.facet === "creation" ? records.callableTarget.get(requirement.subject) !== undefined
+        : requirement.facet === "entry" && records.callableTarget.entry(requirement.subject) !== undefined;
     case "nativeValueDeclaration":
       return records.nativeValueDeclaration.get(requirement.subject) !== undefined;
     case "nativeUse":

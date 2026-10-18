@@ -73,7 +73,7 @@ export function planConstructorDeclarations(
   const baseCall = csharpConstructorBaseCall(input.program.source.ast, node);
   const leadingSuperCall = baseCall === undefined ? undefined : AsCallExpression(input.program.source.ast, baseCall);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
-  const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
+  const parameters = planParametersWithPrelude(node, sourceFile, input, diagnostics, state);
   const baseArgumentPlans = leadingSuperCall === undefined ? []
     : planBaseConstructorArguments(leadingSuperCall, sourceFile, input, diagnostics, state);
   const constructor: CsharpConstructorDeclaration = {

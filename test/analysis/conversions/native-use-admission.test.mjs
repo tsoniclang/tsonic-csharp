@@ -6,7 +6,7 @@ import { analyzeCsharpExpectedTypes } from "../../../dist/analysis/expected-type
 import { admitCsharpExpectedNativeUses, collectCsharpExpectedNativeUseSites } from "../../../dist/analysis/expected-types/native-uses.js";
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
-import { analyzeCsharpCallableCreations } from "../../../dist/analysis/callables/creation.js";
+import { prepareCsharpCallableCreations } from "../../../dist/analysis/callables/creation.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpProviderArgumentSourceCarrier } from "../../../dist/policy/operations/members/selection/native-use-arguments.js";
@@ -31,6 +31,7 @@ test("canonical source callable admission recognizes TypeLiteral signatures with
     const ast = { is: {
       IsFunctionDeclaration: () => false, IsArrowFunction: () => false, IsFunctionExpression: () => false,
       IsMethodDeclaration: () => false, IsConstructorDeclaration: () => false,
+      IsGetAccessorDeclaration: () => false, IsSetAccessorDeclaration: () => false,
       IsMethodSignatureDeclaration: node => node === declaration,
       IsInterfaceDeclaration: node => node === interfaceOwner, IsTypeLiteralNode: node => node === literalOwner,
     }, parent: () => owner };
@@ -289,7 +290,7 @@ for (const wrapper of ["direct", "delegate", "tuple", "native-generic"]) test(wr
     expectedTypes: {}, valueReads: {} });
   assert.throws(() => analysis.seal(), /closed preparation/u, "final publication cannot compute or close preparation itself");
   const site = csharpNativeUseSite(expression, { kind: "return" });
-  const use = Object.freeze({ kind: "converted", expression, carrier: sourceUse, target: targetUse, mode: "implicit",
+  const use = Object.freeze({ kind: "converted", expression, carrier: sourceUse, target: targetUse, mode: "implicit", readProjection: "projected",
     input: Object.freeze({ kind: "value", type: sourceUse }), completion: Object.freeze({ kind: "value", type: targetUse }),
     children: Object.freeze([]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
   analysis.close({ entries: Object.freeze([Object.freeze({ site, use })]) }, []);
@@ -410,20 +411,12 @@ test("a required pending request and a cycle stay explicit rather than publishin
 
 function nativeCreations(value, overrides = {}) {
   const records = value.program.records;
-  const contract = declaration => {
-    const result = records.returnContract.get(declaration);
-    if (result?.kind !== "resolved") return undefined;
-    const parameters = value.ast.parameters(declaration).map(parameter => {
-      const type = records.lambdaParameterType.get(parameter);
-      return type === undefined ? undefined : { sourceParameter: parameter, targetParameter: { type, passingMode: "by-value" } };
-    });
-    return parameters.some(parameter => parameter === undefined) ? undefined : {
-      sourceDeclaration: declaration, methodTypeParameterIdentities: [], methodAllowsRefLikeTypeArguments: [], parameters, returnType: result.type,
-    };
-  };
-  return analyzeCsharpCallableCreations({ ast: value.ast, nodes: value.nodes,
-    captures: records, contracts: { get: identity => contract(identity.declaration), closedInputType: () => undefined }, expectedTypes: records,
-    storage: records, evidence: records, conversions: records, ...overrides });
+  const contract = declaration => records.callableTarget.entry(declaration);
+  const { captures = records, ...input } = overrides;
+  return prepareCsharpCallableCreations({ ast: value.ast, nodes: value.nodes,
+    contracts: { get: identity => contract(identity.declaration), closedInputType: () => undefined },
+    storage: records, evidence: records, conversions: records, ...input,
+    expectedTypes: { ...records, ...input.expectedTypes } }).seal(captures);
 }
 
 for (const surface of ["native", "js"]) {

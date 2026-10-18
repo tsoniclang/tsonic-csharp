@@ -54,6 +54,14 @@ const ambientCases = [
       const unused = () => { function nested(): number { return external; } return nested(); };
       void unused; return 42;
     }`, errors: 0, references: 1, call: "Subject.run()", erased: [], forbidden: ["external", "unused", "nested"] },
+  { name: "erased callable alias references", sourceText: `declare const external: number;
+    export function run(): number {
+      const unused = () => external;
+      const alias = unused;
+      const second = (alias);
+      void unused; void alias; void second;
+      return 42;
+    }`, errors: 0, references: 1, call: "Subject.run()", erased: [], forbidden: ["external", "unused", "alias", "second"] },
   { name: "type-only query", sourceText: `declare const external: number;
     export type External = typeof external;
     export function run(value: External): number { return value; }`, errors: 0, references: 0,
@@ -144,6 +152,43 @@ for (const surface of ["native", "js"]) for (const example of ambientCases) test
     System.Console.WriteLine("actual native ambient admission passed");`);
   assert.equal(nativeOutput.includes("actual native ambient admission passed"), true,
     `${example.name}: native execution preserves42 and the exact handwritten zero-allocation cost`);
+});
+
+for (const surface of ["native", "js"]) test(`${surface} a discarded callable initializer cannot erase a later mutable presence`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    export function run(absent: boolean): boolean {
+      let calls = 0;
+      let selected: (() => number) | undefined = () => 1;
+      if (absent) selected = undefined;
+      selected ?? (calls++, () => 2);
+      return calls === (absent ? 1 : 0);
+    }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const program = compiled.result.program;
+  let reads = 0;
+  const visit = node => {
+    if (program.source.ast.is.IsBinaryExpression(node) && program.source.ast.operatorKindName(node) === "KindQuestionQuestionToken") {
+      const expression = program.source.ast.as.AsBinaryExpression(node).Left;
+      const use = program.records.nativeUse.expression(expression)?.use;
+      assert.equal(use !== undefined && use.kind !== "erased", true,
+        "a written source binding retains its actual current storage instead of its discarded initial callable");
+      reads++;
+    }
+    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  program.sourceFiles.forEach(visit);
+  assert.equal(reads, 1, "the original coalescing left is checked at its one actual source occurrence");
+  executeCsharpConstruction(compiled, `mutable-erased-callable-presence-${surface}`, false, false, [], `
+using Subject = Tsonic.Generated.Index;
+if (!Subject.run(false) || !Subject.run(true)) throw new System.Exception("mutable callable presence or RHS effects changed");
+for (int index = 0; index < 4096; index++) { Subject.run(false); Subject.run(true); }
+long before = System.GC.GetAllocatedBytesForCurrentThread();
+for (int index = 0; index < 4096; index++)
+    if (!Subject.run(false) || !Subject.run(true)) throw new System.Exception("mutable presence observations changed after warmup");
+if (System.GC.GetAllocatedBytesForCurrentThread() != before)
+    throw new System.Exception("discarded callable presence introduced per-evaluation allocation");
+`);
 });
 
 for (const surface of ["native", "js"]) {

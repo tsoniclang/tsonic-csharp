@@ -58,7 +58,7 @@ export function planInterfaceDeclaration(
   const declaration = AsInterfaceDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "interface declaration", diagnostics);
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
-  const interfaces = planInterfaceHeritage(node, input, diagnostics);
+  const interfaces = planInterfaceHeritage(node, input);
   const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
   const members = (declaration.Members?.Nodes ?? []).flatMap((member): CsharpInterfaceMember[] => {
     if (member === undefined) {
@@ -121,7 +121,7 @@ function planInterfaceMethodDeclaration(
   const declaration = AsMethodSignatureDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "interface method declaration", diagnostics);
   const parameters = planParametersWithPrelude(
-    declaration.Parameters?.Nodes ?? [],
+    node,
     sourceFile,
     input,
     diagnostics,
