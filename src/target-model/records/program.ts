@@ -20,6 +20,7 @@ import type { CsharpStorageClassifications, CsharpStorageRepresentationClassific
 import type { CsharpGenericProjectionIndex } from "./type-projections.js";
 import type { CsharpNativeValueCarriers } from "./native-value-carriers.js";
 import type { CsharpObjectShapeDemand } from "./object-shape-demand.js";
+import type { CsharpCallableTargetClassifications } from "./source-callable-contract.js";
 
 export interface CsharpProgramRecords {
   readonly objectShapeArtifact: CsharpObjectShapeDemand;
@@ -56,7 +57,7 @@ export interface CsharpProgramRecords {
   readonly runtimeDefault: CsharpDeclarationClassifications["runtimeDefault"];
   readonly methodWrite: CsharpDeclarationClassifications["methodWrite"];
   readonly returnContext: CsharpExpectedTypeClassifications["returnContext"];
-  readonly callableTarget: CsharpExpectedTypeClassifications["callableTarget"];
+  readonly callableTarget: CsharpCallableTargetClassifications;
   readonly moduleInitializationDependencies: CsharpModuleInitializationIndex["moduleInitializationDependencies"];
   readonly requiresModuleInitializer: CsharpModuleInitializationIndex["requiresModuleInitializer"];
   readonly asyncModuleInitializer: CsharpModuleInitializationIndex["asyncModuleInitializer"];

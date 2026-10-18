@@ -407,6 +407,7 @@ export function analyzeCsharpTargetProgram(
   const projectTypes = sealCsharpProjectTypeClassifications(
     analysis.typeSystem.projectTypes, source.ast, sourceStorage.nodes, analysis.objectShapes,
   );
+  if (projectTypes.issues.length > 0) return rejectCsharpAnalysisIssues(projectTypes.issues);
   const sourceSyntax = targetSourceSyntaxProgram(source);
   const names = analysis.names.seal(nativeDemand.requiredBindingRoots);
   const objectShapeDemand = analyzeCsharpNativeArtifactDemand({
@@ -567,6 +568,7 @@ function analyzeIteration(
   const storageRepresentations = analyzeCsharpStorage(
     policy,
     sourceEvidence,
+    evidence.nativeExpressionIssues,
     operations,
     objectShapes,
     expectedTypes,
@@ -663,6 +665,7 @@ function analyzeIteration(
     ast: source.ast, sourceFiles, navigation: source.navigation, evidence: sourceEvidence,
     operations, valueReads, participation: nativeParticipation.participation, declarations, objectShapes,
     bindingPatterns: bindingCandidates, callableCreation: callableCreations.callableCreation, attributeApplications: attributes.index,
+    callableTarget: callableCreations.callableTarget,
     propertyKeyBindings: expectedTypes.constructions.propertyKeys, exactLiteral: exactLiterals.exactLiteral,
     classInitialization, projectTypes: typeSystem.projectTypes.catalog, classFactories, expected: expectedUse,
     nativeExpressionIssues: evidence.nativeExpressionIssues,

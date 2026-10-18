@@ -19,7 +19,8 @@ export interface CsharpRequiredNodeRecord extends CsharpRequiredRecordOrigin {
 
 export type CsharpRequiredRecord = CsharpRequiredNodeRecord
   | CsharpRequiredRecordOrigin & { readonly family: "callableTarget"; readonly facet: "creation" | "entry" }
-  | CsharpRequiredRecordOrigin & { readonly family: "objectShapeArtifact"; readonly key: string }
+  | CsharpRequiredRecordOrigin & { readonly family: "objectShapeArtifact"; readonly role: "artifact"; readonly key: string }
+  | CsharpRequiredRecordOrigin & { readonly family: "objectShapeArtifact"; readonly role: "projection" | "spread" }
   | CsharpRequiredRecordOrigin & { readonly family: "nativeUse"; readonly site: TargetUseSiteRef }
   | CsharpRequiredRecordOrigin & { readonly family: "exactLiteral"; readonly target: TargetTypeRef | undefined; readonly role?: CsharpExactLiteralRole }
   | CsharpRequiredRecordOrigin & { readonly family: "conversion" | "expressionConversion";
@@ -47,8 +48,19 @@ export function assertCsharpRequiredRecords(
 
 function csharpRequiredRecordPublished(records: CsharpProgramRecords, requirement: CsharpRequiredRecord): boolean {
   switch (requirement.family) {
-    case "objectShapeArtifact":
-      return records.objectShapeArtifact.get(requirement.key) !== undefined;
+    case "objectShapeArtifact": {
+      switch (requirement.role) {
+        case "artifact": return records.objectShapeArtifact.get(requirement.key) !== undefined;
+        case "projection":
+        case "spread": {
+          const selected = requirement.role === "projection"
+            ? records.objectShapeArtifact.projection(requirement.subject)
+            : records.objectShapeArtifact.spread(requirement.subject);
+          return selected !== undefined && Array.isArray(selected.memberBindings) && Object.isFrozen(selected.memberBindings);
+        }
+      }
+      return false;
+    }
     case "classFactory":
       return records.classFactory.get(requirement.subject) !== undefined;
     case "requiredStorageType":
