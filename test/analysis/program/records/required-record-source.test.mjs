@@ -118,15 +118,19 @@ for (const surface of ["native", "js"]) {
     const declarations = new Map(nodes.filter(node => ast.is.IsArrowFunction(node)).map(declaration => {
       const signature = getCsharpLambdaSignature(records.callableTarget.get(declaration));
       assert.equal(signature !== undefined, true, "each adapted lambda has its exact published signature");
-      const parameters = Object.freeze(ast.parameters(declaration).map((parameter, index) => {
+      const entry = records.callableTarget.entry(declaration);
+      assert.equal(entry !== undefined && entry.sourceDeclaration === declaration &&
+        entry.parameters.length === ast.parameters(declaration).length, true,
+      "the fixture consumes the same complete admitted native entry, not a reconstructed partial contract");
+      assert.equal(ast.parameters(declaration).every((parameter, index) => {
         const type = records.lambdaParameterType.get(parameter);
-        assert.equal(type !== undefined && targetTypeRefEquals(type, signature.parameters[index]), true,
-          "the callable contract carries the published parameter correspondence");
-        return Object.freeze({ sourceParameter: parameter,
-          targetParameter: Object.freeze({ type, passingMode: signature.parameterPassingModes[index] }) });
-      }));
-      return [declaration, Object.freeze({ sourceDeclaration: declaration,
-        methodTypeParameterIdentities: Object.freeze([]), methodAllowsRefLikeTypeArguments: Object.freeze([]), parameters, returnType: signature.returnType })];
+        const selected = entry.parameters[index];
+        return type !== undefined && targetTypeRefEquals(type, signature.parameters[index]) &&
+          selected.sourceParameter === parameter && selected.sourceProjection.length === 0 &&
+          targetTypeRefEquals(selected.targetParameter.type, type) &&
+          selected.targetParameter.passingMode === signature.parameterPassingModes[index];
+      }), true, "the callable contract carries every exact published parameter, projection, carrier and passing mode");
+      return [declaration, entry];
     }));
     const callables = Object.freeze({ contracts: Object.freeze([...declarations.values()]),
       declarationContracts: Object.freeze([...declarations.values()]), closedInputType: () => undefined,

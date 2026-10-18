@@ -36,13 +36,17 @@ const call = nodes.find(node => ast.is.IsCallExpression(node) && text(node) === 
 const member = ast.as.AsPropertyAccessExpression(ast.as.AsCallExpression(call).Expression);
 const argument = ast.arguments(call)[0];
 const receiver = member.Expression;
+const checkedCall = source.semantics.forNode(call).operations.call(call);
+assert.equal(checkedCall !== undefined && checkedCall.sourceArguments.length === 1 &&
+  checkedCall.sourceArguments[0].expression === argument && checkedCall.sourceArgumentBindings.length === 1 &&
+  checkedCall.sourceArgumentBindings[0].sourceArgumentIndex === 0, true,
+"the fixture uses the exact original checked argument and effective binding evidence");
 const none = { get: () => undefined };
 const no = { get: () => false };
 const record = { sourceArgumentIndex: 0, effectiveArgumentIndex: 0, sourceParameterIndex: 0, parameterIndex: 0,
   expression: argument, sourceForm: "value", type: scalar };
 const classification = grouping => ({ form: { kind: "target", optionalReceiverRouting: "call" },
-  target: { kind: "source-owned" }, source: { sourceCallee: { expression: member },
-    sourceCalleeAccess: { kind: "property", receiver: { expression: receiver } } },
+  target: { kind: "source-owned" }, source: checkedCall,
   sourceCall: { kind: "method", receiver: { expression: receiver, type: scalar } }, unionCall: { kind: "not-union" },
   sourceArgumentGrouping: grouping });
 const input = selected => ({ ast, evidence: { compileTimeMetadata: no, sourceArgument: none, sourceDefaultValue: none },
@@ -65,7 +69,14 @@ test("source method runtime order differs from planning order without a copied a
         refused.sourceRefusal.message === kind && refused.refusal === undefined
       : refused.refusal === `argument-${kind}` && refused.sourceRefusal === undefined, true,
     `${kind}: an actual source rejection keeps its precise diagnostic; unresolved contracts stay pending`);
-    assert.equal(refused.runtime.length + refused.planning.length, 0, `${kind}: no accepted prefix or positional fallback`);
+    assert.equal(refused.runtime.length, 0, `${kind}: no accepted runtime prefix or positional fallback`);
+    if (kind === "unresolved") {
+      const pending = refused.planning[0];
+      assert.equal(refused.planning.length === 1 && pending.kind === "use" && pending.use.expression === argument &&
+        pending.use.owner === call && pending.use.slot.kind === "argument" && pending.use.slot.sourceIndex === 0 &&
+        pending.use.slot.effectiveIndex === 0 && pending.use.slot.sourceParameterIndex === 0, true,
+      "unresolved arguments preserve only the exact original child compilation work so its source refusal cannot disappear");
+    } else assert.equal(refused.planning.length, 0, `${kind}: no rejected planning prefix or positional fallback`);
   }
 });
 

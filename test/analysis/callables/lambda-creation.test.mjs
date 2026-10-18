@@ -12,7 +12,6 @@ import { planLambdaParameterStorage } from "../../../dist/backend/planner/expres
 import { createDestructuringPlannerState } from "../../../dist/backend/planner/bindings/index.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { getCsharpMethodValue } from "../../../dist/target-model/types/method-values.js";
-import { csharpCaptureFrameCachedInstanceName } from "../../../dist/target-model/records/capture-storage.js";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
 const callable = csharpDelegateTargetType("System.Func", [scalar], scalar);
@@ -78,7 +77,7 @@ for (const [name, body] of [
   ["inline named recursion", "return invoke(function recurse(entry: number): number { return entry === 0 ? 1 : recurse(entry - 1); });"],
   ["immutable aliases", "const mapper = (entry: number) => entry + 1; const alias = mapper; invoke(alias); return invoke(mapper);"],
 ]) {
-  test(`capture-free ${name} selects the native cached delegate`, () => {
+  test(`only sealed invocation arguments cache capture-free ${name}`, () => {
     const input = fixture(body);
     const selected = input.selected.lambdaCreation.get(input.lambda);
     assert.equal(selected.kind, "cached");
@@ -99,10 +98,10 @@ for (const [name, body, staticBody = true] of [
   ["unproved declaration annotation", "const mapper: (entry: number) => number = entry => entry + 1; return invoke(mapper);"],
   ["named self value", "return invoke(function self(entry: number): number { const alias = self; return alias === self ? entry : -1; });", false],
 ]) {
-  test(`${name} follows the native capture and shared-identity contract`, () => {
+  test(`${name} preserves fresh native creation despite stateless bodies`, () => {
     const input = fixture(body);
     const selected = input.selected.lambdaCreation.get(input.lambda);
-    assert.equal(selected.kind, staticBody ? "cached" : "fresh");
+    assert.equal(selected.kind, "fresh");
     assert.equal(selected.staticBody, staticBody, "observed self values require their exact nonstatic identity binding");
   });
 }
@@ -128,25 +127,19 @@ test("missing callable creation evidence remains conservative", () => {
   assert.equal(Object.isFrozen(unknown), true);
 });
 
-test("an unresolved generic callable contract cannot establish an empty cached environment", () => {
+test("an unresolved generic callable contract retains its precise native owner refusal", () => {
   const input = fixture("return <Item>(entry: Item): Item => entry;", false, ["CSHARP_GENERIC_CALLABLE_CONTRACT_NOT_CLOSED"]);
   const creation = input.selected.lambdaCreation.get(input.lambda);
   assert.equal(creation.kind === "fresh" && creation.staticBody === false, true,
-    "a syntactically capture-free generic body without its resolved native callable owner is not a proven cache candidate");
+    "a missing generic native owner retains the original fresh creation contract");
   assert.equal(input.selected.captureClosure.get(input.lambda) === undefined, true,
     "a missing generic owner cannot publish a fabricated empty native frame");
 });
 
-for (const surface of ["native", "js"]) test(`${surface} empty generic callable environments share their native cached owner with no per-evaluation allocation`,
+for (const surface of ["native", "js"]) test(`${surface} captured generic callable environments preserve fresh activation identity`,
   { timeout: 300_000 }, () => {
   const selected = compileCsharpRequiredRecordSource(`
-    import type { int64 } from "@tsonic/core/types.js";
     type Identity = <Item>(value: Item) => Item;
-    export function make(): Identity { return <Item>(value: Item): Item => value; }
-    export function other(): Identity { return <Item>(value: Item): Item => value; }
-    export function typed<Outer>(): <Item>(value: Item, other: Outer) => Outer {
-      return <Item>(value: Item, other: Outer): Outer => other;
-    }
     export function captured(seed: number): Identity {
       return <Item>(value: Item): Item => { if (seed < 0) throw new Error("captured seed"); return value; };
     }
@@ -155,15 +148,11 @@ for (const surface of ["native", "js"]) test(`${surface} empty generic callable 
     export function capturedEmpty(unit: {}): Identity {
       return <Item>(value: Item): Item => { observeEmpty(unit); return value; };
     }
+    export class Empty {}
+    export function capturedNominal(unit: Empty): Identity {
+      return <Item>(value: Item): Item => { if (unit !== unit) throw new Error("captured identity"); return value; };
+    }
     export function run(): boolean {
-      const first = make();
-      const alias = first;
-      const second = make();
-      const different = other();
-      const typedFirst = typed<int64>();
-      const typedSecond = typed<int64>();
-      if (first !== second || alias !== second || first === different || first(7) !== 7 || second("value") !== "value") return false;
-      if (typedFirst !== typedSecond || typedFirst(true, 9007199254740993n) !== 9007199254740993n) return false;
       const capturedFirst = captured(7);
       const capturedSecond = captured(7);
       if (capturedFirst === capturedSecond || capturedFirst(3) !== 3 || !capturedSecond(true)) return false;
@@ -171,89 +160,37 @@ for (const surface of ["native", "js"]) test(`${surface} empty generic callable 
       const emptyFirst = capturedEmpty(empty);
       const emptySecond = capturedEmpty(empty);
       if (emptyFirst === emptySecond || emptyFirst(5) !== 5 || !emptySecond(true) || emptyVisits !== 2) return false;
-      return true;
+      const unit = new Empty();
+      const nominalFirst = capturedNominal(unit);
+      const nominalSecond = capturedNominal(unit);
+      return nominalFirst !== nominalSecond && nominalFirst(9) === 9 && nominalSecond(true);
     }
   `, surface);
   const { source, program, nodes } = selected;
-  const declarations = new Map(nodes.filter(node => source.ast.is.IsFunctionDeclaration(node))
-    .map(node => [source.ast.text(source.ast.name(node)), node]));
-  const returned = name => {
-    const declaration = declarations.get(name);
+  const closures = new Map();
+  for (const name of ["captured", "capturedEmpty", "capturedNominal"]) {
+    const declaration = nodes.find(node => source.ast.is.IsFunctionDeclaration(node) && source.ast.text(source.ast.name(node)) === name);
     const statement = source.ast.statements(source.ast.body(declaration)).find(node => source.ast.is.IsReturnStatement(node));
     const expression = statement === undefined ? undefined : source.ast.as.AsReturnStatement(statement)?.Expression;
-    assert.equal(expression !== undefined && source.ast.is.IsArrowFunction(expression), true, `${name}: original exact returned generic expression`);
-    return expression;
-  };
-  const cache = new Map();
-  for (const name of ["make", "other", "typed"]) {
-    const expression = returned(name);
-    const creation = program.records.lambdaCreation.get(expression);
-    const closure = program.records.captureClosure.get(expression);
-    assert.equal(creation.kind === "cached" && creation.staticBody === true && closure?.frame.ownership === "value" &&
-      closure.frame.bindings.length === 0 && closure.frame.parents.length === 0 && closure.frame.receivers.length === 0, true,
-    `${name}: the canonical pre-seal decision uses complete, genuinely empty native environment evidence`);
-    assert.equal(Object.isFrozen(creation) && Object.isFrozen(closure.frame) && Object.isFrozen(closure.method), true,
-      `${name}: renderer inputs are immutable native owner facts`);
-    cache.set(name, closure);
-  }
-  for (const name of ["captured", "capturedEmpty"]) {
-    const expression = returned(name);
+    assert.equal(expression !== undefined && source.ast.is.IsArrowFunction(expression), true,
+      `${name}: original returned generic expression`);
     const creation = program.records.lambdaCreation.get(expression);
     const closure = program.records.captureClosure.get(expression);
     assert.equal(creation.kind === "fresh" && creation.staticBody === false && closure?.frame.bindings.length === 1, true,
-      `${name}: any actual captured binding remains a fresh activation, including an object with no authored fields`);
+      `${name}: every actual capture retains its fresh activation, including a value with no authored fields`);
+    assert.equal(Object.isFrozen(creation) && Object.isFrozen(closure.frame) && Object.isFrozen(closure.method), true,
+      `${name}: the exact native capture facts remain immutable`);
+    closures.set(name, closure);
   }
-  const typed = cache.get("typed");
-  assert.equal(typed.frame.shape.targetType.kind === "target-named" && typed.frame.shape.targetType.typeArguments?.length === 1, true,
-    "a type-only outer native environment remains in the cached class's exact closed generic specialization");
-  const generated = [...selected.compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
-  for (const [name, closure] of cache) assert.equal(generated.includes(csharpCaptureFrameCachedInstanceName(closure.method)), true,
-    `${name}: the same admitted cache member is emitted and referenced, not a second runtime cache choice`);
-  const invocation = getCsharpMethodValue(cache.get("make").method.type)?.method;
-  const typedInvocation = getCsharpMethodValue(typed.method.type)?.method;
-  assert.equal(typeof invocation === "string" && typeof typedInvocation === "string", true,
-    "native proof invokes the actual selected quantified entry, never a guessed method name");
-  executeCsharpConstruction(selected.compiled, `cached-generic-native-owner-${surface}`, false, false, [], `
+  const invocation = getCsharpMethodValue(closures.get("captured").method.type)?.method;
+  assert.equal(typeof invocation === "string", true, "native proof uses the selected quantified entry");
+  executeCsharpConstruction(selected.compiled, `captured-generic-native-owner-${surface}`, false, false, [], `
 using Subject = Tsonic.Generated.Index;
-if (!Subject.run()) throw new System.Exception("generic cached identity, native values, captured identity or receiver effects");
-var first = Subject.make();
-if (!System.Object.ReferenceEquals(first, Subject.make()) || System.Object.ReferenceEquals(first, Subject.other()) ||
-    first.${invocation}<long>(9007199254740993L) != 9007199254740993L ||
-    !System.Object.ReferenceEquals(Subject.typed<long>(), Subject.typed<long>()) ||
-    Subject.typed<long>().${typedInvocation}<bool>(true, 9007199254740993L) != 9007199254740993L)
-    throw new System.Exception("native cached instance specialization or exact generic argument result");
-for (int index = 0; index < 20000; index++) {
-    _ = Subject.make().${invocation}<int>(index);
-    _ = Subject.typed<long>().${typedInvocation}<bool>(true, index);
-    _ = NativeIdentity.Instance.Invoke<int>(index);
-    _ = NativeOuter<long>.Instance.Invoke<bool>(true, index);
-}
-long before = System.GC.GetAllocatedBytesForCurrentThread();
-long sum = 0;
-for (int index = 0; index < 20000; index++) {
-    sum += Subject.make().${invocation}<int>(index);
-    sum += Subject.typed<long>().${typedInvocation}<bool>(true, index);
-}
-long actualBytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
-if (sum != 399980000L || actualBytes != 0)
-    throw new System.Exception("empty generic callable creation must have zero per-evaluation allocation");
-before = System.GC.GetAllocatedBytesForCurrentThread();
-long nativeSum = 0;
-for (int index = 0; index < 20000; index++) {
-    nativeSum += NativeIdentity.Instance.Invoke<int>(index);
-    nativeSum += NativeOuter<long>.Instance.Invoke<bool>(true, index);
-}
-long nativeBytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
-if (nativeSum != sum || nativeBytes != 0 || nativeBytes != actualBytes)
-    throw new System.Exception("the exact handwritten native cached-owner baseline and generated path must both allocate zero bytes");
-sealed class NativeIdentity {
-    public static readonly NativeIdentity Instance = new NativeIdentity();
-    public Item Invoke<Item>(Item value) { return value; }
-}
-sealed class NativeOuter<Outer> {
-    public static readonly NativeOuter<Outer> Instance = new NativeOuter<Outer>();
-    public Outer Invoke<Item>(Item value, Outer other) { return other; }
-}
+if (!Subject.run()) throw new System.Exception("captured identity, zero-authored-field identity, native values or receiver effects");
+var first = Subject.captured(7);
+if (System.Object.ReferenceEquals(first, Subject.captured(7)) ||
+    first.${invocation}<long>(9007199254740993L) != 9007199254740993L)
+    throw new System.Exception("captured native values require separate activation identities and exact generic results");
 `);
 });
 

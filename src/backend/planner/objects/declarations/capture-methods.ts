@@ -1,7 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCaptureFrame } from "../../../../target-model/records/capture-storage.js";
-import { csharpCaptureFrameCachedInstanceName } from "../../../../target-model/records/capture-storage.js";
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
 import type { CsharpExpression, CsharpTypeMember } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
@@ -11,7 +10,7 @@ import { planExpression } from "../../expressions/index.js";
 import { planTypeParameters } from "../../types/type-parameters.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { getCsharpLambdaSignature, getCsharpExpressionTreeDelegateType, isCsharpVoidTargetType } from "../../../../target-model/types/index.js";
-import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { planSourceFunctionDeclaration } from "../../declarations/callables/functions.js";
 import { withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
 
@@ -38,12 +37,6 @@ export function renderCsharpCaptureFrameMethods(
   retain(frame, { kind: "IdentifierName", name: "this" });
   const members: CsharpTypeMember[] = [];
   for (const method of frame.methods) {
-    if (frame.ownership === "value" && input.program.records.lambdaCreation.get(method.declaration).kind === "cached") {
-      const type = csharpTypeFromTargetTypeRef(frame.shape.targetType, input.scope.typeParameterNames);
-      if (type === undefined) return failCsharpPlannerInvariant("A cached native callable owner requires its sealed renderable class type.", method.declaration);
-      members.push({ kind: "FieldDeclaration", name: csharpCaptureFrameCachedInstanceName(method), type,
-        modifiers: ["public", "static", "readonly"], initializer: { kind: "ObjectCreationExpression", type } });
-    }
     const quotation = getCsharpExpressionTreeDelegateType(method.type) !== undefined;
     const signature = getCsharpLambdaSignature(method.type);
     const returnType = signature === undefined ? undefined : csharpTypeFromTargetTypeRef(

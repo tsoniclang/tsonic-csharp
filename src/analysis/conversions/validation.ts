@@ -27,7 +27,7 @@ export function admitCsharpConversionSelection(
   source: TargetTypeRef | undefined, target: TargetTypeRef | undefined,
   selection: CsharpConversionSelection,
 ): CsharpConversionSelection {
-  if (selection.kind !== "union-map" && selection.kind !== "runtime-union-projection" &&
+  if (selection.kind !== "identity" && selection.kind !== "union-map" && selection.kind !== "runtime-union-projection" &&
     selection.kind !== "nullable-map" && selection.kind !== "delegate-adapter" &&
     selection.kind !== "provider-argument-adapter" &&
     !(selection.kind === "implicit" && selection.proof === "runtime-union-arm")) return selection;
@@ -50,6 +50,12 @@ export function admitCsharpConversionSelection(
     const sourceElement = getCsharpNullableElementTargetType(current.source);
     const targetElement = getCsharpNullableElementTargetType(current.target);
     switch (selected.kind) {
+      case "identity":
+        if (current.source === undefined || current.target === undefined ||
+          !targetTypeRefEquals(current.source, current.target)) {
+          return { kind: "rejected", reason: "C# identity conversion requires the exact same source and destination carrier." };
+        }
+        break;
       case "union-map":
         if (!csharpRuntimeUnionMappingMatches(policy, sourceElement ?? current.source, targetElement ?? current.target, selected) ||
           selected.coverage === "target" && targetElement !== undefined && sourceElement === undefined) return unionMappingRejected;
