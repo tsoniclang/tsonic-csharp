@@ -15,7 +15,7 @@ test("optional Task lifting preserves arity, payload and non-null requirements",
   const optional = csharpNullableTargetType(task);
   assert.ok(targetTypeRefEquals(combineCsharpTargetUnionMembers([task, unit]), optional));
   assert.ok(targetTypeRefEquals(combineCsharpTargetUnionMembers([unit]), unit));
-  assert.equal(selectCsharpConversion(policy, task, optional, "implicit").kind, "identity");
+  assert.deepEqual(selectCsharpConversion(policy, task, optional, "implicit"), { kind: "implicit", proof: "nullable" });
   assert.deepEqual(selectCsharpConversion(policy, csharpAbsenceTargetType(), optional, "implicit"), { kind: "absence" });
   assert.equal(selectCsharpConversion(policy, csharpTaskTargetType(integer), optional, "implicit").kind, "implicit");
   for (const [source, target] of [[optional, task],

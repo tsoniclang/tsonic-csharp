@@ -190,7 +190,12 @@ export function analyzeCsharpConversions(
     if (evidence.compileTimeMetadata.get(node)) return;
     if (operations.nativeUnreachable.get(node)) return;
     const sourceTypes = exactSourceTypes(node, valueReads, expectedTypes.callableTarget.get(node));
-    literalRequests.requestReads(node, sourceTypes, expectedTypes.expectedType.get(node), operations);
+    const expectedTargets = expectedTypes.expectedType.get(node);
+    const literalTargets = policy.ast.is.IsArrayLiteralExpression(node) ? expectedTargets.flatMap(target => {
+      const carrier = expectedTypes.arrayLiteralCarrier.get(node, target);
+      return carrier === undefined ? [target] : [target, carrier];
+    }) : expectedTargets;
+    literalRequests.requestReads(node, sourceTypes, literalTargets, operations);
     if (policy.literalValues.literalValue.get(node) !== undefined) {
       const source = valueReads.valueRead.get(node)?.value;
       if (source !== undefined) for (const target of expectedTypes.expectedType.get(node)) {

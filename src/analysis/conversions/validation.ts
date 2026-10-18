@@ -5,8 +5,13 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpUnionArmMappingsMatch, csharpUnionPathsEqual } from "../../target-model/types/union-relations.js";
 import { csharpMetadataDescriptors } from "../../target-model/metadata/immutable.js";
-import { getCsharpDelegateSignature, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms } from "../../target-model/types/index.js";
+import { csharpCarrierAdmitsSourceAbsence, getCsharpDelegateSignature, getCsharpGenericOptionalParts,
+  getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType,
+  isCsharpNullableReferenceTargetType } from "../../target-model/types/index.js";
 import type { CsharpConversionShapeQueries } from "../../policy/conversions/shape-queries.js";
+import { csharpUnsignedIntegerCounterpart } from "../../target-model/conversions/integer-refinement.js";
+import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
+import { csharpNativeRepresentationMatches } from "../../target-model/conversions/native-representation.js";
 
 type CsharpUnionValidationPolicy = Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries;
 
@@ -27,10 +32,6 @@ export function admitCsharpConversionSelection(
   source: TargetTypeRef | undefined, target: TargetTypeRef | undefined,
   selection: CsharpConversionSelection,
 ): CsharpConversionSelection {
-  if (selection.kind !== "union-map" && selection.kind !== "runtime-union-projection" &&
-    selection.kind !== "nullable-map" && selection.kind !== "delegate-adapter" &&
-    selection.kind !== "provider-argument-adapter" &&
-    !(selection.kind === "implicit" && selection.proof === "runtime-union-arm")) return selection;
   const pending: (CsharpConversionAdmissionInput |
     { readonly kind: "leave"; readonly selection: CsharpConversionSelection })[] = [{ kind: "enter", source, target, selection }];
   const active = new Set<CsharpConversionSelection>();
@@ -47,9 +48,38 @@ export function admitCsharpConversionSelection(
     }
     const selected = current.selection;
     if (active.has(selected)) return { kind: "rejected", reason: "C# conversion admission requires a finite selected conversion tree." };
+    const rendering = conversionRenderingRejection(current);
+    if (rendering !== undefined) return rendering;
     const sourceElement = getCsharpNullableElementTargetType(current.source);
     const targetElement = getCsharpNullableElementTargetType(current.target);
     switch (selected.kind) {
+      case "identity":
+        if (current.source === undefined || current.target === undefined ||
+          !targetTypeRefEquals(current.source, current.target)) {
+          return { kind: "rejected", reason: "C# identity conversion requires the exact same source and destination carrier." };
+        }
+        break;
+      case "absence":
+        if (!isCsharpAbsenceTargetType(current.source) || !csharpCarrierAdmitsSourceAbsence(current.target)) {
+          return { kind: "rejected", reason: "An absence conversion requires its exact source and destination storage contracts." };
+        }
+        break;
+      case "integer-refinement":
+        if (current.source?.kind !== "source-primitive" || current.target?.kind !== "source-primitive" ||
+          current.source.name !== selected.source || current.target.name !== selected.target ||
+          selected.proof !== "nonnegative" || csharpUnsignedIntegerCounterpart(selected.source) !== selected.target) {
+          return { kind: "rejected", reason: "Integer refinement conflicts with its exact native carriers." };
+        }
+        break;
+      case "runtime-union-reference": {
+        const arms = getCsharpRuntimeUnionArms(current.source, policy.typeDefinitions);
+        if (current.target === undefined || arms === undefined || arms.length !== selected.arms.length ||
+          !arms.every((arm, index) => targetTypeRefEquals(arm, selected.arms[index]!)) ||
+          !targetTypeRefEquals(current.target, selected.target)) {
+          return { kind: "rejected", reason: "Runtime-union reference projection conflicts with its exact selected arms and destination." };
+        }
+        break;
+      }
       case "union-map":
         if (!csharpRuntimeUnionMappingMatches(policy, sourceElement ?? current.source, targetElement ?? current.target, selected) ||
           selected.coverage === "target" && targetElement !== undefined && sourceElement === undefined) return unionMappingRejected;
@@ -70,6 +100,13 @@ export function admitCsharpConversionSelection(
         descend(selected, [{ kind: "enter", source: sourceElement, target: targetElement, selection: selected.conversion }]);
         break;
       case "implicit": {
+        if (selected.proof === "native-representation") {
+          if (current.source === undefined || current.target === undefined ||
+            !csharpNativeRepresentationMatches(current.source, current.target)) {
+            return { kind: "rejected", reason: "C# native representation conversion requires distinct closed non-generic JsValue carriers with the same canonical native render." };
+          }
+          break;
+        }
         if (selected.proof !== "runtime-union-arm") break;
         const arm = getCsharpRuntimeUnionArms(targetElement ?? current.target, policy.typeDefinitions)?.[selected.armIndex];
         if (arm === undefined || !targetTypeRefEquals(arm, selected.armType)) {
@@ -100,12 +137,67 @@ export function admitCsharpConversionSelection(
           { kind: "enter", source: current.source, target: selected.adapter.inputType, selection: selected.sourceToInput },
         ]);
         break;
+      case "lifted-provider-argument-adapter":
+        if (sourceElement === undefined || targetElement === undefined ||
+          isCsharpNullableReferenceTargetType(current.source) || isCsharpNullableReferenceTargetType(current.target) ||
+          !targetTypeRefEquals(sourceElement, selected.sourceElementType) ||
+          !targetTypeRefEquals(targetElement, selected.targetElementType) ||
+          !targetTypeRefEquals(sourceElement, selected.adapter.inputType) ||
+          !targetTypeRefEquals(selected.adapter.resultType, targetElement)) {
+          return { kind: "rejected", reason: `Exact provider argument adapter '${selected.adapter.id}' cannot be lifted without matching nullable value-carrier element types.` };
+        }
+        break;
       case "rejected":
       case "ambiguous":
         return selected;
     }
   }
   return selection;
+}
+
+function conversionRenderingRejection(input: CsharpConversionAdmissionInput): CsharpConversionSelection | undefined {
+  const { selection, source, target } = input;
+  let required: readonly (TargetTypeRef | undefined)[];
+  switch (selection.kind) {
+    case "never":
+    case "checked-native-integer":
+    case "integer-truncation":
+    case "array-like-union":
+    case "integer-refinement":
+    case "cast":
+      required = [target];
+      break;
+    case "exact-integer":
+      required = [selection.input, selection.output];
+      break;
+    case "absence":
+      required = [source, target, getCsharpGenericOptionalParts(target)?.operations ?? target];
+      break;
+    case "nullable-map":
+      required = [getCsharpNullableElementTargetType(source), target];
+      break;
+    case "runtime-union-reference":
+      required = [getCsharpNullableElementTargetType(target) ?? target];
+      break;
+    case "provider-argument-adapter":
+      required = [selection.adapter.declaringType];
+      break;
+    case "lifted-provider-argument-adapter":
+      required = [selection.sourceElementType, selection.targetElementType, selection.adapter.declaringType];
+      break;
+    case "js-value-cast":
+      required = selection.runtimeUnionArms ?? [target];
+      break;
+    case "implicit":
+      required = selection.proof === "checked-floating-literal" ? [target]
+        : selection.proof === "runtime-union-arm" ? [getCsharpGenericOptionalParts(target)?.operations ?? getCsharpNullableElementTargetType(target) ?? target]
+        : [];
+      break;
+    default:
+      required = [];
+  }
+  return required.some(type => type === undefined || csharpTargetTypeRenderingRejection(type) !== undefined)
+    ? { kind: "rejected", reason: "C# conversion requires a renderable target type." } : undefined;
 }
 
 export function csharpRuntimeUnionMappingMatches(
