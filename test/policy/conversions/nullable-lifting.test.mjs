@@ -279,22 +279,32 @@ test("provider empty-array construction has the same exact native type and alloc
   assert.equal(output.includes("new System.Collections.Generic.List<int>(new int[] { })"), true,
     "the checked provider formal selects an ordinary native int array and List constructor");
   const observed = executeCsharpConstruction(compiled, "native-provider-empty-array-cost", false, false, [], `
-    static System.Collections.Generic.List<int> NativeCreate() => new System.Collections.Generic.List<int>(new int[] { });
-    for (int index = 0; index < 1000; index++) {
-      System.GC.KeepAlive(NativeCreate());
+    for (int index = 0; index < 100000; index++) {
+      System.GC.KeepAlive(NativeBaseline.Create());
       System.GC.KeepAlive(Tsonic.Generated.Index.create());
     }
-    long nativeStart = System.GC.GetAllocatedBytesForCurrentThread();
-    for (int index = 0; index < 10000; index++) System.GC.KeepAlive(NativeCreate());
-    long nativeBytes = System.GC.GetAllocatedBytesForCurrentThread() - nativeStart;
-    long generatedStart = System.GC.GetAllocatedBytesForCurrentThread();
-    for (int index = 0; index < 10000; index++) System.GC.KeepAlive(Tsonic.Generated.Index.create());
-    long generatedBytes = System.GC.GetAllocatedBytesForCurrentThread() - generatedStart;
-    System.Collections.Generic.List<int> value = Tsonic.Generated.Index.create();
-    if (value.Count != 0 || value.Capacity != 0 || generatedBytes != nativeBytes)
-      throw new System.Exception("native List allocation parity");
-    System.Console.WriteLine($"native={nativeBytes}; generated={generatedBytes}; count={value.Count}");
+    for (int repetition = 0; repetition < 3; repetition++) {
+      long nativeStart = System.GC.GetAllocatedBytesForCurrentThread();
+      for (int index = 0; index < 10000; index++) System.GC.KeepAlive(NativeBaseline.Create());
+      long nativeBytes = System.GC.GetAllocatedBytesForCurrentThread() - nativeStart;
+      long generatedStart = System.GC.GetAllocatedBytesForCurrentThread();
+      for (int index = 0; index < 10000; index++) System.GC.KeepAlive(Tsonic.Generated.Index.create());
+      long generatedBytes = System.GC.GetAllocatedBytesForCurrentThread() - generatedStart;
+      System.Collections.Generic.List<int> value = Tsonic.Generated.Index.create();
+      if (value.Count != 0 || value.Capacity != 0 || generatedBytes != nativeBytes)
+        throw new System.Exception("native List allocation parity");
+      System.Console.WriteLine($"repetition={repetition}; native={nativeBytes}; generated={generatedBytes}; count={value.Count}; capacity={value.Capacity}");
+    }
+    public static class NativeBaseline {
+      public static System.Collections.Generic.List<int> Create() {
+        return new System.Collections.Generic.List<int>(new int[] { });
+      }
+    }
   `);
-  assert.match(observed, /native=([0-9]+); generated=\1; count=0/u,
-    "native execution proves the exact provider type, value and allocation parity without boxing or a wrapper");
+  const samples = observed.trim().split("\n");
+  assert.equal(samples.length, 3, "all three exact-allocation repetitions execute");
+  for (const [index, sample] of samples.entries()) {
+    assert.match(sample, new RegExp(`^repetition=${index}; native=([0-9]+); generated=\\1; count=0; capacity=0$`, "u"),
+      "native execution proves exact provider type, Count, Capacity and allocation parity in every repetition");
+  }
 });
