@@ -40,7 +40,7 @@ for (const surface of ["native", "js"]) {
     const { program, call, declaration } = fixture(surface);
     assert.equal(Object.isFrozen(program) && Object.isFrozen(program.records), true, "sealed program and record port");
     const families = Object.entries(program.records);
-    assert.equal(families.length, 118, "117 native record families + immutable objectShapeArtifact demand");
+    assert.equal(families.length, 119, "118 native record families + immutable objectShapeArtifact demand");
     for (const name of ["memoryBinding", "nativePointer", "typedLocation", "jsStringConversion",
       "expectedType", "requiredExpectedType", "storageExpectedType", "exactIntegerConversion", "arrayLiteralCarrier", "expectedBinary"]) {
       assert.equal(Object.hasOwn(program.records, name), false, `${name}: applicability is not a backend capability`);
