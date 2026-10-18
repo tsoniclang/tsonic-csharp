@@ -55,10 +55,6 @@ export interface CsharpFrameClosure {
   readonly receivers: readonly { readonly owner: Node; readonly references: readonly Node[]; readonly type: TargetTypeRef }[];
 }
 
-export function csharpCaptureFrameCachedInstanceName(method: Pick<CsharpFrameClosure, "methodName">): string {
-  return `__tsonic_cached_${method.methodName}`;
-}
-
 export interface CsharpNamedSelfBinding {
   readonly declaration: Node;
   readonly calls: readonly Node[];
