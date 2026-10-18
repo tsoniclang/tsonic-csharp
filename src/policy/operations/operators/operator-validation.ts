@@ -112,6 +112,10 @@ export function validateUnaryTargetSemantics(
       ? undefined
       : "C# bitwise complement requires an integral or enum operand.";
   }
+  if (operator === "-" && operand.kind === "source-primitive" &&
+    (operand.name === "uint64" || operand.name === "native-uint")) {
+    return `C# unary '-' is not defined for the native '${operand.name}' carrier.`;
+  }
   return isNumeric(operand)
     ? undefined
     : `C# unary operator '${operator}' requires a numeric source-primitive operand.`;

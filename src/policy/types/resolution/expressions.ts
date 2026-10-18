@@ -3,7 +3,6 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
 import { sourcePresentCallableType, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { nextState } from "./state.js";
 import { resolveBinaryTargetRepresentation, commonTargetRepresentation, getTaskResultType } from "./representation.js";
@@ -21,6 +20,7 @@ import { resolveCsharpStaticMemberReceiver } from "../project/static-members.js"
 import { combineCsharpTargetUnionMembers } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
+import { csharpUnaryOperationResultType } from "../../operations/numeric/promotion.js";
 
 export function resolveSelectedExpressionType(
   { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveReadStorage, resolveNonNullExpressionType, resolveMemberAccessTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState, sourceUnions }: CsharpTypeResolutionScope,
@@ -117,9 +117,10 @@ export function resolveSelectedExpressionType(
       queries.sourceFile,
       nextState(state),
     );
-    return sourceOperatorFromKindName(host.ast.operatorKindName(node)) === "!"
-      ? csharpSourcePrimitiveTargetType("bool")
-      : operandType;
+    const operator = sourceOperatorFromKindName(host.ast.operatorKindName(node));
+    if (operandType === undefined || operator !== "!" && operator !== "~" && operator !== "+" &&
+      operator !== "-" && operator !== "++" && operator !== "--") return undefined;
+    return csharpUnaryOperationResultType(operator, operandType);
   }
   if (host.ast.is.IsAwaitExpression(node)) {
     const awaited = resolveNodeWithState(

@@ -1,4 +1,6 @@
 import type {
+  AstReader,
+  Node,
   ResolvedSourceElementAccessInfo,
   SourceFile,
 } from "@tsonic/tsts";
@@ -25,11 +27,89 @@ import {
 } from "../../policy/conversions/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpElementClassification, CsharpPropertyClassification, CsharpMemberReceiverProjection } from "../../target-model/records/operations.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { classifyCsharpBoundFieldWrite } from "./bound-field-writes.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
+import type { CsharpNativeSourceMemberRead } from "../../policy/operations/control-flow/native-operands.js";
+import type { CsharpNamePlan } from "../../target-model/names/model.js";
+import type { TargetPlanningSourceNavigation } from "@tsonic/target-api/analysis";
+
+export type CsharpSourceMemberAdmission =
+  | { readonly kind: "resolved" }
+  | { readonly kind: "rejected"; readonly reason: string }
+  | { readonly kind: "pending"; readonly reason: string };
+
+export function admitCsharpSourceOwnedMemberRead(
+  input: { readonly ast: AstReader; readonly names: Pick<CsharpNamePlan, "resolve">;
+    readonly navigation: Pick<TargetPlanningSourceNavigation, "isProjectDeclaration"> },
+  node: Node,
+  selected: CsharpNativeSourceMemberRead,
+): CsharpSourceMemberAdmission {
+  const { classification, selection } = selected;
+  if (classification === undefined) return { kind: "pending", reason: "A source-owned property has no sealed C# source-property classification." };
+  const { jsValueOperation, objectShape, runtimeUnionProperty, jsValueProperty, shapeMember, rawReadType, selectedReadType } = classification;
+  if (jsValueOperation.kind === "rejected") return jsValueOperation;
+  if (runtimeUnionProperty.kind === "rejected") return runtimeUnionProperty;
+  if (runtimeUnionProperty.kind === "resolved") {
+    if (selection.source.optionalChain) return { kind: "rejected",
+      reason: "Optional runtime-union object-shape property projection requires an explicit nullable-union policy." };
+    if (selectedReadType === undefined || classification.selectedReceiverType === undefined) return { kind: "pending",
+      reason: "The exact runtime-union object-shape property read has no closed C# selected result representation." };
+    return { kind: "resolved" };
+  }
+  if (jsValueProperty.kind === "rejected") return jsValueProperty;
+  if (objectShape !== undefined && shapeMember?.kind !== "resolved") return { kind: "rejected",
+    reason: "The exact selected source property is absent from its finalized object-shape contract." };
+  const declaration = selection.source.selectedDeclaration;
+  if (shapeMember?.kind !== "resolved" && jsValueOperation.kind !== "resolved" &&
+    (declaration === undefined || !input.navigation.isProjectDeclaration(declaration))) return { kind: "rejected",
+      reason: "The exact selected property is neither provider-owned, source-profile-owned, nor declared by this project." };
+  const methodValue = objectShape !== undefined && shapeMember?.kind === "resolved" &&
+    shapeMember.member.memberKind === "method" && (!selection.source.callCallee || shapeMember.member.optional === true);
+  const genericMethodValue = getCsharpMethodValue(rawReadType);
+  const sourceProperty = declaration !== undefined && (input.ast.is.IsPropertyDeclaration(declaration) ||
+    input.ast.is.IsPropertySignatureDeclaration(declaration) || input.ast.is.IsGetAccessorDeclaration(declaration) ||
+    sourceParameterIsProperty(input.ast, declaration));
+  if (genericMethodValue !== undefined && genericMethodValue.typeParameters.length > 0 && !selection.source.callCallee &&
+    declaration !== undefined && input.ast.is.IsMethodDeclaration(declaration) &&
+    input.ast.is.IsClassDeclaration(input.ast.parent(declaration))) return { kind: "rejected",
+      reason: "An extracted quantified nominal method has no supported native callable-value owner." };
+  if (jsValueOperation.kind === "resolved") {
+    const nameNode = input.ast.as.AsPropertyAccessExpression(node)?.name;
+    if (jsValueProperty.kind !== "resolved" && (nameNode === undefined || input.ast.text(nameNode) === undefined)) {
+      return { kind: "pending", reason: "A JS-value property read requires an exact authored property name." };
+    }
+  } else if (shapeMember?.kind !== "resolved") {
+    const nameNode = input.ast.name(declaration) ?? input.ast.as.AsPropertyAccessExpression(node)?.name;
+    const name = input.names.resolve(nameNode, declaration);
+    if (name.kind === "rejected") return { kind: "rejected",
+      reason: `The exact selected source property has no C#-representable declaration name. ${name.reason}` };
+  } else if (methodValue && (objectShape === undefined || !objectShape.members.includes(shapeMember.member))) {
+    return { kind: "pending", reason: "A stored source method requires its exact native object shape." };
+  }
+  if (genericMethodValue !== undefined && (sourceProperty || shapeMember?.kind === "resolved" &&
+    shapeMember.member.memberKind === "property")) {
+    if (shapeMember?.kind === "resolved" && (rawReadType === undefined || !targetTypeRefEquals(shapeMember.member.type, rawReadType))) {
+      return { kind: "pending", reason: "A stored generic method value lost its exact selected native storage type." };
+    }
+  } else if (genericMethodValue !== undefined) {
+    if (objectShape === undefined || shapeMember?.kind !== "resolved") return { kind: "pending",
+      reason: "A generic method value lost its exact selected native owner." };
+    const target = objectShape.targetType;
+    const named: CsharpTargetNamedTypeRef | undefined = target.kind === "target-named" ? target : undefined;
+    const structural = named !== undefined && (named.csharpStructuralContract === true || named.csharpSourceDeclarationKind === "interface");
+    const owner = shapeMember.member.methodStorageType ?? (structural ? shapeMember.member.methodValueContract ?? target : target);
+    if (genericMethodValue.method !== shapeMember.member.targetName || !targetTypeRefEquals(genericMethodValue.owner, owner)) {
+      return { kind: "pending", reason: "A generic method value lost its exact selected native owner." };
+    }
+  }
+  if (selection.source.accessMode === "read" && !selection.source.callCallee && shapeMember?.kind === "resolved" && selectedReadType === undefined) {
+    return { kind: "pending", reason: "The exact selected source property read has no closed C# flow representation." };
+  }
+  return { kind: "resolved" };
+}
 
 export function classifyCsharpMemberReceiver(
   policy: CsharpPolicyContext,

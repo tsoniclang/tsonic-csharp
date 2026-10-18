@@ -14,6 +14,9 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
 import { planCsharpDiscardedStatement, planCsharpPlannedDiscard } from "../../../dist/backend/planner/statements/statement-output.js";
+import { admitCsharpSourceOwnedMemberRead } from "../../../dist/analysis/operations/member-access.js";
+import { genericObjectMethodValueSource } from "../../../../tsonic/test/fixtures/generic-object-methods.mjs";
+import { unsupportedGenericCallableOwnershipCases } from "../../fixtures/generic-callable-ownership.mjs";
 
 test("the single discard entry omits pure defaults without dropping preludes, effects or never completion", () => {
   const scalar = csharpSourcePrimitiveTargetType("float64");
@@ -1190,7 +1193,7 @@ function owners(sourceText, surface = "js") {
   for (const file of program.sourceFiles) walk(file);
   const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: program.sourceFiles, participation: records.nativeParticipation,
     evidence: records, operations: records, valueReads: records, objectShapes: program.objectShapes });
-  const input = { ast, sourceFiles: program.sourceFiles, navigation: program.sourceNavigation, evidence: records, operations: records,
+  const input = { ast, sourceFiles: program.sourceFiles, navigation: program.sourceNavigation, names: program.names, evidence: records, operations: records,
     nativeExpressionIssues: [],
     declarations: records, objectShapes: program.objectShapes,
     exactLiteral: records.exactLiteral, propertyKeyBindings: expression => {
@@ -1440,6 +1443,218 @@ test("binding requirements follow actual completion and retain signature paramet
   assert.equal(demand.requiredBindingRoots.includes(parameter), true, "a retained signature keeps its parameter projection requirement");
   assert.equal(Object.isFrozen(demand.requiredBindingRoots), true, "required-root publication is immutable");
 });
+
+for (const surface of ["native", "js"]) test(`${surface} source-owned member admission closes every selected source boundary before publication`, () => {
+  const value = owners("export function read(value: { item: number }): number { return value.item; }", surface);
+  const node = value.nodes.find(candidate => value.ast.is.IsPropertyAccessExpression(candidate) && value.text(candidate) === "value.item");
+  const original = value.records.selectedProperty.get(node);
+  const classification = original?.sourceOwned;
+  assert.equal(original?.selection.kind === "source-owned" && classification?.shapeMember?.kind === "resolved" &&
+    classification.objectShape !== undefined, true, "the real producer supplies one exact checked member in its complete native shape");
+  const admitted = admitCsharpSourceOwnedMemberRead(value.input, node, { selection: original.selection, classification });
+  assert.equal(admitted.kind, "resolved", "the actual selected property is admitted without a planner or artifact validator");
+  const missing = [
+    ["classification", undefined, "A source-owned property has no sealed C# source-property classification."],
+    ["selected result", { ...classification, selectedReadType: undefined },
+      "The exact selected source property read has no closed C# flow representation."],
+  ];
+  for (const [label, sourceOwned, reason] of missing) {
+    const operations = { ...value.input.operations, selectedProperty: { get: candidate => candidate === node
+      ? { ...original, sourceOwned } : value.input.operations.selectedProperty.get(candidate) } };
+    const demand = analyzeCsharpNativeDemand({ ...value.input, operations }, []);
+    assert.equal(demand.unadmitted.some(entry => entry.kind === "pending-use" && entry.expression === node &&
+      entry.reason === "operation-unresolved" && entry.message === reason), true,
+    `${label}: internal missing producer evidence remains pending with its exact cause, never a new source limitation`);
+    assert.equal(demand.unadmitted.some(entry => entry.kind === "source-refusal"), false,
+      `${label}: incomplete native evidence is not disguised as an unsupported source program`);
+    assert.equal(demand.nativeUse.expression(node) === undefined, true, `${label}: missing facts cannot publish a native expression`);
+  }
+  for (const field of ["jsValueOperation", "runtimeUnionProperty", "jsValueProperty"]) {
+    const reason = `Exact existing ${field} source refusal.`;
+    const operations = { ...value.input.operations, selectedProperty: { get: candidate => candidate === node
+      ? { ...original, sourceOwned: { ...classification, [field]: Object.freeze({ kind: "rejected", reason }) } }
+      : value.input.operations.selectedProperty.get(candidate) } };
+    const site = csharpNativeUseSite(value.ast.parent(node), { kind: "return" });
+    const demand = analyzeCsharpNativeDemand({ ...value.input, operations,
+      expected: { ...value.input.expected, pending: [{ site, expression: node, reason: "inconsistent-request" }] } }, []);
+    const refusals = demand.unadmitted.filter(entry => entry.kind === "source-refusal");
+    assert.equal(refusals.length === 1 && refusals[0].requiredBy === node && refusals[0].diagnostic.sourceNode === node &&
+      refusals[0].diagnostic.code === "CSHARP_UNSUPPORTED_AST" && refusals[0].diagnostic.message === reason, true,
+    `${field}: the identical original selected refusal reaches the one source diagnostic boundary before pending conversion slots`);
+    assert.equal(demand.nativeUse.expression(node) === undefined, true, `${field}: a rejected member is never an admitted artifact`);
+  }
+  const naming = { ...classification, objectShape: undefined, shapeMember: undefined };
+  const noName = admitCsharpSourceOwnedMemberRead({ ...value.input,
+    names: { resolve: () => ({ kind: "rejected", reason: "Exact canonical name rejection." }) } }, node,
+  { selection: original.selection, classification: naming });
+  assert.equal(noName.kind === "rejected" && noName.reason ===
+    "The exact selected source property has no C#-representable declaration name. Exact canonical name rejection.", true,
+  "the one existing source name plan owns the complete native member spelling refusal");
+});
+
+for (const surface of ["native", "js"]) test(`${surface} admitted generic member values preserve their actual owners, storage, aliases and single receiver evaluation`,
+  { timeout: 300_000 }, () => {
+  const compiled = compileCsharpNativeUseSource({ surface, sourceText: genericObjectMethodValueSource });
+  assert.equal(compiled.sourceDiagnosticsText, "", "all original quantified method, alias, projection and storage sources are retained");
+  assert.equal(compiled.targetDiagnostics.length === 0 && compiled.result.program !== undefined, true,
+    compiled.targetDiagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
+  const program = compiled.result.program;
+  const ast = program.source.ast;
+  let properties = 0;
+  const visit = node => {
+    const entry = program.records.nativeUse.expression(node);
+    const property = program.records.selectedProperty.get(node);
+    if (entry !== undefined && entry.use.kind !== "erased" && entry.use.kind !== "location" &&
+      property?.selection.kind === "source-owned") {
+      const admitted = admitCsharpSourceOwnedMemberRead({ ast, names: program.names, navigation: program.sourceNavigation }, node,
+        { selection: property.selection, classification: property.sourceOwned });
+      assert.equal(admitted.kind, "resolved", "every actual generic member emission consumes its same complete source-owned evidence");
+      properties += 1;
+    }
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  assert.equal(properties > 0, true, "the full original generic member storage/owner program exercises a nonvacuous admission domain");
+  executeCsharpConstruction(compiled, `admitted-generic-source-members-${surface}`);
+});
+
+for (const surface of ["native", "js"]) for (const row of unsupportedGenericCallableOwnershipCases.filter(row => row.name.startsWith("nominal-"))) {
+  test(`${surface} ${row.name} retains the exact original pre-seal member refusal`, () => {
+    const compiled = compileCsharpNativeUseSource({ surface, sourceText: row.source });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the original unsupported native extraction remains valid checked source");
+    assert.equal(compiled.targetDiagnostics.length, 1, "the selected native callable-value owner reports exactly one original refusal");
+    assert.equal(compiled.targetDiagnostics[0].code, row.code);
+    assert.equal(compiled.targetDiagnostics[0].message, "An extracted quantified nominal method has no supported native callable-value owner.");
+    const ast = compiled.nativeStage.source.ast;
+    const node = compiled.nativeStage.diagnostics[0].sourceNode;
+    assert.equal(node !== undefined && ast.is.IsPropertyAccessExpression(node), true,
+      "the original extracted property owns the refusal before a target program or backend can exist");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+      "unsupported quantified extraction publishes no program, plan or artifacts");
+  });
+}
+
+for (const surface of ["native", "js"]) test(`${surface} native unary completions retain the actual promoted CLR result before boxing`,
+  { timeout: 300_000 }, () => {
+  const smallTypes = [["I8", "int8", "sbyte", "-128"], ["U8", "uint8", "byte", "255"],
+    ["I16", "int16", "short", "-32768"], ["U16", "uint16", "ushort", "65535"]];
+  const cases = smallTypes.flatMap(([suffix, type, nativeType, value]) => [
+    { name: `plus${suffix}`, type, nativeType, value, operator: "+", result: "int32", nativeResult: "int", expected: Number(value) },
+    { name: `minus${suffix}`, type, nativeType, value, operator: "-", result: "int32", nativeResult: "int", expected: -Number(value) },
+    { name: `complement${suffix}`, type, nativeType, value, operator: "~", result: "int32", nativeResult: "int", expected: ~Number(value) },
+  ]);
+  cases.push(
+    { name: "plusU32", type: "uint32", nativeType: "uint", value: "uint.MaxValue", operator: "+",
+      result: "uint32", nativeResult: "uint", expected: "uint.MaxValue" },
+    { name: "minusU32", type: "uint32", nativeType: "uint", value: "uint.MaxValue", operator: "-",
+      result: "int64", nativeResult: "long", expected: "-4294967295L" },
+    { name: "complementU32", type: "uint32", nativeType: "uint", value: "uint.MaxValue", operator: "~",
+      result: "uint32", nativeResult: "uint", expected: "0U" },
+    { name: "prefixI8", type: "int8", nativeType: "sbyte", value: "7", operator: "++",
+      result: "int8", nativeResult: "sbyte", expected: "8" },
+    { name: "postfixI8", type: "int8", nativeType: "sbyte", value: "7", operator: "--",
+      postfix: true, result: "int8", nativeResult: "sbyte", expected: "7" },
+    { name: "decrementI8", type: "int8", nativeType: "sbyte", value: "7", operator: "--",
+      result: "int8", nativeResult: "sbyte", expected: "6" },
+    { name: "incrementI8", type: "int8", nativeType: "sbyte", value: "7", operator: "++",
+      postfix: true, result: "int8", nativeResult: "sbyte", expected: "7" },
+    { name: "prefixU32", type: "uint32", nativeType: "uint", value: "7", operator: "++",
+      result: "uint32", nativeResult: "uint", expected: "8U" },
+    { name: "postfixU32", type: "uint32", nativeType: "uint", value: "7", operator: "--",
+      postfix: true, result: "uint32", nativeResult: "uint", expected: "7U" },
+    { name: "minusF32", type: "float32", nativeType: "float", value: "1.5F", operator: "-",
+      result: "float32", nativeResult: "float", expected: "-1.5F" },
+  );
+  const sourceText = `
+    import type { int8, uint8, int16, uint16, int32, uint32, float32 } from "@tsonic/core/types.js";
+    ${cases.map(row => `export function ${row.name}(value: ${row.type}) { return ${row.postfix ? `value${row.operator}` : `${row.operator}value`}; }`).join("\n")}
+    export function boxedMinusI8(value: int8): unknown { return -value; }
+    export function boxedMinusU32(value: uint32): unknown { return -value; }
+    export function boxedLiteral(): unknown { return -1; }
+    export function literalDestination(): int8 { return -128; }
+    let calls: int32 = 0;
+    function observe(value: int8): int8 { calls += 1; return value; }
+    export function ordered(): int32 {
+      calls = 0;
+      const result = -observe(-128);
+      return result + calls;
+    }
+  `;
+  const compiled = compileCsharpNativeUseSource({ surface, sourceText });
+  assert.equal(compiled.sourceDiagnosticsText, "", "all original numeric widths remain checked source");
+  assert.equal(compiled.targetDiagnostics.length === 0 && compiled.result.program !== undefined, true,
+    compiled.targetDiagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
+  const program = compiled.result.program;
+  const ast = program.source.ast;
+  const expected = new Map(cases.map(row => [row.name, row.result]));
+  let observed = 0;
+  const visit = (node, owner) => {
+    const name = ast.is.IsFunctionDeclaration(node) ? ast.text(ast.name(node)) : owner;
+    if (ast.is.IsFunctionDeclaration(node) && expected.has(name)) {
+      const contract = program.records.callableTarget.entry(node);
+      assert.equal(contract?.returnType.kind === "source-primitive" && contract.returnType.name === expected.get(name), true,
+        `${name}: inferred return storage retains the actual native unary result`);
+    }
+    if ((ast.is.IsPrefixUnaryExpression(node) || ast.is.IsPostfixUnaryExpression(node)) && expected.has(name)) {
+      const selected = program.records.unaryOperation.get(node)?.target;
+      const use = program.records.nativeUse.expression(node)?.use;
+      assert.equal(selected?.kind === "resolved" && selected.resultType.kind === "source-primitive" &&
+        selected.resultType.name === expected.get(name), true, `${name}: the pre-seal operator owns native promotion`);
+      assert.equal(use !== undefined && use.kind !== "erased" && use.completion.kind === "value" &&
+        use.completion.type.kind === "source-primitive" && use.completion.type.name === expected.get(name), true,
+      `${name}: native consumption publishes that same physical result rather than a compensating boxing cast`);
+      observed += 1;
+    }
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child, name); });
+  };
+  for (const file of program.sourceFiles) visit(file);
+  assert.equal(observed, cases.length, "every unary form has its actual source and native-use witness");
+  executeCsharpConstruction(compiled, `native-unary-promoted-completions-${surface}`, false, false, [], `
+using Subject = Tsonic.Generated.Index;
+${cases.map(row => `System.Func<${row.nativeType}, ${row.nativeResult}> ${row.name} = Subject.${row.name};
+if (${row.name}((${row.nativeType})${row.value}) != ${row.expected})
+    throw new System.Exception("${row.name}: actual CLR signature or numeric value");`).join("\n")}
+if (Subject.boxedMinusI8(sbyte.MinValue).unwrap() is not int signed || signed != 128 ||
+    Subject.boxedMinusU32(uint.MaxValue).unwrap() is not long unsigned || unsigned != -4294967295L ||
+    Subject.boxedLiteral().unwrap() is not double literal || literal != -1D ||
+    Subject.literalDestination() != sbyte.MinValue || Subject.ordered() != 129)
+    throw new System.Exception("native unary boxing type, explicit literal destination or single evaluation changed");
+for (int index = 0; index < 20000; index++) {
+    _ = Subject.minusI8(sbyte.MinValue);
+    _ = Subject.minusU32(uint.MaxValue);
+}
+long before = System.GC.GetAllocatedBytesForCurrentThread();
+long total = 0;
+for (int index = 0; index < 20000; index++) total += Subject.minusI8(sbyte.MinValue) + Subject.minusU32(uint.MaxValue);
+if (total != (128L - uint.MaxValue) * 20000L || System.GC.GetAllocatedBytesForCurrentThread() != before)
+    throw new System.Exception("native promoted unary operations preserve values with zero additional allocations");
+`);
+});
+
+for (const surface of ["native", "js"]) for (const [sourceType, carrier] of [["uint64", "uint64"], ["nativeUint", "native-uint"]]) {
+  test(`${surface} unary minus rejects the actual unsupported ${sourceType} operator before publication`, () => {
+    const compiled = compileCsharpNativeUseSource({ surface, sourceText: `
+      import type { ${sourceType} } from "@tsonic/core/types.js";
+      export function invalid(value: ${sourceType}) { return -value; }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the native operator, not a source type error, owns this refusal");
+    assert.equal(compiled.targetDiagnostics.length, 1, "one actual unsupported native operator is reported");
+    const issue = compiled.targetDiagnostics[0];
+    assert.equal(issue.code, "CSHARP_UNSUPPORTED_AST", "the existing source-refusal boundary retains its diagnostic code");
+    assert.equal(issue.message, `C# unary '-' is not defined for the native '${carrier}' carrier.`);
+    const original = compiled.nativeStage.diagnostics[0];
+    const ast = compiled.nativeStage.source.ast;
+    assert.equal(original.sourceNode !== undefined && ast.is.IsPrefixUnaryExpression(original.sourceNode), true,
+      "the exact authored unary expression owns its diagnostic before sealing");
+    const range = ast.authoredRange(original.sourceNode);
+    const file = ast.getSourceFile(original.sourceNode);
+    assert.equal(range.kind === "authored" && file !== undefined &&
+      ast.getSourceText(file).slice(range.start, range.end) === "-value", true,
+    "the original operand identity and source range are retained");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+      "invalid predefined unsigned negation cannot reach a backend or publish native artifacts");
+  });
+}
 
 test("the canonical native binding domain includes actual local declarations and selects catch bindings once", () => {
   const value = owners(`
