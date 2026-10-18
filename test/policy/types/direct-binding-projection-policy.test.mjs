@@ -71,6 +71,7 @@ test("object rest projection consumes exact checked binding identity and retains
   let calls = 0;
   let policy;
   const host = { ast: source.ast, navigation: {}, typeResolver: { resolveNode: () => undefined },
+    scopedTargetType: () => undefined,
     semantics: selected => source.semantics.forFile(selected),
     objectShapes: { resolveTypeWithState(selected, selectedFile, syntax, selectedState) {
       calls += 1;
@@ -90,6 +91,15 @@ test("object rest projection consumes exact checked binding identity and retains
   assert.equal(Object.isFrozen(selected), true);
   host.objectShapes.resolveTypeWithState = () => undefined;
   assert.equal(policy.resolveProjection(rest, file, state) === undefined, true, "missing exact shape has no selected-type fallback");
+  const physical = Object.freeze({ ...targetType, id: "PhysicalRest", csharpValueType: true });
+  host.scopedTargetType = selected => {
+    assert.equal(selected === rest, true, "only the actual checked rest binding owns its scoped physical storage");
+    return physical;
+  };
+  host.objectShapes.resolveTypeWithState = () => assert.fail("selected physical storage is never recomputed from the raw source shape");
+  const selectedPhysical = policy.resolveProjection(rest, file, state);
+  assert.equal(selectedPhysical.storageCarrier === physical && selectedPhysical.bindingCarrier === physical, true,
+    "all rest storage and binding consumers retain the exact once-selected native carrier");
 });
 
 test("iteration destructuring requires checked iteration evidence and its native element carrier", () => {
@@ -109,6 +119,7 @@ test("iteration destructuring requires checked iteration evidence and its native
   let evidence = selectedIteration;
   const state = { depth: 2 };
   const policy = createCsharpBindingProjectionPolicy({ ast: source.ast, navigation: {}, objectShapes: {},
+    scopedTargetType: () => undefined,
     semantics: selected => {
       assert.equal(selected === file, true, "owning source file");
       return { ...semantics, operations: { ...semantics.operations, iteration: selected => {

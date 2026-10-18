@@ -4,6 +4,42 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { optionalStorageAssignmentSource } from "../../../../tsonic/test/fixtures/optional-storage-assignment.mjs";
+import { selectCsharpStructuralInterfaceImplementation } from "../../../dist/policy/types/objects/method-values.js";
+import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+
+test("an outer argument used only in native method constraints retains its source-template relationship", () => {
+  const sourceOuter = { kind: "type-parameter", identity: "body:Outer", name: "BodyOuter" };
+  const destinationOuter = { kind: "type-parameter", identity: "view:Outer", name: "ViewOuter" };
+  const native = { kind: "type-parameter", identity: "body:Native", name: "Native" };
+  const value = { kind: "type-parameter", identity: "view:Value", name: "Value" };
+  const integer = { kind: "source-primitive", name: "int32" };
+  const target = (id, argument, kind) => csharpTargetNamedType(id, [argument], { kind: "named", name: id },
+    { sourceDeclarationKind: kind, allowsRefLikeTypeArguments: [false] });
+  const member = (parameter, outer) => ({ sourceKey: { kind: "property", name: "read" }, sourceName: "read", targetName: "read",
+    memberKind: "method", type: csharpDelegateTargetType("System.Func", [parameter], integer),
+    typeParameters: [{ declaration: {}, identity: parameter.identity, name: parameter.name, constraints: [{ kind: "type", type: outer }] }] });
+  const openSource = member(native, sourceOuter);
+  const openDestination = member(value, destinationOuter);
+  const sourceTemplate = { targetType: target("BoundedBody", sourceOuter, "class"), members: [openSource] };
+  const destinationTemplate = { targetType: target("BoundedView", destinationOuter, "interface"), members: [openDestination] };
+  for (const name of ["FirstBound", "SecondBound"]) {
+    const bound = csharpTargetNamedType(name, undefined, { kind: "named", name },
+      { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [], constraintRequiresReferenceType: true });
+    const source = { targetType: target("BoundedBody", bound, "class"), members: [member(native, bound)], declarationTemplate: sourceTemplate };
+    const destination = { targetType: target("BoundedView", bound, "interface"), members: [member(value, bound)], declarationTemplate: destinationTemplate };
+    const selected = selectCsharpStructuralInterfaceImplementation({}, { sourceNode: {}, source, destination,
+      members: [{ source: source.members[0], destination: destination.members[0], openSource, openDestination, declaration: {} }] });
+    assert.equal(selected !== undefined, true, `${name}: the existing checked member correspondence is admitted`);
+    assert.equal(targetTypeRefEquals(selected.interfaceType.typeArguments[0], sourceOuter), true,
+      `${name}: one generic class cannot gain a fixed closed interface from a method-bound-only occurrence`);
+    assert.equal(targetTypeRefEquals(selected.methods[0].member.typeParameters[0].constraints[0].type, sourceOuter), true,
+      `${name}: the real method constraint closes against the source class binder without changing its native ABI`);
+    assert.equal(selected.methods[0].member.typeParameters[0].identity, value.identity,
+      `${name}: source outer substitution cannot capture the destination method binder`);
+  }
+});
 
 for (const surface of [undefined, "js"]) {
   test(`optional field declarations retain native absence, widths and identity (${surface ?? "native"})`, { timeout: 300_000 }, () => {

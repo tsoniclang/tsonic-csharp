@@ -306,10 +306,6 @@ function objectAssignMember(
     context,
     context.source.sourceArguments[1],
   );
-  const resultType = context.host.types.resolveType(
-    context.source.sourceResultType,
-    context.sourceFile,
-  );
   if (
     targetType !== undefined &&
     sourceType !== undefined &&
@@ -344,26 +340,25 @@ function objectAssignMember(
   return targetType === undefined ||
       context.source.sourceArguments.length !== 2 ||
       sourceType === undefined ||
-      resultType === undefined ||
       targetShape === undefined ||
       sourceShape === undefined
     ? undefined
     : staticMethod(
-        `Tsonic.CSharp.Js.Object.assign:${targetTypeIdentity(resultType)}`,
+        `Tsonic.CSharp.Js.Object.assign:${targetTypeIdentity(targetType)}`,
         "assign",
         "assign",
         objectRuntimeType,
         [
-          targetParameter("target", resultType, {
+          targetParameter("target", targetType, {
             csharpAcceptsCheckedSourceArgument: true,
           }),
           targetParameter("source", sourceType),
         ],
-        resultType,
+        targetType,
         objectShapeProjectionOptions(
           context,
           context.source.sourceArguments[0],
-          resultType,
+          targetType,
           "assign",
           0,
           { kind: "argument", index: 0 },

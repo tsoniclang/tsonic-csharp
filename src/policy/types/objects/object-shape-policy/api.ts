@@ -30,7 +30,7 @@ import type {
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { nextState } from "../../resolution/state.js";
 import {
-  substituteTargetTypeParameters,
+  substituteObjectShapeMemberTargetTypeParameters,
 } from "../../../../target-model/types/substitution.js";
 import {
   isCsharpJsValueTargetType,
@@ -42,7 +42,7 @@ import {
 import { resolveProviderObjectLiteralShape } from "./provider-construction.js";
 import { createCsharpStructuralUnionDefinitions } from "./union-definitions.js";
 import { selectCsharpObjectMethodImplementation } from "./method-implementations.js";
-import { csharpCopiedObjectShapeMembers, csharpMethodEnvironment, retainCsharpMethodValueContracts } from "./method-values.js";
+import { csharpMethodEnvironment, resolveCsharpCopiedObjectShape, retainCsharpMethodValueContracts } from "./method-values.js";
 import { csharpObjectShapeMethodRequiresProtocol } from "../../../../target-model/types/method-values.js";
 import { parameterizeCsharpStructuralContract } from "./structural-contracts.js";
 import { selectCsharpCopiedMethodReceiver } from "../../../ownership/copied-methods.js";
@@ -51,6 +51,7 @@ import { retainCsharpGenericCallableValue } from "../../callables/generic-values
 import type { CsharpObjectLiteralTargetShapeResolution, CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
 import type { CsharpProjectConstructibleTypeProjection } from "../../../../target-model/records/object-shapes.js";
 import { instantiateCsharpObjectShape } from "./instantiation.js";
+import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../../target-model/types/object-shape-members.js";
 
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
@@ -259,9 +260,10 @@ export function createCsharpObjectShapePolicy(
           (expectedShape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true)
       ? [expectedShape.targetType]
       : expectedShape.implements;
-    const nativeMethodLiteral = host.ast.properties(objectLiteral).some(property => property !== undefined &&
-      host.ast.is.IsMethodDeclaration(property) && (host.ast.typeParameters(property).length > 0 ||
-        expectedShape.members.some(member => member.optional === true && member.sourceSubjects?.includes(property))));
+    const members = [...retainLiteralMemberEvidence(expectedShape.members, objectLiteral, host.semantics(sourceFile))];
+    const nativeMethodLiteral = members.some(member => member.memberKind === "method" &&
+      member.sourceDeclarations?.some(declaration => host.ast.is.IsMethodDeclaration(declaration) &&
+        host.ast.body(declaration) !== undefined && host.ast.parent(declaration) === objectLiteral) === true);
     const copiedMethods = host.ast.properties(objectLiteral).some(property => property !== undefined &&
       host.ast.is.IsSpreadAssignment(property)) && expectedShape.members.some(csharpObjectShapeMethodRequiresProtocol);
     const ownsImplementation = expectedShape.methodImplementation?.declaration === objectLiteral;
@@ -269,7 +271,6 @@ export function createCsharpObjectShapePolicy(
       (!nativeMethodLiteral || ownsImplementation) && !copiedMethods) {
       return { kind: "resolved", shape: expectedShape };
     }
-    const members = [...retainLiteralMemberEvidence(expectedShape.members, objectLiteral, host.semantics(sourceFile))];
     if (copiedMethods) {
       const sources: { readonly property: Node; readonly shape: CsharpObjectShapeFact }[] = [];
       for (const property of host.ast.properties(objectLiteral)) {
@@ -508,8 +509,10 @@ export function createCsharpObjectShapePolicy(
     ) {
       return shape;
     }
+    if (shape.declarationTemplate !== undefined) {
+      shape = { ...shape, declarationTemplate: rememberTargetShape(shape.declarationTemplate) };
+    }
     shape = retainCsharpMethodValueContracts(shape, rememberTargetShape, environment);
-    if (shape.declarationTemplate !== undefined) rememberTargetShape(shape.declarationTemplate);
     const key = targetTypeRefKey(shape.targetType);
     const existing = targetShapes.get(key);
     if (existing !== undefined && !csharpObjectShapesEqual(existing, shape)) {
@@ -681,6 +684,7 @@ export function createCsharpObjectShapePolicy(
       }
       const declaredShape = contextualProjectType !== undefined && declaredKind === "class"
         ? resolveProjectDeclarationShape(contextualProjectType, state) : undefined;
+      if (declaredKind === "class" && declaredShape === undefined) return undefined;
       const members = declaredShape === undefined
         ? deriveMembers(type, queries, nextState(state), authoredTypeRoot, contextualProjectType)
         : instantiateMemberEvidence(declaredShape.members, type, queries, declaredShape.sourceType);
@@ -692,14 +696,10 @@ export function createCsharpObjectShapePolicy(
         declaredKind === "class"
       ) {
         return {
+              ...declaredShape!,
               targetType: contextualProjectType,
               sourceType: type,
               members,
-              constructible: projectClassIsObjectInitializable(
-                type,
-                queries,
-                host,
-              ),
             };
       }
       if (
@@ -768,6 +768,17 @@ export function createCsharpObjectShapePolicy(
     ) {
       return undefined;
     }
+    const declarationType = host.projectTypeCatalog.targetTypeForDeclaration(
+      definition.declaration,
+      definition.typeParameterBindings,
+    );
+    if (declarationType === undefined) return undefined;
+    if (!targetTypeRefEquals(declarationType, targetType)) {
+      const existing = resolveTarget(declarationType);
+      const declared = existing ?? resolveProjectDeclarationShape(declarationType, nextState(state));
+      return declared === undefined ? undefined
+        : instantiateCsharpObjectShape(rememberTargetShape(declared), targetType);
+    }
     const queries = host.semantics(definition.sourceFile);
     const declaredType = queries.declarations.declaredType(
       definition.declaration,
@@ -793,13 +804,43 @@ export function createCsharpObjectShapePolicy(
     );
     const implemented = definition.kind === "interface" ? host.projectTypes().directSupertypes(targetType) : [];
     if (implemented === undefined) return undefined;
+    const members: CsharpObjectShapeMemberFact[] = [];
+    for (const declared of declaredMembers) {
+      let member = substituteObjectShapeMemberTargetTypeParameters(declared, substitutions);
+      if (member.memberKind === "method") {
+        const owners = new Map((member.sourceDeclarations ?? []).flatMap(declaration => {
+          const owner = host.projectTypeCatalog.definitionForDeclaration(host.ast.parent(declaration));
+          return owner === undefined ? [] : [[owner.id, owner] as const];
+        }));
+        if (owners.size > 1) return undefined;
+        const owner = owners.values().next().value;
+        if (owner !== undefined && owner.id !== definition.id) {
+          const ownerType = host.projectTypeCatalog.targetTypeForDeclaration(owner.declaration, owner.typeParameterBindings);
+          const selectedOwner = ownerType === undefined ? undefined
+            : host.projectTypes().instantiateDeclarationType(owner.declaration, targetType, ownerType);
+          if (selectedOwner?.kind !== "resolved" || selectedOwner.type.kind !== "target-named") return undefined;
+          const existing = resolveTarget(selectedOwner.type);
+          const inherited = existing ?? resolveProjectDeclarationShape(selectedOwner.type, nextState(state));
+          if (inherited === undefined) return undefined;
+          const completed = rememberTargetShape(inherited);
+          const selected = resolveCsharpObjectShapeMemberBySelectedSubject(completed,
+            [...member.sourceSubjects ?? [], ...member.sourceDeclarations ?? []]);
+          if (selected.kind !== "resolved" || selected.member.memberKind !== "method") return undefined;
+          member = Object.freeze({ ...selected.member,
+            sourceSubjects: Object.freeze([...new Set([...selected.member.sourceSubjects ?? [], ...member.sourceSubjects ?? []])]),
+            ...(member.sourceTypes === undefined ? {} : { sourceTypes: member.sourceTypes }),
+          });
+        }
+      }
+      members.push(member);
+    }
     return {
       targetType,
       sourceType: declaredType,
-      members: Object.freeze(declaredMembers.map((member) => ({
-        ...member,
-        type: substituteTargetTypeParameters(member.type, substitutions),
-      }))),
+      members: Object.freeze(members),
+      ...(definition.kind !== "class" ? {} : {
+        constructible: projectClassIsObjectInitializable(declaredType, queries, host),
+      }),
       ...(implemented.length === 0 ? {} : { implements: implemented }),
     };
   }
@@ -834,21 +875,7 @@ export function createCsharpObjectShapePolicy(
     resolveCallableValue: (signature: TargetTypeRef, typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>) =>
       retainCsharpGenericCallableValue(signature, typeParameters, rememberTargetShape, environment),
     resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined {
-      const contract = shape.targetType.kind === "target-named" &&
-        ((shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true ||
-          (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface");
-      if (!contract && shape.methodImplementation === undefined) return shape;
-      const original = shape.methodImplementation === undefined ? undefined : resolveNode(shape.methodImplementation.declaration);
-      const receiver = selectCsharpCopiedMethodReceiver(shape.members, original === undefined ? [shape] : [original], host.ast);
-      if (receiver.kind === "rejected") return undefined;
-      if (receiver.kind === "selected") return receiver.shape;
-      const members = csharpCopiedObjectShapeMembers(shape);
-      const implemented = contract ? [shape.targetType] : shape.implements;
-      return rememberTargetShape({
-        targetType: createStructuralObjectShapeTarget(members, implemented, environment),
-        members,
-        ...(implemented === undefined ? {} : { implements: implemented }),
-      });
+      return resolveCsharpCopiedObjectShape(shape, host.ast, environment, resolveNode, rememberTargetShape);
     },
     resolveReference: unionDefinitions.reference,
     resolveUnion: unionDefinitions.resolve,

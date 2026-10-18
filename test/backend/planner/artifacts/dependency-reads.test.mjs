@@ -33,12 +33,13 @@ test("artifact closure includes exact generic declaration-template parents along
   assert.equal(selected.kind, "accepted");
   assert.equal(selected.shapes.get(objectShapeArtifactKey(parent)) === parent, true, "the emitted generic parent exists");
   assert.equal(selected.shapes.get(objectShapeArtifactKey(concreteParent)) === concreteParent, true, "concrete identity remains distinct");
+  assert.equal(selected.shapes.get(objectShapeArtifactKey(template)) === template, true, "the exact generic declaration owner exists");
   assert.deepEqual([...selected.dependencies.get(objectShapeArtifactKey(root))].sort(),
-    [objectShapeArtifactKey(parent), objectShapeArtifactKey(concreteParent)].sort());
+    [objectShapeArtifactKey(parent), objectShapeArtifactKey(concreteParent), objectShapeArtifactKey(template)].sort());
   parent.implements = [root.targetType];
   const cyclic = collectShapeDependencies(scope, root);
   assert.equal(cyclic.kind, "accepted", "existing finite graph handles template cycles");
-  assert.equal(cyclic.shapes.size, 3, "cycle introduces no duplicate artifact");
+  assert.equal(cyclic.shapes.size, 4, "the declaration owner and both parents occur once through the cycle");
 });
 
 test("unrelated contract updates do not invalidate exact source reads", () => {
@@ -112,7 +113,9 @@ test("publication after an explicit absent-facet snapshot requires reconstructio
 });
 
 test("unavailable object-shape capabilities fail at their exact owner without publication", () => {
-  const demand = createCsharpObjectShapeDemandEngine({ objectShapes: { resolveTarget() {}, resolveNode() {} } });
+  const demand = createCsharpObjectShapeDemandEngine({ objectShapes: { targetShapes: Object.freeze({}), resolveTarget() {}, resolveNode() {} },
+    ast: {}, names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
+    conversions: { conversion: { get() {} } } });
   const requested = demand.requireObjectShapeCapability(undefined,
     { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "MissingShape" }, {}, "json-serialization", "object-shape");
   assert.equal(requested.kind, "rejected");
@@ -124,7 +127,9 @@ test("unavailable object-shape capabilities fail at their exact owner without pu
 });
 
 function artifactFixture() {
-  const demand = createCsharpObjectShapeDemandEngine({ objectShapes: { resolveTarget() {}, resolveNode() {} } });
+  const demand = createCsharpObjectShapeDemandEngine({ objectShapes: { targetShapes: Object.freeze({}), resolveTarget() {}, resolveNode() {} },
+    ast: {}, names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
+    conversions: { conversion: { get() {} } } });
   return createCsharpArtifactGraph({ objectShapeArtifacts: demand.seal() });
 }
 

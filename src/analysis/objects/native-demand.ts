@@ -56,7 +56,8 @@ export interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemand
   readonly captureStorage: CsharpCaptureStorage;
   readonly callableAdapters: CsharpProjectCallableAdapters;
   readonly flowReads: CsharpFlowReadClassifications;
-  readonly objectShapes: CsharpObjectShapeClassifications<CsharpFinalStructuralInterfaceImplementation>;
+  readonly objectShapes: CsharpObjectShapeClassifications<CsharpFinalStructuralInterfaceImplementation> &
+    Pick<CsharpObjectShapeDemandHost["objectShapes"], "targetShapes">;
   readonly declarations: CsharpDeclarationClassifications;
   readonly bindingPatterns: CsharpBindingPatternClassifications;
   readonly conversions: CsharpConversionClassifications;
@@ -77,6 +78,9 @@ export function analyzeCsharpNativeArtifactDemand(
   const requiredShapes = new Map<string, Node>();
   const forwarding = new Set<string>();
   for (const sourceFile of input.sourceFiles) visitConstruct(sourceFile);
+  for (const binding of input.nativeDemand.requiredBindingRoots) {
+    if (input.ast.is.IsVariableDeclaration(binding)) demandType(input.storage.storageType.get(binding), binding);
+  }
   if (issues.length > 0) return rejectedTargetStage(issues);
   const result = engine.seal();
   for (const [key, subject] of requiredShapes) requireCsharpRecord(required, {
@@ -251,9 +255,6 @@ export function analyzeCsharpNativeArtifactDemand(
       const shape = input.objectShapes.resolveNode(node, ast.getSourceFile(node));
       if (shape !== undefined) {
         demandShape(shape, node);
-        if (ast.is.IsInterfaceDeclaration(node) && shape.members.some(member => member.memberKind === "method" && member.optional === true)) {
-          capability(node, shape.targetType, "method-values");
-        }
       }
     }
     const callable = input.callables.get({ kind: "declaration", declaration: node });
@@ -263,7 +264,6 @@ export function analyzeCsharpNativeArtifactDemand(
     }
     const returned = input.declarations.returnContract.get(node);
     if (returned?.kind === "resolved") demandType(returned.type, node);
-    demandType(input.storage.storageType.get(node), node);
     const defaulted = input.declarations.runtimeDefault.get(node);
     if (defaulted !== undefined) {
       demandType(defaulted.native.source, node); demandType(defaulted.native.target, node);
@@ -271,6 +271,7 @@ export function analyzeCsharpNativeArtifactDemand(
     }
     const nativeParameter = input.storage.lambdaParameterType.get(node);
     const storedParameter = input.storage.requiredStorageType.get(node);
+    demandType(storedParameter, node);
     if (nativeParameter !== undefined && storedParameter !== undefined && defaulted === undefined) demandPair(node, nativeParameter, storedParameter);
     for (const adapter of input.callableAdapters.callableDispatch.get(node)?.adapters ?? []) {
       demandParameters(node, adapter.parameters);

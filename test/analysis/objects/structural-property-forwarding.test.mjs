@@ -6,9 +6,13 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { analyzeCsharpProjectCallableAdapters } from "../../../dist/analysis/project-types/callable-adapters.js";
 import { selectCsharpStructuralInterfaceImplementation } from "../../../dist/policy/types/objects/method-values.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
+import { csharpVariantArgumentImplicitlyAccepts, namedTargetTypeImplicitlyAccepts } from "../../../dist/policy/conversions/carriers.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 const number = Object.freeze({ kind: "source-primitive", name: "float64" });
+const nativePolicy = { projectTypes: { directSupertypes: () => undefined }, providers: { findTargetBindingByTargetId: () => undefined } };
 
 function propertyFixture(target = number) {
   const sourceNode = Object.freeze({});
@@ -55,7 +59,7 @@ test("readonly native property admission publishes the single exact conversion a
 });
 
 test("readonly admission failures remain expected source issues and publish no failed native property", () => {
-  const value = propertyFixture(Object.freeze({ kind: "source-primitive", name: "string" }));
+  const value = propertyFixture(csharpStringTargetType());
   const inherited = Object.freeze({ node: value.sourceNode, code: "CSHARP_UNSUPPORTED_AST",
     message: "An analyzed interface has no exact inherited native implementation." });
   value.shapes.issues = Object.freeze([inherited]);
@@ -70,6 +74,20 @@ test("readonly admission failures remain expected source issues and publish no f
   assert.equal(Object.isFrozen(finalized.issues), true, "the program's pre-seal rejection input is immutable");
 });
 
+test("readonly property admission refuses unrenderable selected carriers without publishing a native member", () => {
+  for (const target of [{ kind: "opaque", id: "unrenderable-property" },
+    { kind: "target-named", id: "test.PropertyWithoutNativeRendering", csharpAllowsRefLikeTypeArguments: [] }]) {
+    const value = propertyFixture(target);
+    const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+    assert.equal(finalized.issues.length === 1 && finalized.issues[0].node === value.sourceNode &&
+      finalized.issues[0].code === "CSHARP_UNSUPPORTED_AST" &&
+      finalized.issues[0].message === "An analyzed interface property has no exact native forwarding type.", true,
+    `${target.kind}: exact selected native rendering is proved before conversion publication`);
+    assert.equal(finalized.objectShapes.structuralImplementations(value.sourceType)[0].properties.length, 0,
+      `${target.kind}: no partial property or invented carrier reaches the planner`);
+  }
+});
+
 test("writable structural properties require exact storage while readonly reads reach canonical admission", () => {
   const sourceNode = Object.freeze({});
   const targetType = (name, kind) => csharpTargetNamedType(`test.${name}`, undefined, { kind: "named", name },
@@ -82,7 +100,7 @@ test("writable structural properties require exact storage while readonly reads 
     ["writable exact", member(integer, false), true],
     ["writable widening", member(number, false), false],
   ]) {
-    const selected = selectCsharpStructuralInterfaceImplementation({ sourceNode,
+    const selected = selectCsharpStructuralInterfaceImplementation(nativePolicy, { sourceNode,
       source: { targetType: targetType("Body", "class"), members: [read] },
       destination: { targetType: targetType("View", "interface"), members: [write] },
       members: [{ source: read, destination: write, openSource: read, openDestination: write }] });
@@ -104,13 +122,149 @@ test("a supplied readonly generic destination is authoritative rather than unifi
     { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [] }), members: [read] });
   const destination = Object.freeze({ targetType: target(number), members: [write],
     declarationTemplate: Object.freeze({ targetType: target(parameter), members: [open] }) });
-  const selected = selectCsharpStructuralInterfaceImplementation({ sourceNode: {}, source, destination,
+  const selected = selectCsharpStructuralInterfaceImplementation(nativePolicy, { sourceNode: {}, source, destination,
     members: [{ source: read, destination: write, openSource: read, openDestination: open }] });
   assert.equal(selected !== undefined, true, "readonly native widening is not an owner-argument equality constraint");
   assert.equal(selected.interfaceType.typeArguments[0] === number && selected.properties[0].member.type === number, true,
     "the authored destination argument controls the physical interface and its selected read type");
   assert.equal(selected.properties[0].sourceType === integer, true, "original exact backing storage is not changed to satisfy inference");
 });
+
+function nativeVarianceFixture() {
+  const parameter = Object.freeze({ kind: "type-parameter", identity: "view:Value", name: "Value" });
+  const member = type => Object.freeze({ sourceKey: { kind: "property", name: "value" },
+    sourceName: "value", targetName: "value", memberKind: "property", readonly: true, type });
+  const target = arguments_ => csharpTargetNamedType("test.ReadView", arguments_, { kind: "named", name: "ReadView" },
+    { structuralContract: true, allowsRefLikeTypeArguments: arguments_.map(() => false) });
+  const base = csharpTargetNamedType("test.ReferenceBase", undefined, { kind: "named", name: "ReferenceBase" },
+    { sourceDeclarationKind: "class", constraintRequiresReferenceType: true, allowsRefLikeTypeArguments: [] });
+  const derived = csharpTargetNamedType("test.ReferenceDerived", undefined, { kind: "named", name: "ReferenceDerived" },
+    { sourceDeclarationKind: "class", constraintRequiresReferenceType: true, allowsRefLikeTypeArguments: [] });
+  const template = Object.freeze({ targetType: target([parameter]), members: [member(parameter)],
+    covariantTypeParameterIdentities: Object.freeze([parameter.identity]) });
+  const policy = { ...nativePolicy, projectTypes: { directSupertypes: type => type === derived ? [base] : undefined },
+    objectShapes: { resolveNode: () => undefined, resolveTarget: type => type.id !== template.targetType.id ? undefined : {
+      targetType: type, members: [member(type.typeArguments[0])], declarationTemplate: template,
+    } } };
+  return { parameter, member, target, base, derived, template, policy };
+}
+
+test("generated native out evidence and the canonical reference relation govern every generic variance slot", () => {
+  const value = nativeVarianceFixture();
+  const string = csharpStringTargetType();
+  const nullableString = csharpNullableTargetType(string);
+  const unknown = Object.freeze({ kind: "type-parameter", identity: "owner:Unknown", name: "Unknown",
+    csharpConstraints: Object.freeze({ kind: "resolved", constraints: Object.freeze([]) }) });
+  for (const [label, source, target, admitted] of [
+    ["reference covariance", value.derived, value.base, true],
+    ["native reference absence", string, nullableString, true],
+    ["opposite absence", nullableString, string, false],
+    ["incompatible reference direction", value.base, value.derived, false],
+    ["native value widening is not covariance", integer, number, false],
+    ["unconstrained is not reference evidence", unknown, value.base, false],
+    ["exact native value identity", integer, integer, true],
+  ]) {
+    assert.equal(csharpVariantArgumentImplicitlyAccepts(value.policy, source, target, new Set()), admitted,
+      `${label}: the one canonical native argument relation`);
+    assert.equal(namedTargetTypeImplicitlyAccepts(value.policy, value.target([source]), value.target([target]), new Set()), admitted,
+      `${label}: generated interface construction uses its actual out declaration`);
+  }
+  const absent = { ...value.policy, objectShapes: { resolveNode: () => undefined, resolveTarget: () => undefined } };
+  assert.equal(namedTargetTypeImplicitlyAccepts(absent, value.target([value.derived]), value.target([value.base]), new Set()), false,
+    "a generated-looking identifier without selected native out evidence is not covariance");
+  const invariant = { ...value.policy, objectShapes: { resolveNode: () => undefined, resolveTarget: type => ({
+    targetType: type, members: value.template.members,
+    declarationTemplate: { ...value.template, covariantTypeParameterIdentities: [] },
+  }) } };
+  assert.equal(namedTargetTypeImplicitlyAccepts(invariant, value.target([value.derived]), value.target([value.base]), new Set()), false,
+    "an invariant or writable declaration gains no covariance from its argument types");
+  assert.equal(namedTargetTypeImplicitlyAccepts(value.policy, value.target([value.derived]), value.target([value.base, value.base]), new Set()), false,
+    "native generic arity is never repaired by variance");
+  const nativeClass = type => csharpTargetNamedType("test.NativeInvariant", [type], { kind: "named", name: "NativeInvariant" },
+    { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [false] });
+  assert.equal(namedTargetTypeImplicitlyAccepts(value.policy, nativeClass(value.derived), nativeClass(value.base), new Set()), false,
+    "ordinary native classes, including native task classes, remain invariant");
+});
+
+test("a native covariant readonly destination retains only its proved source-template relationship", () => {
+  const value = nativeVarianceFixture();
+  const parameter = Object.freeze({ kind: "type-parameter", identity: "box:Value", name: "Value" });
+  const body = argument => csharpTargetNamedType("test.ReferenceBox", [argument], { kind: "named", name: "ReferenceBox" },
+    { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [false] });
+  const openRead = { ...value.member(parameter), readonly: false };
+  const read = { ...openRead, type: value.derived };
+  const write = value.member(value.base);
+  const source = { targetType: body(value.derived), members: [read],
+    declarationTemplate: { targetType: body(parameter), members: [openRead] } };
+  const destination = { targetType: value.target([value.base]), members: [write], declarationTemplate: value.template };
+  const evidence = { sourceNode: {}, source, destination,
+    members: [{ source: read, destination: write, openSource: openRead, openDestination: value.template.members[0] }] };
+  const selected = selectCsharpStructuralInterfaceImplementation(value.policy, evidence);
+  assert.equal(selected.interfaceType.typeArguments[0] === parameter && selected.properties[0].member.type === parameter, true,
+    "Box<Derived> satisfies the supplied Read<Base> through native Read<out Value>, not a fixed Base edge on every Box<Value>");
+  assert.equal(selected.properties[0].sourceType === parameter, true, "native backing storage remains the original source parameter");
+  const invariant = selectCsharpStructuralInterfaceImplementation(value.policy, { ...evidence,
+    destination: { ...destination, declarationTemplate: { ...value.template, covariantTypeParameterIdentities: [] } } });
+  assert.equal(invariant.interfaceType.typeArguments[0] === value.base, true,
+    "a destination without native out evidence retains its actual supplied closed argument");
+});
+
+const covariantSource = `import type { int32 } from "@tsonic/core/types.js";
+export class BaseValue { value: int32 = 7; }
+export class DerivedValue extends BaseValue { extra: int32 = 11; }
+export class Box<Value> { value: Value; constructor(value: Value) { this.value = value; } }
+type Read<Value> = { readonly value: Value };
+export function asRead(box: Box<DerivedValue>): Read<BaseValue> { return box; }
+export function readNumber(box: Box<number>): number { const view: Read<number> = box; return view.value; }
+`;
+
+const covariantObserver = `
+var value = new Tsonic.Generated.DerivedValue();
+var box = new Tsonic.Generated.Box<Tsonic.Generated.DerivedValue>(value);
+var view = Tsonic.Generated.Index.asRead(box);
+if (!System.Object.ReferenceEquals(view, box) || !System.Object.ReferenceEquals(view.value, value))
+    throw new System.Exception("native covariant interface and original backing identity");
+var replacement = new Tsonic.Generated.DerivedValue(); box.value = replacement;
+if (!System.Object.ReferenceEquals(view.value, replacement)) throw new System.Exception("native readonly alias observes actual writes");
+if (Tsonic.Generated.Index.readNumber(new Tsonic.Generated.Box<double>(19)) != 19)
+    throw new System.Exception("a second generic instantiation never inherits a fixed reference destination");
+var nativeBox = new NativeBox<Tsonic.Generated.DerivedValue>(replacement);
+INativeRead<Tsonic.Generated.BaseValue> nativeView = nativeBox;
+if (!System.Object.ReferenceEquals(nativeView, nativeBox)) throw new System.Exception("native baseline covariance preserves backing identity");
+for (int index = 0; index < 8192; index++) { _ = Tsonic.Generated.Index.asRead(box).value; _ = NativeAsRead(nativeBox).value; }
+long generatedBefore = System.GC.GetAllocatedBytesForCurrentThread(); int generatedSum = 0;
+for (int index = 0; index < 8192; index++) generatedSum += Tsonic.Generated.Index.asRead(box).value.value;
+long generatedBytes = System.GC.GetAllocatedBytesForCurrentThread() - generatedBefore;
+long nativeBefore = System.GC.GetAllocatedBytesForCurrentThread(); int nativeSum = 0;
+for (int index = 0; index < 8192; index++) nativeSum += NativeAsRead(nativeBox).value.value;
+long nativeBytes = System.GC.GetAllocatedBytesForCurrentThread() - nativeBefore;
+if (generatedSum != 8192 * 7 || nativeSum != generatedSum || generatedBytes != 0 || nativeBytes != 0)
+    throw new System.Exception($"native covariance cost: {generatedSum}/{nativeSum}, bytes={generatedBytes}/{nativeBytes}");
+System.Console.Write("native covariance identity; generated=0; native=0");
+static INativeRead<Tsonic.Generated.BaseValue> NativeAsRead(NativeBox<Tsonic.Generated.DerivedValue> body) { return body; }
+interface INativeRead<out Value> { Value value { get; } }
+sealed class NativeBox<Value> : INativeRead<Value> { public Value value { get; } public NativeBox(Value value) { this.value = value; } }
+`;
+
+for (const surface of ["native", "js"]) {
+  test(`native readonly covariance preserves generic storage, identity and zero-allocation reads (${surface})`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: covariantSource });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the actual source generic relations are checked");
+    assert.equal(compiled.result.diagnostics.length, 0,
+      compiled.result.diagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
+    mkdirSync(new URL("../../../.temp/C19-structural-property-forwarding/", import.meta.url), { recursive: true });
+    writeFileSync(new URL(`../../../.temp/C19-structural-property-forwarding/covariance-${surface}.json`, import.meta.url), JSON.stringify({ sourceText: covariantSource, nativeProgram: covariantObserver, artifacts: [...compiled.artifacts] }) + "\n");
+    const output = executeCsharpConstruction(compiled, `C19-native-covariance-${surface}`, false, false, [], covariantObserver);
+    assert.equal(output, "native covariance identity; generated=0; native=0", "the exact native reference/storage/allocation contract");
+    let removed = 0;
+    const invariant = new Map([...compiled.artifacts].map(([path, source]) => [path, path.endsWith(".cs")
+      ? source.replace(/(<)out\s+/gu, (_match, prefix) => { removed += 1; return prefix; }) : source]));
+    assert.equal(removed > 0, true, "the inverse removes actual generated native out evidence, never a fixture or metadata field");
+    assert.throws(() => executeCsharpConstruction({ ...compiled, artifacts: invariant }, `C19-native-invariant-${surface}`,
+      false, false, [], covariantObserver), error => /error CS(?:0029|0266)/u.test(String(error.message)),
+    "native C# refuses the otherwise identical invariant interface conversion");
+  });
+}
 
 const readonlySource = `import type { int32 } from "@tsonic/core/types.js";
 interface ReadBase { readonly value: number; }

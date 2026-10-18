@@ -1,8 +1,11 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
-import type { CsharpObjectShapeClassifications } from "./model.js";
+import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
+import type { CsharpNamePlan } from "../../target-model/names/model.js";
+import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
+import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
+import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "./model.js";
 import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
-import type { CsharpObjectShapeArtifact } from "../../target-model/records/object-shape-demand.js";
+import type { CsharpObjectShapeArtifact, CsharpObjectShapeProjectionDeclaration } from "../../target-model/records/object-shape-demand.js";
 import type { TargetTypeRef, CsharpObjectShapeProjectionKind } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../target-model/types/index.js";
 import { csharpObjectShapesEqual, csharpObjectShapeMemberContractKey } from "../../target-model/types/index.js";
@@ -23,7 +26,11 @@ export const maximumArtifactCount = 131_072;
 export const maximumJsonClosureDepth = 256;
 
 export interface CsharpObjectShapeDemandHost {
-  readonly objectShapes: CsharpObjectShapeClassifications;
+  readonly ast: AstReader;
+  readonly names: CsharpNamePlan;
+  readonly captureStorage: Pick<CsharpCaptureStorage, "captureFrameShape">;
+  readonly conversions: Pick<CsharpConversionClassifications, "conversion">;
+  readonly objectShapes: CsharpObjectShapeClassifications & Pick<CsharpObjectShapeAnalysis, "targetShapes">;
   readonly projectTypes?: Pick<CsharpProjectTypeClassifications, "heritageForTarget">;
   readonly typeDefinitions?: CsharpTypeDefinitions;
 }
@@ -32,10 +39,15 @@ export interface MutableObjectShapeArtifact {
   fact: CsharpObjectShapeFact;
   materialization: "source" | "synthetic";
   readonly capabilities: Set<CsharpObjectShapeCapability>;
-  readonly projections: Map<string, CsharpObjectShapeProjection>;
+  readonly projections: Map<string, CsharpObjectShapeProjectionAdmission>;
   readonly receiverBoundMethodKeys: Set<string>;
   readonly dependencies: Set<string>;
   readonly dependents: Set<string>;
+}
+
+export interface CsharpObjectShapeProjectionAdmission {
+  readonly selection: CsharpObjectShapeProjection;
+  readonly conversions: CsharpObjectShapeProjectionDeclaration["conversions"];
 }
 
 export interface JsonClosureState {
@@ -54,7 +66,7 @@ export interface StagedObjectShapeRecord {
   readonly fact: CsharpObjectShapeFact;
   readonly materialization: "source" | "synthetic";
   readonly capabilities: ReadonlySet<CsharpObjectShapeCapability>;
-  readonly projections: ReadonlyMap<string, CsharpObjectShapeProjection>;
+  readonly projections: ReadonlyMap<string, CsharpObjectShapeProjectionAdmission>;
   readonly receiverBoundMethodKeys: ReadonlySet<string>;
   readonly dependencies: ReadonlySet<string>;
 }
@@ -68,7 +80,7 @@ type CsharpObjectShapeClosureResult = CsharpObjectShapeClosure | { readonly kind
 export interface CsharpObjectShapeDemandScope {
   readonly host: CsharpObjectShapeDemandHost;
   readonly records: Map<string, MutableObjectShapeArtifact>;
-  readonly projections: Map<Node, CsharpObjectShapeProjection>;
+  readonly projections: Map<Node, { readonly receiver: CsharpObjectShapeFact; readonly selection: CsharpObjectShapeProjection }>;
   registerObjectShape(fact: CsharpObjectShapeFact, materialization: "source" | "synthetic"): CsharpArtifactRequestResult;
   requireObjectShapeCapability(node: Node | undefined, type: TargetTypeRef, file: SourceFile,
     capability: CsharpObjectShapeCapability, rootKind: "value" | "object-shape"): CsharpArtifactRequestResult;
@@ -87,10 +99,10 @@ export interface CsharpObjectShapeDemandScope {
   addObjectShapesToBatch(batch: PreparedObjectShapeBatch,
     roots: readonly { readonly fact: CsharpObjectShapeFact; readonly materialization: "source" | "synthetic" }[]): CsharpArtifactRequestResult;
   validateObjectShapeBatch(batch: PreparedObjectShapeBatch, capabilities: ReadonlyMap<string, ReadonlySet<CsharpObjectShapeCapability>>,
-    projections: ReadonlyMap<string, ReadonlyMap<string, CsharpObjectShapeProjection>>,
+    projections: ReadonlyMap<string, ReadonlyMap<string, CsharpObjectShapeProjectionAdmission>>,
     receivers: ReadonlyMap<string, ReadonlySet<string>>): CsharpArtifactRequestResult;
   commitObjectShapeBatch(batch: PreparedObjectShapeBatch, capabilities: ReadonlyMap<string, ReadonlySet<CsharpObjectShapeCapability>>,
-    projections: ReadonlyMap<string, ReadonlyMap<string, CsharpObjectShapeProjection>>,
+    projections: ReadonlyMap<string, ReadonlyMap<string, CsharpObjectShapeProjectionAdmission>>,
     receivers: ReadonlyMap<string, ReadonlySet<string>>): CsharpArtifactRequestResult;
   collectJsonClosure(type: TargetTypeRef, preferred: CsharpObjectShapeFact | undefined,
     pending?: ReadonlyMap<string, CsharpObjectShapeFact>): CsharpObjectShapeClosureResult;
@@ -99,8 +111,8 @@ export interface CsharpObjectShapeDemandScope {
   addShapeCapabilities(target: Map<string, Set<CsharpObjectShapeCapability>>, shapes: ReadonlyMap<string, CsharpObjectShapeFact>,
     capability: CsharpObjectShapeCapability): void;
   validateProjectionShapes(shapes: ReadonlyMap<string, CsharpObjectShapeFact>, projection: CsharpObjectShapeProjection): string | undefined;
-  addShapeProjection(target: Map<string, Map<string, CsharpObjectShapeProjection>>, shapes: ReadonlyMap<string, CsharpObjectShapeFact>,
-    projection: CsharpObjectShapeProjection): void;
+  addShapeProjection(target: Map<string, Map<string, CsharpObjectShapeProjectionAdmission>>, shapes: ReadonlyMap<string, CsharpObjectShapeFact>,
+    projection: CsharpObjectShapeProjectionAdmission): void;
   visibleObjectShapes(pending: ReadonlyMap<string, CsharpObjectShapeFact>): readonly CsharpObjectShapeFact[];
   collectJsonType(type: TargetTypeRef, preferred: CsharpObjectShapeFact | undefined, state: JsonClosureState): string | undefined;
   collectJsonShape(shape: CsharpObjectShapeFact, state: JsonClosureState): string | undefined;
@@ -138,6 +150,13 @@ export function collectShapeDependencies(
       );
     }
     shapes.set(key, shape);
+    const declaration = shape.declarationTemplate;
+    if (declaration !== undefined && objectShapeArtifactKey(declaration) !== key) {
+      const edges = dependencies.get(key) ?? new Set<string>();
+      edges.add(objectShapeArtifactKey(declaration));
+      dependencies.set(key, edges);
+      queue.push(declaration);
+    }
     const targets = [...csharpTargetTypeComponents(shape.targetType, shape)];
     if (shape.declarationTemplate !== undefined) {
       targets.push(...csharpTargetTypeComponents(shape.declarationTemplate.targetType, shape.declarationTemplate));
@@ -236,7 +255,7 @@ export function validateObjectShapeBatch(
   >,
   projectionsByShape: ReadonlyMap<
     string,
-    ReadonlyMap<string, CsharpObjectShapeProjection>
+    ReadonlyMap<string, CsharpObjectShapeProjectionAdmission>
   >,
   receiverBoundMethodsByShape: ReadonlyMap<string, ReadonlySet<string>>,
 ): CsharpArtifactRequestResult {
@@ -281,8 +300,9 @@ export function validateObjectShapeBatch(
         `Capability-bearing C# object shape '${key}' is absent from the artifact transaction.`,
       );
     }
+    const declarationKey = objectShapeArtifactKey(candidate.declarationTemplate ?? candidate);
     if (capabilitiesByShape.get(key)?.has("method-values") &&
-      ((records.get(key)?.receiverBoundMethodKeys.size ?? 0) > 0 || (receiverBoundMethodsByShape.get(key)?.size ?? 0) > 0)) {
+      ((records.get(declarationKey)?.receiverBoundMethodKeys.size ?? 0) > 0 || (receiverBoundMethodsByShape.get(declarationKey)?.size ?? 0) > 0)) {
       return rejected("Copying a receiver-bearing method requires an exact shared receiver contract; a bound CLR delegate is not equivalent.");
     }
   }
@@ -295,14 +315,15 @@ export function validateObjectShapeBatch(
     }
   }
   for (const [key, methodKeys] of receiverBoundMethodsByShape) {
-    if (methodKeys.size > 0 && (records.get(key)?.capabilities.has("method-values") || capabilitiesByShape.get(key)?.has("method-values"))) {
-      return rejected("A copied method-value contract cannot silently acquire a different receiver ABI.");
-    }
     const candidate = batch.shapes.get(key) ?? records.get(key)?.fact;
     if (candidate === undefined) {
       return rejected(
         `Receiver-bearing C# object shape '${key}' is absent from the artifact transaction.`,
       );
+    }
+    const declarationKey = objectShapeArtifactKey(candidate.declarationTemplate ?? candidate);
+    if (methodKeys.size > 0 && (records.get(declarationKey)?.capabilities.has("method-values") || capabilitiesByShape.get(declarationKey)?.has("method-values"))) {
+      return rejected("A copied method-value contract cannot silently acquire a different receiver ABI.");
     }
     const exactMethodKeys = new Set(
       candidate.members
@@ -329,7 +350,7 @@ export function commitObjectShapeBatch(
   >,
   projectionsByShape: ReadonlyMap<
     string,
-    ReadonlyMap<string, CsharpObjectShapeProjection>
+    ReadonlyMap<string, CsharpObjectShapeProjectionAdmission>
   >,
   receiverBoundMethodsByShape: ReadonlyMap<string, ReadonlySet<string>>,
 ): CsharpArtifactRequestResult {

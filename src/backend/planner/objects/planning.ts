@@ -61,7 +61,7 @@ import { csharpClosedValueCarrierInterfaceType } from "./declarations/interfaces
 import { csharpEnumerableKeysContract, isCsharpEnumerableKeysMember, renderCsharpEnumerableKeys } from "./declarations/enumerable-keys.js";
 import { renderCsharpAuthoredObjectMethods } from "./declarations/authored-methods.js";
 import { renderCsharpCaptureFrameMethods } from "./declarations/capture-methods.js";
-import { csharpAuthoredTypeParameterNames, csharpGeneratedTypeParameterNames } from "../../../target-model/names/type-parameters.js";
+import type { CsharpObjectShapeProjectionDeclaration } from "../../../target-model/records/object-shape-demand.js";
 
 export function csharpTypeFromObjectShapeFact(
   input: CsharpPlanningContext,
@@ -110,23 +110,17 @@ export function materializeObjectShapeDeclarations(
       continue;
     }
     const fact = artifact.fact.declarationTemplate ?? artifact.fact;
-    const generatedTypeParameterNames = csharpGeneratedTypeParameterNames(
-      fact.targetType.kind === "target-named"
-        ? (fact.targetType.typeArguments ?? []).filter(argument => argument.kind === "type-parameter") : [],
-      [...fact.members.flatMap(member => (member.typeParameters ?? []).map(parameter => input.scope.typeParameterNames?.get(parameter.identity) ?? parameter.name)),
-        ...(input.program.records.captureFrameShape.get(fact.targetType)?.methods.flatMap(method =>
-          csharpAuthoredTypeParameterNames(method.declaration, input.program.source.ast)) ?? []),
-        ...(fact.methodImplementation === undefined ? [] : csharpAuthoredTypeParameterNames(
-          fact.methodImplementation.declaration, input.program.source.ast))],
-    );
-    const typeParameterNames = new Map([...input.scope.typeParameterNames ?? [], ...generatedTypeParameterNames]);
+    const declarationArtifact = artifact.fact.declarationTemplate === undefined
+      ? artifact : input.artifacts.objectShape(fact);
+    const typeParameterNames = new Map([...input.scope.typeParameterNames ?? [],
+      ...declarationArtifact.typeParameterNames.map(parameter => [parameter.identity, parameter.name] as const)]);
     const declarationInput = { ...input, scope: { ...input.scope, typeParameterNames } };
     const declaration = renderObjectShapeDeclaration(
       declarationInput,
-      artifact.fact,
-      artifact.capabilities,
-      artifact.projections,
-      artifact.receiverBoundMethodKeys,
+      declarationArtifact.fact,
+      declarationArtifact.capabilities,
+      declarationArtifact.projections,
+      declarationArtifact.receiverBoundMethodKeys,
       diagnostics,
     );
     if (declaration === undefined) {
@@ -135,17 +129,17 @@ export function materializeObjectShapeDeclarations(
     const existing = declarations.get(declaration.name);
     if (
       existing !== undefined &&
-      (existing.kind !== declaration.kind || (artifact.fact.methodImplementation !== undefined || input.program.records.captureFrameShape.get(artifact.fact.targetType) !== undefined
+      (existing.kind !== declaration.kind || (declarationArtifact.fact.methodImplementation !== undefined || input.program.records.captureFrameShape.get(declarationArtifact.fact.targetType) !== undefined
         ? JSON.stringify(existing) !== JSON.stringify(declaration)
         : existing.kind === "ClassDeclaration" && !objectShapeDeclarationMatches(
         typeParameterNames,
         existing,
-        artifact.fact.declarationTemplate ?? artifact.fact,
-        artifact.capabilities.includes("json-serialization"),
-        artifact.projections,
-        new Set(artifact.receiverBoundMethodKeys),
-        artifact.capabilities.includes("js-freeze"),
-        artifact.capabilities.includes("reference-identity"),
+        declarationArtifact.fact,
+        declarationArtifact.capabilities.includes("json-serialization"),
+        declarationArtifact.projections,
+        new Set(declarationArtifact.receiverBoundMethodKeys),
+        declarationArtifact.capabilities.includes("js-freeze"),
+        declarationArtifact.capabilities.includes("reference-identity"),
         declaration.kind === "ClassDeclaration" ? declaration.members.filter(member =>
           member.kind === "PropertyDeclaration" && member.explicitInterface !== undefined) : [],
         declaration.kind === "ClassDeclaration" ? declaration.members.filter(isCsharpEnumerableKeysMember) : [],
@@ -203,7 +197,7 @@ function renderObjectShapeDeclaration(
   input: CsharpPlanningContext,
   instance: CsharpObjectShapeFact,
   capabilities: readonly import("../../../target-model/types/index.js").CsharpObjectShapeCapability[],
-  projections: readonly import("../../../target-model/types/index.js").CsharpObjectShapeProjection[],
+  projections: readonly CsharpObjectShapeProjectionDeclaration[],
   receiverBoundMethodKeys: readonly string[],
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeDeclaration | undefined {
@@ -244,7 +238,7 @@ function renderObjectShapeDeclaration(
       interfaces: [...interfaces, ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
         ...(referenceIdentity ? [csharpClosedValueCarrierInterfaceType()] : [])],
       members: [...contractMembers, ...(capabilities.includes("enumerable-keys") && !inheritedEnumerableKeys ? [csharpEnumerableKeysContract()] : []),
-        ...renderObjectShapeProjectionMethods(input, fact, projections, diagnostics)] };
+        ...renderObjectShapeProjectionMethods(input, projections, diagnostics)] };
   }
   const members = renderObjectShapeMembers(
     input.scope.typeParameterNames,
@@ -278,7 +272,7 @@ function renderObjectShapeDeclaration(
     fact.targetType,
   );
   return {
-    kind: "ClassDeclaration",
+    kind: (fact.targetType as CsharpTargetNamedTypeRef).csharpValueType === true ? "StructDeclaration" : "ClassDeclaration",
     name: targetType.name,
     ...(objectShapeIdentity === undefined ? {} : { objectShapeIdentity }),
     modifiers: ["public"],
@@ -301,7 +295,6 @@ function renderObjectShapeDeclaration(
       ...(jsonSerializable ? renderJsonSerializableObjectShapeMethod(fact) : []),
       ...renderObjectShapeProjectionMethods(
         input,
-        fact,
         projections,
         diagnostics,
       ),

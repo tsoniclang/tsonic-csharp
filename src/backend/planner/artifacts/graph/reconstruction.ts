@@ -43,6 +43,7 @@ export function reconstructArtifact(
         record.projections,
         record.receiverBoundMethodKeys,
         record.dependencies,
+        record.typeParameterNames,
       ));
     }
     case "source-file":
