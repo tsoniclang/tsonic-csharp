@@ -168,12 +168,12 @@ test("artifact demand seals once and the backend cannot reach the native query o
   assert.throws(() => engine.seal(), /artifact demand is sealed/u);
 });
 
-function spreadDemandFixture(sourceMembers, targetMembers = sourceMembers) {
+function spreadDemandFixture(sourceMembers, targetMembers = sourceMembers, additionalShapes = []) {
   const source = { targetType: { kind: "target-named", id: "tsonic.shape:SpreadSource", csharpAllowsRefLikeTypeArguments: [],
     csharpRender: { kind: "named", name: "SpreadSource" } }, members: sourceMembers };
   const target = { targetType: { kind: "target-named", id: "tsonic.shape:SpreadTarget", csharpAllowsRefLikeTypeArguments: [],
     csharpRender: { kind: "named", name: "SpreadTarget" } }, members: targetMembers };
-  const shapes = new Map([source, target].map(shape => [targetTypeRefKey(shape.targetType), shape]));
+  const shapes = new Map([source, target, ...additionalShapes].map(shape => [targetTypeRefKey(shape.targetType), shape]));
   let reads = 0;
   const host = { ast: {}, names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
     conversions: { conversion: { get() {} } },
@@ -254,11 +254,14 @@ test("native spread requires completed canonical target rows instead of manufact
 for (const ownership of ["no declaration", "unrelated declaration", "authored implementation"]) {
   test(`native spread omits only a proven shared authored method: ${ownership}`, () => {
     const methodType = csharpDelegateTargetType("System.Func", [], spreadInteger);
+    const contractType = { kind: "target-named", id: "tsonic.shape:SpreadReadProtocol", csharpAllowsRefLikeTypeArguments: [],
+      csharpRender: { kind: "named", name: "SpreadReadProtocol" } };
+    const contract = { targetType: contractType, members: [{ ...spreadField("Invoke", methodType), memberKind: "method" }] };
     const declaration = {};
     const sourceDeclarations = ownership === "authored implementation" ? [declaration]
       : ownership === "unrelated declaration" ? [{}] : [];
-    const member = { ...spreadField("read", methodType), memberKind: "method", methodValueContract: methodType, sourceDeclarations };
-    const current = spreadDemandFixture([member]);
+    const member = { ...spreadField("read", methodType), memberKind: "method", methodValueContract: contractType, sourceDeclarations };
+    const current = spreadDemandFixture([member], [member], [contract]);
     const shape = current.source;
     shape.methodImplementation = { declaration: {}, identity: "shared-native-spread", methods: [declaration], captures: [] };
     const subject = {};
