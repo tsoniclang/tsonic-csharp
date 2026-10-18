@@ -9,7 +9,7 @@ type Rejection = (node: Node, code: string, message: string) => void;
 
 export function analyzeCsharpRefLikeLiveness(source: TargetSourceProgram, declaration: Node,
   ownedBindings: ReadonlySet<Node>, reject: Rejection): void {
-  const selected = createSourceControlFlow(source, declaration);
+  const selected = createSourceControlFlow(source, declaration, { domain: { kind: "source" } });
   if (selected.kind === "unresolved") {
     reject(declaration, "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN", selected.reason);
     return;
