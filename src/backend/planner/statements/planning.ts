@@ -197,11 +197,18 @@ export function planStatements(
     }
     case "KindClassDeclaration": {
       const factory = input.program.records.classFactory.get(node);
-      const initializer = factory === undefined ? undefined : planClassFactoryExpression(factory, sourceFile, input, diagnostics, state);
-      const type = factory === undefined ? undefined : csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames);
-      if (initializer === undefined || type === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "A local class requires a sealed native factory."));
-        return [];
+      if (factory === undefined) {
+        return failCsharpPlannerInvariant("A checked local class lost its required native factory.", node);
+      }
+      const type = csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames);
+      if (type === undefined) {
+        return failCsharpPlannerInvariant("An admitted local class lost its renderable native factory type.", node);
+      }
+      const firstDiagnostic = diagnostics.length;
+      const initializer = planClassFactoryExpression(factory, sourceFile, input, diagnostics, state);
+      if (initializer === undefined) {
+        if (diagnostics.some((issue, index) => index >= firstDiagnostic && issue.category === "error")) return [];
+        return failCsharpPlannerInvariant("An admitted local class lost its native capture values without a child refusal.", node);
       }
       return consumeCsharpPlannedValue(initializer, expression => [{ kind: "LocalDeclarationStatement", type, initializer: expression,
         name: planIdentifierName(input.program.source.ast.name(node), "Class", input, diagnostics, "Local class") }]);

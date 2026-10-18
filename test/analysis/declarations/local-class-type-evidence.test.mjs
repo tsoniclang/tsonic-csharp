@@ -8,6 +8,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { admitCsharpNativeDeclarations } from "../../../dist/analysis/declarations/native-value-declarations.js";
 import { planClassFactoryExpression } from "../../../dist/backend/planner/declarations/classes/factories.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
+import { planStatements } from "../../../dist/backend/planner/statements/planning.js";
 
 test("local class catalogs require exact outer type-parameter evidence", () => {
   const checked = createCompilerSessionFromFiles({
@@ -109,3 +110,29 @@ if (Tsonic.Generated.Index.run() != 7) throw new System.Exception("native class 
       "C375 retains the current late refusal and no artifacts until CH11 publishes the exact entry list");
   });
 }
+
+test("local class statements consume required admitted factory records", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    export function run(): number { class View { value: number = 7; } return new View().value; }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const program = compiled.result.program;
+  const factory = program.classFactories[0];
+  assert.equal(factory !== undefined, true, "the actual local-class producer publishes its required record");
+  const context = createCsharpPlanningContext(program);
+  const diagnostics = [];
+  const planned = planStatements(factory.declaration, factory.sourceFile, context, diagnostics);
+  assert.equal(planned.length, 1, "a local class has one native environment declaration");
+  assert.equal(diagnostics.length, 0, "the admitted local class needs no aggregate source refusal");
+  for (const control of [
+    { label: "required record", selected: undefined, message: "required native factory" },
+    { label: "admitted type", selected: { ...factory, factoryType: { kind: "opaque", id: "corrupted" } },
+      message: "renderable native factory type" },
+  ]) {
+    const corrupted = { ...program, records: { ...program.records,
+      classFactory: { get: node => node === factory.declaration ? control.selected : program.records.classFactory.get(node) } } };
+    assert.throws(() => planStatements(factory.declaration, factory.sourceFile, { ...context, program: corrupted }, diagnostics),
+      error => error.message.includes(control.message), `${control.label}: only corrupted producer evidence reaches the invariant`);
+    assert.equal(diagnostics.length, 0, `${control.label}: no duplicate source diagnostic is emitted`);
+  }
+});

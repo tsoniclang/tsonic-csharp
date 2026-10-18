@@ -23,7 +23,6 @@ import type {
 } from "../bindings/index.js";
 import {
   failCsharpPlannerInvariant,
-  unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
   isDestructuringAssignmentExpression,
@@ -61,9 +60,6 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
-import {
-  isCsharpGeneratorReturnInsideFinally,
-} from "./generators.js";
 
 export function planReturnStatement(
   node: Node,
@@ -74,24 +70,9 @@ export function planReturnStatement(
 ): readonly CsharpStatement[] {
   const statement = AsReturnStatement(input.program.source.ast, node)!;
   if (state.generator !== undefined) {
-    const returnType = csharpTypeFromTargetTypeRef(
-      state.generator.protocol.returnType, input.scope.typeParameterNames,
-    );
+    const returnType = state.currentReturnType;
     if (returnType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        "The exact generator return type has no closed C# source representation.",
-      ));
-      return [];
-    }
-    if (isCsharpGeneratorReturnInsideFinally(node, state.generator.declaration, input)) {
-      diagnostics.push({
-        code: "CSHARP_UNSUPPORTED_GENERATOR_RETURN_REGION",
-        category: "error",
-        source: "tsonic-csharp",
-        message: "C# native iterators cannot leave a finally clause through a generator return.",
-      });
-      return [];
+      return failCsharpPlannerInvariant("A native generator body lost its already rendered return type.", node);
     }
     const directYield = directCsharpSourceYieldExpression(
       input.program.source.ast,

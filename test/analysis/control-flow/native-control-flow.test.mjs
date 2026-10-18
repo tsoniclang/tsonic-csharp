@@ -11,8 +11,10 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { planBindingPatternFromExpression } from "../../../dist/backend/planner/bindings/binding-patterns.js";
 import { createDestructuringPlannerState } from "../../../dist/backend/planner/bindings/binding-state.js";
 import { planCsharpGeneratedMethodCall } from "../../../dist/backend/planner/declarations/generated-methods.js";
-import { planBreakStatement, planContinueStatement } from "../../../dist/backend/planner/statements/statement-simple.js";
+import { planBreakStatement, planContinueStatement, planReturnStatement } from "../../../dist/backend/planner/statements/statement-simple.js";
 import { planLocalDeclarationStatements } from "../../../dist/backend/planner/bindings/locals.js";
+import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-types.js";
+import { getCsharpGeneratorProtocol } from "../../../dist/target-model/types/index.js";
 
 for (const surface of ["native", "js"]) {
   test(`native C# rejects control transfer leaving cleanup before publishing output in ${surface}`, () => {
@@ -23,9 +25,43 @@ for (const surface of ["native", "js"]) {
       assert.equal(compiled.result.diagnostics.some(row => row.code === "CSHARP_NATIVE_FINALLY_CONTROL_TRANSFER"), true,
         "native cleanup transfer prohibition must be diagnosed at analysis");
       assert.equal(compiled.artifacts.size, 0, "invalid native control flow must not publish partial artifacts");
+      assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true,
+        "cleanup transfer rejection precedes successful record publication and planning");
     }
   });
 }
+
+test("generator return renders the native function's already selected return syntax", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    export function* values(): Generator<number, void, unknown> { yield 1; return; }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the generator is checked native source");
+  assert.equal(compiled.targetDiagnostics.length, 0, "the native protocol is admitted");
+  const program = compiled.result.program;
+  const ast = program.source.ast;
+  const declaration = program.sourceFiles.flatMap(file => ast.statements(file))
+    .find(node => node !== undefined && ast.is.IsFunctionDeclaration(node));
+  const statement = ast.children(ast.body(declaration))
+    .find(node => node !== undefined && ast.is.IsReturnStatement(node));
+  const context = createCsharpPlanningContext(program);
+  const protocol = getCsharpGeneratorProtocol(program.records.generatorTargetType.get(declaration));
+  assert.equal(protocol !== undefined && statement !== undefined, true,
+    "the real published generator supplies the exact return statement and native protocol");
+  const type = csharpTypeFromTargetTypeRef(protocol.returnType, context.scope.typeParameterNames);
+  const state = createDestructuringPlannerState();
+  state.generator = { declaration, controllerName: "controller", returnValueName: "returned", exitLabel: "completed", protocol };
+  state.currentReturnType = type;
+  const diagnostics = [];
+  const planned = planReturnStatement(statement, ast.getSourceFile(statement), context, diagnostics, state);
+  assert.equal(planned[0]?.kind === "ExpressionStatement" && planned[0].expression?.right?.type === type, true,
+    "the default return reuses the exact renderer syntax object, not a second carrier selection");
+  assert.equal(diagnostics.length, 0, "an admitted return adds no source decision");
+  state.currentReturnType = undefined;
+  assert.throws(() => planReturnStatement(statement, ast.getSourceFile(statement), context, diagnostics, state),
+    error => error.message.includes("already rendered return type"),
+    "only a deliberately missing established function context reaches the invariant");
+  assert.equal(diagnostics.length, 0, "context corruption never becomes a second source refusal");
+});
 
 test("checked-source admission excludes malformed binding and control-flow grammar before planning", () => {
   for (const control of [
