@@ -80,6 +80,7 @@ export function selectCsharpProjectConstructorSignature(
   constructors: readonly CsharpProjectForwardingConstructor[] | undefined,
 ): CsharpProjectForwardingConstructor | undefined {
   if (exact !== undefined) return exact;
+  if (constructors === undefined) return undefined;
   const selectedDeclaration = host.semanticsFor(declaration).declarations.signatureDeclaration(signature);
   const candidates = constructors?.filter(candidate =>
     candidate.source.declaration === selectedDeclaration &&
