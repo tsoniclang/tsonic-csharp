@@ -168,7 +168,7 @@ export function planReturnStatement(
 export function planBreakStatement(
   node: Node,
   ast: AstReader,
-  diagnostics: TargetDiagnostic[],
+  _diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
   const statement = AsBreakStatement(ast, node)!;
@@ -186,7 +186,7 @@ export function planBreakStatement(
 export function planContinueStatement(
   node: Node,
   ast: AstReader,
-  diagnostics: TargetDiagnostic[],
+  _diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
   const statement = AsContinueStatement(ast, node)!;
