@@ -122,7 +122,8 @@ export function planLocalDeclaration(
   } else if (variable.Initializer !== undefined) {
     initializer = planExpression(variable.Initializer, sourceFile, input, diagnostics, state
     );
-  } else if (initializerCarrier !== undefined) {
+  } else if (initializerCarrier !== undefined &&
+    input.program.records.moduleBindingInitialization.get(declarationNode) !== "declaration") {
     initializer = csharpPlannedValue(initializerCarrier, {
       kind: "DefaultExpression",
       type,

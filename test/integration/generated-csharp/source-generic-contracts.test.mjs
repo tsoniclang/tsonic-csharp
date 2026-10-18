@@ -129,6 +129,68 @@ test("module state is fully constructed before reads and preserves aliases", { t
     sourceText: initializedModuleStateFiles["index.ts"] }), "initialized-module-state");
 });
 
+for (const surface of [undefined, "js"]) {
+  test(`module declarations are not source absence expressions (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32 } from "@tsonic/core/types.js";
+export class State { count: int32; constructor(count: int32) { this.count = count; } }
+export let state: State;
+export let absent: State | undefined = undefined;
+export function run(): boolean {
+  if (absent !== undefined) return false;
+  state = new State(7);
+  const alias = state;
+  state.count = 9;
+  return alias === state && alias.count === 9;
+}
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    const declarations = [];
+    const ast = compiled.result.program.source.ast;
+    const collect = node => {
+      if (ast.is.IsVariableDeclaration(node)) declarations.push(node);
+      ast.forEachChild(node, child => { if (child !== undefined) collect(child); });
+    };
+    for (const sourceFile of compiled.result.program.sourceFiles) collect(sourceFile);
+    const state = declarations.find(node => ast.text(ast.name(node)) === "state");
+    const absent = declarations.find(node => ast.text(ast.name(node)) === "absent");
+    const modes = compiled.result.program.records.moduleBindingInitialization;
+    assert.equal(modes.get(state), "declaration", "no initializer is a native declaration");
+    assert.equal(modes.get(absent), "value", "explicit absence remains a real source initializer");
+    assert.equal(modes.get({}) === undefined, true, "foreign source identity does not borrow declaration evidence");
+    assert.equal(Object.isFrozen(modes), true, "published module initialization decisions are immutable");
+    executeCsharpConstruction(compiled, `module-declaration-only-${surface ?? "native"}`);
+  });
+
+  test(`module declaration admission does not admit invalid source absence (${surface ?? "native"})`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+export class State { count: number = 1; }
+export let state: State = undefined;
+export function run(): boolean { return state.count === 1; }
+` });
+    assert.equal(compiled.result.diagnostics.some(issue => issue.category === "error"), true,
+      "explicit absence cannot initialize a nonoptional native state");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true,
+      "a rejected source initializer never reaches the seal or planner");
+    assert.equal(compiled.artifacts.size, 0, "invalid source absence emits no native artifact");
+  });
+
+  test(`module declaration admission preserves definite-assignment errors (${surface ?? "native"})`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+export class State { count: number = 1; }
+export function run(): boolean {
+  let local: State;
+  return local.count === 1;
+}
+` });
+    assert.equal(compiled.result.diagnostics.some(issue => issue.category === "error"), true,
+      "the module-only selection does not legalize an unassigned local read");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true,
+      "definite-assignment rejection stays before sealing");
+    assert.equal(compiled.artifacts.size, 0, "an unassigned local emits no native artifact");
+  });
+}
+
 test("checked satisfies tuples preserve distinct optional elements and evaluation order", { timeout: 300_000 }, () => {
   executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: tupleSatisfiesSource }), "tuple-satisfies");
   for (const sourceText of invalidTupleSatisfiesSources) {
