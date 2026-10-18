@@ -7,7 +7,8 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
-import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
+import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType,
+  isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { selectCsharpForInKeyBinding, selectCsharpForOfBinding } from "../../policy/operations/iteration/selection.js";
 import type { CsharpAdmittedIteration, CsharpForInKeyBinding, CsharpForOfBinding,
   CsharpResolvedIteration } from "../../target-model/records/selection.js";
@@ -16,6 +17,7 @@ import { admitCsharpConversionSelection } from "../conversions/validation.js";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
+import { directCsharpSourceYieldExpression } from "../../target-model/syntax/yield-expression.js";
 
 export function admitCsharpIterationBindings(
   policy: CsharpPolicyContext,
@@ -181,6 +183,14 @@ export function admitCsharpStatementBindings(
         refuse(name, "Catch variables require finalized TSTS/provider exception-carrier facts before C# emission. Resolved catch variable carrier is neither a target throwable carrier nor a closed TsValue catch carrier.");
       }
     } else if (ast.is.IsVariableDeclaration(node)) {
+      const declaration = ast.as.AsVariableDeclaration(node)!;
+      const callable = sourceEnclosingCallable(node, ast);
+      if (callable !== undefined && generator.get(callable) !== undefined &&
+        directCsharpSourceYieldExpression(ast, declaration.Initializer) !== undefined && !ast.is.IsIdentifier(declaration.name)) {
+        refuse(declaration.name ?? node,
+          "A yield initializer with a binding pattern requires an explicit post-resume destructuring plan.");
+        continue;
+      }
       const kind = ast.variableDeclarationKind(node);
       if (kind !== "using" && kind !== "await using") continue;
       const name = ast.name(node);
@@ -195,8 +205,8 @@ export function admitCsharpStatementBindings(
         ? selected.source.acquisition.statement
         : declarationOwner !== undefined && ast.is.IsForStatement(declarationOwner)
           ? declarationOwner : declarationOwner === undefined ? undefined : ast.parent(declarationOwner);
-      const callable = scope === undefined ? undefined : sourceEnclosingCallable(scope, ast);
-      if (scope !== undefined && callable !== undefined && generator.get(callable) !== undefined) {
+      const scopeCallable = scope === undefined ? undefined : sourceEnclosingCallable(scope, ast);
+      if (scope !== undefined && scopeCallable !== undefined && generator.get(scopeCallable) !== undefined) {
         if (!refusedResourceScopes.has(scope)) {
           refusedResourceScopes.add(scope);
           issues.push(Object.freeze({ code: "CSHARP_GENERATOR_RESOURCE_MANAGEMENT_NOT_PROVEN", category: "error",
@@ -215,6 +225,68 @@ export function admitCsharpStatementBindings(
       } else if (csharpTargetTypeRenderingRejection(selected.registration.resourceType) !== undefined) {
         refuse(node, "The exact resource disposal receiver has no closed C# source representation.");
       }
+    }
+  }
+  return Object.freeze(issues);
+}
+
+export function admitCsharpNativeStorageBindings(
+  ast: AstReader,
+  nodes: readonly Node[],
+  nativeUse: CsharpNativeUseClassifications["nativeUse"],
+  storage: Pick<CsharpStorageClassifications, "nativeBacking" | "nativeArray" | "storageType">,
+  nativeRefs: CsharpTargetOperationClassifications["nativeRefReturn"],
+  participation: CsharpNativeParticipationInput["participation"],
+  metadata: CsharpSourceEvidenceIndex["compileTimeMetadata"],
+  unreachable: CsharpTargetOperationClassifications["nativeUnreachable"],
+): readonly TargetDiagnostic[] {
+  const issues: TargetDiagnostic[] = [];
+  const refuse = (node: Node, message: string): void => {
+    issues.push(Object.freeze({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp",
+      sourceNode: node, message }));
+  };
+  for (const node of nodes) {
+    if (nativeUse.order(node) === undefined || metadata.get(node) || unreachable.get(node) ||
+      participation.get(node) === "erased") continue;
+    const backing = storage.nativeBacking.get(node);
+    if (ast.is.IsParameterDeclaration(node)) {
+      if (backing !== undefined && csharpTargetTypeRenderingRejection(csharpRuntimeLocationTargetType(backing.pointeeType)) !== undefined) {
+        refuse(node, "Sealed native parameter storage requires its exact planned binding and type.");
+      }
+      continue;
+    }
+    if (!ast.is.IsVariableDeclaration(node)) continue;
+    const owner = ast.parent(node);
+    if (owner !== undefined && ast.is.IsCatchClause(owner)) continue;
+    const statement = owner === undefined ? undefined : ast.parent(owner);
+    if (statement !== undefined && (ast.is.IsForInStatement(statement) || ast.is.IsForOfStatement(statement))) continue;
+    const declaration = ast.as.AsVariableDeclaration(node)!;
+    const initializer = declaration.Initializer;
+    const nativeRef = initializer !== undefined && ast.variableDeclarationKind(node) === "const"
+      ? nativeRefs.get(initializer) : undefined;
+    if (nativeRef?.kind === "resolved" && nativeRef.returnType === undefined) {
+      refuse(initializer ?? node, "A selected C# native ref-return local has no closed pointee type.");
+    }
+    if (ast.is.IsIdentifier(declaration.name)) {
+      const type = nativeRef?.kind === "resolved" ? nativeRef.returnType : storage.storageType.get(node);
+      const subject = declaration.Type ?? declaration.name ?? node;
+      if (type === undefined) {
+        if (nativeRef?.kind !== "resolved") refuse(subject,
+          `C# type policy could not resolve source node kind '${ast.kindName(subject)}' to a closed target type.`);
+      } else if (csharpTargetTypeRenderingRejection(type) !== undefined) {
+        issues.push(Object.freeze({ category: "error", source: "tsonic-csharp", sourceNode: subject,
+          code: type.kind === "opaque" ? "CSHARP_OPAQUE_TARGET_TYPE_UNSUPPORTED" : "CSHARP_UNSUPPORTED_AST",
+          message: type.kind === "opaque" ? `Opaque target type '${type.id}' has no renderable C# source representation.`
+            : `C# type policy resolved '${type.kind}', but that target type has no renderable C# syntax.` }));
+      }
+    }
+    if (initializer === undefined) continue;
+    const array = storage.nativeArray.get(node);
+    if (array !== undefined && csharpTargetTypeRenderingRejection(csharpRuntimeNativeArrayTargetType(array.layout.pointeeType)) !== undefined) {
+      refuse(node, "The sealed native array has no renderable storage type.");
+    }
+    if (backing !== undefined && csharpTargetTypeRenderingRejection(csharpRuntimeLocationTargetType(backing.pointeeType)) !== undefined) {
+      refuse(node, "The sealed native local backing has no renderable location type.");
     }
   }
   return Object.freeze(issues);

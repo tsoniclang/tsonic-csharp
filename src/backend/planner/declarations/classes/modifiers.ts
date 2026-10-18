@@ -5,8 +5,7 @@ import type {
   CsharpPropertyDeclaration,
 } from "../../../target-ast/syntax/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 import {
   HasSourceKind,
@@ -30,12 +29,12 @@ export function planClassMemberModifiers(node: Node, name: Node | undefined, inp
     : visibility;
 }
 
-export function planMethodModifiers(node: Node, name: Node | undefined, _sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[]): CsharpMethodDeclaration["modifiers"] {
+export function planMethodModifiers(node: Node, name: Node | undefined, input: CsharpPlanningContext): CsharpMethodDeclaration["modifiers"] {
   const modifiers: CsharpMethodDeclaration["modifiers"][number][] = [...planClassMemberModifiers(node, name, input)];
   if (!modifiers.includes("static")) {
     const dispatch = input.program.records.callableDispatch.get(node);
-    if (dispatch === undefined) diagnostics.push(unsupportedNodeDiagnostic(node, "A method has no sealed native dispatch contract."));
-    else addDispatchModifiers(modifiers, dispatch, input.program.source.ast.hasModifierKind(node, "abstract"));
+    if (dispatch === undefined) failCsharpPlannerInvariant("An admitted method lost its final native dispatch flags.", node);
+    addDispatchModifiers(modifiers, dispatch, input.program.source.ast.hasModifierKind(node, "abstract"));
   }
   if (isAsyncNode(input.program.source.ast, node)) {
     modifiers.push("async");

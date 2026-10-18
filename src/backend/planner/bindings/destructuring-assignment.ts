@@ -1,7 +1,6 @@
 import { allocateDestructuringTemp } from "./binding-state.js";
 import { csharpDestructuringAssignmentSyntax } from "../../../target-model/syntax/operators.js";
 import { getCsharpTypeForExpressionCarrier } from "./binding-patterns.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
@@ -24,22 +23,13 @@ import { planCsharpBindingDefaultValue } from "./optional-values.js";
 import { runtimeArrayHelperCall } from "../expressions/arrays/helpers.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 import { qualifiedCsharpType } from "../types/index.js";
-
-
-export const missingDestructuringAssignmentFactsMessage = "Destructuring assignment emission requires finalized target storage and extraction facts before C# emission.";
+import type { CsharpDestructuringAssignmentPattern, CsharpDestructuringAssignmentTarget } from "../../../target-model/records/value-projections.js";
 
 export function isDestructuringAssignmentExpression(
   node: Node | undefined,
   input: CsharpPlanningContext,
 ): boolean {
   return csharpDestructuringAssignmentSyntax(input.program.source.ast, node) !== undefined;
-}
-
-export function pushMissingDestructuringAssignmentFactsDiagnostic(
-  node: Node,
-  diagnostics: TargetDiagnostic[],
-): void {
-  diagnostics.push(unsupportedNodeDiagnostic(node, missingDestructuringAssignmentFactsMessage));
 }
 
 export function planDestructuringAssignmentStatement(node: Node | undefined, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState, planExpression: ExpressionPlanner
@@ -58,8 +48,7 @@ export function tryPlanDestructuringAssignmentExpression(node: Node, sourceFile:
     return undefined;
   }
   if (state === undefined) {
-    pushMissingDestructuringAssignmentFactsDiagnostic(node, diagnostics);
-    return undefined;
+    failCsharpPlannerInvariant("An admitted destructuring assignment lost its owning native rendering scope.", node);
   }
   const planned = planDestructuringAssignmentCore(node, sourceFile, input, diagnostics, state, planExpression
   );
@@ -73,22 +62,14 @@ function planDestructuringAssignmentCore(node: Node, sourceFile: SourceFile, inp
 ): CsharpPlannedValue | undefined {
   const selectedOperator = input.program.records.binaryOperation.get(node)
     ?.destructuring;
-  if (selectedOperator === undefined) {
-    pushMissingDestructuringAssignmentFactsDiagnostic(node, diagnostics);
-    return undefined;
-  }
-  if (selectedOperator.kind !== "resolved") {
-    pushMissingDestructuringAssignmentFactsDiagnostic(node, diagnostics);
-    return undefined;
-  }
+  if (selectedOperator?.kind !== "resolved") failCsharpPlannerInvariant(
+    "An admitted destructuring assignment lost its resolved native operation.", node);
   const left = selectedOperator.pattern;
   const right = selectedOperator.source;
-  const pattern = destructuringAssignmentPattern(left, input);
-  if (pattern === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(left, "Destructuring assignment target is outside the current C# planning surface."));
-    return undefined;
-  }
-  const sourceExpression = planExpression(right, sourceFile, input, diagnostics);
+  const pattern = input.program.records.bindingPatternProjection.get(node)?.assignmentPattern;
+  if (pattern === undefined || pattern.sourceNode !== left) failCsharpPlannerInvariant(
+    "An admitted destructuring assignment lost its exact checked assignment pattern.", left);
+  const sourceExpression = planExpression(right, sourceFile, input, diagnostics, state);
   if (sourceExpression === undefined) {
     return undefined;
   }
@@ -117,46 +98,8 @@ function planDestructuringAssignmentCore(node: Node, sourceFile: SourceFile, inp
     ]);
 }
 
-type DestructuringAssignmentPattern =
-  | {
-      readonly kind: "array";
-      readonly sourceNode: Node;
-      readonly elements: readonly (DestructuringAssignmentArrayElement | undefined)[];
-    }
-  | {
-      readonly kind: "object";
-      readonly sourceNode: Node;
-      readonly elements: readonly DestructuringAssignmentObjectElement[];
-    };
-
-type DestructuringAssignmentTarget =
-  | { readonly kind: "node"; readonly node: Node }
-  | { readonly kind: "pattern"; readonly pattern: DestructuringAssignmentPattern };
-
-type DestructuringAssignmentArrayElement = {
-  readonly kind: "array-element";
-  readonly sourceNode: Node;
-  readonly target: DestructuringAssignmentTarget;
-  readonly initializer?: Node;
-  readonly rest: boolean;
-};
-
-type DestructuringAssignmentObjectElement =
-  | {
-      readonly kind: "object-property";
-      readonly sourceNode: Node;
-      readonly propertyName?: Node;
-      readonly target: DestructuringAssignmentTarget;
-      readonly initializer?: Node;
-    }
-  | {
-      readonly kind: "object-rest";
-      readonly sourceNode: Node;
-      readonly target: DestructuringAssignmentTarget;
-    };
-
 function planAssignmentPatternFromExpression(
-  pattern: DestructuringAssignmentPattern,
+  pattern: CsharpDestructuringAssignmentPattern,
   sourceExpression: CsharpExpression,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
@@ -166,7 +109,7 @@ function planAssignmentPatternFromExpression(
 ): readonly CsharpStatement[] {
   const source = input.program.records.bindingPatternProjection.get(pattern.sourceNode)?.source;
   if (source === undefined) return failCsharpPlannerInvariant("Assignment pattern requires its admitted source projection.", pattern.sourceNode);
-  const target = (selected: DestructuringAssignmentTarget, value: CsharpExpression,
+  const target = (selected: CsharpDestructuringAssignmentTarget, value: CsharpExpression,
     subject: Node): readonly CsharpStatement[] => {
     const binding = input.program.records.bindingPatternProjection.get(subject)?.binding;
     const destination = selected.kind === "node" ? selected.node : selected.pattern.sourceNode;
@@ -281,8 +224,4 @@ function restExpression(
     callee: { kind: "SimpleMemberAccessExpression", receiver: qualifiedCsharpType("Tsonic.CSharp.Js", "Array"), name: "slice" },
     arguments: arguments_,
   } : runtimeArrayHelperCall("Slice", arguments_);
-}
-
-function destructuringAssignmentPattern(node: Node, input: CsharpPlanningContext): DestructuringAssignmentPattern | undefined {
-  return input.program.records.bindingPatternProjection.get(node)?.assignmentPattern;
 }

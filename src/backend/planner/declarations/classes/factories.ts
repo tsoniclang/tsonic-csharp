@@ -13,7 +13,7 @@ import { planExpression } from "../../expressions/index.js";
 import { planClassMembers } from "./members.js";
 import { createCsharpTypeParameterPlanningContext } from "../../names/type-parameters.js";
 import { planOuterTypeParameters, planTypeParameters } from "../../types/type-parameters.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { planClassInitializationRegion } from "./initializers.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../../expressions/planned-values.js";
@@ -40,8 +40,8 @@ function captureSlots(factory: CsharpClassFactory, input: CsharpPlanningContext,
       if (type !== undefined) slots.push({ name: capture.fieldName, type, carrier: shared.frame.shape.targetType, frame: shared.frame });
     } else {
       const type = csharpTypeFromTargetTypeRef(input.program.records.physicalStorageType.get(capture.declaration, capture.type), input.scope.typeParameterNames);
-      if (type === undefined) diagnostics.push(unsupportedNodeDiagnostic(capture.declaration, "A class capture has no renderable native storage."));
-      else slots.push({ name: capture.fieldName, type, carrier: input.program.records.physicalStorageType.get(capture.declaration, capture.type), reference: capture.reference, declaration: capture.declaration });
+      if (type === undefined) failCsharpPlannerInvariant("An admitted class capture lost its renderable physical storage.", capture.declaration);
+      slots.push({ name: capture.fieldName, type, carrier: input.program.records.physicalStorageType.get(capture.declaration, capture.type), reference: capture.reference, declaration: capture.declaration });
     }
   }
   return slots;
@@ -95,10 +95,8 @@ export function planClassFactoryExpression(
     return planExpression(slot.reference!, sourceFile, input, diagnostics, state);
   });
   const type = csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames);
-  if (type === undefined || arguments_.some(argument => argument === undefined)) {
-    diagnostics.push(unsupportedNodeDiagnostic(factory.declaration, "A class evaluation requires every sealed native capture owner."));
-    return undefined;
-  }
+  if (type === undefined) failCsharpPlannerInvariant("An admitted class factory lost its renderable native environment.", factory.declaration);
+  if (arguments_.some(argument => argument === undefined)) return undefined;
   return buildCsharpPlannedValue(factory.declaration, sourceFile, input, diagnostics, arguments_, values => ({
     kind: "ObjectCreationExpression", type, arguments: values.map(expression => ({ kind: "Argument", expression })),
   }), factory.factoryType);

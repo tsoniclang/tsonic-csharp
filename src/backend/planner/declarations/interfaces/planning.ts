@@ -24,7 +24,7 @@ import {
   invalidCsharpType,
 } from "../../types/index.js";
 import { getExplicitReturnType } from "../callables/return-types.js";
-import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planInterfaceHeritage } from "../classes/heritage.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
 import {
@@ -80,13 +80,13 @@ export function planInterfaceDeclaration(
     const storageNames = new Set(objectShape.members.filter(member => member.memberKind === "method")
       .map(member => objectShapeStorageMemberName(objectShape, member)));
     const rendered = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, objectShape, input.program.records, true, inherited);
-    if (rendered === undefined) diagnostics.push(unsupportedNodeDiagnostic(node, "An interface method value requires its exact native callable storage contract."));
-    else members.push(...rendered.filter(member => member.kind === "PropertyDeclaration" && storageNames.has(member.name)));
+    if (rendered === undefined) failCsharpPlannerInvariant("An admitted interface method value lost its native callable storage.", node);
+    members.push(...rendered.filter(member => member.kind === "PropertyDeclaration" && storageNames.has(member.name)));
   }
   const inheritedMembers = inherited.flatMap(parent => {
     const rendered = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, parent.shape, input.program.records, parent.methodValues, []);
-    if (rendered === undefined) diagnostics.push(unsupportedNodeDiagnostic(node, "An inherited interface requires exact native member signatures."));
-    return rendered ?? [];
+    if (rendered === undefined) failCsharpPlannerInvariant("An admitted inherited interface lost its exact native member signatures.", node);
+    return rendered;
   });
   return {
     kind: "InterfaceDeclaration",

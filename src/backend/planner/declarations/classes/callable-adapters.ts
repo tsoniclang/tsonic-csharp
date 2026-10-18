@@ -6,14 +6,14 @@ import { isCsharpVoidTargetType } from "../../../../target-model/types/index.js"
 import { planCsharpCallableArguments } from "../callables/parameter-adapters.js";
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planCsharpProjectCallableAdapters(
   node: Node, method: CsharpMethodDeclaration, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpMethodDeclaration[] {
   const dispatch = input.program.records.callableDispatch.get(node);
-  if (dispatch === undefined) return [];
+  if (dispatch === undefined) failCsharpPlannerInvariant("An admitted method lost its exact native adapter contract.", node);
   const methods: CsharpMethodDeclaration[] = [];
   for (const adapter of dispatch.adapters) {
     const returnType = csharpTypeFromTargetTypeRef(adapter.contract.returnType, input.scope.typeParameterNames);
@@ -33,14 +33,14 @@ export function planCsharpProjectCallableAdapters(
       };
     });
     if (rendered.some(parameter => parameter === undefined) || returnType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "A sealed callable adapter has an unrenderable native signature."));
-      continue;
+      failCsharpPlannerInvariant("An admitted native adapter lost its renderable physical signature.", node);
     }
+    const firstDiagnostic = diagnostics.length;
     const planned = planCsharpCallableArguments(node, adapter.contract, rendered as CsharpParameter[], method.parameters,
       adapter.parameters, sourceFile, input, diagnostics);
     if (planned === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "A sealed callable adapter has an invalid logical argument stream."));
-      continue;
+      if (diagnostics.some((issue, index) => index >= firstDiagnostic && issue.category === "error")) continue;
+      failCsharpPlannerInvariant("An admitted native adapter lost its exact logical argument stream.", node);
     }
     const call: CsharpExpression = { kind: "InvocationExpression", callee: {
       kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: method.name,

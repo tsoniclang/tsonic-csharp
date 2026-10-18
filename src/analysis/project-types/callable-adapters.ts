@@ -58,7 +58,12 @@ export function analyzeCsharpProjectCallableAdapters(
   }
   for (const implementation of callables.declarationContracts) {
     const declaration = implementation.sourceDeclaration;
-    if (!policy.ast.is.IsMethodDeclaration(declaration) || policy.ast.hasModifierKind(declaration, "static")) continue;
+    if (!policy.ast.is.IsMethodDeclaration(declaration)) continue;
+    if (policy.ast.hasModifierKind(declaration, "static")) {
+      byDeclaration.set(declaration, Object.freeze({ implementation,
+        overridesBase: false, hasDerivedOverride: false, adapters: Object.freeze([]) }));
+      continue;
+    }
     const parent = policy.ast.parent(declaration);
     const owner = policy.projectTypes.catalog.definitionForDeclaration(parent);
     const objectMethod = parent !== undefined && policy.ast.is.IsObjectLiteralExpression(parent);

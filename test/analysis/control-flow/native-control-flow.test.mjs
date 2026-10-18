@@ -3,7 +3,7 @@ import test from "node:test";
 import { nativeFinallyOverrideSource } from "../../../../tsonic/test/fixtures/native-completion-regions.mjs";
 import { compileCsharpSource, checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { admitCsharpNativeDeclarations } from "../../../dist/analysis/declarations/analyze.js";
+import { admitCsharpNativeDeclarations } from "../../../dist/analysis/declarations/native-value-declarations.js";
 import { admitCsharpStatementBindings } from "../../../dist/analysis/control-flow/native-control-flow.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
 import { planPropertyDeclaration } from "../../../dist/backend/planner/declarations/classes/properties.js";
@@ -12,6 +12,7 @@ import { planBindingPatternFromExpression } from "../../../dist/backend/planner/
 import { createDestructuringPlannerState } from "../../../dist/backend/planner/bindings/binding-state.js";
 import { planCsharpGeneratedMethodCall } from "../../../dist/backend/planner/declarations/generated-methods.js";
 import { planBreakStatement, planContinueStatement } from "../../../dist/backend/planner/statements/statement-simple.js";
+import { planLocalDeclarationStatements } from "../../../dist/backend/planner/bindings/locals.js";
 
 for (const surface of ["native", "js"]) {
   test(`native C# rejects control transfer leaving cleanup before publishing output in ${surface}`, () => {
@@ -290,8 +291,13 @@ test(`${declarationKind} native heritage renderability is refused by its owner b
   assert.equal(declaration !== undefined, true, "the checked interface is present");
   const issues = admitCsharpNativeDeclarations(ast, [declaration], { order: () => [] },
     { heritageForDeclaration: () => ({ interfaces: [{ kind: "opaque", id: "missing" }] }) },
-    { compileTimeMetadata: { get: () => false } }, { storageType: { get: () => undefined } },
-    { get: () => undefined }, { get: () => false });
+    { compileTimeMetadata: { get: () => false }, sourceField: { get: () => undefined } },
+    { storageType: { get: () => ({ kind: "source-primitive", name: "float64" }) } },
+    { get: () => undefined }, { get: () => false },
+    { methodWrite: { get: () => undefined }, returnContract: { get: () => undefined } },
+    { get: () => undefined }, { get: () => undefined },
+    { captureFrame: { get: () => undefined }, capturedBinding: { get: () => undefined },
+      physicalStorageType: { get: (_node, type) => type } });
   assert.equal(issues.length, 1, "one pre-seal declaration owner refuses the native carrier");
   assert.equal(issues[0]?.code, "CSHARP_UNSUPPORTED_AST", "the original refusal code is retained");
   assert.equal(issues[0]?.message, "Canonical project heritage contains a target type that cannot be rendered in C#.",
@@ -315,8 +321,13 @@ test("declaration admission consumes exact retained masks, not empty constructio
   ]) {
     const issues = admitCsharpNativeDeclarations(ast, [declaration], { order: () => [] },
       { heritageForDeclaration: () => ({ interfaces: [{ kind: "opaque", id: "missing" }] }) },
-      { compileTimeMetadata: { get: () => control.metadata } }, { storageType: { get: () => undefined } },
-      { get: () => control.participation }, { get: () => control.unreachable });
+      { compileTimeMetadata: { get: () => control.metadata }, sourceField: { get: () => undefined } },
+      { storageType: { get: () => ({ kind: "source-primitive", name: "float64" }) } },
+      { get: () => control.participation }, { get: () => control.unreachable },
+      { methodWrite: { get: () => undefined }, returnContract: { get: () => undefined } },
+      { get: () => undefined }, { get: () => undefined },
+      { captureFrame: { get: () => undefined }, capturedBinding: { get: () => undefined },
+        physicalStorageType: { get: (_node, type) => type } });
     assert.equal(issues.length, control.count, `${control.label}: only final producer masks decide participation`);
   }
 });
@@ -485,5 +496,36 @@ for (const surface of ["native", "js"]) {
     assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true,
       "a refused resource scope never publishes native records or a plan");
     assert.equal(compiled.artifacts.size, 0, "a refused resource scope never emits partial native artifacts");
+  });
+
+  test(`a yield binding-pattern refusal belongs to statement admission on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      export function* values(): Generator<int, void, int[]> {
+        const [value] = yield 1;
+        void value;
+      }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the post-resume binding pattern is checked source");
+    const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
+    assert.equal(issues.length, 1, "one statement owner retains the existing unsupported post-resume refusal");
+    assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", "the original source refusal code is unchanged");
+    assert.equal(issues[0].message,
+      "A yield initializer with a binding pattern requires an explicit post-resume destructuring plan.",
+      "the original source refusal message is unchanged");
+    const ast = createTargetSourceProgram(compiled.source).ast;
+    assert.equal(ast.is.IsArrayBindingPattern(issues[0].sourceNode), true,
+      "the exact authored binding pattern remains the diagnostic subject");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+      "a refused post-resume binding never publishes records, a plan or artifacts");
+    const declaration = ast.parent(issues[0].sourceNode);
+    const state = createDestructuringPlannerState(declaration, ast);
+    state.generator = {};
+    const diagnostics = [];
+    assert.throws(() => planLocalDeclarationStatements(declaration, ast.getSourceFile(declaration),
+      { program: { source: { ast }, records: { compileTimeMetadata: { get: () => false } } } }, diagnostics, state),
+    error => error.message.includes("post-resume identifier binding"),
+    "only bypassing successful admission exposes the checked-pattern corruption invariant");
+    assert.equal(diagnostics.length, 0, "the renderer cannot repeat the pre-seal source refusal");
   });
 }

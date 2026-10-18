@@ -4,6 +4,10 @@ import { planClassHeritage, planInterfaceHeritage } from "../../../../dist/backe
 import { renderCsharpStructuralInterfaceMembers, shadowCsharpInheritedInterfaceMembers } from "../../../../dist/backend/planner/objects/declarations/structural-interfaces.js";
 import { csharpDelegateTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
 import { completeCsharpDeclarationHeritage } from "../../../../dist/analysis/project-types/heritage.js";
+import { admitCsharpRawInterfaceDeclarations } from "../../../../dist/analysis/declarations/native-value-declarations.js";
+import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
+import { planInterfaceDeclaration } from "../../../../dist/backend/planner/declarations/interfaces/planning.js";
+import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 
 function type(argument, id = "Native.View") {
   return { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id, name: "View", typeArguments: [argument], csharpRender: { kind: "named", name: "View" } };
@@ -85,4 +89,50 @@ test("generated method-value handles reuse only the identical available inherite
     assert.equal(members.some(candidate => candidate.kind === "PropertyDeclaration"), true,
       "capability, absence, signedness and exact native storage name remain independent gates");
   }
+});
+
+test("completed raw-interface admission owns exact member rendering refusals", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    export interface View { read(value: number): number; }
+    export function use(value: View): number { return value.read(7); }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const program = compiled.result.program;
+  const ast = program.source.ast;
+  const declaration = program.sourceFiles.flatMap(file => ast.statements(file))
+    .find(node => node !== undefined && ast.is.IsInterfaceDeclaration(node));
+  assert.equal(declaration !== undefined, true, "the checked raw-interface declaration is retained");
+  const file = ast.getSourceFile(declaration);
+  const shape = program.objectShapes.resolveNode(declaration, file);
+  const opaque = Object.freeze({ kind: "opaque", id: "missing" });
+  const artifacts = { get: () => ({ capabilities: ["method-values"] }) };
+  const original = admitCsharpRawInterfaceDeclarations(ast, [declaration], { order: () => [] }, program.objectShapes,
+    artifacts, program.records, program.records.compileTimeMetadata, program.records.nativeParticipation,
+    program.records.nativeUnreachable);
+  assert.equal(original.length, 0, "a completed valid native shape is not rejected");
+  for (const control of [
+    { label: "method signature", shape: { ...shape, members: [{ ...shape.members[0], type: opaque }] },
+      inherited: false, message: "An interface method value requires its exact native callable storage contract." },
+    { label: "inherited signature", shape, inherited: true,
+      message: "An inherited interface requires exact native member signatures." },
+  ]) {
+    const invalid = control.inherited ? { ...shape, implements: [opaque] } : control.shape;
+    const views = { resolveNode: () => invalid, resolveTarget: type => type === opaque
+      ? { ...shape, members: [{ ...shape.members[0], type: opaque }] } : program.objectShapes.resolveTarget(type) };
+    const issues = admitCsharpRawInterfaceDeclarations(ast, [declaration], { order: () => [] }, views, artifacts,
+      program.records, program.records.compileTimeMetadata, program.records.nativeParticipation,
+      program.records.nativeUnreachable);
+    assert.equal(issues.length, 1, `${control.label}: exactly one admission refusal`);
+    assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", `${control.label}: unchanged diagnostic code`);
+    assert.equal(issues[0].message, control.message, `${control.label}: unchanged diagnostic reason`);
+    assert.equal(issues[0].sourceNode === declaration, true, `${control.label}: unchanged exact declaration identity`);
+  }
+  const input = createCsharpPlanningContext(program);
+  const corrupted = { ...input, types: { ...input.types, objectShapes: { ...input.types.objectShapes,
+    resolveNode: () => ({ ...shape, members: [{ ...shape.members[0], type: opaque }] }) } },
+    artifacts: { ...input.artifacts, objectShapeHasCapability: () => true } };
+  const diagnostics = [];
+  assert.throws(() => planInterfaceDeclaration(declaration, file, corrupted, diagnostics),
+    error => error.message.includes("native callable storage"), "a separate corruption witness pins the planner guarantee");
+  assert.equal(diagnostics.length, 0, "corruption does not duplicate a source renderability rule in the planner");
 });

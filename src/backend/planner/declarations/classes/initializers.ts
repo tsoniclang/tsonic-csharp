@@ -6,7 +6,8 @@ import type { CsharpPlanningContext } from "../../context.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { planExpression } from "../../expressions/index.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
-import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
+import { createDestructuringPlannerState } from "../../bindings/binding-state.js";
 import { planClassStaticBlockDeclaration } from "./constructors.js";
 import { consumeCsharpPlannedValue } from "../../statements/statement-output.js";
 import type { CsharpPlannedValue } from "../../expressions/planned-values.js";
@@ -34,10 +35,13 @@ export function planClassInitializationRegion(
   const fields = new Map<Node, CsharpPlannedValue>();
   const defaults = new Map<Node, CsharpExpression>();
   const blocks = new Map<Node, readonly CsharpStatement[]>();
+  const state = createDestructuringPlannerState(declaration, ast);
   let relocates = factory || !isStatic && input.program.records.requiresClassConstructor.get(declaration);
   const region = input.program.records.classInitializationRegion.get(declaration, isStatic);
   for (const node of region) {
-    if (sourceClassFieldIsTypeOnly(ast, node)) continue;
+    if (sourceClassFieldIsTypeOnly(ast, node) || input.program.records.nativeUse.order(node) === undefined ||
+      input.program.records.compileTimeMetadata.get(node) || input.program.records.nativeUnreachable.get(node) ||
+      input.program.records.nativeParticipation.get(node) === "erased") continue;
     if (ast.is.IsClassStaticBlockDeclaration(node)) {
       blocks.set(node, planClassStaticBlockDeclaration(node, className, sourceFile, input, diagnostics).body.statements);
       relocates = true;
@@ -46,13 +50,11 @@ export function planClassInitializationRegion(
     const property = ast.as.AsPropertyDeclaration(node)!;
     if (property.Initializer === undefined) continue;
     if (input.program.records.sourceField.get([node, property.name, property.Type, property.Initializer]) !== undefined) continue;
-    const target = input.types.classifications.resolveNode(property.Type ?? property.name, sourceFile);
+    const target = input.program.records.storageType.get(node);
     const type = target === undefined ? undefined : csharpTypeFromTargetTypeRef(target, input.scope.typeParameterNames);
-    const value = type === undefined ? undefined : planExpression(property.Initializer, sourceFile, input, diagnostics, undefined);
-    if (value === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "A class initializer requires its exact native value contract."));
-      continue;
-    }
+    if (type === undefined) failCsharpPlannerInvariant("An admitted class initializer lost its exact native storage type.", node);
+    const value = planExpression(property.Initializer, sourceFile, input, diagnostics, state);
+    if (value === undefined) continue;
     fields.set(node, value);
     if (value.completion.kind === "value" && target !== undefined && type !== undefined &&
       !isCsharpValueTypeTargetType(target) && getCsharpNullableElementTargetType(target) === undefined) {

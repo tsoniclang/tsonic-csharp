@@ -11,7 +11,7 @@ import { createCsharpProgramRecords } from "./records/create.js";
 import type { CsharpRequiredRecord } from "./records/required-records.js";
 import { analyzeSourceLiteralValues, sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
-import { analyzeCsharpNativeControlFlow, admitCsharpStatementBindings, admitCsharpIterationBindings } from "../control-flow/native-control-flow.js";
+import { analyzeCsharpNativeControlFlow, admitCsharpStatementBindings, admitCsharpIterationBindings, admitCsharpNativeStorageBindings } from "../control-flow/native-control-flow.js";
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
 import { type CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import { csharpCallableValueType } from "../callables/value-type.js";
@@ -70,6 +70,7 @@ import {
 import {
   analyzeCsharpDeclarations,
   admitCsharpNativeDeclarations,
+  admitCsharpRawInterfaceDeclarations,
 } from "../declarations/index.js";
 import {
   createCsharpSourceNameBuilder,
@@ -418,7 +419,10 @@ export function analyzeCsharpTargetProgram(
     ...admitCsharpNativeDeclarations(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
       projectTypes, analysis.sourceEvidence, analysis.storage,
       nativeParticipation.participation, admittedOperations.nativeUnreachable,
-      analysis.declarations, callableAdapters.callableDispatch),
+      analysis.declarations, callableAdapters.callableDispatch, classFactories.classFactory, captureStorage),
+    ...admitCsharpNativeStorageBindings(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
+      analysis.storage, admittedOperations.nativeRefReturn, nativeParticipation.participation,
+      analysis.sourceEvidence.compileTimeMetadata, admittedOperations.nativeUnreachable),
   ];
   if (nonCallableIssues.length > 0) return rejectedTargetStage(nonCallableIssues);
   const pendingUses = nativeDemand.unadmitted.filter(use => use.kind === "pending-use");
@@ -436,6 +440,11 @@ export function analyzeCsharpTargetProgram(
     bindingPatterns, conversions, nativeValueCarriers, sourceEvidence: analysis.sourceEvidence, names,
   }, analysis.requiredRecords);
   if (objectShapeDemand.kind === "rejected") return objectShapeDemand;
+  const rawInterfaceIssues = admitCsharpRawInterfaceDeclarations(source.ast, sourceStorage.nodes,
+    nativeDemand.nativeUse, callableAdapters.objectShapes, objectShapeDemand.value, analysis.storage,
+    analysis.sourceEvidence.compileTimeMetadata, nativeParticipation.participation,
+    admittedOperations.nativeUnreachable);
+  if (rawInterfaceIssues.length > 0) return rejectedTargetStage(rawInterfaceIssues);
   const records = createCsharpProgramRecords({
     objectShapeDemand: objectShapeDemand.value,
     nativeValueCarriers,
