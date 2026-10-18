@@ -1,12 +1,12 @@
-import type { CsharpProviderMemberSourceIdentity, CsharpProviderParameterRelation, CsharpProviderSignatureSourceIdentity, CsharpProviderSourceIdentityBase, CsharpProviderTargetRelation, CsharpProviderTypeParameterRelation, CsharpProviderTypeSourceIdentity, CsharpProviderValueSourceIdentity } from "../../../target-model/identities/provider-relations.js";
+import type { CsharpProviderMemberSourceIdentity, CsharpProviderParameterRelation, CsharpProviderSignatureSourceIdentity, CsharpProviderSourceIdentityBase, CsharpProviderTargetRelation, CsharpProviderTypeParameterRelation, CsharpProviderTypeSourceIdentity, CsharpProviderValueSourceIdentity } from "../../target-model/identities/provider-relations.js";
 
-export type { CsharpProviderArgumentAdapter } from "../../../target-model/conversions/selection.js";
+export type { CsharpProviderArgumentAdapter } from "../../target-model/conversions/selection.js";
 import type { ExtensionDiagnostic, ProviderMemberKey, ProviderVirtualDeclarationFact } from "@tsonic/tsts";
-import type { CsharpTargetMember } from "../../../target-model/types/model.js";
+import type { CsharpTargetMember } from "../../target-model/types/model.js";
 import {
   canonicalProviderValue,
-} from "../../model/canonical-value.js";
-import { isCsharpIntegralTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+} from "./canonical-value.js";
+import { isCsharpIntegralTargetType } from "../../target-model/types/carriers/scalar-types.js";
 
 export type CsharpProviderSourceIdentity =
   | CsharpProviderTypeSourceIdentity

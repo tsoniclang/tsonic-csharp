@@ -3,12 +3,12 @@ import test from "node:test";
 
 import {
   createDotnetReflectionTypeDataProvider,
-} from "../../../../helpers/dotnet-reflection-provider.mjs";
+} from "../../../helpers/dotnet-reflection-provider.mjs";
 import {
   checkCsharpSource,
   compileCsharpSource,
-} from "../../../../helpers/direct-csharp-session.mjs";
-import { getCompleteDotnetModule } from "../../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
+} from "../../../helpers/direct-csharp-session.mjs";
+import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 
 test(".NET provider source refs use public type-family exports for every concrete arity", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });

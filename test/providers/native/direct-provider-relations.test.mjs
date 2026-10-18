@@ -5,7 +5,7 @@ import {
   providerMethod,
   signatureRelation,
   test,
-} from "../../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
+} from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
 import {
   assertCsharpProviderPolicyIsNonContradictory,
   createCsharpProviderRejectionCatalog,
@@ -13,7 +13,7 @@ import {
   providerMemberSourceIdentity,
   providerSignatureSourceIdentity,
   providerTypeSourceIdentity,
-} from "../../../../dist/providers/native/relations/index.js";
+} from "../../../dist/providers/model/provider-relations.js";
 
 function providerRejection(source, message = "unsupported provider operation") {
   return {

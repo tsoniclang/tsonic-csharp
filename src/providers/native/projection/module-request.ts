@@ -3,17 +3,17 @@ import type {
 } from "@tsonic/tsts";
 import type {
   DotnetProviderResolutionContext,
-} from "./slices.js";
+} from "./module-slices.js";
 import {
   dotnetProviderResolutionContext,
-} from "./slices.js";
+} from "./module-slices.js";
 import {
   dotnetModuleSpecifierPolicy,
   parseDotnetModuleSpecifier,
-} from "./specifier.js";
+} from "./module-specifier.js";
 import type {
   DotnetModuleSpecifierPolicy,
-} from "./specifier.js";
+} from "./module-specifier.js";
 
 export interface DotnetProviderModuleRequest {
   readonly moduleSpecifier: string;

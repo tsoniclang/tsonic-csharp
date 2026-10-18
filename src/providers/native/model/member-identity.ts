@@ -1,7 +1,7 @@
 import type {
   DotnetMemberDeclaration,
   DotnetTypeDeclaration,
-} from "../model/index.js";
+} from "./index.js";
 
 /**
  * The exact provider member identity for one .NET member.

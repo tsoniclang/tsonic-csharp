@@ -14,7 +14,7 @@ import type {
 import {
   dotnetTypeTargetMemberProjections,
   providerSignatureProjectionKey,
-} from "../relations/target-relations.js";
+} from "../projection/target-relations.js";
 import {
   dotnetFunctionToTargetMemberRecords,
 } from "../projection/members.js";
@@ -22,7 +22,7 @@ import type {
   DotnetTargetMemberProjection,
   DotnetTargetFunctionProjection,
   DotnetTargetRelationLookup,
-} from "../relations/target-relations.js";
+} from "../projection/target-relations.js";
 import type {
   DotnetProviderCacheRequest,
 } from "./cache.js";

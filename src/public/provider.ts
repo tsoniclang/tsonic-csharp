@@ -47,8 +47,8 @@ export {
   assertCsharpProviderPolicyIsNonContradictory,
   createCsharpProviderRejectionCatalog,
   createCsharpProviderRelationCatalog,
-} from "../providers/native/relations/index.js";
-export type { CsharpProviderArgumentAdapter, CsharpProviderIdentityResult, CsharpProviderSourceIdentity, CsharpProviderTargetRejection, CsharpProviderTargetRejectionDiagnostic } from "../providers/native/relations/index.js";
+} from "../providers/model/provider-relations.js";
+export type { CsharpProviderArgumentAdapter, CsharpProviderIdentityResult, CsharpProviderSourceIdentity, CsharpProviderTargetRejection, CsharpProviderTargetRejectionDiagnostic } from "../providers/model/provider-relations.js";
 export type { CsharpProviderBindingTypeArgumentSource, CsharpProviderMemberSourceIdentity, CsharpProviderObjectLiteralConstruction, CsharpProviderParameterRelation, CsharpProviderSignatureSourceIdentity, CsharpProviderSourceIdentityBase, CsharpProviderTargetRelation, CsharpProviderTypeParameterRelation, CsharpProviderTypeSourceIdentity, CsharpProviderValueSourceIdentity, CsharpTargetReceiverRelation } from "../target-model/identities/provider-relations.js";
 export { substituteTargetTypeParameters } from "../target-model/types/substitution.js";
 export { csharpApplyExternAliasToTargetBinding } from "../policy/types/project/extern-aliases.js";

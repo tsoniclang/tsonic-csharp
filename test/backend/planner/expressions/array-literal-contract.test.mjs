@@ -6,7 +6,7 @@ import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../
 import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 import { freshArraySpreadCostSource } from "../../../../../tsonic/test/fixtures/fresh-array-spread.mjs";
 import { analyzeCsharpTargetProgram } from "../../../../dist/analysis/program/index.js";
-import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/relations/resolver.js";
+import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/relations.js";
 import { createCsharpTargetConfiguration } from "../../../../dist/options/csharp-target-options.js";
 import { createCsharpPlanningContext, createCsharpMemberPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { planExpression } from "../../../../dist/backend/planner/expressions/index.js";

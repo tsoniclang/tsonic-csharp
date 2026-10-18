@@ -1,7 +1,7 @@
 import type {
   DotnetProviderDiagnostic,
   DotnetProviderModuleResult,
-} from "../provider.js";
+} from "../projection/provider.js";
 
 export function isDotnetProviderDiagnostic(value: DotnetProviderModuleResult): value is DotnetProviderDiagnostic {
   return "code" in value && "message" in value;

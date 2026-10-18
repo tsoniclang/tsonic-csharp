@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createTestWorkspace } from "../../../../../tsonic/test/scripts/test-workspaces.mjs";
-import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/relations/resolver.js";
-import { createDotnetReflectionTypeDataProvider } from "../../../helpers/dotnet-reflection-provider.mjs";
-import { providerDeclaration } from "../../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
-import { csharpProviderPolicyContribution } from "../../../../dist/public/provider.js";
+import { createTestWorkspace } from "../../../../tsonic/test/scripts/test-workspaces.mjs";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/relations.js";
+import { createDotnetReflectionTypeDataProvider } from "../../helpers/dotnet-reflection-provider.mjs";
+import { providerDeclaration } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
+import { csharpProviderPolicyContribution } from "../../../dist/public/provider.js";
 
 test("compilation selection reuses exact immutable facts, not spelling or partial identities", () => {
   const requests = [];
@@ -37,7 +37,7 @@ test("compilation selection reuses exact immutable facts, not spelling or partia
 });
 
 test("compilation reference validation retains the reflection provider's actual mutation guard", () => {
-  const root = createTestWorkspace(new URL("../../../../.temp/reference-integrity/", import.meta.url).pathname, "selection-");
+  const root = createTestWorkspace(new URL("../../../.temp/reference-integrity/", import.meta.url).pathname, "selection-");
   const reference = join(root, "Evidence.dll");
   writeFileSync(reference, "first");
   const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });

@@ -5,13 +5,13 @@ import {
   createDotnetSourceDeclarationProvider,
   dotnetModuleToProviderDeclarationModel,
   validateDotnetProviderDeclarationModelContract,
-} from "../../../../../dist/public/provider-dotnet.js";
+} from "../../../../dist/public/provider-dotnet.js";
 import {
   createDotnetReflectionTypeDataProvider,
-} from "../../../../helpers/dotnet-reflection-provider.mjs";
-import { tryDotnetTypeRefToProviderType } from "../../../../../dist/providers/native/model/index.js";
-import { dotnetMembersToProviderMembers } from "../../../../../dist/providers/native/projection/declarations/members.js";
-import { completeProviderDeclarationRequest } from "../../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
+} from "../../../helpers/dotnet-reflection-provider.mjs";
+import { tryDotnetTypeRefToProviderType } from "../../../../dist/providers/native/model/index.js";
+import { dotnetMembersToProviderMembers } from "../../../../dist/providers/native/projection/declarations/members.js";
+import { completeProviderDeclarationRequest } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 
 const moduleSpecifier = "@tsonic/dotnet/System.js";
 
