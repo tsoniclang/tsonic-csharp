@@ -11,10 +11,12 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpSourceEvidenceResult } from "../source-evidence/model.js";
 import type { CsharpBindingPatternAnalysis } from "../control-flow/binding-patterns.js";
+import type { CsharpNamePlan } from "../../target-model/names/model.js";
 
 export interface CsharpNativeDemandAnalysisInput extends Omit<CsharpNativeConstructInput, "baseCalls" | "unusedDefault">,
   Omit<CsharpNativeOperandInput, "unusedDefault"> {
   readonly navigation: CsharpNativeConstructInput["navigation"] & Pick<TargetPlanningSourceNavigation, "declarationUseSummary">;
+  readonly names: Pick<CsharpNamePlan, "resolve">;
   readonly expected: CsharpExpectedNativeUseAdmission;
   readonly declarations: Pick<CsharpDeclarationClassifications, "runtimeDefault">;
   readonly objectShapes: Pick<CsharpObjectShapeClassifications, "resolveTarget">;

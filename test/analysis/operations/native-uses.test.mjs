@@ -22,7 +22,7 @@ function owners(sourceText, surface = "native") {
   const participation = records.nativeParticipation;
   const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: program.sourceFiles, participation, evidence: records,
     operations: records, valueReads: records, objectShapes: program.objectShapes });
-  const input = { ast, sourceFiles: program.sourceFiles, navigation: program.sourceNavigation, evidence: records, operations: records,
+  const input = { ast, sourceFiles: program.sourceFiles, navigation: program.sourceNavigation, names: program.names, evidence: records, operations: records,
     callableTarget: records.callableTarget,
     nativeExpressionIssues: [],
     declarations: records, objectShapes: program.objectShapes,

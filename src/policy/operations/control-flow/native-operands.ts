@@ -2,7 +2,8 @@ import type { AstReader, ExtensionDiagnostic, Node } from "@tsonic/tsts";
 import type { TargetPlanningSourceNavigation } from "@tsonic/target-api/analysis";
 import { sourceDeclarationIsModuleScoped, sourceNodesEqual, sourceExpressionResultDisposition, sourceExpressionValueInputs } from "@tsonic/target-api/source";
 import type { CsharpNativeCallableCreation, CsharpNativeChildUse, CsharpNativeUseSlot, CsharpNativeDiscardedGuard } from "../../../target-model/records/native-demand.js";
-import type { CsharpTargetOperationClassifications, CsharpSourceArgumentGrouping } from "../../../target-model/records/operations.js";
+import type { CsharpTargetOperationClassifications, CsharpSourceArgumentGrouping, CsharpSourceOwnedMemberClassification } from "../../../target-model/records/operations.js";
+import type { CsharpTargetPropertySelection, CsharpTargetElementSelection } from "../../../target-model/records/member-selections.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
 import type { CsharpValueReadClassifications } from "../../../target-model/records/conversions.js";
 import type { CsharpClassFactoryIndex } from "../../../target-model/records/class-factories.js";
@@ -42,6 +43,11 @@ export type CsharpNativeOperandSourceRefusal =
   | { readonly kind: "extension"; readonly diagnostic: ExtensionDiagnostic }
   | { readonly kind: "target"; readonly code: string; readonly message: string; readonly evidence?: readonly string[] };
 
+export interface CsharpNativeSourceMemberRead {
+  readonly selection: Extract<CsharpTargetPropertySelection | CsharpTargetElementSelection, { readonly kind: "source-owned" }>;
+  readonly classification: CsharpSourceOwnedMemberClassification | undefined;
+}
+
 export interface CsharpNativeOperandSelection {
   readonly runtime: readonly CsharpNativeChildUse[];
   readonly planning: readonly CsharpNativeOperandStep[];
@@ -53,6 +59,7 @@ export interface CsharpNativeOperandSelection {
   readonly refusalCode?: string;
   readonly sourceRefusal?: CsharpNativeOperandSourceRefusal;
   readonly discardedGuard?: CsharpNativeDiscardedGuard;
+  readonly sourceMemberRead?: CsharpNativeSourceMemberRead;
 }
 
 interface CsharpNativeArgumentRefusal {
@@ -367,9 +374,14 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     if (reference !== undefined && sourceDeclarationIsModuleScoped(reference.declaration, ast) &&
       (ast.is.IsFunctionDeclaration(reference.declaration) || ast.is.IsVariableDeclaration(reference.declaration) ||
         ast.is.IsBindingElement(reference.declaration) || ast.is.IsExportAssignment(reference.declaration))) return chosen([]);
-    const selection = operations.selectedProperty.get(node)?.selection;
+    const property = operations.selectedProperty.get(node);
+    const selection = property?.selection;
     if (selection?.kind === "resolved") return chosen(selection.receiver.kind === "none" ? [] : receiverUses(selection.source.receiver));
-    if (selection?.kind === "source-owned") return chosen(receiverUses(selection.source.receiver));
+    if (selection?.kind === "source-owned") {
+      const selected = chosen(receiverUses(selection.source.receiver));
+      return access === "location" ? selected : Object.freeze({ ...selected,
+        sourceMemberRead: Object.freeze({ selection, classification: property?.sourceOwned }) });
+    }
     if (selection?.kind === "rejected") return refused("operation-unresolved", undefined, undefined, selection.diagnostic);
     if (selection?.kind === "missing") return sourceRefused("CSHARP_TARGET_PROPERTY_NOT_CLOSED", selection.reason);
     if (selection?.kind === "conflict") return sourceRefused("CSHARP_TARGET_PROPERTY_IDENTITY_CONFLICT", selection.reason);
@@ -393,7 +405,10 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     const unwrapped = receiverType === undefined ? undefined : getCsharpNullableElementTargetType(receiverType) ?? receiverType;
     if (selected?.jsValue.kind === "not-js-value" && selected.target?.kind === "source-owned" && selected.sourceOwned === undefined &&
       selected.target.source.selectedElementIndex !== undefined && unwrapped?.kind === "tuple") return chosen(receiverUses(selected.target.source.receiver));
-    return chosen([...use(element?.Expression, { kind: "receiver" }), ...use(element?.ArgumentExpression, { kind: "key" })]);
+    const operands = chosen([...use(element?.Expression, { kind: "receiver" }), ...use(element?.ArgumentExpression, { kind: "key" })]);
+    return access !== "location" && selected?.jsValue.kind === "not-js-value" && selected.target?.kind === "source-owned" &&
+      selected.sourceOwned !== undefined ? Object.freeze({ ...operands,
+        sourceMemberRead: Object.freeze({ selection: selected.target, classification: selected.sourceOwned }) }) : operands;
   }
   if (ast.is.IsArrayLiteralExpression(node)) {
     const inputs = sourceExpressionValueInputs(ast, node);

@@ -14,6 +14,7 @@ import type {
 import {
   csharpSourcePrimitiveTargetType,
 } from "../../types/index.js";
+import type { CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
 
 export interface CsharpNumericBinaryPromotion {
   readonly leftType: TargetTypeRef;
@@ -125,6 +126,19 @@ export function csharpUnaryNumericPromotion(
   return smallIntegralKinds.has(type.name)
     ? csharpSourcePrimitiveTargetType("int32")
     : type;
+}
+
+export function csharpUnaryOperationResultType(
+  operator: Extract<CsharpSourceOperator, "!" | "~" | "+" | "-" | "++" | "--">,
+  operand: TargetTypeRef,
+): TargetTypeRef {
+  if (operator === "!") return csharpSourcePrimitiveTargetType("bool");
+  if (operator === "++" || operator === "--") return operand;
+  const promoted = csharpUnaryNumericPromotion(operand);
+  if (promoted === undefined) return operand;
+  return operator === "-" && promoted.kind === "source-primitive" && promoted.name === "uint32"
+    ? csharpSourcePrimitiveTargetType("int64")
+    : promoted;
 }
 
 function literalAdaptation(

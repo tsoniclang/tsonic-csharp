@@ -17,6 +17,7 @@ import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 import type { CsharpNativePropertyKey } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpNativeDemandAnalysis, CsharpNativeDemandAnalysisInput, CsharpNativeUnadmitted, CsharpNativeUnadmittedReason } from "./native-demand-model.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import { admitCsharpSourceOwnedMemberRead } from "./member-access.js";
 
 interface VisitedUse {
   readonly site: TargetUseSiteRef;
@@ -272,10 +273,16 @@ export function analyzeCsharpNativeDemand(
       return previous.state === "visiting" ? pending(site, expression, "cyclic-use") : previous.visited;
     }
     const expected = input.expected.expectedUse.get(site);
-    const selected: CsharpNativeOperandSelection = expected?.literal === undefined
+    const operands: CsharpNativeOperandSelection = expected?.literal === undefined
       ? selectCsharpNativeOperandUses(policyInput, expression, child.access)
       : Object.freeze({ runtime: Object.freeze([]), planning: Object.freeze([]), flow: "sequence", carrier: expected.carrier,
         resultUse: sourceExpressionResultDisposition(ast, expression).kind === "discarded" ? "discarded" : "consumed" });
+    const member = operands.sourceMemberRead === undefined ? undefined
+      : admitCsharpSourceOwnedMemberRead(input, expression, operands.sourceMemberRead);
+    const selected: CsharpNativeOperandSelection = member?.kind === "pending"
+      ? Object.freeze({ ...operands, refusal: "operation-unresolved", refusalMessage: member.reason })
+      : member?.kind === "rejected" ? Object.freeze({ ...operands,
+        sourceRefusal: Object.freeze({ kind: "target", code: "CSHARP_UNSUPPORTED_AST", message: member.reason }) }) : operands;
     if (selected.sourceRefusal !== undefined) {
       if (!refusedSourceExpressions.has(expression)) {
         refusedSourceExpressions.add(expression);
