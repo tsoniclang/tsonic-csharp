@@ -5,7 +5,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
-import { predefined, sameCsharpType } from "../types/index.js";
+import { predefined } from "../types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import {
   allocateForInNames,
@@ -23,7 +23,6 @@ import {
 } from "../../../analysis/operations/index.js";
 import {
   getCsharpTypeForForInCollection,
-  getForInKeyType,
   planForInBinding,
   planForInBindingActivationForIndex,
 } from "./statement-for-in-binding.js";
@@ -67,15 +66,10 @@ export function planForInStatement(
     return [];
   }
   const binding = planForInBinding(
-    statement.Initializer,
-    selectedIteration.elementType,
-    sourceFile,
+    selectedIteration,
     input,
     diagnostics,
   );
-  if (binding === undefined) {
-    return [];
-  }
   if (isCsharpObjectShapeKeyIteration(selectedIteration)) {
     return planObjectShapeForInStatement(statementNode, statement, binding, selectedIteration, sourceFile, input, diagnostics, state, planNestedStatementBody);
   }
@@ -84,14 +78,6 @@ export function planForInStatement(
   }
   if (!isCsharpIndexKeyIteration(selectedIteration)) {
     diagnostics.push(unsupportedNodeDiagnostic(statementNode, "C# for-in emission received an unsupported exact iteration policy."));
-    return [];
-  }
-  const keyType = getForInKeyType(input.scope.typeParameterNames, selectedIteration, statementNode, diagnostics);
-  if (keyType === undefined) {
-    return [];
-  }
-  if (binding.currentType !== undefined && !sameCsharpType(binding.currentType, keyType)) {
-    diagnostics.push(unsupportedNodeDiagnostic(binding.node, "For-in key binding must have the finalized provider key type."));
     return [];
   }
   if (statement.Expression === undefined) {
@@ -115,7 +101,6 @@ export function planForInStatement(
   const { indexName, collectionName } = allocateForInNames(state);
   const bindingActivation = planForInBindingActivationForIndex(
     binding,
-    keyType,
     indexName,
     selectedIteration.lowering,
     diagnostics,

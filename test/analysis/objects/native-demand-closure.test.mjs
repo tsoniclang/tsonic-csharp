@@ -12,6 +12,10 @@ import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/t
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { monomorphicStructuralOptionalFiles } from "../../../../tsonic/test/fixtures/generic-structural-methods.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { selectCsharpIteration } from "../../../dist/policy/operations/iteration/index.js";
+import { analyzeCsharpNativeArtifactDemand } from "../../../dist/analysis/objects/native-demand.js";
+import { admitCsharpForInBindings } from "../../../dist/analysis/control-flow/binding-patterns.js";
+import { csharpStringTargetType, csharpTsValueTargetType } from "../../../dist/target-model/types/index.js";
 
 const header = 'import type { int32 } from "@tsonic/core/types.js";';
 const programs = [
@@ -22,6 +26,150 @@ const programs = [
   ["receiver-bearing literal method", `export function make(seed: int32) { return { value: seed, read(): int32 { return this.value; } }; }`],
   ["two separate same-role uses", `export function pair(left: int32, right: int32) { const first = { left }; const second = { right }; return { first, second }; }`],
 ];
+
+for (const surface of ["native", "js"]) for (const [label, declaration] of [
+  ["nullable initialized with string", 'let key: string | null = "";'],
+  ["nullable initialized with absence", "let key: string | null = null;"],
+  ["union initialized with string", 'let key: string | number = "";'],
+  ["union initialized with number", "let key: string | number = 1;"],
+  ["unknown initialized with string", 'let key: unknown = "";'],
+  ["plain string", 'let key = "";'],
+]) test(`${surface}: object-shape for-in retains checked ${label} binding storage`, { timeout: 300_000 }, () => {
+  const { compiled, program, source, nodes } = compileCsharpRequiredRecordSource(header + `
+    export function run(): boolean {
+      ${declaration}
+      for (key in { value: 1 as int32 }) {}
+      return key === "value";
+    }
+  `, surface);
+  const statement = nodes.find(node => source.ast.is.IsForInStatement(node));
+  const collection = source.ast.as.AsForInOrOfStatement(statement)?.Expression;
+  const selected = program.records.iteration.get(statement);
+  assert.equal(selected?.kind === "resolved" && selected.iterationKind === "for-in" &&
+    selected.lowering.kind === "object-shape-keys", true,
+  "the actual checked loop has its exact sealed object-shape iteration selection");
+  const binding = selected.binding;
+  assert.equal(binding !== undefined && Object.isFrozen(selected) && Object.isFrozen(binding) && binding.kind === "assignment" &&
+    binding.node === source.ast.as.AsForInOrOfStatement(statement).Initializer &&
+    binding.storageType === program.records.storageType.get(binding.declaration), true,
+  "the same immutable iteration transports the actual destination storage, not a narrowed read or assumed string slot");
+  const required = { family: "iteration", subject: statement, construct: "consumed native for-in key assignment", producer: "admitCsharpForInBindings" };
+  assertCsharpRequiredRecords(program.records, [required]);
+  for (const [reason, replacement] of [
+    ["missing binding", undefined],
+    ["missing conversion", Object.freeze({ ...binding, conversion: undefined })],
+    ["missing checked declaration", Object.freeze({ ...binding, declaration: undefined })],
+  ]) {
+    const damaged = Object.freeze({ ...selected, binding: replacement });
+    const iteration = Object.freeze({ get: node => node === statement ? damaged : program.records.iteration.get(node) });
+    assert.throws(() => createCsharpProgramRecords(csharpRecordInput({ ...program.records, iteration }), [required]),
+      /Required C# semantic plan 'iteration'/u, `${reason} is refused at publication, never repaired by a renderer`);
+  }
+  const order = program.records.nativeUse.order(statement);
+  assert.equal(collection !== undefined && order !== undefined && order.some(step =>
+    step.kind === "use" && program.records.nativeUse.get(step.site)?.expression === collection), true,
+  "the native construct visits the same checked collection admitted by iteration analysis");
+  const artifact = program.records.objectShapeArtifact.get(objectShapeArtifactKey(selected.lowering.objectShape));
+  assert.equal(artifact !== undefined && artifact.capabilities.includes("enumerable-keys"), true,
+    "the native-demand owner completed the exact enumerable collection before planning");
+  executeCsharpConstruction(compiled, `artifact-demand-for-in-${surface}-${label.replaceAll(" ", "-")}`);
+});
+
+test("object-shape iteration cannot admit a missing source collection", () => {
+  const selected = selectCsharpIteration({}, {}, undefined, {});
+  assert.equal(selected.kind, "rejected", "the existing iteration owner refuses the missing expression before sealing");
+  assert.equal(selected.reason, "Checked iteration has no iterable expression.", "the exact source refusal belongs to the iteration owner");
+});
+
+test("for-in binding completion publishes once from full storage and existing conversion inputs", () => {
+  const statement = {};
+  const name = {};
+  const declaration = {};
+  const keyType = csharpStringTargetType();
+  const storageType = csharpTsValueTargetType();
+  const source = Object.freeze({ iterationKind: "for-in" });
+  const lowering = Object.freeze({ kind: "object-shape-keys", objectShape: {} });
+  const prepared = Object.freeze({ kind: "resolved", iterationKind: "for-in", source, lowering,
+    iterableType: {}, elementType: keyType });
+  const conversion = Object.freeze({ kind: "js-value-box" });
+  let storageReads = 0;
+  let conversionReads = 0;
+  let preparedReads = 0;
+  const required = [];
+  const result = admitCsharpForInBindings({
+    ast: { is: { IsForInStatement: node => node === statement, IsVariableDeclarationList: () => false,
+      IsIdentifier: node => node === name }, as: { AsForInOrOfStatement: () => ({ Initializer: name }) } },
+    nodes: [statement],
+    navigation: { sourceReferenceFor: node => node === name ? { declaration } : undefined },
+    storage: { storageType: { get(node) { storageReads += 1; return node === declaration ? storageType : undefined; } } },
+    conversions: { conversion: { get(sourceType, targetType, mode) {
+      conversionReads += 1;
+      assert.equal(sourceType === keyType && targetType === storageType && mode === "implicit", true,
+        "the existing canonical conversion producer receives the exact key and destination carriers");
+      return conversion;
+    } } },
+    operations: { issues: [], iteration: { get(node) { preparedReads += 1; return node === statement ? prepared : undefined; } } },
+    nativeDemand: { requiredBindingRoots: [statement], nativeUse: { order: node => node === statement ? [] : undefined } },
+  }, required);
+  const selected = result.iteration.get(statement);
+  assert.equal(selected !== prepared && selected.source === source && selected.lowering === lowering &&
+    selected.binding.storageType === storageType && selected.binding.conversion === conversion &&
+    selected.binding.node === name && selected.binding.declaration === declaration && Object.isFrozen(selected.binding), true,
+  "one completed family retains the original selection identities and one admitted conversion");
+  assert.equal(Object.hasOwn(prepared, "binding"), false, "private raw preparation is not second-written or mutated");
+  for (let index = 0; index < 4; index += 1) assert.equal(result.iteration.get(statement) === selected, true,
+    "completed iteration reads are pure fixed lookups");
+  assert.equal(storageReads === 1 && conversionReads === 1 && preparedReads === 1, true,
+    "neither final reads nor the renderer can re-run the storage, conversion or source producer");
+  assert.equal(required.length === 1 && required[0].family === "iteration" && required[0].subject === statement, true,
+    "the existing iteration family has exact consumed-source coverage");
+});
+
+for (const [label, targetType] of [
+  ["opaque", { kind: "opaque", id: "ForInOpaque" }],
+  ["missing render shape", { kind: "target-named", id: "ForInMissingRender", csharpAllowsRefLikeTypeArguments: [] }],
+  ["invalid native name", { kind: "target-named", id: "ForInInvalidName", csharpAllowsRefLikeTypeArguments: [],
+    csharpRender: { kind: "named", name: "not-a-name" } }],
+]) test(`object-shape for-in refuses ${label} at its existing native-demand owner`, () => {
+  const sourceFile = {};
+  const statement = {};
+  const absent = Object.freeze({ get() {} });
+  const shape = Object.freeze({ targetType, members: Object.freeze([]) });
+  const required = [];
+  const selected = analyzeCsharpNativeArtifactDemand({
+    ast: { getSourceFile: () => sourceFile, is: {
+      IsClassDeclaration: () => false, IsClassExpression: () => false, IsInterfaceDeclaration: () => false,
+    } },
+    sourceFiles: [sourceFile],
+    names: { typeParameterNames: [] },
+    participation: absent,
+    sourceEvidence: { compileTimeMetadata: absent },
+    nativeDemand: { requiredBindingRoots: [], nativeUse: {
+      order: node => node === sourceFile ? [{ kind: "construct", construct: statement }] : [],
+    } },
+    operations: { nativeUnreachable: absent, iteration: { get: node => node === statement ? {
+      kind: "resolved", iterationKind: "for-in", lowering: { kind: "object-shape-keys", objectShape: shape },
+    } : undefined } },
+    callables: absent,
+    declarations: { returnContract: absent, runtimeDefault: absent },
+    storage: { lambdaParameterType: absent, requiredStorageType: absent },
+    callableAdapters: { callableDispatch: absent },
+    nativeValueCarriers: { nativeValueDeclaration: absent },
+    captureStorage: { captureFrame: absent, captureClosure: absent, captureFrameShape: absent },
+    bindingPatterns: { bindingPatternProjection: absent },
+    conversions: { conversion: absent },
+    objectShapes: {
+      targetShapes: Object.freeze({ [targetTypeRefKey(targetType)]: shape }),
+      resolveTarget: () => shape,
+      propertyOrder: () => ({ kind: "resolved", members: [] }),
+    },
+  }, required);
+  assert.equal(selected.kind, "rejected", "a source carrier without native syntax is rejected before artifact sealing");
+  assert.equal(selected.diagnostics.some(diagnostic => diagnostic.sourceNode === statement &&
+    diagnostic.message === "Object-shape fact must carry a renderable named target carrier type before C# emission."), true,
+  "the exact iteration subject is refused by the existing demandShape admission rule");
+  assert.equal(required.length, 0, "no required artifact or planner input is published from the refused demand");
+});
 
 for (const surface of ["native", "js"]) for (const [name, body] of programs) {
   test(`${surface}: ${name} has complete immutable artifact demand before planning`, () => {
@@ -175,7 +323,8 @@ function spreadDemandFixture(sourceMembers, targetMembers = sourceMembers, addit
     csharpRender: { kind: "named", name: "SpreadTarget" } }, members: targetMembers };
   const shapes = new Map([source, target, ...additionalShapes].map(shape => [targetTypeRefKey(shape.targetType), shape]));
   let reads = 0;
-  const host = { ast: {}, names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
+  const host = { ast: { is: { IsTypeParameterDeclaration: () => false }, forEachChild() {} },
+    names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
     conversions: { conversion: { get() {} } },
     objectShapes: { targetShapes: Object.freeze(Object.fromEntries(shapes)),
       resolveTarget(type) { reads += 1; return shapes.get(targetTypeRefKey(type)); },

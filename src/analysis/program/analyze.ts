@@ -123,7 +123,7 @@ import { createCsharpSourceProfileStorageEffects } from "../../policy/operations
 import { analyzeCsharpGenericAdoption, analyzeCsharpPromiseResults } from "../callables/promise-results.js";
 import { analyzeCsharpRefLikePlacements } from "../storage/native-placement.js";
 import { prepareCsharpCallableCreations } from "../callables/creation.js";
-import { analyzeCsharpBindingPatterns, admitCsharpBindingPatterns } from "../control-flow/binding-patterns.js";
+import { analyzeCsharpBindingPatterns, admitCsharpBindingPatterns, admitCsharpForInBindings } from "../control-flow/binding-patterns.js";
 import { admitCsharpExpectedNativeUses } from "../expected-types/native-uses.js";
 import { analyzeCsharpNativeDemand } from "../operations/native-demand.js";
 import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/project/binary-execution-drivers.js";
@@ -672,6 +672,10 @@ function analyzeIteration(
     nativeExpressionIssues: evidence.nativeExpressionIssues,
   }, requiredRecords);
   const bindingPatterns = admitCsharpBindingPatterns(bindingCandidates, nativeDemand.requiredBindingRoots, requiredRecords);
+  const admittedOperations = admitCsharpForInBindings({
+    ast: source.ast, nodes: sourceStorage.nodes, navigation: source.navigation,
+    operations, storage: storageRepresentations, conversions: preparedConversions, nativeDemand,
+  }, requiredRecords);
   conversionAnalysis.close(nativeDemand, requiredRecords);
   const conversions = conversionAnalysis.seal();
   const refLikeDiagnostics = analyzeCsharpRefLikePlacements({
@@ -692,7 +696,7 @@ function analyzeIteration(
     typeSystem,
     sourceEvidence,
     nativeExpressionIssues: evidence.nativeExpressionIssues,
-    operations,
+    operations: admittedOperations,
     declarations,
     objectShapes: sealedObjectShapes,
     callables,

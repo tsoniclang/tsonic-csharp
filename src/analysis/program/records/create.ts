@@ -1,3 +1,4 @@
+import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
 import type { CsharpAttributeApplicationIndex } from "../../../target-model/records/attributes.js";
 import type { CsharpProjectCallableAdapters } from "../../../target-model/records/callable-adapters.js";
 import type { CsharpCaptureStorage } from "../../../target-model/records/capture-storage.js";
@@ -34,7 +35,7 @@ export interface CsharpProgramRecordInput {
   readonly sourceEvidence: CsharpSourceEvidenceIndex;
   readonly flowReads: CsharpFlowReadClassifications;
   readonly valueReads: CsharpValueReadClassifications;
-  readonly operations: CsharpTargetOperationClassifications;
+  readonly operations: CsharpTargetOperationClassifications<CsharpAdmittedIteration>;
   readonly expectedTypes: CsharpExpectedTypeClassifications;
   readonly declarations: CsharpDeclarationClassifications;
   readonly storage: CsharpStorageClassifications;
