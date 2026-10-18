@@ -32,7 +32,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
-import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import {
   createDestructuringPlannerState,
   declareCsharpLocalBindingName,
@@ -225,8 +225,8 @@ export function planStatements(
       return declarations.flatMap((declaration) => planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state));
     }
     default:
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Statement is outside the current C# planning surface."));
-      return [];
+      return failCsharpPlannerInvariant(
+        "C# statement planner caller contract excludes module-only or unadmitted checked statement kinds.", node);
   }
 }
 
