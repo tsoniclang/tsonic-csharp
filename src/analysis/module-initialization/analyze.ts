@@ -3,15 +3,20 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import {
   AsExpressionStatement,
+  AsBindingElement,
   AsVariableDeclaration,
   AsVariableStatement,
+  HasSourceKind,
+  KindArrayBindingPattern,
   KindClassDeclaration,
   KindEmptyStatement,
   KindEnumDeclaration,
   KindExportDeclaration,
   KindFunctionDeclaration,
   KindImportDeclaration,
+  KindIdentifier,
   KindInterfaceDeclaration,
+  KindObjectBindingPattern,
   KindTypeAliasDeclaration,
   KindVariableStatement,
   SourceFile_FileName,
@@ -42,13 +47,18 @@ export function analyzeCsharpModuleInitialization(
 ): CsharpModuleInitializationAnalysis {
   const entries = new Map<string, ModuleInitializationEntry>();
   const directCallables = new WeakMap<Node, "public" | "internal">();
+  const bindingInitialization = new WeakMap<Node, "declaration" | "value">();
   for (const sourceFile of input.sourceFiles) {
     for (const statement of input.source.ast.statements(sourceFile)) {
       const declarations = AsVariableStatement(input.source.ast, statement)?.DeclarationList;
-      if (declarations === undefined || input.source.ast.variableDeclarationKind(declarations) !== "const") continue;
+      if (declarations === undefined) continue;
       for (const declaration of input.source.ast.children(declarations)) {
         if (declaration === undefined || !input.source.ast.is.IsVariableDeclaration(declaration)) continue;
-        const initializer = AsVariableDeclaration(input.source.ast, declaration)?.Initializer;
+        const variable = AsVariableDeclaration(input.source.ast, declaration);
+        const initializer = variable?.Initializer;
+        bindingInitialization.set(declaration, initializer === undefined ? "declaration" : "value");
+        if (initializer !== undefined && variable?.name !== undefined) recordPatternBindings(variable.name);
+        if (input.source.ast.variableDeclarationKind(declarations) !== "const") continue;
         if (initializer === undefined || !input.source.ast.is.IsArrowFunction(initializer) ||
           input.source.ast.typeParameters(initializer).length !== 0) continue;
         const summary = input.source.navigation.declarationUseSummary(declaration);
@@ -103,11 +113,26 @@ export function analyzeCsharpModuleInitialization(
     callableVisibility: Object.freeze({ get(declaration: Node) {
       return directCallables.get(declaration);
     } }),
+    moduleBindingInitialization: Object.freeze({ get(declaration: Node) {
+      return bindingInitialization.get(declaration);
+    } }),
   });
   return Object.freeze({
     index,
     issues: Object.freeze(issues),
   });
+
+  function recordPatternBindings(pattern: Node): void {
+    const { ast } = input.source;
+    if (!HasSourceKind(ast, pattern, KindArrayBindingPattern) &&
+      !HasSourceKind(ast, pattern, KindObjectBindingPattern)) return;
+    for (const element of ast.elements(pattern)) {
+      const binding = AsBindingElement(ast, element);
+      if (element === undefined || binding?.name === undefined) continue;
+      if (HasSourceKind(ast, binding.name, KindIdentifier)) bindingInitialization.set(element, "value");
+      else recordPatternBindings(binding.name);
+    }
+  }
 }
 
 function sourceFileHasDirectRuntimeEffects(

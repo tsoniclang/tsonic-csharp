@@ -119,7 +119,20 @@ function planBindingNameFromProjection(
     }
     if (identity !== undefined) retainBinding?.(identity, declaration!);
     if (local !== undefined) retainBinding?.(local, declaration!);
-    return [...(identity === undefined ? [] : [identity]), ...(local === undefined ? [captured!] : [local])];
+    const moduleBinding = declaration !== undefined &&
+      input.program.records.moduleBindingInitialization.get(declaration) === "value";
+    const initialized = (binding: Extract<CsharpStatement, { readonly kind: "LocalDeclarationStatement" }>): CsharpStatement =>
+      moduleBinding ? {
+        kind: "ExpressionStatement",
+        expression: {
+          kind: "AssignmentExpression",
+          left: { kind: "IdentifierName", name: binding.name },
+          operatorToken: { kind: "EqualsToken" },
+          right: binding.initializer!,
+        },
+      } : binding;
+    return [...(identity === undefined ? [] : [initialized(identity)]),
+      ...(local === undefined ? [captured!] : [initialized(local)])];
   }
   if (HasSourceKind(input.program.source.ast, name, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, name, KindArrayBindingPattern)) {
     const nestedName = allocateDestructuringTemp(state);

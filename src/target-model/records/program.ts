@@ -61,6 +61,7 @@ export interface CsharpProgramRecords {
   readonly requiresModuleInitializer: CsharpModuleInitializationIndex["requiresModuleInitializer"];
   readonly asyncModuleInitializer: CsharpModuleInitializationIndex["asyncModuleInitializer"];
   readonly callableVisibility: CsharpModuleInitializationIndex["callableVisibility"];
+  readonly moduleBindingInitialization: CsharpModuleInitializationIndex["moduleBindingInitialization"];
   readonly int32Remainder: CsharpNumericRepresentations["int32Remainder"];
   readonly awaitCompletion: CsharpTargetOperationClassifications["awaitCompletion"];
   readonly classPropertyStorage: CsharpTargetOperationClassifications["classPropertyStorage"];
