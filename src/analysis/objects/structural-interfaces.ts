@@ -4,6 +4,31 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpStructur
 import type { CsharpStructuralInterfaceMemberEvidence } from "../../target-model/records/heritage.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import { selectCsharpStructuralInterfaceImplementation } from "../../policy/types/objects/method-values.js";
+import { targetTypeRefKey } from "../../target-model/types/equality.js";
+
+export function collectCsharpInheritedInterfaces(
+  policy: Pick<CsharpPolicyContext, "projectTypes">,
+  source: CsharpObjectShapeFact,
+  shapeFor: (type: TargetTypeRef) => CsharpObjectShapeFact | undefined,
+): { readonly all: ReadonlySet<string>; readonly nativeBase: ReadonlySet<string> } {
+  const all = new Set<string>();
+  const nativeBase = new Set<string>();
+  const pending = [...source.implements ?? [], ...policy.projectTypes.directSupertypes(source.targetType) ?? []]
+    .map(type => ({ type, nativeBase: false }));
+  for (let index = 0; index < pending.length; index += 1) {
+    const current = pending[index]!;
+    const inheritedFromClass = current.nativeBase || current.type.kind === "target-named" &&
+      (current.type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "class";
+    const key = targetTypeRefKey(current.type);
+    if (all.has(key) && (!inheritedFromClass || nativeBase.has(key))) continue;
+    all.add(key);
+    if (inheritedFromClass) nativeBase.add(key);
+    const shape = shapeFor(current.type);
+    pending.push(...[...shape?.implements ?? [], ...policy.projectTypes.directSupertypes(current.type) ?? []]
+      .map(type => ({ type, nativeBase: inheritedFromClass })));
+  }
+  return Object.freeze({ all, nativeBase });
+}
 
 export function selectCsharpStructuralInterface(
   policy: CsharpPolicyContext, expression: Node,
@@ -39,7 +64,8 @@ export function selectCsharpStructuralInterface(
       ...(declaration === undefined ? {} : { declaration }),
     }));
   }
-  const selectedImplementation = selectCsharpStructuralInterfaceImplementation({ sourceNode: expression, source, destination, members: Object.freeze(members) });
+  const selectedImplementation = selectCsharpStructuralInterfaceImplementation(policy,
+    { sourceNode: expression, source, destination, members: Object.freeze(members) });
   if (selectedImplementation === undefined) return undefined;
   if (destination.targetType.kind !== "target-named" ||
     (destination.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") {

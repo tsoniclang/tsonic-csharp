@@ -178,9 +178,17 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       ? queries.declarations.signatureDeclaration(signatures[0]!) : undefined;
     const typeParameters = resolveCsharpCallableTypeParameters(methodDeclaration, queries.sourceFile, {
       ast: host.ast,
-      types: { resolveNode: (node, sourceFile) => host.typeResolver.resolveNode(node, sourceFile, nextState(state)) },
+      genericProjections: host.representations.genericProjections,
+      types: { resolveNode: (node, sourceFile) => {
+        const declared = host.typeResolver.resolveNode(node, sourceFile, nextState(state));
+        if (declared === undefined || receiver === undefined) return declared;
+        const selected = host.projectTypes().instantiateMemberType(methodDeclaration, receiver, declared);
+        return selected.kind === "resolved" ? selected.type
+          : selected.kind === "not-project-member" ? declared : undefined;
+      } },
     });
     if (typeParameters === undefined) return undefined;
+    const sourceDeclarations = [...new Set([...declarations, ...(methodDeclaration === undefined ? [] : [methodDeclaration])])];
     const optional = property.optional;
     const bound = host.memoryBindings.hasBoundField([property.symbol, ...declarations]);
     if (bound && (optional || typeIncludesNullish(sourceType, queries) || method || getters.length !== 0 || setters.length !== 0)) return undefined;
@@ -190,9 +198,9 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       sourceSubjects: declarations.length === 0
         ? [property.symbol]
         : [property.symbol, ...declarations],
-      ...(declarations.length === 0
+      ...(sourceDeclarations.length === 0
         ? {}
-        : { sourceDeclarations: Object.freeze([...declarations]) }),
+        : { sourceDeclarations: Object.freeze(sourceDeclarations) }),
       sourceTypes: [sourceType],
       targetName,
       memberKind: method ? "method" : "property",

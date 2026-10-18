@@ -71,117 +71,23 @@ export interface CsharpProjectConstructorPolicyHost {
   ): CsharpTargetNamedTypeRef;
 }
 
-export function createCsharpProjectConstructorPolicy(
+export function selectCsharpProjectConstructorSignature(
   host: CsharpProjectConstructorPolicyHost,
-  definitions: readonly CsharpProjectTypeDefinition[],
-  heritageById: ReadonlyMap<string, CsharpProjectTypeHeritage>,
-): CsharpProjectConstructorPolicy {
-  const issues: CsharpProjectTypeIssue[] = [];
-  const definitionsById = new Map(definitions.map(definition => [definition.id, definition]));
-  const byDeclaration = new WeakMap<
-    CsharpProjectTypeDefinition["declaration"],
-    readonly CsharpProjectForwardingConstructor[]
-  >();
-  const bySignature = new WeakMap<
-    CsharpProjectTypeDefinition["declaration"],
-    ReadonlyMap<Signature, CsharpProjectForwardingConstructor>
-  >();
-
-  for (const definition of definitions) {
-    if (definition.kind !== "class") {
-      continue;
-    }
-    const heritage = heritageById.get(definition.id);
-    if (heritage === undefined || heritage.baseType === undefined) {
-      byDeclaration.set(definition.declaration, Object.freeze([]));
-      bySignature.set(definition.declaration, new Map());
-      continue;
-    }
-    const source = host.navigation.classConstructors(definition.declaration);
-    if (source.kind === "unresolved") {
-      issues.push({
-        node: definition.declaration,
-        code: "CSHARP_PROJECT_CONSTRUCTORS_SOURCE_UNRESOLVED",
-        message: source.reason,
-      });
-      continue;
-    }
-    if (!source.implicit) {
-      byDeclaration.set(definition.declaration, Object.freeze([]));
-      bySignature.set(definition.declaration, new Map());
-      continue;
-    }
-    const constructors: CsharpProjectForwardingConstructor[] = [];
-    const signatures = new Map<Signature, CsharpProjectForwardingConstructor>();
-    const constructorsByTargetSignature = new Map<
-      string,
-      CsharpProjectForwardingConstructor
-    >();
-    for (const sourceSignature of source.signatures) {
-      const resolved = resolveForwardingConstructor(
-        host,
-        definition,
-        heritage.baseType,
-        sourceSignature,
-        definitionsById,
-        heritageById,
-      );
-      if (resolved.kind === "unresolved") {
-        issues.push(resolved.issue);
-        continue;
-      }
-      const key = forwardingConstructorSignatureKey(
-        resolved.constructor.targetMember.parameters,
-      );
-      const existing = constructorsByTargetSignature.get(key);
-      if (existing !== undefined) {
-        if (
-          existing.baseMemberId !==
-            resolved.constructor.baseMemberId
-        ) {
-          issues.push({
-            node: sourceSignature.declaration ?? definition.declaration,
-            code: "CSHARP_PROJECT_CONSTRUCTOR_TARGET_CONFLICT",
-            message:
-              "Two inherited source constructors collapse to one C# signature but require different base constructors.",
-          });
-          continue;
-        }
-        signatures.set(sourceSignature.signature, existing);
-        continue;
-      }
-      constructors.push(resolved.constructor);
-      constructorsByTargetSignature.set(key, resolved.constructor);
-      signatures.set(sourceSignature.signature, resolved.constructor);
-    }
-    byDeclaration.set(definition.declaration, Object.freeze(constructors));
-    bySignature.set(definition.declaration, signatures);
-  }
-
-  return Object.freeze({
-    issues: Object.freeze(issues),
-    implicitConstructorsForDeclaration(
-      declaration: CsharpProjectTypeDefinition["declaration"],
-    ) {
-      return byDeclaration.get(declaration);
-    },
-    implicitConstructorForSignature(
-      declaration: CsharpProjectTypeDefinition["declaration"],
-      signature: Signature,
-      parameters: import("@tsonic/target-api/source").ResolvedSourceCallInfo["sourceSelectedSignatureParameters"],
-    ) {
-      const exact = bySignature.get(declaration)?.get(signature);
-      if (exact !== undefined) return exact;
-      const selectedDeclaration = host.semanticsFor(declaration).declarations.signatureDeclaration(signature);
-      const candidates = byDeclaration.get(declaration)?.filter(candidate =>
-        candidate.source.declaration === selectedDeclaration &&
-        sourceConstructorParametersMatch(candidate.source.parameters, parameters));
-      return candidates?.length === 1 ? candidates[0] : undefined;
-    },
-  });
+  declaration: Node,
+  signature: Signature,
+  parameters: import("@tsonic/target-api/source").ResolvedSourceCallInfo["sourceSelectedSignatureParameters"],
+  exact: CsharpProjectForwardingConstructor | undefined,
+  constructors: readonly CsharpProjectForwardingConstructor[] | undefined,
+): CsharpProjectForwardingConstructor | undefined {
+  if (exact !== undefined) return exact;
+  const selectedDeclaration = host.semanticsFor(declaration).declarations.signatureDeclaration(signature);
+  const candidates = constructors?.filter(candidate =>
+    candidate.source.declaration === selectedDeclaration &&
+    sourceConstructorParametersMatch(candidate.source.parameters, parameters));
+  return candidates?.length === 1 ? candidates[0] : undefined;
 }
 
-function resolveForwardingConstructor(
+export function selectCsharpProjectForwardingConstructor(
   host: CsharpProjectConstructorPolicyHost,
   definition: CsharpProjectTypeDefinition,
   baseType: TargetTypeRef,
@@ -520,7 +426,7 @@ function validateForwardingParameters(
   return undefined;
 }
 
-function forwardingConstructorSignatureKey(
+export function csharpForwardingConstructorSignatureKey(
   parameters: readonly CsharpTargetParameter[],
 ): string {
   return JSON.stringify(parameters.map((parameter) => [

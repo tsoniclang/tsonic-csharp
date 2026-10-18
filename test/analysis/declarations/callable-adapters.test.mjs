@@ -167,7 +167,7 @@ function classForwarder(control) {
   const passing = mode => mode === "by-value" ? undefined : mode === "byref-readonly" ? "in"
     : mode === "byref-readwrite" ? "ref" : "out";
   const diagnostics = [];
-  const planned = planCsharpStructuralInterfaceMembers({ targetType: sourceType }, declaration, context, diagnostics);
+  const planned = planCsharpStructuralInterfaceMembers({ targetType: sourceType }, context, diagnostics);
   assert.equal(diagnostics.length, 0, `${control.name}: actual native class forwarder renders`);
   assert.equal(planned.length, 1, `${control.name}: one explicit interface forwarder`);
   const forwarder = planned[0];

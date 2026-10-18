@@ -16,7 +16,7 @@ export function resolveCsharpProjectionArguments(
   scope: CsharpTypeResolutionScope, declaration: Node,
   sources: readonly Type[], arguments_: readonly TargetTypeRef[],
   state: CsharpTypeResolutionState,
-  projections: readonly CsharpProjectedType[] = scope.host.representations.genericProjections?.(declaration) ?? [],
+  projections: readonly CsharpProjectedType[] = scope.host.representations.genericProjections(declaration),
   parameters: readonly (Node | undefined)[] = scope.host.ast.typeParameters(declaration),
 ): readonly TargetTypeRef[] | undefined {
   if (projections.length === 0) return [];

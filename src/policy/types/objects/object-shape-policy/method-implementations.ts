@@ -3,7 +3,6 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../.
 import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpTypeResolutionState } from "../../resolution/model.js";
 import { nextState } from "../../resolution/state.js";
-import { csharpObjectShapeMethodRequiresProtocol } from "../../../../target-model/types/method-values.js";
 import type { CsharpObjectMethodSourceCapture } from "../../../../target-model/records/native-value-carriers.js";
 
 export function selectCsharpObjectMethodImplementation(
@@ -12,17 +11,14 @@ export function selectCsharpObjectMethodImplementation(
   state: CsharpTypeResolutionState,
   selectedLiteral?: Node,
 ): CsharpObjectShapeFact["methodImplementation"] | undefined {
-  const declaredMethods = members.flatMap(member => (member.sourceDeclarations ?? [])
+  const methods = [...new Set(members.filter(member => member.memberKind === "method").flatMap(member => (member.sourceDeclarations ?? [])
     .filter(declaration => host.ast.is.IsMethodDeclaration(declaration) && host.ast.body(declaration) !== undefined &&
       host.ast.is.IsObjectLiteralExpression(host.ast.parent(declaration)!) &&
-      (selectedLiteral === undefined || host.ast.parent(declaration) === selectedLiteral))
-    .map(declaration => ({ declaration, required: csharpObjectShapeMethodRequiresProtocol(member) })));
-  const requiredMethods = declaredMethods.filter(method => method.required);
-  if (requiredMethods.length === 0) return undefined;
-  const literal = host.ast.parent(requiredMethods[0]!.declaration);
-  if (literal === undefined || requiredMethods.some(method => host.ast.parent(method.declaration) !== literal)) return undefined;
-  const methods = [...new Set(declaredMethods.filter(method => host.ast.parent(method.declaration) === literal)
-    .map(method => method.declaration))].sort((left, right) => host.ast.pos(left) - host.ast.pos(right));
+      (selectedLiteral === undefined || host.ast.parent(declaration) === selectedLiteral))))]
+    .sort((left, right) => host.ast.pos(left) - host.ast.pos(right));
+  if (methods.length === 0) return undefined;
+  const literal = host.ast.parent(methods[0]!);
+  if (literal === undefined || methods.some(method => host.ast.parent(method) !== literal)) return undefined;
   const selected = host.objectMethodSources.get(literal);
   if (selected === undefined) return undefined;
   const selectedCaptures = new Map<Node, CsharpObjectMethodSourceCapture>();

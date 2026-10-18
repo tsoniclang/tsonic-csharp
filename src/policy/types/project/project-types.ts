@@ -1,5 +1,6 @@
 import type { CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue } from "../../../target-model/records/project-types.js";
 import type { AstReader, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { sourceNodeIdentity, sourceCallableInterface } from "@tsonic/target-api/source";
 import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../../target-model/types/generic-references.js";
 import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
@@ -31,9 +32,6 @@ import {
 import { csharpRenderShapeForTargetNamedType } from "../../../target-model/types/render-shapes.js";
 import type { CsharpProjectConstructorPolicy } from "./project-type-constructors.js";
 import type { CsharpProjectForwardingConstructor } from "../../../target-model/records/project-types.js";
-import {
-  createCsharpProjectConstructorPolicy,
-} from "./project-type-constructors.js";
 
 export interface CsharpProjectTypeCatalog {
   readonly definitions: readonly CsharpProjectTypeDefinition[];
@@ -103,37 +101,15 @@ export interface CsharpProjectTypePolicyHost
 }
 
 export function createCsharpProjectTypePolicy(
-  host: CsharpProjectTypePolicyHost,
+  ast: AstReader,
   catalog: CsharpProjectTypeCatalog,
+  heritageById: ReadonlyMap<string, CsharpProjectTypeHeritage>,
+  constructors: CsharpProjectConstructorPolicy,
+  issues: readonly CsharpProjectTypeIssue[],
 ): CsharpProjectTypePolicy {
-  const issues: CsharpProjectTypeIssue[] = [...catalog.issues];
-  const heritageById = new Map<string, CsharpProjectTypeHeritage>();
-
-  for (const definition of catalog.definitions) {
-    const heritage = resolveDefinitionHeritage(host, catalog, definition);
-    if (heritage.kind === "resolved") {
-      heritageById.set(definition.id, heritage.heritage);
-    } else {
-      issues.push(heritage.issue);
-    }
+  if (heritageById === undefined || constructors === undefined || issues === undefined) {
+    return failTargetAnalysisInvariant("tsonic-csharp", "C# project type policy requires completed heritage, constructors and issues.");
   }
-
-  const constructors: CsharpProjectConstructorPolicy =
-    createCsharpProjectConstructorPolicy(
-      {
-        ast: host.ast,
-        navigation: host.navigation,
-        providers: host.providers,
-        sourceFacts: host.sourceFacts,
-        types: host.types,
-        semanticsFor: host.semanticsFor,
-        targetTypeForDefinition: projectDefinitionTargetType,
-      },
-      catalog.definitions,
-      heritageById,
-    );
-  issues.push(...constructors.issues);
-
   const directSupertypes = (
     type: TargetTypeRef,
   ): readonly TargetTypeRef[] | undefined => {
@@ -247,7 +223,7 @@ export function createCsharpProjectTypePolicy(
 
   return Object.freeze({
     catalog,
-    issues: Object.freeze(issues),
+    issues,
     heritageForDeclaration(declaration: Node) {
       const definition = catalog.definitionForDeclaration(declaration);
       return definition === undefined
@@ -261,11 +237,11 @@ export function createCsharpProjectTypePolicy(
       receiver: TargetTypeRef | undefined,
       memberType: TargetTypeRef,
     ): CsharpProjectMemberTypeInstantiation {
-      const owner = projectMemberOwner(host.ast, catalog, declaration);
+      const owner = projectMemberOwner(ast, catalog, declaration);
       if (owner === undefined) {
         return { kind: "not-project-member" };
       }
-      if (declaration !== undefined && host.ast.hasModifierKind(declaration, "static") && owner.outerTypeParameters.length === 0) {
+      if (declaration !== undefined && ast.hasModifierKind(declaration, "static") && owner.outerTypeParameters.length === 0) {
         const parameters = csharpFreeTypeParameterIdentities([memberType]);
         return owner.typeParameterBindings.some(parameter => parameters.has(parameter.identity))
           ? { kind: "unresolved", reason: "A static member cannot depend on its class instance type parameters." }
@@ -402,7 +378,7 @@ function projectClassHasParameterlessConstructor(
       signature.parameters.length === 0);
 }
 
-function resolveDefinitionHeritage(
+export function selectCsharpProjectTypeHeritage(
   host: CsharpProjectTypePolicyHost,
   catalog: CsharpProjectTypeCatalog,
   definition: CsharpProjectTypeDefinition,

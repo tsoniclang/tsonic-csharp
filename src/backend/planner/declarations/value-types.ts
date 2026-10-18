@@ -12,7 +12,7 @@ import type { CsharpTypeMember, CsharpStructDeclaration, CsharpTypeNode } from "
 import { renderBoundRecordMember } from "../objects/declarations/members.js";
 import { planAttributesForSubject } from "./attributes.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "../types/index.js";
-import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../types/target-type-object-shapes.js";
 
@@ -32,15 +32,12 @@ export function planValueTypeDeclaration(
       input, field.carrier, diagnostics, field.source.sourceType,
     );
     if (type === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(field.source.sourceType,
-        `Value-type field '${field.source.sourceName}' has no renderable selected native carrier.`));
-      return undefined;
+      return failCsharpPlannerInvariant("An admitted native value field lost its exact renderable selected carrier.", field.source.sourceType);
     }
     if (field.bound !== undefined) {
       const rendered = renderBoundRecordMember(input.scope.typeParameterNames, field.bound.owner, field.bound.member, type);
       if (rendered.some(candidate => candidate === undefined)) {
-        diagnostics.push(unsupportedNodeDiagnostic(declarationNode, "The bound value-type member has no renderable storage contract."));
-        return undefined;
+        return failCsharpPlannerInvariant("An admitted bound native value field lost its renderable storage contract.", field.source.sourceType);
       }
       members.push(...rendered as readonly CsharpTypeMember[]);
       continue;

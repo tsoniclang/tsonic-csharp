@@ -32,6 +32,68 @@ export function run(): boolean {
 }` }), "completed-own-property-orders");
 });
 
+for (const [name, body] of [
+  ["wider producer", `
+    const actual = { count: 7 as int32, extra: 11 as int32 };
+    const view: View = actual;
+    return describe(view) === "count,extra";`],
+  ["prototype getter", `
+    const value: View = new PrototypeOnly();
+    return describe(value) === "";`],
+]) test(`own-property admission refuses a minimum structural view of a ${name}`, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    type View = { readonly count: int32 };
+    class PrototypeOnly { get count(): int32 { return 7; } }
+    function describe(value: View): string { return Object.keys(value).join(","); }
+    export function run(): boolean { ${body} }
+  ` });
+  assertCsharpCheckingSucceeded(compiled);
+  assert.equal(compiled.targetDiagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    issue.message.includes("exact own-property set")), true, `${name}: the owning admission refuses an unproved own set`);
+  assert.equal(compiled.artifacts.size, 0, `${name}: no truncated or prototype-based own-property array is published`);
+});
+
+test("Object.assign refuses a structural source whose complete own set is wider than its view", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    type View = { readonly count: int32 };
+    function copy(value: View): int32 {
+      const target = { count: 0 as int32, extra: 0 as int32 };
+      return Object.assign(target, value).extra;
+    }
+    export function run(): boolean {
+      const actual = { count: 7 as int32, extra: 11 as int32 };
+      const view: View = actual;
+      return copy(view) === 11;
+    }
+  ` });
+  assertCsharpCheckingSucceeded(compiled);
+  assert.equal(compiled.targetDiagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    issue.message.includes("exact own-property set")), true, "assignment source admission cannot silently copy only count");
+  assert.equal(compiled.artifacts.size, 0, "no artifact can leave extra unchanged after truncating an unproved source");
+});
+
+test("own-property admission includes closed covariant native implementations with wider storage", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    class BaseValue { marker: int32 = 1; }
+    class DerivedValue extends BaseValue { derived: int32 = 2; }
+    type Read<Value> = { readonly value: Value };
+    function describe(value: Read<BaseValue>): string { return Object.keys(value).join(","); }
+    export function run(): boolean {
+      const exact: Read<BaseValue> = { value: new BaseValue() };
+      const actual = { value: new DerivedValue(), extra: 7 as int32 };
+      const narrowed: Read<DerivedValue> = actual;
+      return describe(exact) === "value" && describe(narrowed) === "value,extra";
+    }
+  ` });
+  assertCsharpCheckingSucceeded(compiled);
+  assert.equal(compiled.targetDiagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    issue.message.includes("exact own-property set")), true, "native covariance cannot hide the wider admitted receiver");
+  assert.equal(compiled.artifacts.size, 0, "no truncated key array is published for a covariant native receiver");
+});
+
 test("native property projections preserve selected generic inherited getters and exact failure identity", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: nativePropertyProjectionSource });
   executeCsharpConstruction(compiled, "property-projections");
@@ -78,4 +140,108 @@ static string Handwritten(Tsonic.Generated.Options options) =>
         TsValue.CreateDynamicObject("useGrouping", TsValue.from(options.useGrouping)));
 `);
   assert.match(output, /^\d+:\d+\s*$/u);
+});
+
+test("closed and partially open generic own projections preserve exact receiver identity and field carriers", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    type Box<Value> = { value: Value };
+    function assign<Value>(target: Box<Value>, source: Box<Value>): Box<Value> { return Object.assign(target, source); }
+    function first<Value>(input: Box<Value>): Value { return Object.values(input)[0]; }
+    function entry<Value>(input: Box<Value>): Value { return Object.entries(input)[0][1]; }
+    export function run(): boolean {
+      const integer: Box<int32> = { value: 1 as int32 };
+      const other: Box<int32> = { value: 7 as int32 };
+      const text: Box<string> = { value: "before" };
+      const after: Box<string> = { value: "after" };
+      const assigned = Object.assign(integer, other);
+      const changed = assign(text, after);
+      return assigned === integer && assigned.value === 7 && changed === text && text.value === "after" &&
+        first(integer) === 7 && first(text) === "after" && entry(integer) === 7 && entry(text) === "after" &&
+        Object.keys(integer)[0] === "value" && Object.keys(text)[0] === "value" &&
+        Object.hasOwn(integer, "value") && Object.hasOwn(text, "value") && !Object.hasOwn(text, "missing");
+    }
+  ` });
+  executeCsharpConstruction(compiled, "generic-native-own-projections");
+});
+
+test("exact closed Object.assign introduces no allocation or receiver copy", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    type Box<Value> = { value: Value };
+    export function make(value: int32): Box<int32> { return { value }; }
+    export function assign(target: Box<int32>, source: Box<int32>): Box<int32> { return Object.assign(target, source); }
+    export function run(): boolean { const target = make(1 as int32); return assign(target, make(7 as int32)) === target && target.value === 7; }
+  ` });
+  const output = executeCsharpConstruction(compiled, "generic-native-assign-cost", false, false, [], `
+using System;
+using Index = Tsonic.Generated.Index;
+var target = Index.make(1);
+var source = Index.make(7);
+if (!ReferenceEquals(Index.assign(target, source), target) || target.value != 7)
+    throw new Exception("exact generic assign identity");
+for (int iteration = 0; iteration < 8192; iteration++) {
+    _ = Index.assign(target, source);
+    target.value = source.value;
+}
+long before = GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 4096; iteration++) {
+    if (!ReferenceEquals(Index.assign(target, source), target)) throw new Exception("receiver copy");
+}
+long generated = GC.GetAllocatedBytesForCurrentThread() - before;
+before = GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 4096; iteration++) {
+    target.value = source.value;
+    if (!ReferenceEquals(target, target)) throw new Exception("native receiver identity");
+}
+long native = GC.GetAllocatedBytesForCurrentThread() - before;
+if (generated != native || native != 0 || target.value != 7)
+    throw new Exception($"generic native assignment allocation {generated} != {native}");
+Console.WriteLine($"{generated}:{native}");
+`);
+  assert.match(output, /^0:0\s*$/u, "native assignment keeps the same handle and exact zero-allocation baseline");
+});
+
+test("native reference own projections preserve null failure, argument evaluation and zero-cost normal assignment", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    type Value = { value: string };
+    export function make(value: string): Value { return { value }; }
+    export function keys(value: Value) { return Object.keys(value); }
+    export function values(value: Value) { return Object.values(value); }
+    export function entries(value: Value) { return Object.entries(value); }
+    export function has(value: Value): boolean { return Object.hasOwn(value, "value"); }
+    export function assign(target: Value, source: Value): Value { return Object.assign(target, source); }
+  ` });
+  const output = executeCsharpConstruction(compiled, "native-projection-null-receiver", false, false, [], `
+using System;
+using Index = Tsonic.Generated.Index;
+var value = Index.make("before");
+var source = Index.make("after");
+ExpectNull(() => { _ = Index.keys(null!); });
+ExpectNull(() => { _ = Index.values(null!); });
+ExpectNull(() => { _ = Index.entries(null!); });
+ExpectNull(() => { _ = Index.has(null!); });
+int evaluations = 0;
+ExpectNull(() => { _ = Index.assign(null!, Supply(source)); });
+if (evaluations != 1) throw new Exception("assignment arguments must evaluate once before receiver failure");
+if (Index.keys(value)[0] != "value" || Index.values(value)[0] != "before" || Index.entries(value)[0].Item2 != "before" || !Index.has(value))
+    throw new Exception("native normal projection values");
+for (int iteration = 0; iteration < 8192; iteration++) { _ = Index.assign(value, source); value.value = source.value; }
+long before = GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 4096; iteration++) {
+    if (!ReferenceEquals(Index.assign(value, source), value)) throw new Exception("receiver copied");
+}
+long generated = GC.GetAllocatedBytesForCurrentThread() - before;
+before = GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 4096; iteration++) value.value = source.value;
+long native = GC.GetAllocatedBytesForCurrentThread() - before;
+if (generated != native || native != 0 || value.value != "after") throw new Exception($"native allocation {generated} != {native}");
+Console.Write("0:0");
+T Supply<T>(T result) { evaluations++; return result; }
+static void ExpectNull(Action action) {
+    try { action(); } catch (NullReferenceException) { return; }
+    throw new Exception("native reference receiver did not fail");
+}
+`);
+  assert.equal(output, "0:0", "null safety preserves native failure and evaluation without adding normal-path allocation");
 });

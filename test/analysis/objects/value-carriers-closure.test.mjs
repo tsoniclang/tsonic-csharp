@@ -150,9 +150,19 @@ export type Point = typeof Point;
 
 for (const carrier of [{ kind: "opaque", id: "unrenderable" }, { kind: "target-named", id: "test.NoRenderShape" }]) {
   test(`an unrenderable selected ${carrier.kind} field refuses the whole value declaration and artifact publication`, async () => {
+    const { analyzeCsharpNativeValueCarriers } = await import("../../../dist/analysis/objects/value-carriers.js");
     const { createCsharpPlanningContext } = await import("../../../dist/backend/planner/context.js");
     const { planValueTypeDeclaration } = await import("../../../dist/backend/planner/declarations/value-types.js");
     const { planCsharpOutput } = await import("../../../dist/backend/planner/program/planning.js");
+    const value = fixture({ values: { valueRead: { get: () => ({ value: carrier }) } } });
+    const admitted = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.values,
+      value.shapes, value.semanticsFor, []);
+    assert.equal(admitted.nativeValueDeclaration.get(value.declaration) === undefined, true,
+      "an unrenderable selected field cannot become a sealed value declaration");
+    assert.equal(admitted.issues.length, 1, "one fail-closed native render diagnostic");
+    assert.equal(admitted.issues[0]?.code, "CSHARP_UNSUPPORTED_AST", "the source-reachable render path is not mislabeled as an invariant");
+    assert.equal(admitted.issues[0]?.node === value.type, true, "the exact field carrier is diagnosed");
+    assert.equal(admitted.issues[0]?.message.includes("no renderable selected native carrier"), true, "no second type choice or fallback");
     const { program, declaration, selected } = valueProgram();
     const fields = Object.freeze(selected.fields.map((field, index) => index === 0 ? Object.freeze({ ...field, carrier }) : field));
     const record = Object.freeze({ ...selected, fields });
@@ -160,13 +170,19 @@ for (const carrier of [{ kind: "opaque", id: "unrenderable" }, { kind: "target-n
       nativeValueDeclaration: Object.freeze({ get: node => node === declaration ? record : program.records.nativeValueDeclaration.get(node) }),
     }) });
     const diagnostics = [];
-    const planned = planValueTypeDeclaration(declaration, program.source.ast.getSourceFile(declaration),
-      createCsharpPlanningContext(changed), diagnostics);
+    let planned;
+    let failure;
+    try {
+      planned = planValueTypeDeclaration(declaration, program.source.ast.getSourceFile(declaration),
+        createCsharpPlanningContext(changed), diagnostics);
+    } catch (error) {
+      failure = error;
+    }
     assert.equal(planned === undefined, true, "a partial struct is never returned");
-    assert.equal(diagnostics.length, 1, "one fail-closed native render diagnostic");
-    assert.equal(diagnostics[0]?.code, "CSHARP_UNSUPPORTED_AST", "the source-reachable render path is not mislabeled as an invariant");
-    assert.equal(diagnostics[0]?.sourceNode === selected.fields[0].source.sourceType, true, "the exact field carrier is diagnosed");
-    assert.equal(diagnostics[0]?.message.includes("no renderable selected native carrier"), true, "no second type choice or fallback");
+    assert.equal(failure?.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&
+      failure.diagnostic.sourceNode === selected.fields[0].source.sourceType, true,
+    "a poisoned sealed record violates the already-proven native field admission at its exact source");
+    assert.equal(diagnostics.length, 0, "the planner cannot repeat source rejection after admission");
     assert.equal(record.fields.length, 2, "neither selected field is dropped from its admitted input");
     let published = false;
     const result = runTargetCompilationStages({ analyze: () => resolvedTargetStage(changed),
@@ -177,6 +193,23 @@ for (const carrier of [{ kind: "opaque", id: "unrenderable" }, { kind: "target-n
     assert.equal(published, false, "no incomplete native type or artifact escapes");
   });
 }
+
+test("bound value-field storage is renderable before its native declaration can be published", async () => {
+  const { analyzeCsharpNativeValueCarriers } = await import("../../../dist/analysis/objects/value-carriers.js");
+  const value = fixture();
+  const member = Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "value" }),
+    sourceName: "value", targetName: "value", memberKind: "property", bound: true,
+    sourceSubjects: Object.freeze([value.type]), type: Object.freeze({ kind: "opaque", id: "unrenderable-bound-field" }) });
+  const shape = Object.freeze({ targetType: { kind: "target-named", id: "test.BoundValue" }, members: Object.freeze([member]) });
+  const admitted = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.values,
+    { resolveNode: () => shape }, value.semanticsFor, []);
+  assert.equal(admitted.nativeValueDeclaration.get(value.declaration) === undefined, true,
+    "valid scalar reads do not conceal an unrenderable physical bound-field contract");
+  assert.equal(admitted.issues.length === 1 && admitted.issues[0].node === value.type &&
+    admitted.issues[0].code === "CSHARP_UNSUPPORTED_AST" &&
+    admitted.issues[0].message === "The bound value-type member has no renderable storage contract.", true,
+  "one expected rejection owns the exact physical storage before sealing");
+});
 
 test("selected scalar and bound value fields retain their complete native rendering", async () => {
   const { createCsharpPlanningContext } = await import("../../../dist/backend/planner/context.js");

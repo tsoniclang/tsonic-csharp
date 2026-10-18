@@ -5,7 +5,8 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
-import { isCsharpRuntimeUnionTargetType, isCsharpEmptyObjectTargetType, isCsharpJsValueObjectShapeTargetType } from "../../../target-model/types/index.js";
+import { getCsharpNullableElementTargetType, isCsharpRuntimeUnionTargetType, isCsharpEmptyObjectTargetType, isCsharpJsValueObjectShapeTargetType } from "../../../target-model/types/index.js";
+import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import type {
   CsharpTypeNode,
@@ -47,7 +48,8 @@ export function csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(
       requireRenderedType(method.owner);
       return;
     }
-    const fact = input.types.objectShapes.resolveTarget(carrier);
+    const key = targetTypeRefKey(getCsharpNullableElementTargetType(carrier) ?? carrier);
+    const fact = input.program.records.objectShapeArtifact.targetShapes[key];
     if (fact !== undefined) requireShape(fact, false);
     if (isCsharpRuntimeUnionTargetType(carrier)) {
       for (const payload of carrier.csharpRuntimeUnionObjectShapes ?? []) if (payload !== undefined) {

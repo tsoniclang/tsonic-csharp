@@ -32,6 +32,7 @@ import {
   planParametersWithPrelude,
 } from "../callables/parameters.js";
 import { planTypeParameters } from "../../types/type-parameters.js";
+import { createCsharpTypeParameterPlanningContext } from "../../names/type-parameters.js";
 import {
   csharpJsonValueInterfaceType,
   objectShapeRequiresJsonSerialization,
@@ -105,7 +106,7 @@ export function planInterfaceDeclaration(
           ],
         }),
     members: [...shadowCsharpInheritedInterfaceMembers(members, inheritedMembers),
-      ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input, objectShape,
+      ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input,
         input.artifacts.objectShapeProjections(objectShape), diagnostics))],
   };
 }
@@ -116,6 +117,7 @@ function planInterfaceMethodDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceMethodDeclaration {
+  input = createCsharpTypeParameterPlanningContext(node, input);
   const declaration = AsMethodSignatureDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "interface method declaration", diagnostics);
   const parameters = planParametersWithPrelude(
