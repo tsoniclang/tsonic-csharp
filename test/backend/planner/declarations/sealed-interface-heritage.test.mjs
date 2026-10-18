@@ -38,13 +38,13 @@ test("heritage rejects unavailable owner and unrenderable sealed contracts", () 
     }, diagnostics), error => error.message.includes("admitted canonical C# project-type model"),
     "an absent admitted owner never emits an alternative native contract");
     assert.equal(diagnostics.length, 0, "absent internal evidence is not a source rejection");
-    const result = owner({}, {
+    assert.throws(() => owner({}, {
       scope: {}, types: { projectTypes: { heritageForDeclaration: () => ({
         interfaces: [{ kind: "opaque", id: "missing" }],
       }) } },
-    }, diagnostics);
-    assert.equal((Array.isArray(result) ? result : result.interfaces).length, 0, "no alternative native contract");
-    assert.equal(diagnostics.length, 1, "an unrenderable native carrier is still refused until C03 proves total rendering");
+    }, diagnostics), error => error.message.includes("Admitted native declaration heritage lost its exact type rendering."),
+    "a forged admitted carrier violates the declaration admission guarantee");
+    assert.equal(diagnostics.length, 0, "only declaration admission owns the source refusal");
   }
 });
 

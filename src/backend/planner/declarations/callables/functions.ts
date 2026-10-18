@@ -6,7 +6,7 @@ import type { CsharpMethodDeclaration, CsharpStatement } from "../../../target-a
 import { planAttributesForSubject } from "../attributes.js";
 import { createDestructuringPlannerState, createNestedPlannerState, getCsharpLocalBindingName,
   type DestructuringPlannerState } from "../../bindings/index.js";
-import { diagnoseTypeScriptOnlyRuntimeShapeModifiers, isAsyncNode } from "../modifiers.js";
+import { isAsyncNode } from "../modifiers.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
 import { planParametersWithPrelude } from "./parameters.js";
 import { planBlockStatements } from "../../statements/index.js";
@@ -46,7 +46,6 @@ export function planSourceFunctionDeclaration(
 ): { readonly async: boolean; readonly declaration: Omit<CsharpMethodDeclaration, "kind" | "modifiers" | "body"> &
   { readonly body: NonNullable<CsharpMethodDeclaration["body"]> } } {
   const declaration = AsFunctionDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "function declaration", diagnostics);
   const name = declaration.name === undefined || parent === undefined ? undefined : getCsharpLocalBindingName(declaration.name, input, parent);
   const selectedName = name ?? planIdentifierName(declaration.name, "__anonymous", input, diagnostics, "Function name");
   const state = parent === undefined ? createDestructuringPlannerState(node, input.program.source.ast)

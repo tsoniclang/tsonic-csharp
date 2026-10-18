@@ -18,9 +18,6 @@ import {
   planCallArgument,
 } from "../../expressions/index.js";
 import {
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers,
-} from "../modifiers.js";
-import {
   planParametersWithPrelude,
 } from "../callables/parameters.js";
 import {
@@ -69,7 +66,6 @@ export function planConstructorDeclarations(
   initializers: readonly CsharpStatement[],
 ): readonly CsharpConstructorDeclaration[] {
   const declaration = AsConstructorDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "constructor declaration", diagnostics, ["public", "private", "protected"]);
   const baseCall = csharpConstructorBaseCall(input.program.source.ast, node);
   const leadingSuperCall = baseCall === undefined ? undefined : AsCallExpression(input.program.source.ast, baseCall);
   const state = createDestructuringPlannerState(node, input.program.source.ast);

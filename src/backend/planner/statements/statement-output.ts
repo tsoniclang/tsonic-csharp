@@ -12,6 +12,7 @@ import { qualifiedCsharpType } from "../types/index.js";
 import type { CsharpPlannedValue, CsharpPlannedEffectOperand } from "../expressions/planned-values.js";
 import { csharpPlannedEffect, csharpPlannedExpressionIsStable } from "../expressions/planned-values.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function consumeCsharpPlannedValue(
   planned: CsharpPlannedValue,
@@ -67,7 +68,7 @@ export function planCsharpAbsenceReturn(
 ): CsharpStatement {
   if (isCsharpVoidTargetType(carrier)) return { kind: "ReturnStatement" };
   const expression = carrier === undefined ? undefined : planCsharpAbsentValue(carrier, typeParameterNames);
-  if (expression === undefined) throw new Error("An absence return requires its finalized native storage carrier.");
+  if (expression === undefined) failCsharpPlannerInvariant("An absence return requires its finalized native storage carrier.");
   return { kind: "ReturnStatement", expression };
 }
 

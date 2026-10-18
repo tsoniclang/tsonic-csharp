@@ -6,7 +6,7 @@ import type { CsharpPlanningContext } from "../../context.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { planExpression } from "../../expressions/index.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { planClassStaticBlockDeclaration } from "./constructors.js";
 import { consumeCsharpPlannedValue } from "../../statements/statement-output.js";
 import type { CsharpPlannedValue } from "../../expressions/planned-values.js";
@@ -88,7 +88,7 @@ export function completeCsharpClassInitializationRegion(
       continue;
     }
     if (entry.defaultValue !== undefined) inline.set(entry.node, entry.defaultValue);
-    if (entry.name === undefined) throw new Error("An ordered class value requires its exact field name.");
+    if (entry.name === undefined) failCsharpPlannerInvariant("An ordered class value requires its exact field name.", entry.node);
     const name = entry.name;
     statements.push(...consumeCsharpPlannedValue(value, expression => [{ kind: "ExpressionStatement", expression: {
       kind: "AssignmentExpression", left: { kind: "SimpleMemberAccessExpression",

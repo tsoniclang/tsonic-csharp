@@ -20,6 +20,7 @@ import type { CsharpStorageClassifications, CsharpStorageRepresentationClassific
 import type { CsharpGenericProjectionIndex } from "./type-projections.js";
 import type { CsharpNativeValueCarriers } from "./native-value-carriers.js";
 import type { CsharpObjectShapeDemand } from "./object-shape-demand.js";
+import type { CsharpAdmittedIteration } from "./selection.js";
 
 export interface CsharpProgramRecords {
   readonly objectShapeArtifact: CsharpObjectShapeDemand;
@@ -80,7 +81,7 @@ export interface CsharpProgramRecords {
   readonly binaryOperation: CsharpTargetOperationClassifications["binaryOperation"];
   readonly switchStatement: CsharpTargetOperationClassifications["switchStatement"];
   readonly unaryOperation: CsharpTargetOperationClassifications["unaryOperation"];
-  readonly iteration: CsharpTargetOperationClassifications["iteration"];
+  readonly iteration: CsharpTargetOperationClassifications<CsharpAdmittedIteration>["iteration"];
   readonly resource: CsharpTargetOperationClassifications["resource"];
   readonly nativeRefReturn: CsharpTargetOperationClassifications["nativeRefReturn"];
   readonly jsCondition: CsharpTargetOperationClassifications["jsCondition"];

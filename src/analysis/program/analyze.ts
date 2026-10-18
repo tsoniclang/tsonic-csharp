@@ -11,7 +11,7 @@ import { createCsharpProgramRecords } from "./records/create.js";
 import type { CsharpRequiredRecord } from "./records/required-records.js";
 import { analyzeSourceLiteralValues, sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
-import { analyzeCsharpNativeControlFlow } from "../control-flow/native-control-flow.js";
+import { analyzeCsharpNativeControlFlow, admitCsharpStatementBindings, admitCsharpIterationBindings } from "../control-flow/native-control-flow.js";
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
 import { type CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import { csharpCallableValueType } from "../callables/value-type.js";
@@ -69,6 +69,7 @@ import {
 } from "../source-evidence/index.js";
 import {
   analyzeCsharpDeclarations,
+  admitCsharpNativeDeclarations,
 } from "../declarations/index.js";
 import {
   createCsharpSourceNameBuilder,
@@ -409,11 +410,25 @@ export function analyzeCsharpTargetProgram(
   );
   const sourceSyntax = targetSourceSyntaxProgram(source);
   const names = analysis.names.seal(nativeDemand.requiredBindingRoots);
+  const admittedIterations = admitCsharpIterationBindings(analysis.policy, sourceStorage.nodes,
+    nativeDemand.nativeUse, analysis.operations, analysis.storage,
+    nativeParticipation.participation, analysis.sourceEvidence.compileTimeMetadata);
+  const admittedOperations = admittedIterations.operations;
+  const nonCallableIssues = [
+    ...admittedIterations.issues,
+    ...admitCsharpStatementBindings(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
+      admittedOperations, analysis.storage, analysis.sourceEvidence.generator,
+      nativeParticipation.participation, analysis.sourceEvidence.compileTimeMetadata),
+    ...admitCsharpNativeDeclarations(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
+      projectTypes, analysis.sourceEvidence, analysis.storage,
+      nativeParticipation.participation, admittedOperations.nativeUnreachable),
+  ];
+  if (nonCallableIssues.length > 0) return rejectedTargetStage(nonCallableIssues);
   const objectShapeDemand = analyzeCsharpNativeArtifactDemand({
     ast: source.ast, sourceFiles, propertyNames: sourceSyntax.propertyNames,
     nativeDemand, participation: nativeParticipation.participation,
     objectShapes: callableAdapters.objectShapes, projectTypes, typeDefinitions,
-    valueReads: analysis.valueReads, operations: analysis.operations, storage: analysis.storage,
+    valueReads: analysis.valueReads, operations: admittedOperations, storage: analysis.storage,
     callables: analysis.callables, captureStorage, callableAdapters, flowReads, declarations: analysis.declarations,
     bindingPatterns, conversions, nativeValueCarriers, sourceEvidence: analysis.sourceEvidence, names,
   }, analysis.requiredRecords);
@@ -424,7 +439,7 @@ export function analyzeCsharpTargetProgram(
     literalValues, exactLiterals, nativeParticipation, nativeDemand, bindingPatterns,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
-    numericRepresentations, attributeApplications, safetyApplications, operations: analysis.operations,
+    numericRepresentations, attributeApplications, safetyApplications, operations: admittedOperations,
     sourceEvidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions,
     expectedTypes: analysis.expectedTypes, storage: analysis.storage,
     sourceModuleConstructions: sourceModuleConstructions.index, moduleInitialization: moduleInitialization.index,

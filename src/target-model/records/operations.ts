@@ -184,7 +184,9 @@ export interface CsharpOperatorFormClassification {
   readonly usesExpectedResultType?: boolean;
 }
 
-export interface CsharpTargetOperationClassifications {
+export interface CsharpTargetOperationClassifications<
+  Iteration extends CsharpOperationSelection<CsharpResolvedIteration> = CsharpOperationSelection<CsharpResolvedIteration>,
+> {
   readonly issues: readonly CsharpOperationIssue[];
   readonly awaitCompletion: { readonly get: (node: Node) => import("../types/await-completions.js").CsharpAwaitCompletion | undefined };
   readonly classPropertyStorage: { readonly get: (declaration: Node) => import("./class-property-storage.js").CsharpClassPropertyStorage | undefined };
@@ -207,7 +209,7 @@ export interface CsharpTargetOperationClassifications {
   readonly binaryOperation: { readonly get: (node: Node) => CsharpBinaryClassification | undefined };
   readonly switchStatement: { readonly get: (node: Node) => CsharpSwitchSelection | undefined };
   readonly unaryOperation: { readonly get: (node: Node) => CsharpUnaryClassification | undefined };
-  readonly iteration: { readonly get: (node: Node) => CsharpOperationSelection<CsharpResolvedIteration> | undefined };
+  readonly iteration: { readonly get: (node: Node) => Iteration | undefined };
   readonly resource: { readonly get: (node: Node) => CsharpOperationSelection<CsharpResolvedResourceManagement> | undefined };
   readonly nativePointer: { readonly get: (node: Node) => CsharpNativePointerOperationSelection | undefined };
   readonly typedLocation: { readonly get: (node: Node) => CsharpTypedLocationOperationSelection | undefined };

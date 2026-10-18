@@ -17,7 +17,7 @@ import { runtimeArrayHelperCall } from "../expressions/arrays/helpers.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import { csharpTupleExpression } from "../types/csharp-tuples.js";
-import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planArrayDefaultProjection } from "./array-defaults.js";
 import type {
@@ -43,7 +43,7 @@ export function planArrayBindingPattern(
   const bindingCarrier = source.bindingCarrier;
   const elements = AsBindingPattern(input.program.source.ast, patternNode)?.Elements?.Nodes ?? [];
   return elements.flatMap((elementNode, index) => {
-    if (elementNode === undefined) {
+    if (elementNode === undefined || input.program.source.ast.kindName(elementNode) === "KindOmittedExpression") {
       return [];
     }
     const selected = input.program.records.bindingPatternProjection.get(elementNode)?.element;
@@ -69,8 +69,7 @@ function planArrayBindingElement(
 ): readonly CsharpStatement[] {
   const element = AsBindingElement(input.program.source.ast, elementNode);
   if (element === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array binding pattern element must be a binding element."));
-    return [];
+    failCsharpPlannerInvariant("An admitted array pattern lost its checked binding element.", elementNode);
   }
   if (element.DotDotDotToken !== undefined) {
     return planArrayRestBindingElement(elementNode, element.name, sourceExpression, index, sourceCarrier, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
@@ -82,8 +81,7 @@ function planArrayBindingElement(
   const projected = planArrayBindingProjection(sourceExpression, index, sourceCarrier);
   const projectedType = elementCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(elementCarrier, input.scope.typeParameterNames);
   if (projectedType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array destructuring element requires a renderable provider element carrier type before C# emission."));
-    return [];
+    failCsharpPlannerInvariant("An admitted array element lost its exact native carrier rendering.", elementNode);
   }
   if (element.Initializer !== undefined) {
     if (sourceCarrier.kind !== "array") {
@@ -102,11 +100,7 @@ function planArrayBindingElement(
           defaultedElementType === undefined ||
           planExpression === undefined
         ) {
-          diagnostics.push(unsupportedNodeDiagnostic(
-            element.Initializer,
-            "Tuple destructuring defaults require a renderable non-nullish element type and the active expression planner.",
-          ));
-          return [];
+          failCsharpPlannerInvariant("An admitted tuple default lost its native rendering or active expression planner.", element.Initializer);
         }
         const whenNull = planExpression(element.Initializer, sourceFile, input, diagnostics, state
         );
@@ -128,8 +122,7 @@ function planArrayBindingElement(
       return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
     }
     if (planExpression === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Array destructuring defaults require the active expression planner before C# emission."));
-      return [];
+      failCsharpPlannerInvariant("An admitted array default requires its active expression planner.", element.Initializer);
     }
     const contract = input.program.records.bindingPatternProjection.get(elementNode)?.defaultValue;
     if (contract === undefined) return failCsharpPlannerInvariant(
@@ -179,13 +172,11 @@ function planArrayRestBindingElement(
     return planTupleRestBindingElement(elementNode, name, sourceExpression, index, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
   }
   if (name === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array rest destructuring requires a target binding name."));
-    return [];
+    failCsharpPlannerInvariant("An admitted array rest lost its checked binding name.", elementNode);
   }
   const projectedType = csharpTypeFromTargetTypeRef(sourceCarrier.restCarrier, input.scope.typeParameterNames);
   if (projectedType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array rest destructuring requires a renderable provider array carrier type before C# emission."));
-    return [];
+    failCsharpPlannerInvariant("An admitted array rest lost its native carrier rendering.", elementNode);
   }
   const projected = planArrayRestProjection(sourceExpression, index, sourceCarrier);
   return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
@@ -203,8 +194,7 @@ function planTupleRestBindingElement(
   planBindingNameFromProjection: BindingProjectionPlanner,
 ): readonly CsharpStatement[] {
   if (name === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Tuple rest destructuring requires a target binding name."));
-    return [];
+    failCsharpPlannerInvariant("An admitted tuple rest lost its checked binding name.", elementNode);
   }
   const selected = input.program.records.bindingPatternProjection.get(elementNode)?.element;
   if (selected?.kind !== "tuple-rest") return failCsharpPlannerInvariant(
@@ -212,8 +202,7 @@ function planTupleRestBindingElement(
   const restCarrier = selected.restCarrier;
   const projectedType = csharpTypeFromTargetTypeRef(restCarrier, input.scope.typeParameterNames);
   if (projectedType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Tuple rest destructuring requires a renderable provider tuple carrier type before C# emission."));
-    return [];
+    failCsharpPlannerInvariant("An admitted tuple rest lost its native carrier rendering.", elementNode);
   }
   const projectedElements = restCarrier.elements.map((_, offset) => ({
       kind: "SimpleMemberAccessExpression" as const,

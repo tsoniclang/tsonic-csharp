@@ -22,7 +22,7 @@ import {
 } from "../types/runtime-carriers.js";
 import { planExpression } from "../expressions/index.js";
 import { planCsharpNativeMemoryCall } from "../expressions/native-memory.js";
-import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpCarrierAdmitsSourceAbsence, csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getLambdaTargetContext } from "../expressions/expression-lambdas.js";
 import { planVariableBindingStatements } from "./index.js";
 import {
@@ -38,11 +38,12 @@ import {
   targetTypeRefEquals,
 } from "../../../target-model/types/index.js";
 import {
+  failCsharpPlannerInvariant,
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
-  planCsharpSourceUndefinedValue,
-} from "../expressions/undefined-values.js";
+  planCsharpAbsentValue,
+} from "../expressions/optional-storage.js";
 import {
   planCsharpTypedLocationIdentityDeclaration,
 } from "./typed-location-identities.js";
@@ -134,23 +135,15 @@ export function planLocalDeclaration(
   } else if (variable.Initializer !== undefined) {
     initializer = planExpression(variable.Initializer, sourceFile, input, diagnostics, state
     );
-  } else if (inferredTargetType !== undefined &&
-    input.program.records.moduleBindingInitialization.get(declarationNode) !== "declaration") {
-    const undefinedValue = planCsharpSourceUndefinedValue(
-      declarationNode,
-      inferredTargetType,
-      sourceFile,
-      input,
-      diagnostics,
-    );
-    const expression: CsharpExpression = undefinedValue.kind === "resolved"
-      ? undefinedValue.expression
-      : {
-          kind: "DefaultExpression",
-          type,
-          nullForgiving: true,
-        };
-    initializer = csharpPlannedValue(inferredTargetType, expression);
+  } else if (input.program.records.moduleBindingInitialization.get(declarationNode) !== "declaration") {
+    if (storageType === undefined) failCsharpPlannerInvariant(
+      "An admitted local declaration requires its finalized native storage carrier.", declarationNode);
+    if (csharpCarrierAdmitsSourceAbsence(storageType)) {
+      const expression = planCsharpAbsentValue(storageType, input.scope.typeParameterNames);
+      if (expression === undefined) failCsharpPlannerInvariant(
+        "An admitted absence-bearing local requires its native absence representation.", declarationNode);
+      initializer = csharpPlannedValue(storageType, expression);
+    }
   }
   const nativeArray = input.program.records.nativeArray.get(declarationNode);
   if (nativeArray !== undefined && initializer !== undefined) {
@@ -215,10 +208,10 @@ export function planLocalDeclarationStatements(
     const emit = (initializer?: CsharpExpression): readonly CsharpStatement[] => {
       const { initializer: _planned, ...binding } = local;
       const selected = { ...binding, ...(initializer === undefined ? {} : { initializer }) };
-      const registration = planResourceRegistrationStatement(declarationNode, selected, input, diagnostics, state);
+      const registration = planResourceRegistrationStatement(declarationNode, selected, input, state);
       return [...(locationIdentity === undefined ? [] : [locationIdentity]),
         { ...selected, kind: "LocalDeclarationStatement" },
-        ...(registration === undefined ? [] : [registration])];
+        registration];
     };
     return local.initializer === undefined ? emit() : consumeCsharpPlannedValue(local.initializer, emit);
   }
@@ -303,6 +296,9 @@ export function planLocalDeclarationStatements(
   const emit = (initializer?: CsharpExpression): readonly CsharpStatement[] => {
     const captured = planCsharpCapturedInitialization(declarationNode, initializer, input, state);
     if (captured !== undefined) return [...(locationIdentity === undefined ? [] : [locationIdentity]), captured];
+    if (initializer === undefined && input.program.records.capturedBinding.get(declarationNode) !== undefined) {
+      return locationIdentity === undefined ? [] : [locationIdentity];
+    }
     if (
     variable.Initializer !== undefined &&
     initializer?.kind === "LambdaExpression" &&

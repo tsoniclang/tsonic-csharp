@@ -1,4 +1,9 @@
-import type { Node } from "@tsonic/tsts";
+import type { AstReader, Node } from "@tsonic/tsts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { CsharpNativeParticipationInput, CsharpNativeUseClassifications } from "../../target-model/records/native-demand.js";
+import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { selectCsharpContextualAsyncReturn } from "../../policy/conversions/contextual-async-return.js";
 import { getCsharpAwaitResultTargetType } from "../../policy/operations/control-flow/await-completions.js";
 import { csharpTaskTargetType } from "../../target-model/types/carriers/delegates.js";
@@ -6,7 +11,18 @@ import { csharpMethodValueCoversContract } from "../../target-model/types/method
 import {
   HasSyntacticModifier,
   isSourceCallableBodyBoundary,
+  sourceClassFieldIsTypeOnly,
+  sourceParameterIsProperty,
+  ModifierFlagsAbstract,
+  ModifierFlagsAccessor,
+  ModifierFlagsAmbient,
   ModifierFlagsAsync,
+  ModifierFlagsConst,
+  ModifierFlagsOverride,
+  ModifierFlagsPrivate,
+  ModifierFlagsProtected,
+  ModifierFlagsPublic,
+  ModifierFlagsReadonly,
   Node_Type,
 } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
@@ -29,6 +45,7 @@ import {
   csharpBigIntegerTargetType,
   isCsharpVoidTargetType,
   getCsharpTaskResultTargetType,
+  getCsharpGenericOptionalParts,
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpRuntimeParameterDefault } from "../../target-model/types/parameter-defaults.js";
@@ -37,6 +54,114 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/sourc
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpValueReadStageIndex } from "../../target-model/records/conversions.js";
 import type { CsharpDeclarationClassifications, CsharpDefaultParameterContract, CsharpReturnTargetContract } from "../../target-model/records/declarations.js";
+
+export function admitCsharpNativeDeclarations(
+  ast: AstReader,
+  nodes: readonly Node[],
+  nativeUse: CsharpNativeUseClassifications["nativeUse"],
+  projectTypes: Pick<CsharpProjectTypeClassifications, "heritageForDeclaration">,
+  metadata: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata">,
+  storage: Pick<CsharpStorageClassifications, "storageType">,
+  participation: CsharpNativeParticipationInput["participation"],
+  nativeUnreachable: CsharpTargetOperationClassifications["nativeUnreachable"],
+): readonly TargetDiagnostic[] {
+  const issues: TargetDiagnostic[] = [];
+  const refuse = (node: Node, message: string): void => {
+    issues.push(Object.freeze({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp",
+      sourceNode: node, message }));
+  };
+  for (const node of nodes) {
+    if (nativeUse.order(node) === undefined || metadata.compileTimeMetadata.get(node) ||
+      nativeUnreachable.get(node) || participation.get(node) === "erased" || sourceClassFieldIsTypeOnly(ast, node)) continue;
+    admitCsharpDeclarationModifiers(ast, node, refuse);
+    const classDeclaration = ast.is.IsClassDeclaration(node) || ast.is.IsClassExpression(node);
+    if (classDeclaration || ast.is.IsInterfaceDeclaration(node)) {
+      const heritage = projectTypes.heritageForDeclaration(node);
+      if (heritage !== undefined) {
+        const types = heritage.baseType === undefined ? heritage.interfaces : [heritage.baseType, ...heritage.interfaces];
+        for (const type of types) {
+          if (csharpTargetTypeRenderingRejection(type) !== undefined) {
+            refuse(node, "Canonical project heritage contains a target type that cannot be rendered in C#.");
+          }
+        }
+      }
+    }
+    if (classDeclaration) {
+      for (const member of ast.members(node)) {
+        if (member === undefined || metadata.compileTimeMetadata.get(member) || nativeUnreachable.get(member) ||
+          participation.get(member) === "erased" || sourceClassFieldIsTypeOnly(ast, member)) continue;
+        const kind = ast.kindName(member);
+        if (kind === "KindPropertyDeclaration" && ast.hasModifierKind(member, "static") &&
+          ast.as.AsPropertyDeclaration(member)?.Initializer === undefined) {
+          const type = storage.storageType.get(member);
+          const absentDefault = csharpCarrierAdmitsSourceAbsence(type) &&
+            type !== undefined && getCsharpGenericOptionalParts(type) === undefined;
+          const numericDefault = type !== undefined && (type.kind === "source-primitive" && type.name !== "char" ||
+            targetTypeRefEquals(type, csharpBigIntegerTargetType()));
+          if (!absentDefault && !numericDefault) {
+            issues.push(Object.freeze({ code: "CSHARP_STATIC_FIELD_INITIALIZER_REQUIRED", category: "error",
+              source: "tsonic-csharp", sourceNode: member,
+              message: "A static class field requires an explicit initializer when its native default is not a value of the declared storage type." }));
+          }
+        }
+        if (kind !== "KindConstructor" && kind !== "KindClassStaticBlockDeclaration" && kind !== "KindMethodDeclaration" &&
+          kind !== "KindPropertyDeclaration" && kind !== "KindParameter" && kind !== "KindGetAccessor" && kind !== "KindSetAccessor") {
+          refuse(member, "Class member is outside the current C# planning surface.");
+        }
+      }
+    } else if (ast.is.IsInterfaceDeclaration(node)) {
+      for (const member of ast.members(node)) {
+        if (member === undefined || metadata.compileTimeMetadata.get(member)) continue;
+        const kind = ast.kindName(member);
+        if (kind !== "KindMethodSignature" && kind !== "KindPropertySignature" && kind !== "KindIndexSignature") {
+          refuse(member, "Interface member is outside the current C# planning surface.");
+        }
+      }
+    }
+  }
+  return Object.freeze(issues);
+}
+
+function admitCsharpDeclarationModifiers(ast: AstReader, node: Node,
+  refuse: (node: Node, message: string) => void): void {
+  const modifiers = [
+    { flag: ModifierFlagsPublic, name: "public" },
+    { flag: ModifierFlagsPrivate, name: "private" },
+    { flag: ModifierFlagsProtected, name: "protected" },
+    { flag: ModifierFlagsReadonly, name: "readonly" },
+    { flag: ModifierFlagsAbstract, name: "abstract" },
+    { flag: ModifierFlagsOverride, name: "override" },
+    { flag: ModifierFlagsAmbient, name: "declare" },
+    { flag: ModifierFlagsAccessor, name: "accessor" },
+    { flag: ModifierFlagsConst, name: "const" },
+  ];
+  const visibility = ["public", "private", "protected"];
+  const check = (context: string, allowed: readonly string[] = []): void => {
+    for (const modifier of modifiers) {
+      if (!allowed.includes(modifier.name) && HasSyntacticModifier(ast, node, modifier.flag)) refuse(node,
+        `TypeScript-only modifier '${modifier.name}' on ${context} is outside the native runtime-shape source subset. Use standard ECMAScript runtime shape or target/provider facts instead.`);
+    }
+  };
+  if (ast.is.IsClassDeclaration(node) || ast.is.IsClassExpression(node)) check("class declaration", ["abstract"]);
+  else if (ast.is.IsInterfaceDeclaration(node)) check("interface declaration");
+  else if (ast.is.IsConstructorDeclaration(node)) check("constructor declaration", visibility);
+  else if (ast.is.IsMethodDeclaration(node)) check("method declaration", [...visibility, "abstract", "override"]);
+  else if (ast.is.IsPropertyDeclaration(node)) check("property declaration", [...visibility, "readonly", "abstract", "override"]);
+  else if (ast.is.IsGetAccessorDeclaration(node) || ast.is.IsSetAccessorDeclaration(node)) {
+    check("accessor declaration", [...visibility, "abstract", "override"]);
+  } else if (ast.is.IsMethodSignatureDeclaration(node)) check("interface method declaration");
+  else if (ast.is.IsPropertySignatureDeclaration(node)) check("interface property declaration", ["readonly"]);
+  else if (ast.is.IsIndexSignatureDeclaration(node)) check("interface index signature", ["readonly"]);
+  else if (ast.is.IsEnumDeclaration(node)) check("enum declaration");
+  else if (ast.is.IsFunctionDeclaration(node)) check("function declaration");
+  else if (ast.is.IsParameterDeclaration(node)) {
+    const owner = ast.parent(node);
+    if (sourceParameterIsProperty(ast, node)) check("property declaration", [...visibility, "readonly", "abstract", "override"]);
+    if (owner !== undefined && (ast.is.IsArrowFunction(owner) || ast.is.IsFunctionExpression(owner))) {
+      check("lambda parameter declaration");
+    } else check("parameter declaration", sourceParameterIsProperty(ast, node) ? [...visibility, "readonly"] : []);
+  }
+}
 
 export function analyzeCsharpDeclarations(
   policy: CsharpPolicyContext,

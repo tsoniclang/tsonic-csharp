@@ -18,12 +18,7 @@ import {
   allocateCatchValue,
   declareCsharpLocalBindingName,
 } from "../bindings/index.js";
-import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../diagnostics.js";
-import {
-  probeCarrierFromResolution,
-  missingCarrierDiagnosticDetail,
-  resolveRuntimeCarrierForStorage,
-} from "../types/runtime-carriers.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import {
   csharpCatchExceptionType,
@@ -80,25 +75,8 @@ function planCatchClause(
   if (clause.VariableDeclaration !== undefined) {
     const variable = AsVariableDeclaration(input.program.source.ast, clause.VariableDeclaration)!;
     const variableName = variable.name;
-    if (variableName !== undefined && (HasSourceKind(input.program.source.ast, variableName, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, variableName, KindArrayBindingPattern))) {
-      diagnostics.push(unsupportedNodeDiagnostic(variableName, "Catch destructuring requires a closed thrown-value carrier; unknown catch values cannot trickle into C#."));
-      return {
-        kind: "CatchClause",
-        body: {
-          kind: "Block",
-          statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
-        },
-      };
-    }
     if (variable.name === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(clause.VariableDeclaration, "Catch variable declarations require a source binding name before C# emission."));
-      return {
-        kind: "CatchClause",
-        body: {
-          kind: "Block",
-          statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
-        },
-      };
+      return failCsharpPlannerInvariant("A checked catch variable requires its declaration name.", clause.VariableDeclaration);
     }
     const order = input.program.records.nativeUse.order(node);
     if (order === undefined) failCsharpPlannerInvariant("A catch clause requires its admitted native construction order.", node);
@@ -111,55 +89,20 @@ function planCatchClause(
         },
       };
     }
-    const carrierResolution = resolveRuntimeCarrierForStorage(
-      input,
-      variable.name,
-      sourceFile,
-    );
-    const carrier = probeCarrierFromResolution(carrierResolution);
+    if (variableName !== undefined && (HasSourceKind(input.program.source.ast, variableName, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, variableName, KindArrayBindingPattern))) {
+      return failCsharpPlannerInvariant("An admitted catch binding cannot retain destructuring.", variableName);
+    }
+    const carrier = input.program.records.storageType.get(variable.name);
     const variableType = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
     const throwable = input.program.records.throwable.get(variable.name);
     if (throwable === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        variable.name,
-        "Catch variable has no sealed C# throwable classification.",
-      ));
-      return {
-        kind: "CatchClause",
-        body: {
-          kind: "Block",
-          statements: planBlockStatements(
-            clause.Block,
-            sourceFile,
-            input,
-            diagnostics,
-            state,
-          ),
-        },
-      };
+      return failCsharpPlannerInvariant("An admitted catch binding lost its native throwable classification.", variable.name);
     }
     if (!throwable && !isCsharpJsValueTargetType(carrier)) {
-      const detail = carrier === undefined
-        ? missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the catch variable.")
-        : { reason: "Resolved catch variable carrier is neither a target throwable carrier nor a closed TsValue catch carrier.", evidence: [] };
-      diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? clause.VariableDeclaration, `Catch variables require finalized TSTS/provider exception-carrier facts before C# emission. ${detail.reason}`, detail.evidence));
-      return {
-        kind: "CatchClause",
-        body: {
-          kind: "Block",
-          statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
-        },
-      };
+      return failCsharpPlannerInvariant("An admitted catch binding lost its native exception or closed value carrier.", variable.name);
     }
     if (variableType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? clause.VariableDeclaration, "Catch variable carrier must render to a closed C# type before C# emission."));
-      return {
-        kind: "CatchClause",
-        body: {
-          kind: "Block",
-          statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
-        },
-      };
+      return failCsharpPlannerInvariant("An admitted catch binding lost its exact native type rendering.", variable.name);
     }
     if (isCsharpJsValueTargetType(carrier)) {
       const catchExceptionType = csharpCatchExceptionType();
@@ -167,14 +110,7 @@ function planCatchClause(
       const sourceVariableName = declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "Catch variable", "catchValue");
       const catchValueInitializer = csharpThrownValueToValueExpression({ kind: "IdentifierName", name: catchExceptionName });
       if (catchExceptionType === undefined || catchValueInitializer === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(variable.name, "Dynamic C# catch variables require renderable System.Exception and TsThrownValueException target carriers."));
-        return {
-          kind: "CatchClause",
-          body: {
-            kind: "Block",
-            statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
-          },
-        };
+        return failCsharpPlannerInvariant("The fixed native catch bridge requires its declared System.Exception and TsThrownValueException type syntax.", variable.name);
       }
       const locationIdentity = planCsharpTypedLocationIdentityDeclaration(
         clause.VariableDeclaration,

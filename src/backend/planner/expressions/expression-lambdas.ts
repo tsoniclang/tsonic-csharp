@@ -37,7 +37,6 @@ import {
   nullableCsharpType,
 } from "../types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
-import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../declarations/modifiers.js";
 import { planBlockStatements } from "../statements/index.js";
 import { planCsharpCaptureFrame, planCsharpCaptureEntryBindings } from "../bindings/capture-storage.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
@@ -417,7 +416,6 @@ export function planLambdaParameters(
     .filter((parameterNode): parameterNode is Node => parameterNode !== undefined)
     .map((parameterNode, index): CsharpLambdaParameter => {
       const parameter = AsParameterDeclaration(input.program.source.ast, parameterNode)!;
-      diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, parameterNode, "lambda parameter declaration", diagnostics);
       if (
         parameter.DotDotDotToken !== undefined &&
         expectedContext?.signature.restParameterIndex !== index

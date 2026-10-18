@@ -23,7 +23,7 @@ import { allocateDestructuringTemp } from "./binding-state.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "../types/index.js";
 import { getCsharpTypeFromSemanticType } from "../types/csharp-semantic-types.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import { planObjectBindingPattern } from "./binding-object-patterns.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
@@ -75,8 +75,7 @@ export function planBindingPatternFromExpression(
   if (HasSourceKind(input.program.source.ast, patternNode, KindObjectBindingPattern)) {
     return planObjectBindingPattern(patternNode, sourceExpression, sourceFile, input, diagnostics, state, projectionPlanner, planExpression);
   }
-  diagnostics.push(unsupportedNodeDiagnostic(patternNode, "Binding pattern is outside the current C# planning surface."));
-  return [];
+  return failCsharpPlannerInvariant("An admitted binding pattern lost its checked object or array form.", patternNode);
 }
 
 function planBindingNameFromProjection(
@@ -114,8 +113,7 @@ function planBindingNameFromProjection(
         initializer: projected,
       } : undefined;
     if (retainBinding !== undefined && declaration === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(name, "A retained binding requires its exact source declaration."));
-      return [];
+      return failCsharpPlannerInvariant("An admitted retained binding lost its checked projection declaration.", name);
     }
     if (identity !== undefined) retainBinding?.(identity, declaration!);
     if (local !== undefined) retainBinding?.(local, declaration!);
@@ -148,8 +146,7 @@ function planBindingNameFromProjection(
       ...planBindingPatternFromExpression(name, nestedSource, sourceFile, input, diagnostics, state, planExpression, retainBinding),
     ];
   }
-  diagnostics.push(unsupportedNodeDiagnostic(name, "Destructuring target binding name is outside the current C# planning surface."));
-  return [];
+  return failCsharpPlannerInvariant("An admitted destructuring target lost its checked binding name.", name);
 }
 
 export function getCsharpTypeForExpressionCarrier(

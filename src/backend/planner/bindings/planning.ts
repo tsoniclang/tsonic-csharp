@@ -15,7 +15,7 @@ import {
   planBindingPatternFromExpression,
 } from "./binding-patterns.js";
 import type { CsharpEntryBinding } from "./binding-patterns.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planExpression } from "../expressions/index.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 
@@ -55,12 +55,10 @@ export function planVariableBindingStatements(
     return undefined;
   }
   if (!HasSourceKind(input.program.source.ast, bindingName, KindObjectBindingPattern) && !HasSourceKind(input.program.source.ast, bindingName, KindArrayBindingPattern)) {
-    diagnostics.push(unsupportedNodeDiagnostic(bindingName, "Variable binding name is outside the current C# planning surface."));
-    return [];
+    return failCsharpPlannerInvariant("A checked variable binding must be an identifier or binding pattern.", bindingName);
   }
   if (initializer === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(bindingName, "Destructuring variable declaration requires an initializer."));
-    return [];
+    return failCsharpPlannerInvariant("A checked destructuring declaration requires its initializer.", bindingName);
   }
   const sourceName = allocateDestructuringTemp(state);
   const sourceExpression: CsharpExpression = { kind: "IdentifierName", name: sourceName };
@@ -94,8 +92,7 @@ export function planParameterBindingPrelude(
     return [];
   }
   if (!HasSourceKind(input.program.source.ast, bindingName, KindObjectBindingPattern) && !HasSourceKind(input.program.source.ast, bindingName, KindArrayBindingPattern)) {
-    diagnostics.push(unsupportedNodeDiagnostic(bindingName, "Parameter binding name is outside the current C# planning surface."));
-    return [];
+    return failCsharpPlannerInvariant("A checked parameter binding must be an identifier or binding pattern.", bindingName);
   }
   return planBindingPatternFromExpression(
     bindingName,

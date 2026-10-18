@@ -38,7 +38,7 @@ namespace Tsonic.Generated
     {
         public static string? choose(bool flag)
         {
-            string? value = null;
+            string? value = default(string?);
             if (flag)
             {
                 value = "yes";
@@ -90,5 +90,30 @@ static double Handwritten(string[] values) {
     visit(0);
     return count;
 }
+`);
+});
+
+test("initializer-less native locals use definite assignment and retain captured storage", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    export function assigned(): number {
+      let value: number;
+      value = 7;
+      return value;
+    }
+    export function captured(): number {
+      let value: number;
+      const read = (): number => value;
+      value = 9;
+      return read();
+    }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "native definite assignment is valid checked source");
+  assert.equal(compiled.extensionDiagnostics.length, 0, "native locals require no extra source annotation");
+  assert.equal(compiled.targetDiagnostics.length, 0, "local and captured physical storage are admitted");
+  assert.match(compiled.artifacts.get("src/Index.cs"), /double value;/u,
+    "non-absence storage is declared without a fabricated absence initializer");
+  executeCsharpConstruction(compiled, "native-uninitialized-locals", false, false, [], `
+if (Tsonic.Generated.Index.assigned() != 7 || Tsonic.Generated.Index.captured() != 9)
+    throw new System.Exception("native definite-assignment and capture controls");
 `);
 });

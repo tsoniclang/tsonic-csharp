@@ -5,7 +5,6 @@ import {
   KindArrayBindingPattern,
   KindIdentifier,
   KindObjectBindingPattern,
-  sourceParameterIsProperty,
 } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -25,7 +24,6 @@ import {
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { planExpression } from "../../expressions/index.js";
-import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../modifiers.js";
 import { planCsharpRuntimeParameterDefault } from "./defaults.js";
 import { consumeCsharpPlannedValue } from "../../statements/statement-output.js";
 import {
@@ -71,8 +69,6 @@ export function planParametersWithPrelude(
   for (const parameterNode of parameterNodes) {
     const parameter = AsParameterDeclaration(input.program.source.ast, parameterNode)!;
     const questionToken = input.program.source.ast.questionToken(parameterNode);
-    diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, parameterNode!, "parameter declaration", diagnostics,
-      sourceParameterIsProperty(input.program.source.ast, parameterNode!) ? ["public", "private", "protected", "readonly"] : []);
     if (HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier)) {
       const type = getParameterType(parameterNode, sourceFile, input, diagnostics);
       if (input.program.records.runtimeDefault.get(parameterNode!) !== undefined) {

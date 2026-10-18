@@ -11,6 +11,7 @@ import type { CsharpCaptureFrame, CsharpCaptureStorage } from "../../target-mode
 import type { CsharpValueReadClassifications, CsharpConversionClassifications } from "../../target-model/records/conversions.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpAdmittedIteration } from "../../target-model/records/selection.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpBindingPatternClassifications } from "../../target-model/records/value-projections.js";
 import type { CsharpNativeValueCarriers } from "../../target-model/records/native-value-carriers.js";
@@ -50,7 +51,7 @@ export interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemand
   readonly propertyNames: Pick<SourcePropertyNameIndex, "get">;
   readonly nativeDemand: CsharpNativeDemandAnalysis;
   readonly valueReads: CsharpValueReadClassifications;
-  readonly operations: CsharpTargetOperationClassifications;
+  readonly operations: CsharpTargetOperationClassifications<CsharpAdmittedIteration>;
   readonly storage: CsharpStorageClassifications;
   readonly callables: CsharpCallableContractIndex;
   readonly captureStorage: CsharpCaptureStorage;
@@ -286,9 +287,14 @@ export function analyzeCsharpNativeArtifactDemand(
     demandFrame(input.captureStorage.captureClosure.get(node)?.frame, node);
     demandBinding(node);
     const iteration = input.operations.iteration.get(node);
-    if (iteration?.kind === "resolved" && iteration.lowering.kind === "object-shape-keys") {
-      demandShape(iteration.lowering.objectShape, node);
-      capability(node, iteration.lowering.objectShape.targetType, "enumerable-keys");
+    if (iteration !== undefined) {
+      demandType(iteration.binding.storageType, node);
+      demandConversion(iteration.binding.node, iteration.elementType, iteration.binding.storageType,
+        iteration.binding.conversion);
+      if (iteration.lowering.kind === "object-shape-keys") {
+        demandShape(iteration.lowering.objectShape, node);
+        capability(node, iteration.lowering.objectShape.targetType, "enumerable-keys");
+      }
     }
     for (const step of order) {
       if (step.kind === "construct") visitConstruct(step.construct);

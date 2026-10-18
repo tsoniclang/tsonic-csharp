@@ -5,7 +5,6 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpClassDeclaration, CsharpConstructorDeclaration, CsharpStatement } from "../../../target-ast/syntax/index.js";
 import { planAttributesForSubject } from "../attributes.js";
 import { planClassHeritage } from "./heritage.js";
-import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../modifiers.js";
 import { csharpClosedValueCarrierInterfaceType } from "../../objects/declarations/interfaces.js";
 import { planCsharpStructuralInterfaceMembers } from "../interfaces/structural.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
@@ -32,13 +31,12 @@ export function planClassDeclaration(
   input = createCsharpTypeParameterPlanningContext(node, createCsharpMemberPlanningContext(input));
   const declaration = input.program.source.ast.is.IsClassExpression(node)
     ? input.program.source.ast.as.AsClassExpression(node)! : AsClassDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "class declaration", diagnostics, ["abstract"]);
   const factory = input.program.records.classFactory.get(node);
   const staticCompanion = input.types.projectTypes.definitionContainingDeclaration(node)?.staticCompanion === true;
   const className = declaration.name === undefined && factory !== undefined ? factory.instanceName
     : planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
-  const heritage = planClassHeritage(node, input, diagnostics);
+  const heritage = planClassHeritage(node, input);
   const interfaces = [...heritage.interfaces, csharpClosedValueCarrierInterfaceType()];
   if (factory?.identity !== undefined) interfaces.push(csharpTypeFromTargetTypeRef(factory.identity.type, input.scope.typeParameterNames)!);
   const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);

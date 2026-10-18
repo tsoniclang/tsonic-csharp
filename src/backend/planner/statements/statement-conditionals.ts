@@ -19,7 +19,7 @@ import {
   planExpression,
 } from "../expressions/index.js";
 import {
-  unsupportedNodeDiagnostic,
+  failCsharpPlannerInvariant,
 } from "../diagnostics.js";
 import {
   planCsharpConditionExpression as planCheckedConditionExpression,
@@ -134,8 +134,7 @@ export function planConditionExpression(
   state: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
   if (expression === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(sourceFile, `${statementKind} requires a condition expression.`));
-    return undefined;
+    return failCsharpPlannerInvariant(`A checked ${statementKind} requires its condition expression.`, sourceFile);
   }
   return planCheckedConditionExpression(
     expression,

@@ -125,7 +125,6 @@ export function planSourceFile(
   const plannedTopLevelStatements = planResourceManagedSourceFileStatements(
     sourceFile,
     input,
-    diagnostics,
     topLevelState,
     () => {
       for (const statement of sourceFile.Statements?.Nodes ?? []) {

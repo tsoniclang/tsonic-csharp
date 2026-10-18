@@ -5,8 +5,9 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
-import { predefined, sameCsharpType } from "../types/index.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { predefined } from "../types/index.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
 import {
   allocateForInNames,
 } from "../bindings/index.js";
@@ -17,13 +18,7 @@ import type {
   NestedStatementPlanner,
 } from "./statement-nested-planner.js";
 import {
-  isCsharpIndexKeyIteration,
-  isCsharpKeyCollectionIteration,
-  isCsharpObjectShapeKeyIteration,
-} from "../../../analysis/operations/index.js";
-import {
   getCsharpTypeForForInCollection,
-  getForInKeyType,
   planForInBinding,
   planForInBindingActivationForIndex,
 } from "./statement-for-in-binding.js";
@@ -45,86 +40,42 @@ export function planForInStatement(
 ): readonly CsharpStatement[] {
   const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
   const selectedIteration = input.program.records.iteration.get(statementNode);
-  if (selectedIteration === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      diagnosticNode,
-      "C# planning received a for-in statement without a sealed target classification.",
-    ));
-    return [];
-  }
-  if (selectedIteration.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      diagnosticNode,
-      selectedIteration.reason,
-    ));
-    return [];
-  }
-  if (selectedIteration.iterationKind !== "for-in") {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      diagnosticNode,
-      "C# for-in emission received a non-for-in checked iteration selection.",
-    ));
-    return [];
+  if (selectedIteration === undefined || selectedIteration.iterationKind !== "for-in") {
+    failCsharpPlannerInvariant("A planned for-in statement requires its admitted native iteration contract.", diagnosticNode);
   }
   const binding = planForInBinding(
-    statement.Initializer,
+    selectedIteration.binding,
     selectedIteration.elementType,
-    sourceFile,
     input,
     diagnostics,
   );
-  if (binding === undefined) {
-    return [];
+  if (selectedIteration.lowering.kind === "object-shape-keys") {
+    return planObjectShapeForInStatement(statementNode, statement, binding, selectedIteration as Extract<CsharpAdmittedIteration,
+      { readonly iterationKind: "for-in"; readonly lowering: { readonly kind: "object-shape-keys" } }>,
+    sourceFile, input, diagnostics, state, planNestedStatementBody);
   }
-  if (isCsharpObjectShapeKeyIteration(selectedIteration)) {
-    return planObjectShapeForInStatement(statementNode, statement, binding, selectedIteration, sourceFile, input, diagnostics, state, planNestedStatementBody);
-  }
-  if (isCsharpKeyCollectionIteration(selectedIteration)) {
-    return planKeyCollectionForInStatement(statementNode, statement, binding, selectedIteration, sourceFile, input, diagnostics, state, planNestedStatementBody);
-  }
-  if (!isCsharpIndexKeyIteration(selectedIteration)) {
-    diagnostics.push(unsupportedNodeDiagnostic(statementNode, "C# for-in emission received an unsupported exact iteration policy."));
-    return [];
-  }
-  const keyType = getForInKeyType(input.scope.typeParameterNames, selectedIteration, statementNode, diagnostics);
-  if (keyType === undefined) {
-    return [];
-  }
-  if (binding.currentType !== undefined && !sameCsharpType(binding.currentType, keyType)) {
-    diagnostics.push(unsupportedNodeDiagnostic(binding.node, "For-in key binding must have the finalized provider key type."));
-    return [];
+  if (selectedIteration.lowering.kind === "key-collection") {
+    return planKeyCollectionForInStatement(statementNode, statement, binding, selectedIteration as Extract<CsharpAdmittedIteration,
+      { readonly iterationKind: "for-in"; readonly lowering: { readonly kind: "key-collection" } }>,
+    sourceFile, input, diagnostics, state, planNestedStatementBody);
   }
   if (statement.Expression === undefined) {
-    diagnostics.push({
-      code: "CSHARP_UNSUPPORTED_FOR_IN_COLLECTION",
-      category: "error",
-      source: "tsonic-csharp",
-      message: "For-in requires a collection expression.",
-    });
-    return [];
+    failCsharpPlannerInvariant("An admitted for-in statement lost its checked collection expression.", statementNode);
   }
   const collectionType = getCsharpTypeForForInCollection(
     input.scope.typeParameterNames,
     selectedIteration,
     statement.Expression,
-    diagnostics,
   );
-  if (collectionType === undefined) {
-    return [];
-  }
   const { indexName, collectionName } = allocateForInNames(state);
   const bindingActivation = planForInBindingActivationForIndex(
     binding,
-    keyType,
     indexName,
     selectedIteration.lowering,
     diagnostics,
     input,
     state,
   );
-  if (bindingActivation === undefined) {
-    return [];
-  }
   const plannedLoop: CsharpStatement = {
     kind: "ForStatement",
     initializer: {

@@ -142,12 +142,9 @@ export function planTopLevelVariableStatement(
         declaration,
         field,
         input,
-        diagnostics,
         state,
       );
-      if (registration !== undefined) {
-        topLevelStatements.push(registration);
-      }
+      topLevelStatements.push(registration);
     }
   }
 }

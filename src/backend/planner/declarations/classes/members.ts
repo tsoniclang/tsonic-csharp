@@ -17,7 +17,7 @@ import {
   sourceClassFieldIsTypeOnly,
 } from "@tsonic/target-api/source";
 import {
-  unsupportedNodeDiagnostic,
+  failCsharpPlannerInvariant,
 } from "../../diagnostics.js";
 import { planConstructorDeclarations } from "./constructors.js";
 import {
@@ -43,7 +43,7 @@ export function planClassMembers(
   const planned: CsharpTypeMember[] = [];
   const accessorProperties = new Map<string, CsharpPropertyDeclaration>();
   for (const member of members) {
-    if (member === undefined || sourceClassFieldIsTypeOnly(input.program.source.ast, member)) {
+    if (member === undefined || input.program.records.compileTimeMetadata.get(member) || sourceClassFieldIsTypeOnly(input.program.source.ast, member)) {
       continue;
     }
     const owner = input.program.source.ast.parent(member);
@@ -81,8 +81,7 @@ export function planClassMembers(
         mergeAccessorProperty(member, planned, accessorProperties, sourceFile, memberInput, diagnostics);
         break;
       default:
-        diagnostics.push(unsupportedNodeDiagnostic(member, "Class member is outside the current C# planning surface."));
-        break;
+        return failCsharpPlannerInvariant("An admitted class member lost its native declaration form.", member);
     }
   }
   return planned;

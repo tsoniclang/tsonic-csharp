@@ -1,6 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpStatement } from "../../target-ast/syntax/index.js";
 import { allocateControlLabel, type DestructuringPlannerState } from "../bindings/binding-state.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function withCsharpLoopContinuation(
   loop: Node,
@@ -20,7 +21,7 @@ export function planCsharpLoopContinuation(
   state: DestructuringPlannerState,
 ): string {
   const region = state.loopContinuations[state.loopContinuations.length - 1];
-  if (region?.loop !== loop) throw new Error("A planned loop region requires its exact active native continuation owner.");
+  if (region?.loop !== loop) failCsharpPlannerInvariant("A planned loop region requires its exact active native continuation owner.", loop);
   const target = [...state.controlLabels].reverse().find(target => target.loop === loop);
   const label = target?.continueLabel ?? allocateControlLabel(state, "region", "ContinueStatement");
   if (target !== undefined) target.continueOwned = true;
@@ -34,7 +35,7 @@ export function csharpLoopContinuationLabel(
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
   const region = state.loopContinuations[state.loopContinuations.length - 1];
-  if (region?.loop !== loop) throw new Error("A loop continuation label requires its exact owning region.");
+  if (region?.loop !== loop) failCsharpPlannerInvariant("A loop continuation label requires its exact owning region.", loop);
   return region.used ? [{ kind: "LabeledStatement", name: label,
     statement: { kind: "Block", body: { kind: "Block", statements: [] } } }] : [];
 }

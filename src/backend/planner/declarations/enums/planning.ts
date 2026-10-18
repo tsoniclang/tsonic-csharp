@@ -12,7 +12,6 @@ import type {
 } from "../../../target-ast/syntax/index.js";
 import { planAttributesForSubject } from "../attributes.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
-import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../modifiers.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
 import { planIntegerLiteral } from "../../expressions/literal-conversions.js";
 
@@ -25,7 +24,6 @@ export function planEnumDeclaration(
   const declaration = AsEnumDeclaration(input.program.source.ast, node)!;
   const definition = input.types.projectTypes.definitionContainingDeclaration(node);
   if (definition?.kind !== "enum") failCsharpPlannerInvariant("A source enum requires its admitted integer-width definition.", node);
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "enum declaration", diagnostics);
   return {
     kind: "EnumDeclaration",
     name: planIdentifierName(declaration.name, "AnonymousEnum", input, diagnostics, "Enum name"),

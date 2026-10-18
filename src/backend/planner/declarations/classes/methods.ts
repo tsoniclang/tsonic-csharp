@@ -10,9 +10,6 @@ import {
   createDestructuringPlannerState,
 } from "../../bindings/index.js";
 import {
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers,
-} from "../modifiers.js";
-import {
   planIdentifierName,
 } from "../../names/source-identifiers.js";
 import {
@@ -59,7 +56,6 @@ export function planMethodDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpMethodDeclaration {
   const declaration = AsMethodDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "method declaration", diagnostics, ["public", "private", "protected", "abstract", "override"]);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
   const callable = input.program.records.callableDispatch.get(node)?.implementation;
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);

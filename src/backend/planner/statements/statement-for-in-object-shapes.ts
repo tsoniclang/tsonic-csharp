@@ -8,10 +8,9 @@ import type {
 } from "../../target-ast/syntax/index.js";
 import {
   predefined,
-  sameCsharpType,
 } from "../types/index.js";
 import {
-  unsupportedNodeDiagnostic,
+  failCsharpPlannerInvariant,
 } from "../diagnostics.js";
 import {
   allocateForInNames,
@@ -26,7 +25,7 @@ import { consumeCsharpPlannedValue } from "./statement-output.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
-import type { CsharpResolvedIteration } from "../../../target-model/records/selection.js";
+import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
 import type {
   NestedStatementPlanner,
 } from "./statement-nested-planner.js";
@@ -34,7 +33,6 @@ import type {
   PlannedForInBinding,
 } from "./statement-for-in-binding.js";
 import {
-  getForInKeyType,
   planForInBindingActivation,
 } from "./statement-for-in-binding.js";
 import { csharpEnumerableKeysMethodName, csharpEnumerableKeysType } from "../objects/declarations/enumerable-keys.js";
@@ -44,7 +42,7 @@ export function planObjectShapeForInStatement(
   statement: NonNullable<ReturnType<typeof AsForInOrOfStatement>>,
   binding: PlannedForInBinding,
   selectedIteration: Extract<
-    CsharpResolvedIteration,
+    CsharpAdmittedIteration,
     {
       readonly iterationKind: "for-in";
       readonly lowering: { readonly kind: "object-shape-keys" };
@@ -56,28 +54,13 @@ export function planObjectShapeForInStatement(
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
-  const keyType = getForInKeyType(input.scope.typeParameterNames, selectedIteration, statementNode, diagnostics);
-  if (keyType === undefined) {
-    return [];
-  }
-  if (binding.currentType !== undefined && !sameCsharpType(binding.currentType, keyType)) {
-    diagnostics.push(unsupportedNodeDiagnostic(binding.node, "For-in key binding must have the finalized provider key type."));
-    return [];
-  }
   if (statement.Expression === undefined) {
-    diagnostics.push({
-      code: "CSHARP_UNSUPPORTED_FOR_IN_COLLECTION",
-      category: "error",
-      source: "tsonic-csharp",
-      message: "For-in requires a collection expression.",
-    });
-    return [];
+    failCsharpPlannerInvariant("An admitted structural-key loop lost its checked collection expression.", statementNode);
   }
   const objectShape = selectedIteration.lowering.objectShape;
   const collectionType = csharpTypeFromTargetTypeRef(objectShape.targetType, input.scope.typeParameterNames);
   if (collectionType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Object-shape for-in requires a renderable object-shape target type before C# emission."));
-    return [];
+    failCsharpPlannerInvariant("An admitted structural-key loop lost its native object-shape rendering.", statement.Expression);
   }
   const { indexName, collectionName, keysName } = allocateForInNames(state);
   const keyExpression: CsharpExpression = {
@@ -87,7 +70,6 @@ export function planObjectShapeForInStatement(
   };
   const bindingActivation = planForInBindingActivation(
     binding,
-    keyType,
     keyExpression,
     input,
     state,

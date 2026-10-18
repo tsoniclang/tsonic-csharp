@@ -9,10 +9,9 @@ import type {
 } from "../../target-ast/syntax/index.js";
 import {
   predefined,
-  sameCsharpType,
 } from "../types/index.js";
 import {
-  unsupportedNodeDiagnostic,
+  failCsharpPlannerInvariant,
 } from "../diagnostics.js";
 import {
   allocateStringIterationNames,
@@ -38,10 +37,7 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
-import type {
-  CsharpForAwaitOfIteration,
-  CsharpForOfIteration,
-} from "../../../analysis/operations/index.js";
+import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
 import type {
   CsharpStaticTargetMethod,
 } from "../../../target-model/types/index.js";
@@ -57,7 +53,7 @@ export function planStringCodePointForOfStatement(
   statement: NonNullable<ReturnType<typeof AsForInOrOfStatement>>,
   binding: PlannedStringForOfBinding,
   selectedIteration: Extract<
-    CsharpForOfIteration | CsharpForAwaitOfIteration,
+    CsharpAdmittedIteration,
     { readonly lowering: { readonly kind: "string-code-point" } }
   >,
   sourceFile: SourceFile,
@@ -67,30 +63,16 @@ export function planStringCodePointForOfStatement(
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
   const stringType = predefined("string");
-  if (selectedIteration.lowering.kind !== "string-code-point") {
-    diagnostics.push(unsupportedNodeDiagnostic(statementNode, `String code-point for-of received iteration lowering '${selectedIteration.lowering.kind}'.`));
-    return [];
-  }
-  if (!sameCsharpType(binding.type, stringType)) {
-    diagnostics.push(unsupportedNodeDiagnostic(statementNode, "String for-of binding must have the finalized provider element type string."));
-    return [];
-  }
   if (statement.Expression === undefined) {
-    diagnostics.push({
-      code: "CSHARP_UNSUPPORTED_FOR_OF_COLLECTION",
-      category: "error",
-      source: "tsonic-csharp",
-      message: "For-of requires a collection expression.",
-    });
-    return [];
+    return failCsharpPlannerInvariant("An admitted string iteration lost its checked collection expression.", statementNode);
   }
   const { collectionName, indexName } = allocateStringIterationNames(state);
   const bindingIdentifier = { kind: "IdentifierName", name: binding.name } satisfies CsharpExpression;
   const collectionIdentifier = { kind: "IdentifierName", name: collectionName } satisfies CsharpExpression;
   const indexIdentifier = { kind: "IdentifierName", name: indexName } satisfies CsharpExpression;
   const collectionExpression = planExpression(statement.Expression, sourceFile, input, diagnostics);
-  const surrogatePairTest = stringHasSurrogatePairAt(input.scope.typeParameterNames, collectionIdentifier, indexIdentifier, selectedIteration, diagnostics, statementNode);
-  if (collectionExpression === undefined || surrogatePairTest === undefined) {
+  const surrogatePairTest = stringHasSurrogatePairAt(input.scope.typeParameterNames, collectionIdentifier, indexIdentifier, selectedIteration, statementNode);
+  if (collectionExpression === undefined) {
     return [];
   }
   return consumeCsharpPlannedValue(collectionExpression, value => {
@@ -167,33 +149,23 @@ function stringHasSurrogatePairAt(
   collection: CsharpExpression,
   index: CsharpExpression,
   selectedIteration: Extract<
-    CsharpForOfIteration | CsharpForAwaitOfIteration,
+    CsharpAdmittedIteration,
     { readonly lowering: { readonly kind: "string-code-point" } }
   >,
-  diagnostics: TargetDiagnostic[],
   diagnosticNode: Node,
-): CsharpExpression | undefined {
-  if (selectedIteration.lowering.kind !== "string-code-point") {
-    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "String code-point surrogate test requires an exact string-code-point lowering policy."));
-    return undefined;
-  }
+): CsharpExpression {
   const high = callSurrogateOperation(
     typeParameterNames,
     selectedIteration.lowering.policy.highSurrogateMethod,
     element(collection, index),
-    diagnostics,
     diagnosticNode,
   );
   const low = callSurrogateOperation(
     typeParameterNames,
     selectedIteration.lowering.policy.lowSurrogateMethod,
     element(collection, add(index, literalNumber(1))),
-    diagnostics,
     diagnosticNode,
   );
-  if (high === undefined || low === undefined) {
-    return undefined;
-  }
   return and(
     lessThan(add(index, literalNumber(1)), member(collection, selectedIteration.lowering.policy.lengthMemberName)),
     and(high, low),
@@ -204,13 +176,11 @@ function callSurrogateOperation(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   operation: CsharpStaticTargetMethod,
   argument: CsharpExpression,
-  diagnostics: TargetDiagnostic[],
   diagnosticNode: Node,
-): CsharpExpression | undefined {
+): CsharpExpression {
   const declaringType = csharpTypeFromTargetTypeRef(operation.declaringType, typeParameterNames);
   if (declaringType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "String code-point surrogate test requires a renderable static target method policy."));
-    return undefined;
+    return failCsharpPlannerInvariant("An admitted string iteration lost its native surrogate method rendering.", diagnosticNode);
   }
   return {
     kind: "InvocationExpression",

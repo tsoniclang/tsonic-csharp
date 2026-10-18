@@ -32,7 +32,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../diagnostics.js";
 import {
   createDestructuringPlannerState,
   declareCsharpLocalBindingName,
@@ -109,7 +109,6 @@ export function planBlockStatements(
   const plan = () => [...captures, ...entryPrelude, ...planCsharpCaptureEntryBindings(blockNode, input, state), ...planResourceManagedBlockStatements(
     blockNode,
     input,
-    diagnostics,
     state,
     () => [...executable.flatMap(
       (statement) => [...(values.get(statement) ?? []), ...planStatements(
@@ -214,8 +213,7 @@ export function planStatements(
         : input.program.source.ast.children(declarationList)
           .filter((declaration): declaration is Node => declaration !== undefined && input.program.source.ast.is.IsVariableDeclaration(declaration));
       if (declarations.length === 0) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Variable statement has no declaration."));
-        return [];
+        return failCsharpPlannerInvariant("A checked variable statement requires its declaration list.", node);
       }
       return declarations.flatMap((declaration) => planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state));
     }

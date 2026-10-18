@@ -51,6 +51,7 @@ import type {
 } from "../../target-model/records/value-projections.js";
 import { selectCsharpBindingPatternProjection, selectCsharpDefaultValueContract } from "../../policy/types/objects/binding-projection-policy.js";
 import { csharpBindingDefaultCarrier } from "../../target-model/types/binding-normalization.js";
+import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import {
   isCsharpNeverTargetType,
   isCsharpVoidTargetType,
@@ -205,6 +206,22 @@ export function analyzeCsharpBindingPatterns(
       : source === undefined || initialType === undefined ? undefined : csharpBindingDefaultCarrier(source, initialType);
     const defaultValue = source === undefined || target === undefined || initializer === undefined || tupleDefault?.kind === "unused"
       ? undefined : selectCsharpDefaultValueContract(source, target, presence);
+    if (element.kind === "array-element") {
+      if (element.elementCarrier === undefined || csharpTargetTypeRenderingRejection(element.elementCarrier) !== undefined) {
+        issue(node, "Array destructuring element requires a renderable provider element carrier type before C# emission.");
+      }
+      if (element.tupleDefault?.kind === "planned" &&
+        csharpTargetTypeRenderingRejection(element.tupleDefault.carrier) !== undefined) {
+        issue(initializer ?? node, "Tuple destructuring defaults require a renderable non-nullish element type and the active expression planner.");
+      }
+      if (presence && defaultValue !== undefined && csharpTargetTypeRenderingRejection(defaultValue.target) !== undefined) {
+        issue(initializer ?? node, "Array default requires a renderable finalized element carrier.");
+      }
+    } else if (element.kind === "array-rest" && csharpTargetTypeRenderingRejection(element.restCarrier) !== undefined) {
+      issue(node, "Array rest destructuring requires a renderable provider array carrier type before C# emission.");
+    } else if (element.kind === "tuple-rest" && csharpTargetTypeRenderingRejection(element.restCarrier) !== undefined) {
+      issue(node, "Tuple rest destructuring requires a renderable provider tuple carrier type before C# emission.");
+    }
     facts.set(node, Object.freeze({ ...facts.get(node), element: Object.freeze(element),
       ...(defaultValue === undefined ? {} : { defaultValue }) }));
   }
