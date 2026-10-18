@@ -419,6 +419,7 @@ export function resolveCallableEvidence(
       );
   const typeParameters = resolveCsharpCallableTypeParameters(callable.result.declaration, queries.sourceFile, {
     ast: host.ast, types: { resolveNode: (node, file) => resolveNodeWithState(node, file, nextState(state)) },
+    genericProjections: host.representations.genericProjections,
   });
   return typeParameters === undefined ? undefined : typeParameters.length === 0 ? signature
     : host.objectShapes.resolveCallableValue(signature, typeParameters);

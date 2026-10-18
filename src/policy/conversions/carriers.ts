@@ -441,23 +441,31 @@ function constructedNamedTargetTypeImplicitlyAccepts(
       sourceSignature.returnPassing === targetSignature.returnPassing &&
       sourceSignature.parameterPassingModes.every((mode, index) => mode === targetSignature.parameterPassingModes[index]) &&
       sourceSignature.parameters.every((parameter, index) =>
-      variantArgumentImplicitlyAccepts(input, targetSignature.parameters[index]!, parameter, visited)) &&
-      variantArgumentImplicitlyAccepts(input, sourceSignature.returnType, targetSignature.returnType, visited);
+      csharpVariantArgumentImplicitlyAccepts(input, targetSignature.parameters[index]!, parameter, visited)) &&
+      csharpVariantArgumentImplicitlyAccepts(input, sourceSignature.returnType, targetSignature.returnType, visited);
   }
   const binding = csharpTargetBindingFact(
     input.providers.findTargetBindingByTargetId(source.id),
   );
   const parameters = binding?.typeParameters ?? [];
+  const shape = binding === undefined && source.csharpStructuralContract === true
+    ? input.objectShapes?.resolveTarget(source) : undefined;
+  const declaration = shape?.declarationTemplate ?? shape;
+  const nativeParameters = declaration?.targetType.kind === "target-named" && declaration.targetType.id === source.id
+    ? declaration.targetType.typeArguments : undefined;
   return sourceArguments.every((sourceArgument, index) => {
     const targetArgument = targetArguments[index];
+    const nativeParameter = nativeParameters?.length === sourceArguments.length ? nativeParameters[index] : undefined;
     return targetArgument !== undefined &&
-      typeArgumentImplicitlyAccepts(
+      (nativeParameter?.kind === "type-parameter" && declaration?.covariantTypeParameterIdentities?.includes(nativeParameter.identity) === true
+        ? csharpVariantArgumentImplicitlyAccepts(input, sourceArgument, targetArgument, visited)
+        : typeArgumentImplicitlyAccepts(
         input,
         sourceArgument,
         targetArgument,
         parameters[index],
         visited,
-      );
+      ));
   });
 }
 
@@ -472,15 +480,15 @@ function typeArgumentImplicitlyAccepts(
     return true;
   }
   if (parameter?.variance === "out") {
-    return variantArgumentImplicitlyAccepts(input, source, target, visited);
+    return csharpVariantArgumentImplicitlyAccepts(input, source, target, visited);
   }
   if (parameter?.variance === "in") {
-    return variantArgumentImplicitlyAccepts(input, target, source, visited);
+    return csharpVariantArgumentImplicitlyAccepts(input, target, source, visited);
   }
   return false;
 }
 
-function variantArgumentImplicitlyAccepts(
+export function csharpVariantArgumentImplicitlyAccepts(
   input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries,
   source: TargetTypeRef,
   target: TargetTypeRef,

@@ -6,6 +6,8 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-mode
 import { emptyCsharpTypeDefinitions } from "../../../dist/target-model/types/source-union-definitions.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { resolveCsharpOptionalStorage } from "../../../dist/target-model/types/carriers/optional-storage.js";
+import { analyzeCsharpProjectCallableAdapters } from "../../../dist/analysis/project-types/callable-adapters.js";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/relations/resolver.js";
 
 const integer = { kind: "source-primitive", name: "int64" };
 const string = { kind: "source-primitive", name: "string" };
@@ -25,7 +27,7 @@ const refusesMutation = (mutate) => {
   }
 };
 
-function harness({ resolvesComponent, shapeTemplate = template }) {
+function harness({ resolvesComponent, shapeTemplate = template, aliases = [] }) {
   const files = { holder: {}, template: {} };
   const counts = { policy: 0 };
   let closed = false;
@@ -43,13 +45,14 @@ function harness({ resolvesComponent, shapeTemplate = template }) {
       resolveNode: native("resolveNode", node => node === files.holder ? holder : node === files.template ? shapeTemplate : undefined),
       resolveTarget: native("resolveTarget", type => {
         if (targetTypeRefEquals(type, holder.targetType)) return holder;
+        if (aliases.some(alias => targetTypeRefEquals(type, alias))) return holder;
         if (targetTypeRefEquals(type, shapeTemplate.targetType)) return shapeTemplate;
         return resolvesComponent && targetTypeRefEquals(type, component) ? instantiateCsharpObjectShape(shapeTemplate, type) : undefined;
       }),
       resolveCopyShape: native("resolveCopyShape", () => undefined),
     },
   };
-  const builder = analyzeCsharpObjectShapes(policy, { targetTypes: [], compileTimeMetadata: { get: () => false } },
+  const builder = analyzeCsharpObjectShapes(policy, { targetTypes: aliases, compileTimeMetadata: { get: () => false } },
     { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });
   const sealed = builder.seal();
   closed = true;
@@ -80,6 +83,43 @@ test("an instance no producer demanded is a negative lookup, never a late instan
   }
   assert.equal(sealed.resolveTarget(undefined) === undefined, true, "absent input is absent");
   assert.equal(counts.policy, before, "negative lookups make no native query");
+});
+
+test("one immutable completed target index retains alias keys and instantiated shapes without reindexing the catalog", () => {
+  const alias = Object.freeze({ kind: "target-named", id: "HolderAlias", csharpAllowsRefLikeTypeArguments: Object.freeze([]) });
+  for (const resolvesComponent of [false, true]) {
+    const { sealed, counts, files } = harness({ resolvesComponent, aliases: [alias] });
+    const before = counts.policy;
+    const data = sealed.targetShapes;
+    const adapters = analyzeCsharpProjectCallableAdapters({}, { declarationContracts: [] }, sealed,
+      { runtimeDefault: { get: () => assert.fail("a graph without callable obligations never resolves defaults") } },
+      { get: () => assert.fail("a graph without callable obligations never derives native projection metadata") });
+    assert.equal(adapters.objectShapes.targetShapes === data, true,
+      "the completed callable adapter publication retains the identical canonical data reference");
+    assert.equal(Object.isFrozen(data), true, "the canonical completed exact-key publication is immutable");
+    assert.equal(data[targetTypeRefKey(alias)] === sealed.resolveTarget(alias) &&
+      data[targetTypeRefKey(alias)] === sealed.resolveTarget(holder.targetType), true,
+    "a producer alias retains the identical published shape rather than being lost by a shape-target reindex");
+    assert.equal(sealed.resolveNode(files.holder) === data[targetTypeRefKey(holder.targetType)] &&
+      sealed.knownShapes().find(shape => targetTypeRefEquals(shape.targetType, holder.targetType)) ===
+        data[targetTypeRefKey(holder.targetType)], true,
+    "node and catalog consumers share that canonical completed physical carrier after subject merging");
+    assert.equal(sealed.knownShapes().some(shape => targetTypeRefEquals(shape.targetType, alias)), false,
+      "the alias is an actual index key, not a separate catalog declaration");
+    assert.equal(data[targetTypeRefKey(component)] !== undefined &&
+      data[targetTypeRefKey(component)] === sealed.resolveTarget(component), true,
+    "the actual pre-seal completed generic instance is in the same index");
+    assert.equal(sealed.resolveTarget(csharpNullableTargetType(component)) === data[targetTypeRefKey(component)], true,
+      "the existing single native absence normalization selects that same exact record");
+    const missing = { ...component, typeArguments: [string] };
+    assert.equal(data[targetTypeRefKey(missing)] === undefined && sealed.resolveTarget(missing) === undefined, true,
+      "an unrecorded instantiation remains absent, without a late native query");
+    assert.equal(refusesMutation(() => { data[targetTypeRefKey(alias)] = undefined; }), true,
+      "consumers cannot replace the canonical alias record");
+    assert.equal(refusesMutation(() => { delete data[targetTypeRefKey(component)]; }), true,
+      "consumers cannot delete a published instance");
+    assert.equal(counts.policy, before, "all data and reader lookups share completed records without policy recomputation");
+  }
 });
 
 test("sealed structural implementations, property orders and node shapes are lookups of fixed records", () => {
@@ -119,6 +159,7 @@ test("structural implementations are materialized at seal and an unrecorded inst
     ast: { is: { IsObjectLiteralExpression: () => false }, forEachChild: () => {}, parent: () => undefined,
       properties: () => [], authoredRange: () => ({ kind: "unauthored" }) },
     sourceFiles: [], typeDefinitions: emptyCsharpTypeDefinitions,
+    providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
     objectShapes: {
       resolveTarget: type => { assert.equal(closed, false, "native selection precedes publication"); queries += 1; return shapes.get(targetTypeRefKey(type)); },
       resolveCopyShape: () => { assert.equal(closed, false, "copy selection precedes publication"); return undefined; },
@@ -209,6 +250,7 @@ test("a generic structural implementation is substituted once at seal into froze
     ast: { is: { IsObjectLiteralExpression: () => false }, forEachChild: () => {}, parent: () => undefined,
       properties: () => [], authoredRange: () => ({ kind: "unauthored" }) },
     sourceFiles: [], typeDefinitions: emptyCsharpTypeDefinitions,
+    providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
     objectShapes: {
       resolveTarget: type => { assert.equal(closed, false, "native selection precedes publication"); queries += 1; return shapes.get(targetTypeRefKey(type)); },
       resolveCopyShape: () => { assert.equal(closed, false, "copy selection precedes publication"); return undefined; },

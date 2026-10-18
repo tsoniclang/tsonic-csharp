@@ -34,7 +34,7 @@ export function applyCsharpObjectShapeDisplayNames(
       return name === undefined ? record : { ...record, name };
     }
     if (
-      (record.kind === "ClassDeclaration" || record.kind === "InterfaceDeclaration") &&
+      (record.kind === "ClassDeclaration" || record.kind === "StructDeclaration" || record.kind === "InterfaceDeclaration") &&
       typeof record.name === "string" &&
       typeof record.objectShapeIdentity === "string"
     ) {
@@ -151,7 +151,7 @@ function collectDeclaredTypeNames(
       ) &&
       typeof record.name === "string" &&
       !(
-        (record.kind === "ClassDeclaration" || record.kind === "InterfaceDeclaration") &&
+        (record.kind === "ClassDeclaration" || record.kind === "StructDeclaration" || record.kind === "InterfaceDeclaration") &&
         typeof record.objectShapeIdentity === "string" &&
         generatedIdentities.has(record.objectShapeIdentity)
       )

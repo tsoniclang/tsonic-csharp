@@ -16,6 +16,8 @@ import type {
 } from "../../target-model/records/native-value-carriers.js";
 import type { CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
+import { csharpRuntimeRecordFieldTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 
 export function analyzeCsharpNativeValueCarriers(
   ast: AstReader,
@@ -84,7 +86,15 @@ export function analyzeCsharpNativeValueCarriers(
         refuse(field.sourceType, `Value-type field '${field.sourceName}' requires an exact selected native carrier before C# struct emission.`);
         continue;
       }
+      if (csharpTargetTypeRenderingRejection(carrier) !== undefined) {
+        refuse(field.sourceType, `Value-type field '${field.sourceName}' has no renderable selected native carrier.`);
+        continue;
+      }
       const member = shape?.members.find(candidate => candidate.sourceSubjects?.includes(field.sourceType));
+      if (member?.bound === true && csharpTargetTypeRenderingRejection(csharpRuntimeRecordFieldTargetType(member.type)) !== undefined) {
+        refuse(field.sourceType, "The bound value-type member has no renderable storage contract.");
+        continue;
+      }
       fields.push(Object.freeze({ source: field, carrier,
         ...(shape !== undefined && member?.bound === true ? { bound: Object.freeze({ owner: shape, member }) } : {}),
       }));

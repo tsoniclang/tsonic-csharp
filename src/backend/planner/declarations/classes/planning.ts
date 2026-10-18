@@ -102,14 +102,14 @@ export function planClassDeclaration(
           kind: "SimpleMemberAccessExpression" as const, receiver: { kind: "IdentifierName" as const, name: "this" }, name: factory.environmentName,
         } }] },
       }]),
-      ...(objectShape === undefined ? [] : planCsharpStructuralInterfaceMembers(objectShape, node, input, diagnostics)),
+      ...(objectShape === undefined ? [] : planCsharpStructuralInterfaceMembers(objectShape, input, diagnostics)),
       ...(objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "js-freeze")
         ? guardCsharpFrozenDataProperties(objectShape, members, input, diagnostics) : members).map(member =>
           member.kind === "ConstructorDeclaration" ? completeConstructor(member, []) : member),
       ...(jsonSerializable && objectShape !== undefined
         ? renderJsonSerializableObjectShapeMethod(objectShape)
         : []),
-      ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input, objectShape,
+      ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input,
         input.artifacts.objectShapeProjections(objectShape), diagnostics)),
       ...input.scope.generatedMethods!.values(),
     ],

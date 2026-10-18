@@ -45,6 +45,7 @@ export interface CsharpClassDeclaration {
 export interface CsharpStructDeclaration {
   readonly kind: "StructDeclaration";
   readonly name: string;
+  readonly objectShapeIdentity?: string;
   readonly modifiers: readonly CsharpModifier[];
   readonly attributes?: readonly CsharpAttribute[];
   readonly typeParameters?: readonly CsharpTypeParameter[];

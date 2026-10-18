@@ -1,10 +1,43 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { analyzeCsharpProjectTypePolicy } from "../../../dist/analysis/project-types/catalog/resolution.js";
 import { createCsharpProjectTypePolicy } from "../../../dist/policy/types/project/project-types.js";
 import { csharpEnumerableTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 
 const header = 'import type { int32, int64 } from "@tsonic/core/types.js";\n';
+
+test("native project policy consumes completed catalog evidence and rejects the removed two-argument form", () => {
+  const declaration = Object.freeze({});
+  const definition = Object.freeze({ id: "project:Completed", declaration });
+  const selected = Object.freeze({ definition, interfaces: Object.freeze([]) });
+  const catalog = Object.freeze({
+    get definitions() { throw new Error("native policy cannot traverse the completed catalog"); },
+    definitionForDeclaration: node => node === declaration ? definition : undefined,
+  });
+  const heritage = new Map([[definition.id, selected]]);
+  const forwarded = Object.freeze([]);
+  const constructors = Object.freeze({ issues: Object.freeze([]),
+    implicitConstructorsForDeclaration: node => node === declaration ? forwarded : undefined,
+    implicitConstructorForSignature: () => undefined });
+  const issues = Object.freeze([]);
+  const policy = createCsharpProjectTypePolicy({}, catalog, heritage, constructors, issues);
+  assert.equal(policy.heritageForDeclaration(declaration) === selected, true,
+    "the native reader retains the one completed heritage record without world traversal");
+  assert.equal(policy.implicitConstructorsForDeclaration(declaration) === forwarded, true,
+    "the native reader retains the canonical completed constructor publication");
+  assert.equal(policy.issues === issues && Object.isFrozen(policy), true,
+    "the completed issue publication is not recomputed");
+  for (const [label, completed] of [
+    ["removed two-argument form", []],
+    ["missing heritage", [undefined, constructors, issues]],
+    ["missing constructors", [heritage, undefined, issues]],
+    ["missing issues", [heritage, constructors, undefined]],
+  ]) {
+    assert.throws(() => createCsharpProjectTypePolicy({}, catalog, ...completed),
+      /requires completed heritage, constructors and issues/u, label);
+  }
+});
 
 function selectedHeritageFixture(relation, target, binding) {
   const declaration = Object.freeze({});
@@ -32,7 +65,7 @@ function selectedHeritageFixture(relation, target, binding) {
       return target;
     } },
   };
-  const policy = createCsharpProjectTypePolicy(host, catalog);
+  const policy = analyzeCsharpProjectTypePolicy(host, catalog);
   return { policy, declaration, heritage, providerReads: () => providerReads };
 }
 

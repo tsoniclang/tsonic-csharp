@@ -97,7 +97,11 @@ function fixture() {
     },
   };
   const host = {
-    ast: { is: { IsObjectLiteralExpression: node => fresh.has(node) }, properties: node => node.properties ?? [] },
+    ast: { is: {
+      IsObjectLiteralExpression: node => fresh.has(node),
+      IsVariableDeclaration: () => false,
+      IsBindingElement: () => false,
+    }, properties: node => node.properties ?? [] },
     navigation: { isProjectDeclaration: node => !foreign.has(node) },
     providers: { resolveType(fact) { return { kind: "resolved", relations: [{ kind: "type",
       objectLiteralConstruction: { kind: "object-initializer" }, targetBinding: fact.target }] }; } },
@@ -329,6 +333,33 @@ test("constructor-valued native types do not demand object-literal instance memb
   const selected = value.freeze();
   assert.equal(selected.issues.length, 0);
   assert.equal(selected.constructionFor(producer.node) === undefined, true);
+});
+
+test("even an authored literal initializer cannot turn a constructor value into instance storage", () => {
+  const value = fixture();
+  const constructor = value.row([], native, { provider: true, constructs: [{}] });
+  const literal = value.literal(constructor);
+  const declaration = value.subject(constructor);
+  declaration.node.Initializer = literal.node;
+  value.host.ast.is.IsVariableDeclaration = node => node === declaration.node;
+  value.host.ast.as = { AsVariableDeclaration: node => node === declaration.node ? declaration.node : undefined };
+  value.host.ast.parent = () => undefined;
+  value.host.navigation.declarationUseSummary = () => { throw new Error("constructor values cannot request a local data use summary"); };
+  value.host.resolveShape = () => { throw new Error("constructor values cannot instantiate an object field layout"); };
+  const selected = value.freeze();
+  assert.equal(selected.issues.length, 0, "no native construction issue is invented for a constructor value");
+  assert.equal(selected.constructionFor(declaration.node) === undefined, true,
+    "even a literal-shaped initializer cannot replace a constructor's physical carrier");
+});
+
+test("unrelated checked values never instantiate shapes while considering local native value storage", () => {
+  const value = fixture();
+  const source = value.row([{ identity: "field" }]);
+  const subject = value.subject(source);
+  value.host.resolveShape = () => { throw new Error("an unrelated checked value must not instantiate a native shape"); };
+  const selected = value.freeze();
+  assert.equal(selected.issues.length, 0, "a non-candidate does not acquire construction diagnostics");
+  assert.equal(selected.constructionFor(subject.node) === undefined, true, "the existing native storage remains unselected");
 });
 
 test("native demand rejects multi-carrier unions rather than silently choosing one", () => {
