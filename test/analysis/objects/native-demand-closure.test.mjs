@@ -9,6 +9,7 @@ import { objectShapeArtifactKey } from "../../../dist/target-model/records/objec
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
 import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { monomorphicStructuralOptionalFiles } from "../../../../tsonic/test/fixtures/generic-structural-methods.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
@@ -250,6 +251,31 @@ test("native spread requires completed canonical target rows instead of manufact
   assert.equal(current.engine.seal().spread(subject) === undefined, true, "the missing original owner remains a refusal");
 });
 
+for (const ownership of ["no declaration", "unrelated declaration", "authored implementation"]) {
+  test(`native spread omits only a proven shared authored method: ${ownership}`, () => {
+    const methodType = csharpDelegateTargetType("System.Func", [], spreadInteger);
+    const declaration = {};
+    const sourceDeclarations = ownership === "authored implementation" ? [declaration]
+      : ownership === "unrelated declaration" ? [{}] : [];
+    const member = { ...spreadField("read", methodType), memberKind: "method", methodValueContract: methodType, sourceDeclarations };
+    const current = spreadDemandFixture([member]);
+    const shape = current.source;
+    shape.methodImplementation = { declaration: {}, identity: "shared-native-spread", methods: [declaration], captures: [] };
+    const subject = {};
+    assert.equal(current.engine.requireObjectShapeSpread(subject, {}, shape, shape).kind, "accepted",
+      "a same-carrier spread retains the exact admitted native implementation");
+    const demand = current.engine.seal();
+    const copied = ownership !== "authored implementation";
+    assert.equal(demand.spread(subject).memberBindings.length, copied ? 1 : 0,
+      "two absent declaration lookups cannot justify discarding the stored protocol value");
+    if (copied) assert.equal(demand.spread(subject).memberBindings[0].source === member &&
+      demand.spread(subject).memberBindings[0].target === member, true,
+    "the exact stored protocol member retains its one source-to-target transfer");
+    assert.equal(demand.get(objectShapeArtifactKey(shape)).capabilities.includes("method-values"), copied,
+      "copied protocol values demand their existing capability, while shared authored bodies do not");
+  });
+}
+
 for (const surface of ["native", "js"]) test(`${surface}: source spreads publish native member decisions before the planner is created`, () => {
   const { program, source, nodes } = compileCsharpRequiredRecordSource(header + `
     export function make(seed: int32) {
@@ -274,6 +300,18 @@ for (const surface of ["native", "js"]) test(`${surface}: source spreads publish
     const missing = Object.freeze({ ...program.records.objectShapeArtifact, spread: () => undefined });
     assert.throws(() => createCsharpProgramRecords({ ...csharpRecordInput(program.records), objectShapeDemand: missing }, [row]),
       /Required C# semantic plan 'objectShapeArtifact'/u, "a missing demanded spread prevents publication at the record seal");
+    for (const [label, memberBindings] of [
+      ["absent", undefined],
+      ["mutable", []],
+      ["frozen non-array", Object.freeze({})],
+    ]) {
+      const damaged = Object.freeze({ ...selected, memberBindings });
+      const spread = subject => subject === node ? damaged : program.records.objectShapeArtifact.spread(subject);
+      const objectShapeDemand = Object.freeze({ ...program.records.objectShapeArtifact, spread });
+      assert.throws(() => createCsharpProgramRecords({ ...csharpRecordInput(program.records), objectShapeDemand }, [row]),
+        /Required C# semantic plan 'objectShapeArtifact'/u,
+        `${label} demanded-spread correspondence is rejected before publication`);
+    }
   }
 });
 
@@ -291,6 +329,18 @@ test("the record seal requires each actual selected object projection and reject
   const missing = Object.freeze({ ...program.records.objectShapeArtifact, projection: () => undefined });
   assert.throws(() => createCsharpProgramRecords({ ...csharpRecordInput(program.records), objectShapeDemand: missing }, [requirement]),
     /Required C# semantic plan 'objectShapeArtifact'/u, "a required missing projection is refused at publication rather than planning");
+  for (const [label, memberBindings] of [
+    ["absent", undefined],
+    ["mutable", []],
+    ["frozen non-array", Object.freeze({})],
+  ]) {
+    const damaged = Object.freeze({ ...selected, memberBindings });
+    const projection = node => node === subject ? damaged : program.records.objectShapeArtifact.projection(node);
+    const objectShapeDemand = Object.freeze({ ...program.records.objectShapeArtifact, projection });
+    assert.throws(() => createCsharpProgramRecords({ ...csharpRecordInput(program.records), objectShapeDemand }, [requirement]),
+      /Required C# semantic plan 'objectShapeArtifact'/u,
+      `${label} demanded-projection correspondence is rejected before publication`);
+  }
   const foreign = nodes.find(node => source.ast.is.IsFunctionDeclaration(node));
   assert.throws(() => assertCsharpRequiredRecords(program.records, [{ ...requirement, subject: foreign }]),
     /Required C# semantic plan 'objectShapeArtifact'/u, "an unrelated source declaration cannot inherit the selected projection");

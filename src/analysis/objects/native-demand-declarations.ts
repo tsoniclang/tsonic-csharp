@@ -127,8 +127,9 @@ export function requireObjectShapeSpread(
     if (selected.kind !== "resolved") return rejected(selected.reason === "not-in-finalized-shape"
       ? `Object literal spread source member '${member.sourceName}' requires a finalized target object-shape member carrier before C# emission.`
       : csharpObjectShapeMemberLookupFailureMessage(selected, "Object literal spread target shape"));
-    if (sharedImplementation && selected.member.methodValueContract !== undefined &&
-      csharpObjectShapeMethodDeclaration(target, selected.member) === csharpObjectShapeMethodDeclaration(source, member)) continue;
+    const sourceDeclaration = csharpObjectShapeMethodDeclaration(source, member);
+    if (sharedImplementation && selected.member.methodValueContract !== undefined && sourceDeclaration !== undefined &&
+      csharpObjectShapeMethodDeclaration(target, selected.member) === sourceDeclaration) continue;
     if (!targetTypeRefEquals(member.type, selected.member.type)) return rejected(
       `Object literal spread member '${member.sourceName}' requires matching finalized source and target member carriers.`);
     memberBindings.push(Object.freeze({ source: member, target: selected.member }));
