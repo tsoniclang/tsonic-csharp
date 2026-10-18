@@ -47,7 +47,8 @@ export function admitCsharpNativeDeclarations(
     admitCsharpDeclarationModifiers(ast, node, refuse);
     if (ast.is.IsInterfaceDeclaration(node) || ast.is.IsEnumDeclaration(node)) {
       const owner = ast.parent(node);
-      if (owner !== undefined && ast.is.IsBlock(owner)) {
+      if (owner !== undefined && !ast.is.IsSourceFile(owner) && !ast.is.IsModuleDeclaration(owner) &&
+        ast.kindName(owner) !== "KindModuleBlock") {
         refuse(node, "Statement is outside the current C# planning surface.");
         continue;
       }

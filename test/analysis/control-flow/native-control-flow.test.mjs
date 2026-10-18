@@ -169,6 +169,26 @@ if (Tsonic.Generated.Index.run() != 7) throw new System.Exception("native data-o
     assert.equal(compiled.artifacts.size, 0, "a refused local interface cannot emit partial artifacts");
   });
 
+  test(`local type declarations in switch clauses are refused before publication on ${surface}`, () => {
+    for (const [declaration, kind] of [
+      ["interface Value { value: number; }", "KindInterfaceDeclaration"],
+      ["enum Value { first = 1 }", "KindEnumDeclaration"],
+    ]) {
+      const compiled = compileCsharpSource({ surface,
+        sourceText: `export function run(value: number): void { switch (value) { case 1: ${declaration} break; } }` });
+      assert.equal(compiled.sourceDiagnosticsText, "", "the exact clause declaration is valid checked source");
+      const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
+      assert.equal(issues.length, 1, "one existing declaration owner retains the original refusal");
+      assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", "the exact original code is preserved");
+      assert.equal(issues[0].message, "Statement is outside the current C# planning surface.",
+        "the exact original source reason is preserved");
+      const ast = createTargetSourceProgram(compiled.source).ast;
+      assert.equal(ast.kindName(issues[0].sourceNode), kind, "the exact local declaration remains the diagnostic node");
+      assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+        "a clause declaration refusal precedes successful publication, planning and artifacts");
+    }
+  });
+
   test(`retained destructuring publishes exact extraction, destination and admitted conversion on ${surface}`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
       import type { int } from "@tsonic/csharp/types.js";
@@ -199,7 +219,8 @@ if (Tsonic.Generated.Index.run() != 7) throw new System.Exception("native data-o
       assert.equal(Object.isFrozen(fact.binding) && Object.isFrozen(fact.binding.conversion), true,
         "selected binding evidence is immutable before planning");
     }
-    const first = projections.find(entry => entry.fact.element.kind === "source-owned-member");
+    const first = projections.find(entry => ast.text(entry.fact.binding.node) === "value");
+    assert.equal(first !== undefined, true, "the corruption witness keeps the exact authored member binding");
     const pattern = ast.parent(first.node);
     const context = createCsharpPlanningContext(program);
     const corrupted = { ...program, records: { ...program.records,
