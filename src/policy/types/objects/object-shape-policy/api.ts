@@ -42,7 +42,7 @@ import {
 import { resolveProviderObjectLiteralShape } from "./provider-construction.js";
 import { createCsharpStructuralUnionDefinitions } from "./union-definitions.js";
 import { selectCsharpObjectMethodImplementation } from "./method-implementations.js";
-import { csharpCopiedObjectShapeMembers, csharpMethodEnvironment, retainCsharpMethodValueContracts } from "./method-values.js";
+import { csharpMethodEnvironment, resolveCsharpCopiedObjectShape, retainCsharpMethodValueContracts } from "./method-values.js";
 import { csharpObjectShapeMethodRequiresProtocol } from "../../../../target-model/types/method-values.js";
 import { parameterizeCsharpStructuralContract } from "./structural-contracts.js";
 import { selectCsharpCopiedMethodReceiver } from "../../../ownership/copied-methods.js";
@@ -875,22 +875,7 @@ export function createCsharpObjectShapePolicy(
     resolveCallableValue: (signature: TargetTypeRef, typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>) =>
       retainCsharpGenericCallableValue(signature, typeParameters, rememberTargetShape, environment),
     resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined {
-      const contract = shape.targetType.kind === "target-named" &&
-        ((shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true ||
-          (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface");
-      if (!contract && shape.methodImplementation === undefined) return shape;
-      shape = retainCsharpMethodValueContracts(shape, rememberTargetShape, environment);
-      const original = shape.methodImplementation === undefined ? undefined : resolveNode(shape.methodImplementation.declaration);
-      const receiver = selectCsharpCopiedMethodReceiver(shape.members, original === undefined ? [shape] : [original], host.ast);
-      if (receiver.kind === "rejected") return undefined;
-      if (receiver.kind === "selected") return receiver.shape;
-      const members = csharpCopiedObjectShapeMembers(shape);
-      const implemented = contract ? [shape.targetType] : shape.implements;
-      return rememberTargetShape({
-        targetType: createStructuralObjectShapeTarget(members, implemented, environment),
-        members,
-        ...(implemented === undefined ? {} : { implements: implemented }),
-      });
+      return resolveCsharpCopiedObjectShape(shape, host.ast, environment, resolveNode, rememberTargetShape);
     },
     resolveReference: unionDefinitions.reference,
     resolveUnion: unionDefinitions.resolve,

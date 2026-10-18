@@ -1,9 +1,36 @@
+import type { AstReader, Node } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import { createStructuralObjectShapeTarget } from "./construction.js";
 import { csharpStructuralObjectShapeIdentity } from "../../../../target-model/types/object-shape-identity.js";
 import { csharpObjectShapeMethodDeclaration, csharpObjectShapeMethodRequiresProtocol, csharpPresentObjectShapeMethod } from "../../../../target-model/types/method-values.js";
 import type { CsharpTypeParameterConstraintResolver } from "../../../../target-model/types/generic-references.js";
+import { selectCsharpCopiedMethodReceiver } from "../../../ownership/copied-methods.js";
+
+export function resolveCsharpCopiedObjectShape(
+  shape: CsharpObjectShapeFact,
+  ast: AstReader,
+  environment: CsharpTypeParameterConstraintResolver,
+  resolveNode: (node: Node) => CsharpObjectShapeFact | undefined,
+  rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
+): CsharpObjectShapeFact | undefined {
+  const contract = shape.targetType.kind === "target-named" &&
+    ((shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true ||
+      (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface");
+  if (!contract && shape.methodImplementation === undefined) return shape;
+  shape = retainCsharpMethodValueContracts(shape, rememberTargetShape, environment);
+  const original = shape.methodImplementation === undefined ? undefined : resolveNode(shape.methodImplementation.declaration);
+  const receiver = selectCsharpCopiedMethodReceiver(shape.members, original === undefined ? [shape] : [original], ast);
+  if (receiver.kind === "rejected") return undefined;
+  if (receiver.kind === "selected") return receiver.shape;
+  const members = csharpCopiedObjectShapeMembers(shape);
+  const implemented = contract ? [shape.targetType] : shape.implements;
+  return rememberTargetShape({
+    targetType: createStructuralObjectShapeTarget(members, implemented, environment),
+    members,
+    ...(implemented === undefined ? {} : { implements: implemented }),
+  });
+}
 
 export function retainCsharpMethodValueContracts(
   shape: CsharpObjectShapeFact, remember: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
