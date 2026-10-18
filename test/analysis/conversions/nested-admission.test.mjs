@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { admitCsharpConversionSelection } from "../../../dist/analysis/conversions/validation.js";
+import { sealCsharpConversionUses } from "../../../dist/analysis/conversions/use-admission.js";
 import { csharpOperationConversionIssue, csharpSelectedCallConversionIssue } from "../../../dist/analysis/operations/conversion-admission.js";
 import { elementSelectedTypes } from "../../../dist/analysis/operations/member-access.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
-import { csharpDelegateTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
+import { csharpAbsenceTargetType, csharpDelegateTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType, csharpStringTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
 const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined }, target: {} };
@@ -193,4 +194,49 @@ test("optional project indexers admit present-value conversion before native abs
   assertAdmitted(wide, narrow, classification.flowReadConversion);
   assert.equal(elementSelectedTypes(indexPolicy, { ...source, accessMode: "write" }, {}, selected).flowReadConversion, undefined,
     "a write does not publish an unused read conversion");
+});
+
+test("optional native call completion admission retains the exact present-to-optional pair", () => {
+  const expression = Object.freeze({});
+  const target = csharpNullableTargetType(booleanType);
+  const requiredRecords = [];
+  const completion = Object.freeze({ source: booleanType, target });
+  const use = Object.freeze({ kind: "value", expression, carrier: target,
+    completion: Object.freeze({ kind: "value", type: target }), children: Object.freeze([]),
+    evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
+  const pairs = [];
+  const admitted = sealCsharpConversionUses({ entries: [{ use }] }, {
+    selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
+  }, (node, source, target) => ({
+    key: "same-carrier", classification: { source, target, selection: selectCsharpConversion(policy, source, target, "implicit") },
+  }), (node, source, target) => {
+    pairs.push({ node, source, target });
+    return selectCsharpConversion(policy, source, target, "implicit");
+  }, requiredRecords, [], new Map([[expression, completion]]));
+  assert.equal(admitted.issues.length, 0, "a valid native bool-to-Nullable<bool> branch is admitted before sealing");
+  assert.equal(pairs.length === 1 && pairs[0].node === expression &&
+    targetTypeRefEquals(pairs[0].source, booleanType) && targetTypeRefEquals(pairs[0].target, target), true,
+  "the actual selected native present result is not confused with the already-lifted expression result");
+  assert.equal(requiredRecords.some(record => record.family === "conversion" && record.subject === expression &&
+    targetTypeRefEquals(record.source, booleanType) && targetTypeRefEquals(record.target, target)), true,
+  "the seal requires the exact renderer-consumed native completion conversion");
+});
+
+test("authored absence into required native storage retains its exact refusal at admission", () => {
+  const expression = Object.freeze({});
+  const source = csharpAbsenceTargetType();
+  const selected = selectCsharpConversion(policy, source, integerType, "implicit");
+  const requiredRecords = [];
+  const use = Object.freeze({ kind: "converted", expression, carrier: integerType, target: integerType, mode: "implicit",
+    input: Object.freeze({ kind: "value", type: source }), completion: Object.freeze({ kind: "value", type: integerType }),
+    children: Object.freeze([]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
+  const admitted = sealCsharpConversionUses({ entries: [{ use }] }, {
+    selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
+  }, (node, from, target) => ({
+    key: "authored-absence", classification: { source: from, target, selection: selected },
+  }), () => selected, requiredRecords, [], new Map());
+  assert.equal(selected.kind === "rejected" && admitted.issues.length === 1, true,
+    "native declaration defaults never waive an authored incompatible absence conversion");
+  assert.equal(admitted.issues[0].node === expression && admitted.issues[0].code === "CSHARP_UNSUPPORTED_AST" &&
+    admitted.issues[0].message === selected.reason, true, "admission retains the exact reachable source refusal and subject");
 });

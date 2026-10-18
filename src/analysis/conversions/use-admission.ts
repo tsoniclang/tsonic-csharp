@@ -20,6 +20,7 @@ export function sealCsharpConversionUses(
   classifyValue: (expression: Node, source: TargetTypeRef, target: TargetTypeRef) => CsharpConversionSelection | undefined,
   requiredRecords: CsharpRequiredRecord[],
   preparationIssues: readonly CsharpConversionIssue[],
+  callCompletionConversions: ReadonlyMap<Node, { readonly source: TargetTypeRef; readonly target: TargetTypeRef }>,
 ): {
   readonly expressions: Map<Node, Map<string, CsharpExpressionConversionClassification>>;
   readonly issues: readonly CsharpConversionIssue[];
@@ -39,6 +40,8 @@ export function sealCsharpConversionUses(
       calls.add(use.expression);
       selectedArgumentUses(use.expression, operations.selectedCall.get(use.expression)?.target);
       selectedArgumentUses(use.expression, operations.selectedConstruction.get(use.expression)?.target);
+      const completion = callCompletionConversions.get(use.expression);
+      if (completion !== undefined) admitValue(use.expression, completion.source, completion.target);
     }
     if (use.completion.kind !== "value") continue;
     const source = use.kind === "converted" && use.input.kind === "value" ? use.input.type : use.carrier;
@@ -60,7 +63,7 @@ export function sealCsharpConversionUses(
       return;
     }
     requireCsharpRecord(requiredRecords, { family: "conversion", subject: expression, source, target, mode: "implicit",
-      construct: "consumed native default conversion", producer: "sealCsharpConversionUses" });
+      construct: "consumed native value conversion", producer: "sealCsharpConversionUses" });
   }
 
   function selectedArgumentUses(owner: Node, selection: CsharpTargetCallSelection | undefined): void {
