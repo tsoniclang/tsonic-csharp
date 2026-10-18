@@ -63,10 +63,12 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
     const site = child(node, { kind: "operand", position: "only" }, target);
     return site === undefined ? pending("forwarding-child-unresolved") : selected("forward", target, [site]);
   };
-  const construct = (carrier: TargetTypeRef, children: readonly TargetUseSiteRef[]): CsharpNativeRepresentationSelection => {
-    if (targetTypeRefEquals(carrier, target)) return selected("construct", carrier, children);
+  const construct = (carrier: TargetTypeRef, children: readonly TargetUseSiteRef[],
+    literal?: CsharpExpectedNativeUse["literal"]): CsharpNativeRepresentationSelection => {
+    const value = literal === undefined ? {} : { literal };
+    if (targetTypeRefEquals(carrier, target)) return Object.freeze({ ...selected("construct", carrier, children), ...value });
     const site = csharpNativeUseSite(expression, { kind: "constructed-result" }, { target, mode: input.mode });
-    return Object.freeze({ kind: "selected", representation: "convert", carrier, children: Object.freeze([site]),
+    return Object.freeze({ kind: "selected", representation: "convert", carrier, children: Object.freeze([site]), ...value,
       construction: Object.freeze({ site, carrier, children: Object.freeze([...children]) }) });
   };
 
@@ -91,9 +93,7 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
   if (!input.absent) {
     if (input.literal === undefined) return pending("literal-unrequested");
     if (input.literal.kind === "rejected") return pending("literal-rejected", input.literal.reason);
-    if (input.literal.kind === "resolved") return Object.freeze({
-      kind: "selected", representation: "construct", carrier: target, children: none, literal: input.literal.recipe,
-    });
+    if (input.literal.kind === "resolved") return construct(input.constructionCarrier ?? target, none, input.literal.recipe);
   }
   if (input.constructionCarrier !== undefined && !ast.is.IsArrayLiteralExpression(expression) && !ast.is.IsObjectLiteralExpression(expression)) {
     const operand = ast.is.IsParenthesizedExpression(expression) ? ast.as.AsParenthesizedExpression(expression)?.Expression : undefined;

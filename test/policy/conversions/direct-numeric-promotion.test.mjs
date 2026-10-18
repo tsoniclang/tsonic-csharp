@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpBigIntegerTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
+import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.mjs";
 
 import {
   csharpSourcePrimitiveTargetType,
@@ -32,7 +33,8 @@ const ast = {
   text: (node) => node.text,
 };
 
-const input = { literalValues: { literalValue: { get: (node) =>
+const authoredLiterals = new WeakMap();
+const input = { literalValues: { literalValue: { get: (node) => authoredLiterals.get(node) ??
   analyzeSourceLiteralValues(ast, [{ kind: "file", children: [node] }]).literalValue.get(node) } } };
 const value = { kind: "value" };
 
@@ -179,5 +181,7 @@ function primitive(name) {
 }
 
 function numericLiteral(text) {
-  return { kind: "numeric", kindName: "KindNumericLiteral", text };
+  const node = { kind: "numeric", kindName: "KindNumericLiteral", text };
+  authoredLiterals.set(node, checkedSourceLiteralValues([text])[0]);
+  return node;
 }

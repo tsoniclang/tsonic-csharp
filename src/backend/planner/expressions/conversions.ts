@@ -6,7 +6,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpConversionMode,
   CsharpConversionSelection,
-} from "../../../analysis/conversions/index.js";
+} from "../../../target-model/conversions/selection.js";
 import type {
   TargetTypeRef,
 } from "../../../target-model/types/index.js";
@@ -15,11 +15,8 @@ import {
   csharpTsValueTargetType,
   getCsharpNullableElementTargetType,
   getCsharpGenericOptionalParts,
-  getCsharpRuntimeUnionArms,
   isCsharpNullableReferenceTargetType,
-  targetTypeRefEquals,
   targetTypeRefKey,
-  isCsharpAbsenceTargetType,
 } from "../../../target-model/types/index.js";
 import type {
   CsharpExpression,
@@ -52,14 +49,13 @@ import {
 import { planCsharpEmptyRecordConversion } from "./empty-record-conversion.js";
 import { planCsharpRuntimeUnionProjection } from "./runtime-union-projections.js";
 import { planCsharpUnionMapping } from "./union-mappings.js";
-import { csharpUnsignedIntegerCounterpart } from "../../../target-model/conversions/integer-refinement.js";
 import { planCsharpDelegateAdapter } from "./delegate-adapters.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
 
 export function readCsharpConversionClassification(
   node: Node,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
+  _diagnostics: TargetDiagnostic[],
   sourceType: TargetTypeRef | undefined,
   targetType: TargetTypeRef | undefined,
   mode: CsharpConversionMode,
@@ -70,10 +66,9 @@ export function readCsharpConversionClassification(
     mode,
   );
   if (selection === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
+    return failCsharpPlannerInvariant(
       "C# planning requires a sealed target conversion classification that analysis did not produce.",
-    ));
+      node);
   }
   return selection;
 }
@@ -81,7 +76,7 @@ export function readCsharpConversionClassification(
 export function readCsharpExpressionConversionClassification(
   node: Node,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
+  _diagnostics: TargetDiagnostic[],
   sourceType: TargetTypeRef | undefined,
   targetType: TargetTypeRef | undefined,
   mode: CsharpConversionMode,
@@ -93,10 +88,9 @@ export function readCsharpExpressionConversionClassification(
     mode,
   );
   if (selection === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
+    return failCsharpPlannerInvariant(
       `C# planning requires a sealed ${mode} expression conversion from '${sourceType === undefined ? "<unresolved>" : targetTypeRefKey(sourceType)}' to '${targetType === undefined ? "<unresolved>" : targetTypeRefKey(targetType)}'.`,
-    ));
+      node);
   }
   return selection;
 }
@@ -146,9 +140,8 @@ export function applyCsharpConversionSelection(
       const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
       if (type === undefined) return undefined;
       if (expression.kind !== "InvocationExpression" || expression.arguments.length !== 2) {
-        diagnostics.push(unsupportedNodeDiagnostic(node,
-          "A native integer truncation requires its exact classified two-argument invocation."));
-        return undefined;
+        return failCsharpPlannerInvariant(
+          "A native integer truncation requires its exact classified two-argument invocation.", node);
       }
       return {
         kind: "CastExpression", type,
@@ -169,10 +162,9 @@ export function applyCsharpConversionSelection(
         : csharpTypeFromTargetTypeRef(sourceType, input.scope.typeParameterNames);
       const absent = targetType === undefined ? undefined
         : planCsharpAbsentValue(targetType, input.scope.typeParameterNames);
-      if (!isCsharpAbsenceTargetType(sourceType) || source === undefined || absent === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node,
-          "An absence conversion requires its exact source and destination storage contracts."));
-        return undefined;
+      if (source === undefined || absent === undefined) {
+        return failCsharpPlannerInvariant(
+          "An admitted absence conversion requires its renderable source and destination storage contracts.", node);
       }
       return expression.kind === "DefaultExpression" ||
         expression.kind === "LiteralExpression" && expression.value === null ? absent : {
@@ -208,17 +200,14 @@ export function applyCsharpConversionSelection(
           return literal.expression;
         }
         if (literal.kind === "rejected") {
-          diagnostics.push(unsupportedNodeDiagnostic(node, literal.reason));
-          return undefined;
+          return failCsharpPlannerInvariant(literal.reason, node);
         }
         if (literal.kind === "source-representation") {
           return expression;
         }
-        diagnostics.push(unsupportedNodeDiagnostic(
-          node,
+        return failCsharpPlannerInvariant(
           "A selected C# literal conversion requires an exact target literal representation.",
-        ));
-        return undefined;
+          node);
       }
       return selection.proof === "runtime-union-arm"
         ? applyRuntimeUnionArmConversion(
@@ -245,14 +234,8 @@ export function applyCsharpConversionSelection(
     case "runtime-union-projection":
       return planCsharpRuntimeUnionProjection(node, sourceType, targetType, selection, expression, diagnostics, input);
     case "nullable-map": {
-      const sourceElement = getCsharpNullableElementTargetType(sourceType);
-      const targetElement = getCsharpNullableElementTargetType(targetType);
-      if (sourceElement === undefined || targetElement === undefined ||
-        !targetTypeRefEquals(sourceElement, selection.sourceElement) ||
-        !targetTypeRefEquals(targetElement, selection.targetElement)) {
-        return failCsharpPlannerInvariant(
-          "Nullable conversion requires its exact sealed source and destination element carriers.", node);
-      }
+      const sourceElement = selection.sourceElement;
+      const targetElement = selection.targetElement;
       const presentType = renderRequiredTargetType(input.scope.typeParameterNames, node, sourceElement, diagnostics);
       const resultType = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
       if (presentType === undefined || resultType === undefined) return undefined;
@@ -267,18 +250,8 @@ export function applyCsharpConversionSelection(
       };
     }
     case "runtime-union-reference": {
-      const arms = getCsharpRuntimeUnionArms(sourceType, input.program.typeDefinitions);
-      if (targetType === undefined || arms === undefined || arms.length !== selection.arms.length ||
-        !arms.every((arm, index) => {
-          const selected = selection.arms[index];
-          return selected !== undefined && targetTypeRefEquals(arm, selected);
-        }) ||
-        !targetTypeRefEquals(targetType, selection.target)) {
-        diagnostics.push(unsupportedNodeDiagnostic(node,
-          "Runtime-union reference projection conflicts with its exact selected arms and destination."));
-        return undefined;
-      }
-      const type = renderRequiredTargetType(input.scope.typeParameterNames, node, getCsharpNullableElementTargetType(targetType) ?? targetType, diagnostics);
+      const type = renderRequiredTargetType(input.scope.typeParameterNames, node,
+        getCsharpNullableElementTargetType(selection.target) ?? selection.target, diagnostics);
       return type === undefined ? undefined : {
         kind: "InvocationExpression",
         callee: { kind: "SimpleMemberAccessExpression", receiver: expression, name: "AsReference", typeArguments: [type] },
@@ -286,12 +259,6 @@ export function applyCsharpConversionSelection(
       };
     }
     case "integer-refinement": {
-      if (sourceType?.kind !== "source-primitive" || targetType?.kind !== "source-primitive" ||
-        sourceType.name !== selection.source || targetType.name !== selection.target ||
-        selection.proof !== "nonnegative" || csharpUnsignedIntegerCounterpart(selection.source) !== selection.target) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Integer refinement conflicts with its exact native carriers."));
-        return undefined;
-      }
       const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
       return type === undefined ? undefined : { kind: "CastExpression", type, expression };
     }
@@ -337,8 +304,6 @@ export function applyCsharpConversionSelection(
         node,
         input,
         diagnostics,
-        sourceType,
-        targetType,
         selection,
         expression,
       );
@@ -363,18 +328,8 @@ export function applyCsharpConversionSelection(
         diagnostics,
       );
     case "ambiguous":
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        selection.reason,
-        selection.candidateIds.map((id) => `candidate: ${id}`),
-      ));
-      return undefined;
     case "rejected":
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        selection.reason,
-      ));
-      return undefined;
+      return failCsharpPlannerInvariant(`C# conversion reached planning after pre-seal refusal: ${selection.reason}`, node);
   }
 }
 
@@ -382,36 +337,14 @@ function applyLiftedProviderArgumentAdapter(
   node: Node,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-  sourceType: TargetTypeRef | undefined,
-  targetType: TargetTypeRef | undefined,
   selection: Extract<
     CsharpConversionSelection,
     { readonly kind: "lifted-provider-argument-adapter" }
   >,
   expression: CsharpExpression,
 ): CsharpExpression | undefined {
-  const sourceElementType = getCsharpNullableElementTargetType(sourceType);
-  const targetElementType = getCsharpNullableElementTargetType(targetType);
-  if (
-    sourceType === undefined ||
-    targetType === undefined ||
-    sourceElementType === undefined ||
-    targetElementType === undefined ||
-    isCsharpNullableReferenceTargetType(sourceType) ||
-    isCsharpNullableReferenceTargetType(targetType) ||
-    !targetTypeRefEquals(sourceElementType, selection.sourceElementType) ||
-    !targetTypeRefEquals(targetElementType, selection.targetElementType) ||
-    !targetTypeRefEquals(sourceElementType, selection.adapter.inputType) ||
-    !targetTypeRefEquals(selection.adapter.resultType, targetElementType)
-  ) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      `Exact provider argument adapter '${selection.adapter.id}' cannot be lifted without matching nullable value-carrier element types.`,
-    ));
-    return undefined;
-  }
-  const sourceElement = csharpTypeFromTargetTypeRef(sourceElementType, input.scope.typeParameterNames);
-  const targetElement = csharpTypeFromTargetTypeRef(targetElementType, input.scope.typeParameterNames);
+  const sourceElement = csharpTypeFromTargetTypeRef(selection.sourceElementType, input.scope.typeParameterNames);
+  const targetElement = csharpTypeFromTargetTypeRef(selection.targetElementType, input.scope.typeParameterNames);
   const declaringType = csharpTypeFromTargetTypeRef(
     selection.adapter.declaringType, input.scope.typeParameterNames,
   );
@@ -420,11 +353,9 @@ function applyLiftedProviderArgumentAdapter(
     targetElement === undefined ||
     declaringType === undefined
   ) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
+    return failCsharpPlannerInvariant(
       `Exact lifted provider argument adapter '${selection.adapter.id}' requires renderable source, result, and declaring types.`,
-    ));
-    return undefined;
+      node);
   }
   const helper = input.artifacts.requireGeneratedHelper(
     "lifted-provider-argument-adapter",
@@ -482,21 +413,15 @@ function applyProviderArgumentAdapter(
     expression,
   );
   if (adapterInput === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      `Exact provider argument adapter '${selection.adapter.id}' requires a renderable input.`,
-    ));
     return undefined;
   }
   const declaringType = csharpTypeFromTargetTypeRef(
     selection.adapter.declaringType, input.scope.typeParameterNames,
   );
   if (declaringType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
+    return failCsharpPlannerInvariant(
       `Exact provider argument adapter '${selection.adapter.id}' requires a renderable declaring type.`,
-    ));
-    return undefined;
+      node);
   }
   const adapted: CsharpExpression = {
     kind: "InvocationExpression",
@@ -533,22 +458,14 @@ function applyRuntimeUnionArmConversion(
   expression: CsharpExpression,
 ): CsharpExpression | undefined {
   const unionType = getCsharpNullableElementTargetType(targetType) ?? targetType;
-  const arms = getCsharpRuntimeUnionArms(unionType, input.program.typeDefinitions);
-  const selectedArm = arms?.[selection.armIndex];
   const optional = getCsharpGenericOptionalParts(targetType);
   const declaringType = unionType === undefined
     ? undefined
     : csharpTypeFromTargetTypeRef(optional?.operations ?? unionType, input.scope.typeParameterNames);
-  if (selectedArm === undefined || !targetTypeRefEquals(selectedArm, selection.armType)) {
-    return failCsharpPlannerInvariant(
-      "C# runtime-union construction requires one exact source arm and a renderable closed union carrier.", node);
-  }
   if (declaringType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
+    return failCsharpPlannerInvariant(
       "C# runtime-union construction requires one exact source arm and a renderable closed union carrier.",
-    ));
-    return undefined;
+      node);
   }
   const convertedExpression = applyCsharpConversionSelection(
     node,
@@ -581,7 +498,7 @@ function invokeStaticGeneric(
   targetTypeArguments: readonly TargetTypeRef[],
   expression: CsharpExpression,
   node: Node,
-  diagnostics: TargetDiagnostic[],
+  _diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   const declaringType = csharpTypeFromTargetTypeRef(declaringTargetType, typeParameterNames);
   const typeArguments = targetTypeArguments.map(type => csharpTypeFromTargetTypeRef(type, typeParameterNames));
@@ -589,11 +506,9 @@ function invokeStaticGeneric(
     declaringType === undefined ||
     typeArguments.some((type) => type === undefined)
   ) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
+    return failCsharpPlannerInvariant(
       `C# JS-value conversion '${memberName}' requires renderable declaring and generic target types.`,
-    ));
-    return undefined;
+      node);
   }
   return {
     kind: "InvocationExpression",
@@ -613,16 +528,15 @@ function renderRequiredTargetType(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   node: Node,
   targetType: TargetTypeRef | undefined,
-  diagnostics: TargetDiagnostic[],
+  _diagnostics: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
   const type = targetType === undefined
     ? undefined
     : csharpTypeFromTargetTypeRef(targetType, typeParameterNames);
   if (type === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
+    return failCsharpPlannerInvariant(
       "C# conversion requires a renderable target type.",
-    ));
+      node);
   }
   return type;
 }
