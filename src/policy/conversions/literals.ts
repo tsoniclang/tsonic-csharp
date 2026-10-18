@@ -5,6 +5,7 @@ import {
   csharpBigIntFitsSourcePrimitive,
   csharpNumericLiteralFitsSourcePrimitive,
   createCsharpNumericLiteralToken,
+  type CsharpNumericLiteralToken,
 } from "../../target-model/syntax/numeric-literals.js";
 import type {
   TargetTypeRef,
@@ -63,7 +64,7 @@ export function csharpLiteralIsRepresentableAs(
     case "float16": {
       return value?.numeric?.kind === "authored"
         ? authoredFloatingLiteralFits(value.numeric.token, target.name)
-        : value?.number !== undefined && Number.isFinite(value.number) && Math.abs(value.number) < 65520;
+        : value?.number !== undefined && csharpFloat16LiteralFits(Math.abs(value.number));
     }
     case "float64": {
       return value?.number !== undefined && Number.isFinite(value.number);
@@ -107,16 +108,17 @@ export function selectCsharpExactLiteralConversion(
   }
   if (targetType.name === "float16" && literal?.numeric?.kind === "authored") {
     const token = literal.numeric.token;
-    if (!authoredFloatingLiteralFits(token, targetType.name)) {
+    const magnitude = Number(token.decimalText);
+    if (!csharpFloat16LiteralFits(magnitude)) {
       return rejected(`Source numeric literal is outside the '${targetType.name}' range.`);
     }
-    return resolvedFloat16Literal(targetType, csharpFloat16LiteralBits(token, token.negative));
+    return resolvedFloat16Literal(targetType, magnitude, createCsharpNumericLiteralToken(token.decimalText), token.negative);
   }
   if (Object.is(literal?.number, -0)) {
     if (targetType.name === "float64") {
       return resolved({ kind: "signed-zero", target: targetType, precision: targetType.name });
     }
-    if (targetType.name === "float16") return resolvedFloat16Literal(targetType, 0x8000);
+    if (targetType.name === "float16") return resolvedFloat16Literal(targetType, 0, createCsharpNumericLiteralToken("0"), true);
   }
   switch (targetType.name) {
     case "char": {
@@ -135,10 +137,11 @@ export function selectCsharpExactLiteralConversion(
       if (value === undefined || !Number.isFinite(value)) {
         return rejected("C# numeric literal conversion requires an exact finite source value.");
       }
-      if (Math.abs(value) >= 65520) {
+      if (!csharpFloat16LiteralFits(Math.abs(value))) {
         return rejected(`Source numeric literal is outside the '${targetType.name}' range.`);
       }
-      return resolvedFloat16Literal(targetType, csharpFloat16LiteralBits(Math.abs(value), value < 0));
+      return resolvedFloat16Literal(targetType, Math.abs(value),
+        createCsharpNumericLiteralToken(Math.abs(value).toString()), value < 0);
     }
     case "int8":
     case "uint8":
@@ -201,10 +204,14 @@ export function selectCsharpExactPropertyKeyConversion(
     const fits = physical.name === "decimal" ? token === undefined
       ? magnitude! * 2n < decimalOverflowThresholdTwice
       : compareSourceNumericLiteralMagnitude({ coefficient: token.coefficient * 2n, exponent: token.exponent }, decimalOverflowThresholdTwice) < 0
-      : compare(physical.name === "float16" ? 65520n : physical.name === "float32" ? float32OverflowThreshold : float64OverflowThreshold) < 0;
+      : physical.name === "float16" ? token === undefined ? compare(65520n) < 0
+        : csharpFloat16LiteralFits(Number(token.decimalText))
+      : compare(physical.name === "float32" ? float32OverflowThreshold : float64OverflowThreshold) < 0;
     if (!fits) return rejected(`Source numeric property key is outside the '${physical.name}' range.`);
-    if (physical.name === "float16") return resolvedFloat16Literal(physical,
-      csharpFloat16LiteralBits(token ?? { coefficient: magnitude!, exponent: 0n }, negative));
+    if (physical.name === "float16") {
+      const text = token === undefined ? magnitude!.toString() : token.decimalText;
+      return resolvedFloat16Literal(physical, Number(text), createCsharpNumericLiteralToken(text), negative);
+    }
     return resolved({ kind: "float", target: physical, precision: physical.name,
       token: createCsharpNumericLiteralToken(token === undefined ? magnitude!.toString() : token.decimalText), negative });
   }
@@ -223,7 +230,7 @@ export function selectCsharpExactPropertyKeyConversion(
 function authoredFloatingLiteralFits(token: SourceNumericLiteralToken, target: "float16" | "float32" | "decimal"): boolean {
   switch (target) {
     case "float16":
-      return compareSourceNumericLiteralMagnitude(token, 65520n) < 0;
+      return csharpFloat16LiteralFits(Number(token.decimalText));
     case "float32":
       return compareSourceNumericLiteralMagnitude(token, float32OverflowThreshold) < 0;
     case "decimal":
@@ -232,19 +239,25 @@ function authoredFloatingLiteralFits(token: SourceNumericLiteralToken, target: "
   }
 }
 
-function resolvedFloat16Literal(target: CsharpExactLiteralPrimitive, bits: number): CsharpExactLiteralSelection {
-  const magnitude = Number(float16SubnormalUnits(bits & 0x7fff)) * 2 ** -24;
-  return resolved({ kind: "float", target, precision: "float16", bits,
-    token: createCsharpNumericLiteralToken(magnitude.toString()), negative: (bits & 0x8000) !== 0 });
+function csharpFloat16LiteralFits(magnitude: number): boolean {
+  return Number.isFinite(magnitude) && magnitude < 65520;
+}
+
+function resolvedFloat16Literal(
+  target: CsharpExactLiteralPrimitive,
+  magnitude: number,
+  token: CsharpNumericLiteralToken,
+  negative: boolean,
+): CsharpExactLiteralSelection {
+  return resolved({ kind: "float", target, precision: "float16",
+    bits: csharpFloat16LiteralBits(magnitude, negative), token, negative });
 }
 
 function csharpFloat16LiteralBits(
-  magnitude: Pick<SourceNumericLiteralToken, "coefficient" | "exponent"> | number,
+  magnitude: number,
   negative: boolean,
 ): number {
   const compare = (units: bigint, shift: 24 | 25): -1 | 0 | 1 => {
-    if (typeof magnitude !== "number") return compareSourceNumericLiteralMagnitude(
-      { coefficient: magnitude.coefficient << BigInt(shift), exponent: magnitude.exponent }, units);
     const scaled = magnitude * 2 ** shift;
     const exact = Number(units);
     return scaled < exact ? -1 : scaled > exact ? 1 : 0;

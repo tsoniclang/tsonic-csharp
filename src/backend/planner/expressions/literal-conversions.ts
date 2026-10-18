@@ -63,8 +63,11 @@ export function planCsharpExactLiteralRecipe(
         },
       };
     case "float": {
+      const suffix = recipe.precision === "float16"
+        ? recipe.negative && recipe.token.significand === "0" && recipe.token.exponent === undefined ? "F" : undefined
+        : recipe.precision === "float32" ? "F" : recipe.precision === "decimal" ? "M" : "D";
       const literal: CsharpExpression = { kind: "NumericLiteralExpression", token: recipe.token,
-        suffix: recipe.precision === "float32" ? "F" : recipe.precision === "decimal" ? "M" : "D" };
+        ...(suffix === undefined ? {} : { suffix }) };
       const expression: CsharpExpression = recipe.negative
         ? { kind: "PrefixUnaryExpression", operatorToken: { kind: "MinusToken" }, operand: literal }
         : literal;

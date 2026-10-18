@@ -51,8 +51,10 @@ function expectation(name, value, fits) {
   if (name === "float16") {
     const bits = halfBoundaryBits.get(value.numeric.token.decimalText);
     assert.equal(bits !== undefined, true, "the exact original Half boundary has a native bit-pattern oracle");
+    const [significand, exponent] = value.numeric.token.decimalText.split("e");
     return { kind: "resolved", recipe: { kind: "float", target: primitive(name), precision: name,
-      bits: bits | (value.numeric.token.negative ? 0x8000 : 0) } };
+      bits: bits | (value.numeric.token.negative ? 0x8000 : 0),
+      token: { significand, ...(exponent === undefined ? {} : { exponent }) }, negative: value.numeric.token.negative } };
   }
   const [significand, exponent] = value.numeric.token.decimalText.split("e");
   return { kind: "resolved", recipe: { kind: "float", target: primitive(name), precision: name,
