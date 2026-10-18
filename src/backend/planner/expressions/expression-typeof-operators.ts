@@ -168,7 +168,6 @@ export function tryPlanTypeofComparisonExpression(
   if (comparison === undefined) {
     return undefined;
   }
-  const negated = sourceOperator === "!==" || sourceOperator === "!=";
   const selection = comparison.selection;
   if (selection.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
