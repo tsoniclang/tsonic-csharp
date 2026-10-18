@@ -5,7 +5,7 @@ import type { CsharpConversionClassifications } from "../../target-model/records
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "./model.js";
 import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
-import type { CsharpObjectShapeArtifact, CsharpObjectShapeProjectionDeclaration } from "../../target-model/records/object-shape-demand.js";
+import type { CsharpObjectShapeArtifact, CsharpObjectShapeProjectionDeclaration, CsharpObjectShapeSpread } from "../../target-model/records/object-shape-demand.js";
 import type { TargetTypeRef, CsharpObjectShapeProjectionKind } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../target-model/types/index.js";
 import { csharpObjectShapesEqual, csharpObjectShapeMemberContractKey } from "../../target-model/types/index.js";
@@ -47,6 +47,7 @@ export interface MutableObjectShapeArtifact {
 
 export interface CsharpObjectShapeProjectionAdmission {
   readonly selection: CsharpObjectShapeProjection;
+  readonly memberBindings: CsharpObjectShapeProjectionDeclaration["memberBindings"];
   readonly conversions: CsharpObjectShapeProjectionDeclaration["conversions"];
 }
 
@@ -81,6 +82,7 @@ export interface CsharpObjectShapeDemandScope {
   readonly host: CsharpObjectShapeDemandHost;
   readonly records: Map<string, MutableObjectShapeArtifact>;
   readonly projections: Map<Node, { readonly receiver: CsharpObjectShapeFact; readonly selection: CsharpObjectShapeProjection }>;
+  readonly spreads: Map<Node, CsharpObjectShapeSpread>;
   registerObjectShape(fact: CsharpObjectShapeFact, materialization: "source" | "synthetic"): CsharpArtifactRequestResult;
   requireObjectShapeCapability(node: Node | undefined, type: TargetTypeRef, file: SourceFile,
     capability: CsharpObjectShapeCapability, rootKind: "value" | "object-shape"): CsharpArtifactRequestResult;
@@ -89,6 +91,8 @@ export interface CsharpObjectShapeDemandScope {
     assignmentSource?: { readonly node: Node; readonly type: TargetTypeRef }): CsharpObjectShapeProjectionRequestResult;
   requireObjectShapeMethodReceiver(fact: CsharpObjectShapeFact,
     member: CsharpObjectShapeFact["members"][number]): CsharpArtifactRequestResult;
+  requireObjectShapeSpread(subject: Node, expression: Node, source: CsharpObjectShapeFact,
+    target: CsharpObjectShapeFact): CsharpArtifactRequestResult;
   objectShapeArtifacts(): readonly CsharpObjectShapeArtifact[];
   connect(ownerKey: string, dependencyKey: string): void;
   collectShapeDependencies(root: CsharpObjectShapeFact):
@@ -110,7 +114,8 @@ export interface CsharpObjectShapeDemandScope {
     pending?: ReadonlyMap<string, CsharpObjectShapeFact>): CsharpObjectShapeClosureResult;
   addShapeCapabilities(target: Map<string, Set<CsharpObjectShapeCapability>>, shapes: ReadonlyMap<string, CsharpObjectShapeFact>,
     capability: CsharpObjectShapeCapability): void;
-  validateProjectionShapes(shapes: ReadonlyMap<string, CsharpObjectShapeFact>, projection: CsharpObjectShapeProjection): string | undefined;
+  validateProjectionShapes(shapes: ReadonlyMap<string, CsharpObjectShapeFact>, projection: CsharpObjectShapeProjection,
+    members: CsharpObjectShapeProjectionDeclaration["memberBindings"]): string | undefined;
   addShapeProjection(target: Map<string, Map<string, CsharpObjectShapeProjectionAdmission>>, shapes: ReadonlyMap<string, CsharpObjectShapeFact>,
     projection: CsharpObjectShapeProjectionAdmission): void;
   visibleObjectShapes(pending: ReadonlyMap<string, CsharpObjectShapeFact>): readonly CsharpObjectShapeFact[];

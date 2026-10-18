@@ -23,7 +23,6 @@ import type { CsharpDefaultValueContract } from "../../target-model/records/valu
 import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpRuntimeUnionTargetTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
-import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import { getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey } from "../../target-model/types/source-member-keys.js";
 import { resolveCsharpObjectShapeMemberBySourceKey } from "../../target-model/types/object-shape-members.js";
@@ -76,6 +75,8 @@ export function analyzeCsharpNativeArtifactDemand(
   const uses = new Map<object, Set<string>>();
   const frames = new Set<CsharpCaptureFrame>();
   const requiredShapes = new Map<string, Node>();
+  const requiredProjections = new Set<Node>();
+  const requiredSpreads = new Set<Node>();
   const forwarding = new Set<string>();
   for (const sourceFile of input.sourceFiles) visitConstruct(sourceFile);
   for (const binding of input.nativeDemand.requiredBindingRoots) {
@@ -84,7 +85,15 @@ export function analyzeCsharpNativeArtifactDemand(
   if (issues.length > 0) return rejectedTargetStage(issues);
   const result = engine.seal();
   for (const [key, subject] of requiredShapes) requireCsharpRecord(required, {
-    family: "objectShapeArtifact", key, subject, construct: "native object-shape artifact",
+    family: "objectShapeArtifact", role: "artifact", key, subject, construct: "native object-shape artifact",
+    producer: "analyzeCsharpNativeArtifactDemand",
+  });
+  for (const subject of requiredProjections) requireCsharpRecord(required, {
+    family: "objectShapeArtifact", role: "projection", subject, construct: "native object-shape projection",
+    producer: "analyzeCsharpNativeArtifactDemand",
+  });
+  for (const subject of requiredSpreads) requireCsharpRecord(required, {
+    family: "objectShapeArtifact", role: "spread", subject, construct: "native object-shape spread",
     producer: "analyzeCsharpNativeArtifactDemand",
   });
   return resolvedTargetStage(result);
@@ -422,12 +431,16 @@ export function analyzeCsharpNativeArtifactDemand(
       if (property === undefined) continue;
       if (input.ast.is.IsSpreadAssignment(property)) {
         const expression = input.ast.as.AsSpreadAssignment(property)?.Expression;
+        if (expression === undefined) {
+          refuse(property, "Object literal spread requires a source expression.");
+          continue;
+        }
         const source = input.objectShapes.resolveNode(expression, file);
-        if (source === undefined) continue;
-        const shared = source.methodImplementation !== undefined && source.methodImplementation.identity === shape.methodImplementation?.identity &&
-          targetTypeRefEquals(source.targetType, shape.targetType);
-        if (source.members.some(member => member.methodValueContract !== undefined &&
-          !(shared && csharpObjectShapeMethodDeclaration(source, member) !== undefined))) capability(property, source.targetType, "method-values");
+        if (source === undefined) {
+          refuse(property, "Object literal spread requires finalized provider object-shape facts for the spread expression before C# emission.");
+          continue;
+        }
+        if (accept(property, engine.requireObjectShapeSpread(property, expression, source, shape))) requiredSpreads.add(property);
         continue;
       }
       if (!input.ast.is.IsMethodDeclaration(property) || !sourceCallableUsesLexicalThis(input.ast, property)) continue;
@@ -489,6 +502,7 @@ export function analyzeCsharpNativeArtifactDemand(
         refuse(subject, `Selected target call '${member.id}' does not have one exact object-shape projection artifact.`);
       }
       if (projection.kind === "accepted" && projection.projection !== undefined) {
+        requiredProjections.add(subject);
         const selected = projection.projection;
         const shape = input.objectShapes.resolveTarget(requirement.projection === "assign" ? member.returnType : type);
         if (shape !== undefined && selected.kind === "assign") {
