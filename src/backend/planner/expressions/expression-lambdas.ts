@@ -446,7 +446,7 @@ export function planLambdaParameters(
         kind: "Parameter",
         name: bindingPattern
           ? allocateSyntheticParameter(state)
-          : declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Lambda parameter", "arg"),
+          : declareCsharpLocalBindingName(parameter.name!, input, state),
         ...(explicitParameterType !== undefined
           ? { type: explicitParameterType }
           : expectedParameterType === undefined

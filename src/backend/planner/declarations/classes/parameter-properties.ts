@@ -17,7 +17,7 @@ export function planCsharpParameterPropertyAssignments(
     if (parameter === undefined || !sourceParameterIsProperty(ast, parameter)) return [];
     const name = ast.name(parameter);
     const memberName = planIdentifierName(name, "FieldDeclaration", input, diagnostics, "Parameter property name");
-    const valueName = declareCsharpLocalBindingName(name, input, diagnostics, state, "Parameter property value", "arg");
+    const valueName = declareCsharpLocalBindingName(name!, input, state);
     return [{ kind: "ExpressionStatement", expression: {
       kind: "AssignmentExpression",
       left: { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: memberName },

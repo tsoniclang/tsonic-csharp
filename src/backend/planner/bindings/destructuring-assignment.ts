@@ -11,9 +11,10 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../expressions/planned-values.js";
 import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
 
-import type { CsharpArrayBindingCarrier, TargetTypeRef } from "../../../target-model/types/index.js";
+import type { CsharpArrayBindingCarrier } from "../../../target-model/types/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
+import { planIdentifierExpression } from "../expressions/expression-source-references.js";
+import { applyCsharpConversionSelection } from "../expressions/conversions.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { csharpTupleExpression } from "../types/csharp-tuples.js";
 import { csharpConstructibleTypeFromObjectShapeFact, objectShapeStorageMemberName } from "../objects/index.js";
@@ -165,18 +166,29 @@ function planAssignmentPatternFromExpression(
 ): readonly CsharpStatement[] {
   const source = input.program.records.bindingPatternProjection.get(pattern.sourceNode)?.source;
   if (source === undefined) return failCsharpPlannerInvariant("Assignment pattern requires its admitted source projection.", pattern.sourceNode);
-  const target = (selected: DestructuringAssignmentTarget, value: CsharpExpression, carrier: TargetTypeRef,
-    subject: Node, type = csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames)): readonly CsharpStatement[] => {
+  const target = (selected: DestructuringAssignmentTarget, value: CsharpExpression,
+    subject: Node): readonly CsharpStatement[] => {
+    const binding = input.program.records.bindingPatternProjection.get(subject)?.binding;
+    const destination = selected.kind === "node" ? selected.node : selected.pattern.sourceNode;
+    if (binding === undefined || binding.node !== destination) return failCsharpPlannerInvariant(
+      "An admitted assignment projection lost its exact extraction, storage and conversion.", subject);
+    const type = csharpTypeFromTargetTypeRef(binding.target, input.scope.typeParameterNames);
     if (type === undefined) return failCsharpPlannerInvariant("An admitted assignment projection requires a renderable carrier.", subject);
+    const converted = applyCsharpConversionSelection(subject, sourceFile, input, diagnostics,
+      binding.source, binding.target, binding.conversion, value);
+    if (converted === undefined) return failCsharpPlannerInvariant(
+      "An admitted assignment conversion lost its selected native renderer.", subject);
     if (selected.kind === "node") {
       if (!input.program.source.ast.is.IsIdentifier(selected.node)) return failCsharpPlannerInvariant(
         "An admitted direct destructuring target requires native identifier storage.", selected.node);
+      const left = planIdentifierExpression(selected.node, sourceFile,
+        { ...input, storageExpression: selected.node }, diagnostics, state);
+      if (left === undefined) return [];
       return [{ kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" },
-        left: { kind: "IdentifierName", name: requireCsharpIdentifier(input.program.source.ast.text(selected.node), diagnostics,
-          "Destructuring assignment target") }, right: value } }];
+        left, right: converted } }];
     }
     const name = allocateDestructuringTemp(state);
-    return [{ kind: "LocalDeclarationStatement", name, type, initializer: value },
+    return [{ kind: "LocalDeclarationStatement", name, type, initializer: converted },
       ...planAssignmentPatternFromExpression(selected.pattern, { kind: "IdentifierName", name }, sourceFile,
         input, diagnostics, state, planExpression)];
   };
@@ -187,13 +199,13 @@ function planAssignmentPatternFromExpression(
       if (element === undefined) return [];
       const projection = input.program.records.bindingPatternProjection.get(element.sourceNode)?.element;
       if (projection?.kind === "array-rest") return target(element.target,
-        restExpression(sourceExpression, projection.start, binding, input, element.sourceNode), projection.restCarrier, element.sourceNode);
+        restExpression(sourceExpression, projection.start, binding, input, element.sourceNode), element.sourceNode);
       if (projection?.kind === "tuple-rest") {
         const type = csharpTypeFromTargetTypeRef(projection.restCarrier, input.scope.typeParameterNames);
         const expression = type === undefined ? undefined : csharpTupleExpression(projection.restCarrier.elements.map((_, offset) => ({
           kind: "SimpleMemberAccessExpression", receiver: sourceExpression, name: `Item${projection.start + offset + 1}`,
         })), type);
-        return expression === undefined ? [] : target(element.target, expression, projection.restCarrier, element.sourceNode, type);
+        return expression === undefined ? [] : target(element.target, expression, element.sourceNode);
       }
       if (projection?.kind !== "array-element" || projection.elementCarrier === undefined) return failCsharpPlannerInvariant(
         "Array assignment requires its admitted element projection.", element.sourceNode);
@@ -202,7 +214,7 @@ function planAssignmentPatternFromExpression(
         : { kind: "ElementAccessExpression", receiver: sourceExpression, arguments: [{ kind: "LiteralExpression", value: projection.index }] };
       const initializer = element.initializer;
       if (initializer === undefined || projection.tupleDefault?.kind === "unused") return target(element.target,
-        projected, projection.elementCarrier, element.sourceNode);
+        projected, element.sourceNode);
       const contract = input.program.records.bindingPatternProjection.get(element.sourceNode)?.defaultValue;
       if (contract === undefined) return failCsharpPlannerInvariant(
         "Assignment default requires its admitted native default contract.", element.sourceNode);
@@ -210,7 +222,7 @@ function planAssignmentPatternFromExpression(
         const selected = planArrayDefaultProjection(sourceExpression, projection.index, projected, binding, contract, initializer,
           sourceFile, input, diagnostics, state, planExpression);
         return selected === undefined ? [] : consumeCsharpPlannedValue(selected.value,
-          value => target(element.target, value, selected.carrier, element.sourceNode, selected.type));
+          value => target(element.target, value, element.sourceNode));
       }
       if (projection.tupleDefault?.kind !== "planned") return failCsharpPlannerInvariant(
         "Tuple assignment default requires its admitted native use.", element.sourceNode);
@@ -222,7 +234,7 @@ function planAssignmentPatternFromExpression(
       const defaulted = planCsharpBindingDefaultValue(initializer, sourceFile, input, diagnostics, projected,
         contract, value, state);
       return defaulted === undefined ? [] : consumeCsharpPlannedValue(defaulted,
-        value => target(element.target, value, carrier, element.sourceNode, type));
+        value => target(element.target, value, element.sourceNode));
     });
   }
   if (source.kind !== "object-shape-source") return failCsharpPlannerInvariant(
@@ -237,20 +249,20 @@ function planAssignmentPatternFromExpression(
       return target(element.target, { kind: "ObjectCreationExpression", type, assignments: projection.members.map(({ rest, source: member }) => ({
         kind: "AssignmentExpression", name: objectShapeStorageMemberName(projection.restShape, rest),
         expression: { kind: "SimpleMemberAccessExpression", receiver: sourceExpression, name: objectShapeStorageMemberName(source.shape, member) },
-      })) }, projection.restShape.targetType, element.sourceNode, type);
+      })) }, element.sourceNode);
     }
     if (projection?.kind !== "object-shape-member") return failCsharpPlannerInvariant(
       "Object assignment requires its admitted native member.", element.sourceNode);
     const member = projection.member;
     const value: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: sourceExpression, name: member.targetName };
-    if (element.initializer === undefined) return target(element.target, value, member.type, element.sourceNode);
+    if (element.initializer === undefined) return target(element.target, value, element.sourceNode);
     const contract = input.program.records.bindingPatternProjection.get(element.sourceNode)?.defaultValue;
     if (contract === undefined) return failCsharpPlannerInvariant(
       "Object assignment default requires its admitted native default contract.", element.sourceNode);
     const selected = planObjectShapeDefaultProjection(value, member, contract, element.initializer, sourceFile, input,
       diagnostics, state, planExpression);
     return selected === undefined ? [] : consumeCsharpPlannedValue(selected.value,
-      value => target(element.target, value, selected.carrier, element.sourceNode, selected.type));
+      value => target(element.target, value, element.sourceNode));
   });
 }
 

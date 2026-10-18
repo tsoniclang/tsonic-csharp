@@ -5,22 +5,16 @@ import type { CsharpMethodDeclaration, CsharpTypeMember } from "../../../target-
 import type { CsharpPlanningContext } from "../../context.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { nullableCsharpType } from "../../types/index.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planCsharpMutableMethod(
   node: Node, method: CsharpMethodDeclaration,
   write: NonNullable<ReturnType<CsharpDeclarationClassifications["methodWrite"]["get"]>>,
-  input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
+  input: CsharpPlanningContext, _diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeMember[] {
   const type = csharpTypeFromTargetTypeRef(write.type, input.scope.typeParameterNames);
-  const owner = input.program.source.ast.parent(node);
-  const heritage = owner === undefined ? undefined : input.program.sourceNavigation.declaredHeritage(owner);
-  if (type === undefined || (method.typeParameters?.length ?? 0) > 0 ||
-    method.modifiers.some(modifier => modifier === "static" || modifier === "virtual" || modifier === "override") ||
-    heritage?.kind === "resolved" && heritage.edges.length > 0) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "A writable source method requires a closed non-generic instance delegate without native inheritance or interface dispatch obligations."));
-    return [];
-  }
+  if (type === undefined) return failCsharpPlannerInvariant(
+    "An admitted writable method lost its renderable native delegate storage.", node);
   return [
     { ...method, name: write.implementationName, modifiers: method.modifiers.map(modifier => modifier === "public" ? "private" : modifier) },
     { kind: "FieldDeclaration", name: write.storageName, type: nullableCsharpType(type), modifiers: ["private"] },

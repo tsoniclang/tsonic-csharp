@@ -415,13 +415,16 @@ export function analyzeCsharpTargetProgram(
     nativeParticipation.participation, analysis.sourceEvidence.compileTimeMetadata);
   const admittedOperations = admittedIterations.operations;
   const nonCallableIssues = [
+    ...names.issues,
     ...admittedIterations.issues,
     ...admitCsharpStatementBindings(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
       admittedOperations, analysis.storage, analysis.sourceEvidence.generator,
-      nativeParticipation.participation, analysis.sourceEvidence.compileTimeMetadata),
+      nativeParticipation.participation, analysis.sourceEvidence.compileTimeMetadata,
+      analysis.valueReads.valueRead),
     ...admitCsharpNativeDeclarations(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
       projectTypes, analysis.sourceEvidence, analysis.storage,
-      nativeParticipation.participation, admittedOperations.nativeUnreachable),
+      nativeParticipation.participation, admittedOperations.nativeUnreachable,
+      analysis.declarations, callableAdapters.callableDispatch),
   ];
   if (nonCallableIssues.length > 0) return rejectedTargetStage(nonCallableIssues);
   const objectShapeDemand = analyzeCsharpNativeArtifactDemand({
@@ -627,6 +630,7 @@ function analyzeIteration(
   const bindingCandidates = analyzeCsharpBindingPatterns({
     ast: source.ast, semanticsFor: source.semantics.forNode, sourceFiles, participation: nativeParticipation.participation,
     evidence: sourceEvidence, operations, valueReads, objectShapes,
+    typePolicy: policy.types, conversionPolicy: policy, storage: storageRepresentations,
   });
   const expectedUse = admitCsharpExpectedNativeUses(expectedTypes, {
     ast: source.ast, exactLiteral: exactLiterals.exactLiteral, callableCreation: callableCreations.callableCreation,

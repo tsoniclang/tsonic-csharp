@@ -6,7 +6,8 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import { AsBindingPattern, ObjectLiteralProperty_SourceName, sourceBindingWriteAtReference, sourceNodesEqual } from "@tsonic/target-api/source";
+import { AsBindingPattern, ObjectLiteralProperty_SourceName, sourceBindingScope, sourceBindingWriteAtReference,
+  sourceDeclarationIsModuleScoped, sourceNodesEqual } from "@tsonic/target-api/source";
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import { objectShapeMemberTargetName } from "../../policy/types/objects/object-shape-policy/construction.js";
 import {
@@ -20,6 +21,7 @@ import type {
   CsharpSourceNameResolution,
 } from "../../target-model/names/model.js";
 import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 export interface CsharpSourceNameResolver {
   temporaryName(preferred: string): string;
@@ -115,6 +117,8 @@ export function createCsharpSourceNameBuilder(
         return sealed;
       }
       const valueNames = new Map<Node, Set<string>>();
+      const issues: TargetDiagnostic[] = [];
+      const emittedBindings: typeof bindings = [];
       for (const binding of bindings) {
         const retained = required.has(binding.root) || binding.iteration !== undefined && required.has(binding.iteration) ||
           host.navigation.referencesToDeclaration(binding.declaration).some(reference => {
@@ -122,6 +126,61 @@ export function createCsharpSourceNameBuilder(
             return write !== undefined && required.has(write.operation);
           });
         if (!retained) continue;
+        const name = resolutions.get(binding.name);
+        if (name?.kind !== "resolved") {
+          const role = host.ast.is.IsBindingElement(binding.declaration) ? "Destructuring binding"
+            : host.ast.is.IsFunctionDeclaration(binding.declaration) ? "Local function name"
+            : host.ast.is.IsParameterDeclaration(binding.declaration) ? "Parameter name"
+            : host.ast.parent(binding.declaration) !== undefined &&
+                host.ast.is.IsCatchClause(host.ast.parent(binding.declaration)) ? "Catch variable"
+            : binding.iteration !== undefined ? "For-of binding name" : "Local binding name";
+          issues.push(Object.freeze({ code: "CSHARP_INVALID_IDENTIFIER", category: "error", source: "tsonic-csharp",
+            message: `${role} '${host.ast.text(binding.name)}' is not a valid C# identifier. Add an explicit target name/fact instead of relying on backend name rewriting.` }));
+          continue;
+        }
+        emittedBindings.push(binding);
+      }
+      const nativeBindings = emittedBindings.flatMap(binding => {
+        const scope = sourceDeclarationIsModuleScoped(binding.root, host.ast) ? undefined
+          : sourceBindingScope(binding.declaration, host.ast);
+        const selected = resolutions.get(binding.name);
+        return scope === undefined || selected?.kind !== "resolved" ? [] : [{ binding, scope, name: selected.name }];
+      });
+      const byName = new Map<string, typeof nativeBindings>();
+      for (const binding of nativeBindings) {
+        const group = byName.get(binding.name) ?? [];
+        group.push(binding);
+        byName.set(binding.name, group);
+      }
+      const within = (node: Node, scope: Node): boolean => {
+        for (let current: Node | undefined = node; current !== undefined; current = host.ast.parent(current)) {
+          if (current === scope) return true;
+          if (host.ast.is.IsClassDeclaration(current) || host.ast.is.IsClassExpression(current)) return false;
+        }
+        return false;
+      };
+      for (const current of nativeBindings) {
+        const shadows = byName.get(current.name)?.some(other => other !== current && other.scope !== current.scope &&
+          within(current.scope, other.scope) && !(host.ast.is.IsFunctionDeclaration(other.binding.declaration) &&
+            within(current.binding.declaration, other.binding.declaration)));
+        if (!shadows) continue;
+        const base = current.name.startsWith("@") ? current.name.slice(1) : current.name;
+        let suffix = 1;
+        const collides = (name: string): boolean => byName.get(name)?.some(other =>
+          within(current.scope, other.scope) || within(other.scope, current.scope)) === true;
+        while (collides(`${base}_${suffix}`)) suffix += 1;
+        const name = `${base}_${suffix}`;
+        const selected = Object.freeze({ kind: "resolved" as const, name });
+        resolutions.set(current.binding.name, selected);
+        for (const reference of host.navigation.referencesToDeclaration(current.binding.declaration)) {
+          if (host.ast.is.IsIdentifier(reference) && resolutions.has(reference)) resolutions.set(reference, selected);
+        }
+        sourceNames.add(name);
+        const group = byName.get(name) ?? [];
+        group.push({ ...current, name });
+        byName.set(name, group);
+      }
+      for (const binding of emittedBindings) {
         const name = resolutions.get(binding.name);
         if (name?.kind !== "resolved") continue;
         for (let owner = host.ast.parent(binding.declaration); owner !== undefined; owner = host.ast.parent(owner)) {
@@ -151,9 +210,28 @@ export function createCsharpSourceNameBuilder(
           typeParameterNames.push(Object.freeze({ identity: parameter.identity, name }));
         }
       }
+      const enclosing = new WeakMap<Node, readonly Node[]>();
+      const noParameters: readonly Node[] = Object.freeze([]);
+      const recordEnclosing = (node: Node, inherited: readonly Node[]): void => {
+        enclosing.set(node, inherited);
+        const parameters = new Map<string, Node>();
+        const boundary = host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node);
+        if (!boundary) {
+          for (const parameter of [...callableTypeParameters.get(node) ?? [], ...inherited]) {
+            const nameNode = host.ast.name(parameter);
+            const selected = nameNode === undefined ? undefined : resolutions.get(nameNode);
+            if (selected?.kind === "resolved" && !parameters.has(selected.name)) parameters.set(selected.name, parameter);
+          }
+        }
+        const children = parameters.size === 0 ? noParameters : Object.freeze([...parameters.values()]);
+        host.ast.forEachChild(node, child => { if (child !== undefined) recordEnclosing(child, children); });
+      };
+      host.sourceFiles.forEach(file => recordEnclosing(file, noParameters));
       sealedBindingRoots = required;
       sealed = Object.freeze({ reservedNames: Object.freeze([...sourceNames]),
-        typeParameterNames: Object.freeze([...typeParameterNames]), resolve });
+        typeParameterNames: Object.freeze([...typeParameterNames]),
+        generatedMethodTypeParameters: Object.freeze({ get: (node: Node) => enclosing.get(node) }),
+        issues: Object.freeze(issues), resolve });
       return sealed;
     },
   });

@@ -54,6 +54,8 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/sourc
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpValueReadStageIndex } from "../../target-model/records/conversions.js";
 import type { CsharpDeclarationClassifications, CsharpDefaultParameterContract, CsharpReturnTargetContract } from "../../target-model/records/declarations.js";
+import { csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
+import type { CsharpProjectCallableAdapters } from "../../target-model/records/callable-adapters.js";
 
 export function admitCsharpNativeDeclarations(
   ast: AstReader,
@@ -61,9 +63,11 @@ export function admitCsharpNativeDeclarations(
   nativeUse: CsharpNativeUseClassifications["nativeUse"],
   projectTypes: Pick<CsharpProjectTypeClassifications, "heritageForDeclaration">,
   metadata: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata">,
-  storage: Pick<CsharpStorageClassifications, "storageType">,
+  storage: Pick<CsharpStorageClassifications, "storageType" | "nativeBacking" | "typedLocationIdentity">,
   participation: CsharpNativeParticipationInput["participation"],
   nativeUnreachable: CsharpTargetOperationClassifications["nativeUnreachable"],
+  declarations: Pick<CsharpDeclarationClassifications, "methodWrite">,
+  methodDispatch: CsharpProjectCallableAdapters["callableDispatch"],
 ): readonly TargetDiagnostic[] {
   const issues: TargetDiagnostic[] = [];
   const refuse = (node: Node, message: string): void => {
@@ -74,6 +78,21 @@ export function admitCsharpNativeDeclarations(
     if (nativeUse.order(node) === undefined || metadata.compileTimeMetadata.get(node) ||
       nativeUnreachable.get(node) || participation.get(node) === "erased" || sourceClassFieldIsTypeOnly(ast, node)) continue;
     admitCsharpDeclarationModifiers(ast, node, refuse);
+    if (ast.is.IsMethodDeclaration(node)) {
+      const write = declarations.methodWrite.get(node);
+      if (write !== undefined) {
+        const owner = ast.parent(node);
+        const heritage = owner === undefined ? undefined : projectTypes.heritageForDeclaration(owner);
+        const dispatch = methodDispatch.get(node);
+        if (csharpTargetTypeRenderingRejection(write.type) !== undefined ||
+          csharpSourceTypeParameters(node, ast).some(parameter => parameter !== undefined) ||
+          ast.hasModifierKind(node, "static") || ast.hasModifierKind(node, "abstract") ||
+          dispatch?.overridesBase === true || dispatch?.hasDerivedOverride === true ||
+          heritage !== undefined && (heritage.baseType !== undefined || heritage.interfaces.length > 0)) {
+          refuse(node, "A writable source method requires a closed non-generic instance delegate without native inheritance or interface dispatch obligations.");
+        }
+      }
+    }
     const classDeclaration = ast.is.IsClassDeclaration(node) || ast.is.IsClassExpression(node);
     if (classDeclaration || ast.is.IsInterfaceDeclaration(node)) {
       const heritage = projectTypes.heritageForDeclaration(node);
@@ -116,6 +135,13 @@ export function admitCsharpNativeDeclarations(
         if (kind !== "KindMethodSignature" && kind !== "KindPropertySignature" && kind !== "KindIndexSignature") {
           refuse(member, "Interface member is outside the current C# planning surface.");
         }
+        if (kind === "KindMethodSignature" && participation.get(member) === "signature" &&
+          ast.parameters(member).some(parameter => {
+            if (parameter === undefined) return false;
+            const name = ast.name(parameter);
+            return name !== undefined && (ast.is.IsObjectBindingPattern(name) || ast.is.IsArrayBindingPattern(name)) ||
+              storage.nativeBacking.get(parameter) !== undefined || storage.typedLocationIdentity.get(parameter);
+          })) refuse(member, "Interface methods cannot publish destructuring parameter preludes.");
       }
     }
   }

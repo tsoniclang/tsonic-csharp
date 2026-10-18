@@ -18,7 +18,11 @@ export function selectCsharpSwitch(input: CsharpPolicyContext, node: Node, sourc
   const native = isCsharpIntegralTargetType(type) || isCsharpStringTargetType(type) ||
     ["float32", "float64", "bool"].some(name => targetTypeRefEquals(type, csharpSourcePrimitiveTargetType(name as "float32" | "float64" | "bool")));
   if (native && clauses.every(clause => input.ast.is.IsDefaultClause(clause) ||
-    constantLabel(input, input.ast.as.AsCaseOrDefaultClause(clause)?.Expression))) return { kind: "native" };
+    constantLabel(input, input.ast.as.AsCaseOrDefaultClause(clause)?.Expression))) return Object.freeze({
+      kind: "native", expression, type,
+      clauses: Object.freeze(clauses.map(clause => Object.freeze(input.ast.is.IsDefaultClause(clause)
+        ? { node: clause } : { node: clause, expression: input.ast.as.AsCaseOrDefaultClause(clause)!.Expression! }))),
+    });
   const selected: { readonly node: Node; readonly comparison?: CsharpResolvedBinaryOperation }[] = [];
   for (const clause of clauses) {
     if (input.ast.is.IsDefaultClause(clause)) {

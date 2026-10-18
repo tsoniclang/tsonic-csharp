@@ -14,6 +14,8 @@ import type { CsharpAdmittedIteration, CsharpForInKeyBinding, CsharpForOfBinding
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 
 export function admitCsharpIterationBindings(
   policy: CsharpPolicyContext,
@@ -108,11 +110,13 @@ export function admitCsharpStatementBindings(
   ast: AstReader,
   nodes: readonly Node[],
   nativeUse: CsharpNativeUseClassifications["nativeUse"],
-  operations: Pick<CsharpTargetOperationClassifications, "resource" | "throwable" | "switchStatement" | "nativeUnreachable">,
+  operations: Pick<CsharpTargetOperationClassifications, "resource" | "throwable" | "throwValue" |
+    "exactCatchRethrow" | "switchStatement" | "nativeUnreachable">,
   storage: Pick<CsharpStorageClassifications, "storageType">,
   generator: CsharpSourceEvidenceIndex["generator"],
   participation: CsharpNativeParticipationInput["participation"],
   metadata: CsharpSourceEvidenceIndex["compileTimeMetadata"],
+  valueReads: CsharpValueReadClassifications["valueRead"],
 ): readonly TargetDiagnostic[] {
   const issues: TargetDiagnostic[] = [];
   const refusedResourceScopes = new Set<Node>();
@@ -124,16 +128,31 @@ export function admitCsharpStatementBindings(
     const order = nativeUse.order(node);
     if (order === undefined || metadata.get(node) || operations.nativeUnreachable.get(node) ||
       participation.get(node) === "erased") continue;
-    if (ast.is.IsSwitchStatement(node)) {
+    if (ast.is.IsThrowStatement(node)) {
+      const expression = ast.as.AsThrowStatement(node)?.Expression;
+      if (expression === undefined || operations.exactCatchRethrow.get(node)) continue;
+      const thrown = operations.throwValue.get(node);
+      const carrier = valueReads.get(expression)?.value;
+      if (thrown === undefined || thrown.expression !== expression ||
+        (carrier === undefined ? thrown.sourceCarrier !== undefined
+          : thrown.sourceCarrier === undefined || !targetTypeRefEquals(thrown.sourceCarrier, carrier))) {
+        refuse(expression, "Throw expression has no exact sealed C# native error carrier classification.");
+      } else if (thrown.targetCarrier === undefined) {
+        const reason = carrier === undefined
+          ? "C# runtime representation is not proven by authored source facts, the selected source profile, project declarations, or an exact provider relation."
+          : "Resolved thrown expression carrier is not a target throwable carrier.";
+        issues.push(Object.freeze({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp",
+          sourceNode: expression,
+          message: `Throw statements require finalized TSTS/provider exception-carrier facts before C# emission. ${reason}`,
+          evidence: Object.freeze(carrier === undefined ? ["C# type policy found no exact runtime representation."] : []) }));
+      } else if (csharpTargetTypeRenderingRejection(thrown.targetCarrier) !== undefined) {
+        refuse(expression,
+          `Throw statements require C# type syntax for the sealed thrown carrier '${targetTypeRefKey(thrown.targetCarrier)}' before C# emission.`);
+      }
+    } else if (ast.is.IsSwitchStatement(node)) {
       const selected = operations.switchStatement.get(node);
       if (selected === undefined || selected.kind === "rejected") {
         refuse(node, selected?.reason ?? "Switch requires sealed C# classification.");
-      }
-    } else if (ast.is.IsForOfStatement(node)) {
-      const statement = ast.as.AsForInOrOfStatement(node);
-      const initializer = statement?.Initializer;
-      if (initializer !== undefined && !ast.is.IsVariableDeclarationList(initializer) && !ast.is.IsIdentifier(initializer)) {
-        refuse(initializer, "For-of initializer binding is outside the current C# planning surface.");
       }
     } else if (ast.is.IsCatchClause(node)) {
       const clause = ast.as.AsCatchClause(node);

@@ -123,10 +123,7 @@ function planInterfaceMethodDeclaration(
     diagnostics,
   );
   if (parameters.prelude.length > 0) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "Interface methods cannot publish destructuring parameter preludes.",
-    ));
+    return failCsharpPlannerInvariant("An admitted interface signature unexpectedly requires a runtime parameter prelude.", node);
   }
   return {
     kind: "MethodDeclaration",

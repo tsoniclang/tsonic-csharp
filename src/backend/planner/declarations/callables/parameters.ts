@@ -72,7 +72,7 @@ export function planParametersWithPrelude(
     if (HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier)) {
       const type = getParameterType(parameterNode, sourceFile, input, diagnostics);
       if (input.program.records.runtimeDefault.get(parameterNode!) !== undefined) {
-        const sourceName = declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Parameter name", "arg");
+        const sourceName = declareCsharpLocalBindingName(parameter.name!, input, state);
         const incomingName = allocateSyntheticParameter(state);
         const selected = planCsharpRuntimeParameterDefault(parameterNode!, incomingName, sourceFile, input, diagnostics, state);
         if (selected === undefined) continue;
@@ -91,7 +91,7 @@ export function planParametersWithPrelude(
       } else if (hasDefaultParameter && parameter.DotDotDotToken === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(parameterNode!, "Required parameters cannot follow C# optional parameters."));
       }
-      const sourceName = declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Parameter name", "arg");
+      const sourceName = declareCsharpLocalBindingName(parameter.name!, input, state);
       parameters.push({
         name: sourceName,
         type,
@@ -144,7 +144,7 @@ export function planParametersWithPrelude(
       diagnostics.push(unsupportedNodeDiagnostic(parameterNode!, "Required parameters cannot follow C# optional parameters."));
     }
     diagnostics.push(unsupportedNodeDiagnostic(parameter.name ?? parameterNode!, "Parameter name is outside the current C# planning surface."));
-    const targetName = declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Parameter name", "arg");
+    const targetName = declareCsharpLocalBindingName(parameter.name!, input, state);
     parameters.push({
       name: targetName,
       type,

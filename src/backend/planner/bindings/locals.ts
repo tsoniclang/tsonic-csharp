@@ -125,7 +125,7 @@ export function planLocalDeclaration(
       ? undefined
       : csharpTypeFromTargetTypeRef(storageType, input.scope.typeParameterNames)) ??
     getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
-  const name = declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "Local binding name", "LocalDeclarationStatement");
+  const name = declareCsharpLocalBindingName(variable.name!, input, state);
   const initializerCarrier = nativeRefTargetType ?? storageType ?? expectedTargetType ?? inferredTargetType;
   let initializer: CsharpPlannedValue | undefined;
   if (initializerOverride !== undefined) {

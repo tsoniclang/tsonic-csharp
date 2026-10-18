@@ -98,7 +98,7 @@ export function planBlockStatements(
   for (const statement of statements) {
     if (input.program.source.ast.is.IsFunctionDeclaration(statement)) {
       const name = input.program.source.ast.name(statement);
-      if (name !== undefined) declareCsharpLocalBindingName(name, input, diagnostics, state, "Local function name", "__anonymous");
+      if (name !== undefined) declareCsharpLocalBindingName(name, input, state);
     }
   }
   const captures = planCsharpCaptureFrame(blockNode, input, diagnostics, state);

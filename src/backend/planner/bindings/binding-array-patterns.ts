@@ -111,7 +111,6 @@ function planArrayBindingElement(
           projected, fact.defaultValue, whenNull, state);
         return defaulted === undefined ? [] : consumeCsharpPlannedValue(defaulted, expression => planBindingNameFromProjection(
           name, expression,
-          defaultedElementType,
           elementNode,
           sourceFile,
           input,
@@ -119,7 +118,7 @@ function planArrayBindingElement(
           state,
         ));
       }
-      return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
+      return planBindingNameFromProjection(name, projected, elementNode, sourceFile, input, diagnostics, state);
     }
     if (planExpression === undefined) {
       failCsharpPlannerInvariant("An admitted array default requires its active expression planner.", element.Initializer);
@@ -132,9 +131,9 @@ function planArrayBindingElement(
       return [];
     }
     return consumeCsharpPlannedValue(defaultedProjection.value, expression =>
-      planBindingNameFromProjection(name, expression, defaultedProjection.type, elementNode, sourceFile, input, diagnostics, state));
+      planBindingNameFromProjection(name, expression, elementNode, sourceFile, input, diagnostics, state));
   }
-  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
+  return planBindingNameFromProjection(name, projected, elementNode, sourceFile, input, diagnostics, state);
 }
 
 function planArrayBindingProjection(
@@ -179,7 +178,7 @@ function planArrayRestBindingElement(
     failCsharpPlannerInvariant("An admitted array rest lost its native carrier rendering.", elementNode);
   }
   const projected = planArrayRestProjection(sourceExpression, index, sourceCarrier);
-  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
+  return planBindingNameFromProjection(name, projected, elementNode, sourceFile, input, diagnostics, state);
 }
 
 function planTupleRestBindingElement(
@@ -210,7 +209,7 @@ function planTupleRestBindingElement(
       name: `Item${index + offset + 1}`,
     }));
   const projected = csharpTupleExpression(projectedElements, projectedType);
-  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
+  return planBindingNameFromProjection(name, projected, elementNode, sourceFile, input, diagnostics, state);
 }
 
 function planArrayRestProjection(

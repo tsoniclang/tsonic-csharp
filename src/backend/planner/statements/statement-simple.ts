@@ -22,6 +22,7 @@ import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
 import {
+  failCsharpPlannerInvariant,
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
@@ -29,11 +30,6 @@ import {
   planDestructuringAssignmentStatement,
 } from "../bindings/destructuring-assignment.js";
 import { planExpression } from "../expressions/index.js";
-import {
-  probeCarrierFromResolution,
-  missingCarrierDiagnosticDetail,
-  resolveRuntimeCarrierForExpression,
-} from "../types/runtime-carriers.js";
 import {
   csharpThrownValueFromExpression,
   isExactUnmodifiedCatchRethrow,
@@ -62,7 +58,6 @@ import {
 import {
   directCsharpSourceYieldExpression,
 } from "../../../target-model/syntax/yield-expression.js";
-import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -227,41 +222,18 @@ export function planThrowStatement(
 ): readonly CsharpStatement[] {
   const statement = AsThrowStatement(input.program.source.ast, node)!;
   if (statement.Expression === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Throw statement must have an expression."));
-    return [];
+    return failCsharpPlannerInvariant("A checked throw statement requires its source expression.", node);
   }
-  const sourceExpression = statement.Expression;
   if (isExactUnmodifiedCatchRethrow(node, statement.Expression, input)) {
     return [{ kind: "ThrowStatement" }];
   }
-  const carrierResolution = resolveRuntimeCarrierForExpression(
-    input,
-    statement.Expression,
-    sourceFile,
-  );
-  const carrier = probeCarrierFromResolution(carrierResolution);
   const thrown = input.program.records.throwValue.get(node);
-  if (thrown === undefined || thrown.expression !== statement.Expression ||
-    (carrier === undefined ? thrown.sourceCarrier !== undefined
-      : thrown.sourceCarrier === undefined || !targetTypeRefEquals(thrown.sourceCarrier, carrier))) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      statement.Expression,
-      "Throw expression has no exact sealed C# native error carrier classification.",
-    ));
-    return [];
-  }
-  if (thrown.targetCarrier === undefined) {
-    const detail = carrier === undefined
-      ? missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the thrown expression.")
-      : { reason: "Resolved thrown expression carrier is not a target throwable carrier.", evidence: [] };
-    diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, `Throw statements require finalized TSTS/provider exception-carrier facts before C# emission. ${detail.reason}`, detail.evidence));
-    return [];
+  if (thrown === undefined || thrown.targetCarrier === undefined) {
+    return failCsharpPlannerInvariant("An admitted throw lost its selected native error carrier.", statement.Expression);
   }
   const type = csharpTypeFromTargetTypeRef(thrown.targetCarrier, input.scope.typeParameterNames);
   if (type === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(statement.Expression,
-      `Throw statements require C# type syntax for the sealed thrown carrier '${targetTypeRefKey(thrown.targetCarrier)}' before C# emission.`));
-    return [];
+    return failCsharpPlannerInvariant("An admitted throw lost its selected native error type rendering.", statement.Expression);
   }
   const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
   if (expression === undefined) {
@@ -270,9 +242,7 @@ export function planThrowStatement(
   return consumeCsharpPlannedValue(expression, value => {
     const native = isCsharpJsValueTargetType(thrown.targetCarrier) ? csharpThrownValueFromExpression(value) : value;
     if (native === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(sourceExpression,
-        "Throw statements require a renderable closed TsThrownValueException carrier before C# emission."));
-      return [];
+      return failCsharpPlannerInvariant("The declared TsThrownValueException bridge lost its fixed native constructor syntax.", statement.Expression);
     }
     return [{ kind: "ThrowStatement", expression: native }];
   });

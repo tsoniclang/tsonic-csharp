@@ -107,7 +107,7 @@ function planCatchClause(
     if (isCsharpJsValueTargetType(carrier)) {
       const catchExceptionType = csharpCatchExceptionType();
       const catchExceptionName = allocateCatchValue(state);
-      const sourceVariableName = declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "Catch variable", "catchValue");
+      const sourceVariableName = declareCsharpLocalBindingName(variable.name!, input, state);
       const catchValueInitializer = csharpThrownValueToValueExpression({ kind: "IdentifierName", name: catchExceptionName });
       if (catchExceptionType === undefined || catchValueInitializer === undefined) {
         return failCsharpPlannerInvariant("The fixed native catch bridge requires its declared System.Exception and TsThrownValueException type syntax.", variable.name);
@@ -136,7 +136,7 @@ function planCatchClause(
         },
       };
     }
-    const sourceVariableName = declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "Catch variable", "catchValue");
+    const sourceVariableName = declareCsharpLocalBindingName(variable.name!, input, state);
     const locationIdentity = planCsharpTypedLocationIdentityDeclaration(
       clause.VariableDeclaration,
       input,

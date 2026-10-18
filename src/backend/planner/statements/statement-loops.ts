@@ -19,6 +19,7 @@ import {
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { planCsharpCaptureFrame, planCsharpCapturedInitialization } from "../bindings/capture-storage.js";
 import { planExpression } from "../expressions/index.js";
+import { planIdentifierExpression } from "../expressions/expression-source-references.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planStringCodePointForOfStatement } from "./statement-string-iteration.js";
 import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
@@ -214,7 +215,8 @@ function planForOfBindingCore(
     return converted ?? failCsharpPlannerInvariant("An admitted for-of binding lost its selected native conversion.", selected.node);
   };
   if (selected.kind === "assignment") {
-    const target = planExpression(selected.name, sourceFile, input, diagnostics, state);
+    const target = planIdentifierExpression(selected.name, sourceFile,
+      { ...input, storageExpression: selected.name }, diagnostics, state);
     if (target === undefined) {
       return undefined;
     }
@@ -224,15 +226,15 @@ function planForOfBindingCore(
       ...local,
       local,
       outerPrelude: [],
-      prelude: consumeCsharpPlannedValue(target, value => [{
+      prelude: [{
         kind: "ExpressionStatement",
         expression: {
           kind: "AssignmentExpression",
-          left: value,
+          left: target,
           operatorToken: { kind: "EqualsToken" },
           right: convert({ kind: "IdentifierName", name: itemName }),
         },
-      }]),
+      }],
     };
   }
   if (selected.kind === "pattern") {
@@ -243,7 +245,7 @@ function planForOfBindingCore(
   }
   const local: CsharpLocalDeclaration = {
     kind: "VariableDeclarator",
-    name: declareCsharpLocalBindingName(selected.name, input, diagnostics, state, "For-of binding name", "forOfItem"),
+    name: declareCsharpLocalBindingName(selected.name, input, state),
     type: storageType,
   };
   const identity = planCsharpTypedLocationIdentityDeclaration(selected.declaration, input, state);

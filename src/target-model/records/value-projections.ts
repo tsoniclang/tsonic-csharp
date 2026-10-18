@@ -1,6 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpArrayBindingCarrier } from "../types/carriers/binding-array-carrier.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../types/model.js";
+import type { CsharpConversionSelection } from "../conversions/selection.js";
 
 export type CsharpBindingPatternSource =
   | {
@@ -82,6 +83,12 @@ export interface CsharpBindingProjectionFact {
   readonly element?: CsharpBindingElementProjection;
   readonly assignmentPattern?: CsharpDestructuringAssignmentPattern;
   readonly defaultValue?: CsharpDefaultValueContract;
+  readonly binding?: {
+    readonly node: Node;
+    readonly source: TargetTypeRef;
+    readonly target: TargetTypeRef;
+    readonly conversion: CsharpConversionSelection;
+  };
 }
 
 export interface CsharpDefaultValueContract {

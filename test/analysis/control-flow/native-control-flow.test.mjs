@@ -8,6 +8,9 @@ import { admitCsharpStatementBindings } from "../../../dist/analysis/control-flo
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
 import { planPropertyDeclaration } from "../../../dist/backend/planner/declarations/classes/properties.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { planBindingPatternFromExpression } from "../../../dist/backend/planner/bindings/binding-patterns.js";
+import { createDestructuringPlannerState } from "../../../dist/backend/planner/bindings/binding-state.js";
+import { planCsharpGeneratedMethodCall } from "../../../dist/backend/planner/declarations/generated-methods.js";
 
 for (const surface of ["native", "js"]) {
   test(`native C# rejects control transfer leaving cleanup before publishing output in ${surface}`, () => {
@@ -38,6 +41,80 @@ test("checked-source admission excludes malformed binding and control-flow gramm
     assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true,
       `${control.label}: malformed grammar never reaches native planning`);
     assert.equal(compiled.artifacts.size, 0, `${control.label}: malformed grammar never emits native artifacts`);
+  }
+});
+
+for (const surface of ["native", "js"]) {
+  test(`retained destructuring publishes exact extraction, destination and admitted conversion on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      class View { value: int = 7; }
+      export function run(values: int[]): number {
+        const { value }: { value: number } = new View();
+        const [first, ...rest] = values;
+        let assigned: number = 0;
+        [assigned] = values;
+        return value + first + assigned + rest.length;
+      }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "all extraction and destination types are checked source");
+    assert.equal(compiled.targetDiagnostics.length, 0, "all retained projections are admitted before publication");
+    const program = compiled.result.program;
+    const ast = program.source.ast;
+    const projections = [];
+    const visit = node => {
+      const fact = program.records.bindingPatternProjection.get(node);
+      if (fact?.element !== undefined) projections.push({ node, fact });
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    program.sourceFiles.forEach(visit);
+    assert.equal(projections.length, 4, "named member, array element, rest and assignment projections are retained");
+    for (const { fact } of projections) {
+      assert.equal(fact.binding?.source !== undefined && fact.binding.target !== undefined &&
+        fact.binding.conversion.kind !== "rejected", true, "the renderer receives one exact physical conversion");
+      assert.equal(Object.isFrozen(fact.binding) && Object.isFrozen(fact.binding.conversion), true,
+        "selected binding evidence is immutable before planning");
+    }
+    const first = projections.find(entry => entry.fact.element.kind === "source-owned-member");
+    const pattern = ast.parent(first.node);
+    const context = createCsharpPlanningContext(program);
+    const corrupted = { ...program, records: { ...program.records,
+      bindingPatternProjection: { get: node => node === first.node
+        ? { ...first.fact, binding: undefined } : program.records.bindingPatternProjection.get(node) } } };
+    const diagnostics = [];
+    assert.throws(() => planBindingPatternFromExpression(pattern, { kind: "IdentifierName", name: "source" },
+      ast.getSourceFile(pattern), { ...context, program: corrupted }, diagnostics,
+      createDestructuringPlannerState(pattern, ast)),
+    error => error.message.includes("An admitted binding projection requires its exact extraction, destination and conversion."),
+    "only corrupted successful producer evidence reaches the invariant");
+    assert.equal(diagnostics.length, 0, "the planner does not invent a second source refusal");
+    const values = surface === "js" ? "new global::Tsonic.CSharp.Js.JSArray<int>(new int[] { 1, 2, 3 })"
+      : "new int[] { 1, 2, 3 }";
+    executeCsharpConstruction(compiled, `admitted-destructuring-${surface}`, false, false, [], `
+if (Tsonic.Generated.Index.run(${values}) != 11) throw new System.Exception("native binding projection");
+`);
+  });
+}
+
+test("generated native helpers require their constructed scope and paired parameter contract", () => {
+  const compiled = compileCsharpSource({ sourceText: "export function run(): number { return 1; }" });
+  assert.equal(compiled.targetDiagnostics.length, 0, "the helper corruption witness starts from a valid published program");
+  const program = compiled.result.program;
+  const ast = program.source.ast;
+  const node = program.sourceFiles.flatMap(file => ast.statements(file)).find(statement => ast.is.IsFunctionDeclaration(statement));
+  const context = createCsharpPlanningContext(program);
+  for (const control of [
+    { name: "missing containing native type", input: context, parameters: [] },
+    { name: "mismatched constructed argument list", input: { ...context,
+      scope: { ...context.scope, generatedMethods: new Map() } },
+      parameters: [{ name: "value", type: { kind: "PredefinedType", name: "double" } }] },
+  ]) {
+    const diagnostics = [];
+    assert.throws(() => planCsharpGeneratedMethodCall(node, "corrupted", { kind: "PredefinedType", name: "double" },
+      control.parameters, { kind: "Block", statements: [] }, [], control.input, diagnostics),
+    error => error.message.includes("A generated native method lost its containing scope or exact constructed argument contract."),
+    control.name);
+    assert.equal(diagnostics.length, 0, `${control.name}: impossible renderer input is not a source refusal`);
   }
 });
 
@@ -193,9 +270,13 @@ for (const surface of ["native", "js"]) {
       };
       program.sourceFiles.forEach(visit);
       assert.equal(count, 3, "all three physical binding forms are witnessed");
+      const integers = surface === "js"
+        ? "new global::Tsonic.CSharp.Js.JSArray<int>(new int[] { 1, 2, 3 })" : "new int[] { 1, 2, 3 }";
+      const strings = surface === "js"
+        ? "new global::Tsonic.CSharp.Js.JSArray<string>(new string[] { \"a\", \"b\" })" : "new string[] { \"a\", \"b\" }";
       executeCsharpConstruction(compiled, `admitted-for-of-${surface}`, false, false, [], `
-if (Tsonic.Generated.Index.sum(new int[] { 1, 2, 3 }) != 6 ||
-    Tsonic.Generated.Index.joined(new string[] { "a", "b" }) != "ab" ||
+if (Tsonic.Generated.Index.sum(${integers}) != 6 ||
+    Tsonic.Generated.Index.joined(${strings}) != "ab" ||
     Tsonic.Generated.Index.characters("a😀b") != "a😀b")
     throw new System.Exception("native admitted iteration bindings");
 `);

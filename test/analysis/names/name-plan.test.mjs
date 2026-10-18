@@ -58,7 +58,7 @@ test("the sealed C# name plan is a frozen pure lookup with no allocation port", 
   const plan = builder.seal(bindingRoots);
   assert.equal(builder.seal(bindingRoots), plan);
   assert.ok(Object.isFrozen(plan));
-  assert.deepEqual(Object.keys(plan).sort(), ["reservedNames", "resolve", "typeParameterNames"]);
+  assert.deepEqual(Object.keys(plan).sort(), ["generatedMethodTypeParameters", "issues", "reservedNames", "resolve", "typeParameterNames"]);
   assert.equal(Object.isFrozen(plan.typeParameterNames) && plan.typeParameterNames.length === 0, true,
     "a source with no type/value conflict has no fabricated binder rename");
   assert.equal("temporaryName" in plan, false);
@@ -72,6 +72,39 @@ test("the sealed C# name plan is a frozen pure lookup with no allocation port", 
   assert.throws(() => builder.temporaryName("late"), /sealed/u);
   assert.equal(plan.reservedNames.includes("late"), false);
 });
+
+for (const surface of ["native", "js"]) {
+  test(`native nested shadowing is selected once before seal on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      type Handler = ($value: number) => number;
+      export function run(value: number): number {
+        let result = value;
+        { const value = 2; result += value; }
+        return result;
+      }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    assert.equal(program.names.issues.length, 0, "unused signature parameters never enter native name validation");
+    const ast = program.source.ast;
+    let declaration;
+    const visit = node => {
+      if (ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "value") declaration = node;
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    program.sourceFiles.forEach(visit);
+    const selected = program.names.resolve(ast.name(declaration));
+    assert.equal(selected.kind === "resolved" && selected.name === "value_1", true,
+      "the native CS0136 shadowing constraint is solved by the sole pre-seal name owner");
+    for (const reference of program.sourceNavigation.referencesToDeclaration(declaration)) {
+      if (ast.is.IsIdentifier(reference)) assert.equal(program.names.resolve(reference) === selected, true,
+        "every bound reference consumes the identical selected native name");
+    }
+    executeCsharpConstruction(compiled, `native-shadow-name-${surface}`, false, false, [], `
+if (Tsonic.Generated.Index.run(7) != 9) throw new System.Exception("native shadowing name plan");
+`);
+  });
+}
 
 test("backend synthetic names start from the final reserved inventory and never change the plan", () => {
   const { builder, bindingRoots } = checkedNames("export const moduleValue = 1; export function helperValue(): number { return moduleValue; }");
@@ -105,7 +138,7 @@ test("a published C# program carries the sealed plan and planning composes its o
   assert.equal(analysis.kind, "resolved");
   const program = analysis.value;
   assert.ok(Object.isFrozen(program.names));
-  assert.deepEqual(Object.keys(program.names).sort(), ["reservedNames", "resolve", "typeParameterNames"]);
+  assert.deepEqual(Object.keys(program.names).sort(), ["generatedMethodTypeParameters", "issues", "reservedNames", "resolve", "typeParameterNames"]);
   assert.equal("temporaryName" in program.names, false);
   assert.ok(program.classFactories.length > 0);
   for (const factory of program.classFactories) {

@@ -304,6 +304,8 @@ export function analyzeCsharpNativeArtifactDemand(
 
   function demandBinding(node: Node): void {
     const binding = input.bindingPatterns.bindingPatternProjection.get(node);
+    if (binding?.binding !== undefined) demandConversion(node, binding.binding.source,
+      binding.binding.target, binding.binding.conversion);
     if (binding?.source?.kind === "object-shape-source") demandShape(binding.source.shape, node);
     if (binding?.source?.kind === "array-source") demandType(binding.source.sourceCarrier, node);
     if (binding?.element?.kind === "object-shape-rest") {

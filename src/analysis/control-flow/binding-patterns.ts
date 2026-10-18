@@ -58,6 +58,10 @@ import {
 } from "../../target-model/types/index.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/index.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import { selectCsharpConversion } from "../../policy/conversions/core.js";
+import { admitCsharpConversionSelection } from "../conversions/validation.js";
 
 export interface CsharpBindingPatternAnalysisInput {
   readonly ast: AstReader;
@@ -68,6 +72,9 @@ export interface CsharpBindingPatternAnalysisInput {
   readonly operations: CsharpTargetOperationClassifications;
   readonly valueReads: CsharpValueReadClassifications;
   readonly objectShapes: CsharpObjectShapeClassifications;
+  readonly typePolicy: Pick<CsharpPolicyContext["types"], "resolveType">;
+  readonly conversionPolicy: Parameters<typeof selectCsharpConversion>[0];
+  readonly storage: Pick<CsharpStorageClassifications, "storageType">;
 }
 
 export interface CsharpBindingPatternCandidate extends CsharpBindingPatternIssue {
@@ -241,7 +248,27 @@ export function analyzeCsharpBindingPatterns(
   }
 
   function analyzeNested(name: Node, elementNode: Node, sourceFile: SourceFile, carrier: TargetTypeRef | undefined): void {
+    recordBinding(elementNode, name, carrier);
     if (isBindingPattern(name)) analyzePattern(name, elementNode, sourceFile, carrier);
+  }
+
+  function recordBinding(node: Node, name: Node, source: TargetTypeRef | undefined): void {
+    if (source === undefined) return;
+    const pattern = isBindingPattern(name) || ast.is.IsArrayLiteralExpression(name) || ast.is.IsObjectLiteralExpression(name);
+    const target = pattern ? source : input.storage.storageType.get(name);
+    if (target === undefined || csharpTargetTypeRenderingRejection(target) !== undefined) {
+      issue(name, "Destructuring binding requires its exact renderable finalized native storage carrier before C# emission.");
+      return;
+    }
+    const selected = selectCsharpConversion(input.conversionPolicy, source, target, "implicit");
+    const conversion = admitCsharpConversionSelection(input.conversionPolicy, source, target, selected);
+    if (conversion.kind === "rejected") {
+      issue(name, conversion.reason);
+      return;
+    }
+    facts.set(node, Object.freeze({ ...facts.get(node), binding: Object.freeze({
+      node: name, source, target, conversion: Object.freeze(conversion),
+    }) }));
   }
 
   function analyzePattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile, sourceCarrierOverride: TargetTypeRef | undefined): void {
@@ -301,7 +328,7 @@ export function analyzeCsharpBindingPatterns(
       return;
     }
     if (selected.kind === "source" && selected.source.kind === "source-owned-source") {
-      analyzeSourceOwnedPattern(pattern, sourceFile);
+      analyzeSourceOwnedPattern(pattern, sourceNode, sourceFile);
       return;
     }
     issue(pattern, "Object destructuring requires an exact source-owned declaration or target object-shape policy.");
@@ -390,6 +417,7 @@ export function analyzeCsharpBindingPatterns(
       return;
     }
     recordObjectRest(elementNode, restShape, sourceShape, extractedSourceNames, "Object rest destructuring");
+    recordBinding(elementNode, name, restShape.targetType);
   }
 
   function recordObjectRest(
@@ -405,8 +433,12 @@ export function analyzeCsharpBindingPatterns(
     else if (selected.kind === "unresolved") for (const reason of selected.reasons) issue(elementNode, reason);
   }
 
-  function analyzeSourceOwnedPattern(pattern: Node, sourceFile: SourceFile): void {
+  function analyzeSourceOwnedPattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile): void {
     recordSource(pattern, { kind: "source-owned-source" });
+    const semantics = input.semanticsFor(sourceNode);
+    const sourceType = ast.is.IsParameterDeclaration(sourceNode) || ast.is.IsBindingElement(sourceNode)
+      ? semantics.declarations.declaredValueType(sourceNode) : semantics.types.expressionType(sourceNode);
+    const members = sourceType === undefined ? [] : semantics.types.propertyInfos(sourceType);
     const elements = AsBindingPattern(ast, pattern)?.Elements?.Nodes ?? [];
     for (const elementNode of elements) {
       const element = elementNode === undefined ? undefined : AsBindingElement(ast, elementNode);
@@ -430,7 +462,13 @@ export function analyzeCsharpBindingPatterns(
         continue;
       }
       recordElement(elementNode, selected.element);
-      analyzeNested(name, elementNode, sourceFile, undefined);
+      const member = members.find(candidate => candidate.name === sourceName);
+      const carrier = member === undefined ? undefined : input.typePolicy.resolveType(member.type, sourceFile);
+      if (carrier === undefined) {
+        issue(elementNode, "Object destructuring source property requires its exact finalized native extraction carrier before C# emission.");
+        continue;
+      }
+      analyzeNested(name, elementNode, sourceFile, carrier);
     }
   }
 
@@ -582,6 +620,7 @@ export function analyzeCsharpBindingPatterns(
       return;
     }
     recordObjectRest(element.sourceNode, restShape, sourceShape, extractedSourceNames, "Object rest destructuring assignment");
+    recordBinding(element.sourceNode, element.target.node, restShape.targetType);
   }
 
   function analyzeAssignmentTarget(
@@ -591,9 +630,12 @@ export function analyzeCsharpBindingPatterns(
     carrier: TargetTypeRef | undefined,
   ): void {
     if (target.kind === "pattern") {
+      recordBinding(projectionNode, target.pattern.sourceNode, carrier);
       analyzeAssignmentPattern(target.pattern, projectionNode, sourceFile, carrier);
     } else if (!HasSourceKind(ast, target.node, KindIdentifier)) {
       issue(target.node, "Destructuring assignment target supports source-owned identifiers and nested destructuring patterns only.");
+    } else {
+      recordBinding(projectionNode, target.node, carrier);
     }
   }
 

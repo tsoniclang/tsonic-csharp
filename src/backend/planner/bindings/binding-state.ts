@@ -1,14 +1,13 @@
 import type {
   CsharpPlanningContext } from "../context.js";
-import { requireCsharpIdentifier,
-  tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
+import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type { AstReader,
   Node,
 } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { CsharpGeneratorProtocol } from "../../../target-model/types/index.js";
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import {
   KindIdentifier,
   Node_Text,
@@ -29,8 +28,6 @@ export interface DestructuringPlannerState {
   nextResourceScopeIndex: number;
   explicitUnsafeContextDepth: number;
   usedNames: Set<string>;
-  localBoundNames: Set<string>;
-  localNameCounts: Map<string, number>;
   localBindingNames: WeakMap<object, string>;
   typedLocationIdentityNames: WeakMap<object, string>;
   expressionOverrides: WeakMap<object, CsharpExpression>;
@@ -121,8 +118,6 @@ export function createDestructuringPlannerState(root?: Node, ast?: AstReader): D
     nextResourceScopeIndex: 0,
     explicitUnsafeContextDepth: 0,
     usedNames,
-    localBoundNames: new Set(),
-    localNameCounts: new Map(),
     localBindingNames: new WeakMap(),
     typedLocationIdentityNames: new WeakMap(),
     expressionOverrides: new WeakMap(),
@@ -203,42 +198,24 @@ export function createNestedPlannerState(
     ...nested,
     parent,
     usedNames: new Set([...parent.usedNames, ...nested.usedNames]),
-    localBoundNames: new Set(parent.localBoundNames),
-    localNameCounts: new Map(parent.localNameCounts),
     explicitUnsafeContextDepth: parent.explicitUnsafeContextDepth,
   };
 }
 
 export function declareCsharpLocalBindingName(
-  node: Node | undefined,
+  node: Node,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-  description: string,
-  fallbackName: string,
 ): string {
-  if (node === undefined || input.program.source.ast.kindName(node) !== KindIdentifier) {
-    diagnostics.push({
-      code: "CSHARP_UNSUPPORTED_NAME",
-      category: "error",
-      source: "tsonic-csharp",
-      message: `${description} must be an identifier for C# local binding emission.`,
-    });
-    return fallbackName;
-  }
   const key = localBindingKey(node, input);
   const existing = key === undefined ? undefined : state.localBindingNames.get(key);
   if (existing !== undefined) {
     return existing;
   }
-  const sourceName = Node_Text(input.program.source.ast, node);
-  const baseName = requireCsharpIdentifier(sourceName, diagnostics, description);
-  const count = state.localNameCounts.get(baseName) ?? 0;
-  const plannedName = count === 0 && !state.localBoundNames.has(baseName)
-    ? baseName
-    : allocateShadowedLocalName(baseName, state, count);
-  state.localNameCounts.set(baseName, count + 1);
-  state.localBoundNames.add(plannedName);
+  const selected = input.program.names.resolve(node);
+  if (selected.kind !== "resolved") return failCsharpPlannerInvariant(
+    "An emitted native binding lost its pre-seal target name.", node);
+  const plannedName = selected.name;
   state.usedNames.add(plannedName);
   if (key !== undefined) {
     state.localBindingNames.set(key, plannedName);
@@ -407,20 +384,6 @@ function allocateSyntheticName(
     if (!state.usedNames.has(name)) {
       state.usedNames.add(name);
       return name;
-    }
-  }
-}
-
-function allocateShadowedLocalName(
-  baseName: string,
-  state: DestructuringPlannerState,
-  initialIndex: number,
-): string {
-  const unescaped = baseName.startsWith("@") ? baseName.slice(1) : baseName;
-  for (let index = initialIndex; ; index += 1) {
-    const candidate = tryCsharpIdentifier(`${unescaped}_${index}`);
-    if (candidate !== undefined && !state.localBoundNames.has(candidate) && !state.usedNames.has(candidate)) {
-      return candidate;
     }
   }
 }

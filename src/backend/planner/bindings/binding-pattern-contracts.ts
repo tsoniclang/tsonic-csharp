@@ -4,15 +4,13 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpStatement,
-  CsharpTypeNode,
 } from "../../target-ast/syntax/index.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 
 export type BindingProjectionPlanner = (
   name: Node,
   projected: CsharpExpression,
-  projectedType: CsharpTypeNode | undefined,
-  projectionNode: Node | undefined,
+  projectionNode: Node,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],

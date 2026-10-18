@@ -79,6 +79,12 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
         construction.sourceArgumentParameterTypes, construction.sourceArgumentGrouping);
     }
     const switchSelection = operations.switchStatement.get(node);
+    if (switchSelection?.kind === "native") {
+      record(switchSelection.expression, switchSelection.type, "required", at(node, { kind: "operand", position: "only" }));
+      for (const [index, clause] of switchSelection.clauses.entries()) {
+        if (clause.expression !== undefined) record(clause.expression, switchSelection.type, "required", at(node, { kind: "case", index }));
+      }
+    }
     if (switchSelection?.kind === "ordered") for (const [index, clause] of switchSelection.clauses.entries()) {
       if (clause.comparison?.kind !== "resolved") continue;
       record(clause.comparison.left, clause.comparison.leftInputType, "required", at(node, { kind: "operand", position: "left" }));

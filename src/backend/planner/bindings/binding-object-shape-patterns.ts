@@ -37,7 +37,7 @@ export function planObjectShapeBindingPattern(
         expression: { kind: "SimpleMemberAccessExpression" as const, receiver: sourceExpression,
           name: objectShapeStorageMemberName(objectShape, source) },
       }));
-      return planBindingNameFromProjection(element.name, { kind: "ObjectCreationExpression", type, assignments }, type,
+      return planBindingNameFromProjection(element.name, { kind: "ObjectCreationExpression", type, assignments },
         elementNode, sourceFile, input, diagnostics, state);
     }
     if (projection.kind !== "object-shape-member") return failCsharpPlannerInvariant(
@@ -46,7 +46,7 @@ export function planObjectShapeBindingPattern(
     const type = csharpTypeFromTargetTypeRef(member.type, input.scope.typeParameterNames);
     if (type === undefined) return failCsharpPlannerInvariant("An admitted binding member must be renderable.", elementNode);
     const value: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: sourceExpression, name: member.targetName };
-    if (element.Initializer === undefined) return planBindingNameFromProjection(element.name, value, type,
+    if (element.Initializer === undefined) return planBindingNameFromProjection(element.name, value,
       elementNode, sourceFile, input, diagnostics, state);
     const contract = input.program.records.bindingPatternProjection.get(elementNode)?.defaultValue;
     if (contract === undefined) return failCsharpPlannerInvariant(
@@ -54,7 +54,7 @@ export function planObjectShapeBindingPattern(
     const defaulted = planObjectShapeDefaultProjection(value, member, contract, element.Initializer, sourceFile, input,
       diagnostics, state, planExpression);
     return defaulted === undefined ? [] : consumeCsharpPlannedValue(defaulted.value, expression =>
-      planBindingNameFromProjection(element.name!, expression, defaulted.type, elementNode,
+      planBindingNameFromProjection(element.name!, expression, elementNode,
         sourceFile, input, diagnostics, state));
   });
 }
