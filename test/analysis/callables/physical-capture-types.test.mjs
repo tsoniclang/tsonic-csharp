@@ -19,7 +19,9 @@ test("physical capture decisions are complete before publication and final reads
     storageType: lookup(new Map([[declarations[2], scalar]])) };
   const source = { ast: {}, navigation: { sourceFiles: [] } };
   const result = analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, storage, {},
-    declarations.map(declaration => ({ declaration, type: parameter, mutable: false })), {}, {}, {}, {});
+    declarations.map(declaration => ({ declaration, type: parameter, mutable: false })), {}, {}, {}, {
+      genericProjection: { get: () => assert.fail("a source-free physical storage fixture has no enclosing generic declaration") },
+    });
   assert.equal(result.issues.length, 0);
   closed = true;
   const expected = [csharpRuntimeLocationTargetType(scalar), csharpRuntimeNativeArrayTargetType(scalar), scalar, parameter];

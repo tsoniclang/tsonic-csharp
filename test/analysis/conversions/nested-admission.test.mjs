@@ -28,6 +28,27 @@ function providerAdapter(inputType, resultType) {
     targetName: "adapt", inputType, resultType });
 }
 
+test("identity admission retains only the same complete source and destination carrier", () => {
+  const parameter = Object.freeze({ kind: "type-parameter", identity: "owner:Part", name: "Part" });
+  const foreign = Object.freeze({ ...parameter, identity: "foreign:Part" });
+  const identity = Object.freeze({ kind: "identity" });
+  assertAdmitted(parameter, { ...parameter }, identity);
+  for (const [source, target] of [[foreign, parameter], [parameter, foreign],
+    [undefined, parameter], [parameter, undefined], [undefined, undefined], [integerType, stringType]]) {
+    assert.deepEqual(admitCsharpConversionSelection(policy, source, target, identity), {
+      kind: "rejected", reason: "C# identity conversion requires the exact same source and destination carrier.",
+    });
+  }
+  const adapter = providerAdapter(parameter, parameter);
+  const wrapped = Object.freeze({ kind: "provider-argument-adapter", adapter,
+    sourceToInput: identity, resultToTarget: identity });
+  assertAdmitted(parameter, parameter, wrapped);
+  for (const [source, target] of [[foreign, parameter], [parameter, foreign]]) {
+    assert.equal(admitCsharpConversionSelection(policy, source, target, wrapped).kind, "rejected",
+      "both corresponding provider boundaries retain exact native binder identity at their leaves");
+  }
+});
+
 test("nullable admission checks the recorded element pair and its complete selected conversion", () => {
   const source = csharpNullableTargetType(narrow);
   const target = csharpNullableTargetType(wide);

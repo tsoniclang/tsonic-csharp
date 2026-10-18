@@ -2,7 +2,7 @@ import type { CsharpCaptureFrame, CsharpCaptureStorage, CsharpCapturedBinding, C
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceBindingHasSingleCaptureOwner, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization,
-  sourceLexicalFunctionValueCreation, sourceLexicalFunctionValueOrder } from "@tsonic/target-api/source";
+  sourceLexicalFunctionValueCreation, sourceLexicalFunctionValueOrder, sourceEnclosingGenericParameters } from "@tsonic/target-api/source";
 import { sourceClosedCallableArguments, sourceExpressionCallArgument } from "@tsonic/target-api/source";
 import type { SourceLexicalValueCreation } from "@tsonic/target-api/source";
 import { createHash } from "node:crypto";
@@ -21,6 +21,9 @@ import { selectCsharpGenericFrameClosures } from "./generic-closures.js";
 import { getCsharpMethodValue, csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import type { CsharpSourceNameResolver } from "../names/source-names.js";
 import { createCsharpTypeParameterEnvironment } from "../../policy/constraints/type-parameter-environment.js";
+import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
+import { csharpObjectShapeTypeParameters, closeCsharpOwnerTypeParameterEnvironment } from "../../target-model/types/generic-references.js";
+import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 
 import { csharpCapturedMemberAccess } from "./captured-member-access.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
@@ -40,7 +43,7 @@ export function analyzeCsharpCaptureStorage(
   names: CsharpSourceNameResolver,
   declarations: CsharpDeclarationClassifications,
   operations: CsharpTargetOperationClassifications,
-  expectedTypes: Pick<CsharpExpectedTypeClassifications, "callableTarget">,
+  expectedTypes: Pick<CsharpExpectedTypeClassifications, "callableTarget"> & Pick<CsharpGenericProjectionIndex, "genericProjection">,
 ): CsharpCaptureStorage {
   const environment = createCsharpTypeParameterEnvironment(source.ast, declaration => evidence.typeParameterConstraints.get(declaration));
   const groups = new Map<Node, Map<Node, TargetTypeRef>>();
@@ -182,9 +185,25 @@ export function analyzeCsharpCaptureStorage(
       sourceKey: { kind: "property" as const, name: field.fieldName }, sourceName: field.fieldName,
       targetName: field.fieldName, type: field.type, memberKind: "property" as const,
     })));
-    const selectedType = createStructuralObjectShapeTarget(members, [contract], environment);
+    const enclosing = sourceEnclosingGenericParameters(method.declaration, source.ast);
+    const lexicalParameters = enclosing?.map(declaration => csharpSourceTypeParameter(declaration, source.ast));
+    const lexicalOwners = enclosing?.map(declaration => source.ast.parent(declaration));
+    if (lexicalParameters === undefined || lexicalParameters.some(parameter => parameter === undefined) ||
+        lexicalOwners === undefined || lexicalOwners.some(owner => owner === undefined)) {
+      issues.push({ node: method.declaration, code: "CSHARP_GENERIC_CALLABLE_OWNER_NOT_CLOSED",
+        message: "A generic callable value requires its complete original enclosing native binder identities." });
+      continue;
+    }
+    const typeParameters = closeCsharpOwnerTypeParameterEnvironment([
+      ...csharpObjectShapeTypeParameters(members, [contract]),
+      ...lexicalParameters.filter(parameter => parameter !== undefined),
+      ...[...new Set(lexicalOwners.filter(owner => owner !== undefined))]
+        .flatMap(owner => expectedTypes.genericProjection.get(owner)),
+    ], environment);
     const digest = createHash("sha256").update(identity).digest("hex");
-    const type = csharpTargetNamedType(`tsonic.shape:callable_${digest}`, selectedType.kind === "target-named" ? selectedType.typeArguments : undefined, { kind: "named", name: `__TsonicCallable_${digest}` }, { allowsRefLikeTypeArguments: ((selectedType.kind === "target-named" ? selectedType.typeArguments : undefined) ?? []).map(() => false), typeofRuntimeKind: "function" });
+    const type = csharpTargetNamedType(`tsonic.shape:callable_${digest}`, typeParameters.length === 0 ? undefined : typeParameters,
+      { kind: "named", name: `__TsonicCallable_${digest}` },
+      { allowsRefLikeTypeArguments: typeParameters.map(() => false), typeofRuntimeKind: "function" });
     const frame: CsharpCaptureFrame = Object.freeze({ scope: method.declaration, ownership: "value", bindings, parents, methods: Object.freeze([method]), receivers,
       shape: Object.freeze({ targetType: type, members, implements: Object.freeze([contract]) }),
     });

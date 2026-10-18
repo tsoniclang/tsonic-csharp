@@ -1582,11 +1582,12 @@ for (const surface of ["native", "js"]) test(`${surface} native unary completion
       result: "float32", nativeResult: "float", expected: "-1.5F" },
   );
   const sourceText = `
-    import type { int8, uint8, int16, uint16, int32, uint32, float32 } from "@tsonic/core/types.js";
+    import type { int8, uint8, int16, uint16, int32, uint32, float32, float64 } from "@tsonic/core/types.js";
     ${cases.map(row => `export function ${row.name}(value: ${row.type}) { return ${row.postfix ? `value${row.operator}` : `${row.operator}value`}; }`).join("\n")}
     export function boxedMinusI8(value: int8): unknown { return -value; }
     export function boxedMinusU32(value: uint32): unknown { return -value; }
     export function boxedLiteral(): unknown { return -1; }
+    export function boxedFloatingLiteral(): unknown { const value: float64 = -1; return value; }
     export function literalDestination(): int8 { return -128; }
     let calls: int32 = 0;
     function observe(value: int8): int8 { calls += 1; return value; }
@@ -1632,7 +1633,8 @@ if (${row.name}((${row.nativeType})${row.value}) != ${row.expected})
     throw new System.Exception("${row.name}: actual CLR signature or numeric value");`).join("\n")}
 if (Subject.boxedMinusI8(sbyte.MinValue).unwrap() is not int signed || signed != 128 ||
     Subject.boxedMinusU32(uint.MaxValue).unwrap() is not long unsigned || unsigned != -4294967295L ||
-    Subject.boxedLiteral().unwrap() is not double literal || literal != -1D ||
+    Subject.boxedLiteral().unwrap() is not ${surface === "native" ? "int" : "double"} literal || literal != ${surface === "native" ? "-1" : "-1D"} ||
+    Subject.boxedFloatingLiteral().unwrap() is not double floating || floating != -1D ||
     Subject.literalDestination() != sbyte.MinValue || Subject.ordered() != 129)
     throw new System.Exception("native unary boxing type, explicit literal destination or single evaluation changed");
 for (int index = 0; index < 20000; index++) {

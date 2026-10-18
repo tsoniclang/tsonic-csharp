@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { createTargetSourceProgram, sourceNodeIdentity } from "@tsonic/target-api/source";
 import { analyzeCsharpCaptureStorage } from "../../../dist/analysis/callables/capture-storage.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { compileCsharpRequiredRecordSource } from "../../helpers/required-records.mjs";
@@ -63,7 +63,8 @@ function fixture(body, quotation = false, expectedIssueCodes = []) {
   const target = quotation ? { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Fixture::Quotation", csharpExpressionTreeDelegateType: callable } : callable;
   const selected = analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, storage, evidence,
     [], names, { runtimeDefault: Object.freeze({ get: () => undefined }) }, { selectedCall: Object.freeze({ get: node => operations.get(node) }) },
-    { callableTarget: Object.freeze({ get: node => lambdas.includes(node) ? target : undefined }) });
+    { callableTarget: Object.freeze({ get: node => lambdas.includes(node) ? target : undefined }),
+      genericProjection: Object.freeze({ get: () => assert.fail("the scalar-only fixture cannot supply a generic native value owner") }) });
   if (expectedIssueCodes.length === 0) assert.equal(selected.issues.length === 0, true, "closed capture storage");
   else assert.equal(selected.issues.length === expectedIssueCodes.length && selected.issues.every((issue, index) =>
     issue.code === expectedIssueCodes[index]), true, "the exact missing native contract is retained, not treated as an empty environment");
@@ -253,6 +254,106 @@ sealed class NativeIdentity {
 sealed class NativeOuter<Outer> {
     public static readonly NativeOuter<Outer> Instance = new NativeOuter<Outer>();
     public Outer Invoke<Item>(Item value, Outer other) { return other; }
+}
+`);
+});
+
+for (const surface of ["native", "js"]) test(`${surface} cached generic owners retain unused closed bindings and fresh captured inverses`,
+  { timeout: 300_000 }, () => {
+  const selected = compileCsharpRequiredRecordSource(`
+    import type { int32, uint8, uint64 } from "@tsonic/core/types.js";
+    type Identity = <Item>(value: Item) => Item;
+    export function make<Outer>(): Identity { return <Item>(value: Item): Item => value; }
+    export function other<Outer>(): Identity { return <Item>(value: Item): Item => value; }
+    export class Empty {}
+    export function captured(seed: int32): Identity {
+      return <Item>(value: Item): Item => { if (seed < 0) throw new Error("captured seed"); return value; };
+    }
+    export function capturedEmpty(unit: Empty): Identity {
+      return <Item>(value: Item): Item => { if (unit === unit) return value; throw new Error("captured unit"); };
+    }
+    export function run(): boolean {
+      const first = make<uint8>();
+      const alias = first;
+      return first === make<uint8>() && alias === make<uint8>() && first !== make<uint64>() && first !== other<uint8>();
+    }
+  `, surface);
+  const { source, program, nodes } = selected;
+  const declarations = new Map(nodes.filter(node => source.ast.is.IsFunctionDeclaration(node))
+    .map(node => [source.ast.text(source.ast.name(node)), node]));
+  const closures = new Map();
+  for (const name of ["make", "other", "captured", "capturedEmpty"]) {
+    const declaration = declarations.get(name);
+    const statement = source.ast.statements(source.ast.body(declaration)).find(node => source.ast.is.IsReturnStatement(node));
+    const expression = statement === undefined ? undefined : source.ast.as.AsReturnStatement(statement)?.Expression;
+    const creation = expression === undefined ? undefined : program.records.lambdaCreation.get(expression);
+    const closure = expression === undefined ? undefined : program.records.captureClosure.get(expression);
+    assert.equal(expression !== undefined && source.ast.is.IsArrowFunction(expression) && closure !== undefined, true,
+      `${name}: the original expression has its exact admitted native frame`);
+    if (name === "make" || name === "other") {
+      const outer = source.ast.typeParameters(declaration)[0];
+      const invocation = source.ast.typeParameters(expression)[0];
+      const arguments_ = closure.frame.shape.targetType.typeArguments;
+      assert.equal(creation.kind === "cached" && creation.staticBody === true && closure.frame.bindings.length === 0 &&
+        closure.frame.parents.length === 0 && closure.frame.receivers.length === 0, true,
+      `${name}: only a complete empty native environment selects the existing cache`);
+      assert.equal(arguments_?.length === 1 && arguments_[0].kind === "type-parameter" &&
+        arguments_[0].csharpDeclaration === outer && arguments_[0].identity === sourceNodeIdentity(source.ast, outer) &&
+        arguments_[0].identity !== sourceNodeIdentity(source.ast, invocation) &&
+        arguments_[0].csharpConstraints?.kind === "resolved" && Object.isFrozen(arguments_), true,
+      `${name}: unused enclosing identity survives while the invocation's own binder stays bound to its method`);
+    } else assert.equal(creation.kind === "fresh" && creation.staticBody === false && closure.frame.bindings.length === 1, true,
+      `${name}: a real captured value remains fresh even when its class has no authored fields`);
+    closures.set(name, closure);
+  }
+  const invoke = name => getCsharpMethodValue(closures.get(name).method.type)?.method;
+  assert.equal(["make", "other", "captured", "capturedEmpty"].every(name => typeof invoke(name) === "string"), true,
+    "every native check uses its exact selected quantified method, not a guessed entry name");
+  executeCsharpConstruction(selected.compiled, `cached-generic-closed-bindings-${surface}`, false, false, [], `
+using Subject = Tsonic.Generated.Index;
+if (!Subject.run()) throw new System.Exception("same-expression cache identity must preserve every closed binding");
+var first = Subject.make<byte>();
+var second = Subject.make<byte>();
+var wide = Subject.make<ulong>();
+if (!System.Object.ReferenceEquals(first, second) || System.Object.ReferenceEquals(first, wide) ||
+    System.Object.ReferenceEquals(first, Subject.other<byte>()) ||
+    first.${invoke("make")}<long>(9007199254740993L) != 9007199254740993L ||
+    wide.${invoke("make")}<bool>(true) != true)
+    throw new System.Exception("unused native generic bindings must not collapse cached identity or invocation values");
+var capturedFirst = Subject.captured(7);
+var capturedSecond = Subject.captured(7);
+var empty = new Tsonic.Generated.Empty();
+var emptyFirst = Subject.capturedEmpty(empty);
+var emptySecond = Subject.capturedEmpty(empty);
+if (System.Object.ReferenceEquals(capturedFirst, capturedSecond) || System.Object.ReferenceEquals(emptyFirst, emptySecond) ||
+    capturedFirst.${invoke("captured")}<int>(3) != 3 ||
+    emptyFirst.${invoke("capturedEmpty")}<int>(5) != 5 || !emptySecond.${invoke("capturedEmpty")}<bool>(true))
+    throw new System.Exception("captured values and captured zero-authored-field identities remain fresh");
+for (int index = 0; index < 20000; index++) {
+    _ = Subject.make<byte>().${invoke("make")}<int>(index);
+    _ = Subject.make<ulong>().${invoke("make")}<int>(index);
+    _ = NativeClosed<byte>.Instance.Invoke<int>(index);
+    _ = NativeClosed<ulong>.Instance.Invoke<int>(index);
+}
+long before = System.GC.GetAllocatedBytesForCurrentThread();
+long sum = 0;
+for (int index = 0; index < 20000; index++) {
+    sum += Subject.make<byte>().${invoke("make")}<int>(index);
+    sum += Subject.make<ulong>().${invoke("make")}<int>(index);
+}
+long generatedBytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
+before = System.GC.GetAllocatedBytesForCurrentThread();
+long nativeSum = 0;
+for (int index = 0; index < 20000; index++) {
+    nativeSum += NativeClosed<byte>.Instance.Invoke<int>(index);
+    nativeSum += NativeClosed<ulong>.Instance.Invoke<int>(index);
+}
+long nativeBytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
+if (sum != 399980000L || nativeSum != sum || generatedBytes != 0 || nativeBytes != 0)
+    throw new System.Exception("closed native cache creation must match the handwritten zero-allocation path");
+sealed class NativeClosed<Outer> {
+    public static readonly NativeClosed<Outer> Instance = new NativeClosed<Outer>();
+    public Item Invoke<Item>(Item value) { return value; }
 }
 `);
 });
