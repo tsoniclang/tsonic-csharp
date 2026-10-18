@@ -429,7 +429,10 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
   }
   if (ast.is.IsDeleteExpression(node)) {
     const expression = ast.as.AsDeleteExpression(node)?.Expression;
-    return operations.elementDeletion.get(node) === undefined ? refused("operation-unresolved") : chosen(use(expression, { kind: "write-target" }, undefined, "location"));
+    const deletion = operations.elementDeletion.get(node);
+    return deletion === undefined ? refused("operation-unresolved")
+      : deletion.kind === "rejected" ? sourceRefused("CSHARP_UNSUPPORTED_AST", deletion.reason)
+      : chosen(use(expression, { kind: "write-target" }, undefined, "location"));
   }
   if (ast.is.IsParenthesizedExpression(node) || ast.is.IsAsExpression(node) || ast.is.IsTypeAssertion(node) || ast.is.IsSatisfiesExpression(node) ||
     ast.is.IsNonNullExpression(node) || ast.is.IsAwaitExpression(node) || ast.is.IsYieldExpression(node) || ast.is.IsVoidExpression(node) ||

@@ -310,7 +310,7 @@ export function analyzeCsharpNativeDemand(
       family: "callableTarget", subject: expression, construct: "native callable creation", producer: "analyzeCsharpNativeDemand",
     });
     if (expected?.literal !== undefined) requireCsharpRecord(requiredRecords, {
-      family: "exactLiteral", subject: expression, target: expected.target,
+      family: "exactLiteral", subject: expression, target: expected.construction?.carrier ?? expected.target,
       construct: "native literal construction", producer: "analyzeCsharpNativeDemand",
     });
     const expectedChildren = new Map<string, TargetUseSiteRef[]>();
@@ -382,7 +382,7 @@ export function analyzeCsharpNativeDemand(
       const projection = input.expected.expectedUse.get(reference);
       if (projection === undefined) return pending(reference, operation.left, "expected-use-pending");
       const completion: CsharpNativeCompletion = Object.freeze({ kind: "value", type: projection.carrier });
-      const native = { expression: operation.left, carrier: projection.carrier, children: Object.freeze([]),
+      const native = { expression: operation.left, carrier: projection.carrier, readProjection: projection.readProjection, children: Object.freeze([]),
         evaluation: Object.freeze({ kind: "sequence" as const, steps: Object.freeze([]) }) };
       if (projection.representation === "convert") publish(reference, { ...native, kind: "converted", input: completion,
         target: projection.target, mode: projection.mode, completion: Object.freeze({ kind: "value", type: projection.target }) });
@@ -396,15 +396,20 @@ export function analyzeCsharpNativeDemand(
       ? input.objectShapes.resolveTarget(physical) : expected.objectShape;
     if (expected?.construction !== undefined) {
       publish(expected.construction.site, { kind: "constructed", expression, carrier: expected.construction.carrier,
-        children, evaluation, completion: inputCompletion, objectShape: expected.objectShape, propertyKeys });
+        readProjection: "projected",
+        children, evaluation, completion: inputCompletion, objectShape: expected.objectShape, propertyKeys,
+        ...(expected.literal === undefined ? {} : { literal: expected.literal }) });
       const stage = expected.construction.site;
       const completion = selectCsharpNativeCompletion(expected.target, { kind: "sequence", children: [{ completion: inputCompletion }] });
       if (completion === undefined) return pending(site, expression, "completion-unresolved");
       return publish(site, { kind: "converted", expression, carrier: physical, input: inputCompletion, target: expected.target, mode: expected.mode,
+        readProjection: expected.readProjection,
         children: Object.freeze([stage]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([Object.freeze({ site: stage })]) }),
         objectShape, defaultValue, propertyKeys, completion }, presence);
     }
-    const common = { expression, carrier: physical, children, evaluation, completion: inputCompletion,
+    const common = { expression, carrier: physical,
+      readProjection: expected === undefined ? "projected" as const : expected.readProjection,
+      children, evaluation, completion: inputCompletion,
       ...(discardedPresence === undefined ? {} : { discardedPresence }),
       ...(expected?.exactInteger === true ? { exactInteger: true as const } : {}),
       ...(expected?.literal === undefined ? {} : { literal: expected.literal }),
@@ -427,8 +432,14 @@ export function analyzeCsharpNativeDemand(
   function erasedExpression(expression: Node): "discarded-callable" | "erased-statement" | false {
     const cached = erasedExpressions.get(expression);
     if (cached !== undefined) return cached;
+    erasedExpressions.set(expression, false);
     const operand = sourceTransparentExpressionOperand(ast, expression);
-    const erased = input.evidence.compileTimeMetadata.get(expression) ? "erased-statement" : input.participation.get(expression) === "erased"
+    const declaration = ast.is.IsIdentifier(expression) ? input.navigation.sourceReferenceFor(expression)?.declaration : undefined;
+    const initializer = declaration === undefined || !ast.is.IsVariableDeclaration(declaration)
+      ? undefined : ast.as.AsVariableDeclaration(declaration)?.Initializer;
+    const discardedBinding = initializer !== undefined && erasedExpression(initializer) === "discarded-callable";
+    const erased = input.evidence.compileTimeMetadata.get(expression) ? "erased-statement" :
+      input.participation.get(expression) === "erased" || discardedBinding
       ? "discarded-callable" : operand === undefined ? false : erasedExpression(operand);
     erasedExpressions.set(expression, erased);
     return erased;

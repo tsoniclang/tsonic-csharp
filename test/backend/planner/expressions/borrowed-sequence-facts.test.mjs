@@ -35,7 +35,7 @@ function fixture(destination = string, completion) {
   const pairs = [];
   const input = { program: { source: { ast },
     records: { nativeUse: { expression: node => node === array ? { use: {
-      kind: "constructed", carrier: { kind: "array", element: destination },
+      kind: "constructed", carrier: { kind: "array", element: destination }, readProjection: "projected",
     } } : undefined },
       conversion: { get(from, to, mode) {
     pairs.push([from, to, mode]);
@@ -108,7 +108,7 @@ test("borrowed construction admits only the sealed contextual destination withou
   assert.equal(consume(), undefined);
   assert.equal(state.pairs.length, 0);
   state.input.program.records.nativeUse = { expression: node => node === state.array
-    ? { use: { kind: "constructed", carrier: contextual } } : undefined };
+    ? { use: { kind: "constructed", carrier: contextual, readProjection: "projected" } } : undefined };
   assert.equal(consume(), undefined);
   assert.deepEqual(state.pairs, [[string, int32, "implicit"]]);
   assert.equal(state.diagnostics.length, 2);

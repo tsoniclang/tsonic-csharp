@@ -1,6 +1,7 @@
 import { selectSourceNativeValueGuard } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectCsharpTypeofComparison } from "../../policy/operations/index.js";
+import { selectCsharpJsTypeofOperation } from "../../policy/operations/js-values/selection.js";
 import type { CsharpTypeofRuntimeKind } from "../../policy/types/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpBinaryClassification } from "../../target-model/records/operations.js";
@@ -18,6 +19,7 @@ export function classifyTypeofComparison(
   if (runtimeKind === undefined) {
     return undefined;
   }
+  if (selectCsharpJsTypeofOperation(policy, guard.sourceOperand, sourceFile).kind === "resolved") return undefined;
   const selection = selectCsharpTypeofComparison(
     policy.types.resolveNode(guard.sourceOperand, sourceFile),
     runtimeKind,

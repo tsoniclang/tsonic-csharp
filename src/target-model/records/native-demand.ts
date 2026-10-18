@@ -75,10 +75,13 @@ export type CsharpNativeCallableCreation =
   | { readonly kind: "discarded" }
   | { readonly kind: "pending" };
 
+export type CsharpNativeReadProjection = "storage" | "projected";
+
 export interface CsharpExpectedNativeUse {
   readonly expression: Node;
   readonly target: TargetTypeRef;
   readonly carrier: TargetTypeRef;
+  readonly readProjection: CsharpNativeReadProjection;
   readonly strength: "contextual" | "required";
   readonly exactInteger: boolean;
   readonly representation: "construct" | "forward" | "convert";
@@ -136,6 +139,7 @@ export type CsharpNativeDiscardedPresence =
 interface CsharpNativeEvaluatedUse {
   readonly expression: Node;
   readonly carrier: TargetTypeRef;
+  readonly readProjection: CsharpNativeReadProjection;
   readonly completion: CsharpNativeCompletion;
   readonly children: readonly TargetUseSiteRef[];
   readonly evaluation: CsharpNativeEvaluation;

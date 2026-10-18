@@ -111,7 +111,8 @@ test("an eligible contextual binary result differing from the target never repla
   assert.equal(admitCsharpExpectedBinarySelection(int32, selected, undefined) === undefined, true,
     "a mismatching contextual result cannot invent a missing baseline");
   const represented = selectCsharpNativeUseRepresentation({ ast: current.ast, expression: binary, target: int32,
-    source: float64, mode: "implicit", absent: false, literal: { kind: "not-applicable" }, binary: selected,
+    source: float64, storage: undefined, mode: "implicit", absent: false,
+    literal: { kind: "not-applicable" }, sourceLiteral: { kind: "not-applicable" }, binary: selected,
     callable: undefined, children: new Map(children.map(entry => [targetUseSiteIdentity(entry.site), entry])) });
   assert.equal(represented.kind === "selected" && represented.representation === "convert" && represented.carrier === float64, true,
     "the result is not relabelled as the destination carrier");
@@ -121,7 +122,7 @@ test("the one sealed native binary plans its operands in order with their select
   const selected = selection(int32);
   const current = context({ baseline: selection(float64), eligible: true, contextual: selected });
   propagate(current, binary, int32);
-  const native = { kind: "constructed", expression: binary, carrier: int32,
+  const native = { kind: "constructed", expression: binary, carrier: int32, readProjection: "projected",
     completion: { kind: "value", type: int32 }, children: [], evaluation: { kind: "sequence", steps: [] }, binary: selected };
   const records = { nativeUse: { expression: node => node === binary ? { use: native } : undefined },
     int32Remainder: { get: () => false },

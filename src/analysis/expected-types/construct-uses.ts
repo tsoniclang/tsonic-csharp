@@ -11,6 +11,7 @@ import type { CsharpCallClassification, CsharpSourceArgumentGrouping } from "../
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpExpectedUseCollection } from "./collection.js";
 import type { CsharpExpectedTypeAnalysisInput, CsharpExpectedUseSiteDemand, CsharpExpectedUseWithholding } from "./model.js";
+import { csharpTsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 
 export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnalysisInput, collection: CsharpExpectedUseCollection) {
   const { policy, evidence, operations, objectShapes, callables, declarations } = input;
@@ -42,6 +43,12 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
   }
 
   function recordOperationUses(node: Node, sourceFile: SourceFile): boolean {
+    if (policy.ast.is.IsTypeOfExpression(node)) {
+      const operand = policy.ast.as.AsTypeOfExpression(node)?.Expression;
+      if (operand !== undefined && operations.jsTypeof.get(operand)?.kind === "resolved") {
+        record(operand, csharpTsValueTargetType(), "required", at(node, { kind: "operand", position: "only" }));
+      }
+    }
     if (!policy.ast.isConstAssertion(node) && (policy.ast.is.IsAsExpression(node) || policy.ast.is.IsTypeAssertion(node) ||
       policy.ast.is.IsNonNullExpression(node))) {
       const operand = policy.ast.is.IsNonNullExpression(node) ? policy.ast.as.AsNonNullExpression(node)?.Expression
@@ -88,14 +95,14 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     const switchSelection = operations.switchStatement.get(node);
     if (switchSelection?.kind === "native") {
       const inputs = sourceConstructValueInputs(policy.ast, node);
-      const discriminant = inputs.find(entry => entry.slot.kind === "operand" && entry.slot.position === "only");
+      const discriminant = inputs.find(entry => entry.slot.kind === "condition");
       const type = discriminant === undefined ? undefined : input.valueReadStages.get(discriminant.expression)?.returnedValue;
       for (const entry of inputs) if (entry.slot.kind === "case" || entry === discriminant) {
         record(entry.expression, type, "required", at(entry.owner, entry.slot));
       }
     } else if (switchSelection?.kind === "ordered") for (const [index, clause] of switchSelection.clauses.entries()) {
       if (clause.comparison?.kind !== "resolved") continue;
-      record(clause.comparison.left, clause.comparison.leftInputType, "required", at(node, { kind: "operand", position: "left" }));
+      record(clause.comparison.left, clause.comparison.leftInputType, "required", at(node, { kind: "condition" }));
       record(clause.comparison.right, clause.comparison.rightInputType, "required", at(node, { kind: "case", index }));
     }
     const binary = operations.operatorForm.get(node) === "selected" ? operations.binaryOperation.get(node)?.target : undefined;

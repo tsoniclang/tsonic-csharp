@@ -35,9 +35,6 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
 import {
-  targetTypeRefEquals,
-} from "../../../target-model/types/index.js";
-import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
@@ -106,20 +103,14 @@ export function planLocalDeclaration(
     declarationNode,
   );
   const storageType = input.program.records.storageType.get(declarationNode);
-  const requiredStorageType = storageType !== undefined &&
-      inferredTargetType !== undefined &&
-      !targetTypeRefEquals(storageType, inferredTargetType)
-    ? csharpTypeFromTargetTypeRef(storageType, input.scope.typeParameterNames)
-    : undefined;
+  const selectedStorageType = storageType === undefined ? undefined
+    : csharpTypeFromTargetTypeRef(storageType, input.scope.typeParameterNames);
   const type = (nativeRefTargetType === undefined
       ? undefined
       : csharpTypeFromTargetTypeRef(nativeRefTargetType, input.scope.typeParameterNames)) ??
-    requiredStorageType ??
+    selectedStorageType ??
     explicitType ??
     inferredLambdaType ??
-    (storageType === undefined
-      ? undefined
-      : csharpTypeFromTargetTypeRef(storageType, input.scope.typeParameterNames)) ??
     getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
   const name = declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "Local binding name", "LocalDeclarationStatement");
   const initializerCarrier = nativeRefTargetType ?? storageType ?? expectedTargetType ?? inferredTargetType;

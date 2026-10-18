@@ -336,7 +336,7 @@ if (generated != native) throw new System.Exception($"physical alias allocation 
     assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "an incompatible existing mutable parameter is refused before publication, never copied");
-    assert.equal(compiled.targetDiagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    assert.equal(compiled.nativeStage.diagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
       issue.message.startsWith("No exact C# implicit conversion relates '") && issue.sourceNode !== undefined), true,
     "the actual native conversion owner reports the exact incompatible physical parameter");
   });

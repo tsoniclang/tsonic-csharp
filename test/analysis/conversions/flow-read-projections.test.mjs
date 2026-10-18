@@ -100,6 +100,35 @@ test("deferred generic constructor fields are analyzed once and reconstructed wi
   assert.equal(diagnostics.length, 0);
 });
 
+test("admitted raw storage and refined value reads reconstruct their separate selected views", () => {
+  const value = fixture(`export function read(value: number | undefined,
+      consume: (entry: number | undefined) => void): number {
+    if (value === undefined) return 0;
+    consume(value);
+    return value;
+  }`);
+  const reads = value.nodes.filter(node => value.ast.is.IsIdentifier(node) && value.ast.text(node) === "value" &&
+    value.program.records.flowReadProjection.get(node)?.kind === "conversion");
+  const raw = reads.find(node => value.program.records.nativeUse.expression(node)?.use.readProjection === "storage");
+  const projected = reads.find(node => value.program.records.nativeUse.expression(node)?.use.readProjection === "projected");
+  assert.equal(raw !== undefined && projected !== undefined && raw !== projected, true,
+    "the real nullable argument and refined return have distinct actual native consumption rows");
+  const expression = { kind: "IdentifierName", name: "held" };
+  const input = { program: value.program, scope: {},
+    types: { classifications: {
+      resolveNode: () => assert.fail("rendering cannot select the source view"),
+      resolveReadStorage: () => assert.fail("rendering cannot select a storage view"),
+    } } };
+  const diagnostics = [];
+  assert.equal(planFlowReadUseSiteProjection(raw, expression, {}, input, diagnostics) === expression, true,
+    "the already admitted raw-storage choice preserves the identical base expression");
+  const result = planFlowReadUseSiteProjection(projected, expression, {}, input, diagnostics);
+  assert.equal(result !== undefined && result.kind === "SimpleMemberAccessExpression" &&
+    result.receiver === expression && result.name === "Value", true,
+  "the other actual consumer retains its exact native nullable value projection");
+  assert.equal(diagnostics.length, 0, "neither rendered view makes a second source decision");
+});
+
 test("struct value-union narrowed payloads retain sealed native projection on both surfaces", () => {
   const sourceText = `
     import { field, struct } from "@tsonic/core/lang.js";
@@ -301,4 +330,37 @@ test("missing or malformed sealed flow projections fail only through the interna
     program: { records: { flowReadProjection: { get() { throw new Error("a native storage location is not a read"); } } } },
   }, []);
   assert.equal(result === expression, true, "explicit native storage use stays unprojected");
+});
+
+test("a native read cannot recover an absent or invalid admitted projection choice", () => {
+  const value = fixture("export function read(value: number): number { return value; }");
+  const subject = value.nodes.find(node => value.ast.is.IsReturnStatement(node));
+  const read = value.ast.as.AsReturnStatement(subject).Expression;
+  const selected = value.program.records.nativeUse.expression(read);
+  assert.equal(selected !== undefined && selected.use.kind !== "erased", true,
+    "the checked read has one actual evaluated native row before either corruption");
+  const omitted = { ...selected.use };
+  delete omitted.readProjection;
+  for (const [label, use] of [["absent choice", omitted], ["invalid choice", { ...selected.use, readProjection: "guess" }]]) {
+    let materialized = 0;
+    const diagnostics = [];
+    const result = runTargetCompilationStages({
+      analyze: () => resolvedTargetStage({ ...value.program, records: { ...value.program.records,
+        nativeUse: { ...value.program.records.nativeUse, expression(node) {
+          assert.equal(node === read, true, label);
+          return { ...selected, use };
+        } },
+      } }),
+      plan(program) {
+        return resolvedTargetStage(planFlowReadUseSiteProjection(read, { kind: "IdentifierName", name: "value" }, {},
+          { program }, diagnostics));
+      },
+      materialize() { materialized += 1; throw new Error("an invalid native row cannot publish artifacts"); },
+    });
+    assert.equal(result.kind === "rejected" && result.diagnostics.length === 1 &&
+      result.diagnostics[0].code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&
+      result.diagnostics[0].sourceNode === read, true, label);
+    assert.equal(diagnostics.length === 0 && materialized === 0, true,
+      `${label}: no replacement source decision, emitted artifact or appended user diagnostic`);
+  }
 });

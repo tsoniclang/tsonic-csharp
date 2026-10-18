@@ -23,6 +23,7 @@ const checked = checkCsharpSource({ sourceText: `
   export const shorthandOrdered = { a: first(), short, ...tail(), m() { return body(); }, z: last() };
   export const accessorOrdered = { a: first(), get measured(): number { return body(); },
     set measured(value: number) { void value; }, z: last() };
+  export function remove(record: Record<string, number>): boolean { return delete record["key"]; }
 ` });
 assert.equal(checked.sourceDiagnosticsText === "", true, checked.sourceDiagnosticsText);
 const source = createTargetSourceProgram(checked.source);
@@ -59,7 +60,11 @@ test("source method runtime order differs from planning order without a copied a
   assert.equal(slot.sourceIndex === 0 && slot.effectiveIndex === 0 && slot.parameterIndex === 0 && slot.sourceParameterIndex === 0, true, "native-use-order:46: slot.sourceIndex === 0 && slot.effectiveIndex === 0 && slot.parameterIndex === 0 && slot.s");
   for (const kind of ["refused", "unresolved", "inconsistent"]) {
     const refused = selectCsharpNativeOperandUses(input(classification({ kind, reason: kind })), call);
-    assert.equal(refused.refusal, `argument-${kind}`, "native-use-order:49: refused.refusal");
+    assert.equal(kind === "refused"
+      ? refused.sourceRefusal?.kind === "target" && refused.sourceRefusal.code === "CSHARP_UNSUPPORTED_AST" &&
+        refused.sourceRefusal.message === kind && refused.refusal === undefined
+      : refused.refusal === `argument-${kind}` && refused.sourceRefusal === undefined, true,
+    `${kind}: an actual source rejection keeps its precise diagnostic; unresolved contracts stay pending`);
     assert.equal(refused.runtime.length + refused.planning.length, 0, `${kind}: no accepted prefix or positional fallback`);
   }
 });
@@ -93,13 +98,14 @@ for (const [label, kind, expression, family] of [
   const value = input(undefined);
   value.operations[family] = { get: candidate => candidate === node ? selected : undefined };
   const refusal = selectCsharpNativeOperandUses(value, node);
-  assert.equal(refusal.sourceDiagnostic === diagnostic && refusal.runtime.length === 0 && refusal.planning.length === 0, true,
+  assert.equal(refusal.sourceRefusal?.kind === "extension" && refusal.sourceRefusal.diagnostic === diagnostic &&
+    refusal.runtime.length === 0 && refusal.planning.length === 0, true,
     `${label}: the winning diagnostic, source identity and evidence are transported without re-selection`);
   value.operations.nativeHandler = { get: candidate => candidate === node
     ? { kind: "memory-binding", selection: { kind: "field", type: scalar, expression: argument } } : undefined };
   value.operations[family] = { get: () => assert.fail(`${label}: losing source-selection reader`) };
   const winner = selectCsharpNativeOperandUses(value, node);
-  assert.equal(winner.refusal === undefined && winner.sourceDiagnostic === undefined && winner.runtime.length === 1 &&
+  assert.equal(winner.refusal === undefined && winner.sourceRefusal === undefined && winner.runtime.length === 1 &&
     winner.runtime[0].expression === argument, true, `${label}: a native handler never probes or publishes a losing source refusal`);
 });
 
@@ -110,6 +116,24 @@ test("callable bodies have compilation work but never become creation-time runti
   const selected = selectCsharpNativeOperandUses(value, arrow);
   assert.equal(selected.flow === "creation" && selected.runtime.length === 0 && selected.planning.length === 1 &&
     selected.planning[0].kind === "construct" && selected.planning[0].node === arrow, true, "native-use-order:70: selected.flow === \"creation\" && selected.runtime.length === 0 && selected.planning.length ");
+});
+
+test("the selected deletion refusal is admitted before any mutable-target acquisition", () => {
+  const deletion = nodes.find(node => ast.is.IsDeleteExpression(node));
+  assert.equal(deletion !== undefined, true, "the original checked indexed deletion exists");
+  const value = input(undefined);
+  const reason = "Deletion requires an exact native indexed-record or JS Array deletion contract.";
+  value.operations.elementDeletion = { get: node => node === deletion ? { kind: "rejected", reason } : undefined };
+  const selected = selectCsharpNativeOperandUses(value, deletion);
+  assert.equal(selected.sourceRefusal?.kind === "target" && selected.sourceRefusal.code === "CSHARP_UNSUPPORTED_AST" &&
+    selected.sourceRefusal.message === reason && selected.runtime.length === 0 && selected.planning.length === 0, true,
+  "the same precise canonical source refusal survives aggregation without a backend-only error or an accepted operand prefix");
+  value.operations.nativeHandler = { get: node => node === deletion
+    ? { kind: "memory-binding", selection: { kind: "field", type: scalar, expression: argument } } : undefined };
+  value.operations.elementDeletion = { get: () => assert.fail("the losing deletion policy must not be re-read") };
+  const winner = selectCsharpNativeOperandUses(value, deletion);
+  assert.equal(winner.sourceRefusal === undefined && winner.refusal === undefined && winner.runtime[0]?.expression === argument, true,
+    "an actual winning native handler still owns its operands without a second source decision");
 });
 
 for (const example of [

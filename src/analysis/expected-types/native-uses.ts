@@ -96,7 +96,8 @@ export function admitCsharpExpectedNativeUses(
     let sites = stages.get(stage.site.subject);
     if (sites === undefined) { sites = new Map(); stages.set(stage.site.subject, sites); }
     const identity = targetUseSiteIdentity(stage.site);
-    const use = Object.freeze({ ...state.use, target: stage.carrier, carrier: stage.carrier, representation: "construct" as const,
+    const use = Object.freeze({ ...state.use, target: stage.carrier, carrier: stage.carrier,
+      readProjection: "projected" as const, representation: "construct" as const,
       children: stage.children, construction: undefined });
     const existing = sites.get(identity);
     if (existing !== undefined) {
@@ -146,12 +147,14 @@ export function admitCsharpExpectedNativeUses(
         return { kind: "pending", reason: "inconsistent-request" };
       }
     }
-    const source = final.valueRead.get(request.expression)?.value;
+    const read = final.valueRead.get(request.expression);
+    const source = read?.value;
     const constructionCarrier = expected.constructions.constructionCarrier(request.expression, request.targetType);
     const selection = selectCsharpNativeUseRepresentation({ ast: final.ast, expression: request.expression, target: request.targetType,
-      mode: request.mode, source, absent: source !== undefined && isCsharpAbsenceTargetType(source),
+      mode: request.mode, source, storage: read?.flowReadStorage, absent: source !== undefined && isCsharpAbsenceTargetType(source),
       ...(request.site.role === "present-payload" ? { projection: "present-payload" as const } : {}),
       literal: final.exactLiteral.get(request.expression, constructionCarrier === undefined ? request.targetType : constructionCarrier),
+      sourceLiteral: final.exactLiteral.get(request.expression, source),
       callable: final.callableCreation.get(request.expression), constructionCarrier,
       binary: final.operations.operatorForm.get(request.expression) !== "selected" ? undefined
         : final.operations.operatorForm.usesExpectedResultType(request.expression)
@@ -165,6 +168,7 @@ export function admitCsharpExpectedNativeUses(
       if (child !== undefined && child.site.subject === site.subject) children.add(child);
     }
     const use: CsharpExpectedNativeUse = Object.freeze({ expression: request.expression, target: request.targetType, carrier: selection.carrier,
+      readProjection: selection.readProjection,
       representation: selection.representation, children: selection.children, construction: selection.construction, mode: request.mode,
       ...(selection.literal === undefined ? {} : { literal: selection.literal }),
       ...(selection.binary === undefined ? {} : { binary: selection.binary }),

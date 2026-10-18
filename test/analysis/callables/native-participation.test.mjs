@@ -54,6 +54,14 @@ const ambientCases = [
       const unused = () => { function nested(): number { return external; } return nested(); };
       void unused; return 42;
     }`, errors: 0, references: 1, call: "Subject.run()", erased: [], forbidden: ["external", "unused", "nested"] },
+  { name: "erased callable alias references", sourceText: `declare const external: number;
+    export function run(): number {
+      const unused = () => external;
+      const alias = unused;
+      const second = (alias);
+      void unused; void alias; void second;
+      return 42;
+    }`, errors: 0, references: 1, call: "Subject.run()", erased: [], forbidden: ["external", "unused", "alias", "second"] },
   { name: "type-only query", sourceText: `declare const external: number;
     export type External = typeof external;
     export function run(value: External): number { return value; }`, errors: 0, references: 0,

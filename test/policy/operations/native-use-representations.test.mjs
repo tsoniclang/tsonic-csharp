@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { analyzeSourceLiteralValues, createTargetSourceProgram } from "@tsonic/target-api/source";
 import { targetUseSiteIdentity } from "@tsonic/target-api/analysis";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { selectCsharpNativeUseRepresentation } from "../../../dist/policy/conversions/native-use-representation.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
 import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { selectCsharpExactLiteralConversion } from "../../../dist/policy/conversions/literals.js";
+import { csharpObjectTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 const floating = Object.freeze({ kind: "source-primitive", name: "float64" });
@@ -15,6 +18,7 @@ const checked = checkCsharpSource({ sourceText: `
   export const list = [binary];
   export const callback = () => binary;
   export const choice = true ? binary : binary;
+  export const wide = 1e40;
 ` });
 assert.equal(checked.sourceDiagnosticsText === "", true, checked.sourceDiagnosticsText);
 const source = createTargetSourceProgram(checked.source);
@@ -27,7 +31,8 @@ const initializer = name => {
   return ast.as.AsVariableDeclaration(declaration).Initializer;
 };
 const base = expression => ({ ast, expression, target: integer, source: floating, mode: "implicit", absent: false,
-  literal: { kind: "not-applicable" }, callable: undefined, binary: undefined, children: new Map() });
+  literal: { kind: "not-applicable" }, sourceLiteral: { kind: "not-applicable" }, storage: undefined,
+  callable: undefined, binary: undefined, children: new Map() });
 const edge = (input, expression, slot, target) => {
   const site = csharpNativeUseSite(input.expression, slot, { target, mode: input.mode });
   input.children.set(targetUseSiteIdentity(site), { site, expression, target });
@@ -85,6 +90,48 @@ test("an authored numeric union contribution keeps its selected physical constru
   "the actual floating literal arm is constructed before union injection, not chosen from the integer source default");
   assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.construction) && Object.isFrozen(selected.children), true,
     "the selected scalar stage is immutable data in the existing native-use contract");
+});
+
+test("an explicit native float32 cast constructs the finite double literal before conversion", () => {
+  const expression = initializer("wide");
+  const single = Object.freeze({ kind: "source-primitive", name: "float32" });
+  const values = analyzeSourceLiteralValues(ast, source.sourceFiles);
+  const literal = values.literalValue.get(expression);
+  const input = { ...base(expression), target: single, mode: "explicit",
+    literal: selectCsharpExactLiteralConversion(literal, single),
+    sourceLiteral: selectCsharpExactLiteralConversion(literal, floating) };
+  assert.equal(input.literal.kind === "rejected" && input.sourceLiteral.kind === "resolved", true,
+    "the actual token exceeds the direct float32 literal range but remains a finite native double literal");
+  const selected = selectCsharpNativeUseRepresentation(input);
+  assert.equal(selected.kind === "selected" && selected.representation === "convert" && selected.carrier === floating &&
+    selected.literal === input.sourceLiteral.recipe && selected.construction?.carrier === floating &&
+    selected.children[0] === selected.construction.site, true,
+  "one actual double construction precedes the admitted native explicit cast; no out-of-range F token is emitted");
+  const implicit = selectCsharpNativeUseRepresentation({ ...input, mode: "implicit" });
+  assert.equal(implicit.kind === "pending" && implicit.reason === "literal-rejected" &&
+    implicit.message === input.literal.reason, true, "implicit native float32 construction still refuses the exact overflow");
+  const missing = selectCsharpNativeUseRepresentation({ ...input, sourceLiteral: undefined });
+  assert.equal(missing.kind === "pending" && missing.reason === "literal-unrequested", true,
+    "the cast cannot borrow an unrequested source literal endpoint");
+  const sourceRefusal = Object.freeze({ kind: "rejected", reason: "The actual double source literal is out of range." });
+  const rejected = selectCsharpNativeUseRepresentation({ ...input, sourceLiteral: sourceRefusal });
+  assert.equal(rejected.kind === "pending" && rejected.reason === "literal-rejected" &&
+    rejected.message === sourceRefusal.reason, true, "a rejected source construction is never rescued by its destination cast");
+});
+
+test("the exact native consumer selects raw storage once without undoing unrelated value refinement", () => {
+  const source = csharpObjectTargetType();
+  const storage = csharpTsValueTargetType();
+  const expression = ast.as.AsParenthesizedExpression(initializer("wrapped")).Expression;
+  const input = { ...base(expression), source, storage, target: storage };
+  const raw = selectCsharpNativeUseRepresentation(input);
+  assert.equal(raw.kind === "selected" && raw.representation === "forward" && raw.carrier === storage &&
+    raw.readProjection === "storage", true,
+  "the actual physical carrier is reused when and only when the admitted destination is that same carrier");
+  const projected = selectCsharpNativeUseRepresentation({ ...input, target: source });
+  assert.equal(projected.kind === "selected" && projected.representation === "forward" && projected.carrier === source &&
+    projected.readProjection === "projected", true,
+  "a distinct value consumer keeps its checked refinement rather than a raw-storage fallback");
 });
 
 test("a parenthesized physical contribution forwards to its exact construction carrier before injection", () => {

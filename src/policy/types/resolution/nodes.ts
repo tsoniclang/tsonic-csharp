@@ -70,6 +70,10 @@ export function resolveNodeWithState(
         ? declared : csharpNullableTargetType(declared);
     }
   }
+  const literalValue = host.literalValues.literalValue.get(node);
+  if (literalValue?.numeric?.kind === "authored" && Object.is(literalValue.number, -0)) {
+    return resolveCsharpSourceLiteralTargetType(host, literalValue);
+  }
   const selectedExpression = resolveSelectedExpressionType(
     node,
     queries,
@@ -86,7 +90,7 @@ export function resolveNodeWithState(
   if (direct !== undefined) {
     return direct;
   }
-  const literal = resolveCsharpSourceLiteralTargetType(host, host.literalValues.literalValue.get(node));
+  const literal = resolveCsharpSourceLiteralTargetType(host, literalValue);
   if (literal !== undefined) {
     return literal;
   }

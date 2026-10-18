@@ -53,7 +53,14 @@ export function resolveCsharpArrayLiteralSelection(
   }
   const sourceCarrier = resolveTypeWithState(sourceType, queries.sourceFile, nextState(state));
   const sourceElement = getCsharpCollectionElementTargetType(sourceCarrier);
-  if (elements.length === 0) return sourceCarrier === undefined ? unavailable : resolved(sourceCarrier);
+  const destination = selectArrayElementDestination(scope, node, queries, state, elements.length === 0);
+  if (destination.kind === "rejected") return destination;
+  if (elements.length === 0) {
+    const carrier = destination.kind === "resolved" ? selectedCsharpSourceProfileOwner(host.target) === "js"
+      ? csharpJsArrayTargetType(destination.carrier) : { kind: "array" as const, element: destination.carrier }
+      : sourceCarrier;
+    return carrier === undefined ? unavailable : resolved(carrier);
+  }
   const members = sourceElements.map((entry, index) => {
     if (entry === undefined) return undefined;
     const spread = host.ast.is.IsSpreadElement(entry);
@@ -68,8 +75,6 @@ export function resolveCsharpArrayLiteralSelection(
   });
   if (members.some(member => member === undefined)) return unavailable;
   const contributions = members.filter(member => member !== undefined);
-  const destination = selectArrayElementDestination(scope, node, queries, state);
-  if (destination.kind === "rejected") return destination;
   const numeric = selectCsharpInferredNumericArrayElement(contributions, sourceElement,
     destination.kind === "resolved" ? destination.carrier : undefined);
   if (numeric.kind === "rejected") return numeric;
@@ -90,6 +95,7 @@ function selectArrayElementDestination(
   expression: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
+  empty: boolean,
 ): { readonly kind: "resolved"; readonly carrier: TargetTypeRef } | { readonly kind: "unavailable" } |
   { readonly kind: "rejected"; readonly reason: string } {
   const { host, resolveNodeWithState, resolveSourceTypeComponentEvidence } = scope;
@@ -101,6 +107,7 @@ function selectArrayElementDestination(
   const destinationElement = (carrier: TargetTypeRef | undefined): TargetTypeRef | undefined => {
     const element = elementOf(carrier);
     if (element === undefined || csharpFreeTypeParameterIdentities([element]).size !== 0) return undefined;
+    if (empty) return element;
     const present = getCsharpNullableElementTargetType(element) ?? element;
     const numeric = (type: TargetTypeRef): boolean => {
       const value = getCsharpNullableElementTargetType(type) ?? type;
@@ -123,7 +130,8 @@ function selectArrayElementDestination(
     const parameter = binding === undefined ? undefined : selected.sourceSelectedSignatureParameters[binding.sourceParameterIndex];
     if (binding === undefined || parameter?.authoredTypeNode === undefined) return undefined;
     const file = callQueries.sourceFile;
-    let formal = resolveNodeWithState(parameter.authoredTypeNode, file, nextState(state));
+    let formal = resolveNodeWithState(parameter.authoredTypeNode,
+      host.semanticsFor(parameter.authoredTypeNode).sourceFile, { depth: state.depth + 1 });
     if (binding.sourceParameterForm === "rest-element") formal = elementOf(formal);
     const returned = (carrier: TargetTypeRef | undefined): TargetTypeRef | undefined => {
       const result = getCsharpCallableValueSignature(getCsharpNullableElementTargetType(carrier) ?? carrier)?.returnType;

@@ -66,7 +66,7 @@ for (const [name, body] of [
   ["inline named recursion", "return invoke(function recurse(entry: number): number { return entry === 0 ? 1 : recurse(entry - 1); });"],
   ["immutable aliases", "const mapper = (entry: number) => entry + 1; const alias = mapper; invoke(alias); return invoke(mapper);"],
 ]) {
-  test(`only sealed invocation arguments cache capture-free ${name}`, () => {
+  test(`capture-free ${name} selects the native cached delegate`, () => {
     const input = fixture(body);
     const selected = input.selected.lambdaCreation.get(input.lambda);
     assert.equal(selected.kind, "cached");
@@ -87,13 +87,20 @@ for (const [name, body, staticBody = true] of [
   ["unproved declaration annotation", "const mapper: (entry: number) => number = entry => entry + 1; return invoke(mapper);"],
   ["named self value", "return invoke(function self(entry: number): number { const alias = self; return alias === self ? entry : -1; });", false],
 ]) {
-  test(`${name} preserves fresh native creation despite stateless bodies`, () => {
+  test(`${name} follows the native capture and shared-identity contract`, () => {
     const input = fixture(body);
     const selected = input.selected.lambdaCreation.get(input.lambda);
-    assert.equal(selected.kind, "fresh");
+    assert.equal(selected.kind, staticBody ? "cached" : "fresh");
     assert.equal(selected.staticBody, staticBody, "observed self values require their exact nonstatic identity binding");
   });
 }
+
+test("returned capturing closures retain their fresh native activation", () => {
+  const input = fixture("return (entry: number) => entry + value;");
+  const selected = input.selected.lambdaCreation.get(input.lambda);
+  assert.equal(selected.kind, "fresh", "an actual lexical capture is not shared across evaluations");
+  assert.equal(selected.staticBody, false, "the captured argument requires its own native environment");
+});
 
 test("invocation-only captured callbacks use their native activation without static caches", () => {
   const input = fixture("return invoke((entry: number) => entry + value);");
