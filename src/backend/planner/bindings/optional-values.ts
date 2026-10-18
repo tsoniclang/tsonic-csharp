@@ -10,7 +10,7 @@ import { planCsharpDiscardedStatement } from "../statements/statement-output.js"
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../context.js";
-import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planCsharpArrayBindingPresence(source: CsharpExpression, index: number, lengthMember: string): CsharpExpression {
   return { kind: "BinaryExpression",
@@ -55,8 +55,7 @@ export function planCsharpBindingDefaultValue(
     const reference: CsharpExpression = { kind: "IdentifierName", name };
     const guard = contract.optional ? planCsharpPresentValueGuard(carrier, contract.guardType, value, name, input.scope.typeParameterNames) : undefined;
     if (contract.optional && guard === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Native default presence requires its renderable sealed optional payload carrier."));
-      return undefined;
+      return failCsharpPlannerInvariant("An admitted native default lost its exact optional payload guard.", node);
     }
     const condition: CsharpExpression = guard === undefined ? presence! : presence === undefined ? guard.condition
       : { kind: "BinaryExpression", left: presence, operatorToken: { kind: "AmpersandAmpersandToken" }, right: guard.condition };

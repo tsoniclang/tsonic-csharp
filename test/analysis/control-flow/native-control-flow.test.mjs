@@ -11,6 +11,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { planBindingPatternFromExpression } from "../../../dist/backend/planner/bindings/binding-patterns.js";
 import { createDestructuringPlannerState } from "../../../dist/backend/planner/bindings/binding-state.js";
 import { planCsharpGeneratedMethodCall } from "../../../dist/backend/planner/declarations/generated-methods.js";
+import { planBreakStatement, planContinueStatement } from "../../../dist/backend/planner/statements/statement-simple.js";
 
 for (const surface of ["native", "js"]) {
   test(`native C# rejects control transfer leaving cleanup before publishing output in ${surface}`, () => {
@@ -78,6 +79,40 @@ if (Tsonic.Generated.Index.run() != 4 || Tsonic.Generated.Index.other() != 5)
 }
 
 for (const surface of ["native", "js"]) {
+  test(`local enum refusal belongs to declaration admission on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      export function run(): void { enum Value { first = 1 } let value: Value = Value.first; void value; }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the local enum is checked source");
+    const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
+    assert.equal(issues.length, 1, "the existing refusal has one admission owner");
+    assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", "the original code is preserved");
+    assert.equal(issues[0].message, "Statement is outside the current C# planning surface.", "the original reason is preserved");
+    assert.equal(createTargetSourceProgram(compiled.source).ast.is.IsEnumDeclaration(issues[0].sourceNode), true,
+      "the diagnostic keeps the same declaration node");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+      "the refusal precedes record publication, planning and artifacts");
+  });
+
+  test(`interface and abstract destructuring signatures are native data-only contracts on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      export interface Contract { accept([value]: [number]): number; }
+      export abstract class Base implements Contract { abstract accept([value]: [number]): number; }
+      class Implementation extends Base { accept([value]: [number]): number { return value + 1; } }
+      function call(value: Contract): number { return value.accept([6]); }
+      export function run(): number { return call(new Implementation()); }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "body-less and implementing signatures agree in checked source");
+    assert.equal(compiled.targetDiagnostics.length, 0,
+      compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+    const output = compiled.artifacts.get("src/Index.cs");
+    assert.match(output, /double accept\(System\.ValueTuple<double> __tsonic_param0\)/u,
+      "the interface retains the existing abstract native parameter signature");
+    executeCsharpConstruction(compiled, `native-data-only-signatures-${surface}`, false, false, [], `
+if (Tsonic.Generated.Index.run() != 7) throw new System.Exception("native data-only signatures");
+`);
+  });
+
   test(`local interface statements are refused by declaration admission before publication on ${surface}`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
       export function run(): number {
@@ -147,6 +182,35 @@ if (Tsonic.Generated.Index.run(${values}) != 11) throw new System.Exception("nat
 `);
   });
 }
+
+test("checked labeled transfers require their exact active renderer target", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    export function run(stop: boolean): void {
+      outer: while (true) { if (stop) break outer; continue outer; }
+    }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "both transfers have checked source targets");
+  assert.equal(compiled.targetDiagnostics.length, 0, "the unmodified native label producer renders both transfers");
+  const program = compiled.result.program;
+  const ast = program.source.ast;
+  const transfers = [];
+  const visit = node => {
+    if (ast.is.IsBreakStatement(node) || ast.is.IsContinueStatement(node)) transfers.push(node);
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  program.sourceFiles.forEach(visit);
+  assert.equal(transfers.length, 2, "the witness retains one break and one continue");
+  for (const transfer of transfers) {
+    const diagnostics = [];
+    const render = ast.is.IsBreakStatement(transfer) ? planBreakStatement : planContinueStatement;
+    const message = ast.is.IsBreakStatement(transfer)
+      ? "A checked labeled break lost its active native label target."
+      : "A checked labeled continue lost its active native iteration target.";
+    assert.throws(() => render(transfer, ast, diagnostics, createDestructuringPlannerState()),
+      error => error.message.includes(message), "only a deliberately missing active renderer stack reaches the invariant");
+    assert.equal(diagnostics.length, 0, "invalid renderer state does not relabel a source program as unsupported");
+  }
+});
 
 test("generated native helpers require their constructed scope and paired parameter contract", () => {
   const compiled = compileCsharpSource({ sourceText: "export function run(): number { return 1; }" });

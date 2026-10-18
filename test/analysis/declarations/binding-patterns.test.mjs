@@ -7,6 +7,12 @@ import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/type
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpJsSetTargetType } from "../../../dist/target-model/types/carriers/js.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/relations/resolver.js";
+import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
+import { createDestructuringPlannerState } from "../../../dist/backend/planner/bindings/binding-state.js";
+import { planBindingPatternFromExpression } from "../../../dist/backend/planner/bindings/binding-patterns.js";
+import { csharpPlannedValue } from "../../../dist/backend/planner/expressions/planned-values.js";
+import { csharpCarrierAdmitsSourceAbsence } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 const arrayMessage = "Array destructuring requires a finalized provider array or tuple runtime-carrier fact for the source expression. Runtime carrier fact is missing for the array destructuring source expression.";
 
@@ -221,3 +227,162 @@ test("missing loop-head evidence keeps the actual for-of root private until dema
     Object.isFrozen(analysis.candidates[0].evidence), true, "loop-root candidate is precise and private");
   assert.equal(Object.hasOwn(analysis, "issues"), false, "candidate issues are not globally aggregated");
 });
+
+test("array, tuple, default and rest renderers consume only their admitted immutable projections", () => {
+  const { program } = publishedProgram(`
+    export function run(values: number[], optional: [number, number?], pair: [number, number]): number {
+      const [first = 1, ...rest] = values;
+      const [, second = 3] = optional;
+      const [head, ...tail] = pair;
+      return first + second + head + rest[0] + tail[0];
+    }
+  `, "native");
+  const ast = program.source.ast;
+  const array = findNode(program, "KindArrayBindingPattern", "[first = 1, ...rest]");
+  const tuple = findNode(program, "KindArrayBindingPattern", "[, second = 3]");
+  const pair = findNode(program, "KindArrayBindingPattern", "[head, ...tail]");
+  const first = findNode(program, "KindBindingElement", "first = 1");
+  const second = findNode(program, "KindBindingElement", "second = 3");
+  const tail = findNode(program, "KindBindingElement", "...tail");
+  const firstFact = program.records.bindingPatternProjection.get(first);
+  const secondFact = program.records.bindingPatternProjection.get(second);
+  const tailFact = program.records.bindingPatternProjection.get(tail);
+  const opaque = { kind: "opaque", id: "corrupted-binding-rendering" };
+  const context = createCsharpPlanningContext(program);
+  const planDefault = node => {
+    const firstDefault = ast.as.AsBindingElement(first).Initializer;
+    const secondDefault = ast.as.AsBindingElement(second).Initializer;
+    assert.equal(node === firstDefault || node === secondDefault, true, "the isolated literal planner has an exact source subject");
+    const carrier = program.records.valueRead.get(node)?.value;
+    assert.equal(carrier !== undefined, true, "the published literal retains its exact selected native carrier");
+    return csharpPlannedValue(carrier, { kind: "LiteralExpression", value: node === firstDefault ? 1 : 3 });
+  };
+  for (const pattern of [array, tuple, pair]) {
+    const diagnostics = [];
+    const statements = planBindingPatternFromExpression(pattern, { kind: "IdentifierName", name: "source" },
+      ast.getSourceFile(pattern), context, diagnostics, createDestructuringPlannerState(pattern, ast), planDefault);
+    assert.equal(statements.length > 0 && diagnostics.length === 0, true,
+      "the real published projection renders before any deliberate corruption");
+  }
+  const controls = [
+    { label: "missing array source", pattern: array, node: array,
+      fact: { ...program.records.bindingPatternProjection.get(array), source: undefined },
+      message: "Array binding requires its admitted native source projection." },
+    { label: "missing array element", pattern: array, node: first,
+      fact: { ...firstFact, element: undefined },
+      message: "An admitted array element lost its exact native carrier rendering." },
+    { label: "unrenderable array element", pattern: array, node: first,
+      fact: { ...firstFact, element: { ...firstFact.element, elementCarrier: opaque } },
+      message: "An admitted array element lost its exact native carrier rendering." },
+    { label: "missing array default", pattern: array, node: first,
+      fact: { ...firstFact, defaultValue: undefined },
+      message: "Array default requires its admitted native default contract." },
+    { label: "unrenderable array default", pattern: array, node: first,
+      fact: { ...firstFact, defaultValue: { ...firstFact.defaultValue, target: opaque } },
+      message: "An admitted array default lost its native element rendering." },
+    { label: "inconsistent optional payload guard", pattern: array, node: first,
+      fact: { ...firstFact, defaultValue: { ...firstFact.defaultValue, optional: true, guardType: opaque } },
+      message: "An admitted native default lost its exact optional payload guard." },
+    { label: "missing tuple default", pattern: tuple, node: second,
+      fact: { ...secondFact, defaultValue: undefined },
+      message: "Tuple default requires its admitted native default contract." },
+    { label: "unrenderable tuple default", pattern: tuple, node: second,
+      fact: { ...secondFact, element: { ...secondFact.element, tupleDefault: { kind: "planned", carrier: opaque } } },
+      message: "An admitted tuple default lost its native rendering or active expression planner." },
+    { label: "missing tuple rest", pattern: pair, node: tail,
+      fact: { ...tailFact, element: undefined },
+      message: "Tuple rest binding requires its admitted tuple projection." },
+    { label: "unrenderable tuple rest", pattern: pair, node: tail,
+      fact: { ...tailFact, element: { ...tailFact.element, restCarrier: { kind: "tuple", elements: [opaque] } } },
+      message: "An admitted tuple rest lost its native carrier rendering." },
+  ];
+  for (const control of controls) {
+    const corrupted = { ...program, records: { ...program.records,
+      bindingPatternProjection: { get: node => node === control.node ? control.fact
+        : program.records.bindingPatternProjection.get(node) } } };
+    const diagnostics = [];
+    assert.throws(() => planBindingPatternFromExpression(control.pattern, { kind: "IdentifierName", name: "source" },
+      ast.getSourceFile(control.pattern), { ...context, program: corrupted }, diagnostics,
+      createDestructuringPlannerState(control.pattern, ast), planDefault),
+    error => error.message.includes(control.message), control.label);
+    assert.equal(diagnostics.length, 0, `${control.label}: internal corruption is not a new source refusal`);
+  }
+});
+
+for (const surface of ["native", "js"]) {
+  test(`binding storage and value reads share their admitted projection carrier on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      type Source = { first: number; second: number };
+      type Rest = { second: number };
+      function consume(value: Rest): number { return value.second; }
+      function extract(source: Source): Rest { const { first, ...rest } = source; return rest; }
+      function capture(source: Source): () => number { const { first, ...rest } = source; return () => rest.second; }
+      function parameter({ first, ...rest }: Source): number { return first + rest.second; }
+      export function run(): number {
+        const source: Source = { first: 2, second: 3 };
+        const { first, ...rest } = source;
+        const returned = extract(source);
+        const closure = capture(source);
+        const maybe: { a?: number } = { a: 4 };
+        const { a: value = 1 } = maybe;
+        const [head, ...tail] = [5, 6, 7];
+        const { inner: { value: nestedValue } } = { inner: { value: 8 } };
+        let loop = 0;
+        for (const { first, ...rest } of [source]) loop += first + rest.second;
+        return consume(rest) + returned.second + closure() + parameter(source) + value + head + tail[0] + nestedValue + loop;
+      }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "rest, default, nested, parameter and iteration bindings are checked source");
+    assert.equal(compiled.targetDiagnostics.length, 0,
+      compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+    const program = compiled.result.program;
+    const ast = program.source.ast;
+    let defaulted;
+    const visit = node => {
+      if (ast.is.IsBindingElement(node)) {
+        const binding = ast.as.AsBindingElement(node);
+        if (binding.Initializer !== undefined && ast.is.IsIdentifier(binding.name) && ast.text(binding.name) === "value") defaulted = node;
+      }
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    program.sourceFiles.forEach(visit);
+    assert.equal(defaulted !== undefined, true, "the default-valued control is retained");
+    assert.equal(csharpCarrierAdmitsSourceAbsence(program.records.storageType.get(defaulted)), false,
+      "default-valued binding storage is its post-default native carrier");
+    executeCsharpConstruction(compiled, `canonical-binding-storage-${surface}`, false, false, [], `
+if (Tsonic.Generated.Index.run() != 42) throw new System.Exception("canonical binding storage");
+`);
+  });
+
+  test(`annotated patterns convert extracted members without converting their initializer on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      class View { value: int = 7; }
+      export function run(): number {
+        const { value }: { value: number } = new View();
+        const { a }: { a: number } = { a: 1 };
+        const [first, second]: [number, number] = [2, 3];
+        const { maybe }: { maybe?: number } = { maybe: 4 };
+        return value + a + first + second + (maybe ?? 0);
+      }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "each annotation describes binding destinations, not a whole-object conversion");
+    assert.equal(compiled.targetDiagnostics.length, 0,
+      compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+    const program = compiled.result.program;
+    const literal = findNode(program, "KindBindingElement", "a");
+    const optional = findNode(program, "KindBindingElement", "maybe");
+    const widened = findNode(program, "KindBindingElement", "value");
+    assert.equal(targetTypeRefKey(program.records.bindingPatternProjection.get(literal).binding.target), float64Key,
+      "an annotated object literal binds a native double");
+    assert.equal(csharpCarrierAdmitsSourceAbsence(program.records.bindingPatternProjection.get(optional).binding.target), true,
+      "the optional member annotation retains native absence in binding storage");
+    const conversion = program.records.bindingPatternProjection.get(widened).binding;
+    assert.equal(conversion.source.kind === "source-primitive" && conversion.source.name === "int32" &&
+      targetTypeRefKey(conversion.target) === float64Key && conversion.conversion.kind !== "rejected", true,
+      "the class member is extracted as int32 and widened at its destination exactly once");
+    executeCsharpConstruction(compiled, `annotated-binding-destinations-${surface}`, false, false, [], `
+if (Tsonic.Generated.Index.run() != 17) throw new System.Exception("native binding destinations");
+`);
+  });
+}

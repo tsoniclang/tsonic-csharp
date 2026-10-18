@@ -122,9 +122,6 @@ function planInterfaceMethodDeclaration(
     input,
     diagnostics,
   );
-  if (parameters.prelude.length > 0) {
-    return failCsharpPlannerInvariant("An admitted interface signature unexpectedly requires a runtime parameter prelude.", node);
-  }
   return {
     kind: "MethodDeclaration",
     name: planIdentifierName(declaration.name, "MethodDeclaration", input, diagnostics, "Interface method name"),

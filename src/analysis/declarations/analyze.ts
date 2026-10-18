@@ -78,7 +78,7 @@ export function admitCsharpNativeDeclarations(
     if (nativeUse.order(node) === undefined || metadata.compileTimeMetadata.get(node) ||
       nativeUnreachable.get(node) || participation.get(node) === "erased" || sourceClassFieldIsTypeOnly(ast, node)) continue;
     admitCsharpDeclarationModifiers(ast, node, refuse);
-    if (ast.is.IsInterfaceDeclaration(node)) {
+    if (ast.is.IsInterfaceDeclaration(node) || ast.is.IsEnumDeclaration(node)) {
       const owner = ast.parent(node);
       if (owner !== undefined && ast.is.IsBlock(owner)) {
         refuse(node, "Statement is outside the current C# planning surface.");
@@ -145,9 +145,7 @@ export function admitCsharpNativeDeclarations(
         if (kind === "KindMethodSignature" && participation.get(member) === "signature" &&
           ast.parameters(member).some(parameter => {
             if (parameter === undefined) return false;
-            const name = ast.name(parameter);
-            return name !== undefined && (ast.is.IsObjectBindingPattern(name) || ast.is.IsArrayBindingPattern(name)) ||
-              storage.nativeBacking.get(parameter) !== undefined || storage.typedLocationIdentity.get(parameter);
+            return storage.nativeBacking.get(parameter) !== undefined || storage.typedLocationIdentity.get(parameter);
           })) refuse(member, "Interface methods cannot publish destructuring parameter preludes.");
       }
     }

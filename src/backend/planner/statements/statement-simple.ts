@@ -175,8 +175,7 @@ export function planBreakStatement(
   if (statement.Label !== undefined) {
     const target = findControlLabel(state, Node_Text(ast, statement.Label));
     if (target === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Labeled break target was not available from TSTS control-flow binding."));
-      return [];
+      return failCsharpPlannerInvariant("A checked labeled break lost its active native label target.", node);
     }
     target.breakUsed = true;
     return [{ kind: "GotoStatement", label: target.breakLabel }];
@@ -194,8 +193,7 @@ export function planContinueStatement(
   if (statement.Label !== undefined) {
     const target = findControlLabel(state, Node_Text(ast, statement.Label));
     if (target?.continueLabel === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Labeled continue target must be an iteration statement."));
-      return [];
+      return failCsharpPlannerInvariant("A checked labeled continue lost its active native iteration target.", node);
     }
     target.continueUsed = true;
     const region = [...state.loopContinuations].reverse().find(region => region.loop === target.loop);

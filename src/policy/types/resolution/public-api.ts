@@ -55,6 +55,11 @@ export function resolveStorage(
   if (catchCarrier !== undefined) {
     return catchCarrier;
   }
+  if (host.ast.is.IsBindingElement(declaration)) {
+    return host.bindingProjection(
+      declaration, host.ast.getSourceFile(declaration) ?? sourceFile,
+    )?.bindingCarrier;
+  }
   return resolveNode(
     declaration,
     host.ast.getSourceFile(declaration) ?? sourceFile,
