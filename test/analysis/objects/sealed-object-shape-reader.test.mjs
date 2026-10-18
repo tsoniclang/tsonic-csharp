@@ -165,7 +165,7 @@ test("structural implementations are materialized at seal and an unrecorded inst
       resolveCopyShape: () => { assert.equal(closed, false, "copy selection precedes publication"); return undefined; },
     },
     projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
-    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({
+    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: (source, destination, purpose) => (assert.equal(purpose, "read"), {
       kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
         source: { property: { symbol, rootSymbols: [] }, declarations: [] },
         destination: { property: { symbol, rootSymbols: [] }, declarations: [] },
@@ -256,7 +256,7 @@ test("a generic structural implementation is substituted once at seal into froze
       resolveCopyShape: () => { assert.equal(closed, false, "copy selection precedes publication"); return undefined; },
     },
     projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
-    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({
+    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: (source, destination, purpose) => (assert.equal(purpose, "read"), {
       kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
         source: { property: { symbol: sourceSymbol, rootSymbols: [] }, declarations: [] },
         destination: { property: { symbol: destinationSymbol, rootSymbols: [] }, declarations: [] },

@@ -25,7 +25,7 @@ export function csharpNativeConstructionMembersMatch(
   if ((declaredKind === "class" || declaredKind === "struct" || declaredKind === "enum") &&
     !targetTypeRefEquals(source.targetType, destination.targetType)) return false;
   if (queries.types.isIdentical(sourceType, destination.sourceType) && csharpObjectShapesEqual(source, destination)) return true;
-  const selected = queries.types.structuralMembers(sourceType, destination.sourceType);
+  const selected = queries.types.structuralMembers(sourceType, destination.sourceType, "read");
   if (selected.kind !== "available" || selected.source.calls.length !== 0 || selected.source.constructs.length !== 0 ||
     selected.source.indexes.length !== 0 || selected.destination.calls.length !== 0 ||
     selected.destination.constructs.length !== 0 ||
