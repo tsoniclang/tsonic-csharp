@@ -69,6 +69,22 @@ for (const surface of ["native", "js"]) {
   });
 }
 
+for (const surface of ["native", "js"]) test(`${surface} contextual parameter and binding reads retain selected carriers without an array initializer`,
+  { timeout: 240_000 }, () => {
+  const compiled = compileCsharpNativeUseSource({ surface, sourceText: `
+    const identity: (entry: number) => number = entry => entry;
+    const read: (entry: { value: number }) => number = ({ value }) => value;
+    export function run(): boolean {
+      return read({ value: identity(42) }) === 42;
+    }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "both unannotated binding forms get their exact types from the real checked callable context");
+  assert.equal(compiled.targetDiagnostics.length, 0, "a binding without an initializer never enters the array-literal syntax predicate");
+  assert.equal(compiled.result.program !== undefined && compiled.result.plan !== undefined && compiled.artifacts.size > 0, true,
+    "the real selected native value carriers complete before publication without a fabricated initializer or fallback");
+  executeCsharpConstruction(compiled, `native-selected-value-no-initializer-${surface}`);
+});
+
 test("native Promise continuations keep the original exact external-callee refusal before publication", () => {
   const expression = "Promise.resolve(1).then((value: number): number => value + 1)";
   const sourceText = [
