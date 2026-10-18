@@ -323,7 +323,8 @@ function spreadDemandFixture(sourceMembers, targetMembers = sourceMembers, addit
     csharpRender: { kind: "named", name: "SpreadTarget" } }, members: targetMembers };
   const shapes = new Map([source, target, ...additionalShapes].map(shape => [targetTypeRefKey(shape.targetType), shape]));
   let reads = 0;
-  const host = { ast: {}, names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
+  const host = { ast: { is: { IsTypeParameterDeclaration: () => false }, forEachChild() {} },
+    names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
     conversions: { conversion: { get() {} } },
     objectShapes: { targetShapes: Object.freeze(Object.fromEntries(shapes)),
       resolveTarget(type) { reads += 1; return shapes.get(targetTypeRefKey(type)); },

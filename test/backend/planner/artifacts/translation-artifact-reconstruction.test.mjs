@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCsharpObjectShapeDemandEngine } from "../../../../dist/analysis/objects/native-demand-requests.js";
 import { csharpObjectShapeContractCandidate } from "../../../../dist/backend/planner/artifacts/contracts.js";
+import { csharpStringTargetType } from "../../../../dist/target-model/types/index.js";
+import { csharpJsArrayTargetType } from "../../../../dist/target-model/types/carriers/js.js";
 
 import {
   csharpDelegateTargetType,
@@ -200,11 +202,12 @@ test("copied CLR methods cannot conflict with a generic declaration receiver in 
 });
 
 function genericCapabilityArtifacts() {
-  const parameter = { kind: "type-parameter", identity: "PhysicalCapability:Value", name: "Value" };
+  const parameter = { kind: "type-parameter", identity: "PhysicalCapability:Value", name: "Value",
+    csharpConstraints: { kind: "resolved", constraints: [] } };
   const integer = { kind: "source-primitive", name: "int32" };
-  const text = { kind: "source-primitive", name: "string" };
+  const text = csharpStringTargetType();
   const target = argument => ({ kind: "target-named", id: "tsonic.shape:PhysicalCapability", typeArguments: [argument],
-    csharpAllowsRefLikeTypeArguments: [false], csharpRender: { kind: "named", name: "PhysicalCapability" } });
+    csharpAllowsRefLikeTypeArguments: [false], csharpRender: { kind: "named", name: "PhysicalCapability", genericArity: 1 } });
   const declaration = { targetType: target(parameter), members: [] };
   const first = { targetType: target(integer), members: [], declarationTemplate: declaration };
   const second = { targetType: target(text), members: [], declarationTemplate: declaration };
@@ -251,7 +254,7 @@ test("one exact native declaration retains every selected projection and each so
   const firstSite = {};
   const secondSite = {};
   const keys = demand.requireObjectShapeProjection(firstSite, first.targetType, {}, "keys",
-    { kind: "array", element: { kind: "source-primitive", name: "string" } }, "object-shape");
+    csharpJsArrayTargetType(csharpStringTargetType()), "object-shape");
   const hasOwn = demand.requireObjectShapeProjection(secondSite, second.targetType, {}, "has-own",
     { kind: "source-primitive", name: "bool" }, "object-shape");
   assert.equal(keys.kind === "accepted" && keys.projection !== undefined, true, "the actual first source projection is admitted");
