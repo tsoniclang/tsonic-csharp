@@ -27,7 +27,6 @@ import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
-import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../declarations/modifiers.js";
 import { planBlockStatements } from "../statements/index.js";
 import { planCsharpCaptureFrame, planCsharpCaptureEntryBindings } from "../bindings/capture-storage.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";

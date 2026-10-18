@@ -119,13 +119,25 @@ export function planParametersWithPrelude(
         elements.push({ kind: "IdentifierName", name });
       }
       if (signatureOnly) continue;
-      const nativeType = input.program.records.requiredStorageType.get(node);
-      if (nativeType?.kind !== "tuple" || nativeType.elements.length !== elements.length ||
-        !indexes.every((index, component) => targetTypeRefEquals(incoming(index), nativeType.elements[component]!))) return failCsharpPlannerInvariant(
+      const valueType = input.program.records.requiredStorageType.get(node);
+      if (valueType?.kind !== "tuple" || valueType.elements.length !== elements.length) return failCsharpPlannerInvariant(
         "A fixed tuple parameter requires its complete sealed native entry tuple.", node);
-      const type = render(nativeType, node);
-      prelude.push({ kind: "LocalDeclarationStatement", name: sourceName, type, initializer: csharpTupleExpression(elements, type) });
-      completeSourceStorage(node, parameter.name, sourceName, nativeType);
+      const type = render(valueType, node);
+      let initializer: CsharpExpression = csharpTupleExpression(elements, type);
+      if (!indexes.every((index, component) => targetTypeRefEquals(incoming(index), valueType.elements[component]!))) {
+        const nativeType = input.program.records.lambdaParameterType.get(node);
+        if (nativeType?.kind !== "tuple" || nativeType.elements.length !== elements.length ||
+          !indexes.every((index, component) => targetTypeRefEquals(incoming(index), nativeType.elements[component]!))) return failCsharpPlannerInvariant(
+          "An adapted tuple entry requires its exact sealed incoming parameter tuple.", node);
+        const selection = readCsharpConversionClassification(node, input, diagnostics, nativeType, valueType, "implicit");
+        if (selection === undefined) continue;
+        const converted = applyCsharpConversionSelection(node, sourceFile, input, diagnostics, nativeType, valueType,
+          selection, csharpTupleExpression(elements, render(nativeType, node)));
+        if (converted === undefined) continue;
+        initializer = converted;
+      }
+      prelude.push({ kind: "LocalDeclarationStatement", name: sourceName, type, initializer });
+      completeSourceStorage(node, parameter.name, sourceName, valueType);
       continue;
     }
     if (indexes.length !== 1) return failCsharpPlannerInvariant("An ordinary parameter requires one exact physical entry slot.", node);

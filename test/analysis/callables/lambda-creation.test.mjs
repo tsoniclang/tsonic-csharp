@@ -137,13 +137,20 @@ for (const body of ["return invoke((entry: number) => entry + 1);", "return invo
 
 for (const surface of ["native", "js"]) test(`${surface} checked physical entries erase this and reconstruct one native fixed tuple without allocation`,
   { timeout: 240_000 }, () => {
-    const selected = compileCsharpRequiredRecordSource(`import type { int32 } from "@tsonic/core/types.js";
+    const selected = compileCsharpRequiredRecordSource(`import type { int32, float64 } from "@tsonic/core/types.js";
       function identity(this: void, value: int32): int32 { return value; }
       export function pair(...items: [left: int32, right: int32]): int32 {
         items[0] = items[0] + 1;
         return items[0] + items[1];
       }
       function rest(...items: int32[]): int32 { return items[0] + items[1]; }
+      export function adapted(): float64 {
+        const callback: (left: int32, right: int32) => float64 = (...items: [float64, float64]): float64 => {
+          items[0] += 0.5;
+          return items[0] + items[1];
+        };
+        return callback(3, 4);
+      }
       function make(this: void, seed: int32): () => int32 { return () => { seed++; return seed; }; }
       class Cell {
         private current: int32 = 0;
@@ -194,6 +201,19 @@ for (const surface of ["native", "js"]) test(`${surface} checked physical entrie
       entry.parameters.every(parameter => Object.isFrozen(parameter) && Object.isFrozen(parameter.sourceProjection)), true,
     "the canonical entry and source projection vectors are immutable before emission");
     assert.equal(program.records.callableTarget.entry({}) === undefined, true, "a foreign declaration cannot borrow any physical entry");
+    const adapted = nodes.find(node => source.ast.is.IsArrowFunction(node) && source.ast.parameters(node).some(parameter => {
+      const bodyType = program.records.requiredStorageType.get(parameter);
+      return bodyType?.kind === "tuple" && bodyType.elements.every(element => element.kind === "source-primitive" && element.name === "float64");
+    }));
+    const adaptedParameter = adapted === undefined ? undefined : source.ast.parameters(adapted)[0];
+    const adaptedInput = program.records.lambdaParameterType.get(adaptedParameter);
+    const adaptedStorage = program.records.requiredStorageType.get(adaptedParameter);
+    const adaptation = program.records.conversion.get(adaptedInput, adaptedStorage, "implicit");
+    assert.equal(adaptedParameter !== undefined && adaptedInput?.kind === "tuple" &&
+      adaptedInput.elements.every(element => element.kind === "source-primitive" && element.name === "int32") &&
+      adaptedStorage?.kind === "tuple" && adaptedStorage.elements.every(element => element.kind === "source-primitive" && element.name === "float64") &&
+      adaptation?.kind === "implicit" && adaptation.proof === "tuple", true,
+    "the same storage owner admits the complete native incoming tuple to authored body tuple conversion before emission");
     const context = createCsharpPlanningContext(program);
     const file = source.ast.getSourceFile(pair);
     const diagnostics = [];
@@ -217,11 +237,17 @@ for (const surface of ["native", "js"]) test(`${surface} checked physical entrie
     "the lambda renderer also rejects the removed raw array form");
     executeCsharpConstruction(selected.compiled, `physical-native-entry-${surface}`, false, false, [], `
       if (!Tsonic.Generated.Index.run()) throw new System.Exception("entry identity/default/capture/body semantics");
+      if (Tsonic.Generated.Index.adapted() != 7.5D) throw new System.Exception("sealed tuple parameter conversion/body mutation");
       _ = Tsonic.Generated.Index.pair(3, 4);
       long before = System.GC.GetAllocatedBytesForCurrentThread();
       int sum = 0;
       for (int index = 0; index < 20000; index++) sum += Tsonic.Generated.Index.pair(3, 4);
       long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
       if (sum != 160000 || allocated != 0) throw new System.Exception("fixed tuple entry requires zero per-call heap allocation");
+      before = System.GC.GetAllocatedBytesForCurrentThread();
+      double adaptedSum = 0D;
+      for (int index = 0; index < 20000; index++) adaptedSum += Tsonic.Generated.Index.adapted();
+      allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+      if (adaptedSum != 150000D || allocated != 0) throw new System.Exception("native tuple parameter conversion must not allocate or round away body mutation");
     `);
   });
