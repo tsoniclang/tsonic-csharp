@@ -106,12 +106,12 @@ test("exact property-key floating tokens render native D without parsing or an i
     assert.equal(planned.kind === "resolved", true, `${precision}: the exact token renders`);
     const text = printCsharpExpression(planned.expression);
     const suffix = precision === "float32" ? "F" : precision === "decimal" ? "M" : "D";
-    assert.equal(precision === "float16" ? text === "(Half)1.0" : text.endsWith(`1.0${suffix}`),
+    assert.equal(precision === "float16" ? text === "(Half)1D" : text.endsWith(`1.0${suffix}`),
       true, `${precision}: the exact native value survives`);
     assert.equal(precision !== "float16" || planned.expression.kind === "CastExpression" &&
       admitted.recipe.bits === 0x3c00 && planned.expression.expression.kind === "NumericLiteralExpression" &&
-      planned.expression.expression.token === admitted.recipe.token && planned.expression.expression.suffix === undefined, true,
-    `${precision}: Half renders the authored Double token already sealed for its selected bits`);
+      planned.expression.expression.token === admitted.recipe.token && planned.expression.expression.suffix === "D", true,
+    `${precision}: Half renders the canonical Double token already sealed for its selected bits`);
   }
 });
 

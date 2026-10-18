@@ -112,7 +112,7 @@ export function selectCsharpExactLiteralConversion(
     if (!csharpFloat16LiteralFits(magnitude)) {
       return rejected(`Source numeric literal is outside the '${targetType.name}' range.`);
     }
-    return resolvedFloat16Literal(targetType, magnitude, createCsharpNumericLiteralToken(token.decimalText), token.negative);
+    return resolvedFloat16Literal(targetType, magnitude, createCsharpNumericLiteralToken(magnitude.toString()), token.negative);
   }
   if (Object.is(literal?.number, -0)) {
     if (targetType.name === "float64") {
@@ -210,7 +210,8 @@ export function selectCsharpExactPropertyKeyConversion(
     if (!fits) return rejected(`Source numeric property key is outside the '${physical.name}' range.`);
     if (physical.name === "float16") {
       const text = token === undefined ? magnitude!.toString() : token.decimalText;
-      return resolvedFloat16Literal(physical, Number(text), createCsharpNumericLiteralToken(text), negative);
+      const magnitude = Number(text);
+      return resolvedFloat16Literal(physical, magnitude, createCsharpNumericLiteralToken(magnitude.toString()), negative);
     }
     return resolved({ kind: "float", target: physical, precision: physical.name,
       token: createCsharpNumericLiteralToken(token === undefined ? magnitude!.toString() : token.decimalText), negative });
