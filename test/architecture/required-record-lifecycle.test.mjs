@@ -133,7 +133,7 @@ test("analyzeIteration passes its list to storage and operations and returns it 
   const shorthand = descendants(returned).filter(node => ast.is.IsShorthandPropertyAssignment(node) && named(node, "requiredRecords"));
   assert.equal(ast.is.IsReturnStatement(returned) && shorthand.length === 1, true,
     "iteration state: the final return carries the list as requiredRecords");
-  for (const callee of ["analyzeCsharpClassFactories", "analyzeCsharpNativeDemand", "admitCsharpBindingPatterns", "conversionAnalysis.close"]) {
+  for (const callee of ["analyzeCsharpClassFactories", "analyzeCsharpNativeDemand", "admitCsharpBindingPatterns", "admitCsharpForInBindings", "conversionAnalysis.close"]) {
     const call = composedCall(callee, iteration, "iteration state");
     assert.equal(text(ast.arguments(call).at(-1)) === "requiredRecords", true,
       `iteration state: ${callee} receives the same requirement list`);
@@ -143,8 +143,8 @@ test("analyzeIteration passes its list to storage and operations and returns it 
   const inputList = input === undefined || !ast.is.IsObjectLiteralExpression(input) ? undefined : property(input, "requiredRecords");
   assert.equal(inputList !== undefined && ast.is.IsShorthandPropertyAssignment(inputList), true,
     "iteration state: participation receives the same requirement list without an alias");
-  assert.equal(identifiers(iteration, "requiredRecords").length === 9, true,
-    "iteration state: one declaration, seven concrete owning producers and one return carry the same list");
+  assert.equal(identifiers(iteration, "requiredRecords").length === 10, true,
+    "iteration state: one declaration, eight concrete owning producers and one return carry the same list");
 });
 
 test("native handler finalization receives the operations producer's mandatory list before sealing", () => {
