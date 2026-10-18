@@ -1,15 +1,9 @@
 import type { CsharpPlanningContext } from "../context.js";
 import { planCsharpCaptureFrame, planCsharpCapturedInitialization } from "../bindings/capture-storage.js";
-import {
-  AsIdentifier,
-  AsVariableDeclaration,
-  HasSourceKind,
-  KindIdentifier,
-  KindVariableDeclarationList,
-  Node_Text,
-} from "@tsonic/target-api/source";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import { Node_Text } from "@tsonic/target-api/source";
+import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { failTargetPlannerInvariant } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpStatement,
@@ -32,7 +26,7 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
-import { type CsharpResolvedIteration } from "../../../target-model/records/selection.js";
+import type { CsharpAdmittedIteration, CsharpForInKeyBinding, CsharpResolvedIteration } from "../../../target-model/records/selection.js";
 import type {
   CsharpPropertyKeyIterationPolicy,
   TargetTypeRef,
@@ -44,12 +38,12 @@ import {
   planCsharpTypedLocationIdentityDeclaration,
 } from "../bindings/typed-location-identities.js";
 
+import { applyCsharpConversionSelection } from "../expressions/conversions.js";
+
 export interface PlannedForInBinding {
-  readonly kind: "LocalDeclarationStatement" | "assignment";
   readonly name: string;
-  readonly node: Node;
-  readonly currentType?: ReturnType<typeof getCsharpTypeForNode>;
-  readonly declarationKind?: "var" | "let" | "const";
+  readonly selection: CsharpForInKeyBinding;
+  readonly keyType: TargetTypeRef;
 }
 
 export interface PlannedForInBindingActivation {
@@ -62,78 +56,17 @@ export interface PlannedForInKeyCollectionBindingActivation extends PlannedForIn
 }
 
 export function planForInBinding(
-  initializer: Node | undefined,
-  targetType: TargetTypeRef,
-  sourceFile: SourceFile,
+  iteration: Extract<CsharpAdmittedIteration, { readonly iterationKind: "for-in" }>,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-): PlannedForInBinding | undefined {
-  if (initializer === undefined) {
-    diagnostics.push({
-      code: "CSHARP_UNSUPPORTED_FOR_IN_BINDING",
-      category: "error",
-      source: "tsonic-csharp",
-      message: "For-in statement has no initializer.",
-    });
-    return undefined;
-  }
-  if (HasSourceKind(input.program.source.ast, initializer, KindVariableDeclarationList)) {
-    const concreteDeclarations = input.program.source.ast.children(initializer)
-      .filter((declaration): declaration is Node => declaration !== undefined && input.program.source.ast.is.IsVariableDeclaration(declaration));
-    const first = concreteDeclarations[0];
-    if (first === undefined || concreteDeclarations.length !== 1) {
-      diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-in variable declaration must contain exactly one binding."));
-      return undefined;
-    }
-    const variable = AsVariableDeclaration(input.program.source.ast, first)!;
-    if (variable.Initializer !== undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(first, "For-in variable declaration cannot have an initializer."));
-      return undefined;
-    }
-    if (variable.name === undefined || !HasSourceKind(input.program.source.ast, variable.name, KindIdentifier)) {
-      diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? first, "For-in C# key binding must be an identifier; binding patterns require finalized object-key destructuring facts."));
-      return undefined;
-    }
-    const declarationKind = input.program.source.ast.variableDeclarationKind(initializer);
-    if (
-      declarationKind !== "var" &&
-      declarationKind !== "let" &&
-      declarationKind !== "const"
-    ) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        initializer,
-        "For-in C# key bindings require an exact var, let, or const declaration kind.",
-      ));
-      return undefined;
-    }
-    const storageType = input.program.records.storageType.get(first) ?? targetType;
-    const currentType = csharpTypeFromTargetTypeRef(storageType, input.scope.typeParameterNames);
-    if (currentType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        first,
-        "The exact for-in binding storage representation is not renderable in C#.",
-      ));
-      return undefined;
-    }
-    return {
-      kind: "LocalDeclarationStatement",
-      name: requireCsharpIdentifier(Node_Text(input.program.source.ast, variable.name), diagnostics, "For-in key binding"),
-      node: first,
-      currentType,
-      declarationKind,
-    };
-  }
-  if (HasSourceKind(input.program.source.ast, initializer, KindIdentifier)) {
-    const identifier = AsIdentifier(input.program.source.ast, initializer)!;
-    return {
-      kind: "assignment",
-      name: requireCsharpIdentifier(Node_Text(input.program.source.ast, identifier), diagnostics, "For-in assignment target"),
-      node: initializer,
-      currentType: getCsharpTypeForNode(initializer, sourceFile, input, undefined, diagnostics),
-    };
-  }
-  diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-in initializer binding is outside the current C# planning surface."));
-  return undefined;
+): PlannedForInBinding {
+  const selection = iteration.binding;
+  return {
+    name: requireCsharpIdentifier(Node_Text(input.program.source.ast, selection.name), diagnostics,
+      selection.kind === "assignment" ? "For-in assignment target" : "For-in key binding"),
+    selection,
+    keyType: iteration.elementType,
+  };
 }
 
 export function getForInKeyType(
@@ -188,7 +121,6 @@ export function getCsharpTypeForForInCollection(
 
 export function planForInBindingActivationForIndex(
   binding: PlannedForInBinding,
-  keyType: ReturnType<typeof getCsharpTypeForNode>,
   indexName: string,
   lowering: Extract<
     CsharpPropertyKeyIterationPolicy,
@@ -201,14 +133,13 @@ export function planForInBindingActivationForIndex(
   const keyExpression = forInKeyExpression(
     indexName,
     lowering,
-    binding.node,
+    binding.selection.node,
     diagnostics,
   );
   return keyExpression === undefined
     ? undefined
     : planForInBindingActivation(
         binding,
-        keyType,
         keyExpression,
         input,
         state,
@@ -218,116 +149,66 @@ export function planForInBindingActivationForIndex(
 
 export function planForInBindingActivation(
   binding: PlannedForInBinding,
-  keyType: ReturnType<typeof getCsharpTypeForNode>,
   keyExpression: CsharpExpression,
   input: CsharpPlanningContext,
   state: DestructuringPlannerState,
   diagnostics: TargetDiagnostic[],
-): PlannedForInBindingActivation {
-  const declaration = binding.kind === "assignment"
-    ? input.program.sourceNavigation.sourceReferenceFor(binding.node)?.declaration : binding.node;
-  const captured = declaration === undefined ? undefined : planCsharpCapturedInitialization(declaration, keyExpression, input, state);
+): PlannedForInBindingActivation | undefined {
+  const selected = binding.selection;
+  const sourceFile = input.program.source.ast.getSourceFile(selected.node) ?? failTargetPlannerInvariant(
+    "tsonic-csharp", "An admitted for-in binding retains its exact checked source file.", selected.node);
+  const value = applyCsharpConversionSelection(selected.node, sourceFile, input, diagnostics,
+    binding.keyType, selected.storageType, selected.conversion, keyExpression);
+  if (value === undefined) return undefined;
+  const captured = planCsharpCapturedInitialization(selected.declaration, value, input, state);
   if (captured !== undefined) {
-    const selected = input.program.records.capturedBinding.get(declaration!);
-    const scope = selected?.frame.scope;
+    const scope = input.program.records.capturedBinding.get(selected.declaration)?.frame.scope;
     const loop = scope !== undefined && ["KindForInStatement", "KindForOfStatement"].includes(input.program.source.ast.kindName(scope));
-    const identity = planCsharpTypedLocationIdentityDeclaration(declaration!, input, state);
+    const identity = planCsharpTypedLocationIdentityDeclaration(selected.declaration, input, state);
     return { outerPrelude: [], iterationPrelude: [
       ...(loop ? planCsharpCaptureFrame(scope, input, diagnostics, state) : []),
       ...(identity === undefined ? [] : [identity]), captured,
     ] };
   }
-  if (binding.kind === "assignment") {
-    return {
-      outerPrelude: [],
-      iterationPrelude: [expressionStatement({
-        kind: "AssignmentExpression",
-        left: { kind: "IdentifierName", name: binding.name },
-        operatorToken: { kind: "EqualsToken" },
-        right: keyExpression,
-      })],
-    };
-  }
-  const identity = planCsharpTypedLocationIdentityDeclaration(
-    binding.node,
-    input,
-    state,
-  );
-  if (binding.declarationKind === "var") {
-    return {
-      outerPrelude: [
-        {
-          kind: "LocalDeclarationStatement",
-          name: binding.name,
-          type: keyType,
-        },
-        ...(identity === undefined ? [] : [identity]),
-      ],
-      iterationPrelude: [expressionStatement({
-        kind: "AssignmentExpression",
-        left: { kind: "IdentifierName", name: binding.name },
-        operatorToken: { kind: "EqualsToken" },
-        right: keyExpression,
-      })],
-    };
-  }
-  return {
+  if (selected.kind === "assignment") return {
     outerPrelude: [],
-    iterationPrelude: [
-      {
-      kind: "LocalDeclarationStatement",
-      name: binding.name,
-      type: keyType,
-      initializer: keyExpression,
-      },
-      ...(identity === undefined ? [] : [identity]),
-    ],
+    iterationPrelude: [expressionStatement({ kind: "AssignmentExpression",
+      left: { kind: "IdentifierName", name: binding.name }, operatorToken: { kind: "EqualsToken" }, right: value })],
   };
+  const storageType = csharpTypeFromTargetTypeRef(selected.storageType, input.scope.typeParameterNames) ?? failTargetPlannerInvariant(
+    "tsonic-csharp", "An admitted for-in declaration retains its renderable native storage type.", selected.node);
+  const identity = planCsharpTypedLocationIdentityDeclaration(selected.declaration, input, state);
+  if (selected.declarationKind === "var") return {
+    outerPrelude: [{ kind: "LocalDeclarationStatement", name: binding.name, type: storageType },
+      ...(identity === undefined ? [] : [identity])],
+    iterationPrelude: [expressionStatement({ kind: "AssignmentExpression",
+      left: { kind: "IdentifierName", name: binding.name }, operatorToken: { kind: "EqualsToken" }, right: value })],
+  };
+  return { outerPrelude: [], iterationPrelude: [
+    { kind: "LocalDeclarationStatement", name: binding.name, type: storageType, initializer: value },
+    ...(identity === undefined ? [] : [identity]),
+  ] };
 }
 
 export function planForInKeyCollectionBindingActivation(
   binding: PlannedForInBinding,
-  keyType: ReturnType<typeof getCsharpTypeForNode>,
+  keyType: CsharpTypeNode,
   syntheticItemName: string,
   input: CsharpPlanningContext,
   state: DestructuringPlannerState,
   diagnostics: TargetDiagnostic[],
-): PlannedForInKeyCollectionBindingActivation {
-  if (
-    binding.kind === "LocalDeclarationStatement" &&
-    binding.declarationKind === "const"
-  ) {
-    const identity = planCsharpTypedLocationIdentityDeclaration(
-      binding.node,
-      input,
-      state,
-    );
-    if (identity === undefined) {
-      return {
-        itemName: binding.name,
-        outerPrelude: [],
-        iterationPrelude: [],
-      };
-    }
-    const activation = planForInBindingActivationWithIdentity(
-      binding,
-      keyType,
-      { kind: "IdentifierName", name: syntheticItemName },
-      identity,
-    );
+): PlannedForInKeyCollectionBindingActivation | undefined {
+  const selected = binding.selection;
+  if (selected.kind === "declaration" && selected.declarationKind === "const" && selected.conversion.kind === "identity") {
+    const identity = planCsharpTypedLocationIdentityDeclaration(selected.declaration, input, state);
+    if (identity === undefined) return { itemName: binding.name, outerPrelude: [], iterationPrelude: [] };
+    const activation = planForInBindingActivationWithIdentity(binding, keyType,
+      { kind: "IdentifierName", name: syntheticItemName }, identity);
     return { itemName: syntheticItemName, ...activation };
   }
-  return {
-    itemName: syntheticItemName,
-    ...planForInBindingActivation(
-      binding,
-      keyType,
-      { kind: "IdentifierName", name: syntheticItemName },
-      input,
-      state,
-      diagnostics,
-    ),
-  };
+  const activation = planForInBindingActivation(binding,
+    { kind: "IdentifierName", name: syntheticItemName }, input, state, diagnostics);
+  return activation === undefined ? undefined : { itemName: syntheticItemName, ...activation };
 }
 
 function planForInBindingActivationWithIdentity(

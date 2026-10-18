@@ -35,7 +35,11 @@ import {
 } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeClassifications } from "../objects/model.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpTargetOperationClassifications, CsharpOperationIssue } from "../../target-model/records/operations.js";
+import type { CsharpAdmittedIteration } from "../../target-model/records/selection.js";
+import type { CsharpOperationSelection } from "../../target-model/records/operator-selection.js";
+import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import { selectCsharpForInKeyBinding } from "../../policy/operations/iteration/selection.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import type { CsharpNativeParticipationInput } from "../../target-model/records/native-demand.js";
 import type {
@@ -659,4 +663,43 @@ export function analyzeCsharpBindingPatterns(
     assignmentDefaults.add(node);
     return { target: assignmentTarget(expression.Left), initializer: expression.Right };
   }
+}
+
+export function admitCsharpForInBindings(
+  input: Parameters<typeof selectCsharpForInKeyBinding>[0] & {
+    readonly nodes: readonly Node[];
+    readonly operations: CsharpTargetOperationClassifications;
+    readonly nativeDemand: Pick<CsharpNativeDemandAnalysis, "requiredBindingRoots" | "nativeUse">;
+  },
+  requirements: CsharpRequiredRecord[],
+): CsharpTargetOperationClassifications<CsharpAdmittedIteration> {
+  const required = new Set(input.nativeDemand.requiredBindingRoots);
+  const iterations = new Map<Node, CsharpOperationSelection<CsharpAdmittedIteration>>();
+  const issues: CsharpOperationIssue[] = [...input.operations.issues];
+  for (const subject of required) if (input.ast.is.IsForInStatement(subject)) requireCsharpRecord(requirements, {
+    family: "iteration", subject, construct: "consumed native for-in key assignment", producer: "admitCsharpForInBindings",
+  });
+  for (const node of input.nodes) {
+    const selected = input.operations.iteration.get(node);
+    if (selected === undefined) continue;
+    if (selected.kind === "rejected") {
+      iterations.set(node, selected);
+      if (input.nativeDemand.nativeUse.order(node) !== undefined && input.ast.is.IsForInStatement(node)) issues.push(Object.freeze({
+        node, code: "CSHARP_UNSUPPORTED_AST", message: selected.reason,
+      }));
+    } else if (selected.iterationKind !== "for-in") {
+      iterations.set(node, selected);
+    } else if (input.nativeDemand.nativeUse.order(node) !== undefined) {
+      if (!required.has(node)) requireCsharpRecord(requirements, {
+        family: "iteration", subject: node, construct: "consumed native for-in key assignment", producer: "admitCsharpForInBindings",
+      });
+      const selection = selectCsharpForInKeyBinding(input, node, selected);
+      if (selection.kind === "rejected") {
+        issues.push(Object.freeze({ node: input.ast.as.AsForInOrOfStatement(node)?.Initializer ?? node,
+          code: "CSHARP_FOR_IN_BINDING_NOT_PROVEN", message: selection.reason }));
+      } else iterations.set(node, Object.freeze({ ...selected, binding: selection.binding }));
+    }
+  }
+  return Object.freeze({ ...input.operations, issues: Object.freeze(issues),
+    iteration: Object.freeze({ get: (node: Node) => iterations.get(node) }) });
 }
