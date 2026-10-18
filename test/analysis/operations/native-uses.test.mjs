@@ -7,6 +7,7 @@ import { analyzeCsharpNativeDemand } from "../../../dist/analysis/operations/nat
 import { analyzeCsharpExpectedTypes } from "../../../dist/analysis/expected-types/analyze.js";
 import { admitCsharpExpectedNativeUses } from "../../../dist/analysis/expected-types/native-uses.js";
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/relations/resolver.js";
 
 function owners(sourceText, surface = "native") {
   const compiled = compileCsharpSource({ sourceText, surface });
@@ -21,7 +22,15 @@ function owners(sourceText, surface = "native") {
   for (const file of program.sourceFiles) walk(file);
   const participation = records.nativeParticipation;
   const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: program.sourceFiles, participation, evidence: records,
-    operations: records, valueReads: records, objectShapes: program.objectShapes });
+    operations: records, valueReads: records, objectShapes: program.objectShapes, storage: records,
+    typePolicy: { resolveType: () => assert.fail("These native-use fixtures require no source-owned member resolution.") },
+    conversionPolicy: { target: compiled.target, typeDefinitions: program.typeDefinitions, objectShapes: program.objectShapes,
+      providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
+      projectTypes: { directSupertypes: type => {
+        const heritage = program.projectTypes.heritageForTarget(type);
+        return heritage === undefined ? undefined : heritage.baseType === undefined
+          ? heritage.interfaces : [heritage.baseType, ...heritage.interfaces];
+      } } } });
   const input = { ast, sourceFiles: program.sourceFiles, navigation: program.sourceNavigation, evidence: records, operations: records,
     nativeExpressionIssues: [],
     declarations: records, objectShapes: program.objectShapes,

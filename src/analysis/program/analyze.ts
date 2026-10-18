@@ -390,12 +390,6 @@ export function analyzeCsharpTargetProgram(
   );
   if (nativeValueCarriers.issues.length > 0) return rejectCsharpAnalysisIssues(nativeValueCarriers.issues);
   if (bindingPatterns.issues.length > 0) return rejectCsharpAnalysisIssues(bindingPatterns.issues);
-  const pendingUses = nativeDemand.unadmitted.filter(use => use.kind === "pending-use");
-  if (pendingUses.length > 0) {
-    const incomplete = pendingUses[0]!;
-    return failTargetAnalysisInvariant("tsonic-csharp",
-      `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
-  }
   if (analysis.refLikeDiagnostics.length > 0) return rejectedTargetStage(analysis.refLikeDiagnostics);
   const promiseResults = analyzeCsharpPromiseResults({ source, genericAdoption,
     storage: sourceStorage, nodes: sourceStorage.nodes,
@@ -427,6 +421,12 @@ export function analyzeCsharpTargetProgram(
       analysis.declarations, callableAdapters.callableDispatch),
   ];
   if (nonCallableIssues.length > 0) return rejectedTargetStage(nonCallableIssues);
+  const pendingUses = nativeDemand.unadmitted.filter(use => use.kind === "pending-use");
+  if (pendingUses.length > 0) {
+    const incomplete = pendingUses[0]!;
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
+  }
   const objectShapeDemand = analyzeCsharpNativeArtifactDemand({
     ast: source.ast, sourceFiles, propertyNames: sourceSyntax.propertyNames,
     nativeDemand, participation: nativeParticipation.participation,
@@ -630,7 +630,7 @@ function analyzeIteration(
   const bindingCandidates = analyzeCsharpBindingPatterns({
     ast: source.ast, semanticsFor: source.semantics.forNode, sourceFiles, participation: nativeParticipation.participation,
     evidence: sourceEvidence, operations, valueReads, objectShapes,
-    typePolicy: policy.types, conversionPolicy: policy, storage: storageRepresentations,
+    typePolicy: policy.types, conversionPolicy: Object.freeze({ ...policy, objectShapes }), storage: storageRepresentations,
   });
   const expectedUse = admitCsharpExpectedNativeUses(expectedTypes, {
     ast: source.ast, exactLiteral: exactLiterals.exactLiteral, callableCreation: callableCreations.callableCreation,

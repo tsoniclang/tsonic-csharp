@@ -11,6 +11,7 @@ import { getCsharpArrayLiteralElementTargetType } from "../../../dist/target-mod
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/relations/resolver.js";
 
 const emissionPrograms = [
   ["class and static initializers", `
@@ -542,7 +543,15 @@ function owners(sourceText, surface = "js") {
   const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
   for (const file of program.sourceFiles) walk(file);
   const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: program.sourceFiles, participation: records.nativeParticipation,
-    evidence: records, operations: records, valueReads: records, objectShapes: program.objectShapes });
+    evidence: records, operations: records, valueReads: records, objectShapes: program.objectShapes, storage: records,
+    typePolicy: { resolveType: () => assert.fail("These native-use closure fixtures require no source-owned member resolution.") },
+    conversionPolicy: { target: compiled.target, typeDefinitions: program.typeDefinitions, objectShapes: program.objectShapes,
+      providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
+      projectTypes: { directSupertypes: type => {
+        const heritage = program.projectTypes.heritageForTarget(type);
+        return heritage === undefined ? undefined : heritage.baseType === undefined
+          ? heritage.interfaces : [heritage.baseType, ...heritage.interfaces];
+      } } } });
   const input = { ast, sourceFiles: program.sourceFiles, navigation: program.sourceNavigation, evidence: records, operations: records,
     nativeExpressionIssues: [],
     declarations: records, objectShapes: program.objectShapes,

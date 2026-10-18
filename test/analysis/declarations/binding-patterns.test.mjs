@@ -6,6 +6,7 @@ import { analyzeCsharpBindingPatterns, isCsharpUnusedTupleDefault } from "../../
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpJsSetTargetType } from "../../../dist/target-model/types/carriers/js.js";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/relations/resolver.js";
 
 const arrayMessage = "Array destructuring requires a finalized provider array or tuple runtime-carrier fact for the source expression. Runtime carrier fact is missing for the array destructuring source expression.";
 
@@ -13,10 +14,10 @@ function publishedProgram(sourceText, surface) {
   const compiled = compileCsharpSource({ sourceText, surface });
   assert.equal(compiled.sourceDiagnosticsText, "", "the source checks without diagnostics");
   assert.equal(compiled.result.program !== undefined, true, `the analysis publishes a program: ${compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; ")}`);
-  return { program: compiled.result.program, source: createTargetSourceProgram(compiled.source) };
+  return { program: compiled.result.program, source: createTargetSourceProgram(compiled.source), target: compiled.target };
 }
 
-function factsInput(program, source) {
+function factsInput(program, source, target) {
   return {
     ast: program.source.ast,
     semanticsFor: source.semantics.forNode,
@@ -26,6 +27,19 @@ function factsInput(program, source) {
     operations: program.records,
     valueReads: program.records,
     objectShapes: program.objectShapes,
+    storage: program.records,
+    typePolicy: { resolveType: () => assert.fail("These array and object-shape fixtures require no source-owned member resolution.") },
+    conversionPolicy: {
+      target,
+      typeDefinitions: program.typeDefinitions,
+      objectShapes: program.objectShapes,
+      providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
+      projectTypes: { directSupertypes: type => {
+        const heritage = program.projectTypes.heritageForTarget(type);
+        return heritage === undefined ? undefined : heritage.baseType === undefined
+          ? heritage.interfaces : [heritage.baseType, ...heritage.interfaces];
+      } },
+    },
   };
 }
 
@@ -51,7 +65,7 @@ function findNode(program, kindName, text) {
 const float64Key = targetTypeRefKey(csharpSourcePrimitiveTargetType("float64"));
 
 test("binding facts and tuple defaults are computed once for declaration, parameter, assignment and for-of patterns", () => {
-  const { program, source } = publishedProgram(`
+  const { program, source, target } = publishedProgram(`
     export function run(pair: [number, number], optional: [number, number?], rows: [number, number][]): number {
       const [first = 1] = pair;
       const [, second = 3] = optional;
@@ -63,7 +77,7 @@ test("binding facts and tuple defaults are computed once for declaration, parame
     }
     export function parameter([head, tail]: [number, number]): number { return head + tail; }
   `, "native");
-  const analysis = analyzeCsharpBindingPatterns(factsInput(program, source));
+  const analysis = analyzeCsharpBindingPatterns(factsInput(program, source, target));
   const projection = analysis.bindingPatternProjection;
   const ast = program.source.ast;
   assert.equal(Object.isFrozen(analysis) && Object.isFrozen(analysis.candidates), true, "the analysis result is frozen");
@@ -121,7 +135,15 @@ test("an unsupported pattern stays a candidate issue with its pattern root and n
     evidence: { compileTimeMetadata: { get: () => false } },
     operations: { nativeUnreachable: { get: () => false } },
     valueReads: { valueRead: { get: node => node === initializer ? { value: carrier } : undefined } },
-    objectShapes: { resolveNode: () => undefined } });
+    objectShapes: { resolveNode: () => undefined },
+    storage: { storageType: { get: () => assert.fail("The unsupported source is refused before destination storage is queried.") } },
+    typePolicy: { resolveType: () => assert.fail("The unsupported array source has no source-owned member resolution.") },
+    conversionPolicy: {
+      target: checked.target,
+      objectShapes: { resolveTarget: () => undefined },
+      providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
+      projectTypes: { directSupertypes: () => undefined },
+    } });
   assert.equal(analysis.candidates.length === 1, true, "one candidate issue");
   const [candidate] = analysis.candidates;
   assert.equal(candidate.node === pattern && candidate.root === declaration, true, "the candidate names its pattern and its declaration root");
@@ -137,7 +159,7 @@ test("an unsupported pattern stays a candidate issue with its pattern root and n
 });
 
 test("binding traversal consumes final participation and skips the complete unused-default subtree", () => {
-  const { program, source } = publishedProgram(`
+  const { program, source, target } = publishedProgram(`
     export function run(pair: [number, number]): number {
       function unused(): number { const [hidden] = pair; return hidden; }
       (() => { const [discarded] = pair; return discarded; });
@@ -145,7 +167,7 @@ test("binding traversal consumes final participation and skips the complete unus
       return present;
     }
   `, "native");
-  const projection = analyzeCsharpBindingPatterns(factsInput(program, source)).bindingPatternProjection;
+  const projection = analyzeCsharpBindingPatterns(factsInput(program, source, target)).bindingPatternProjection;
   for (const name of ["hidden", "discarded", "defaulted"]) {
     const pattern = findNode(program, "KindArrayBindingPattern", `[${name}]`);
     assert.equal(projection.get(pattern) === undefined, true, `${name}: no facts for an erased or unused root`);
@@ -162,7 +184,7 @@ test("binding traversal consumes final participation and skips the complete unus
 });
 
 test("object and tuple rest facts preserve finalized member identities and nested projections", () => {
-  const { program, source } = publishedProgram(`
+  const { program, source, target } = publishedProgram(`
     export interface Pair { first: number; second: number; }
     export function run(source: Pair, nested: [[number, number], number]): number {
       const { first, ...rest } = source;
@@ -170,7 +192,7 @@ test("object and tuple rest facts preserve finalized member identities and neste
       return first + rest.second + head + tail[0];
     }
   `, "native");
-  const analysis = analyzeCsharpBindingPatterns(factsInput(program, source));
+  const analysis = analyzeCsharpBindingPatterns(factsInput(program, source, target));
   assert.equal(analysis.candidates.length, 0, "all finalized rest contracts are admitted as facts");
   const rest = analysis.bindingPatternProjection.get(findNode(program, "KindBindingElement", "...rest"))?.element;
   assert.equal(rest?.kind === "object-shape-rest" && rest.members.length === 1 && rest.members[0].source.sourceName === "second" &&
@@ -182,14 +204,14 @@ test("object and tuple rest facts preserve finalized member identities and neste
 });
 
 test("missing loop-head evidence keeps the actual for-of root private until demand admission", () => {
-  const { program, source } = publishedProgram(`
+  const { program, source, target } = publishedProgram(`
     export function run(rows: [number, number][]): number {
       let total = 0;
       for (const [left, right] of rows) total += left + right;
       return total;
     }
   `, "native");
-  const input = factsInput(program, source);
+  const input = factsInput(program, source, target);
   const head = findNode(program, "KindVariableDeclaration", "[left, right]");
   const loop = findNode(program, "KindForOfStatement", "for (const [left, right] of rows) total += left + right;");
   const analysis = analyzeCsharpBindingPatterns({ ...input,

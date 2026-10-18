@@ -78,6 +78,25 @@ if (Tsonic.Generated.Index.run() != 4 || Tsonic.Generated.Index.other() != 5)
 }
 
 for (const surface of ["native", "js"]) {
+  test(`local interface statements are refused by declaration admission before publication on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      export function run(): number {
+        interface Value { value: number; }
+        const input: Value = { value: 1 };
+        return input.value;
+      }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the local interface is checked source, not malformed grammar");
+    const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
+    assert.equal(issues.length, 1, "one declaration admission owner preserves the original refusal");
+    assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", "the existing source refusal code is unchanged");
+    assert.equal(issues[0].message, "Statement is outside the current C# planning surface.",
+      "the existing source refusal reason is unchanged");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true,
+      "a source refusal never publishes successful records or enters planning");
+    assert.equal(compiled.artifacts.size, 0, "a refused local interface cannot emit partial artifacts");
+  });
+
   test(`retained destructuring publishes exact extraction, destination and admitted conversion on ${surface}`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
       import type { int } from "@tsonic/csharp/types.js";
@@ -87,7 +106,7 @@ for (const surface of ["native", "js"]) {
         const [first, ...rest] = values;
         let assigned: number = 0;
         [assigned] = values;
-        return value + first + assigned + rest.length;
+        return value + first + assigned + rest[0];
       }
     ` });
     assert.equal(compiled.sourceDiagnosticsText, "", "all extraction and destination types are checked source");

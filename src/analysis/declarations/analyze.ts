@@ -78,6 +78,13 @@ export function admitCsharpNativeDeclarations(
     if (nativeUse.order(node) === undefined || metadata.compileTimeMetadata.get(node) ||
       nativeUnreachable.get(node) || participation.get(node) === "erased" || sourceClassFieldIsTypeOnly(ast, node)) continue;
     admitCsharpDeclarationModifiers(ast, node, refuse);
+    if (ast.is.IsInterfaceDeclaration(node)) {
+      const owner = ast.parent(node);
+      if (owner !== undefined && ast.is.IsBlock(owner)) {
+        refuse(node, "Statement is outside the current C# planning surface.");
+        continue;
+      }
+    }
     if (ast.is.IsMethodDeclaration(node)) {
       const write = declarations.methodWrite.get(node);
       if (write !== undefined) {

@@ -12,7 +12,7 @@ const throwMessage = "Throw statements require C# type syntax for the sealed thr
 for (const surface of ["native", "js"]) {
   test(`an unrepresentable public native throw is refused before publication on ${surface}`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
-      import type { float16 } from "@tsonic/csharp/types.js";
+      import type { float16 } from "@tsonic/core/types.js";
       export function fail(value: float16): void { throw value; }
     ` });
     assert.equal(compiled.sourceDiagnosticsText, "", "the native half-precision argument has checked source types");

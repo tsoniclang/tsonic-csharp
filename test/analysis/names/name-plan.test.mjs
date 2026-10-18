@@ -96,7 +96,9 @@ for (const surface of ["native", "js"]) {
     const selected = program.names.resolve(ast.name(declaration));
     assert.equal(selected.kind === "resolved" && selected.name === "value_1", true,
       "the native CS0136 shadowing constraint is solved by the sole pre-seal name owner");
-    for (const reference of program.sourceNavigation.referencesToDeclaration(declaration)) {
+    const references = createTargetSourceProgram(compiled.source).navigation.referencesToDeclaration(declaration);
+    assert.equal(references.length > 0, true, "the checked declaration has actual bound reference witnesses");
+    for (const reference of references) {
       if (ast.is.IsIdentifier(reference)) assert.equal(program.names.resolve(reference) === selected, true,
         "every bound reference consumes the identical selected native name");
     }
