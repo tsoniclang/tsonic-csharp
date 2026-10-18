@@ -663,6 +663,7 @@ function analyzeIteration(
   evidence.sealCompileTimeDeclarations();
   const nativeDemand = analyzeCsharpNativeDemand({
     ast: source.ast, sourceFiles, navigation: source.navigation, evidence: sourceEvidence,
+    names,
     operations, valueReads, participation: nativeParticipation.participation, declarations, objectShapes,
     bindingPatterns: bindingCandidates, callableCreation: callableCreations.callableCreation, attributeApplications: attributes.index,
     callableTarget: callableCreations.callableTarget,
