@@ -6,9 +6,6 @@ import type {
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
 import {
-  unsupportedNodeDiagnostic,
-} from "../diagnostics.js";
-import {
   allocateForInNames,
 } from "../bindings/index.js";
 import type {
