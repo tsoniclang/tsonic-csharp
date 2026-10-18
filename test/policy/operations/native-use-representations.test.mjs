@@ -9,6 +9,7 @@ import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/c
 import { selectCsharpExactLiteralConversion } from "../../../dist/policy/conversions/literals.js";
 import { csharpObjectTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 const floating = Object.freeze({ kind: "source-primitive", name: "float64" });
@@ -141,6 +142,26 @@ test("an explicit floating cast retains exact wrapper children instead of a dire
   }
 });
 
+test("an explicit nullable float32 cast retains its real double construction and native lifted conversion", () => {
+  const expression = initializer("wide");
+  const single = Object.freeze({ kind: "source-primitive", name: "float32" });
+  const target = csharpNullableTargetType(single);
+  const literal = analyzeSourceLiteralValues(ast, source.sourceFiles).literalValue.get(expression);
+  const input = { ...base(expression), target, mode: "explicit",
+    literal: selectCsharpExactLiteralConversion(literal, target),
+    sourceLiteral: selectCsharpExactLiteralConversion(literal, floating) };
+  assert.equal(input.literal.kind === "rejected" && input.sourceLiteral.kind === "source-representation", true,
+    "the nullable destination does not change the source literal's finite double representation");
+  const selected = selectCsharpNativeUseRepresentation(input);
+  assert.equal(selected.kind === "selected" && selected.representation === "convert" && selected.carrier === floating &&
+    selected.literal === undefined && selected.construction?.carrier === floating &&
+    selected.children[0] === selected.construction.site, true,
+  "the existing explicit nullable conversion follows the real double construction, never a direct overflowing float literal");
+  const implicit = selectCsharpNativeUseRepresentation({ ...input, mode: "implicit" });
+  assert.equal(implicit.kind === "pending" && implicit.reason === "literal-rejected" &&
+    implicit.message === input.literal.reason, true, "nullable literal construction retains the same implicit overflow refusal");
+});
+
 test("the exact native consumer selects raw storage once without undoing unrelated value refinement", () => {
   const source = csharpObjectTargetType();
   const storage = csharpTsValueTargetType();
@@ -154,6 +175,10 @@ test("the exact native consumer selects raw storage once without undoing unrelat
   assert.equal(projected.kind === "selected" && projected.representation === "forward" && projected.carrier === source &&
     projected.readProjection === "projected", true,
   "a distinct value consumer keeps its checked refinement rather than a raw-storage fallback");
+  const identical = selectCsharpNativeUseRepresentation({ ...input, source: storage });
+  assert.equal(identical.kind === "selected" && identical.representation === "forward" && identical.carrier === storage &&
+    identical.readProjection === "projected", true,
+  "identical logical carriers keep their admitted projection, including a generic deferred-field null-forgiving read");
 });
 
 test("a parenthesized physical contribution forwards to its exact construction carrier before injection", () => {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { createTargetSourceProgram, sourceBindingScope } from "@tsonic/target-api/source";
 import { selectCsharpFrameClosures } from "../../../dist/analysis/callables/capture-closures.js";
 import { csharpRuntimeParameterDefault } from "../../../dist/target-model/types/parameter-defaults.js";
 import { selectCsharpDefaultValueContract } from "../../../dist/policy/types/objects/binding-projection-policy.js";
@@ -136,8 +136,12 @@ test("a shared capture cannot invent a missing canonical callable target", () =>
     return read;
   }`);
   const closure = input.owner("read");
+  const binding = input.declaration("value");
+  const scope = sourceBindingScope(binding, input.source.ast);
+  assert.equal(scope !== undefined, true, "the actual shared binding has one lexical activation");
+  const groups = new Map([[scope, new Map([[binding, scalar]])]]);
   input.types.delete(closure);
-  const selected = input.select();
+  const selected = input.select(groups);
   assert.equal(selected.issues.some(issue => issue.code === "CSHARP_CAPTURE_CALLABLE_NOT_CLOSED" && issue.node === closure), true,
     "the actual callable target reader must supply the exact closure node, not a scalar or sibling type");
   assert.equal(selected.closures.length, 0, "no closure with an invented delegate contract is published");

@@ -20,14 +20,24 @@ function compileComparison(surface, condition) {
   const { ast } = compiled.source;
   const program = compiled.result.program;
   const comparisons = [];
+  const runtimeOperands = [];
   const visit = node => {
     const classification = ast.is.IsBinaryExpression(node)
       ? program.records.binaryOperation.get(node)?.typeofComparison
       : undefined;
     if (classification !== undefined) comparisons.push(classification);
+    if (ast.is.IsTypeOfExpression(node)) runtimeOperands.push(ast.as.AsTypeOfExpression(node).Expression);
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   program.sourceFiles.forEach(visit);
+  assert.equal(runtimeOperands.length, 1, "one actual typeof expression owns the operation");
+  const operand = runtimeOperands[0];
+  assert.equal(program.records.jsTypeof.get(operand) !== undefined, true,
+    "the sole category operation remains keyed by the actual source operand, including its wrapper");
+  if (comparisons[0]?.operand !== operand) {
+    assert.equal(program.records.jsTypeof.get(comparisons[0]?.operand) === undefined, true,
+      "native category comparison consumes its own sealed selection, not a second eager operation on the unwrapped value");
+  }
   const output = compiled.result.artifacts.filter(artifact => artifact.path.endsWith(".cs"))
     .map(artifact => artifact.text).join("\n");
   const emitted = output.match(/^\s*if \((.*)\)\s*$/mu)?.[1];
@@ -83,4 +93,55 @@ for (const surface of ["native", "js"]) test(`${surface} a JS-value typeof compa
   assert.equal(comparisons === 1 && runtime === 1, true, "the exact comparison and its sole runtime observation were both found");
   const output = [...compiled.artifacts.values()].join("\n");
   assert.equal(output.includes("ApplyDynamicTypeof"), true, "the sealed runtime observation reaches native emission unchanged");
+});
+
+for (const surface of ["native", "js"]) test(`${surface} type-only imports and queries never acquire runtime typeof registrations`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    import { attribute } from "@tsonic/core/lang.js";
+    import type { int32 } from "@tsonic/core/types.js";
+    import { ObsoleteAttribute } from "@tsonic/dotnet/System.js";
+    export class Subject { value: int32 = 0; }
+    attribute<Subject>().add(() => new ObsoleteAttribute("old", true));
+    export function inspect(value: unknown): string {
+      type Local = typeof value;
+      const held = value;
+      return typeof held;
+    }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const program = compiled.result.program;
+  const ast = program.source.ast;
+  let erasedSubjects = 0;
+  let runtimeOperands = 0;
+  const visit = node => {
+    if (ast.is.IsImportClause(node) && ast.isTypeOnlyImportOrExportDeclaration(node)) {
+      erasedSubjects++;
+      assert.equal(program.records.jsTypeof.get(node) === undefined, true,
+        "the real symbol-less type-only import clause is outside the runtime operand domain");
+    }
+    if (ast.is.IsTypeQueryNode(node)) {
+      erasedSubjects++;
+      const name = ast.as.AsTypeQueryNode(node).ExprName;
+      assert.equal(program.records.jsTypeof.get(name) === undefined, true,
+        "the exact type-query reference has no runtime category operation");
+    }
+    if (ast.is.IsTypeOfExpression(node)) {
+      runtimeOperands++;
+      const operand = ast.as.AsTypeOfExpression(node).Expression;
+      const selected = program.records.jsTypeof.get(operand);
+      assert.equal(selected?.kind === "resolved" && selected.runtimeMember === "ApplyDynamicTypeof", true,
+        "the actual retained unknown operand keeps its canonical runtime observation");
+      assert.equal(program.records.jsTypeof.get(node) === undefined, true,
+        "the operation is keyed by the exact operand, not its parent expression");
+    }
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  program.sourceFiles.forEach(visit);
+  assert.equal(erasedSubjects, 2, "the original import clause and type-only value query were both checked");
+  assert.equal(runtimeOperands, 1, "the sole real typeof operand is admitted once");
+  const output = [...compiled.artifacts.values()].join("\n");
+  assert.equal(output.includes('[System.ObsoleteAttribute("old", true)]'), true,
+    "the valid original native attribute still reaches emitted C#");
+  assert.equal(output.includes("ApplyDynamicTypeof"), true,
+    "removing invalid eager registrations does not remove the retained native runtime observation");
 });

@@ -12,6 +12,7 @@ import {
 import type { CsharpOperationSelection, CsharpResolvedBinaryOperation } from "../../target-model/records/operator-selection.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 
 export interface CsharpNativeRepresentationChild {
   readonly site: TargetUseSiteRef;
@@ -100,8 +101,9 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
   }
   if (!input.absent) {
     if (input.literal === undefined) return pending("literal-unrequested");
+    const literalTarget = getCsharpNullableElementTargetType(target) ?? target;
     if (input.mode === "explicit" && input.source?.kind === "source-primitive" && input.source.name === "float64" &&
-      target.kind === "source-primitive" && target.name === "float32" &&
+      literalTarget.kind === "source-primitive" && literalTarget.name === "float32" &&
       (input.literal.kind === "resolved" || input.literal.kind === "rejected")) {
       if (input.sourceLiteral === undefined) return pending("literal-unrequested");
       if (input.sourceLiteral.kind === "rejected") return pending("literal-rejected", input.sourceLiteral.reason);
@@ -140,7 +142,8 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
     const children = Object.freeze([...input.children.values()].filter(entry => entry.site.role.startsWith(prefix)).map(entry => entry.site));
     return construct(carrier, children);
   }
-  if (input.storage !== undefined && targetTypeRefEquals(input.storage, target)) {
+  if (input.storage !== undefined && input.source !== undefined &&
+    !targetTypeRefEquals(input.storage, input.source) && targetTypeRefEquals(input.storage, target)) {
     return Object.freeze({ ...selected("forward", input.storage), readProjection: "storage" });
   }
   return input.source === undefined ? pending("source-unresolved")

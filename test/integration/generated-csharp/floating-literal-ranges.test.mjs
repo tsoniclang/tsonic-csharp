@@ -132,6 +132,9 @@ export function explicitLiteral(): float32 { return 1e40 as float32; }
 export function explicitWrapped(): float32 { return (1e40) as float32; }
 export function explicitNegativeWrapped(): float32 { return (-1e40) as float32; }
 export function explicitWrappedMidpoint(): float32 { return (1.00000005960464477539062500000001) as float32; }
+export function explicitNullableLiteral(): float32 | undefined { return 1e40 as float32 | undefined; }
+export function explicitNullableMidpoint(): float32 | undefined { return (1.00000005960464477539062500000001) as float32 | undefined; }
+export function explicitNullableAbsence(): float32 | undefined { return undefined; }
 export function defaultFloat(value: float32 = -1.5): float32 { return value; }
 export function readDefault(): float32 { return defaultFloat(); }
 `;
@@ -158,6 +161,12 @@ if (System.BitConverter.SingleToUInt32Bits(Subject.direct()) != 0x3F800001 ||
     !float.IsNegativeInfinity(Subject.explicitNegativeWrapped()) ||
     System.BitConverter.SingleToUInt32Bits(Subject.explicitWrappedMidpoint()) != 0x3F800000 || Subject.readDefault() != -1.5F)
     throw new System.Exception("authored versus actual double native conversion");
+var nullableLiteral = Subject.explicitNullableLiteral();
+var nullableMidpoint = Subject.explicitNullableMidpoint();
+if (!nullableLiteral.HasValue || !float.IsPositiveInfinity(nullableLiteral.Value) ||
+    !nullableMidpoint.HasValue || System.BitConverter.SingleToUInt32Bits(nullableMidpoint.Value) != 0x3F800000 ||
+    Subject.explicitNullableAbsence().HasValue)
+    throw new System.Exception("explicit nullable float32 retains native double rounding and absence");
 if (Subject.actualDecimal() != (decimal)9007199254740992D ||
     Subject.decimalCast(-0D) != (decimal)(-0D))
     throw new System.Exception("actual double to decimal is a native conversion, not token reinterpretation");

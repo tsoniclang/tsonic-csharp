@@ -321,14 +321,11 @@ function visit(
     jsConditionKey,
     selectCsharpJsValueCondition(policy, node, sourceFile),
   );
-  setClassification(
-    builder,
-    node,
-    jsTypeofKey,
-    selectCsharpJsTypeofOperation(policy, node, sourceFile),
-  );
   if (ast.is.IsTypeOfExpression(node)) {
     const operand = ast.as.AsTypeOfExpression(node)?.Expression;
+    if (operand !== undefined) {
+      setClassification(builder, operand, jsTypeofKey, selectCsharpJsTypeofOperation(policy, operand, sourceFile));
+    }
     const selected = operand === undefined ? undefined : getCsharpTypeofResult(policy.types.resolveNode(operand, sourceFile), undefined, policy.typeDefinitions);
     if (operand !== undefined && selected !== undefined) setClassification(builder, operand, typeofRuntimeKindKey, selected);
   }

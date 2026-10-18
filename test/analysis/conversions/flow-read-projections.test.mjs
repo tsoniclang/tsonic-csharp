@@ -87,6 +87,8 @@ test("deferred generic constructor fields are analyzed once and reconstructed wi
   `);
   const deferred = value.nodes.filter(node => value.program.records.flowReadProjection.get(node)?.kind === "non-null");
   assert.equal(deferred.length, 1, "only the deferred field read selects the null-forgiving syntax");
+  assert.equal(value.program.records.nativeUse.expression(deferred[0])?.use.readProjection, "projected",
+    "an unchanged generic carrier does not erase its required native null-forgiving projection");
   const expression = { kind: "IdentifierName", name: "field" };
   const input = { program: value.program,
     types: { classifications: {
