@@ -568,7 +568,7 @@ export function createCsharpObjectShapePolicy(
         ? undefined : host.ast.arguments(initializer)[0];
       const shapeType = shapeNode === undefined ? undefined : queries.types.expressionType(shapeNode);
       const correspondence = selectedType === undefined || shapeType === undefined
-        ? undefined : queries.types.structuralMembers(shapeType, selectedType);
+        ? undefined : queries.types.structuralMembers(shapeType, selectedType, "read");
       if (correspondence?.kind !== "available") return undefined;
       const members = fact.fields.map((field) => {
         const type = host.typeResolver.resolveNode(

@@ -119,12 +119,13 @@ export function analyzeCsharpPromiseResults(input: {
       if (isCall && call?.sourceSelectedSignatureKind !== "resolved") return undefined;
       const checked = input.storage.typeFor(value);
       if (checked.kind === "unresolved") return unresolved(value.node, checked.reason);
+      const profile = classifyCsharpSourceProfileType(checked.type, semantics, ast);
       const carrier = input.sourceCarrier(checked.type, checked.sourceFile);
-      if (carrier === undefined) return undefined;
-      const task = select(carrier);
-      if (isCall && task === undefined && input.records.selectedCall.get(value.node) === undefined &&
+      if (carrier === undefined && profile?.kind !== "promise") return undefined;
+      const pending = profile?.kind === "promise" || carrier !== undefined && select(carrier) !== undefined;
+      if (isCall && !pending && input.records.selectedCall.get(value.node) === undefined &&
         input.records.selectedConstruction.get(value.node) === undefined) return undefined;
-      return Object.freeze({ kind: task === undefined ? "never" : "may-suspend", value,
+      return Object.freeze({ kind: pending ? "may-suspend" : "never", value,
         contractDeclaration: declaration ?? value.node, checkedType: checked.type });
     },
   };

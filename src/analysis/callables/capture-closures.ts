@@ -39,7 +39,7 @@ export function selectCsharpFrameClosures(
   for (const file of source.navigation.sourceFiles) visit(file);
   const captures = candidates.map(declaration => {
     const lexical = sourceLexicalCaptures(declaration,
-      csharpCallableCaptureRoots(source, declaration, constructorEntry.declarations), source.ast, source.navigation);
+      csharpCallableCaptureRoots(source, declaration, constructorEntry.declarations), source.ast, source.navigation, "source");
     return { declaration, namedSelf: selectCsharpNamedSelfBinding(source, declaration, lexical, evidence, issues), selected: { ...lexical,
       captures: lexical.captures.filter(capture => !evidence.compileTimeMetadata.get(capture.declaration)),
     } };

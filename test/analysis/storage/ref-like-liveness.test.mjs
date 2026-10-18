@@ -4,6 +4,7 @@ import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { createSourceControlFlowDomain } from "@tsonic/target-api/analysis";
 
 const header = `import type { int32 } from "@tsonic/core/types.js";
 import { Span } from "@tsonic/dotnet/System.js";
@@ -23,17 +24,25 @@ test("missing owned binding evidence refuses instead of silently skipping livene
   const binding = nodes.find(node => source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "retained");
   assert.equal(declaration !== undefined && binding !== undefined, true, "both exact source owners exist");
   const issues = [];
-  analyzeCsharpRefLikeLiveness(source, declaration, new Set([binding]), (node, code) => issues.push({ node, code }));
+  analyzeCsharpRefLikeLiveness(source, declaration, new Set([binding]), (node, code) => issues.push({ node, code }), { kind: "source" });
   assert.equal(issues.length, 1, "one missing owner proof is retained");
   assert.equal(issues[0].node === binding, true, "the diagnostic names the unproven binding");
   assert.equal(issues[0].code, "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN", "missing graph evidence never grants permission");
+  const selected = createSourceControlFlowDomain(source, nodes);
+  assert.equal(selected.kind, "resolved", "the same checked source inventory has an explicit selected domain");
+  const selectedIssues = [];
+  analyzeCsharpRefLikeLiveness(source, declaration, new Set([binding]),
+    (node, code) => selectedIssues.push({ node, code }), selected.domain);
+  assert.equal(selectedIssues.length, 1, "selected-domain graphs retain the exact missing-owner rejection");
+  assert.equal(selectedIssues[0].node === binding, true, "selected-domain rejection keeps the original binding identity");
+  assert.equal(selectedIssues[0].code, "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN", "selection never invents missing liveness proof");
 });
 
 test("a bounded lexical-owner query cannot silently admit unproven ref-like lifetimes", () => {
   const compiled = compileCsharpSource({ sourceText: `${header}
 export async function fail(values: int32[], pending: Promise<int32>): Promise<int32> {
   let size: int32 = 0;
-  ${"{".repeat(130)} const view = new Span<int32>(values); size = view.Length; ${"}".repeat(130)}
+  ${"{".repeat(300)} const view = new Span<int32>(values); size = view.Length; ${"}".repeat(300)}
   return size + await pending;
 }` });
   assert.equal(compiled.sourceDiagnosticsText, "", "the deeply nested binding remains checked source");
@@ -63,6 +72,7 @@ export async function fail(values: int32[], pending: Promise<int32>): Promise<in
 }
 
 for (const [name, body] of [
+  ["130 nested pre-await blocks", `let size: int32 = 0; ${"{".repeat(130)} const view = new Span<int32>(values); size = view.Length; ${"}".repeat(130)} return size + await pending;`],
   ["same-scope pre-await local", `const view = new Span<int32>(values); const length = consume(view, 0); return length + await pending;`],
   ["consumed scalar before later await", `const view = new Span<int32>(values); return view.Length + await pending;`],
   ["ref-like created after suspension", `const extra = await pending; return consume(new Span<int32>(values), extra);`],

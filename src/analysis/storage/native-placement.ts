@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { createSourceControlFlowDomain } from "@tsonic/target-api/analysis";
 import { sourceDeclarationIsModuleScoped, sourceEnclosingCallable, sourceParameterIsProperty, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpCallableContractIndex } from "../callables/model.js";
 import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
@@ -14,6 +15,7 @@ import type { CsharpTypeDefinitions } from "../../target-model/types/source-unio
 import { getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpGeneratorProtocol } from "../../target-model/types/carriers/generators.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
+import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { analyzeCsharpRefLikeLiveness, analyzeCsharpRefLikeEvaluation } from "./ref-like-liveness.js";
 
 export interface CsharpNativePlacementInput {
@@ -68,14 +70,20 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
     const selection = input.classPropertyStorage.get(declaration);
     return !(selection?.kind === "property" && ast.hasModifierKind(declaration, "abstract"));
   };
+  const flowDomain = createSourceControlFlowDomain(input.source, input.nodes.filter(participates));
+  if (flowDomain.kind === "unresolved") {
+    reject(flowDomain.source ?? input.source.sourceFiles[0]!, "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN", flowDomain.reason);
+    return Object.freeze(diagnostics);
+  }
   const inspect = (type: TargetTypeRef | undefined, node: Node, physicalShape?: CsharpObjectShapeFact): void => {
     if (type === undefined) return;
     const pending = [type];
-    const visited = new Set<TargetTypeRef>();
+    const visited = new Set<string>();
     while (pending.length > 0) {
       const current = pending.pop()!;
-      if (visited.has(current)) continue;
-      visited.add(current);
+      const key = targetTypeRefKey(current);
+      if (visited.has(key)) continue;
+      visited.add(key);
       if (current.kind === "array" || current.kind === "tuple") {
         const elements = current.kind === "array" ? [current.element] : current.elements;
         if (elements.some(isCsharpRefLikeTargetType)) reject(node,
@@ -224,7 +232,7 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
     for (const parameter of contract.parameters) if (isCsharpRefLikeTargetType(parameter.targetParameter.type)) reject(parameter.sourceParameter,
       "CSHARP_REFLIKE_ASYNC_PARAMETER", "A native async or iterator method cannot declare a ref-like parameter.");
     const owned = scopedBindings.get(declaration);
-    if (owned !== undefined && owned.size > 0) analyzeCsharpRefLikeLiveness(input.source, declaration, owned, reject);
+    if (owned !== undefined && owned.size > 0) analyzeCsharpRefLikeLiveness(input.source, declaration, owned, reject, flowDomain.domain);
   }
   for (const { use } of input.nativeDemand.entries) {
     if (use.kind === "erased") continue;

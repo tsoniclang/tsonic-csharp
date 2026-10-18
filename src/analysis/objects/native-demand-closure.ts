@@ -7,10 +7,9 @@ import type {
 import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
 import type { JsonClosureState } from "./native-demand-batches.js";
 import type { CsharpObjectShapeProjectionAdmission } from "./native-demand-batches.js";
+import type { CsharpObjectShapeProjectionDeclaration } from "../../target-model/records/object-shape-demand.js";
 import {
   csharpObjectShapesEqual,
-  csharpObjectShapeAssignmentMembers,
-  csharpObjectShapeProjectionMembers,
   isCsharpObjectShapeGeneratedMemberName,
   getCsharpJsArrayElementTargetType,
   getCsharpNullableElementTargetType,
@@ -21,7 +20,10 @@ import {
   resolveCsharpJsonObjectShapeContract,
   targetTypeRefEquals,
   targetTypeRefKey,
+  csharpStringTargetType,
+  csharpSourcePrimitiveTargetType,
 } from "../../target-model/types/index.js";
+import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { rejected } from "./native-demand-batches.js";
 import { maximumJsonClosureDepth } from "./native-demand-batches.js";
 import { objectShapeArtifactKey } from "../../target-model/records/object-shape-demand.js";
@@ -113,13 +115,21 @@ export function validateProjectionShapes(
   {  }: CsharpObjectShapeDemandScope,
   shapes: ReadonlyMap<string, CsharpObjectShapeFact>,
   projection: CsharpObjectShapeProjection,
+  members: CsharpObjectShapeProjectionDeclaration["memberBindings"],
 ): string | undefined {
+  const resultFailure = projectionResultRejection(projection);
+  if (resultFailure !== undefined) return resultFailure;
   for (const [key, shape] of shapes) {
-    const members = projection.kind === "assign"
-      ? csharpObjectShapeAssignmentMembers(shape, projection)
-      : csharpObjectShapeProjectionMembers(shape, projection);
-    if (members === undefined) {
-      return `Closed object projection '${key}' does not identify every exact own member once.`;
+    if (csharpTargetTypeRenderingRejection(shape.targetType) !== undefined) {
+      return `Closed object projection '${key}' requires a renderable selected receiver carrier.`;
+    }
+    if (projection.kind === "assign" && !targetTypeRefEquals(shape.targetType, projection.resultType)) {
+      return "Object.assign requires its selected result and target carrier to be identical.";
+    }
+    if (projection.kind === "assign" && members.some(pair =>
+      pair.target.memberKind !== "property" || pair.target.accessor !== undefined ||
+      pair.source.memberKind !== "property" || pair.source.accessor !== undefined)) {
+      return "Object.assign requires exact writable data properties on the target carrier.";
     }
     for (const member of shape.members) {
       if (isCsharpObjectShapeGeneratedMemberName(member.targetName)) {
@@ -132,7 +142,26 @@ export function validateProjectionShapes(
   )) {
     return "Closed object assignment source conflicts with a generated member name.";
   }
+  if (projection.kind === "assign" && csharpTargetTypeRenderingRejection(projection.sourceShape.targetType) !== undefined) {
+    return "Closed object assignment source requires a renderable selected carrier.";
+  }
   return undefined;
+}
+
+function projectionResultRejection(projection: CsharpObjectShapeProjection): string | undefined {
+  if (csharpTargetTypeRenderingRejection(projection.resultType) !== undefined) {
+    return `Closed object '${projection.kind}' projection has no renderable selected result type.`;
+  }
+  if (projection.kind === "assign") return undefined;
+  if (projection.kind === "has-own") return targetTypeRefEquals(projection.resultType, csharpSourcePrimitiveTargetType("bool"))
+    ? undefined : "Object.hasOwn requires an exact boolean result carrier.";
+  const element = getCsharpJsArrayElementTargetType(projection.resultType);
+  if (projection.kind === "keys") return element !== undefined && targetTypeRefEquals(element, csharpStringTargetType())
+    ? undefined : "Object.keys requires an exact JS string-array result carrier.";
+  if (projection.kind === "values") return element === undefined
+    ? "Object.values requires an exact JS-array result carrier." : undefined;
+  return element?.kind === "tuple" && element.elements.length === 2 && targetTypeRefEquals(element.elements[0]!, csharpStringTargetType())
+    ? undefined : "Object.entries requires an exact JS array of [string, value] tuples.";
 }
 
 export function addShapeProjection(

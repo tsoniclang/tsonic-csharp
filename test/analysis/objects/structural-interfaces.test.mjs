@@ -22,7 +22,7 @@ const destinationTemplate = { targetType: slot(element), sourceType: destination
 const destination = { targetType: slot(integer), sourceType: destinationType, members: [field(destinationSymbol, optional(integer))],
   declarationTemplate: destinationTemplate };
 const policy = { projectTypes: { catalog: { definitionForTarget: () => undefined } },
-  semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({
+  semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: (source, destination, purpose) => (assert.equal(purpose, "read"), {
   kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
     source: { property: { symbol: sourceSymbol, rootSymbols: [] }, declarations: [] },
     destination: { property: { symbol: destinationSymbol, rootSymbols: [] }, declarations: [] },

@@ -107,6 +107,10 @@ export function csharpObjectShapeContractCandidate(
                 projection.methodName,
                 projection.receiverRequiresNullCheck ? "reference-receiver" : "value-receiver",
                 ...objectShapeProjectionContractParts(projection.selection),
+                ...projection.memberBindings.flatMap(binding => [
+                  ...csharpObjectShapeMemberContractParts(binding.source),
+                  ...csharpObjectShapeMemberContractParts(binding.target),
+                ]),
                 ...projection.typeParameterNames.flatMap(parameter => [parameter.identity, parameter.name]),
                 ...projection.typeParameters.flatMap(parameter => [parameter.identity,
                   csharpTypeParameterConstraintResolutionKey(parameter.csharpConstraints)]),

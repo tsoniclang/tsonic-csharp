@@ -25,7 +25,7 @@ import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/met
 import type { CsharpObjectShapeDemand } from "../../target-model/records/object-shape-demand.js";
 import type { CsharpObjectShapeDemandHost } from "./native-demand-batches.js";
 import type { CsharpObjectShapeProjectionAdmission } from "./native-demand-batches.js";
-import { objectShapeDeclarationTypeParameterNames, objectShapeProjectionConversions, objectShapeProjectionDeclaration } from "./native-demand-declarations.js";
+import { objectShapeDeclarationTypeParameterNames, objectShapeProjectionConversions, objectShapeProjectionDeclaration, requireObjectShapeSpread } from "./native-demand-declarations.js";
 import {
   collectShapeDependencies,
   prepareObjectShapeBatch,
@@ -190,7 +190,7 @@ export function requireObjectShapeCapability(
 }
 
 export function requireObjectShapeProjection(
-  { addShapeProjection, commitObjectShapeBatch, host, records, prepareObjectShapeBatch, validateObjectShapeBatch, validateProjectionShapes,
+  { addObjectShapesToBatch, addShapeCapabilities, collectCapabilityClosure, addShapeProjection, commitObjectShapeBatch, host, records, prepareObjectShapeBatch, validateObjectShapeBatch, validateProjectionShapes,
     projections: publishedProjections }: CsharpObjectShapeDemandScope,
   node: Node | undefined,
   type: TargetTypeRef,
@@ -325,15 +325,16 @@ export function requireObjectShapeProjection(
         resultType,
         propertyOrder: propertyOrder.propertyOrder,
       });
+  const conversions = objectShapeProjectionConversions(host, preferredShape, projection);
+  if (conversions.kind === "rejected") return conversions;
   const projectionFailure = validateProjectionShapes(
     projectedShapes,
     projection,
+    conversions.memberBindings,
   );
   if (projectionFailure !== undefined) {
     return rejected(projectionFailure);
   }
-  const conversions = objectShapeProjectionConversions(host, preferredShape, projection);
-  if (conversions.kind === "rejected") return conversions;
   const previous = node === undefined ? undefined : publishedProjections.get(node);
   if (previous !== undefined && (!targetTypeRefEquals(previous.receiver.targetType, preferredShape.targetType) ||
       objectShapeProjectionKey(previous.selection) !== objectShapeProjectionKey(projection))) {
@@ -344,8 +345,19 @@ export function requireObjectShapeProjection(
     Map<string, CsharpObjectShapeProjectionAdmission>
   >();
   const published = previous?.selection ?? records.get(objectShapeArtifactKey(preferredShape))?.projections.get(objectShapeProjectionKey(projection))?.selection ?? projection;
-  addShapeProjection(projectionsByShape, projectedShapes, Object.freeze({ selection: published, conversions: conversions.conversions }));
+  addShapeProjection(projectionsByShape, projectedShapes, Object.freeze({ selection: published,
+    conversions: conversions.conversions, memberBindings: conversions.memberBindings }));
   const capabilitiesByShape = new Map<string, Set<CsharpObjectShapeCapability>>();
+  if ((projection.kind === "values" || projection.kind === "entries") &&
+    conversions.memberBindings.some(binding => binding.target.memberKind === "method")) {
+    const closure = collectCapabilityClosure("method-values", preferredShape.targetType, preferredShape, prepared.batch.shapes);
+    if (closure.kind === "rejected") return closure;
+    const expanded = addObjectShapesToBatch(prepared.batch, [...closure.shapes.values()].map(fact => ({
+      fact, materialization: objectShapeMaterialization(fact),
+    })));
+    if (expanded.kind === "rejected") return expanded;
+    addShapeCapabilities(capabilitiesByShape, closure.shapes, "method-values");
+  }
   const validation = validateObjectShapeBatch(
     prepared.batch,
     capabilitiesByShape,
@@ -444,7 +456,8 @@ export function objectShapeArtifacts(
     };
     for (const capability of record.capabilities) declaration.capabilities.add(capability);
     for (const projection of record.projections.values()) {
-      const selected = objectShapeProjectionDeclaration(record.fact, projection.selection, declaration.typeParameterNames, projection.conversions);
+      const selected = objectShapeProjectionDeclaration(record.fact, projection.selection, declaration.typeParameterNames,
+        projection.conversions, projection.memberBindings);
       declaration.projections.set(selected.methodName, selected);
     }
     declarations.set(key, declaration);
@@ -506,7 +519,7 @@ export function connect(
 
 export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDemandHost):
   Pick<CsharpObjectShapeDemandScope, "registerObjectShape" | "requireObjectShapeCapability" |
-    "requireObjectShapeProjection" | "requireObjectShapeMethodReceiver" | "objectShapeArtifacts"> & {
+    "requireObjectShapeProjection" | "requireObjectShapeMethodReceiver" | "requireObjectShapeSpread" | "objectShapeArtifacts"> & {
       readonly seal: () => CsharpObjectShapeDemand;
     } {
   let scope: CsharpObjectShapeDemandScope;
@@ -514,7 +527,7 @@ export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDeman
   const requireOpen = (): void => {
     if (sealed) throw new Error("C# object-shape artifact demand is sealed.");
   };
-  const operations: Omit<CsharpObjectShapeDemandScope, "host" | "records" | "projections"> = {
+  const operations: Omit<CsharpObjectShapeDemandScope, "host" | "records" | "projections" | "spreads"> = {
     registerObjectShape(fact, materialization) {
       requireOpen();
       return registerObjectShape(scope, fact, materialization);
@@ -531,6 +544,10 @@ export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDeman
       requireOpen();
       return requireObjectShapeMethodReceiver(scope, fact, member);
     },
+    requireObjectShapeSpread(subject, expression, source, target) {
+      requireOpen();
+      return requireObjectShapeSpread(scope, subject, expression, source, target);
+    },
     objectShapeArtifacts: () => objectShapeArtifacts(scope),
     connect: (owner, dependency) => connect(scope, owner, dependency),
     collectShapeDependencies: root => collectShapeDependencies(scope, root),
@@ -543,26 +560,26 @@ export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDeman
     collectJsonClosure: (type, preferred, pending) => collectJsonClosure(scope, type, preferred, pending),
     collectCapabilityClosure: (capability, type, preferred, pending) => collectCapabilityClosure(scope, capability, type, preferred, pending),
     addShapeCapabilities: (target, shapes, capability) => addShapeCapabilities(scope, target, shapes, capability),
-    validateProjectionShapes: (shapes, projection) => validateProjectionShapes(scope, shapes, projection),
+    validateProjectionShapes: (shapes, projection, members) => validateProjectionShapes(scope, shapes, projection, members),
     addShapeProjection: (target, shapes, projection) => addShapeProjection(scope, target, shapes, projection),
     visibleObjectShapes: pending => visibleObjectShapes(scope, pending),
     collectJsonType: (type, preferred, state) => collectJsonType(scope, type, preferred, state),
     collectJsonShape: (shape, state) => collectJsonShape(scope, shape, state),
     inheritedObjectShapeCapabilities: fact => inheritedObjectShapeCapabilities(scope, fact),
   };
-  scope = Object.freeze({ host, records: new Map(), projections: new Map(), ...operations });
+  scope = Object.freeze({ host, records: new Map(), projections: new Map(), spreads: new Map(), ...operations });
   return Object.freeze({
     registerObjectShape: operations.registerObjectShape,
     requireObjectShapeCapability: operations.requireObjectShapeCapability,
     requireObjectShapeProjection: operations.requireObjectShapeProjection,
     requireObjectShapeMethodReceiver: operations.requireObjectShapeMethodReceiver,
+    requireObjectShapeSpread: operations.requireObjectShapeSpread,
     objectShapeArtifacts: operations.objectShapeArtifacts,
     seal(): CsharpObjectShapeDemand {
       requireOpen();
       const targetShapes = host.objectShapes.targetShapes;
       if (targetShapes === undefined || !Object.isFrozen(targetShapes)) failTargetAnalysisInvariant("tsonic-csharp",
         "Native artifact demand requires its immutable completed target-shape index before sealing.");
-      sealed = true;
       const artifacts = Object.freeze(operations.objectShapeArtifacts());
       const byKey = new Map(artifacts.map(artifact => [artifact.key, artifact]));
       const projections = new Map([...scope.projections].map(([subject, selected]) => {
@@ -572,8 +589,10 @@ export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDeman
           "A selected native projection requires its exact admitted physical declaration.", subject);
         return [subject, projection] as const;
       }));
+      const spreads = new Map(scope.spreads);
+      sealed = true;
       return Object.freeze({ artifacts, targetShapes, get: (key: string) => byKey.get(key),
-        projection: (subject: Node) => projections.get(subject) });
+        projection: (subject: Node) => projections.get(subject), spread: (subject: Node) => spreads.get(subject) });
     },
   });
 }

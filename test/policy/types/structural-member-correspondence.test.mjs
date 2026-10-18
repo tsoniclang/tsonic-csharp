@@ -16,7 +16,8 @@ const member = Object.freeze({ sourceName: "count", targetName: "count", type: c
 function select(pairs, kind = "available", selectedMember = member) {
   const resolver = createCsharpObjectShapeMemberResolver({});
   return resolver.instantiateMemberEvidence([selectedMember], sourceType, {
-    types: { structuralMembers(actual, expected) {
+    types: { structuralMembers(actual, expected, purpose) {
+      assert.equal(purpose, "read");
       assert.strictEqual(actual, sourceType);
       assert.strictEqual(expected, destinationType);
       return { kind, members: pairs };

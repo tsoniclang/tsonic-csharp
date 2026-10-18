@@ -18,7 +18,8 @@ function fixture() {
   const correspondence = { kind: "available", destination: { calls: [], constructs: [], indexes: [] },
     members: [{ kind: "present", source: member, destination: member }] };
   const policy = { semanticsFor: () => ({ types: { nonNullableType: type => type,
-    structuralMembers(actual, required) {
+    structuralMembers(actual, required, purpose) {
+      assert.equal(purpose, "read");
       assert.equal(actual === sourceType && required === destination, true, "exact selected source and destination identity");
       return correspondence;
     } } }) };

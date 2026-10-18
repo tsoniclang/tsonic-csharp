@@ -2,7 +2,6 @@ import type { AstReader, Node } from "@tsonic/tsts";
 import { sourceEnclosingCallable, sourceLexicalFunctionIsUnused, sourceNodesOutsideErasedSubtrees } from "@tsonic/target-api/source";
 import { rejectedTargetStage, resolvedTargetStage, type TargetStageResult } from "@tsonic/target-api/artifacts";
 import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
 import type { CsharpNativeParticipation, CsharpNativeParticipationInput } from "../../target-model/records/native-demand.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
@@ -14,8 +13,7 @@ import { isCsharpSourceCallableArtifactDeclaration } from "../../policy/types/ca
 export interface CsharpNativeParticipationAnalysisInput {
   readonly ast: AstReader;
   readonly storage: Pick<SourceStorageQueries, "nodes" | "failureReason">;
-  readonly navigation: Pick<SourceProgramNavigation, "declarationUseSummary" | "declarationSymbol" |
-    "referencesWithin" | "sourceReferenceFor" | "callableImplementation">;
+  readonly navigation: Parameters<typeof sourceLexicalFunctionIsUnused>[2];
   readonly captureClosure: CsharpCaptureStorage["captureClosure"];
   readonly lambdaCreation: CsharpCaptureStorage["lambdaCreation"];
   readonly objectShapes: Pick<CsharpObjectShapeClassifications, "resolveNode">;

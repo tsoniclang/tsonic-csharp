@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { createSourceControlFlow, solveSourceFlow } from "@tsonic/target-api/analysis";
+import { createSourceControlFlow, solveSourceFlow, type SourceControlFlowOptions } from "@tsonic/target-api/analysis";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
 import type { CsharpNativeUse } from "../../target-model/records/native-demand.js";
@@ -8,8 +8,8 @@ import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js"
 type Rejection = (node: Node, code: string, message: string) => void;
 
 export function analyzeCsharpRefLikeLiveness(source: TargetSourceProgram, declaration: Node,
-  ownedBindings: ReadonlySet<Node>, reject: Rejection): void {
-  const selected = createSourceControlFlow(source, declaration);
+  ownedBindings: ReadonlySet<Node>, reject: Rejection, domain: SourceControlFlowOptions["domain"]): void {
+  const selected = createSourceControlFlow(source, declaration, { domain });
   if (selected.kind === "unresolved") {
     reject(declaration, "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN", selected.reason);
     return;
