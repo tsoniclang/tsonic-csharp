@@ -1,5 +1,6 @@
 import type { CsharpObjectShapeFact, CsharpPropertyKeyIterationPolicy, CsharpStringIterationPolicy, TargetTypeRef } from "../types/model.js";
-import type { ResolvedSourceIterationInfo } from "@tsonic/tsts";
+import type { Node, ResolvedSourceIterationInfo } from "@tsonic/tsts";
+import type { CsharpConversionSelection } from "../conversions/selection.js";
 
 export type CsharpResolvedIteration =
   | {
@@ -84,4 +85,25 @@ export type CsharpResolvedIteration =
         CsharpPropertyKeyIterationPolicy,
         { readonly kind: "key-collection" }
       >;
+    };
+
+interface CsharpForInKeyBindingData {
+  readonly node: Node;
+  readonly name: Node;
+  readonly declaration: Node;
+  readonly storageType: TargetTypeRef;
+  readonly conversion: CsharpConversionSelection;
+}
+
+export type CsharpForInKeyBinding =
+  | CsharpForInKeyBindingData & {
+      readonly kind: "declaration";
+      readonly declarationKind: "var" | "let" | "const";
+    }
+  | CsharpForInKeyBindingData & { readonly kind: "assignment" };
+
+export type CsharpAdmittedIteration =
+  | Exclude<CsharpResolvedIteration, { readonly iterationKind: "for-in" }>
+  | Extract<CsharpResolvedIteration, { readonly iterationKind: "for-in" }> & {
+      readonly binding: CsharpForInKeyBinding;
     };

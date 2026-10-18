@@ -14,7 +14,7 @@ export interface CsharpRequiredRecordOrigin {
 
 export interface CsharpRequiredNodeRecord extends CsharpRequiredRecordOrigin {
   readonly family: "classFactory" | "requiredStorageType" | "nativeParticipation" | "nativeHandler" |
-    "sourceArgument" | "bindingPatternProjection" | "nativeValueDeclaration";
+    "sourceArgument" | "bindingPatternProjection" | "nativeValueDeclaration" | "iteration";
 }
 
 export type CsharpRequiredRecord = CsharpRequiredNodeRecord
@@ -65,6 +65,13 @@ function csharpRequiredRecordPublished(records: CsharpProgramRecords, requiremen
       return records.classFactory.get(requirement.subject) !== undefined;
     case "requiredStorageType":
       return records.requiredStorageType.get(requirement.subject) !== undefined;
+    case "iteration": {
+      const selected = records.iteration.get(requirement.subject);
+      return selected?.kind === "resolved" && selected.iterationKind === "for-in" &&
+        selected.binding !== undefined && Object.isFrozen(selected.binding) &&
+        selected.binding.declaration !== undefined && selected.binding.storageType !== undefined &&
+        selected.binding.conversion !== undefined;
+    }
     case "nativeParticipation":
       return records.nativeParticipation.get(requirement.subject) !== undefined;
     case "nativeHandler":

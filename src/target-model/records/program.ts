@@ -12,6 +12,7 @@ import type { CsharpNativeParticipationInput, CsharpNativeUseClassifications } f
 import type { CsharpBindingPatternClassifications } from "./value-projections.js";
 import type { CsharpNumericRepresentations } from "./numeric.js";
 import type { CsharpTargetOperationClassifications } from "./operations.js";
+import type { CsharpAdmittedIteration } from "./selection.js";
 import type { CsharpSafetyApplicationFactIndex } from "./safety.js";
 import type { CsharpSourceEvidenceIndex } from "./source-evidence.js";
 import type { CsharpFlowReadClassifications } from "./source-evidence.js";
@@ -81,7 +82,7 @@ export interface CsharpProgramRecords {
   readonly binaryOperation: CsharpTargetOperationClassifications["binaryOperation"];
   readonly switchStatement: CsharpTargetOperationClassifications["switchStatement"];
   readonly unaryOperation: CsharpTargetOperationClassifications["unaryOperation"];
-  readonly iteration: CsharpTargetOperationClassifications["iteration"];
+  readonly iteration: CsharpTargetOperationClassifications<CsharpAdmittedIteration>["iteration"];
   readonly resource: CsharpTargetOperationClassifications["resource"];
   readonly nativeRefReturn: CsharpTargetOperationClassifications["nativeRefReturn"];
   readonly jsCondition: CsharpTargetOperationClassifications["jsCondition"];

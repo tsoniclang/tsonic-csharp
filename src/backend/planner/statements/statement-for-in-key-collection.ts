@@ -6,9 +6,6 @@ import type {
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
 import {
-  sameCsharpType,
-} from "../types/index.js";
-import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
@@ -55,10 +52,6 @@ export function planKeyCollectionForInStatement(
   if (keyType === undefined) {
     return [];
   }
-  if (binding.currentType !== undefined && !sameCsharpType(binding.currentType, keyType)) {
-    diagnostics.push(unsupportedNodeDiagnostic(binding.node, "For-in key binding must have the finalized provider key type."));
-    return [];
-  }
   if (statement.Expression === undefined) {
     diagnostics.push({
       code: "CSHARP_UNSUPPORTED_FOR_IN_COLLECTION",
@@ -86,6 +79,7 @@ export function planKeyCollectionForInStatement(
     state,
     diagnostics,
   );
+  if (bindingActivation === undefined) return [];
   const itemName = bindingActivation.itemName;
   const collection = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
   if (collection === undefined) return [];

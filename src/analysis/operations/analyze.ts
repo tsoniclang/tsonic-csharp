@@ -117,9 +117,7 @@ const binaryKey = createTargetClassificationKey<CsharpBinaryClassification>(
 const unaryKey = createTargetClassificationKey<CsharpUnaryClassification>(
   "csharp.operation.unary",
 );
-const iterationKey = createTargetClassificationKey<ReturnType<typeof selectCsharpIteration>>(
-  "csharp.operation.iteration",
-);
+
 const resourceKey = createTargetClassificationKey<ReturnType<typeof selectCsharpResourceManagement>>(
   "csharp.operation.resource",
 );
@@ -187,6 +185,7 @@ export function analyzeCsharpTargetOperations(
   requirements: CsharpRequiredRecord[],
 ): CsharpTargetOperationClassifications {
   const builder = createTargetClassificationBuilder();
+  const rawIterations = new Map<Node, ReturnType<typeof selectCsharpIteration>>();
   const operationResultSubjects = new Set<Node>();
   const producer: ReturnType<typeof createTargetClassificationBuilder> = Object.freeze({
     ...builder,
@@ -208,6 +207,7 @@ export function analyzeCsharpTargetOperations(
       evidence,
       erasure,
       producer,
+      rawIterations,
       binaryExecutionDrivers,
       issues,
     );
@@ -247,7 +247,7 @@ export function analyzeCsharpTargetOperations(
     binaryOperation: Object.freeze({ get: (node) => facts.get(node, binaryKey) }),
     switchStatement: Object.freeze({ get: (node) => facts.get(node, switchKey) }),
     unaryOperation: Object.freeze({ get: (node) => facts.get(node, unaryKey) }),
-    iteration: Object.freeze({ get: (node) => facts.get(node, iterationKey) }),
+    iteration: Object.freeze({ get: (node) => rawIterations.get(node) }),
     resource: Object.freeze({ get: (node) => facts.get(node, resourceKey) }),
     nativePointer: Object.freeze({ get: (node) => facts.get(node, nativePointerKey) }),
     typedLocation: Object.freeze({ get: (node) => facts.get(node, typedLocationKey) }),
@@ -275,6 +275,7 @@ function visit(
   evidence: CsharpSourceEvidenceIndex,
   erasure: CsharpOperationErasure,
   builder: ReturnType<typeof createTargetClassificationBuilder>,
+  rawIterations: Map<Node, ReturnType<typeof selectCsharpIteration>>,
   binaryExecutionDrivers:
     import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[],
   scopeIssues: CsharpOperationIssue[] | undefined,
@@ -687,12 +688,7 @@ function visit(
     ast.is.IsForInStatement(node)
   ) {
     const statement = AsForInOrOfStatement(ast, node);
-    setClassification(
-      builder,
-      node,
-      iterationKey,
-      selectCsharpIteration(policy, node, statement?.Expression, sourceFile),
-    );
+    rawIterations.set(node, Object.freeze(selectCsharpIteration(policy, node, statement?.Expression, sourceFile)));
   }
   if (ast.is.IsVariableDeclaration(node)) {
     const resource = policy.semantics(sourceFile).operations.resourceManagement(node);
@@ -751,6 +747,7 @@ function visit(
           evidence,
           erasure,
           builder,
+          rawIterations,
           binaryExecutionDrivers,
           erased ? undefined : issues,
         );
