@@ -106,6 +106,25 @@ test("wrong nullable elements and implicit absence removal remain rejected", () 
   }
 });
 
+for (const [name, sourceText, message] of [
+  ["a present number used as a delegate", "export const callback: (() => void) = 1;",
+    "Type 'number' is not assignable to type '() => void'."],
+  ["absence used as a present native integer", `import type { int32 } from "@tsonic/core/types.js";
+export function value(): int32 { return undefined; }`, "Type 'undefined' is not assignable to type 'number'."],
+]) {
+  test(`checked source rejects ${name} before conversion records or planning`, () => {
+    const compiled = compileCsharpSource({ sourceText });
+    const diagnostics = compiled.result.diagnostics;
+    assert.equal(diagnostics.length, 1, "the checked source has one exact admission refusal");
+    assert.equal(diagnostics[0].code, "TSTS_DIAGNOSTIC", "source assignability owns the rejection");
+    assert.equal(diagnostics[0].evidence.includes("tsts.code=TS2322"), true, "the actual checked assignability diagnostic is retained");
+    assert.equal(diagnostics[0].message.endsWith(message), true, "the complete incompatible pair is named");
+    assert.equal(compiled.result.program === undefined, true, "invalid source publishes no conversion records");
+    assert.equal(compiled.result.plan === undefined, true, "invalid source never reaches the planner");
+    assert.equal(compiled.result.artifacts.length, 0, "invalid source emits no artifact");
+  });
+}
+
 test("native nullable reference and value lifting preserves identity and zero-allocation native costs", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ sourceText: `
     import type { int32 } from "@tsonic/core/types.js";
@@ -165,4 +184,35 @@ test("empty arrays use exact checked authored and provider destinations without 
     assert.equal(output.includes("new double[]") || output.includes("object[]"), false,
       "neither a floating default nor object boxing substitutes for the selected destination");
   }
+});
+
+test("provider empty-array construction has the same exact native type and allocation cost as handwritten C#", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    import { List } from "@tsonic/dotnet/System.Collections.Generic.js";
+    export function create(): List<int32> { return new List<int32>([]); }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const output = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
+  assert.equal(output.includes("new System.Collections.Generic.List<int>(new int[] { })"), true,
+    "the checked provider formal selects an ordinary native int array and List constructor");
+  const observed = executeCsharpConstruction(compiled, "native-provider-empty-array-cost", false, false, [], `
+    static System.Collections.Generic.List<int> NativeCreate() => new System.Collections.Generic.List<int>(new int[] { });
+    for (int index = 0; index < 1000; index++) {
+      System.GC.KeepAlive(NativeCreate());
+      System.GC.KeepAlive(Tsonic.Generated.Index.create());
+    }
+    long nativeStart = System.GC.GetAllocatedBytesForCurrentThread();
+    for (int index = 0; index < 10000; index++) System.GC.KeepAlive(NativeCreate());
+    long nativeBytes = System.GC.GetAllocatedBytesForCurrentThread() - nativeStart;
+    long generatedStart = System.GC.GetAllocatedBytesForCurrentThread();
+    for (int index = 0; index < 10000; index++) System.GC.KeepAlive(Tsonic.Generated.Index.create());
+    long generatedBytes = System.GC.GetAllocatedBytesForCurrentThread() - generatedStart;
+    System.Collections.Generic.List<int> value = Tsonic.Generated.Index.create();
+    if (value.Count != 0 || value.Capacity != 0 || generatedBytes != nativeBytes)
+      throw new System.Exception("native List allocation parity");
+    System.Console.WriteLine($"native={nativeBytes}; generated={generatedBytes}; count={value.Count}");
+  `);
+  assert.match(observed, /native=([0-9]+); generated=\1; count=0/u,
+    "native execution proves the exact provider type, value and allocation parity without boxing or a wrapper");
 });

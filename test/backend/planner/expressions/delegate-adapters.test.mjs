@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { planCsharpDelegateAdapter } from "../../../../dist/backend/planner/expressions/delegate-adapters.js";
 import { applyCsharpConversionSelection } from "../../../../dist/backend/planner/expressions/conversions.js";
+import { admitCsharpConversionSelection } from "../../../../dist/analysis/conversions/validation.js";
 import { csharpAbsenceTargetType, csharpTsValueTargetType } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpDelegateTargetType, isCsharpSourceDelegateTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
 import { csharpNullableTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
@@ -142,9 +143,8 @@ test("exact absence conversion retains an effectful producer and rejects present
     assert.equal(planned.arms[0].expression.kind, "DefaultExpression");
   }
   for (const [from, to] of [[number, target], [csharpAbsenceTargetType(), number]]) {
-    const diagnostics = [];
-    assert.equal(applyCsharpConversionSelection({}, {}, context(), diagnostics, from, to,
-      { kind: "absence" }, effect), undefined);
-    assert.equal(diagnostics.length, 1);
+    assert.deepEqual(admitCsharpConversionSelection({}, from, to, { kind: "absence" }), {
+      kind: "rejected", reason: "An absence conversion requires its exact source and destination storage contracts.",
+    });
   }
 });
