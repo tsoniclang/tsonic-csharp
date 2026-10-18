@@ -12,6 +12,10 @@ export interface CsharpObjectShapeProjectionDeclaration {
   readonly receiverRequiresNullCheck: boolean;
   readonly typeParameters: readonly Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[];
   readonly typeParameterNames: readonly { readonly identity: string; readonly name: string }[];
+  readonly memberBindings: readonly {
+    readonly source: CsharpObjectShapeFact["members"][number];
+    readonly target: CsharpObjectShapeFact["members"][number];
+  }[];
   readonly conversions: readonly {
     readonly source: TargetTypeRef;
     readonly target: TargetTypeRef;
@@ -31,11 +35,23 @@ export interface CsharpObjectShapeArtifact {
   readonly dependents: readonly string[];
 }
 
+export interface CsharpObjectShapeSpread {
+  readonly expression: Node;
+  readonly source: CsharpObjectShapeFact;
+  readonly target: CsharpObjectShapeFact;
+  readonly sharedImplementation: boolean;
+  readonly memberBindings: readonly {
+    readonly source: CsharpObjectShapeFact["members"][number];
+    readonly target: CsharpObjectShapeFact["members"][number];
+  }[];
+}
+
 export interface CsharpObjectShapeDemand {
   readonly artifacts: readonly CsharpObjectShapeArtifact[];
   readonly targetShapes: Readonly<Record<string, CsharpObjectShapeFact>>;
   readonly get: (key: string) => CsharpObjectShapeArtifact | undefined;
   readonly projection: (subject: Node) => CsharpObjectShapeProjectionDeclaration | undefined;
+  readonly spread: (subject: Node) => CsharpObjectShapeSpread | undefined;
 }
 
 export function objectShapeArtifactKey(fact: CsharpObjectShapeFact): string {

@@ -1,4 +1,5 @@
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { failTargetPlannerInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../context.js";
 import { planCsharpEmptyRecordConversion } from "../expressions/empty-record-conversion.js";
 import type {
@@ -6,8 +7,6 @@ import type {
   TargetTypeRef,
 } from "../../../target-model/types/index.js";
 import {
-  csharpObjectShapeAssignmentMembers,
-  csharpObjectShapeProjectionMembers,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTsValueTargetType,
@@ -40,18 +39,13 @@ const stringType = { kind: "PredefinedType", name: "string" } as const;
 export function renderObjectShapeProjectionMethods(
   input: CsharpPlanningContext,
   projections: readonly CsharpObjectShapeProjectionDeclaration[],
-  diagnostics: TargetDiagnostic[],
+  _diagnostics: TargetDiagnostic[],
 ): readonly CsharpMethodDeclaration[] {
   return projections.flatMap((projection) => {
     const result = renderObjectShapeProjectionMethod(input.scope.typeParameterNames, projection);
     if (result.kind === "rejected") {
-      diagnostics.push({
-        code: "CSHARP_OBJECT_SHAPE_PROJECTION_NOT_CLOSED",
-        category: "error",
-        source: "tsonic-csharp",
-        message: result.reason,
-      });
-      return [];
+      return failTargetPlannerInvariant("tsonic-csharp",
+        `An admitted object-shape projection has an inconsistent native rendering contract: ${result.reason}`);
     }
     return [result.method];
   });
@@ -152,14 +146,7 @@ function renderProjectionExpression(
   | { readonly kind: "rejected"; readonly reason: string } {
   const fact = declaration.receiver;
   const projection = declaration.selection;
-  const members = projection.kind === "assign"
-    ? csharpObjectShapeAssignmentMembers(fact, projection)?.map((pair) => pair.target)
-    : csharpObjectShapeProjectionMembers(fact, projection);
-  if (members === undefined) {
-    return rejected(
-      `Closed object '${projection.kind}' projection does not identify every exact own member once.`,
-    );
-  }
+  const members = declaration.memberBindings.map(binding => binding.target);
   switch (projection.kind) {
     case "keys": {
       const elementType = getCsharpJsArrayElementTargetType(projection.resultType);
@@ -283,12 +270,7 @@ function renderAssignStatements(
   const fact = declaration.receiver;
   const projection = declaration.selection;
   if (projection.kind !== "assign") return rejected("Object.assign requires its admitted assignment projection.");
-  const pairs = csharpObjectShapeAssignmentMembers(fact, projection);
-  if (pairs === undefined) {
-    return rejected(
-      "Object.assign does not carry one exact source-to-target field relation.",
-    );
-  }
+  const pairs = declaration.memberBindings;
   const statements: CsharpStatement[] = [];
   for (const [index, pair] of pairs.entries()) {
     const source: CsharpExpression = {
