@@ -33,6 +33,7 @@ export interface CsharpObjectShapeClassifications<StructuralImplementation = imp
 export interface CsharpObjectShapeAnalysis extends CsharpObjectShapeClassifications {
   readonly issues: readonly CsharpProjectTypeIssue[];
   readonly structuralImplementationTypes: readonly TargetTypeRef[];
+  readonly targetShapes: Readonly<Record<string, CsharpObjectShapeFact>>;
 }
 
 export type CsharpObjectShapePropertyOrderSelection =

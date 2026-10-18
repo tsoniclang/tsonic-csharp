@@ -1,4 +1,3 @@
-import { csharpObjectShapeProjectionMethodName } from "../../../../../target-model/types/index.js";
 import { targetTypeRefEquals } from "../../../../../target-model/types/equality.js";
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { renderSelectedCsharpTargetMethodTypeArguments } from "../../selected-method-type-arguments.js";
@@ -10,7 +9,8 @@ import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-pl
 import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { CsharpSelectedTargetCall, ResolvedSourceCallInfo } from "../../../../../target-model/records/members.js";
-import type { CsharpTargetMember, CsharpObjectShapeProjection } from "../../../../../target-model/types/index.js";
+import type { CsharpTargetMember } from "../../../../../target-model/types/index.js";
+import type { CsharpObjectShapeProjectionDeclaration } from "../../../../../target-model/records/object-shape-demand.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlannedValue } from "../../planned-values.js";
@@ -114,6 +114,7 @@ function buildSelectedTargetCall(
       selection.targetMember,
       arguments_,
       registeredArtifacts.objectShapeProjection,
+      input,
       diagnostics,
     );
   }
@@ -677,7 +678,7 @@ function readSelectedCallArtifacts(
   source: ResolvedSourceCallInfo,
   member: CsharpTargetMember,
   input: CsharpPlanningContext,
-): { readonly objectShapeProjection?: CsharpObjectShapeProjection } {
+): { readonly objectShapeProjection?: CsharpObjectShapeProjectionDeclaration } {
   const request = (member.csharpArtifactRequirements ?? []).find(requirement => requirement.kind === "object-shape-projection");
   if (request === undefined) return {};
   const subject = request.source.kind === "receiver"
@@ -692,14 +693,15 @@ function translateObjectShapeProjectionCall(
   node: Node,
   member: CsharpTargetMember,
   arguments_: readonly CsharpArgument[],
-  projection: CsharpObjectShapeProjection | undefined,
+  projection: CsharpObjectShapeProjectionDeclaration | undefined,
+  input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   const invocation = member.csharpInvocation;
   if (
     invocation?.kind !== "object-shape-projection" ||
     projection === undefined ||
-    projection.kind !== invocation.projection ||
+    projection.selection.kind !== invocation.projection ||
     member.returnType === undefined ||
     invocation.targetParameterIndex !== 0 ||
     arguments_.length === 0
@@ -710,17 +712,19 @@ function translateObjectShapeProjectionCall(
     ));
     return undefined;
   }
-  const receiver = arguments_[0]!.expression;
+  const receiver = csharpTypeFromTargetTypeRef(projection.receiver.targetType, input.scope.typeParameterNames);
+  const typeArguments = projection.typeParameters.map(parameter => csharpTypeFromTargetTypeRef(parameter, input.scope.typeParameterNames));
+  if (receiver === undefined || typeArguments.some(argument => argument === undefined)) return failCsharpPlannerInvariant(
+    "An admitted object projection requires its exact rendered receiver and generic arguments.", node);
   return {
     kind: "InvocationExpression",
     callee: {
       kind: "SimpleMemberAccessExpression",
       receiver,
-      name: csharpObjectShapeProjectionMethodName(
-        projection,
-      ),
+      name: projection.methodName,
+      ...(typeArguments.length === 0 ? {} : { typeArguments: typeArguments as NonNullable<typeof typeArguments[number]>[] }),
     },
-    arguments: arguments_.slice(1),
+    arguments: arguments_,
   };
 }
 function translateSelectedTargetCallee(

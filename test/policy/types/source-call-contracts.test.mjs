@@ -42,7 +42,7 @@ function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], in
     projectTypes: () => ({ catalog: { definitionForTarget: () => undefined } }),
     projectTypeCatalog: { definitionForTarget: () => undefined },
     typeDefinitions: { sourceUnionArms: () => undefined },
-    representations: { sourceCallable: () => { assert.equal(direct, true, "stored invocation must never select the creation ABI"); return openContract; } },
+    representations: { genericProjections: () => [], sourceCallable: () => { assert.equal(direct, true, "stored invocation must never select the creation ABI"); return openContract; } },
   }, resolveSelectedValueWithState: () => carrier,
     sourceCallableTypeParametersMatch: () => true,
     resolveSourceCallSelectedType: () => assert.fail("the closed stored contract must not fall back to source templates"),
@@ -143,7 +143,9 @@ test("direct declarations retain their native ABI and stored optional/rest metad
 
 test("checked callable evidence keeps variadic omission separate from optional native slots", () => {
   const sequence = { kind: "array", element: integer };
-  const scope = { host: { ast: {} },
+  const scope = { host: { ast: {}, representations: {
+    genericProjections: () => assert.fail("a declaration-free checked callable has no native projection owner"),
+  } },
     resolveSignatureParameterEvidence: parameter => parameter.type,
     resolveSourceTypeComponentEvidence: result => result.selectedType,
   };

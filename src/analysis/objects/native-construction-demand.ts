@@ -1,6 +1,7 @@
 import { providerVirtualDeclarationFactKey, type Node, type SourceFile, type Type } from "@tsonic/tsts";
 import type { SourceStorageQueries, SourceStorageSubject } from "@tsonic/target-api/analysis";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpObjectShapesEqual } from "../../target-model/types/object-shape-equality.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
@@ -8,6 +9,8 @@ import { csharpNullableTargetType } from "../../target-model/types/carriers/null
 import { createCsharpMetadataBudget } from "../../target-model/metadata/immutable.js";
 import type { CsharpTypePolicyBaseHost } from "../../policy/types/resolution/model.js";
 import { csharpNativeConstructionMembersMatch } from "../../policy/types/objects/native-construction-members.js";
+import { createCsharpObjectShapeValueStorage } from "../../policy/types/objects/object-shape-policy/construction.js";
+import { csharpStructuralObjectShapeIdPrefix } from "../../target-model/types/object-shape-identity.js";
 
 export interface CsharpNativeConstructionIssue {
   readonly node: Node;
@@ -211,6 +214,55 @@ export function createCsharpNativeConstructionDemandQuery(
       for (const related of [...incoming.subjects, ...(destinations.get(subject) ?? [])]) {
         budget.reserve(1);
         pending.push({ subject: related, shape });
+      }
+    }
+    for (const subject of storage.subjects) {
+      current = subject;
+      budget.reserve(1);
+      if (subject.kind !== "value" || subject.projection.length !== 0 || demands.has(subject)) continue;
+      const declaration = subject.node;
+      const variable = host.ast.is.IsVariableDeclaration(declaration)
+        ? host.ast.as.AsVariableDeclaration(declaration) : undefined;
+      const binding = host.ast.is.IsBindingElement(declaration)
+        ? host.ast.as.AsBindingElement(declaration) : undefined;
+      const pattern = binding === undefined ? undefined : host.ast.parent(declaration);
+      const rest = binding?.DotDotDotToken !== undefined && pattern !== undefined &&
+        host.ast.is.IsObjectBindingPattern(pattern);
+      if (variable?.Initializer === undefined && !rest || variable !== undefined &&
+        !host.ast.is.IsObjectLiteralExpression(variable.Initializer) ||
+        sourceDeclarationIsModuleScoped(declaration, host.ast) || !host.navigation.isProjectDeclaration(declaration)) continue;
+      const source = selectedType(subject);
+      if (source === undefined || source.nullable ||
+        source.queries.types.constructSignatures(source.type).length !== 0) continue;
+      const summary = host.navigation.declarationUseSummary(declaration);
+      budget.reserve(summary.uses.length + 1);
+      if (summary.bindingWritten || summary.memberWritten || summary.identityCompared || summary.aliasedOrStored ||
+        summary.exported || summary.hasUnclassifiedValueUse || summary.conditionallyRead ||
+        summary.escapeKinds.some(kind => kind !== "capture") || summary.uses.length === 0 ||
+        summary.uses.some(use => use.kind !== "type-only" && (use.role !== "receiver" || !use.throughMember))) continue;
+      const origins = storage.closedOriginsFor(subject);
+      if (origins.kind !== "complete" || origins.origins.length !== 1) continue;
+      const origin = origins.origins[0]!;
+      if (origin.subject.kind !== "value" || origin.subject.projection.length !== 0 ||
+        !host.navigation.isProjectDeclaration(origin.subject.node) || demands.has(origin.subject) ||
+        !source.queries.types.isIdentical(source.type, origin.type) ||
+        (rest ? origin.subject !== subject : origin.subject.node !== variable?.Initializer)) continue;
+      const shape = shapeForType(source.type, source.queries);
+      if (shape?.targetType.kind !== "target-named" ||
+        !shape.targetType.id.startsWith(csharpStructuralObjectShapeIdPrefix)) continue;
+      const selected = host.scopedTargetType(declaration);
+      if (selected !== undefined && !targetTypeRefEquals(selected, shape.targetType)) continue;
+      const valueShape = createCsharpObjectShapeValueStorage(shape);
+      if (valueShape === undefined) continue;
+      demands.set(subject, valueShape);
+      demands.set(origin.subject, valueShape);
+      for (const use of summary.uses) {
+        if (use.kind === "type-only") continue;
+        const reference = storage.subjectFor(use.reference);
+        if (reference.kind === "resolved" && reference.subject.projection.length === 0) {
+          budget.reserve(1);
+          demands.set(reference.subject, valueShape);
+        }
       }
     }
     for (const node of storage.nodes) {
