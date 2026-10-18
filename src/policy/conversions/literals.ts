@@ -210,8 +210,8 @@ export function selectCsharpExactPropertyKeyConversion(
     if (!fits) return rejected(`Source numeric property key is outside the '${physical.name}' range.`);
     if (physical.name === "float16") {
       const text = token === undefined ? magnitude!.toString() : token.decimalText;
-      const magnitude = Number(text);
-      return resolvedFloat16Literal(physical, magnitude, createCsharpNumericLiteralToken(magnitude.toString()), negative);
+      const doubleMagnitude = Number(text);
+      return resolvedFloat16Literal(physical, doubleMagnitude, createCsharpNumericLiteralToken(doubleMagnitude.toString()), negative);
     }
     return resolved({ kind: "float", target: physical, precision: physical.name,
       token: createCsharpNumericLiteralToken(token === undefined ? magnitude!.toString() : token.decimalText), negative });
