@@ -494,6 +494,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const statementCompletions = analyzeCsharpStatementCompletions({ ast: source.ast, nodes: sourceStorage.nodes,
     returnContexts: analysis.expectedTypes.returnContext, returnContracts: analysis.declarations.returnContract,
     values: analysis.valueReads.valueRead,
+    nativeUse: nativeDemand.nativeUse, storage: analysis.storage.storageType,
     admitted: admittedControlNode, required: analysis.requiredRecords, facts: {
       erased: node => analysis.sourceEvidence.compileTimeMetadata.get(node) === true ||
         admittedOperations.nativeUnreachable.get(node) === true || admittedOperations.erasedStatement.get(node) === true ||

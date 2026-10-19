@@ -10,6 +10,10 @@ import type { CsharpExpectedTypeClassifications } from "../../target-model/recor
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import { csharpVoidReturnCompletion } from "../../target-model/types/carriers/delegates.js";
+import type { CsharpCatchBinding } from "../../target-model/records/exception-flow.js";
+import type { CsharpNativeUseClassifications } from "../../target-model/records/native-demand.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 
 export function analyzeCsharpStatementCompletions(input: {
   readonly ast: AstReader;
@@ -20,11 +24,14 @@ export function analyzeCsharpStatementCompletions(input: {
   readonly returnContexts: CsharpExpectedTypeClassifications["returnContext"];
   readonly returnContracts: CsharpDeclarationClassifications["returnContract"];
   readonly values: CsharpValueReadClassifications["valueRead"];
+  readonly nativeUse: CsharpNativeUseClassifications["nativeUse"];
+  readonly storage: CsharpStorageClassifications["storageType"];
 }): CsharpStatementCompletionRecords {
   const exits = new Map<Node, CsharpControlExitCompletion>();
   const labels = new Map<Node, SourceLabeledStatementTarget>();
   const continuations = new Map<Node, boolean>();
   const returns = new Map<Node, CsharpReturnCompletion>();
+  const catches = new Map<Node, CsharpCatchBinding>();
   for (const node of input.nodes) {
     if (!input.admitted(node)) continue;
     if (input.ast.is.IsReturnStatement(node)) {
@@ -36,6 +43,20 @@ export function analyzeCsharpStatementCompletions(input: {
         : csharpVoidReturnCompletion(input.values.get(expression)?.value, target) ?? "value";
       returns.set(node, Object.freeze({ kind: completion, target }));
       requireCsharpRecord(input.required, { family: "returnCompletion", subject: node,
+        construct: input.ast.kindName(node), producer: "analyzeCsharpStatementCompletions" });
+    } else if (input.ast.is.IsCatchClause(node)) {
+      const declaration = input.ast.as.AsCatchClause(node)?.VariableDeclaration;
+      const name = declaration === undefined ? undefined : input.ast.name(declaration);
+      const order = input.nativeUse.order(node);
+      if (order === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted catch requires its native construction order.", node);
+      if (declaration === undefined || !order.some(step => step.kind === "construct" && step.construct === declaration))
+        catches.set(node, Object.freeze({ kind: "unbound" }));
+      else {
+        const carrier = name === undefined ? undefined : input.storage.get(name);
+        if (name === undefined || carrier === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted catch binding requires its checked name and native carrier.", node);
+        catches.set(node, Object.freeze({ kind: isCsharpJsValueTargetType(carrier) ? "closed-value" : "native", declaration, name, carrier }));
+      }
+      requireCsharpRecord(input.required, { family: "catchBinding", subject: node,
         construct: input.ast.kindName(node), producer: "analyzeCsharpStatementCompletions" });
     } else if (input.ast.is.IsBreakStatement(node) || input.ast.is.IsContinueStatement(node)) {
       const target = sourceControlTransferTarget(input.ast, node);
@@ -66,5 +87,5 @@ export function analyzeCsharpStatementCompletions(input: {
     requireCsharpRecord(input.required, { family: "loopContinuationExit", subject: node,
       construct: input.ast.kindName(node), producer: "analyzeCsharpStatementCompletions" });
   }
-  return createCsharpStatementCompletionRecords({ exits, labels, continuations, returns });
+  return createCsharpStatementCompletionRecords({ exits, labels, continuations, returns, catches });
 }
