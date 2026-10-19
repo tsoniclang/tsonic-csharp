@@ -415,17 +415,17 @@ export function analyzeCsharpConversions(
         ) {
           continue;
         }
-        const source = csharpAbsenceTargetType();
+        const absence = csharpAbsenceTargetType();
         const target = classification.sourceParameterTypes?.[parameterIndex];
-        classifyPair(source, target, "implicit", node);
+        classifyPair(absence, target, "implicit", node);
       }
     }
     const grouping = classification.target?.kind === "source-owned" ? classification.sourceArgumentGrouping : undefined;
     if (grouping?.kind === "grouped") for (const group of grouping.groups) {
       if (group.collect || group.arguments.length > 0) continue;
-      const source = csharpAbsenceTargetType();
-      classifyPair(source, group.type, "implicit", node);
-      omitted.push(Object.freeze({ source, target: group.type }));
+      const absence = csharpAbsenceTargetType();
+      classifyPair(absence, group.type, "implicit", node);
+      omitted.push(Object.freeze({ source: absence, target: group.type }));
     }
     if (completion !== undefined || omitted.length > 0) {
       callConversions.set(node, Object.freeze({ ...(completion === undefined ? {} : { completion }),
