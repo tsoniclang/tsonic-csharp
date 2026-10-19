@@ -1,7 +1,8 @@
 import type { TargetCapabilityContribution } from "@tsonic/target-api/provider";
-import type { CsharpProviderTargetRejection } from "../native/relations/index.js";
+import type { CsharpProviderTargetRejection } from "./provider-relations.js";
 import type { CsharpProviderTargetRelation } from "../../target-model/identities/provider-relations.js";
 import type {
+  CsharpTargetBindingFact,
   CsharpTargetBinaryExecutionDriver,
 } from "../../target-model/types/model.js";
 import {
@@ -21,6 +22,7 @@ export interface CsharpProviderPolicyContribution
   readonly kind: typeof csharpProviderPolicyContributionKind;
   readonly providerId: string;
   readonly providerVersion: string;
+  readonly targetBindings: readonly CsharpTargetBindingFact[];
   readonly relations: readonly CsharpProviderTargetRelation[];
   readonly rejections: readonly CsharpProviderTargetRejection[];
   readonly binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver;
@@ -56,21 +58,39 @@ export function composeCsharpBinaryExecutionDriver(
 }
 
 export function csharpProviderPolicyContribution(
-  providerId: string,
-  providerVersion: string,
-  relations: readonly CsharpProviderTargetRelation[],
-  rejections: readonly CsharpProviderTargetRejection[],
-  binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver,
+  input: {
+    readonly providerId: string;
+    readonly providerVersion: string;
+    readonly targetBindings: readonly CsharpTargetBindingFact[];
+    readonly relations: readonly CsharpProviderTargetRelation[];
+    readonly rejections: readonly CsharpProviderTargetRejection[];
+    readonly binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver;
+  },
 ): CsharpProviderPolicyContribution {
+  if (
+    arguments.length !== 1 ||
+    !isContributionRecord(input) ||
+    !hasExactContributionFields(input, [
+      "providerId",
+      "providerVersion",
+      "targetBindings",
+      "relations",
+      "rejections",
+      "binaryExecutionDriver",
+    ]) ||
+    !nonEmptyContributionString(input.providerId) ||
+    !nonEmptyContributionString(input.providerVersion) ||
+    !Array.isArray(input.targetBindings) ||
+    !Array.isArray(input.relations) ||
+    !Array.isArray(input.rejections)
+  ) {
+    throw new Error(
+      "C# provider policy contributions require one object containing providerId, providerVersion, targetBindings, relations and rejections.",
+    );
+  }
   return snapshotCsharpMetadata({
     kind: csharpProviderPolicyContributionKind,
-    providerId,
-    providerVersion,
-    relations,
-    rejections,
-    ...(binaryExecutionDriver === undefined
-      ? {}
-      : { binaryExecutionDriver }),
+    ...input,
   });
 }
 
@@ -85,12 +105,14 @@ export function validateCsharpProviderPolicyContribution(
       "kind",
       "providerId",
       "providerVersion",
+      "targetBindings",
       "relations",
       "rejections",
       "binaryExecutionDriver",
     ]) ||
     !nonEmptyContributionString(contribution.providerId) ||
     !nonEmptyContributionString(contribution.providerVersion) ||
+    !Array.isArray(contribution.targetBindings) ||
     !Array.isArray(contribution.relations) ||
     !Array.isArray(contribution.rejections)
   ) {
@@ -100,6 +122,20 @@ export function validateCsharpProviderPolicyContribution(
   }
   const snapshot = snapshotCsharpMetadata(contribution) as unknown as
     CsharpProviderPolicyContribution;
+  for (const binding of snapshot.targetBindings) {
+    if (
+      !isContributionRecord(binding) ||
+      binding.target !== "csharp" ||
+      !nonEmptyContributionString(binding.id) ||
+      !nonEmptyContributionString(binding.sourceName) ||
+      !nonEmptyContributionString(binding.targetName) ||
+      !["class", "struct", "interface", "trait", "enum", "delegate", "function", "opaque"].includes(String(binding.kind))
+    ) {
+      throw new Error(
+        `C# target capability '${capabilityId}' supplied an invalid physical target binding.`,
+      );
+    }
+  }
   for (const relation of snapshot.relations) {
     validateCsharpProviderRelation(
       capabilityId,

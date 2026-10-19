@@ -14,16 +14,16 @@ import type {
 import type {
   DotnetTypeDeclaration,
 } from "../model/index.js";
-import { dotnetTypeToTargetBinding } from "../projection/binding-projection.js";
+import { dotnetTypeToTargetBinding } from "./binding-projection.js";
 import {
   dotnetMemberToProviderMember,
-} from "../projection/declarations/members.js";
+} from "./declarations/members.js";
 import {
   dotnetProviderSignatureIdsForMember,
-} from "../projection/declarations/signatures.js";
+} from "./declarations/signatures.js";
 import {
   dotnetMemberToTargetMemberRecords,
-} from "../projection/members.js";
+} from "./members.js";
 
 export interface DotnetTargetMemberProjection {
   readonly targetBinding: CsharpTargetBindingFact;

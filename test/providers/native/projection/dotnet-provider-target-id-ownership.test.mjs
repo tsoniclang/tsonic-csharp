@@ -3,10 +3,10 @@ import { test } from "node:test";
 import {
   dotnetModuleSpecifierForMetadataName,
   dotnetModuleSpecifierForTargetId,
-} from "../../../../dist/providers/native/projection/modules/lookup.js";
+} from "../../../../dist/providers/native/projection/module-lookup.js";
 import {
   dotnetNativeArrayTypeId,
-} from "../../../../dist/providers/native/projection/modules/native-array.js";
+} from "../../../../dist/providers/native/projection/module-native-array.js";
 
 test(".NET target lookup accepts only canonical .NET and explicit synthetic identities", () => {
   assert.equal(

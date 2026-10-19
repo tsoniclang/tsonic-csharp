@@ -16,7 +16,13 @@ const providerIdentity = {
 };
 
 function definition() {
-  const policy = structuredClone(csharpProviderPolicyContribution(providerIdentity.id, providerIdentity.version, [], []));
+  const policy = structuredClone(csharpProviderPolicyContribution({
+    providerId: providerIdentity.id,
+    providerVersion: providerIdentity.version,
+    targetBindings: [],
+    relations: [],
+    rejections: [],
+  }));
   return {
     id: "@fixture/measurements",
     displayName: "Measurement capability",
@@ -350,10 +356,17 @@ test("source declarations and target policy receive matching immutable surface s
   const calls = [];
   input.createPolicy = surfaces => {
     calls.push(surfaces);
-    return csharpProviderPolicyContribution(providerIdentity.id, providerIdentity.version, [], [], {
-      id: surfaces.includes("units") ? "units-driver" : "native-driver",
-      declaringType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Measurement.Runtime.Driver" },
-      runMethodName: "Run", runWithEntrypointMethodName: "RunEntrypoint",
+    return csharpProviderPolicyContribution({
+      providerId: providerIdentity.id,
+      providerVersion: providerIdentity.version,
+      targetBindings: [],
+      relations: [],
+      rejections: [],
+      binaryExecutionDriver: {
+        id: surfaces.includes("units") ? "units-driver" : "native-driver",
+        declaringType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Measurement.Runtime.Driver" },
+        runMethodName: "Run", runWithEntrypointMethodName: "RunEntrypoint",
+      },
     });
   };
   const plugin = createCsharpProviderPackage(input);
@@ -367,4 +380,46 @@ test("source declarations and target policy receive matching immutable surface s
   assert.deepEqual(calls, [["units"], []]);
   assert.ok(calls.every(Object.isFrozen));
   assert.ok(Object.isFrozen(selected));
+});
+
+test("provider policy contributions require the current complete object form", () => {
+  const expected = /require one object containing providerId, providerVersion, targetBindings, relations and rejections/u;
+  assert.throws(() => csharpProviderPolicyContribution(providerIdentity.id, providerIdentity.version, [], []), expected, "removed positional form");
+  assert.throws(() => csharpProviderPolicyContribution({ providerId: providerIdentity.id, providerVersion: providerIdentity.version, relations: [], rejections: [] }), expected, "missing physical binding inventory");
+  assert.throws(() => csharpProviderPolicyContribution({ providerId: providerIdentity.id, providerVersion: providerIdentity.version, targetBindings: [], relations: [], rejections: [], guessedBindings: [] }), expected, "unknown representation");
+  const input = definition();
+  delete input.createPolicy([]).targetBindings;
+  assert.throws(() => createCsharpProviderPackage(input).createTargetContributions({ selectedSurfaceIds: [] }), /invalid 'csharp-provider-policy' contribution/u, "missing inventory at package boundary");
+});
+
+test("physical target bindings are exact immutable metadata without a source export", () => {
+  const input = definition();
+  const binding = {
+    id: "Measurement.Runtime.IUnits",
+    sourceName: "IUnits",
+    targetName: "Measurement.Runtime.IUnits",
+    target: "csharp",
+    kind: "interface",
+    csharpType: { kind: "target-named", id: "Measurement.Runtime.IUnits", csharpAllowsRefLikeTypeArguments: [] },
+  };
+  input.createPolicy([]).targetBindings.push(binding);
+  const plugin = createCsharpProviderPackage(input);
+  const contribution = plugin.createTargetContributions({ selectedSurfaceIds: [] })[0];
+  binding.targetName = "changed";
+  assert.equal(contribution.targetBindings[0].targetName, "Measurement.Runtime.IUnits");
+  assert.equal(Object.isFrozen(contribution.targetBindings[0]), true);
+  assert.equal(contribution.relations.length, 0);
+  assert.deepEqual(declarationModel(registeredProvider(extension(plugin)), "measure").exports.map(entry => entry.name), ["Measurement"]);
+  for (const [label, mutate] of [
+    ["wrong target", value => { value.target = "rust"; }],
+    ["missing identity", value => { delete value.id; }],
+    ["missing native name", value => { delete value.targetName; }],
+    ["invalid kind", value => { value.kind = "dynamic"; }],
+  ]) {
+    const invalid = definition();
+    const value = structuredClone(contribution.targetBindings[0]);
+    mutate(value);
+    invalid.createPolicy([]).targetBindings.push(value);
+    assert.throws(() => createCsharpProviderPackage(invalid).createTargetContributions({ selectedSurfaceIds: [] }), /invalid physical target binding/u, label);
+  }
 });

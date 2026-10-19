@@ -1,17 +1,17 @@
 import type {
   DotnetProviderDeclarationContext,
   DotnetProviderDiagnostic,
-} from "../provider.js";
+} from "../projection/provider.js";
 import type {
   ProviderDeclarationMaterialization,
 } from "@tsonic/tsts";
 import type {
   DotnetAssemblySourcePackage,
   DotnetModuleSpecifierPolicy,
-} from "../projection/modules/specifier.js";
+} from "../projection/module-specifier.js";
 import {
   normalizeDotnetAssemblySourcePackages,
-} from "../projection/modules/specifier.js";
+} from "../projection/module-specifier.js";
 import type {
   DotnetProviderIdentity,
 } from "../model/index.js";

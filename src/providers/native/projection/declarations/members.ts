@@ -10,7 +10,7 @@ import { dotnetMemberKindToProviderKind } from "./conversions.js";
 import {
   dotnetProviderMemberId,
   dotnetProviderSourceMemberGroupId,
-} from "../../relations/member-identity.js";
+} from "../../model/member-identity.js";
 import {
   dotnetProviderSignatureIdsForMember,
   dotnetSignatureToProviderSignature,
