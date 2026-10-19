@@ -31,7 +31,7 @@ import {
 } from "../../types/target-types.js";
 import type { ExpressionPlanner } from "../../expressions/expression-planner-types.js";
 import {
-  findObjectShapeMemberForProperty,
+  getCsharpObjectLiteralMember,
 } from "./support.js";
 import {
   planObjectShapeMethodMemberAssignment,
@@ -129,11 +129,10 @@ export function planExplicitObjectShapeLiteralMember(
     ));
     return undefined;
   }
-  const member = findObjectShapeMemberForProperty(
+  const member = getCsharpObjectLiteralMember(
     objectShape,
     property,
     input,
-    diagnostics,
   );
   if (member === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(

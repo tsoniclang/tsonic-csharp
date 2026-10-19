@@ -32,8 +32,7 @@ import {
   planLambdaParameters,
 } from "../../expressions/expression-lambdas.js";
 import {
-  findObjectShapeMember,
-  getObjectLiteralPropertySourceName,
+  getCsharpObjectLiteralMember,
 } from "./support.js";
 import {
   objectShapeAccessorGetterStorageMemberName,
@@ -60,14 +59,7 @@ export function planObjectShapeAccessorMemberAssignment(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpPlannedObjectInitializer | undefined {
-  const sourceName = getObjectLiteralPropertySourceName(
-    accessorNode,
-    input,
-    diagnostics,
-  );
-  const member = sourceName === undefined
-    ? undefined
-    : findObjectShapeMember(objectShape, sourceName);
+  const member = getCsharpObjectLiteralMember(objectShape, accessorNode, input);
   const getter = SourceKind(input.program.source.ast, accessorNode) === KindGetAccessor;
   if (member?.accessor === undefined ||
     (!getter && member.accessor.setter !== true)) {
