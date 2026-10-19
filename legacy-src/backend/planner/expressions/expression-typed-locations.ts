@@ -387,7 +387,7 @@ function boundRecordStorage(node: Node, input: CsharpPlanningContext): { readonl
   const shape = selected?.objectShape;
   const field = selected?.shapeMember?.kind === "resolved" ? selected.shapeMember.member : undefined;
   if (shape === undefined || field?.bound !== true) return undefined;
-  const type = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(field), input.scope.typeParameterNames);
+  const type = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(shape, field, input.program.records), input.scope.typeParameterNames);
   return type === undefined ? undefined : { type, name: objectShapeBoundStorageMemberName(shape, field) };
 }
 

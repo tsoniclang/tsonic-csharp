@@ -65,7 +65,7 @@ export function planObjectShapeMethodMemberAssignment(
     ? objectShapeMethodStorageTargetType(
         objectShape,
         member,
-        receiverBound,
+        input.program.records,
       )
     : member.type;
   const storageType = storageTargetType === undefined

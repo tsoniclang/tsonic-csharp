@@ -36,7 +36,7 @@ export function planValueTypeDeclaration(
       return failCsharpPlannerInvariant("An admitted native value field lost its exact renderable selected carrier.", field.source.sourceType);
     }
     if (field.bound !== undefined) {
-      const rendered = renderBoundRecordMember(input.scope.typeParameterNames, field.bound.owner, field.bound.member, type, {
+      const rendered = renderBoundRecordMember(input.scope.typeParameterNames, field.bound.owner, field.bound.member, type, input.program.records, {
         member: planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "value", container: declarationNode,
           member: field.bound.member.targetName, role: "member" }),
         storage: planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "value", container: declarationNode,

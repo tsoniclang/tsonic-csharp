@@ -1,5 +1,6 @@
 import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import type { CsharpStorageClassifications } from "../../../../target-model/records/storage.js";
+import type { CsharpObjectMemberRecords } from "../../../../target-model/records/object-members.js";
 import { planCsharpNativeMemoryCall } from "../../expressions/native-memory.js";
 import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -49,7 +50,7 @@ export function renderObjectShapeMembers(
   receiverBoundMethodKeys: ReadonlySet<string>,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
-  storage: Pick<CsharpStorageClassifications, "nativeField"> & CsharpStructuralObjectEmissionRecords,
+  storage: Pick<CsharpStorageClassifications, "nativeField"> & CsharpStructuralObjectEmissionRecords & CsharpObjectMemberRecords,
   names: CsharpNativeMemberHidingReader,
   deferredCaptures: ReadonlySet<string> = new Set(),
 ): CsharpClassDeclaration["members"] | undefined {
@@ -83,6 +84,7 @@ export function renderObjectShapeMembers(
         diagnostics,
         diagnosticSubject,
         names,
+        storage,
       );
     }
     if (member.accessor !== undefined) {
@@ -96,7 +98,7 @@ export function renderObjectShapeMembers(
         names,
       );
     }
-    if (member.bound === true) return renderBoundRecordMember(typeParameterNames, fact, member, type, {
+    if (member.bound === true) return renderBoundRecordMember(typeParameterNames, fact, member, type, storage, {
       member: planCsharpArtifactMemberHiding(names, fact, member.targetName),
       storage: planCsharpArtifactMemberHiding(names, fact, objectShapeBoundStorageMemberName(fact, member)),
     });
@@ -166,9 +168,10 @@ function renderCopiedGenericMethod(
 export function renderBoundRecordMember(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   shape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number], type: CsharpTypeNode,
+  records: CsharpObjectMemberRecords,
   hiding: { readonly member: readonly "new"[]; readonly storage: readonly "new"[] },
 ): readonly (CsharpTypeMember | undefined)[] {
-  const storageType = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(member), typeParameterNames);
+  const storageType = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(shape, member, records), typeParameterNames);
   if (storageType === undefined || member.bound !== true) return [undefined];
   const storageName = objectShapeBoundStorageMemberName(shape, member);
   const access: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: storageName }, name: "Value" };
@@ -286,12 +289,13 @@ function renderObjectShapeMethodMember(
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
   names: CsharpNativeMemberHidingReader,
+  records: CsharpObjectMemberRecords,
 ): readonly (CsharpTypeMember | undefined)[] {
   const signature = csharpDelegateSignatureFromTargetTypeRef(typeParameterNames, member.type);
   const storageTargetType = objectShapeMethodStorageTargetType(
     objectShape,
     member,
-    receiverBound,
+    records,
   );
   const storageType = storageTargetType === undefined
     ? undefined

@@ -84,7 +84,7 @@ export function planObjectShapeSpreadAssignments(
       return undefined;
     }
     const carrier = targetMember.memberKind !== "method" ? targetMember.type
-      : objectShapeMethodStorageTargetType(targetShape, targetMember, input.artifacts.objectShapeMethodUsesReceiver(targetShape, targetMember));
+      : objectShapeMethodStorageTargetType(targetShape, targetMember, input.program.records);
     if (carrier === undefined) return undefined;
     fields.push({ source: objectShapeStorageMemberName(sourceShape, sourceMember), target: objectShapeStorageMemberName(targetShape, targetMember), carrier });
   }
