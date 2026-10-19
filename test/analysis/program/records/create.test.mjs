@@ -40,7 +40,7 @@ for (const surface of ["native", "js"]) {
     const { program, call, declaration } = fixture(surface);
     assert.equal(Object.isFrozen(program) && Object.isFrozen(program.records), true, "sealed program and record port");
     const families = Object.entries(program.records);
-    assert.equal(families.length, 119, "every current record family is assembled");
+    assert.equal(families.length, 121, "every current record family is assembled");
     for (const [name, family] of families) {
       assert.equal(Object.isFrozen(family) && typeof family.get === "function", true, `${name}: frozen typed reader`);
       assert.equal(Object.hasOwn(family, "set"), false, `${name}: no public write path`);

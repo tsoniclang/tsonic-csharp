@@ -98,7 +98,7 @@ export function selectCsharpSourceCoreFixedArrayElement(
   const rejection = fixedArrayReceiverRejection(host, source.receiver, sourceFile);
   if (rejection !== undefined) return rejectedFixedArrayOperation(rejection);
   const receiver = resolveFixedArrayReceiver(host, source.receiver, sourceFile);
-  const integralLiteral = csharpLiteralIsRepresentableAs(host, source.argument.expression, csharpSourcePrimitiveTargetType("int32"));
+  const integralLiteral = csharpLiteralIsRepresentableAs(host.literalValues.literalValue.get(source.argument.expression), csharpSourcePrimitiveTargetType("int32"));
   const indexType = integralLiteral ? csharpSourcePrimitiveTargetType("int32") : host.types.resolveNode(
     source.argument.expression,
     sourceFile,

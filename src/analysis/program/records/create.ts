@@ -4,6 +4,7 @@ import type { CsharpCaptureStorage } from "../../../target-model/records/capture
 import type { CsharpClassFactoryIndex } from "../../../target-model/records/class-factories.js";
 import type { CsharpClassInitializationIndex } from "../../../target-model/records/class-initialization.js";
 import type { CsharpConversionClassifications, CsharpValueReadClassifications } from "../../../target-model/records/conversions.js";
+import type { CsharpExactLiteralSelectionIndex } from "../../../target-model/conversions/exact-literals.js";
 import type { CsharpDeclarationClassifications } from "../../../target-model/records/declarations.js";
 import type { CsharpExpectedTypeClassifications } from "../../../target-model/records/expected-types.js";
 import type { CsharpModuleInitializationIndex } from "../../../target-model/records/module-initialization.js";
@@ -18,6 +19,7 @@ import type { CsharpGenericProjectionIndex } from "../../../target-model/records
 import type { CsharpProgramRecords } from "../../../target-model/records/program.js";
 
 export interface CsharpProgramRecordInput {
+  readonly literalValues: import("../../../target-model/records/source-literals.js").CsharpSourceLiteralIndex;
   readonly sourceEvidence: CsharpSourceEvidenceIndex;
   readonly flowReads: CsharpFlowReadClassifications;
   readonly valueReads: CsharpValueReadClassifications;
@@ -26,6 +28,7 @@ export interface CsharpProgramRecordInput {
   readonly declarations: CsharpDeclarationClassifications;
   readonly storage: CsharpStorageClassifications;
   readonly conversions: CsharpConversionClassifications;
+  readonly exactLiterals: CsharpExactLiteralSelectionIndex;
   readonly classFactories: CsharpClassFactoryIndex;
   readonly classInitialization: CsharpClassInitializationIndex;
   readonly captureStorage: CsharpCaptureStorage;
@@ -40,6 +43,7 @@ export interface CsharpProgramRecordInput {
 
 export function createCsharpProgramRecords(input: CsharpProgramRecordInput): CsharpProgramRecords {
   return Object.freeze({
+    literalValue: input.literalValues.literalValue,
     attributeApplication: input.attributeApplications.attributeApplication,
     erasedAttribute: input.attributeApplications.erasedAttribute,
     callableDispatch: input.callableAdapters.callableDispatch,
@@ -64,6 +68,7 @@ export function createCsharpProgramRecords(input: CsharpProgramRecordInput): Csh
     directCallableReference: input.conversions.directCallableReference,
     conversion: input.conversions.conversion,
     expressionConversion: input.conversions.expressionConversion,
+    exactLiteral: input.exactLiterals.exactLiteral,
     returnContract: input.declarations.returnContract,
     runtimeDefault: input.declarations.runtimeDefault,
     methodWrite: input.declarations.methodWrite,

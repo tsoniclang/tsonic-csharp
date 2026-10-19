@@ -23,7 +23,6 @@ import {
   translateCsharpJsValueInvocation,
 } from "./js-value-operations.js";
 import { planCsharpExactLiteralConversion } from "./literal-conversions.js";
-import { csharpNumericLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
 import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpExpressionCompletion, projectCsharpPlannedValue } from "./planned-value-composition.js";
 
@@ -92,7 +91,7 @@ export function planPrefixUnaryExpression(
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
   }
-  if (Object.is(csharpNumericLiteralValue(input.program.source.ast, node), -0)) {
+  if (Object.is(input.program.records.literalValue.get(node)?.number, -0)) {
     const literal = planCsharpExactLiteralConversion(input, node, selection.resultType);
     if (literal.kind === "resolved") return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, literal.expression, selection.resultType);
     if (literal.kind === "rejected") {
