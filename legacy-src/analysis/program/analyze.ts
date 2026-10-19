@@ -12,6 +12,7 @@ import { createCsharpProgramRecords } from "./records/create.js";
 import { analyzeCsharpDeclarationModifiers } from "../declarations/classes/modifiers.js";
 import { analyzeCsharpNativeDeclarationForms } from "../declarations/native-forms.js";
 import { analyzeCsharpStructuralInterfaceEmission } from "../declarations/interfaces/structural.js";
+import { analyzeCsharpLexicalValues } from "../callables/lexical-values.js";
 import { analyzeCsharpStatementExits } from "../control-flow/statement-exits.js";
 import { analyzeCsharpStatementCompletions } from "../control-flow/statement-completion.js";
 import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js";
@@ -518,7 +519,11 @@ function analyzeCsharpTargetProgramBeforeSeal(
       admittedOperations.nativeUnreachable.get(node) === true || nativeParticipation.participation.get(node) === "erased",
     required: analysis.requiredRecords });
   if (generators.issues.length !== 0) return rejectedTargetStage(generators.issues);
+  const lexicalValues = analyzeCsharpLexicalValues({ nodes: sourceStorage.nodes, navigation: source.navigation,
+    captures: captureStorage, values: analysis.valueReads, metadata: analysis.sourceEvidence });
+  if (lexicalValues.issues.length !== 0) return rejectedTargetStage(lexicalValues.issues);
   const records = createCsharpProgramRecords({
+    lexicalValues: lexicalValues.records,
     structuralInterfaces: analyzeCsharpStructuralInterfaceEmission({ ast: source.ast,
       shapes: callableAdapters.objectShapes, names, projectTypes, projections: analysis.typeProjections }),
     nativeDeclarations: analyzeCsharpNativeDeclarationForms({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, required: analysis.requiredRecords }),

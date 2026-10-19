@@ -30,8 +30,9 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpDeclarationModifierRecords } from "./declaration-modifiers.js";
 import type { CsharpNativeDeclarationRecords } from "./native-declaration-forms.js";
 import type { CsharpStructuralInterfaceRecords } from "./structural-interfaces.js";
+import type { CsharpLexicalValueRecords } from "./lexical-values.js";
 
-export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords, CsharpNativeDeclarationRecords, CsharpStructuralInterfaceRecords {
+export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords, CsharpNativeDeclarationRecords, CsharpStructuralInterfaceRecords, CsharpLexicalValueRecords {
   readonly localBinding: { readonly get: (subject: Node | undefined) => CsharpLocalBindingCompletion | undefined };
   readonly objectShapeArtifact: CsharpObjectShapeDemand;
   readonly nativeValueDeclaration: CsharpNativeValueCarriers["nativeValueDeclaration"];
