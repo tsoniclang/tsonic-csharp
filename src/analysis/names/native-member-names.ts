@@ -17,10 +17,10 @@ import type { CsharpNativeInheritedMember, CsharpNativeTargetBindingFact } from 
 import { csharpNativeInheritanceLookup } from "../../target-model/types/native-inheritance.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../target-model/types/model.js";
-import { csharpWellKnownSymbolTargetMemberName, csharpObjectShapeMemberContractKey,
-  csharpObjectShapeMethodDeclaration, getCsharpDelegateSignature, getCsharpLambdaSignature,
+import { csharpWellKnownSymbolTargetMemberName, getCsharpDelegateSignature, getCsharpLambdaSignature,
   getCsharpExpressionTreeDelegateType, csharpStringTargetType } from "../../target-model/types/index.js";
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
+import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpTargetStorageIdentityEquals } from "../../policy/types/storage/storage-identity.js";
 import type { CsharpSourceNameResolver } from "./source-names.js";
@@ -396,11 +396,13 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
       const container = objectShapeArtifactKey(shape);
       if (declarations.has(container)) continue;
       declarations.add(container);
-      const structural = source?.kind === "interface" || shape.targetType.kind === "target-named" && shape.targetType.csharpStructuralContract === true;
+      const structural = source?.kind === "interface" || shape.targetType.kind === "target-named" &&
+        "csharpStructuralContract" in shape.targetType && shape.targetType.csharpStructuralContract === true;
       const inheritedNames = structural ? interfaceAncestors(shape.implements ?? []) : undefined;
       const project = source?.kind === "class" ? projectAncestors(source.declaration) : undefined;
       const inherited = structural ? [] : nativeMembers(project?.nativeBase,
-        shape.targetType.kind === "target-named" && shape.targetType.csharpValueType === true ? "struct" : "class", source?.declaration);
+        shape.targetType.kind === "target-named" && "csharpValueType" in shape.targetType &&
+          shape.targetType.csharpValueType === true ? "struct" : "class", source?.declaration);
       const ancestors = inherited === undefined ? undefined : [...project?.members ?? [], ...inherited];
       if (ancestors === undefined) continue;
       const frame = input.captureFrameShape.get(shape.targetType);

@@ -352,7 +352,8 @@ export function analyzeCsharpProjectCallableAdapters(
       base = selected.type;
     }
     const shape = definition === undefined && owner !== undefined ? policy.objectShapes.resolveNode(owner, policy.ast.getSourceFile(owner)) : undefined;
-    const valueType = definition?.kind === "struct" || shape?.targetType.kind === "target-named" && shape.targetType.csharpValueType === true;
+    const valueType = definition?.kind === "struct" || shape?.targetType.kind === "target-named" &&
+      "csharpValueType" in shape.targetType && shape.targetType.csharpValueType === true;
     const key = base === undefined ? `root:${valueType ? "struct" : "class"}` : targetTypeRefKey(base);
     if (nativeMembers.has(key)) return nativeMembers.get(key);
     if (base !== undefined && base.kind !== "target-named") {
@@ -364,8 +365,9 @@ export function analyzeCsharpProjectCallableAdapters(
       : lookup.kind === "metadata-name" ? inheritanceBinding(lookup.metadataName, true, subject)
       : inheritanceBinding(lookup.targetId, false, subject);
     if (binding === undefined) { nativeMembers.set(key, undefined); return undefined; }
-    const substitutions = new Map((binding.typeParameters ?? []).map((parameter, index) => [parameter.identity,
-      base?.kind === "target-named" ? base.typeArguments![index]! : parameter]));
+    const substitutions = base?.kind === "target-named"
+      ? new Map((binding.typeParameters ?? []).map((parameter, index) => [parameter.identity, base.typeArguments![index]!]))
+      : new Map<string, TargetTypeRef>();
     const members: CsharpNativeInheritedMember[] = [];
     for (const entry of binding.csharpInheritance) {
       const declaration = entry.targetId === binding.id ? binding : inheritanceBinding(entry.targetId, false, subject);

@@ -436,7 +436,7 @@ export function analyzeCsharpBindingPatterns(
         if (index === undefined || index < 0) return undefined;
         if (semantics.types.isTuple(parentType)) selected = semantics.types.tupleElementInfos(parentType)[index]?.type;
         else {
-          const indices = semantics.types.indexInfos(parentType).filter(info => semantics.types.isNumberLike(info.keyType));
+          const indices = semantics.types.indexInfos(parentType).filter(info => info.keyType !== undefined && semantics.types.isNumberLike(info.keyType));
           selected = indices.length === 1 ? indices[0]!.valueType : undefined;
         }
       }
