@@ -93,27 +93,27 @@ sealed partial class ReflectionProvider
         return $"{method.IsStatic}:{(IsExtensionMethod(method) ? "first-argument" : "normal")}:{method.Name}";
     }
 
-    static string MethodId(MethodInfo method)
+    string MethodId(MethodInfo method)
     {
         return $"{TargetId(method.DeclaringType!)}.{MethodMetadataName(method)}({string.Join(",", method.GetParameters().Select(ParameterTargetId))})";
     }
 
-    static string OperatorId(MethodInfo method)
+    string OperatorId(MethodInfo method)
     {
-        return $"{MethodId(method)}:{TypeTargetId(method.ReturnType)}";
+        return $"{MethodId(method)}:{TypeTargetId(method.ReturnType, SignatureEvidence(method.ReturnParameter))}";
     }
 
-    static string MethodMetadataId(MethodInfo method)
+    string MethodMetadataId(MethodInfo method)
     {
         return $"{MetadataName(method.DeclaringType!)}.{MethodMetadataName(method)}({string.Join(",", method.GetParameters().Select(ParameterMetadataName))})";
     }
 
-    static string ConstructorId(ConstructorInfo constructor)
+    string ConstructorId(ConstructorInfo constructor)
     {
         return $"{TargetId(constructor.DeclaringType!)}..ctor({string.Join(",", constructor.GetParameters().Select(ParameterTargetId))})";
     }
 
-    static string ConstructorMetadataName(ConstructorInfo constructor)
+    string ConstructorMetadataName(ConstructorInfo constructor)
     {
         return $"{MetadataName(constructor.DeclaringType!)}..ctor({string.Join(",", constructor.GetParameters().Select(ParameterMetadataName))})";
     }
@@ -125,9 +125,9 @@ sealed partial class ReflectionProvider
             : method.Name;
     }
 
-    static string ParameterMetadataName(ParameterInfo parameter)
+    string ParameterMetadataName(ParameterInfo parameter)
     {
-        var typeName = TypeMetadataName(UnwrapByRef(parameter.ParameterType));
+        var typeName = ParameterTypeMetadataName(parameter);
         if (!parameter.ParameterType.IsByRef)
         {
             return typeName;
@@ -141,9 +141,9 @@ sealed partial class ReflectionProvider
             : $"ref {typeName}";
     }
 
-    static string ParameterTargetId(ParameterInfo parameter)
+    string ParameterTargetId(ParameterInfo parameter)
     {
-        var typeName = TypeTargetId(UnwrapByRef(parameter.ParameterType));
+        var typeName = ParameterTypeTargetId(parameter);
         if (!parameter.ParameterType.IsByRef)
         {
             return typeName;
@@ -157,11 +157,25 @@ sealed partial class ReflectionProvider
             : $"ref {typeName}";
     }
 
-    static string TypeMetadataName(Type type)
+    string ParameterTypeMetadataName(ParameterInfo parameter) =>
+        TypeMetadataName(UnwrapByRef(parameter.ParameterType), SignatureEvidence(parameter));
+
+    string ParameterTypeTargetId(ParameterInfo parameter) =>
+        TypeTargetId(UnwrapByRef(parameter.ParameterType), SignatureEvidence(parameter));
+
+    static string TypeMetadataName(Type type, SignatureTypeEvidence? evidence = null)
     {
+        if (type.IsFunctionPointer)
+        {
+            return FunctionPointerTargetId(type, evidence);
+        }
         if (type.IsArray)
         {
-            return $"{TypeMetadataName(type.GetElementType()!)}{ArrayRankSuffix(type)}";
+            return $"{TypeMetadataName(type.GetElementType()!, evidence?.ElementType)}{ArrayRankSuffix(type)}";
+        }
+        if (type.IsPointer && ContainsFunctionPointer(type.GetElementType()!))
+        {
+            return $"{TypeMetadataName(type.GetElementType()!, evidence?.ElementType)}*";
         }
         if (type.IsGenericParameter)
         {
@@ -169,16 +183,24 @@ sealed partial class ReflectionProvider
         }
         if (type.IsGenericType && !type.IsGenericTypeDefinition)
         {
-            return $"{MetadataName(type.GetGenericTypeDefinition())}<{string.Join(",", type.GetGenericArguments().Select(TypeMetadataName))}>";
+            return $"{MetadataName(type.GetGenericTypeDefinition())}<{string.Join(",", type.GetGenericArguments().Select((argument, index) => TypeMetadataName(argument, SignatureTypeArgument(evidence, index))))}>";
         }
         return MetadataName(type);
     }
 
-    static string TypeTargetId(Type type)
+    static string TypeTargetId(Type type, SignatureTypeEvidence? evidence = null)
     {
+        if (type.IsFunctionPointer)
+        {
+            return FunctionPointerTargetId(type, evidence);
+        }
         if (type.IsArray)
         {
-            return $"{TypeTargetId(type.GetElementType()!)}{ArrayRankSuffix(type)}";
+            return $"{TypeTargetId(type.GetElementType()!, evidence?.ElementType)}{ArrayRankSuffix(type)}";
+        }
+        if (type.IsPointer && ContainsFunctionPointer(type.GetElementType()!))
+        {
+            return $"{TypeTargetId(type.GetElementType()!, evidence?.ElementType)}*";
         }
         if (type.IsGenericParameter)
         {
@@ -186,10 +208,37 @@ sealed partial class ReflectionProvider
         }
         if (type.IsGenericType && !type.IsGenericTypeDefinition)
         {
-            return $"{TargetId(type.GetGenericTypeDefinition())}<{string.Join(",", type.GetGenericArguments().Select(TypeTargetId))}>";
+            return $"{TargetId(type.GetGenericTypeDefinition())}<{string.Join(",", type.GetGenericArguments().Select((argument, index) => TypeTargetId(argument, SignatureTypeArgument(evidence, index))))}>";
         }
         return TargetId(type);
     }
+
+    static string FunctionPointerTargetId(Type type, SignatureTypeEvidence? evidence)
+    {
+        var signature = evidence?.FunctionPointer
+            ?? throw new InvalidOperationException("A native function-pointer identity requires exact modified signature evidence.");
+        var parameters = type.GetFunctionPointerParameterTypes();
+        if (parameters.Length != signature.Parameters.Length)
+            throw new InvalidOperationException("Native function-pointer identity evidence does not match the physical signature.");
+        return "fnptr:" + JsonSerializer.Serialize(new
+        {
+            abi = signature.Abi,
+            parameters = parameters.Select((parameter, index) =>
+                PhysicalSignatureTypeIdentity(parameter, signature.Parameters[index])).ToArray(),
+            result = PhysicalSignatureTypeIdentity(type.GetFunctionPointerReturnType(), signature.Result),
+            requiredModifiers = evidence.RequiredCustomModifiers,
+            optionalModifiers = evidence.OptionalCustomModifiers,
+        });
+    }
+
+    static object PhysicalSignatureTypeIdentity(Type type, SignatureTypeEvidence evidence) => new
+    {
+        type = type.IsByRef
+            ? $"byref:{TypeTargetId(type.GetElementType()!, evidence.ElementType)}"
+            : TypeTargetId(type, evidence),
+        requiredModifiers = evidence.RequiredCustomModifiers,
+        optionalModifiers = evidence.OptionalCustomModifiers,
+    };
 
     static string ArrayRankSuffix(Type type)
     {
@@ -225,9 +274,9 @@ sealed partial class ReflectionProvider
 
     static string TargetMetadataName(Type type)
     {
-        var name = type.FullName ?? type.Name;
-        var genericArgumentStart = name.IndexOf("[[", StringComparison.Ordinal);
-        return genericArgumentStart >= 0 ? name[..genericArgumentStart] : name;
+        var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
+        return definition.FullName
+            ?? throw new InvalidOperationException($"Native physical declaration '{type}' has no full name.");
     }
 
     static string AssemblyIdentity(Assembly assembly)

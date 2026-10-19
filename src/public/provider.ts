@@ -40,7 +40,7 @@ export {
   csharpProviderPolicyContribution,
 } from "../providers/model/provider-policy-contribution.js";
 export { csharpProviderPolicyContributionKind } from "../target-model/metadata/provider-metadata.js";
-export type { CsharpProviderPolicyContribution, CsharpProviderBinaryExecutionDriver } from "../target-model/metadata/provider-metadata.js";
+export type { CsharpProviderPolicyContribution, CsharpTargetBinaryExecutionDriver } from "../target-model/metadata/provider-metadata.js";
 export { csharpJsEventLoopBinaryExecutionDriver } from "../target-model/project/binary-execution-drivers.js";
 export {
   assertCsharpProviderPolicyIsNonContradictory,

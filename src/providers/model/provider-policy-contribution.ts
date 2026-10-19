@@ -6,7 +6,7 @@ import type {
 } from "../../target-model/types/model.js";
 import {
   csharpProviderPolicyContributionKind,
-  type CsharpProviderBinaryExecutionDriver,
+  type CsharpTargetBinaryExecutionDriver,
   type CsharpProviderPolicyContribution,
 } from "../../target-model/metadata/provider-metadata.js";
 import {
@@ -20,9 +20,9 @@ import {
 } from "./canonical-value.js";
 
 export function composeCsharpBinaryExecutionDriver(
-  ...drivers: readonly (CsharpProviderBinaryExecutionDriver | undefined)[]
-): CsharpProviderBinaryExecutionDriver | undefined {
-  const byId = new Map<string, CsharpProviderBinaryExecutionDriver>();
+  ...drivers: readonly (CsharpTargetBinaryExecutionDriver | undefined)[]
+): CsharpTargetBinaryExecutionDriver | undefined {
+  const byId = new Map<string, CsharpTargetBinaryExecutionDriver>();
   for (const driver of drivers) {
     if (driver === undefined) continue;
     const existing = byId.get(driver.id);
@@ -52,7 +52,7 @@ export function csharpProviderPolicyContribution(
     readonly targetBindings: readonly CsharpTargetBindingFact[];
     readonly relations: readonly CsharpProviderTargetRelation[];
     readonly rejections: readonly CsharpProviderTargetRejection[];
-    readonly binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver;
+    readonly binaryExecutionDriver?: CsharpTargetBinaryExecutionDriver;
   },
 ): CsharpProviderPolicyContribution {
   if (

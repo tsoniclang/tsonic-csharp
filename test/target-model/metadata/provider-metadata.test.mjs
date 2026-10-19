@@ -12,6 +12,10 @@ test("C404 provider contribution metadata has one canonical target-model owner a
   const owner = readFileSync(new URL("../../../src/target-model/metadata/provider-metadata.ts", import.meta.url), "utf8");
   for (const name of ["CsharpTargetBinaryExecutionDriver", "CsharpProviderPolicyContribution"])
     assert.equal(owner.includes(`export interface ${name}`), true, name);
+  assert.equal(owner.includes("CsharpProviderBinaryExecutionDriver"), false, "the superseded driver synonym has no declaration or field use");
+  const publicTypes = readFileSync(new URL("../../../src/public/provider.ts", import.meta.url), "utf8");
+  assert.equal(publicTypes.includes("CsharpProviderBinaryExecutionDriver"), false, "the superseded driver name is not re-exported");
+  assert.equal(publicTypes.includes("CsharpTargetBinaryExecutionDriver"), true, "the canonical driver is publicly exported from its sole owner");
   const oldTypes = readFileSync(new URL("../../../src/target-model/types/model.ts", import.meta.url), "utf8");
   assert.equal(oldTypes.includes("export interface CsharpTargetBinaryExecutionDriver"), false);
   const oldContribution = readFileSync(new URL("../../../src/providers/model/provider-policy-contribution.ts", import.meta.url), "utf8");

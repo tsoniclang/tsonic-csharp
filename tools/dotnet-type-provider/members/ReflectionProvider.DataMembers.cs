@@ -27,8 +27,8 @@ sealed partial class ReflectionProvider
                     }
                     continue;
                 }
-                var targetId = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})";
-                var metadataName = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})";
+                var targetId = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(ParameterTypeTargetId))})";
+                var metadataName = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(ParameterTypeMetadataName))})";
                 var parameters = Parameters(indexParameters, targetId);
                 var returnNullability = nullability.Create(property);
                 var returnNullabilityMetadata = NullableMetadata.ForProperty(property);
@@ -124,8 +124,8 @@ sealed partial class ReflectionProvider
     IEnumerable<object> MultiParameterIndexerMembers(Type type, PropertyInfo property, AttributeCollection attributes)
     {
         var indexParameters = property.GetIndexParameters();
-        var targetId = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})";
-        var metadataName = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})";
+        var targetId = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(ParameterTypeTargetId))})";
+        var metadataName = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(ParameterTypeMetadataName))})";
         var returnNullability = nullability.Create(property);
         var returnNullabilityMetadata = NullableMetadata.ForProperty(property);
         var targetReturnType = TypeRef(
@@ -234,10 +234,10 @@ sealed partial class ReflectionProvider
             var indexParameters = property.GetIndexParameters();
             var memberKind = indexParameters.Length > 0 ? "indexer" : "property";
             var targetId = indexParameters.Length > 0
-                ? $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})"
+                ? $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(ParameterTypeTargetId))})"
                 : $"{TargetId(type)}.{property.Name}";
             var metadataName = indexParameters.Length > 0
-                ? $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})"
+                ? $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(ParameterTypeMetadataName))})"
                 : $"{MetadataName(type)}.{property.Name}";
             yield return UnsupportedMember(
                 memberKind,
@@ -268,13 +268,14 @@ sealed partial class ReflectionProvider
             {
                 return UnsupportedParametersReason(indexParameters, "Indexer signature")!;
             }
+            var signatureEvidence = SignatureEvidence(property);
             if (TypeRef(
                 UnwrapByRef(property.PropertyType),
                 typeNullability: nullability.Create(property),
                 typeNullabilityMetadata: NullableMetadata.ForProperty(property),
-                signatureEvidence: SignatureEvidence(property)) is null)
+                signatureEvidence: signatureEvidence) is null)
             {
-                return $"Indexer return type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(property.PropertyType)}";
+                return $"Indexer return type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(property.PropertyType, signatureEvidence)}";
             }
         }
         if (TypeRef(
@@ -283,7 +284,7 @@ sealed partial class ReflectionProvider
             typeNullabilityMetadata: NullableMetadata.ForProperty(property),
             signatureEvidence: SignatureEvidence(property)) is null)
         {
-            return $"Property type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(property.PropertyType)}";
+            return $"Property type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(property.PropertyType, SignatureEvidence(property))}";
         }
         if (
             !HasPublicGetter(property) &&
@@ -372,7 +373,7 @@ sealed partial class ReflectionProvider
             typeNullabilityMetadata: NullableMetadata.ForField(field),
             signatureEvidence: SignatureEvidence(field)) is null)
         {
-            return $"Field type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(field.FieldType)}";
+            return $"Field type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(field.FieldType, SignatureEvidence(field))}";
         }
         return null;
     }
@@ -478,11 +479,11 @@ sealed partial class ReflectionProvider
         }
         if (TypeRef(
             eventHandlerType,
-            requireDelegateSourceShape: false,
+            physicalOnly: true,
             typeNullability: nullability.Create(eventInfo),
             typeNullabilityMetadata: NullableMetadata.ForEvent(eventInfo)) is null)
         {
-            return $"Event handler type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(eventHandlerType)}";
+            return $"Event handler type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(eventHandlerType, null)}";
         }
         if (EventAccessor(eventInfo) is null)
         {

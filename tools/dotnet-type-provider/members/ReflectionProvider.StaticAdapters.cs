@@ -187,7 +187,7 @@ sealed partial class ReflectionProvider
                 .Where(signature => signature is not null)
                 .Cast<object>()
                 .ToArray();
-            var targetDeclaringType = TypeRef(type, requireDelegateSourceShape: false);
+            var targetDeclaringType = TypeRef(type, physicalOnly: true);
             if (signatures.Length == 0 || targetDeclaringType is null)
             {
                 continue;
@@ -214,7 +214,7 @@ sealed partial class ReflectionProvider
         string operation)
     {
         var plan = StaticAdapterTypeParameterPlanFor(type, accessor);
-        var targetDeclaringType = TypeRef(type, requireDelegateSourceShape: false);
+        var targetDeclaringType = TypeRef(type, physicalOnly: true);
         if (plan is null || targetDeclaringType is null)
         {
             return null;
@@ -254,7 +254,7 @@ sealed partial class ReflectionProvider
             typeNullability: nullability.Create(field),
             typeNullabilityMetadata: NullableMetadata.ForField(field),
             signatureEvidence: SignatureEvidence(field));
-        var targetDeclaringType = TypeRef(type, requireDelegateSourceShape: false);
+        var targetDeclaringType = TypeRef(type, physicalOnly: true);
         if (plan is null || fieldType is null || targetDeclaringType is null)
         {
             return null;
@@ -320,7 +320,7 @@ sealed partial class ReflectionProvider
         {
             var contract = TypeRef(
                 type,
-                requireDelegateSourceShape: false,
+                physicalOnly: true,
                 genericParameters: context);
             if (contract is null)
             {

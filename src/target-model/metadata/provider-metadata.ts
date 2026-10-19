@@ -35,7 +35,5 @@ export interface CsharpProviderPolicyContribution extends TargetCapabilityContri
   readonly targetBindings: readonly CsharpTargetBindingFact[];
   readonly relations: readonly CsharpProviderTargetRelation[];
   readonly rejections: readonly CsharpProviderTargetRejection[];
-  readonly binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver;
+  readonly binaryExecutionDriver?: CsharpTargetBinaryExecutionDriver;
 }
-
-export type CsharpProviderBinaryExecutionDriver = CsharpTargetBinaryExecutionDriver;

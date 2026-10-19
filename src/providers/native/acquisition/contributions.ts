@@ -23,7 +23,7 @@ import {
   validateCsharpProviderPolicyContribution,
 } from "../../model/provider-policy-contribution.js";
 import type {
-  CsharpProviderBinaryExecutionDriver,
+  CsharpTargetBinaryExecutionDriver,
   CsharpProviderPolicyContribution,
 } from "../../../target-model/metadata/provider-metadata.js";
 import { csharpProviderPolicyContributionKind } from "../../../target-model/metadata/provider-metadata.js";
@@ -47,7 +47,7 @@ export interface CsharpDotnetProviderContribution extends TargetCapabilityContri
 export interface CollectedCsharpCapabilityContributions {
   readonly dotnetProviders: readonly CsharpDotnetProviderContribution[];
   readonly providerPolicies: readonly CsharpProviderPolicyContribution[];
-  readonly binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver;
+  readonly binaryExecutionDriver?: CsharpTargetBinaryExecutionDriver;
 }
 
 export interface CsharpCapabilityDotnetProvider {
@@ -66,7 +66,7 @@ export function collectCsharpCapabilityContributions(
 ): CollectedCsharpCapabilityContributions {
   const dotnetProviders: CsharpDotnetProviderContribution[] = [];
   const providerPolicies: CsharpProviderPolicyContribution[] = [];
-  const binaryExecutionDrivers: CsharpProviderBinaryExecutionDriver[] = [];
+  const binaryExecutionDrivers: CsharpTargetBinaryExecutionDriver[] = [];
   for (const capability of capabilities) {
     for (const contribution of capability.contributions) {
       if (contribution.kind === csharpDotnetProviderContributionKind) {

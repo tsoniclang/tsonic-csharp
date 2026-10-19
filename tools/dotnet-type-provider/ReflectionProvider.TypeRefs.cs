@@ -8,7 +8,7 @@ sealed partial class ReflectionProvider
 {
     object? TypeRef(
         Type type,
-        bool requireDelegateSourceShape = true,
+        bool physicalOnly = false,
         GenericParameterContext? genericParameters = null,
         NullabilityInfo? typeNullability = null,
         NullableMetadata? typeNullabilityMetadata = null,
@@ -48,7 +48,7 @@ sealed partial class ReflectionProvider
             {
                 return TypeRef(
                     substitution,
-                    requireDelegateSourceShape,
+                    physicalOnly,
                     genericParameters,
                     typeNullability,
                     typeNullabilityMetadata,
@@ -71,7 +71,7 @@ sealed partial class ReflectionProvider
         {
             var elementType = TypeRef(
                 type.GetElementType()!,
-                requireDelegateSourceShape,
+                physicalOnly,
                 genericParameters,
                 typeNullability?.ElementType,
                 typeNullabilityMetadata?.ElementType,
@@ -95,7 +95,7 @@ sealed partial class ReflectionProvider
         {
             var elementType = TypeRef(
                 nullableElement,
-                requireDelegateSourceShape,
+                physicalOnly,
                 genericParameters,
                 GenericArgumentNullability(typeNullability, 0),
                 GenericArgumentNullabilityMetadata(typeNullabilityMetadata, 0),
@@ -109,7 +109,7 @@ sealed partial class ReflectionProvider
         {
             var pointee = TypeRef(
                 type.GetElementType()!,
-                requireDelegateSourceShape,
+                physicalOnly,
                 genericParameters,
                 genericNullability: genericNullability,
                 includeTopLevelReferenceNullability: false,
@@ -133,7 +133,7 @@ sealed partial class ReflectionProvider
             var args = parameterTypes
                 .Select((parameter, index) => TypeRef(
                     parameter,
-                    requireDelegateSourceShape,
+                    physicalOnly,
                     genericParameters,
                     genericNullability: genericNullability,
                     includeTopLevelReferenceNullability: false,
@@ -141,7 +141,7 @@ sealed partial class ReflectionProvider
                 .ToArray();
             var result = TypeRef(
                 type.GetFunctionPointerReturnType(),
-                requireDelegateSourceShape,
+                physicalOnly,
                 genericParameters,
                 genericNullability: genericNullability,
                 includeTopLevelReferenceNullability: false,
@@ -162,7 +162,7 @@ sealed partial class ReflectionProvider
         var typeArguments = type.IsGenericType
             ? type.GetGenericArguments().Select((typeArgument, index) => TypeRef(
                 typeArgument,
-                requireDelegateSourceShape,
+                physicalOnly,
                 genericParameters,
                 GenericArgumentNullability(typeNullability, index),
                 GenericArgumentNullabilityMetadata(typeNullabilityMetadata, index),
@@ -174,9 +174,10 @@ sealed partial class ReflectionProvider
             return null;
         }
 
-        var sourceProjection = ProjectSourceType(type, genericParameters, typeNullability, typeNullabilityMetadata, genericNullability);
+        var sourceProjection = physicalOnly ? null
+            : ProjectSourceType(type, genericParameters, typeNullability, typeNullabilityMetadata, genericNullability);
         var sourceShape = sourceProjection?.TypeRef;
-        if (IsDelegate(type) && sourceShape is null && requireDelegateSourceShape)
+        if (IsDelegate(type) && sourceShape is null && !physicalOnly)
         {
             return null;
         }
@@ -200,49 +201,58 @@ sealed partial class ReflectionProvider
         return ReferenceNullabilityTypeRef(type, typeNullability, typeNullabilityMetadata, namedType, includeTopLevelReferenceNullability);
     }
 
-    string TypeRefFailureReason(Type type)
+    string TypeRefFailureReason(Type type, SignatureTypeEvidence? signatureEvidence)
     {
         type = UnwrapByRef(type);
+        if (signatureEvidence is null && ContainsFunctionPointer(type))
+        {
+            return "A type containing a function-pointer signature cannot be represented as closed source facts without exact member-bound signature evidence.";
+        }
         if (IsDelegate(type))
         {
             return delegateSourceShapeInProgress.Contains(type)
-                ? $"Recursive delegate type '{TypeMetadataName(type)}' cannot be represented as a closed source function shape."
+                ? $"Recursive delegate type '{TypeMetadataName(type, signatureEvidence)}' cannot be represented as a closed source function shape."
                 : delegateSourceShapeUnsupportedReasons.TryGetValue(DelegateSourceShapeContext(type), out var reason)
                     ? reason
-                    : $"Delegate type '{TypeMetadataName(type)}' cannot be represented as a closed source function shape.";
+                    : $"Delegate type '{TypeMetadataName(type, signatureEvidence)}' cannot be represented as a closed source function shape.";
         }
         if (type.IsPointer)
         {
             var pointee = type.GetElementType()!;
-            return $"Pointer pointee type '{TypeMetadataName(pointee)}' is not representable. {TypeRefFailureReason(pointee)}";
+            return $"Pointer pointee type '{TypeMetadataName(pointee, signatureEvidence?.ElementType)}' is not representable. {TypeRefFailureReason(pointee, signatureEvidence?.ElementType)}";
         }
         if (type.IsFunctionPointer)
         {
-            return $"Function-pointer signature '{TypeMetadataName(type)}' contains a type that is not representable by the provider.";
+            return $"Function-pointer signature '{TypeMetadataName(type, signatureEvidence)}' contains a type that is not representable by the provider.";
         }
         if (type.IsArray)
         {
             if (!type.IsSZArray)
             {
-                return $"ranked CLR array type '{TypeMetadataName(type)}' requires an explicit provider ranked-array source model before it can be exposed safely.";
+                return $"ranked CLR array type '{TypeMetadataName(type, signatureEvidence)}' requires an explicit provider ranked-array source model before it can be exposed safely.";
             }
             var elementType = type.GetElementType()!;
-            return $"Array element type '{TypeMetadataName(elementType)}' is not representable. {TypeRefFailureReason(elementType)}";
+            return $"Array element type '{TypeMetadataName(elementType, signatureEvidence?.ElementType)}' is not representable. {TypeRefFailureReason(elementType, signatureEvidence?.ElementType)}";
         }
         if (IsNullableShape(type, out var nullableElement))
         {
-            return $"Nullable element type '{TypeMetadataName(nullableElement)}' is not representable. {TypeRefFailureReason(nullableElement)}";
+            var evidence = SignatureTypeArgument(signatureEvidence, 0);
+            return $"Nullable element type '{TypeMetadataName(nullableElement, evidence)}' is not representable. {TypeRefFailureReason(nullableElement, evidence)}";
         }
         if (type.IsGenericType && !type.IsGenericTypeDefinition)
         {
-            var unsupportedArgument = type.GetGenericArguments()
-                .FirstOrDefault(argument => TypeRef(argument) is null);
-            if (unsupportedArgument is not null)
+            var arguments = type.GetGenericArguments();
+            for (var index = 0; index < arguments.Length; index++)
             {
-                return $"Generic type argument '{TypeMetadataName(unsupportedArgument)}' is not representable. {TypeRefFailureReason(unsupportedArgument)}";
+                var argument = arguments[index];
+                var evidence = SignatureTypeArgument(signatureEvidence, index);
+                if (TypeRef(argument, signatureEvidence: evidence) is null)
+                {
+                    return $"Generic type argument '{TypeMetadataName(argument, evidence)}' is not representable. {TypeRefFailureReason(argument, evidence)}";
+                }
             }
         }
-        return $"Type '{TypeMetadataName(type)}' is outside the supported provider type-ref model.";
+        return $"Type '{TypeMetadataName(type, signatureEvidence)}' is outside the supported provider type-ref model.";
     }
 
     sealed record SourceTypeProjection(object TypeRef, bool AcceptsImplicitArrayInput = false, string? CallableRepresentation = null);

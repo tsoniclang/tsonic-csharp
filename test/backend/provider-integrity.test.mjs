@@ -34,7 +34,7 @@ test("compilation rechecks reference integrity before returning generated artifa
   assert.equal(control.kind, "resolved", JSON.stringify(control.diagnostics));
   assert.ok(control.value.artifacts.some(artifact => artifact.path.endsWith(".cs")));
   let validations = 0;
-  const changed = compileCsharpTarget({ ...request, providers: { ...resolver,
+  const changed = compileCsharpTarget({ ...request, providers: { ...createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
     validateReferences() { validations += 1; return validations === 1 ? [] : [mutation]; },
   } });
   assert.equal(validations, 2);

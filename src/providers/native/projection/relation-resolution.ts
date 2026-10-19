@@ -39,6 +39,7 @@ import type {
 import { assertCsharpProviderLookupPurpose } from "../../model/relation-resolver.js";
 import type { CsharpProviderRuntimePreparation } from "../../model/relation-resolver.js";
 import { csharpNativeTargetBindingFact } from "../../../target-model/types/native-inheritance.js";
+import { findUniqueTargetBinding } from "../acquisition/target-binding-index.js";
 
 export interface CsharpProviderRelationResolverInputs {
   readonly providers: readonly DotnetReflectionTypeDataProvider[];
@@ -331,27 +332,6 @@ function assertUniqueProviderSources(
     }
     identities.add(identity);
   }
-}
-
-function findUniqueTargetBinding(
-  candidates: readonly CsharpProviderBindingResolution[],
-  query: string,
-): CsharpProviderBindingResolution {
-  const bindings = candidates.flatMap(candidate => candidate.kind === "resolved" ? [candidate.binding] : []);
-  if (bindings.length === 0) {
-    return candidates.find(candidate => candidate.kind === "rejected") ?? Object.freeze({ kind: "missing" });
-  }
-  const first = bindings[0]!;
-  const canonical = canonicalProviderValue(first);
-  return bindings.every(binding => canonicalProviderValue(binding) === canonical)
-    ? Object.freeze({ kind: "resolved", binding: first })
-    : Object.freeze({ kind: "rejected", diagnostic: dotnetExtensionDiagnostic(
-        dotnetReflectionProviderIdentity.id,
-        "CSHARP_PROVIDER_TARGET_BINDING_CONFLICT",
-        9200000,
-        "C# providers supplied contradictory complete target binding evidence.",
-        [{ query, bindingIds: bindings.map(binding => binding.id) }],
-      ) });
 }
 
 function assertUniqueProviderIdentities(

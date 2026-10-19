@@ -49,10 +49,8 @@ export function acquireCsharpRuntimeSources(
     const acquired = acquireGeneratedProject(project, preparation, toolchain);
     if (acquired.kind === "rejected") return acquired;
     for (const reference of acquired.value) references.add(reference);
-    const selected = visit(Object.freeze([...references]));
-    if (selected.kind !== "missing") return selected;
   }
-  return Object.freeze({ kind: "missing" });
+  return visit(Object.freeze([...references]));
 }
 
 function acquireGeneratedProject(

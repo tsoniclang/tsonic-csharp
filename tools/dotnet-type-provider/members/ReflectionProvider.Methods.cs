@@ -55,7 +55,7 @@ sealed partial class ReflectionProvider
         {
             var first = group.First();
             var signatures = group.Select(method => MethodSignature(method, GenericParameterContext.ForExtensionProjection(method, receiverType))).Where(signature => signature is not null).Cast<object>().ToArray();
-            var targetDeclaringType = TypeRef(first.DeclaringType!, requireDelegateSourceShape: false);
+            var targetDeclaringType = TypeRef(first.DeclaringType!, physicalOnly: true);
             if (signatures.Length == 0 || targetDeclaringType is null)
             {
                 continue;
@@ -136,7 +136,7 @@ sealed partial class ReflectionProvider
             .OrderBy(OperatorId, StringComparer.Ordinal);
     }
 
-    static string OperatorProjectionGroupKey(MethodInfo method)
+    string OperatorProjectionGroupKey(MethodInfo method)
     {
         var projection = OperatorSourceProjectionFor(method);
         return projection is null
