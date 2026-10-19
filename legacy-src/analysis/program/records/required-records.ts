@@ -15,7 +15,7 @@ export interface CsharpRequiredRecordOrigin {
 export interface CsharpRequiredNodeRecord extends CsharpRequiredRecordOrigin {
   readonly family: "classFactory" | "requiredStorageType" | "nativeParticipation" | "nativeHandler" |
     "sourceArgument" | "bindingPatternProjection" | "callableTarget" | "nativeValueDeclaration" | "statementExit" |
-    "controlExit" | "labeledStatement" | "loopContinuationExit" | "resourceScope" | "returnCompletion" | "catchBinding" | "localBinding";
+    "controlExit" | "labeledStatement" | "loopContinuationExit" | "resourceScope" | "returnCompletion" | "catchBinding" | "localBinding" | "generator" | "yield";
 }
 
 export type CsharpRequiredRecord = CsharpRequiredNodeRecord
@@ -81,6 +81,10 @@ function csharpRequiredRecordPublished(records: CsharpProgramRecords, requiremen
       return records.catchBinding.get(requirement.subject) !== undefined;
     case "localBinding":
       return records.localBinding.get(requirement.subject) !== undefined;
+    case "generator":
+      return records.generator.get(requirement.subject) !== undefined;
+    case "yield":
+      return records.yield.get(requirement.subject) !== undefined;
     case "nativeUse":
       return records.nativeUse.get(requirement.site) !== undefined;
     case "exactLiteral": {

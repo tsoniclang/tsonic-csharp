@@ -37,7 +37,7 @@ import {
   csharpWellKnownSymbolTargetMemberName,
 } from "../../../../target-model/types/index.js";
 import {
-  hasCsharpGeneratorSyntax,
+  hasCsharpGeneratorPlan,
   planCsharpGeneratorFunction,
 } from "../../statements/generators.js";
 import {
@@ -77,7 +77,7 @@ export function planMethodDeclaration(
       returnType: declaredReturnType, parameters: parameters.parameters,
     };
   }
-  if (hasCsharpGeneratorSyntax(node, input)) {
+  if (hasCsharpGeneratorPlan(node, input)) {
     const generator = planCsharpGeneratorFunction(
       node,
       declaration.Body,

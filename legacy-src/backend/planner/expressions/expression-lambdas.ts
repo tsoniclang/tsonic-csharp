@@ -57,7 +57,7 @@ import {
   csharpSourceTypeArgumentNodes,
 } from "../../../target-model/syntax/type-arguments.js";
 import {
-  hasCsharpGeneratorSyntax,
+  hasCsharpGeneratorPlan,
   planCsharpGeneratorFunction,
 } from "../statements/generators.js";
 import { planLambdaParameterStorage } from "./lambda-parameter-storage.js";
@@ -223,7 +223,7 @@ export function planFunctionExpression(
   }
   const expression = AsFunctionExpression(input.program.source.ast, node)!;
   diagnoseMissingLambdaTargetContext(node, input, diagnostics, targetContext);
-  const generatorSyntax = hasCsharpGeneratorSyntax(node, input);
+  const generatorSyntax = hasCsharpGeneratorPlan(node, input);
   const returnContext = generatorSyntax
     ? undefined
     : getLambdaReturnContext(node, targetContext, input, diagnostics);

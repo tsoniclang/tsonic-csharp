@@ -14,7 +14,7 @@ import { planTypeParameters } from "../../types/type-parameters.js";
 import { getAsyncReturnExpressionExpectedType, getDeclarationReturnTargetType, getExplicitReturnType } from "./return-types.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
-import { hasCsharpGeneratorSyntax, planCsharpGeneratorFunction } from "../../statements/generators.js";
+import { hasCsharpGeneratorPlan, planCsharpGeneratorFunction } from "../../statements/generators.js";
 import { withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
 import { planCsharpAbsenceReturn } from "../../statements/statement-output.js";
 
@@ -59,7 +59,7 @@ export function planSourceFunctionDeclaration(
     input,
   );
   const declaredReturnType = getExplicitReturnType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
-  const generatorSyntax = hasCsharpGeneratorSyntax(node, input);
+  const generatorSyntax = hasCsharpGeneratorPlan(node, input);
   if (generatorSyntax) {
     const generator = planCsharpGeneratorFunction(
       node,

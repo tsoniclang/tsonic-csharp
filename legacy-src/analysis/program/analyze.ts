@@ -13,6 +13,7 @@ import { analyzeCsharpStatementExits } from "../control-flow/statement-exits.js"
 import { analyzeCsharpStatementCompletions } from "../control-flow/statement-completion.js";
 import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js";
 import { analyzeCsharpLocalBindings } from "../storage/local-bindings.js";
+import { analyzeCsharpGenerators } from "../callables/generators.js";
 import type { CsharpRequiredRecord } from "./records/required-records.js";
 import { analyzeSourceLiteralValues, sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
@@ -509,7 +510,13 @@ function analyzeCsharpTargetProgramBeforeSeal(
     operations: admittedOperations, metadata: analysis.sourceEvidence.compileTimeMetadata,
     participation: nativeParticipation.participation, values: analysis.valueReads.valueRead,
     required: analysis.requiredRecords });
+  const generators = analyzeCsharpGenerators({ ast: source.ast, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
+    admitted: admittedControlNode, erased: node => analysis.sourceEvidence.compileTimeMetadata.get(node) === true ||
+      admittedOperations.nativeUnreachable.get(node) === true || nativeParticipation.participation.get(node) === "erased",
+    required: analysis.requiredRecords });
+  if (generators.issues.length !== 0) return rejectedTargetStage(generators.issues);
   const records = createCsharpProgramRecords({
+    generators: generators.records,
     localBindings: analyzeCsharpLocalBindings({ ast: source.ast, navigation: source.navigation, nodes: sourceStorage.nodes,
       admitted: admittedControlNode, nativeRefs: admittedOperations.nativeRefReturn, storage: analysis.storage.storageType,
       moduleInitialization: moduleInitialization.index.moduleBindingInitialization, required: analysis.requiredRecords }),

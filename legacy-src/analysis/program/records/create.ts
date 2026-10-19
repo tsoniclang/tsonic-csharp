@@ -27,12 +27,14 @@ import type { CsharpAdmittedIteration } from "../../../target-model/records/sele
 import type { CsharpStatementExitRecords } from "../../../target-model/records/statement-exits.js";
 import type { CsharpStatementCompletionRecords } from "../../../target-model/records/statement-completion.js";
 import type { CsharpResourceScopeRecords } from "../../../target-model/records/resource-scopes.js";
+import type { CsharpGeneratorRecords } from "../../../target-model/records/generators.js";
 
 export interface CsharpProgramRecordInput {
   readonly statementExits: CsharpStatementExitRecords;
   readonly statementCompletions: CsharpStatementCompletionRecords;
   readonly resourceScopes: CsharpResourceScopeRecords;
   readonly localBindings: Pick<CsharpProgramRecords, "localBinding">;
+  readonly generators: CsharpGeneratorRecords;
   readonly objectShapeDemand: CsharpObjectShapeDemand;
   readonly nativeValueCarriers: CsharpNativeValueCarriers;
   readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
@@ -163,10 +165,7 @@ export function createCsharpProgramRecords(
     contextualTuple: input.sourceEvidence.contextualTuple,
     constantValue: input.sourceEvidence.constantValue,
     valueRefinement: input.sourceEvidence.valueRefinement,
-    generator: input.sourceEvidence.generator,
-    generatorTargetType: input.sourceEvidence.generatorTargetType,
-    yield: input.sourceEvidence.yield,
-    yieldTargetType: input.sourceEvidence.yieldTargetType,
+    ...input.generators,
     wellKnownSymbol: input.sourceEvidence.wellKnownSymbol,
     inferredCallableReturnType: input.sourceEvidence.inferredCallableReturnType,
     pointerReturn: input.sourceEvidence.pointerReturn,

@@ -25,6 +25,7 @@ import type { CsharpStatementExitRecords } from "./statement-exits.js";
 import type { CsharpStatementCompletionRecords } from "./statement-completion.js";
 import type { CsharpResourceScopeRecords } from "./resource-scopes.js";
 import type { CsharpLocalBindingCompletion } from "./local-bindings.js";
+import type { CsharpGeneratorRecords } from "./generators.js";
 import type { Node } from "@tsonic/tsts";
 
 export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords {
@@ -122,10 +123,8 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly contextualTuple: CsharpSourceEvidenceIndex["contextualTuple"];
   readonly constantValue: CsharpSourceEvidenceIndex["constantValue"];
   readonly valueRefinement: CsharpSourceEvidenceIndex["valueRefinement"];
-  readonly generator: CsharpSourceEvidenceIndex["generator"];
-  readonly generatorTargetType: CsharpSourceEvidenceIndex["generatorTargetType"];
-  readonly yield: CsharpSourceEvidenceIndex["yield"];
-  readonly yieldTargetType: CsharpSourceEvidenceIndex["yieldTargetType"];
+  readonly generator: CsharpGeneratorRecords["generator"];
+  readonly yield: CsharpGeneratorRecords["yield"];
   readonly wellKnownSymbol: CsharpSourceEvidenceIndex["wellKnownSymbol"];
   readonly inferredCallableReturnType: CsharpSourceEvidenceIndex["inferredCallableReturnType"];
   readonly pointerReturn: CsharpSourceEvidenceIndex["pointerReturn"];
