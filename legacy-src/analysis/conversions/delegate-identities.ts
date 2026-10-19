@@ -3,11 +3,13 @@ import { sourceBindingScope } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { isSourceOwnedProjectReference } from "../../policy/types/resolution/source-ownership.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
+import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType } from "../../target-model/types/carriers/nullable.js";
 import type { CsharpConversionIssue, CsharpDelegateAdapterIdentity, CsharpExpressionConversionClassification } from "../../target-model/records/conversions.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 
 export function sealCsharpDelegateAdapterIdentities(
   policy: CsharpPolicyContext,
+  valueReads: CsharpValueReadClassifications,
   expressions: ReadonlyMap<Node, Map<string, CsharpExpressionConversionClassification>>,
   issues: CsharpConversionIssue[],
 ): ReadonlyMap<Node, readonly CsharpDelegateAdapterIdentity[]> {
@@ -22,7 +24,8 @@ export function sealCsharpDelegateAdapterIdentities(
       !withinActivation(expression, scope, policy)) continue;
     const conversions = groups.get(declaration) ?? new Map();
     const group = conversions.get(key) ?? { identity: Object.freeze({ declaration, scope,
-      source: classification.source, target: classification.target, selection }), uses: new Map<Node, string>() };
+      source: classification.source, target: classification.target, selection,
+      assertPresent: isCsharpNullableReferenceTargetType(valueReads.valueRead.get(declaration)?.storage) }), uses: new Map<Node, string>() };
     if (!targetTypeRefEquals(group.identity.source, classification.source) ||
       !targetTypeRefEquals(group.identity.target, classification.target)) continue;
     group.uses.set(expression, key);

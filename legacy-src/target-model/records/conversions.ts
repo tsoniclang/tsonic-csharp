@@ -15,6 +15,7 @@ export interface CsharpDelegateAdapterIdentity {
   readonly source: TargetTypeRef;
   readonly target: TargetTypeRef;
   readonly selection: Extract<CsharpConversionSelection, { readonly kind: "delegate-adapter" }>;
+  readonly assertPresent: boolean;
 }
 
 export interface CsharpExpressionConversionClassification {

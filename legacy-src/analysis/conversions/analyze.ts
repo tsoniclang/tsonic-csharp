@@ -80,6 +80,7 @@ export function analyzeCsharpConversions(
   let closed = false;
   let preparedClassifications: CsharpPreparedConversionClassifications | undefined;
   let preparedOperations: CsharpTargetOperationClassifications | undefined;
+  let preparedValueReads: import("../../target-model/records/conversions.js").CsharpValueReadClassifications | undefined;
   let sealedClassifications: CsharpConversionClassifications | undefined;
   const literalRequests = createCsharpExactLiteralRequestCollector(policy.literalValues);
   const conversionPolicy = Object.freeze({
@@ -126,6 +127,7 @@ export function analyzeCsharpConversions(
     prepare({ operations, expectedTypes, valueReads }) {
       if (preparedClassifications !== undefined) return preparedClassifications;
       preparedOperations = operations;
+      preparedValueReads = valueReads;
       for (const sourceFile of policy.sourceFiles) {
         visit(sourceFile, sourceFile, operations, expectedTypes, valueReads);
       }
@@ -134,7 +136,7 @@ export function analyzeCsharpConversions(
     },
     close(nativeDemand, requiredRecords) {
       if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "Native conversion preparation closes exactly once.");
-      if (preparedClassifications === undefined || preparedOperations === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Native conversion uses require completed preparation.");
+      if (preparedClassifications === undefined || preparedOperations === undefined || preparedValueReads === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Native conversion uses require completed preparation.");
       const admitted = sealCsharpConversionUses(nativeDemand, preparedOperations, (expression, source, target, mode, exactInteger, boundary, sourceCompletion) => {
         const selected = boundary === undefined ? classifyExpression(expression, source, target, mode, exactInteger, sourceCompletion) : boundary.selection;
         if (selected === undefined) return undefined;
@@ -150,7 +152,7 @@ export function analyzeCsharpConversions(
         return classification === undefined ? undefined : Object.freeze({ key, classification });
       }, (expression, source, target) => classifyPair(source, target, "implicit", expression), requiredRecords, issues, callConversions);
       issues.push(...admitted.issues);
-      delegateAdapters = sealCsharpDelegateAdapterIdentities(policy, admitted.expressions, issues);
+      delegateAdapters = sealCsharpDelegateAdapterIdentities(policy, preparedValueReads, admitted.expressions, issues);
       closed = true;
       Object.freeze(issues);
       const sealedIssues = Object.freeze([...issues]);

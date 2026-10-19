@@ -8,8 +8,7 @@ import { planCsharpDelegateAdaptationBody } from "../../expressions/delegate-ada
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";
 import { getCsharpDelegateSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
-import { isCsharpNullableReferenceTargetType } from "../../../../target-model/types/carriers/nullable.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function withCsharpDelegateAdapterDeclarations(block: Node, input: CsharpPlanningContext): CsharpPlanningContext {
   const identities = input.program.records.delegateAdapters.get(block);
@@ -30,15 +29,14 @@ export function planCsharpDelegateAdapterDeclarations(block: Node, sourceFile: S
     const callee = identifier === undefined ? undefined : planIdentifierExpression(identifier, sourceFile,
       { ...input, storageExpression: identifier }, diagnostics, state);
     if (name === undefined || callee === undefined || returnType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(identity.declaration, "A retained native delegate adapter requires its exact lexical binding, name and return signature."));
-      continue;
+      failCsharpPlannerInvariant("An admitted retained delegate adapter requires its lexical binding, name and return signature.", identity.declaration);
     }
-    const storage = input.program.records.storageType.get(identity.declaration);
-    const presentCallee: CsharpExpression = isCsharpNullableReferenceTargetType(storage)
+    const presentCallee: CsharpExpression = identity.assertPresent
       ? { kind: "PostfixUnaryExpression", operand: callee, operatorToken: { kind: "ExclamationToken" } } : callee;
     const method = planCsharpDelegateAdaptationBody(identifier!, sourceFile, input, diagnostics,
       identity.source, identity.target, identity.selection, presentCallee, applyCsharpConversionSelection);
-    if (method === undefined || method.body.kind !== "Block" || method.parameters.some(parameter => parameter.type === undefined)) continue;
+    if (method === undefined || method.body.kind !== "Block" || method.parameters.some(parameter => parameter.type === undefined))
+      failCsharpPlannerInvariant("An admitted retained delegate adapter requires its native method body and typed parameters.", identity.declaration);
     statements.push({ kind: "LocalFunctionStatement", name, returnType, modifiers: [],
       parameters: method.parameters as NonNullable<Extract<CsharpStatement, { kind: "LocalFunctionStatement" }>["parameters"]>,
       body: method.body });
