@@ -11,7 +11,8 @@ import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planCsharpVoidReturn } from "../statements/statement-output.js";
 import type { applyCsharpConversionSelection } from "./conversions.js";
-import { csharpSourceModuleValueReferencesEqual, planCsharpSourceModuleValueReference } from "../bindings/module-values.js";
+import { planCsharpSourceModuleValueReference } from "../bindings/module-values.js";
+import { sameCsharpType } from "../types/csharp-type-equality.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 
 interface CsharpDelegateAdapterContract {
@@ -19,6 +20,14 @@ interface CsharpDelegateAdapterContract {
   readonly targetSignature: CsharpDelegateSignatureShape;
   readonly sourceDelegateType: CsharpTypeNode;
   readonly targetDelegateType: CsharpTypeNode;
+}
+
+function csharpSourceModuleValueReferencesEqual(left: CsharpExpression, right: CsharpExpression): boolean {
+  return left.kind === "IdentifierName" && right.kind === "IdentifierName" && left.name === right.name ||
+    left.kind === "AliasQualifiedName" && right.kind === "AliasQualifiedName" && sameCsharpType(left, right) ||
+    left.kind === "SimpleMemberAccessExpression" && right.kind === "SimpleMemberAccessExpression" &&
+    left.typeArguments === undefined && right.typeArguments === undefined && left.name === right.name &&
+    csharpSourceModuleValueReferencesEqual(left.receiver, right.receiver);
 }
 
 export function planCsharpDelegateAdapter(
