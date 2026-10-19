@@ -4,30 +4,28 @@ import { createSourceStorageQuery, defaultSourceStorageLimits } from "@tsonic/ta
 import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
 import { analyzeCsharpNativeParticipation } from "../../../dist/analysis/callables/participation.js";
 import { analyzeCsharpTypeOnlyDeclarations } from "../../../dist/analysis/declarations/type-only.js";
 import { compileCsharpTarget } from "../../../dist/backend/compile.js";
 
 function analyze(sourceText, surface = "native") {
   let source;
-  let result;
   const compiled = compileCsharpSource({ sourceText, surface, compileTarget: (request, observer) => {
     source = request.input.source;
-    result = analyzeCsharpTargetProgram(request);
     return compileCsharpTarget(request, observer);
   } });
   assertCsharpCheckingSucceeded(compiled);
-  assert.equal(result.kind, "resolved", "valid source analysis");
-  assert.equal(Object.hasOwn(result.value.records, "nativeParticipation"), true, "one published participation reader");
+  const program = compiled.result.program;
+  assert.equal(program !== undefined, true, "valid source analysis");
+  assert.equal(Object.hasOwn(program.records, "nativeParticipation"), true, "one published participation reader");
   const storage = createSourceStorageQuery(source, source.navigation.sourceFiles);
   assert.equal(storage.failureReason(), undefined, "bounded owned source domain");
-  return { source, ast: source.ast, nodes: storage.nodes, result, compiled };
+  return { source, ast: source.ast, nodes: storage.nodes, program, compiled };
 }
 
 function labels(value) {
   const { ast } = value;
-  const participation = value.result.value.records.nativeParticipation;
+  const participation = value.program.records.nativeParticipation;
   return value.nodes.flatMap(node => {
     const selected = participation.get(node);
     if (selected === undefined) return [];
@@ -233,7 +231,7 @@ for (const surface of ["native", "js"]) {
 
 test("the participation lookup is sealed, stable and ignores foreign nodes", () => {
   const value = analyze("export function f(): number { (() => 1); return 2; }");
-  const participation = value.result.value.records.nativeParticipation;
+  const participation = value.program.records.nativeParticipation;
   assert.equal(Object.isFrozen(participation), true);
   const arrow = value.nodes.find(node => value.ast.is.IsArrowFunction(node));
   assert.equal(arrow !== undefined, true);
@@ -264,8 +262,8 @@ test("participation uses the bounded unique parent-before-child source domain", 
   }
   const arrows = value.nodes.filter(node => value.ast.is.IsArrowFunction(node));
   assert.equal(arrows.length, 2, "both erased and nested source definitions remain in the owned domain");
-  assert.equal(value.result.value.records.nativeParticipation.get(arrows[0]), "erased");
-  assert.equal(value.result.value.records.nativeParticipation.get(arrows[1]) === undefined, true,
+  assert.equal(value.program.records.nativeParticipation.get(arrows[0]), "erased");
+  assert.equal(value.program.records.nativeParticipation.get(arrows[1]) === undefined, true,
     "an erased owning definition never publishes a participating nested definition");
   assertCsharpCompilationSucceeded(value.compiled);
 });
@@ -278,7 +276,7 @@ for (const surface of ["native", "js"]) test(`${surface} participation excludes 
   const unused = value.nodes.find(node => value.ast.is.IsFunctionDeclaration(node) &&
     value.ast.text(value.ast.name(node)) === "unused");
   assert.equal(unused !== undefined, true, "the unused capturing definition remains in checked source");
-  const records = value.result.value.records;
+  const records = value.program.records;
   const descendants = [];
   const walk = node => { value.ast.forEachChild(node, child => { if (child !== undefined) { descendants.push(child); walk(child); } }); };
   walk(unused);
@@ -289,7 +287,7 @@ for (const surface of ["native", "js"]) test(`${surface} participation excludes 
     captureClosure: { get(node) {
       assert.equal(node === unused, false, "unusedness is decided before asking for a native frame");
       return records.captureClosure.get(node);
-    } }, lambdaCreation: records.lambdaCreation, objectShapes: value.result.value.objectShapes,
+    } }, lambdaCreation: records.lambdaCreation, objectShapes: value.program.objectShapes,
     compileTimeMetadata: records.compileTimeMetadata, requiredRecords });
   assert.equal(selected.kind, "resolved", "the complete reverse-ordered domain resolves before publication");
   assert.equal(selected.value.participation.get(unused), "erased", "the erased root retains its single decision");
@@ -304,11 +302,11 @@ test("compile-time metadata excludes the whole subtree without a participation r
   const value = analyze("export function run(): number { const callback = () => 1; return callback(); }");
   const root = value.nodes.find(node => value.ast.is.IsFunctionDeclaration(node));
   assert.equal(root !== undefined, true, "actual checked callable metadata root");
-  const records = value.result.value.records;
+  const records = value.program.records;
   const requiredRecords = [];
   const input = { ast: value.ast, storage: { nodes: [...value.nodes].reverse(), failureReason: () => undefined },
     navigation: value.source.navigation,
-    captureClosure: records.captureClosure, lambdaCreation: records.lambdaCreation, objectShapes: value.result.value.objectShapes,
+    captureClosure: records.captureClosure, lambdaCreation: records.lambdaCreation, objectShapes: value.program.objectShapes,
     compileTimeMetadata: { get: node => node === root }, requiredRecords };
   const selected = analyzeCsharpNativeParticipation(input);
   assert.equal(selected.kind, "resolved", "a complete metadata-only domain resolves before its reader is exposed");
@@ -329,7 +327,7 @@ for (const surface of ["native", "js"]) test(`${surface} malformed or budget-exh
   const value = analyze("export function run(): number { const callback = () => 1; return callback(); }", surface);
   const root = value.nodes.find(node => value.ast.is.IsSourceFile(node));
   assert.equal(root !== undefined, true, "the actual checked finite domain has its original source-file root");
-  const records = value.result.value.records;
+  const records = value.program.records;
   const limited = createSourceStorageQuery(value.source, value.source.navigation.sourceFiles,
     { ...defaultSourceStorageLimits, maximumNodes: 1 });
   assert.equal(limited.failureReason(), "Source storage transport exceeds its finite source-node budget.",
@@ -350,7 +348,7 @@ for (const surface of ["native", "js"]) test(`${surface} malformed or budget-exh
     let classifications = 0;
     const rejected = analyzeCsharpNativeParticipation({ ast, storage, navigation: value.source.navigation,
       captureClosure: records.captureClosure, lambdaCreation: records.lambdaCreation,
-      objectShapes: value.result.value.objectShapes,
+      objectShapes: value.program.objectShapes,
       compileTimeMetadata: { get() { classifications++; return false; } }, requiredRecords });
     assert.equal(rejected.kind === "rejected" && !Object.hasOwn(rejected, "value"), true,
       `${label}: an invalid native domain has no reader or default publication`);
