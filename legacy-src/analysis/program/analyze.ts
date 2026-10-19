@@ -26,6 +26,7 @@ import { analyzeCsharpBindingIdentities } from "../storage/binding-identities.js
 import { analyzeCsharpSourceOutputIdentities } from "../names/source-output-identities.js";
 import { createCsharpObjectShapeRecords } from "./records/object-shapes.js";
 import { analyzeCsharpObjectShapeEmission } from "../objects/declaration-emission.js";
+import { analyzeCsharpSourceUnionEmission } from "../objects/source-union-emission.js";
 import { analyzeCsharpGenerators } from "../callables/generators.js";
 import type { CsharpRequiredRecord } from "./records/required-records.js";
 import { analyzeSourceLiteralValues, sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
@@ -549,6 +550,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const objectShapeEmission = analyzeCsharpObjectShapeEmission({ demand: objectShapeDemand, shapes: callableAdapters.objectShapes, names });
   if (objectShapeEmission.issues.length !== 0) return rejectedTargetStage(objectShapeEmission.issues);
   const records = createCsharpProgramRecords({
+    compilation: Object.freeze({ namespace: project.value.namespace, languageDialect: configuration.languageDialect }),
+    sourceUnions: analyzeCsharpSourceUnionEmission(typeDefinitions),
     objectShapeEmission: objectShapeEmission.records,
     objectShapes: createCsharpObjectShapeRecords(callableAdapters.objectShapes),
     sourceFiles: sourceIdentities.records,

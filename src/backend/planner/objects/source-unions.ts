@@ -2,24 +2,19 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpOutputSourceFile } from "../../artifact-model/output.js";
 import type { CsharpExpression, CsharpStructDeclaration, CsharpTypeMember, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import { csharpRuntimeUnionTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { finalizeCsharpCompilationUnit } from "../program/compilation-unit.js";
-import { readNamespace } from "../project/project-artifacts.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export function planCsharpSourceUnionFile(input: CsharpPlanningContext):
   { readonly source: CsharpOutputSourceFile; readonly requiresUnsafe: boolean } | undefined {
   const declarations: CsharpStructDeclaration[] = [];
-  for (const definition of input.program.typeDefinitions.sourceUnions()) {
-    const parameters = definition.carrier.typeArguments ?? [];
-    if (parameters.some(parameter => parameter.kind !== "type-parameter")) {
-      throw new Error("C# source union declarations require their exact generic template.");
-    }
+  for (const definition of input.program.records.sourceUnions.get()) {
+    const parameters = definition.parameters;
     const names = new Map(parameters.flatMap(parameter => parameter.kind === "type-parameter" ? [[parameter.identity, parameter.name] as const] : []));
     const type = csharpTypeFromTargetTypeRef(definition.carrier, names);
-    const single = definition.arms.length === 1;
-    const storage = single ? definition.arms[0] : csharpRuntimeUnionTargetType(definition.arms);
-    const storageType = storage === undefined ? undefined : csharpTypeFromTargetTypeRef(storage, names);
-    if (type?.kind !== "IdentifierName" || storageType === undefined) throw new Error("C# source union has no closed native storage type.");
+    const { single } = definition;
+    const storageType = csharpTypeFromTargetTypeRef(definition.storage, names);
+    if (type?.kind !== "IdentifierName" || storageType === undefined) failCsharpPlannerInvariant("C# source union has no closed native storage type.");
     const receiver: CsharpExpression = { kind: "IdentifierName", name: "value" };
     const members: CsharpTypeMember[] = [
       { kind: "FieldDeclaration", modifiers: ["private", "readonly"], name: "value", type: storageType },
@@ -32,7 +27,7 @@ export function planCsharpSourceUnionFile(input: CsharpPlanningContext):
     ];
     for (const [index, arm] of definition.arms.entries()) {
       const armType = csharpTypeFromTargetTypeRef(arm, names);
-      if (armType === undefined) throw new Error("C# source union arm has no closed native type.");
+      if (armType === undefined) failCsharpPlannerInvariant("C# source union arm has no closed native type.");
       const suffix = index + 1;
       const storedValue: CsharpExpression = single ? receiver : {
         kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: storageType, name: `From${suffix}` },
@@ -51,8 +46,7 @@ export function planCsharpSourceUnionFile(input: CsharpPlanningContext):
         } }] },
       });
     }
-    let resultName = "TResult";
-    while ([...names.values()].includes(resultName)) resultName = `_${resultName}`;
+    const { resultName } = definition;
     const resultType: CsharpTypeNode = { kind: "IdentifierName", name: resultName };
     members.push({ kind: "MethodDeclaration", modifiers: ["public"], name: "AsReference", returnType: resultType,
       typeParameters: [{ name: resultName, constraints: [{ kind: "KeywordConstraint", keyword: "class" }] }],
@@ -79,7 +73,7 @@ export function planCsharpSourceUnionFile(input: CsharpPlanningContext):
   }
   if (declarations.length === 0) return undefined;
   const finalized = finalizeCsharpCompilationUnit({ kind: "CompilationUnit", usings: [],
-    members: [{ kind: "NamespaceDeclaration", name: readNamespace(input), members: declarations }],
-  }, input.program.configuration.languageDialect);
+    members: [{ kind: "NamespaceDeclaration", name: input.program.records.compilation.get().namespace, members: declarations }],
+  }, input.program.records.compilation.get().languageDialect);
   return { source: { path: "generated/TsonicSourceUnions.cs", unit: finalized.unit }, requiresUnsafe: finalized.requiresUnsafe };
 }

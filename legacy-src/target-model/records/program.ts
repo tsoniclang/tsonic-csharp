@@ -43,6 +43,8 @@ import type { CsharpBindingIdentityRecords } from "./binding-identities.js";
 import type { CsharpSourceFileRecords } from "./source-files.js";
 import type { CsharpObjectShapeRecords } from "./object-shapes.js";
 import type { CsharpObjectShapeEmissionRecords } from "./object-shape-emission.js";
+import type { CsharpCompilationRecords } from "./compilation.js";
+import type { CsharpSourceUnionEmissionRecords } from "./source-unions.js";
 
 export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords, CsharpNativeDeclarationRecords, CsharpStructuralInterfaceRecords, CsharpLexicalValueRecords, CsharpConstructorEmissionRecords, CsharpClassEmissionRecords {
   readonly bindingIdentity: CsharpBindingIdentityRecords["bindingIdentity"];
@@ -51,6 +53,8 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly targetObjectShape: CsharpObjectShapeRecords["targetObjectShape"];
   readonly objectShapeParameters: CsharpObjectShapeEmissionRecords["objectShapeParameters"];
   readonly enumerableKeys: CsharpObjectShapeEmissionRecords["enumerableKeys"];
+  readonly compilation: CsharpCompilationRecords["compilation"];
+  readonly sourceUnions: CsharpSourceUnionEmissionRecords["sourceUnions"];
   readonly classFieldDefault: CsharpClassFieldInitializationRecords["classFieldDefault"];
   readonly callableParameter: CsharpCallableParameterRecords["callableParameter"];
   readonly callableDeclaration: { readonly get: (subject: Node) => CsharpCallableDeclarationEmission | undefined };
