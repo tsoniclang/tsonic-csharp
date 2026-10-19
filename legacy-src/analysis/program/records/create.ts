@@ -48,8 +48,10 @@ import type { CsharpCompilationEmission } from "../../../target-model/records/co
 import type { CsharpSourceUnionEmissionRecords } from "../../../target-model/records/source-unions.js";
 import { createCsharpCompilationRecords } from "./compilation.js";
 import { createCsharpJsonObjectShapeRecords } from "./json-object-shapes.js";
+import type { CsharpObjectMethodRecords } from "../../../target-model/records/object-methods.js";
 
 export interface CsharpProgramRecordInput {
+  readonly objectMethods: CsharpObjectMethodRecords;
   readonly bindingIdentities: CsharpBindingIdentityRecords;
   readonly sourceFiles: CsharpSourceFileRecords;
   readonly objectShapes: CsharpObjectShapeRecords;
@@ -105,6 +107,7 @@ export function createCsharpProgramRecords(
   required: readonly CsharpRequiredRecord[],
 ): CsharpProgramRecords {
   const records: CsharpProgramRecords = Object.freeze({
+    ...input.objectMethods,
     ...input.bindingIdentities,
     ...input.sourceFiles,
     ...input.objectShapes,

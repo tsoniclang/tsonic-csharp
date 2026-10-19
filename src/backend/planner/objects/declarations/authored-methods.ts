@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
 import type { CsharpExpression, CsharpTypeMember } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlannedObjectAssignment } from "../../expressions/planned-initializers.js";
 import type { CsharpPlanningContext } from "../../context.js";
@@ -8,45 +8,18 @@ import { createCsharpMemberPlanningContext, createCsharpThisBindingPlanningConte
 import { planMethodDeclaration } from "../../declarations/classes/methods.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { csharpTypeFromObjectShapeFact } from "../planning.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import type { CsharpObjectCaptureField } from "../../../../target-model/records/object-methods.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { getCsharpLocalBindingName } from "../../bindings/binding-state.js";
 import { csharpCapturedBindingExpression, csharpCaptureFrameExpression } from "../../bindings/capture-storage.js";
-import { requireCsharpIdentifier } from "../../../../target-model/names/identifiers.js";
-import { objectShapeStorageMemberName } from "../../../../target-model/names/object-members.js";
-import { csharpObjectShapeMethodDeclaration } from "../../../../target-model/types/method-values.js";
 import { objectShapeArtifactKey } from "../../../../target-model/records/object-shape-demand.js";
 import { planCsharpArtifactMemberHiding } from "../../declarations/modifiers.js";
 
-interface ObjectCaptureField {
-  readonly name: string;
-  readonly type: TargetTypeRef;
-  readonly declarations: readonly { readonly declaration: Node; readonly member?: string }[];
-  readonly frameScope?: Node;
-}
-
-export function csharpObjectCaptureFields(shape: CsharpObjectShapeFact, input: CsharpPlanningContext): readonly ObjectCaptureField[] {
-  const fields: ObjectCaptureField[] = [];
-  const frames = new Map<Node, number>();
-  for (const capture of shape.methodImplementation?.captures ?? []) {
-    const selected = input.program.records.capturedBinding.get(capture.declaration);
-    if (selected === undefined) {
-      fields.push({ name: capture.fieldName, type: input.program.records.physicalStorageType.get(capture.declaration, capture.type),
-        declarations: [{ declaration: capture.declaration }] });
-      continue;
-    }
-    const index = frames.get(selected.frame.scope);
-    const binding = { declaration: capture.declaration, member: selected.fieldName };
-    if (index !== undefined) {
-      const field = fields[index]!;
-      fields[index] = { ...field, declarations: [...field.declarations, binding] };
-    } else {
-      frames.set(selected.frame.scope, fields.length);
-      fields.push({ name: capture.fieldName, type: selected.frame.shape.targetType,
-        frameScope: selected.frame.scope, declarations: [binding] });
-    }
-  }
-  return fields;
+export function csharpObjectCaptureFields(shape: CsharpObjectShapeFact, input: CsharpPlanningContext): readonly CsharpObjectCaptureField[] {
+  const selected = input.program.records.objectCaptures.get(shape);
+  if (selected === undefined) failCsharpPlannerInvariant("An admitted object requires its sealed capture-field inventory.", shape.methodImplementation?.declaration);
+  return selected;
 }
 
 export function renderCsharpAuthoredObjectMethods(
@@ -59,7 +32,7 @@ export function renderCsharpAuthoredObjectMethods(
   const captureFrames = new Map<Node, CsharpExpression>();
   for (const field of csharpObjectCaptureFields(shape, input)) {
     const type = csharpTypeFromTargetTypeRef(field.type, input.scope.typeParameterNames);
-    if (type === undefined) return undefined;
+    if (type === undefined) failCsharpPlannerInvariant("An admitted object capture requires its renderable storage carrier.", implementation.declaration);
     const frame = field.frameScope === undefined ? undefined : input.program.records.captureFrame.get(field.frameScope);
     if (frame !== undefined && csharpTypeFromObjectShapeFact(input, frame.shape, diagnostics, implementation.declaration) === undefined) return undefined;
     members.push({ kind: "FieldDeclaration", name: field.name, type,
@@ -70,29 +43,22 @@ export function renderCsharpAuthoredObjectMethods(
       : { kind: "SimpleMemberAccessExpression", receiver, name: binding.member });
   }
   const context = createCsharpThisBindingPlanningContext({ ...input, scope: { ...input.scope, capturedBindings, captureFrames } }, "this", shape.targetType);
-  for (const member of shape.members) {
-    if (member.memberKind !== "method" || member.methodValueContract === undefined || member.methodStorageType !== undefined) continue;
-    const declaration = csharpObjectShapeMethodDeclaration(shape, member);
-    if (declaration === undefined) {
-      if (member.optional === true) continue;
-      diagnostics.push(unsupportedNodeDiagnostic(implementation.declaration, "A native object method requires its exact authored implementation."));
-      return undefined;
-    }
+  const methods = input.program.records.objectMethods.get(shape);
+  if (methods === undefined) failCsharpPlannerInvariant("An admitted object requires its sealed authored-method inventory.", implementation.declaration);
+  for (const member of methods) {
+    const declaration = member.declaration;
     const sourceFile = input.program.source.ast.getSourceFile(declaration);
-    if (sourceFile === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(declaration, "A native object method requires its exact checked source file."));
-      return undefined;
-    }
+    if (sourceFile === undefined) failCsharpPlannerInvariant("An admitted native object method requires its checked source file.", declaration);
     const methodContext = createCsharpMemberPlanningContext(context);
     const method = planMethodDeclaration(declaration, sourceFile, methodContext, diagnostics,
-      { kind: "artifact", container: objectShapeArtifactKey(shape), member: member.targetName, role: "member" });
-    members.push({ ...method, name: member.targetName });
+      { kind: "artifact", container: objectShapeArtifactKey(shape), member: member.name, role: "member" });
+    members.push({ ...method, name: member.name });
     members.push(...methodContext.scope.generatedMethods?.values() ?? []);
-    if (input.artifacts.objectShapeHasCapability(shape, "method-values")) {
+    if (member.handleName !== undefined) {
       const type = csharpTypeFromTargetTypeRef(shape.targetType, input.scope.typeParameterNames);
-      if (type === undefined) return undefined;
-      members.push({ kind: "PropertyDeclaration", name: objectShapeStorageMemberName(shape, member),
-        modifiers: ["public", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, objectShapeStorageMemberName(shape, member))], type,
+      if (type === undefined) failCsharpPlannerInvariant("An admitted method handle requires its renderable native carrier.", declaration);
+      members.push({ kind: "PropertyDeclaration", name: member.handleName,
+        modifiers: ["public", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, member.handleName)], type,
         getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: { kind: "IdentifierName", name: "this" } }] },
       });
     }
@@ -109,19 +75,19 @@ export function planCsharpObjectCaptureAssignments(
     const declaration = field.declarations[0]!.declaration;
     let expression: CsharpExpression | undefined;
     if (field.frameScope !== undefined) {
-      const forwarded = input.scope.capturedBindings?.get(declaration);
-      expression = input.scope.captureFrames?.get(field.frameScope) ?? (forwarded?.kind === "SimpleMemberAccessExpression"
-        ? forwarded.receiver : csharpCaptureFrameExpression(field.frameScope, input, state));
+      expression = csharpCaptureFrameExpression(field.frameScope, input, state);
     } else {
       const name = input.program.source.ast.name(declaration);
-      expression = csharpCapturedBindingExpression(declaration, input, state) ?? (name === undefined ? undefined : {
-        kind: "IdentifierName", name: getCsharpLocalBindingName(name, input, state) ??
-          requireCsharpIdentifier(input.program.source.ast.text(name), diagnostics, "Captured binding"),
-      });
+      expression = csharpCapturedBindingExpression(declaration, input, state);
+      if (expression === undefined && name !== undefined) {
+        const local = getCsharpLocalBindingName(name, input, state);
+        const selected = input.program.names.resolve(name);
+        if (local === undefined && selected.kind !== "resolved") failCsharpPlannerInvariant("An admitted object capture requires its native binding name.", declaration);
+        expression = { kind: "IdentifierName", name: local === undefined && selected.kind === "resolved" ? selected.name : local! };
+      }
     }
     if (expression === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(declaration, "A captured object method binding has no sealed native storage access."));
-      return undefined;
+      failCsharpPlannerInvariant("A captured object method binding has no sealed native storage access.", declaration);
     }
     assignments.push({ kind: "AssignmentExpression", name: field.name, carrier: field.type, expression });
   }
