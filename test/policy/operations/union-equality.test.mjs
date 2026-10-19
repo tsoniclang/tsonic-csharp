@@ -84,7 +84,8 @@ test("nullable union equality enters the existing binary owner and preserves inc
   const right = {};
   const input = { ...policy, ast: { is: { IsBinaryExpression: () => false, IsObjectLiteralExpression: () => false,
     IsArrayLiteralExpression: () => false, IsStringLiteral: () => false, IsNoSubstitutionTemplateLiteral: () => false },
-    kindName: () => "KindIdentifier" }, types: { resolveReadStorage: () => undefined } };
+    kindName: () => "KindIdentifier" }, literalValues: { literalValue: { get: () => undefined } },
+    types: { resolveReadStorage: () => undefined } };
   for (const sourceOperator of ["===", "!=="]) {
     const selected = selectCsharpBinaryOperands(input, left, right, sourceOperator,
       csharpSourcePrimitiveTargetType("bool"), node => node === left ? stringUnion : text);
