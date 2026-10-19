@@ -18,7 +18,7 @@ export function planClassHeritage(
   classDeclaration: Node,
   input: CsharpPlanningContext,
 ): CsharpClassHeritage {
-  const heritage = input.types.projectTypes.heritageForDeclaration(classDeclaration);
+  const heritage = input.program.records.declarationHeritage.get(classDeclaration);
   if (heritage === undefined) {
     return failCsharpPlannerInvariant(
       "Project class is absent from the admitted canonical C# project-type model.",
@@ -44,7 +44,7 @@ export function planInterfaceHeritage(
   interfaceDeclaration: Node,
   input: CsharpPlanningContext,
 ): readonly CsharpTypeNode[] {
-  const heritage = input.types.projectTypes.heritageForDeclaration(
+  const heritage = input.program.records.declarationHeritage.get(
     interfaceDeclaration,
   );
   if (heritage === undefined) {

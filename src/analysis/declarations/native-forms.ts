@@ -1,6 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
+import type { CsharpProjectTypeClassifications, CsharpProjectTypeHeritage } from "../../target-model/records/project-types.js";
 import type { CsharpNativeDeclarationForm } from "../../target-model/records/native-declaration-forms.js";
 import { createCsharpNativeDeclarationRecords } from "../program/records/native-declarations.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
@@ -12,7 +12,12 @@ export function analyzeCsharpNativeDeclarationForms(input: {
   readonly required: CsharpRequiredRecord[];
 }) {
   const values = new Map<Node, CsharpNativeDeclarationForm>();
+  const heritage = new Map<Node, CsharpProjectTypeHeritage>();
   for (const node of input.nodes) {
+    if (input.ast.is.IsClassDeclaration(node) || input.ast.is.IsClassExpression(node) || input.ast.is.IsInterfaceDeclaration(node)) {
+      const selected = input.projectTypes.heritageForDeclaration(node);
+      if (selected !== undefined) heritage.set(node, selected);
+    }
     if (input.ast.is.IsClassDeclaration(node) || input.ast.is.IsClassExpression(node)) {
       const definition = input.projectTypes.definitionContainingDeclaration(node);
       const members: Node[] = [];
@@ -37,5 +42,5 @@ export function analyzeCsharpNativeDeclarationForms(input: {
     values.set(node, Object.freeze({ kind: "enum", integerWidth: definition.integerWidth, members: Object.freeze(members) }));
     requireCsharpRecord(input.required, { family: "nativeDeclaration", subject: node, construct: "native enum declaration", producer: "analyzeCsharpNativeDeclarationForms" });
   }
-  return createCsharpNativeDeclarationRecords(values);
+  return createCsharpNativeDeclarationRecords(values, heritage);
 }

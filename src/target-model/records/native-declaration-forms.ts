@@ -1,4 +1,5 @@
 import type { Node } from "@tsonic/tsts";
+import type { CsharpProjectTypeHeritage } from "./project-types.js";
 
 export interface CsharpNativeEnumDeclaration {
   readonly kind: "enum";
@@ -8,6 +9,7 @@ export interface CsharpNativeEnumDeclaration {
 
 export interface CsharpNativeDeclarationRecords {
   readonly nativeDeclaration: { readonly get: (subject: Node) => CsharpNativeDeclarationForm | undefined };
+  readonly declarationHeritage: { readonly get: (subject: Node) => CsharpProjectTypeHeritage | undefined };
 }
 
 export interface CsharpNativeClassDeclaration {
