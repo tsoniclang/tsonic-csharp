@@ -34,8 +34,10 @@ import type { CsharpNativeDeclarationRecords } from "../../../target-model/recor
 import type { CsharpStructuralInterfaceRecords } from "../../../target-model/records/structural-interfaces.js";
 import type { CsharpLexicalValueRecords } from "../../../target-model/records/lexical-values.js";
 import type { CsharpCallableParameterRecords } from "../../../target-model/records/parameter-emission.js";
+import type { CsharpCallableDeclarationRecords } from "../../../target-model/records/callable-emission.js";
 
 export interface CsharpProgramRecordInput {
+  readonly callableDeclarations: CsharpCallableDeclarationRecords;
   readonly callableParameters: CsharpCallableParameterRecords;
   readonly classFields: CsharpClassFieldInitializationRecords;
   readonly lexicalValues: CsharpLexicalValueRecords;
@@ -81,6 +83,7 @@ export function createCsharpProgramRecords(
 ): CsharpProgramRecords {
   const records: CsharpProgramRecords = Object.freeze({
     ...input.callableParameters,
+    ...input.callableDeclarations,
     ...input.classFields,
     ...input.lexicalValues,
     ...input.structuralInterfaces,

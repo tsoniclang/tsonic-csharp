@@ -29,6 +29,7 @@ import type { CsharpResourceScopeRecords } from "./resource-scopes.js";
 import type { CsharpLocalBindingCompletion } from "./local-bindings.js";
 import type { CsharpGeneratorRecords } from "./generators.js";
 import type { Node } from "@tsonic/tsts";
+import type { CsharpCallableDeclarationEmission } from "./callable-emission.js";
 import type { CsharpDeclarationModifierRecords } from "./declaration-modifiers.js";
 import type { CsharpNativeDeclarationRecords } from "./native-declaration-forms.js";
 import type { CsharpStructuralInterfaceRecords } from "./structural-interfaces.js";
@@ -38,6 +39,7 @@ import type { CsharpCallableParameterRecords } from "./parameter-emission.js";
 export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords, CsharpNativeDeclarationRecords, CsharpStructuralInterfaceRecords, CsharpLexicalValueRecords {
   readonly classFieldDefault: CsharpClassFieldInitializationRecords["classFieldDefault"];
   readonly callableParameter: CsharpCallableParameterRecords["callableParameter"];
+  readonly callableDeclaration: { readonly get: (subject: Node) => CsharpCallableDeclarationEmission | undefined };
   readonly localBinding: { readonly get: (subject: Node | undefined) => CsharpLocalBindingCompletion | undefined };
   readonly objectShapeArtifact: CsharpObjectShapeDemand;
   readonly nativeValueDeclaration: CsharpNativeValueCarriers["nativeValueDeclaration"];

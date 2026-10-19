@@ -15,6 +15,7 @@ import { analyzeCsharpStructuralInterfaceEmission } from "../declarations/interf
 import { analyzeCsharpLexicalValues } from "../callables/lexical-values.js";
 import { analyzeCsharpClassFieldInitialization } from "../project-types/class-initialization.js";
 import { analyzeCsharpCallableParameterEmission } from "../callables/parameters.js";
+import { analyzeCsharpCallableDeclarationEmission } from "../callables/declaration-emission.js";
 import { analyzeCsharpStatementExits } from "../control-flow/statement-exits.js";
 import { analyzeCsharpStatementCompletions } from "../control-flow/statement-completion.js";
 import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js";
@@ -521,6 +522,9 @@ function analyzeCsharpTargetProgramBeforeSeal(
       admittedOperations.nativeUnreachable.get(node) === true || nativeParticipation.participation.get(node) === "erased",
     required: analysis.requiredRecords });
   if (generators.issues.length !== 0) return rejectedTargetStage(generators.issues);
+  const callableDeclarations = analyzeCsharpCallableDeclarationEmission({ ast: source.ast, nodes: sourceStorage.nodes,
+    admitted: admittedControlNode, declarations: analysis.declarations, generators: generators.records });
+  if (callableDeclarations.issues.length !== 0) return rejectedTargetStage(callableDeclarations.issues);
   const lexicalValues = analyzeCsharpLexicalValues({ nodes: sourceStorage.nodes, navigation: source.navigation,
     captures: captureStorage, values: analysis.valueReads, metadata: analysis.sourceEvidence });
   if (lexicalValues.issues.length !== 0) return rejectedTargetStage(lexicalValues.issues);
@@ -530,6 +534,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (callableParameters.issues.length !== 0) return rejectedTargetStage(callableParameters.issues);
   const records = createCsharpProgramRecords({
     callableParameters: callableParameters.records,
+    callableDeclarations: callableDeclarations.records,
     classFields: analyzeCsharpClassFieldInitialization({ ast: source.ast, nodes: sourceStorage.nodes, storage: analysis.storage }),
     lexicalValues: lexicalValues.records,
     structuralInterfaces: analyzeCsharpStructuralInterfaceEmission({ ast: source.ast,

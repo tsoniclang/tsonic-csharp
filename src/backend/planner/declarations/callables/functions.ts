@@ -6,15 +6,14 @@ import type { CsharpMethodDeclaration, CsharpStatement } from "../../../target-a
 import { planAttributesForSubject } from "../attributes.js";
 import { createDestructuringPlannerState, createNestedPlannerState, getCsharpLocalBindingName,
   type DestructuringPlannerState } from "../../bindings/index.js";
-import { isAsyncNode, planCsharpNativeMemberHiding } from "../modifiers.js";
-import { planIdentifierName } from "../../names/source-identifiers.js";
+import { planCsharpAdmittedMemberName, planCsharpNativeMemberHiding } from "../modifiers.js";
 import { planParametersWithPrelude } from "./parameters.js";
 import { planBlockStatements } from "../../statements/index.js";
 import { planTypeParameters } from "../../types/type-parameters.js";
-import { getAsyncReturnExpressionExpectedType, getDeclarationReturnTargetType, getExplicitReturnType } from "./return-types.js";
+import { getAsyncReturnExpressionExpectedType, getExplicitReturnType } from "./return-types.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
-import { hasCsharpGeneratorPlan, planCsharpGeneratorFunction } from "../../statements/generators.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
+import { planCsharpGeneratorFunction } from "../../statements/generators.js";
 import { withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
 import { planCsharpAbsenceReturn } from "../../statements/statement-output.js";
 
@@ -48,18 +47,14 @@ export function planSourceFunctionDeclaration(
   { readonly body: NonNullable<CsharpMethodDeclaration["body"]> } } {
   const declaration = AsFunctionDeclaration(input.program.source.ast, node)!;
   const name = declaration.name === undefined || parent === undefined ? undefined : getCsharpLocalBindingName(declaration.name, input, parent);
-  const selectedName = name ?? planIdentifierName(declaration.name, "__anonymous", input, diagnostics, "Function name");
+  const selectedName = name ?? planCsharpAdmittedMemberName(input.program.names, declaration.name);
+  const emission = input.program.records.callableDeclaration.get(node);
+  if (emission === undefined) failCsharpPlannerInvariant("An admitted source function requires its sealed native declaration plan.", node);
   const state = parent === undefined ? createDestructuringPlannerState(node, input.program.source.ast)
     : createNestedPlannerState(parent, node, input.program.source.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
-  const declaredReturnTargetType = getDeclarationReturnTargetType(
-    declaration.Type,
-    node,
-    sourceFile,
-    input,
-  );
   const declaredReturnType = getExplicitReturnType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
-  const generatorSyntax = hasCsharpGeneratorPlan(node, input);
+  const generatorSyntax = emission.generator;
   if (generatorSyntax) {
     const generator = planCsharpGeneratorFunction(
       node,
@@ -71,16 +66,17 @@ export function planSourceFunctionDeclaration(
       parameters.prelude,
       planBlockStatements,
     );
+    if (generator === undefined) failCsharpPlannerInvariant("An admitted generator requires its native body and return type.", node);
     return { async: false, declaration: {
       name: selectedName,
       attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
       typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
-      returnType: generator?.generatorTypeNode ?? declaredReturnType,
+      returnType: generator.generatorTypeNode,
       parameters: parameters.parameters,
-      body: generator?.body ?? { kind: "Block", statements: [] },
+      body: generator.body,
     } };
   }
-  const async = isAsyncNode(input.program.source.ast, node);
+  const async = emission.async;
   state.currentReturnType = declaredReturnType;
   state.currentReturnTypeSubject = declaration.Type;
   state.currentReturnExpressionTargetType = input.program.records.returnContext.get(node)?.target;
@@ -99,19 +95,8 @@ export function planSourceFunctionDeclaration(
     state,
     parameters.prelude,
   );
-  if (returnContract?.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      returnContract.reason,
-    ));
-  }
-  const effectiveReturnTargetType = returnContract?.kind === "resolved"
-    ? returnContract.type
-    : declaredReturnTargetType;
-  const returnType = effectiveReturnTargetType === undefined
-    ? declaredReturnType
-    : csharpTypeFromTargetTypeRef(effectiveReturnTargetType, input.scope.typeParameterNames) ??
-      declaredReturnType;
+  const returnType = csharpTypeFromTargetTypeRef(emission.returnCarrier, input.scope.typeParameterNames);
+  if (returnType === undefined) failCsharpPlannerInvariant("An admitted source function requires its renderable native return carrier.", node);
   return { async, declaration: {
     name: selectedName,
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
