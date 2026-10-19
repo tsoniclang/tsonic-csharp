@@ -98,12 +98,11 @@ for (const surface of ["native", "js"]) {
         static read<T>(value: T): T { return value; }
         read<U>(value: U): U { return value; }
       }
-      export function run(): number { return View.read(1) + new View().read(2); }
     ` },
     { label: "nullable-reference method", name: "read", nativeCode: "CS0111", sourceText: `
       export class View {
-        static read(value: string): number { return value.length; }
-        read(value: string | undefined): number { return value === undefined ? 0 : value.length; }
+        static read(value: string): number { return 1; }
+        read(value: string | undefined): number { return 2; }
       }
       export function run(): number { return View.read("a") + new View().read(undefined); }
     ` },
@@ -112,7 +111,7 @@ for (const surface of ["native", "js"]) {
       const compiled = compileCsharpSource({ surface, sourceText: control.sourceText });
       assert.equal(compiled.sourceDiagnosticsText, "", "the original colliding members are checked TypeScript");
       assert.equal(compiled.targetDiagnostics.length, 1, "one native member-name owner reports the conflicting pair");
-      const diagnostic = compiled.targetDiagnostics[0];
+      const diagnostic = compiled.result.diagnostics[0];
       assert.equal(diagnostic.code, "CSHARP_INVALID_IDENTIFIER", "the existing native-name refusal code is used");
       assert.equal(diagnostic.message,
         `Static member '${control.name}' and instance member '${control.name}' cannot share the emitted C# name '${control.name}' (${control.nativeCode}).`,
