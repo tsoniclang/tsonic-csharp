@@ -50,8 +50,10 @@ import { createCsharpCompilationRecords } from "./compilation.js";
 import { createCsharpJsonObjectShapeRecords } from "./json-object-shapes.js";
 import type { CsharpObjectMethodRecords } from "../../../target-model/records/object-methods.js";
 import type { CsharpObjectMemberRecords } from "../../../target-model/records/object-members.js";
+import type { CsharpObjectLiteralRecords } from "../../../target-model/records/object-literals.js";
 
 export interface CsharpProgramRecordInput {
+  readonly objectLiterals: CsharpObjectLiteralRecords;
   readonly objectMembers: CsharpObjectMemberRecords;
   readonly objectMethods: CsharpObjectMethodRecords;
   readonly bindingIdentities: CsharpBindingIdentityRecords;
@@ -109,6 +111,7 @@ export function createCsharpProgramRecords(
   required: readonly CsharpRequiredRecord[],
 ): CsharpProgramRecords {
   const records: CsharpProgramRecords = Object.freeze({
+    ...input.objectLiterals,
     ...input.objectMembers,
     ...input.objectMethods,
     ...input.bindingIdentities,

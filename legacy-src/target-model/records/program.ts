@@ -47,6 +47,7 @@ import type { CsharpStructuralObjectEmissionRecords } from "./structural-object-
 import type { CsharpJsonObjectShapeRecords } from "./json-object-shapes.js";
 import type { CsharpObjectMethodRecords } from "./object-methods.js";
 import type { CsharpObjectMemberRecords } from "./object-members.js";
+import type { CsharpObjectLiteralRecords } from "./object-literals.js";
 import type { CsharpCompilationRecords } from "./compilation.js";
 import type { CsharpSourceUnionEmissionRecords } from "./source-unions.js";
 
@@ -63,6 +64,8 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly objectMethods: CsharpObjectMethodRecords["objectMethods"];
   readonly objectMember: CsharpObjectMemberRecords["objectMember"];
   readonly objectMemberDeclarations: CsharpObjectMemberRecords["objectMemberDeclarations"];
+  readonly objectLiteral: CsharpObjectLiteralRecords["objectLiteral"];
+  readonly objectLiteralMember: CsharpObjectLiteralRecords["objectLiteralMember"];
   readonly objectShapeEmission: CsharpObjectShapeEmissionRecords["objectShapeEmission"];
   readonly objectShapeDeclarations: CsharpObjectShapeEmissionRecords["objectShapeDeclarations"];
   readonly enumerableKeys: CsharpObjectShapeEmissionRecords["enumerableKeys"];
