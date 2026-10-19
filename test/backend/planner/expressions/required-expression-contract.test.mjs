@@ -95,15 +95,22 @@ test("required expression boundaries diagnose silent rejected conversions withou
     { code: "PRIOR", category: "error", source: "test", message: "Unrelated existing error." },
   ]]) {
     const diagnostics = [...prior];
-    assert.equal(plan(diagnostics) === undefined, true, `${name}: rejected plan remains absent`);
-    assert.equal(diagnostics.length === prior.length + 1, true, `${name}: exactly one new owning error`);
-    assert.equal(diagnostics.at(-1).category === "error"
-      && diagnostics.at(-1).message === current.rejection.reason, true,
-    `${name}: prior errors cannot hide a missing current completion (${diagnostics.at(-1).message})`);
+    const message = `C# conversion reached planning after pre-seal refusal: ${current.rejection.reason}`;
+    assert.throws(() => plan(diagnostics), error => error instanceof Error && error.phase === "planning" &&
+      error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&
+      error.diagnostic.source === "tsonic-csharp" && error.diagnostic.sourceNode === current.radix &&
+      error.message === message && error.diagnostic.message === message,
+    `${name}: the identical refused native pair is post-seal corruption at the exact radix`);
+    assert.equal(diagnostics.length === prior.length && diagnostics.every((diagnostic, index) => diagnostic === prior[index]),
+      true, `${name}: prior diagnostics are unchanged and no source error is appended`);
   }
-  const rejected = planCsharpOutput(createCsharpPlanningContext(current.changed));
-  assert.equal(rejected.kind === "rejected" && rejected.diagnostics.some(diagnostic => diagnostic.category === "error"), true,
-    "complete output rejects instead of publishing an empty boolean method");
+  const message = `C# conversion reached planning after pre-seal refusal: ${current.rejection.reason}`;
+  assert.throws(() => planCsharpOutput(createCsharpPlanningContext(current.changed)),
+    error => error instanceof Error && error.phase === "planning" &&
+      error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&
+      error.diagnostic.source === "tsonic-csharp" && error.diagnostic.sourceNode === current.radix &&
+      error.message === message && error.diagnostic.message === message,
+    "complete output refuses the same corrupted program instead of publishing an empty boolean method");
 });
 
 test("the required-expression guard preserves undefined, specific and prior-error predicates", () => {
