@@ -368,11 +368,9 @@ export function analyzeCsharpConversions(
         completion = Object.freeze({ source, target });
       }
     }
-    const source = call?.source ?? (
-      classification.target?.kind === "resolved" || classification.target?.kind === "source-owned"
-        ? classification.target.source
-        : undefined
-    );
+    const source = call?.source ?? (classification.target?.kind === "source-owned"
+      ? classification.target.source
+      : undefined);
     if (source !== undefined) {
       const queries = policy.semanticsFor(node);
       const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
@@ -420,8 +418,14 @@ export function analyzeCsharpConversions(
         const source = csharpAbsenceTargetType();
         const target = classification.sourceParameterTypes?.[parameterIndex];
         classifyPair(source, target, "implicit", node);
-        omitted.push(Object.freeze({ source, target }));
       }
+    }
+    const grouping = classification.target?.kind === "source-owned" ? classification.sourceArgumentGrouping : undefined;
+    if (grouping?.kind === "grouped") for (const group of grouping.groups) {
+      if (group.collect || group.arguments.length > 0) continue;
+      const source = csharpAbsenceTargetType();
+      classifyPair(source, group.type, "implicit", node);
+      omitted.push(Object.freeze({ source, target: group.type }));
     }
     if (completion !== undefined || omitted.length > 0) {
       callConversions.set(node, Object.freeze({ ...(completion === undefined ? {} : { completion }),

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { admitCsharpConversionSelection } from "../../../dist/analysis/conversions/validation.js";
 import { sealCsharpConversionUses } from "../../../dist/analysis/conversions/use-admission.js";
 import { csharpOperationConversionIssue, csharpSelectedCallConversionIssue } from "../../../dist/analysis/operations/conversion-admission.js";
@@ -397,5 +398,14 @@ test("post-seal corruption pairs are source refusals at their actual conversion 
       admitted.issues[0].code === "CSHARP_UNSUPPORTED_AST" && admitted.issues[0].message === reason, true,
     "the identical malformed pair is rejected with its exact owning message and node before publication");
     assert.equal(requiredRecords.length, 0, "no accepted record is required or published for the refused pair");
+  }
+});
+
+test("omission admission does not fabricate source formal slots for native provider constructors", () => {
+  for (const surface of ["native", "js"]) {
+    const compiled = compileCsharpSource({ surface, sourceText:
+      "export function create(): Error { return new Error(); }" });
+    assertCsharpCompilationSucceeded(compiled);
+    assert.equal(compiled.artifacts.size > 0, true, `${surface}: the existing native constructor remains emitted`);
   }
 });
