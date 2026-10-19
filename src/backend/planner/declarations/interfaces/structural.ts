@@ -7,14 +7,15 @@ import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planCsharpCallableArguments } from "../callables/parameter-adapters.js";
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";
-import { csharpGeneratedTypeParameterNames } from "../../../../target-model/names/type-parameters.js";
 
 export function planCsharpStructuralInterfaceMembers(
   shape: CsharpObjectShapeFact,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeMember[] {
   const result: CsharpTypeMember[] = [];
-  for (const implementation of input.program.objectShapes.structuralImplementations(shape.targetType)) {
+  const implementations = input.program.records.structuralInterface.get(shape.targetType);
+  if (implementations === undefined) failCsharpPlannerInvariant("An admitted structural shape requires its native interface forwarding records.");
+  for (const implementation of implementations) {
     const explicitInterface = csharpTypeFromTargetTypeRef(implementation.interfaceType, input.scope.typeParameterNames);
     for (const property of implementation.properties) {
       const sourceFile = input.program.source.ast.getSourceFile(implementation.sourceNode);
@@ -28,7 +29,7 @@ export function planCsharpStructuralInterfaceMembers(
         receiver: { kind: "IdentifierName", name: "this" }, name: property.sourceName };
       const value = applyCsharpConversionSelection(implementation.sourceNode, sourceFile, input, diagnostics,
         property.read.source, property.read.target, property.read.conversion, access);
-      if (value === undefined) continue;
+      if (value === undefined) failCsharpPlannerInvariant("An admitted structural property requires its native forwarding value.", implementation.sourceNode);
       result.push({ kind: "PropertyDeclaration", name: property.member.targetName, explicitInterface, modifiers: [], type,
         getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: value }] },
         ...(property.member.readonly === true || property.member.accessor?.setter === false ? {} : {
@@ -47,15 +48,7 @@ export function planCsharpStructuralInterfaceMembers(
       }
       const { forwarding } = method;
       const binders = forwarding.typeParameters;
-      const binderIds = new Set(binders.map(parameter => parameter.identity));
-      const bareName = (name: string): string => name.startsWith("@") ? name.slice(1) : name;
-      const methodNames = csharpGeneratedTypeParameterNames(binders.map(parameter => ({ identity: parameter.identity,
-        name: input.scope.typeParameterNames?.get(parameter.identity) ?? parameter.name })), [
-        ...forwarding.contract.parameters.map(parameter => bareName(parameter.targetParameter.name)),
-        ...(shape.targetType.kind === "target-named" ? shape.targetType.typeArguments ?? [] : [])
-          .flatMap(type => type.kind === "type-parameter" ? [bareName(input.scope.typeParameterNames?.get(type.identity) ?? type.name)] : []),
-        ...[...input.scope.typeParameterNames ?? []].filter(([identity]) => !binderIds.has(identity)).map(([, name]) => bareName(name)),
-      ]);
+      const methodNames = method.typeParameterNames.map(parameter => [parameter.identity, parameter.name] as const);
       const methodInput = binders.length === 0 ? input : { ...input, scope: { ...input.scope,
         typeParameterNames: new Map([...input.scope.typeParameterNames ?? [], ...methodNames]) } };
       const returnType = csharpTypeFromTargetTypeRef(forwarding.contract.returnType, methodInput.scope.typeParameterNames);
@@ -83,7 +76,7 @@ export function planCsharpStructuralInterfaceMembers(
         ...(incoming[index]?.passing === undefined ? {} : { passing: incoming[index]!.passing }) })) };
       const value = applyCsharpConversionSelection(method.declaration, sourceFile, methodInput, diagnostics,
         forwarding.result.source, forwarding.result.target, forwarding.result.conversion, call);
-      if (value === undefined) continue;
+      if (value === undefined) failCsharpPlannerInvariant("An admitted structural method requires its native forwarding result.", method.declaration);
       const typeParameters = binders.map(parameter => {
         const rendered = csharpTypeFromTargetTypeRef({
           kind: "type-parameter", identity: parameter.identity, name: parameter.name,
