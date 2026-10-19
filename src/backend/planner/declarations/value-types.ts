@@ -11,9 +11,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeMember, CsharpStructDeclaration, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { renderBoundRecordMember } from "../objects/declarations/members.js";
 import { planAttributesForSubject } from "./attributes.js";
-import { getCsharpTypeForNode, invalidCsharpType } from "../types/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { planIdentifierName } from "../names/source-identifiers.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../types/target-type-object-shapes.js";
 import { planCsharpNativeMemberHiding } from "./modifiers.js";
 import { objectShapeBoundStorageMemberName } from "../../../target-model/names/object-members.js";
@@ -24,7 +22,8 @@ export function planValueTypeDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpStructDeclaration | undefined {
-  const declaration = AsVariableDeclaration(input.program.source.ast, declarationNode)!;
+  const declaration = AsVariableDeclaration(input.program.source.ast, declarationNode);
+  if (declaration === undefined) failCsharpPlannerInvariant("An admitted value type requires its source declaration.", declarationNode);
   const selected = input.program.records.nativeValueDeclaration.get(declarationNode);
   if (selected === undefined) return failCsharpPlannerInvariant(
     "A value-type declaration requires its admitted native fields and storage carriers.", declarationNode);
@@ -58,9 +57,11 @@ export function planValueTypeDeclaration(
       type,
     });
   }
+  const name = input.program.names.resolve(declaration.name);
+  if (name.kind !== "resolved") failCsharpPlannerInvariant("An admitted value type requires its authored native identifier.", declarationNode);
   return {
     kind: "StructDeclaration",
-    name: planIdentifierName(declaration.name, "AnonymousValueType", input, diagnostics, "Value type name"),
+    name: name.name,
     modifiers: ["public"],
     attributes: planAttributesForSubject(declarationNode, sourceFile, input, diagnostics),
     members,
@@ -74,11 +75,8 @@ export function getCsharpTypeForSourceField(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeNode {
-  return getCsharpTypeForNode(
-    field.sourceType,
-    sourceFile,
-    input,
-    invalidCsharpType(`${diagnosticLabel} '${field.sourceName}' type`),
-    diagnostics,
-  );
+  const carrier = input.types.classifications.resolveNode(field.sourceType, sourceFile);
+  if (carrier === undefined) failCsharpPlannerInvariant(`An admitted ${diagnosticLabel} field requires its sealed native carrier.`, field.sourceType);
+  const type = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, carrier, diagnostics, field.sourceType);
+  return type ?? failCsharpPlannerInvariant(`An admitted ${diagnosticLabel} field requires its renderable native carrier.`, field.sourceType);
 }
