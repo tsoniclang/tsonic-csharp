@@ -4,7 +4,8 @@ import { sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpStatement } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { declareCsharpLocalBindingName, type DestructuringPlannerState } from "../../bindings/index.js";
-import { planIdentifierName } from "../../names/source-identifiers.js";
+import { planCsharpAdmittedMemberName } from "../modifiers.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planCsharpParameterPropertyAssignments(
   constructor: Node,
@@ -14,10 +15,12 @@ export function planCsharpParameterPropertyAssignments(
 ): readonly CsharpStatement[] {
   const ast = input.program.source.ast;
   return ast.parameters(constructor).flatMap((parameter): readonly CsharpStatement[] => {
-    if (parameter === undefined || !sourceParameterIsProperty(ast, parameter)) return [];
+    if (parameter === undefined) failCsharpPlannerInvariant("An admitted constructor requires its dense source parameter list.", constructor);
+    if (!sourceParameterIsProperty(ast, parameter)) return [];
     const name = ast.name(parameter);
-    const memberName = planIdentifierName(name, "FieldDeclaration", input, diagnostics, "Parameter property name");
-    const valueName = declareCsharpLocalBindingName(name!, input, state);
+    if (name === undefined) failCsharpPlannerInvariant("An admitted parameter property requires its authored identifier.", parameter);
+    const memberName = planCsharpAdmittedMemberName(input.program.names, name);
+    const valueName = declareCsharpLocalBindingName(name, input, state);
     return [{ kind: "ExpressionStatement", expression: {
       kind: "AssignmentExpression",
       left: { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: memberName },
