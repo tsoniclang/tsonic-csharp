@@ -40,7 +40,8 @@ test("exact literal selection publishes signed-zero, integer, char and floating 
       { kind: "resolved", recipe: { kind: "signed-zero", target: primitive(name), precision: name } }, `${name} signed zero`);
   }
   assert.deepEqual(select(negativeZero, primitive("float16")),
-    { kind: "resolved", recipe: { kind: "float", target: primitive("float16"), precision: "float16", bits: 0x8000 } },
+    { kind: "resolved", recipe: { kind: "float", target: primitive("float16"), precision: "float16", bits: 0x8000,
+      token: { significand: "0" }, negative: true } },
     "Half signed zero retains the exact native sign bit");
   assert.deepEqual(select(negativeZero, csharpNullableTargetType(primitive("float32"))),
     { kind: "resolved", recipe: { kind: "float", target: primitive("float32"), precision: "float32", token: { significand: "0" }, negative: true } },
@@ -57,7 +58,8 @@ test("exact literal selection publishes signed-zero, integer, char and floating 
     { kind: "rejected", reason: "C# char literals require exactly one UTF-16 code unit from TSTS/source primitive typing." });
   assert.deepEqual(select(datum("numeric", { number: 1, integer: 1n }), primitive("char")), { kind: "not-applicable" });
   assert.deepEqual(select(datum("numeric", { number: 1.5 }), primitive("float16")),
-    { kind: "resolved", recipe: { kind: "float", target: primitive("float16"), precision: "float16", bits: 0x3e00 } });
+    { kind: "resolved", recipe: { kind: "float", target: primitive("float16"), precision: "float16", bits: 0x3e00,
+      token: { significand: "1.5" }, negative: false } });
   assert.deepEqual(select(datum("numeric"), primitive("float32")),
     { kind: "not-applicable" }, "a datum without authored numeric evidence cannot fabricate a float32 token");
   assert.deepEqual(select(datum("string", { text: "1" }), primitive("decimal")), { kind: "not-applicable" });

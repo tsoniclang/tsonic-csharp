@@ -3,7 +3,7 @@ import test from "node:test";
 
 import {
   dotnetExtensionDiagnostic,
-} from "../../../../dist/providers/native/diagnostics.js";
+} from "../../../../dist/providers/native/model/diagnostics.js";
 
 test(".NET provider diagnostics have deterministic evidence-complete identities", () => {
   const first = dotnetExtensionDiagnostic(

@@ -4,7 +4,7 @@ import type {
 import type {
   DotnetModuleModel,
   DotnetExportDeclaration,
-} from "../../model/index.js";
+} from "../model/index.js";
 
 export interface DotnetProviderResolutionContext {
   readonly broadImport?: true;

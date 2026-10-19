@@ -6,11 +6,11 @@ import {
 } from "node:crypto";
 import {
   canonicalProviderValue,
-} from "../model/canonical-value.js";
+} from "../../model/canonical-value.js";
 import type {
   DotnetProviderDiagnostic,
   DotnetProviderModuleResult,
-} from "./provider.js";
+} from "../projection/provider.js";
 
 export function isDotnetProviderDiagnostic(value: DotnetProviderModuleResult): value is DotnetProviderDiagnostic {
   return "code" in value && "message" in value;

@@ -87,7 +87,7 @@ export function nativeRecordProvider({ missingField = false, wrongField = false,
   return { kind: "target-capability", id: providerId, targetId: "csharp", displayName: "Native record proof",
     moduleOwnership: [{ specifierPrefix: moduleSpecifier, providerId }],
     sourceCompilerContributions: () => ({ extensions: [{ identity: { id: providerId, version: "1" }, initialize(context) { context.registerSourceDeclarationProvider(provider); } }] }),
-    createTargetContributions: () => [csharpProviderPolicyContribution(providerId, "1", relations, [])],
+    createTargetContributions: () => [csharpProviderPolicyContribution({ providerId, providerVersion: "1", targetBindings: [], relations, rejections: [] })],
   };
 }
 

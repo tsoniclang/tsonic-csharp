@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateDotnetProviderDeclarationModelContract } from "../../../../../dist/providers/native/model/contract/entry.js";
+import { validateDotnetProviderDeclarationModelContract } from "../../../../dist/providers/native/model/normalization/entry.js";
 
 function model(members) {
   return {

@@ -160,6 +160,7 @@ export interface CsharpTypePolicy {
     source: ResolvedSourceCallInfo,
     binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
     sourceFile: SourceFile,
+    excludedSourceArgumentIndexes?: ReadonlySet<number>,
   ): TargetTypeRef | undefined;
   resolveSourceCallResult(
     source: ResolvedSourceCallInfo,
