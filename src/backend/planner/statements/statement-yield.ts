@@ -1,6 +1,5 @@
 import type {
   Node,
-  ResolvedSourceYieldInfo,
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -14,11 +13,8 @@ import type {
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
-import {
-  csharpIteratorResultTargetType,
-  getCsharpGeneratorProtocol,
-  targetTypeRefEquals,
-} from "../../../target-model/types/index.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import type { CsharpYieldFact } from "../../../target-model/records/generators.js";
 import {
   applyCsharpConversionSelection,
   readCsharpConversionClassification,
@@ -44,21 +40,17 @@ export function planCsharpYieldValue(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-): CsharpYieldValuePlan | undefined {
+): CsharpYieldValuePlan {
   const generator = state.generator;
   const source = input.program.records.yield.get(yieldExpression);
   if (
     generator === undefined ||
     source === undefined ||
-    source.generator.declaration !== generator.declaration
+    source.generatorDeclaration !== generator.declaration
   ) {
-    diagnostics.push(yieldDiagnostic(
-      "CSHARP_YIELD_EVIDENCE_NOT_PROVEN",
-      "Yield emission requires exact TSTS evidence owned by the active generator declaration.",
-    ));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted yield requires its sealed native generator completion.", yieldExpression);
   }
-  if (source.yieldKind === "delegate") {
+  if (source.kind === "delegate") {
     return planCsharpDelegatedYield(
       source,
       sourceFile,
@@ -69,11 +61,7 @@ export function planCsharpYieldValue(
   }
   const yieldType = csharpTypeFromTargetTypeRef(generator.protocol.yieldType, input.scope.typeParameterNames);
   if (yieldType === undefined) {
-    diagnostics.push(yieldDiagnostic(
-      "CSHARP_YIELD_TYPE_NOT_RENDERABLE",
-      "The exact checked yield type has no closed C# source representation.",
-    ));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted yield requires its native yielded-value type syntax.", yieldExpression);
   }
   const yieldedExpression = source.operand === undefined
     ? csharpPlannedValue(generator.protocol.yieldType, {
@@ -81,10 +69,10 @@ export function planCsharpYieldValue(
         type: yieldType,
         nullForgiving: true,
       })
-    : planExpression(source.operand.expression, sourceFile, input, diagnostics, state
+    : planExpression(source.operand, sourceFile, input, diagnostics, state
       );
   if (yieldedExpression === undefined) {
-    return undefined;
+    failCsharpPlannerInvariant("An admitted yield requires its native operand plan.", yieldExpression);
   }
   return {
     statements: consumeCsharpPlannedValue(yieldedExpression, value => [{ kind: "YieldReturnStatement", expression: value }]),
@@ -98,68 +86,31 @@ export function planCsharpYieldValue(
 }
 
 function planCsharpDelegatedYield(
-  source: ResolvedSourceYieldInfo,
+  source: Extract<CsharpYieldFact, { readonly kind: "delegate" }>,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-): CsharpYieldValuePlan | undefined {
+): CsharpYieldValuePlan {
   const outer = state.generator;
   const operand = source.operand;
-  const delegation = source.delegation;
-  if (outer === undefined || operand === undefined || delegation === undefined) {
-    diagnostics.push(yieldDiagnostic(
-      "CSHARP_YIELD_DELEGATION_EVIDENCE_NOT_PROVEN",
-      "Delegated yield requires exact TSTS operand and iterator-selection evidence.",
-    ));
-    return undefined;
-  }
-  const delegatedType = input.program.records.yieldTargetType.get(
-    source.yieldExpression,
-  );
-  const inner = getCsharpGeneratorProtocol(delegatedType);
-  if (
-    delegatedType === undefined ||
-    inner === undefined ||
-    !targetTypeRefEquals(outer.protocol.yieldType, inner.yieldType) ||
-    !targetTypeRefEquals(outer.protocol.nextType, inner.nextType) ||
-    (outer.protocol.kind === "sync" && inner.kind !== "sync")
-  ) {
-    diagnostics.push(yieldDiagnostic(
-      "CSHARP_YIELD_DELEGATION_PROTOCOL_NOT_CLOSED",
-      "The exact delegated iterator evidence does not reconcile with one closed native generator protocol.",
-    ));
-    return undefined;
-  }
-  if (
-    delegation.kind !== "synchronous-iterator-protocol" &&
-    delegation.kind !== "asynchronous-iterator-protocol" &&
-    delegation.kind !== "synchronous-iterator-adapted-to-async"
-  ) {
-    diagnostics.push(yieldDiagnostic(
-      "CSHARP_YIELD_DELEGATION_MECHANISM_UNSUPPORTED",
-      "The exact delegated iteration mechanism is not a selected generator protocol.",
-    ));
-    return undefined;
-  }
+  if (outer === undefined) failCsharpPlannerInvariant("An admitted delegated yield requires its active native generator frame.", operand);
+  const delegatedType = source.delegatedCarrier;
+  const inner = source.protocol;
   const delegatedTypeNode = csharpTypeFromTargetTypeRef(delegatedType, input.scope.typeParameterNames);
   const iteratorResultType = csharpTypeFromTargetTypeRef(
-    csharpIteratorResultTargetType(inner), input.scope.typeParameterNames,
+    source.resultCarrier, input.scope.typeParameterNames,
   );
   if (
     delegatedTypeNode === undefined ||
     iteratorResultType === undefined
   ) {
-    diagnostics.push(yieldDiagnostic(
-      "CSHARP_YIELD_DELEGATION_PROTOCOL_NOT_RENDERABLE",
-      "The exact delegated generator protocol has no closed C# source representation.",
-    ));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted delegated yield requires its native protocol type syntax.", operand);
   }
-  const delegatedExpression = planExpression(operand.expression, sourceFile, input, diagnostics, state
+  const delegatedExpression = planExpression(operand, sourceFile, input, diagnostics, state
   );
   if (delegatedExpression === undefined) {
-    return undefined;
+    failCsharpPlannerInvariant("An admitted delegated yield requires its native operand plan.", operand);
   }
   const names = allocateGeneratorDelegationNames(state);
   const generatorExpression = identifier(names.generatorName);
@@ -255,7 +206,7 @@ export function convertCsharpYieldResumeExpression(
     "implicit",
   );
   if (selection === undefined) {
-    return undefined;
+    failCsharpPlannerInvariant("An admitted yield resume requires its sealed native conversion.", yieldExpression);
   }
   return applyCsharpConversionSelection(
     yieldExpression,
@@ -326,9 +277,7 @@ export function planDiscardedCsharpYield(
     diagnostics,
     state,
   );
-  return plan === undefined
-    ? []
-    : [
+  return [
         ...plan.statements,
         { kind: "ExpressionStatement", expression: plan.resumeExpression },
       ];
@@ -353,9 +302,3 @@ export function invokeGeneratorController(
   };
 }
 
-function yieldDiagnostic(
-  code: string,
-  message: string,
-): TargetDiagnostic {
-  return { code, category: "error", source: "tsonic-csharp", message };
-}
