@@ -15,7 +15,7 @@ export interface CsharpRequiredRecordOrigin {
 export interface CsharpRequiredNodeRecord extends CsharpRequiredRecordOrigin {
   readonly family: "classFactory" | "requiredStorageType" | "nativeParticipation" | "nativeHandler" |
     "sourceArgument" | "bindingPatternProjection" | "callableTarget" | "nativeValueDeclaration" | "statementExit" |
-    "controlExit" | "labeledStatement" | "loopContinuationExit" | "resourceScope" | "returnCompletion" | "catchBinding" | "localBinding" | "generator" | "yield";
+    "controlExit" | "labeledStatement" | "loopContinuationExit" | "resourceScope" | "returnCompletion" | "catchBinding" | "localBinding" | "generator" | "yield" | "memberModifiers";
 }
 
 export type CsharpRequiredRecord = CsharpRequiredNodeRecord
@@ -47,6 +47,8 @@ export function assertCsharpRequiredRecords(
 
 function csharpRequiredRecordPublished(records: CsharpProgramRecords, requirement: CsharpRequiredRecord): boolean {
   switch (requirement.family) {
+    case "memberModifiers":
+      return records.memberModifiers.get(requirement.subject) !== undefined;
     case "objectShapeArtifact":
       return records.objectShapeArtifact.get(requirement.key) !== undefined;
     case "classFactory":

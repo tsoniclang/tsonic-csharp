@@ -28,8 +28,10 @@ import type { CsharpStatementExitRecords } from "../../../target-model/records/s
 import type { CsharpStatementCompletionRecords } from "../../../target-model/records/statement-completion.js";
 import type { CsharpResourceScopeRecords } from "../../../target-model/records/resource-scopes.js";
 import type { CsharpGeneratorRecords } from "../../../target-model/records/generators.js";
+import type { CsharpDeclarationModifierRecords } from "../../../target-model/records/declaration-modifiers.js";
 
 export interface CsharpProgramRecordInput {
+  readonly declarationModifiers: CsharpDeclarationModifierRecords;
   readonly statementExits: CsharpStatementExitRecords;
   readonly statementCompletions: CsharpStatementCompletionRecords;
   readonly resourceScopes: CsharpResourceScopeRecords;
@@ -68,6 +70,7 @@ export function createCsharpProgramRecords(
   required: readonly CsharpRequiredRecord[],
 ): CsharpProgramRecords {
   const records: CsharpProgramRecords = Object.freeze({
+    ...input.declarationModifiers,
     statementExit: input.statementExits.statementExit,
     ...input.statementCompletions,
     ...input.resourceScopes,
