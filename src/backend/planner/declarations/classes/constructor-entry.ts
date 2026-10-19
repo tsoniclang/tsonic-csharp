@@ -13,7 +13,7 @@ import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
 import { planBlockStatements } from "../../statements/planning.js";
 import { planCsharpGeneratedMethodCall } from "../generated-methods.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import { planThisExpression } from "../../expressions/expression-this.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { planCsharpParameterPropertyAssignments } from "./parameter-properties.js";
@@ -31,19 +31,18 @@ export function planCsharpPreparedConstructor(
   state: DestructuringPlannerState, hasBaseCall: boolean,
   initializers: readonly CsharpStatement[],
 ): readonly CsharpConstructorDeclaration[] {
-  if (bodyNode === undefined) return [];
+  if (bodyNode === undefined) failCsharpPlannerInvariant("An admitted prepared constructor requires its checked body.", node);
   const frame = input.program.records.captureFrame.get(bodyNode);
   const bindings: CsharpEntryBinding[] = [...parameters.entryBindings];
   const receivers = new Map<Node, CsharpExpression>();
   if (frame !== undefined) {
     const frameType = csharpTypeFromObjectShapeFact(input, frame.shape, diagnostics, node);
-    if (frameType === undefined) return [];
+    if (frameType === undefined) failCsharpPlannerInvariant("An admitted constructor requires its renderable capture frame.", node);
     bindings.push({ name: csharpCaptureFrameName(bodyNode, state), type: frameType });
     for (const receiver of frame.receivers) {
       const type = csharpTypeFromTargetTypeRef(receiver.type, input.scope.typeParameterNames);
       if (type === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Constructor entry requires the exact captured receiver storage type."));
-        return [];
+        failCsharpPlannerInvariant("Constructor entry requires the exact captured receiver storage type.", node);
       }
       receivers.set(receiver.owner, { kind: "DefaultExpression", type, nullForgiving: true });
     }
@@ -56,11 +55,11 @@ export function planCsharpPreparedConstructor(
   let terminated = false;
   for (const selected of arguments_) {
     const argument = selected.value;
-    const type = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, selected.expectedCarrier ?? argument.completion.carrier, diagnostics, selected.node);
+    const admission = input.program.records.constructorArgument.get(selected.node);
+    if (admission?.kind !== "packet") failCsharpPlannerInvariant("A prepared constructor requires its admitted native argument packet.", selected.node);
+    const type = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, admission.carrier, diagnostics, selected.node);
     if (type === undefined || argument.passing !== undefined || argument.completion.kind === "void") {
-      diagnostics.push(unsupportedNodeDiagnostic(node,
-        "Prepared constructor arguments require exact native value storage; managed references cannot be stored in a value packet."));
-      return [];
+      failCsharpPlannerInvariant("An admitted prepared constructor argument lost its native value packet storage.", selected.node);
     }
     const binding = { name: allocateDestructuringTemp(state), type };
     baseBindings.push(binding);
@@ -81,8 +80,7 @@ export function planCsharpPreparedConstructor(
   const factory = input.program.records.classFactory.get(input.program.source.ast.parent(node)!);
   const environmentType = factory === undefined ? undefined : csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames);
   if (factory !== undefined && environmentType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Constructor preparation requires its exact native class environment."));
-    return [];
+    failCsharpPlannerInvariant("Constructor preparation requires its exact native class environment.", node);
   }
   const helperParameters: readonly CsharpParameter[] = [
     ...(factory === undefined || environmentType === undefined ? [] : [{ name: factory.environmentName, type: environmentType }]),
@@ -91,7 +89,6 @@ export function planCsharpPreparedConstructor(
   const prepare = planCsharpGeneratedMethodCall(node, "constructor_entry", packetType, helperParameters,
     { kind: "Block", statements }, helperParameters.map(parameter => ({ kind: "Argument", passing: parameter.passing,
       expression: { kind: "IdentifierName", name: parameter.name } })), input, diagnostics);
-  if (prepare === undefined) return [];
   const packetName = allocateDestructuringTemp(state);
   const packet: CsharpExpression = { kind: "IdentifierName", name: packetName };
   const field = (index: number): CsharpExpression => ({ kind: "SimpleMemberAccessExpression", receiver: packet, name: `Item${index + 1}` });
@@ -104,7 +101,7 @@ export function planCsharpPreparedConstructor(
       const reference = captured.references[0]!;
       const file = input.program.source.ast.getSourceFile(reference);
       const expression = file === undefined ? undefined : planThisExpression(reference, file, input, diagnostics);
-      if (expression === undefined) return [];
+      if (expression === undefined) failCsharpPlannerInvariant("An admitted constructor receiver requires its native expression.", reference);
       restored.push({ kind: "ExpressionStatement", expression: {
       kind: "AssignmentExpression", left: { kind: "SimpleMemberAccessExpression", receiver, name: captured.fieldName },
       operatorToken: { kind: "EqualsToken" }, right: expression,
