@@ -10,6 +10,7 @@ import { analyzeCsharpClassFactories } from "../project-types/class-factories.js
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 import { createCsharpProgramRecords } from "./records/create.js";
 import { analyzeCsharpDeclarationModifiers } from "../declarations/classes/modifiers.js";
+import { analyzeCsharpNativeDeclarationForms } from "../declarations/native-forms.js";
 import { analyzeCsharpStatementExits } from "../control-flow/statement-exits.js";
 import { analyzeCsharpStatementCompletions } from "../control-flow/statement-completion.js";
 import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js";
@@ -517,6 +518,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     required: analysis.requiredRecords });
   if (generators.issues.length !== 0) return rejectedTargetStage(generators.issues);
   const records = createCsharpProgramRecords({
+    nativeDeclarations: analyzeCsharpNativeDeclarationForms({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, required: analysis.requiredRecords }),
     declarationModifiers: analyzeCsharpDeclarationModifiers({ ast: source.ast, nodes: sourceStorage.nodes,
       dispatch: callableAdapters.callableDispatch, helperAccess: captureStorage.helperAccess, required: analysis.requiredRecords }),
     generators: generators.records,

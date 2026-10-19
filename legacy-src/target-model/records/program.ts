@@ -28,8 +28,9 @@ import type { CsharpLocalBindingCompletion } from "./local-bindings.js";
 import type { CsharpGeneratorRecords } from "./generators.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpDeclarationModifierRecords } from "./declaration-modifiers.js";
+import type { CsharpNativeDeclarationRecords } from "./native-declaration-forms.js";
 
-export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords {
+export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords, CsharpNativeDeclarationRecords {
   readonly localBinding: { readonly get: (subject: Node | undefined) => CsharpLocalBindingCompletion | undefined };
   readonly objectShapeArtifact: CsharpObjectShapeDemand;
   readonly nativeValueDeclaration: CsharpNativeValueCarriers["nativeValueDeclaration"];

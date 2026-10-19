@@ -29,8 +29,10 @@ import type { CsharpStatementCompletionRecords } from "../../../target-model/rec
 import type { CsharpResourceScopeRecords } from "../../../target-model/records/resource-scopes.js";
 import type { CsharpGeneratorRecords } from "../../../target-model/records/generators.js";
 import type { CsharpDeclarationModifierRecords } from "../../../target-model/records/declaration-modifiers.js";
+import type { CsharpNativeDeclarationRecords } from "../../../target-model/records/native-declaration-forms.js";
 
 export interface CsharpProgramRecordInput {
+  readonly nativeDeclarations: CsharpNativeDeclarationRecords;
   readonly declarationModifiers: CsharpDeclarationModifierRecords;
   readonly statementExits: CsharpStatementExitRecords;
   readonly statementCompletions: CsharpStatementCompletionRecords;
@@ -70,6 +72,7 @@ export function createCsharpProgramRecords(
   required: readonly CsharpRequiredRecord[],
 ): CsharpProgramRecords {
   const records: CsharpProgramRecords = Object.freeze({
+    ...input.nativeDeclarations,
     ...input.declarationModifiers,
     statementExit: input.statementExits.statementExit,
     ...input.statementCompletions,
