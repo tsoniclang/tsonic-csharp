@@ -15,7 +15,7 @@ export interface CsharpRequiredRecordOrigin {
 export interface CsharpRequiredNodeRecord extends CsharpRequiredRecordOrigin {
   readonly family: "classFactory" | "requiredStorageType" | "nativeParticipation" | "nativeHandler" |
     "sourceArgument" | "bindingPatternProjection" | "callableTarget" | "nativeValueDeclaration" | "statementExit" |
-    "controlExit" | "labeledStatement" | "loopContinuationExit" | "resourceScope" | "returnCompletion" | "catchBinding" | "localBinding" | "generator" | "yield" | "memberModifiers" | "nativeDeclaration";
+    "controlExit" | "labeledStatement" | "loopContinuationExit" | "resourceScope" | "returnCompletion" | "catchBinding" | "localBinding" | "generator" | "yield" | "memberModifiers" | "nativeDeclaration" | "callableParameter";
 }
 
 export type CsharpRequiredRecord = CsharpRequiredNodeRecord
@@ -47,6 +47,8 @@ export function assertCsharpRequiredRecords(
 
 function csharpRequiredRecordPublished(records: CsharpProgramRecords, requirement: CsharpRequiredRecord): boolean {
   switch (requirement.family) {
+    case "callableParameter":
+      return records.callableParameter.get(requirement.subject) !== undefined;
     case "nativeDeclaration":
       return records.nativeDeclaration.get(requirement.subject) !== undefined;
     case "memberModifiers":

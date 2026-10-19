@@ -14,6 +14,7 @@ import { analyzeCsharpNativeDeclarationForms } from "../declarations/native-form
 import { analyzeCsharpStructuralInterfaceEmission } from "../declarations/interfaces/structural.js";
 import { analyzeCsharpLexicalValues } from "../callables/lexical-values.js";
 import { analyzeCsharpClassFieldInitialization } from "../project-types/class-initialization.js";
+import { analyzeCsharpCallableParameterEmission } from "../callables/parameters.js";
 import { analyzeCsharpStatementExits } from "../control-flow/statement-exits.js";
 import { analyzeCsharpStatementCompletions } from "../control-flow/statement-completion.js";
 import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js";
@@ -523,7 +524,12 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const lexicalValues = analyzeCsharpLexicalValues({ nodes: sourceStorage.nodes, navigation: source.navigation,
     captures: captureStorage, values: analysis.valueReads, metadata: analysis.sourceEvidence });
   if (lexicalValues.issues.length !== 0) return rejectedTargetStage(lexicalValues.issues);
+  const callableParameters = analyzeCsharpCallableParameterEmission({ ast: source.ast, nodes: sourceStorage.nodes,
+    declarations: analysis.declarations, values: analysis.valueReads, storage: analysis.storage, literals: literalValues,
+    exact: exactLiterals, admitted: admittedControlNode, required: analysis.requiredRecords });
+  if (callableParameters.issues.length !== 0) return rejectedTargetStage(callableParameters.issues);
   const records = createCsharpProgramRecords({
+    callableParameters: callableParameters.records,
     classFields: analyzeCsharpClassFieldInitialization({ ast: source.ast, nodes: sourceStorage.nodes, storage: analysis.storage }),
     lexicalValues: lexicalValues.records,
     structuralInterfaces: analyzeCsharpStructuralInterfaceEmission({ ast: source.ast,

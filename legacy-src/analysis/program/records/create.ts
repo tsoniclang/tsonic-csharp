@@ -33,8 +33,10 @@ import type { CsharpDeclarationModifierRecords } from "../../../target-model/rec
 import type { CsharpNativeDeclarationRecords } from "../../../target-model/records/native-declaration-forms.js";
 import type { CsharpStructuralInterfaceRecords } from "../../../target-model/records/structural-interfaces.js";
 import type { CsharpLexicalValueRecords } from "../../../target-model/records/lexical-values.js";
+import type { CsharpCallableParameterRecords } from "../../../target-model/records/parameter-emission.js";
 
 export interface CsharpProgramRecordInput {
+  readonly callableParameters: CsharpCallableParameterRecords;
   readonly classFields: CsharpClassFieldInitializationRecords;
   readonly lexicalValues: CsharpLexicalValueRecords;
   readonly structuralInterfaces: CsharpStructuralInterfaceRecords;
@@ -78,6 +80,7 @@ export function createCsharpProgramRecords(
   required: readonly CsharpRequiredRecord[],
 ): CsharpProgramRecords {
   const records: CsharpProgramRecords = Object.freeze({
+    ...input.callableParameters,
     ...input.classFields,
     ...input.lexicalValues,
     ...input.structuralInterfaces,

@@ -32,9 +32,11 @@ import type { CsharpDeclarationModifierRecords } from "./declaration-modifiers.j
 import type { CsharpNativeDeclarationRecords } from "./native-declaration-forms.js";
 import type { CsharpStructuralInterfaceRecords } from "./structural-interfaces.js";
 import type { CsharpLexicalValueRecords } from "./lexical-values.js";
+import type { CsharpCallableParameterRecords } from "./parameter-emission.js";
 
 export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords, CsharpNativeDeclarationRecords, CsharpStructuralInterfaceRecords, CsharpLexicalValueRecords {
   readonly classFieldDefault: CsharpClassFieldInitializationRecords["classFieldDefault"];
+  readonly callableParameter: CsharpCallableParameterRecords["callableParameter"];
   readonly localBinding: { readonly get: (subject: Node | undefined) => CsharpLocalBindingCompletion | undefined };
   readonly objectShapeArtifact: CsharpObjectShapeDemand;
   readonly nativeValueDeclaration: CsharpNativeValueCarriers["nativeValueDeclaration"];
