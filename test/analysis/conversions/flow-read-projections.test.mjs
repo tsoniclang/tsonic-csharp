@@ -8,6 +8,7 @@ import { createCsharpProviderRelationResolver } from "../../../dist/providers/na
 import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
 import { planFlowReadUseSiteProjection } from "../../../dist/backend/planner/expressions/flow-read-projections.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 function analysisRequest(sourceText, surface = "native") {
   const checked = checkCsharpSource({ sourceText, surface });
@@ -40,6 +41,53 @@ function fixture(sourceText, surface = "native") {
   for (const file of original.navigation.sourceFiles) visit(file);
   closed = true;
   return { program: result.value, nodes, ast: original.ast, navigation: original.navigation };
+}
+
+for (const surface of ["native", "js"]) {
+  test(`${surface} annotated destructuring keeps nullable storage at absence consumers`, () => {
+    const sourceText = `
+      import type { int } from "@tsonic/csharp/types.js";
+      class View { value: int = 7; }
+      export function run(): number {
+        const { value }: { value: number } = new View();
+        const { a }: { a: number } = { a: 1 };
+        const [first, second]: [number, number] = [2, 3];
+        const { maybe }: { maybe?: number } = { maybe: 4 };
+        return value + a + first + second + (maybe ?? 0);
+      }
+    `;
+    const compiled = compileCsharpSource({ sourceText, surface });
+    assertCsharpCompilationSucceeded(compiled);
+    const generated = compiled.artifacts.get("src/Index.cs");
+    assert.equal(generated.includes("maybe ?? 0D"), true, "the absence consumer reads the native nullable once");
+    assert.equal(executeCsharpConstruction(compiled, `absence-binding-${surface}`, false, false, [],
+      "System.Console.WriteLine(Tsonic.Generated.Index.run());"), "17\n");
+  });
+
+  test(`${surface} absence reads preserve lazy operands, checked comparisons and narrowed value reads`, () => {
+    const sourceText = `
+      let touches = 0;
+      function absent(): void { touches += 1; }
+      function fallback(): number { touches += 100; return 9; }
+      export function run(): boolean {
+        touches = 0;
+        const { present }: { present?: number } = { present: 7 };
+        const { missing }: { missing?: number } = {};
+        const kept = ((present) satisfies number | undefined) ?? fallback();
+        const selected = missing ?? fallback();
+        const compared = present != null && null != present &&
+          present !== undefined && undefined !== present &&
+          missing == null && null == missing &&
+          missing === undefined && undefined === missing &&
+          present != void absent() && (void absent()) != present;
+        return kept === 7 && selected === 9 && compared && touches === 102 &&
+          typeof present === "number" && present + 1 === 8;
+      }
+    `;
+    const compiled = compileCsharpSource({ sourceText, surface });
+    assertCsharpCompilationSucceeded(compiled);
+    assert.equal(executeCsharpConstruction(compiled, `absence-effects-${surface}`), "");
+  });
 }
 
 for (const surface of ["native", "js"]) {
