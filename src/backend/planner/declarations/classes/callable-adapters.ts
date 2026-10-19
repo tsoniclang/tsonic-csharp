@@ -35,11 +35,9 @@ export function planCsharpProjectCallableAdapters(
     if (rendered.some(parameter => parameter === undefined) || returnType === undefined) {
       failCsharpPlannerInvariant("An admitted native adapter lost its renderable physical signature.", node);
     }
-    const firstDiagnostic = diagnostics.length;
     const planned = planCsharpCallableArguments(node, adapter.contract, rendered as CsharpParameter[], method.parameters,
       adapter.parameters, sourceFile, input, diagnostics);
     if (planned === undefined) {
-      if (diagnostics.some((issue, index) => index >= firstDiagnostic && issue.category === "error")) continue;
       failCsharpPlannerInvariant("An admitted native adapter lost its exact logical argument stream.", node);
     }
     const call: CsharpExpression = { kind: "InvocationExpression", callee: {
@@ -49,7 +47,7 @@ export function planCsharpProjectCallableAdapters(
       passing: method.parameters[index]?.passing })) };
     const value = applyCsharpConversionSelection(node, sourceFile, input, diagnostics, adapter.result.source,
       adapter.result.target, adapter.result.conversion, call);
-    if (value === undefined) continue;
+    if (value === undefined) failCsharpPlannerInvariant("An admitted native adapter requires its exact return conversion plan.", node);
     methods.push({ kind: "MethodDeclaration", name: method.name,
       modifiers: ["public", "override"],
       typeParameters: method.typeParameters?.map(parameter => ({ name: parameter.name })),
