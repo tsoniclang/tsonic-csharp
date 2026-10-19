@@ -1,6 +1,7 @@
 import type { CsharpFrameClosure } from "../../target-model/records/capture-storage.js";
 import type { Node } from "@tsonic/tsts";
-import { sourceCallableDefinitionIsDiscarded, sourceCallableValueExpression, sourceBindingScope, sourceBindingIterationScope, sourceLexicalCaptures, sourceBindingCapturedBeforeInitialization, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { sourceCallableValueExpression, sourceBindingScope, sourceBindingIterationScope, sourceLexicalCaptures, sourceBindingCapturedBeforeInitialization, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpStorageIssue } from "../../target-model/records/storage.js";
@@ -25,13 +26,18 @@ export function selectCsharpFrameClosures(
     readonly storage: Pick<CsharpStorageClassifications, "nativeBacking" | "typedLocationIdentity">;
     readonly expectedTypes: Pick<CsharpExpectedTypeClassifications, "callableTarget">;
   },
+  creationDemand: Pick<ReadonlyMap<Node, boolean>, "get">,
 ): { readonly closures: readonly CsharpFrameClosure[]; readonly namedSelfBindings: readonly CsharpNamedSelfBinding[];
   readonly captureFreeDeclarations: readonly Node[]; readonly lexicalCaptures: CsharpCaptureStorage["lexicalCaptures"] } {
   const candidates: Node[] = [];
   const visit = (node: Node): void => {
     if (evidence.compileTimeMetadata.get(node)) return;
-    if ((source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) &&
-      sourceCallableDefinitionIsDiscarded(node, source.ast)) return;
+    if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
+      const discarded = creationDemand.get(node);
+      if (discarded === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+        "Capture closure selection requires its original checked creation demand.", node);
+      if (discarded) return;
+    }
     if (!valueOwned.has(node) && (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node) ||
       source.ast.is.IsFunctionDeclaration(node) && source.ast.parent(node) !== undefined &&
       !source.ast.is.IsSourceFile(source.ast.parent(node)!))) candidates.push(node);

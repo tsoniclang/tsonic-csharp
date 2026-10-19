@@ -28,6 +28,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 import { getCsharpExpressionTreeDelegateType } from "../../target-model/types/carriers/delegates.js";
 import { HasSyntacticModifier, ModifierFlagsAsync } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 const unknownLambdaCreation: CsharpLambdaCreation = Object.freeze({ kind: "fresh", staticBody: false });
 
@@ -97,10 +98,22 @@ export function analyzeCsharpCaptureStorage(
     bindings.set(capture.declaration, type);
     groups.set(scope, bindings);
   }
-  const genericClosures = selectCsharpGenericFrameClosures(source, evidence, groups, physicalType, issues);
+  const creationDemandValues = new Map<Node, boolean>();
+  const collectCreationDemand = (node: Node): void => {
+    if (evidence.compileTimeMetadata.get(node)) return;
+    if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
+      const discarded = sourceCallableDefinitionIsDiscarded(node, source.ast, source.navigation);
+      creationDemandValues.set(node, discarded);
+      if (discarded) return;
+    }
+    source.ast.forEachChild(node, child => { if (child !== undefined) collectCreationDemand(child); });
+  };
+  source.navigation.sourceFiles.forEach(collectCreationDemand);
+  const creationDemand = Object.freeze({ get: (declaration: Node) => creationDemandValues.get(declaration) });
+  const genericClosures = selectCsharpGenericFrameClosures(source, evidence, groups, physicalType, issues, creationDemand);
   const genericDeclarations = new Set(genericClosures.map(closure => closure.declaration));
   const frameClosures = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, genericDeclarations,
-    { declarations, storage, expectedTypes });
+    { declarations, storage, expectedTypes }, creationDemand);
   const namedSelfBindings = new Map(frameClosures.namedSelfBindings.map(binding => [binding.declaration, binding]));
   const captureFreeDeclarations = new Set(frameClosures.captureFreeDeclarations);
   const lambdaCreations = new Map<Node, CsharpLambdaCreation>();
@@ -197,7 +210,10 @@ export function analyzeCsharpCaptureStorage(
   const visitValues = (node: Node): void => {
     if (evidence.compileTimeMetadata.get(node)) return;
     if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
-      if (sourceCallableDefinitionIsDiscarded(node, source.ast)) {
+      const discarded = creationDemand.get(node);
+      if (discarded === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+        "Lambda creation requires its original pre-seal checked source demand.", node);
+      if (discarded) {
         lambdaCreations.set(node, Object.freeze({ kind: "discarded", staticBody: true }));
         return;
       }
