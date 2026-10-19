@@ -15,7 +15,7 @@ export function planAttributesForSubject(
   if (attributes.length === 0) return undefined;
   return attributes.flatMap(attribute => {
     const planned = planExpression(attribute.invocation, sourceFile, input, diagnostics);
-    if (planned === undefined) return [];
+    if (planned === undefined) failCsharpPlannerInvariant("An admitted attribute application requires its native construction plan.", attribute.invocation);
     const construction = planned.completion.kind === "value" ? planned.completion.expression : undefined;
     if (planned.prelude.length !== 0 || construction?.kind !== "ObjectCreationExpression" ||
       construction.assignments !== undefined || construction.collectionInitializers !== undefined) {
