@@ -14,7 +14,8 @@ import { isCsharpSourceCallableArtifactDeclaration } from "../../policy/types/ca
 export interface CsharpNativeParticipationAnalysisInput {
   readonly ast: AstReader;
   readonly storage: Pick<SourceStorageQueries, "nodes" | "failureReason">;
-  readonly navigation: Pick<SourceProgramNavigation, "declarationUseSummary">;
+  readonly navigation: Pick<SourceProgramNavigation, "declarationUseSummary" | "declarationSymbol" |
+    "sourceReferenceFor" | "callableImplementation" | "referencesWithin">;
   readonly captureClosure: CsharpCaptureStorage["captureClosure"];
   readonly lambdaCreation: CsharpCaptureStorage["lambdaCreation"];
   readonly objectShapes: Pick<CsharpObjectShapeClassifications, "resolveNode">;
