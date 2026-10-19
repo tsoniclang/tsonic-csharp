@@ -3,6 +3,7 @@ import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.j
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { tryCsharpIdentifier } from "../../target-model/names/identifiers.js";
+import { getCsharpNullableElementTargetType, isCsharpValueTypeTargetType } from "../../target-model/types/index.js";
 import {
   AsBinaryExpression,
   AsBindingElement,
@@ -216,6 +217,15 @@ export function analyzeCsharpBindingPatterns(
       : source === undefined || initialType === undefined ? undefined : csharpBindingDefaultCarrier(source, initialType);
     const defaultValue = source === undefined || target === undefined || initializer === undefined || tupleDefault?.kind === "unused"
       ? undefined : selectCsharpDefaultValueContract(source, target, presence);
+    if (element.kind === "object-shape-member" && initializer !== undefined) {
+      const member = element.member;
+      if (member.optional === true && getCsharpNullableElementTargetType(member.type) === undefined && isCsharpValueTypeTargetType(member.type)) {
+        issue(initializer, `Object-shape member '${member.sourceName}' default requires optional value-type members to carry a nullable target carrier before C# emission.`);
+      }
+      if (defaultValue !== undefined && csharpTargetTypeRenderingRejection(defaultValue.target) !== undefined) {
+        issue(initializer, `Object-shape member '${member.sourceName}' default requires a renderable finalized target carrier before C# emission.`);
+      }
+    }
     if (element.kind === "array-element") {
       if (element.elementCarrier === undefined || csharpTargetTypeRenderingRejection(element.elementCarrier) !== undefined) {
         issue(node, "Array destructuring element requires a renderable provider element carrier type before C# emission.");
