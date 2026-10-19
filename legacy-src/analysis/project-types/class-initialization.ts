@@ -1,8 +1,27 @@
-import type { CsharpClassInitializationIndex } from "../../target-model/records/class-initialization.js";
-import type { Node } from "@tsonic/tsts";
+import type { CsharpClassInitializationIndex, CsharpClassFieldInitialization } from "../../target-model/records/class-initialization.js";
+import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { sourceExpressionUsesLexicalThis } from "@tsonic/target-api/source";
 import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import { isCsharpValueTypeTargetType } from "../../target-model/types/identity.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
+import { createCsharpClassFieldInitializationRecords } from "../program/records/class-initialization.js";
+
+export function analyzeCsharpClassFieldInitialization(input: {
+  readonly ast: AstReader;
+  readonly nodes: readonly Node[];
+  readonly storage: CsharpStorageClassifications;
+}) {
+  const values = new Map<Node, CsharpClassFieldInitialization>();
+  for (const node of input.nodes) {
+    if (!input.ast.is.IsPropertyDeclaration(node)) continue;
+    const carrier = input.storage.storageType.get(node);
+    if (carrier === undefined) continue;
+    values.set(node, Object.freeze({ nullForgiving: !isCsharpValueTypeTargetType(carrier) && getCsharpNullableElementTargetType(carrier) === undefined }));
+  }
+  return createCsharpClassFieldInitializationRecords(values);
+}
 
 export function analyzeCsharpClassInitialization(
   source: TargetSourceProgram,

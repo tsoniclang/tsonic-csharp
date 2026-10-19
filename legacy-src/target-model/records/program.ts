@@ -3,6 +3,7 @@ import type { CsharpProjectCallableAdapters } from "./callable-adapters.js";
 import type { CsharpCaptureStorage } from "./capture-storage.js";
 import type { CsharpClassFactoryIndex } from "./class-factories.js";
 import type { CsharpClassInitializationIndex } from "./class-initialization.js";
+import type { CsharpClassFieldInitializationRecords } from "./class-initialization.js";
 import type { CsharpConversionClassifications, CsharpValueReadClassifications } from "./conversions.js";
 import type { CsharpExactLiteralSelectionIndex } from "../conversions/exact-literals.js";
 import type { CsharpDeclarationClassifications } from "./declarations.js";
@@ -33,6 +34,7 @@ import type { CsharpStructuralInterfaceRecords } from "./structural-interfaces.j
 import type { CsharpLexicalValueRecords } from "./lexical-values.js";
 
 export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords, CsharpNativeDeclarationRecords, CsharpStructuralInterfaceRecords, CsharpLexicalValueRecords {
+  readonly classFieldDefault: CsharpClassFieldInitializationRecords["classFieldDefault"];
   readonly localBinding: { readonly get: (subject: Node | undefined) => CsharpLocalBindingCompletion | undefined };
   readonly objectShapeArtifact: CsharpObjectShapeDemand;
   readonly nativeValueDeclaration: CsharpNativeValueCarriers["nativeValueDeclaration"];

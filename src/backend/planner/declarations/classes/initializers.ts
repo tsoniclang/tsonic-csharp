@@ -11,7 +11,6 @@ import { createDestructuringPlannerState } from "../../bindings/binding-state.js
 import { planClassStaticBlockDeclaration } from "./constructors.js";
 import { consumeCsharpPlannedValue } from "../../statements/statement-output.js";
 import type { CsharpPlannedValue } from "../../expressions/planned-values.js";
-import { getCsharpNullableElementTargetType, isCsharpValueTypeTargetType } from "../../../../target-model/types/index.js";
 
 export interface CsharpClassInitializationRegion {
   readonly relocates: boolean;
@@ -47,18 +46,20 @@ export function planClassInitializationRegion(
       relocates = true;
       continue;
     }
-    const property = ast.as.AsPropertyDeclaration(node)!;
+    const property = ast.as.AsPropertyDeclaration(node);
+    if (property === undefined) failCsharpPlannerInvariant("An admitted class initialization region requires its checked property declaration.", node);
     if (property.Initializer === undefined) continue;
     if (input.program.records.sourceField.get([node, property.name, property.Type, property.Initializer]) !== undefined) continue;
     const target = input.program.records.storageType.get(node);
     const type = target === undefined ? undefined : csharpTypeFromTargetTypeRef(target, input.scope.typeParameterNames);
     if (type === undefined) failCsharpPlannerInvariant("An admitted class initializer lost its exact native storage type.", node);
     const value = planExpression(property.Initializer, sourceFile, input, diagnostics, state);
-    if (value === undefined) continue;
+    if (value === undefined) failCsharpPlannerInvariant("An admitted class field requires its native initializer plan.", node);
     fields.set(node, value);
-    if (value.completion.kind === "value" && target !== undefined && type !== undefined &&
-      !isCsharpValueTypeTargetType(target) && getCsharpNullableElementTargetType(target) === undefined) {
-      defaults.set(node, { kind: "DefaultExpression", type, nullForgiving: true });
+    if (value.completion.kind === "value") {
+      const selected = input.program.records.classFieldDefault.get(node);
+      if (selected === undefined) failCsharpPlannerInvariant("An admitted class field requires its native initialization default selection.", node);
+      if (selected.nullForgiving) defaults.set(node, { kind: "DefaultExpression", type, nullForgiving: true });
     }
     relocates ||= value.prelude.length !== 0 || value.completion.kind !== "value";
   }

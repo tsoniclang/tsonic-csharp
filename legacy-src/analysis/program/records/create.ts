@@ -3,6 +3,7 @@ import type { CsharpProjectCallableAdapters } from "../../../target-model/record
 import type { CsharpCaptureStorage } from "../../../target-model/records/capture-storage.js";
 import type { CsharpClassFactoryIndex } from "../../../target-model/records/class-factories.js";
 import type { CsharpClassInitializationIndex } from "../../../target-model/records/class-initialization.js";
+import type { CsharpClassFieldInitializationRecords } from "../../../target-model/records/class-initialization.js";
 import type { CsharpConversionClassifications, CsharpValueReadClassifications } from "../../../target-model/records/conversions.js";
 import type { CsharpExactLiteralSelectionIndex } from "../../../target-model/conversions/exact-literals.js";
 import type { CsharpDeclarationClassifications } from "../../../target-model/records/declarations.js";
@@ -34,6 +35,7 @@ import type { CsharpStructuralInterfaceRecords } from "../../../target-model/rec
 import type { CsharpLexicalValueRecords } from "../../../target-model/records/lexical-values.js";
 
 export interface CsharpProgramRecordInput {
+  readonly classFields: CsharpClassFieldInitializationRecords;
   readonly lexicalValues: CsharpLexicalValueRecords;
   readonly structuralInterfaces: CsharpStructuralInterfaceRecords;
   readonly nativeDeclarations: CsharpNativeDeclarationRecords;
@@ -76,6 +78,7 @@ export function createCsharpProgramRecords(
   required: readonly CsharpRequiredRecord[],
 ): CsharpProgramRecords {
   const records: CsharpProgramRecords = Object.freeze({
+    ...input.classFields,
     ...input.lexicalValues,
     ...input.structuralInterfaces,
     ...input.nativeDeclarations,
