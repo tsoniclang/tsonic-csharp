@@ -5,7 +5,8 @@ import type {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import {
   csharpConversionIsApplicable,
-} from "../../../analysis/conversions/index.js";
+  type CsharpConversionSelection,
+} from "../../../target-model/conversions/selection.js";
 import type {
   TargetTypeRef,
 } from "../../../target-model/types/index.js";
@@ -21,7 +22,6 @@ import type {
 } from "../context.js";
 import {
   applyCsharpConversionSelection,
-  readCsharpExpressionConversionClassification,
 } from "./conversions.js";
 
 export type CsharpSourceUndefinedValuePlan =
@@ -37,7 +37,9 @@ export function planCsharpSourceUndefinedValue(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
+  selection: CsharpConversionSelection,
 ): CsharpSourceUndefinedValuePlan {
+  if (!csharpConversionIsApplicable(selection, "implicit")) return { kind: "not-representable" };
   if (getCsharpNullableElementTargetType(targetType) !== undefined) {
     return {
       kind: "resolved",
@@ -45,20 +47,6 @@ export function planCsharpSourceUndefinedValue(
     };
   }
   const sourceType = csharpAbsenceTargetType();
-  const selection = readCsharpExpressionConversionClassification(
-    node,
-    input,
-    diagnostics,
-    sourceType,
-    targetType,
-    "implicit",
-  );
-  if (
-    selection === undefined ||
-    !csharpConversionIsApplicable(selection, "implicit")
-  ) {
-    return { kind: "not-representable" };
-  }
   const expression = applyCsharpConversionSelection(
     node,
     sourceFile,

@@ -12,6 +12,8 @@ import type { CsharpConversionShapeQueries } from "../../policy/conversions/shap
 import { csharpUnsignedIntegerCounterpart } from "../../target-model/conversions/integer-refinement.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { csharpNativeRepresentationMatches } from "../../target-model/conversions/native-representation.js";
+import type { CsharpNativeCompletion } from "../../target-model/records/native-demand.js";
+import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 
 type CsharpUnionValidationPolicy = Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries;
 
@@ -25,15 +27,18 @@ interface CsharpConversionAdmissionInput {
   readonly source: TargetTypeRef | undefined;
   readonly target: TargetTypeRef | undefined;
   readonly selection: CsharpConversionSelection;
+  readonly sourceCompletion?: CsharpNativeCompletion;
 }
 
 export function admitCsharpConversionSelection(
   policy: CsharpUnionValidationPolicy,
   source: TargetTypeRef | undefined, target: TargetTypeRef | undefined,
   selection: CsharpConversionSelection,
+  sourceCompletion?: CsharpNativeCompletion,
 ): CsharpConversionSelection {
   const pending: (CsharpConversionAdmissionInput |
-    { readonly kind: "leave"; readonly selection: CsharpConversionSelection })[] = [{ kind: "enter", source, target, selection }];
+    { readonly kind: "leave"; readonly selection: CsharpConversionSelection })[] = [{ kind: "enter", source, target, selection,
+      ...(sourceCompletion === undefined ? {} : { sourceCompletion }) }];
   const active = new Set<CsharpConversionSelection>();
   const descend = (parent: CsharpConversionSelection, children: readonly CsharpConversionAdmissionInput[]): void => {
     active.add(parent);
@@ -60,7 +65,9 @@ export function admitCsharpConversionSelection(
         }
         break;
       case "absence":
-        if (!isCsharpAbsenceTargetType(current.source) || !csharpCarrierAdmitsSourceAbsence(current.target)) {
+        if ((!isCsharpAbsenceTargetType(current.source) &&
+          !(current.sourceCompletion?.kind === "void" && isCsharpVoidTargetType(current.source))) ||
+          !csharpCarrierAdmitsSourceAbsence(current.target)) {
           return { kind: "rejected", reason: "An absence conversion requires its exact source and destination storage contracts." };
         }
         break;

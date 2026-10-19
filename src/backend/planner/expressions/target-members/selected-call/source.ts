@@ -1,6 +1,8 @@
 import { applyCalleeTypeArguments, isProjectSourceDeclaration } from "./helpers.js";
 import { planCsharpUnionDispatcherCall } from "./union.js";
 import { planCsharpSourceUndefinedValue } from "../../undefined-values.js";
+import { readCsharpConversionClassification } from "../../conversions.js";
+import { csharpAbsenceTargetType } from "../../../../../target-model/types/carriers/runtime-carriers.js";
 import { translateCallArgument } from "./arguments.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
@@ -173,12 +175,16 @@ export function translateSourceOwnedArguments(
         `Omitted source-owned delegate parameter ${group.parameterIndex} has a default initializer that requires exact callee-side default evaluation before C# emission.`));
       return undefined;
     }
+    const conversion = readCsharpConversionClassification(node, input, diagnostics,
+      csharpAbsenceTargetType(), group.type, "implicit");
+    if (conversion === undefined) return undefined;
     const omitted = planCsharpSourceUndefinedValue(
       node,
       group.type,
       sourceFile,
       input,
       diagnostics,
+      conversion,
     );
     if (omitted.kind !== "resolved") {
       diagnostics.push(unsupportedNodeDiagnostic(

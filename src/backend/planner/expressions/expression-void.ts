@@ -3,7 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { isCsharpVoidTargetType } from "../../../target-model/types/index.js";
+import { csharpAbsenceTargetType, isCsharpVoidTargetType } from "../../../target-model/types/index.js";
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type {
   CsharpPlanningContext,
@@ -17,7 +17,8 @@ import {
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
-import { planCsharpSourceUndefinedValue } from "./undefined-values.js";
+import { planCsharpSourceUndefinedValue, type CsharpSourceUndefinedValuePlan } from "./undefined-values.js";
+import { readCsharpExpressionConversionClassification } from "./conversions.js";
 import { csharpPlannedEffect, csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
 
@@ -54,8 +55,13 @@ export function planVoidExpression(
     ));
     return undefined;
   }
-  const result = isCsharpVoidTargetType(target) ? undefined
-    : planCsharpSourceUndefinedValue(node, target, sourceFile, input, diagnostics);
+  let result: CsharpSourceUndefinedValuePlan | undefined;
+  if (!isCsharpVoidTargetType(target)) {
+    const selection = readCsharpExpressionConversionClassification(node, input, diagnostics,
+      csharpAbsenceTargetType(), target, "implicit");
+    if (selection === undefined) return undefined;
+    result = planCsharpSourceUndefinedValue(node, target, sourceFile, input, diagnostics, selection);
+  }
   if (result !== undefined && result.kind !== "resolved") {
     diagnostics.push(unsupportedNodeDiagnostic(node, "The selected C# void result cannot represent undefined."));
     return undefined;

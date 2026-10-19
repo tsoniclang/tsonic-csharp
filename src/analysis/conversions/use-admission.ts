@@ -9,18 +9,25 @@ import type { CsharpTargetCallSelection } from "../../target-model/records/membe
 import { csharpSelectedTargetArgumentBindings } from "../../policy/operations/members/selection/native-use-arguments.js";
 import { csharpNativeUseSite } from "../../target-model/records/native-demand.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import type { CsharpNativeCompletion } from "../../target-model/records/native-demand.js";
+
+export interface CsharpCallConversionRequests {
+  readonly completion?: { readonly source: TargetTypeRef; readonly target: TargetTypeRef };
+  readonly omitted: readonly { readonly source: TargetTypeRef; readonly target: TargetTypeRef | undefined }[];
+}
 
 export function sealCsharpConversionUses(
   demand: CsharpNativeDemandAnalysis,
   operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
   classify: (expression: Node, source: TargetTypeRef, target: TargetTypeRef, mode: CsharpConversionMode,
     exactInteger: boolean,
-    boundary?: { readonly selection: CsharpConversionSelection; readonly identityRequired: boolean }) =>
+    boundary?: { readonly selection: CsharpConversionSelection; readonly identityRequired: boolean },
+    sourceCompletion?: CsharpNativeCompletion) =>
     { readonly key: string; readonly classification: CsharpExpressionConversionClassification } | undefined,
-  classifyValue: (expression: Node, source: TargetTypeRef, target: TargetTypeRef) => CsharpConversionSelection | undefined,
+  classifyValue: (expression: Node, source: TargetTypeRef, target: TargetTypeRef | undefined) => CsharpConversionSelection | undefined,
   requiredRecords: CsharpRequiredRecord[],
   preparationIssues: readonly CsharpConversionIssue[],
-  callCompletionConversions: ReadonlyMap<Node, { readonly source: TargetTypeRef; readonly target: TargetTypeRef }>,
+  callConversions: ReadonlyMap<Node, CsharpCallConversionRequests>,
 ): {
   readonly expressions: Map<Node, Map<string, CsharpExpressionConversionClassification>>;
   readonly issues: readonly CsharpConversionIssue[];
@@ -39,23 +46,27 @@ export function sealCsharpConversionUses(
     }
     if (!calls.has(use.expression)) {
       calls.add(use.expression);
+      for (const omitted of callConversions.get(use.expression)?.omitted ?? []) {
+        admitValue(use.expression, omitted.source, omitted.target);
+      }
       selectedArgumentUses(use.expression, operations.selectedCall.get(use.expression)?.target);
       selectedArgumentUses(use.expression, operations.selectedConstruction.get(use.expression)?.target);
     }
     if (use.completion.kind !== "value") continue;
-    const completion = callCompletionConversions.get(use.expression);
-    if (completion !== undefined && !completedCalls.has(use.expression)) {
+    const sourceCompletion = use.kind === "converted" ? use.input : use.completion;
+    const completion = callConversions.get(use.expression)?.completion;
+    if (completion !== undefined && sourceCompletion.kind === "value" && !completedCalls.has(use.expression)) {
       completedCalls.add(use.expression);
       admitValue(use.expression, completion.source, completion.target);
     }
     const source = use.kind === "converted" && use.input.kind === "value" ? use.input.type : use.carrier;
     const target = use.kind === "converted" ? use.target : use.carrier;
     const mode = use.kind === "converted" ? use.mode : "implicit";
-    admit(use.expression, source, target, mode, undefined, use.exactInteger === true);
+    admit(use.expression, source, target, mode, undefined, use.exactInteger === true, sourceCompletion);
   }
   return Object.freeze({ expressions, issues: Object.freeze(issues) });
 
-  function admitValue(expression: Node, source: TargetTypeRef, target: TargetTypeRef): void {
+  function admitValue(expression: Node, source: TargetTypeRef, target: TargetTypeRef | undefined): void {
     const selected = classifyValue(expression, source, target);
     if (selected === undefined) {
       if (preparationIssues.some(issue => issue.code === "CSHARP_CONVERSION_CLASSIFICATION_LIMIT_EXCEEDED")) return;
@@ -66,6 +77,8 @@ export function sealCsharpConversionUses(
         message: selected.reason }));
       return;
     }
+    if (target === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "An admitted native value conversion requires its exact closed destination.", expression);
     requireCsharpRecord(requiredRecords, { family: "conversion", subject: expression, source, target, mode: "implicit",
       construct: "consumed native value conversion", producer: "sealCsharpConversionUses" });
   }
@@ -89,21 +102,25 @@ export function sealCsharpConversionUses(
       let target = mapping.targetType;
       let conversion = mapping.conversion;
       const retainedIdentity = selection.call.targetMember.csharpInvocation?.kind === "native-event-remove";
+      const sourceCompletion = actual.use.kind === "converted" ? actual.use.input : actual.use.completion;
       admit(expression, source, target, "implicit", { selection: conversion,
-        identityRequired: retainedIdentity && conversion.kind === "delegate-adapter" && conversion.strategy === "adaptation" });
+        identityRequired: retainedIdentity && conversion.kind === "delegate-adapter" && conversion.strategy === "adaptation" },
+      false, sourceCompletion);
       while (conversion.kind === "nullable-map") {
         source = conversion.sourceElement;
         target = conversion.targetElement;
         conversion = conversion.conversion;
         admit(expression, source, target, "implicit", { selection: conversion,
-          identityRequired: retainedIdentity && conversion.kind === "delegate-adapter" && conversion.strategy === "adaptation" });
+          identityRequired: retainedIdentity && conversion.kind === "delegate-adapter" && conversion.strategy === "adaptation" },
+        false, sourceCompletion);
       }
     }
   }
 
   function admit(expression: Node, source: TargetTypeRef, target: TargetTypeRef, mode: CsharpConversionMode,
-    boundary?: { readonly selection: CsharpConversionSelection; readonly identityRequired: boolean }, exactInteger = false): void {
-    const admitted = classify(expression, source, target, mode, exactInteger, boundary);
+    boundary?: { readonly selection: CsharpConversionSelection; readonly identityRequired: boolean }, exactInteger = false,
+    sourceCompletion?: CsharpNativeCompletion): void {
+    const admitted = classify(expression, source, target, mode, exactInteger, boundary, sourceCompletion);
     if (admitted === undefined) {
       if (preparationIssues.some(issue => issue.code === "CSHARP_CONVERSION_CLASSIFICATION_LIMIT_EXCEEDED")) return;
       return failTargetAnalysisInvariant("tsonic-csharp", "A consumed native expression requires one exact completed conversion classification.", expression);
@@ -117,7 +134,7 @@ export function sealCsharpConversionUses(
         message: admitted.classification.selection.reason }));
       return;
     }
-    if (boundary === undefined) requireCsharpRecord(requiredRecords, { family: "conversion", subject: expression, source, target, mode,
+    if (boundary === undefined && sourceCompletion?.kind !== "void") requireCsharpRecord(requiredRecords, { family: "conversion", subject: expression, source, target, mode,
       construct: "consumed native carrier conversion", producer: "sealCsharpConversionUses" });
     requireCsharpRecord(requiredRecords, { family: "expressionConversion", subject: expression, source, target, mode,
       construct: "consumed native expression conversion", producer: "sealCsharpConversionUses" });
