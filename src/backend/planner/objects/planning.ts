@@ -133,6 +133,7 @@ export function materializeObjectShapeDeclarations(
         ? JSON.stringify(existing) !== JSON.stringify(declaration)
         : existing.kind === "ClassDeclaration" && !objectShapeDeclarationMatches(
         typeParameterNames,
+        input.program.names,
         existing,
         declarationArtifact.fact,
         declarationArtifact.capabilities.includes("json-serialization"),
@@ -238,7 +239,7 @@ function renderObjectShapeDeclaration(
       objectShapeIdentity: csharpStructuralObjectShapeIdentity(fact.targetType), modifiers: ["public"], typeParameters,
       interfaces: [...interfaces, ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
         ...(referenceIdentity ? [csharpClosedValueCarrierInterfaceType()] : [])],
-      members: [...contractMembers, ...(capabilities.includes("enumerable-keys") && !inheritedEnumerableKeys ? [csharpEnumerableKeysContract()] : []),
+      members: [...contractMembers, ...(capabilities.includes("enumerable-keys") && !inheritedEnumerableKeys ? [csharpEnumerableKeysContract(fact, input.program.names)] : []),
         ...renderObjectShapeProjectionMethods(input, projections, diagnostics)] };
   }
   const members = renderObjectShapeMembers(
@@ -294,7 +295,7 @@ function renderObjectShapeDeclaration(
       ...methodValues,
       ...enumerableKeys,
       ...(capabilities.includes("js-freeze") ? guardCsharpFrozenDataProperties(fact, members, input, diagnostics) : members),
-      ...(jsonSerializable ? renderJsonSerializableObjectShapeMethod(fact) : []),
+      ...(jsonSerializable ? renderJsonSerializableObjectShapeMethod(fact, input.program.names) : []),
       ...renderObjectShapeProjectionMethods(
         input,
         projections,

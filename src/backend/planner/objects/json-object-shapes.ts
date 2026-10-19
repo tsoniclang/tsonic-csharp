@@ -19,6 +19,8 @@ import {
 import {
   qualifiedCsharpType,
 } from "../types/index.js";
+import type { CsharpNamePlan } from "../../../target-model/names/model.js";
+import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 
 export function objectShapeRequiresJsonSerialization(
   input: CsharpPlanningContext,
@@ -36,6 +38,7 @@ export function csharpJsonValueInterfaceType(): CsharpTypeNode {
 
 export function renderJsonSerializableObjectShapeMethod(
   fact: CsharpObjectShapeFact,
+  names: CsharpNamePlan,
 ): readonly CsharpMethodDeclaration[] {
   const writer = { kind: "IdentifierName", name: "writer" } as const;
   const context = { kind: "IdentifierName", name: "context" } as const;
@@ -54,7 +57,7 @@ export function renderJsonSerializableObjectShapeMethod(
   const projectionMethod: CsharpMethodDeclaration = {
     kind: "MethodDeclaration",
     name: csharpJsonValueProjectionMethodName,
-    modifiers: ["public"],
+    modifiers: [...planCsharpArtifactMemberHiding(names, fact, csharpJsonValueProjectionMethodName), "public"],
     returnType: {
       kind: "NullableType",
       inner: { kind: "PredefinedType", name: "object" },
@@ -71,7 +74,7 @@ export function renderJsonSerializableObjectShapeMethod(
       {
         kind: "MethodDeclaration",
         name: csharpJsonValueWriterMethodName,
-        modifiers: ["public"],
+        modifiers: [...planCsharpArtifactMemberHiding(names, fact, csharpJsonValueWriterMethodName), "public"],
         returnType: { kind: "PredefinedType", name: "void" },
         parameters: [
           { name: "writer", type: qualifiedCsharpType("System.Text.Json", "Utf8JsonWriter") },
@@ -125,7 +128,7 @@ export function renderJsonSerializableObjectShapeMethod(
     {
       kind: "MethodDeclaration",
       name: csharpJsonValueWriterMethodName,
-      modifiers: ["public"],
+      modifiers: [...planCsharpArtifactMemberHiding(names, fact, csharpJsonValueWriterMethodName), "public"],
       returnType: { kind: "PredefinedType", name: "void" },
       parameters: [
         { name: "writer", type: qualifiedCsharpType("System.Text.Json", "Utf8JsonWriter") },

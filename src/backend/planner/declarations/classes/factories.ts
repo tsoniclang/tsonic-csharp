@@ -18,6 +18,7 @@ import { planClassInitializationRegion } from "./initializers.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../../expressions/planned-values.js";
 import { buildCsharpPlannedValue } from "../../expressions/planned-value-composition.js";
+import { planCsharpNativeMemberHiding } from "../modifiers.js";
 
 interface CaptureSlot {
   readonly name: string;
@@ -141,7 +142,8 @@ export function planClassFactoryDeclaration(
   }
   const parameters = entry?.parameters.slice(1) ?? [];
   members.push(...slots.map(slot => ({ kind: "FieldDeclaration" as const, name: slot.name,
-    type: slot.type, modifiers: ["public" as const, "readonly" as const] })));
+    type: slot.type, modifiers: ["public" as const, "readonly" as const, ...planCsharpNativeMemberHiding(input.program.names,
+      { kind: "value", container: factory.declaration, member: slot.name, role: "member" })] })));
   members.push({ kind: "ConstructorDeclaration", name: factory.factoryName, modifiers: ["public"],
     parameters: slots.map(slot => ({ name: slot.name, type: slot.type })),
     body: { kind: "Block", statements: [

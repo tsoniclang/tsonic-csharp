@@ -4,6 +4,13 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { analyzeCsharpProjectCallableAdapters } from "../../../dist/analysis/project-types/callable-adapters.js";
+const unexpectedNativeDispatchRead = () => assert.fail("this structural fixture has no authored native dispatch domain");
+const emptyNativeDispatch = Object.freeze({
+  names: Object.freeze({ resolve: unexpectedNativeDispatchRead }),
+  storage: Object.freeze({ storageType: Object.freeze({ get: unexpectedNativeDispatchRead }) }),
+  nativeUse: Object.freeze({ order: unexpectedNativeDispatchRead }),
+  classPropertyStorage: Object.freeze({ get: unexpectedNativeDispatchRead }),
+});
 import { selectCsharpStructuralInterfaceImplementation } from "../../../dist/policy/types/objects/method-values.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { csharpVariantArgumentImplicitlyAccepts, namedTargetTypeImplicitlyAccepts } from "../../../dist/policy/conversions/carriers.js";
@@ -26,7 +33,7 @@ function propertyFixture(target = number) {
     methods: Object.freeze([]), properties: Object.freeze([property]) });
   let shapeReads = 0;
   const policy = { ast: {}, target: {}, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
-    projectTypes: { directSupertypes: () => [], catalog: { definitionForDeclaration: () => undefined } },
+    projectTypes: { directSupertypes: () => [], catalog: { definitions: Object.freeze([]), definitionForDeclaration: () => undefined } },
     objectShapes: { resolveNode: () => undefined, resolveTarget() { shapeReads += 1; return undefined; } } };
   const shapes = { issues: Object.freeze([]), structuralImplementationTypes: Object.freeze([sourceType]),
     structuralImplementations: () => Object.freeze([selected]), resolveTarget: () => undefined };
@@ -38,7 +45,9 @@ function propertyFixture(target = number) {
 
 test("readonly native property admission publishes the single exact conversion and lookup-only evidence", () => {
   const value = propertyFixture();
-  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+  const finalizedResult = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections, emptyNativeDispatch);
+  assert.equal(finalizedResult.kind, "resolved", "structural properties preserve their native dispatch boundary");
+  const finalized = finalizedResult.value;
   const implementations = finalized.objectShapes.structuralImplementations(value.sourceType);
   const property = implementations[0]?.properties[0];
   assert.equal(finalized.issues.length, 0, "native int32-to-number reads are admitted without changing their backing storage");
@@ -63,7 +72,9 @@ test("readonly admission failures remain expected source issues and publish no f
   const inherited = Object.freeze({ node: value.sourceNode, code: "CSHARP_UNSUPPORTED_AST",
     message: "An analyzed interface has no exact inherited native implementation." });
   value.shapes.issues = Object.freeze([inherited]);
-  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+  const finalizedResult = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections, emptyNativeDispatch);
+  assert.equal(finalizedResult.kind, "resolved", "structural properties preserve their native dispatch boundary");
+  const finalized = finalizedResult.value;
   assert.equal(finalized.issues.length, 2, "all existing inherited and property admission failures are collected together");
   assert.equal(finalized.issues[0] === inherited, true, "the existing graph owner issue is not dropped or relabelled");
   assert.equal(finalized.issues[1]?.node === value.sourceNode && finalized.issues[1]?.code === "CSHARP_UNSUPPORTED_AST" &&
@@ -78,7 +89,9 @@ test("readonly property admission refuses unrenderable selected carriers without
   for (const target of [{ kind: "opaque", id: "unrenderable-property" },
     { kind: "target-named", id: "test.PropertyWithoutNativeRendering", csharpAllowsRefLikeTypeArguments: [] }]) {
     const value = propertyFixture(target);
-    const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+    const finalizedResult = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections, emptyNativeDispatch);
+    assert.equal(finalizedResult.kind, "resolved", "structural properties preserve their native dispatch boundary");
+    const finalized = finalizedResult.value;
     assert.equal(finalized.issues.length === 1 && finalized.issues[0].node === value.sourceNode &&
       finalized.issues[0].code === "CSHARP_UNSUPPORTED_AST" &&
       finalized.issues[0].message === "An analyzed interface property has no exact native forwarding type.", true,

@@ -30,6 +30,7 @@ import type { CsharpNativeUseClassifications } from "../../target-model/records/
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpNativeInheritedDispatchSlot, CsharpNativeInheritedMember,
   CsharpNativeTargetBindingFact } from "../../target-model/types/native-inheritance.js";
+import { csharpNativeInheritanceLookup } from "../../target-model/types/native-inheritance.js";
 import { csharpTargetStorageIdentityEquals } from "../../policy/types/storage/storage-identity.js";
 
 type StructuralMethod = CsharpStructuralInterfaceImplementation["methods"][number];
@@ -358,8 +359,10 @@ export function analyzeCsharpProjectCallableAdapters(
       reject(subject, "An inherited callable has no exact named native owner.");
       return undefined;
     }
-    const binding = base === undefined ? inheritanceBinding(valueType ? "System.ValueType" : "System.Object", true, subject)
-      : inheritanceBinding(base.id, false, subject);
+    const lookup = base === undefined ? undefined : csharpNativeInheritanceLookup(base);
+    const binding = lookup === undefined ? inheritanceBinding(valueType ? "System.ValueType" : "System.Object", true, subject)
+      : lookup.kind === "metadata-name" ? inheritanceBinding(lookup.metadataName, true, subject)
+      : inheritanceBinding(lookup.targetId, false, subject);
     if (binding === undefined) { nativeMembers.set(key, undefined); return undefined; }
     const substitutions = new Map((binding.typeParameters ?? []).map((parameter, index) => [parameter.identity,
       base?.kind === "target-named" ? base.typeArguments![index]! : parameter]));

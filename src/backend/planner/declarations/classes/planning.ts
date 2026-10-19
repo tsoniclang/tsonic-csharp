@@ -21,6 +21,7 @@ import { createCsharpMemberPlanningContext } from "../../context.js";
 import { classFactoryContext, completeLocalClassConstructor } from "./factories.js";
 import { planClassInitializationRegion } from "./initializers.js";
 import { renderObjectShapeProjectionMethods } from "../../objects/closed-object-shapes.js";
+import { planCsharpNativeMemberHiding } from "../modifiers.js";
 
 export function planClassDeclaration(
   node: Node,
@@ -92,7 +93,8 @@ export function planClassDeclaration(
         ? completeConstructor(member, instanceRegion.statements) : member),
       ...(factory?.retainsEnvironment ? [{ kind: "FieldDeclaration" as const, name: factory.environmentName,
         type: csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames)!,
-        modifiers: [factory.requiresInstanceTest ? "internal" as const : "private" as const, "readonly" as const] }] : []),
+        modifiers: [factory.requiresInstanceTest ? "internal" as const : "private" as const, "readonly" as const,
+          ...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "storage" })] }] : []),
       ...(factory?.identity === undefined ? [] : [{ kind: "PropertyDeclaration" as const,
         name: factory.environmentName, explicitInterface: csharpTypeFromTargetTypeRef(factory.identity.type, input.scope.typeParameterNames)!, modifiers: [],
         type: csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames)!,
@@ -105,7 +107,7 @@ export function planClassDeclaration(
         ? guardCsharpFrozenDataProperties(objectShape, members, input, diagnostics) : members).map(member =>
           member.kind === "ConstructorDeclaration" ? completeConstructor(member, []) : member),
       ...(jsonSerializable && objectShape !== undefined
-        ? renderJsonSerializableObjectShapeMethod(objectShape)
+        ? renderJsonSerializableObjectShapeMethod(objectShape, input.program.names)
         : []),
       ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input,
         input.artifacts.objectShapeProjections(objectShape), diagnostics)),

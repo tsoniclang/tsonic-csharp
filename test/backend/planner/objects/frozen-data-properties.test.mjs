@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { guardCsharpFrozenDataProperties } from "../../../../dist/backend/planner/objects/frozen-data-properties.js";
+import { objectShapeArtifactKey } from "../../../../dist/target-model/records/object-shape-demand.js";
 
 const integer = { kind: "PredefinedType", keyword: "int" };
 const input = { program: { records: { nativeField: { get: () => undefined } } } };
@@ -25,10 +26,18 @@ test("freeze guards only concrete native data storage, not abstract contracts or
   const readonly = property("readonlyValue", ["public"], { autoSetter: false });
   const concrete = property("value", ["public", "override"]);
   const diagnostics = [];
-  const result = guardCsharpFrozenDataProperties(shape([
+  const selected = shape([
     data("abstractValue"), data("accessorValue", { accessor: { getter: true, setter: true } }),
     data("staticValue"), data("readonlyValue", { readonly: true }), data("value"),
-  ]), [abstract, accessor, staticValue, readonly, concrete], input, diagnostics);
+  ]);
+  const context = { program: { ...input.program, names: { memberHiding: { get(subject) {
+    assert.equal(subject.kind, "artifact", "the concrete freeze slot has an admitted artifact identity");
+    assert.equal(subject.container, objectShapeArtifactKey(selected), "the freeze slot retains its exact container");
+    assert.equal(subject.role, "member", "the freeze slot reads its final member decision");
+    assert.equal(subject.member, "__tsonic_frozen_value", "only concrete value storage is rewritten");
+    return false;
+  } } } } };
+  const result = guardCsharpFrozenDataProperties(selected, [abstract, accessor, staticValue, readonly, concrete], context, diagnostics);
   assert.equal(diagnostics.length, 0, "closed concrete storage");
   for (const member of [abstract, accessor, staticValue, readonly]) {
     assert.equal(result.includes(member), true, "contract or nondata member unchanged");

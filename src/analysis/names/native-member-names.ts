@@ -14,6 +14,7 @@ import type { CsharpProjectTypeClassifications, CsharpProjectTypeDefinition } fr
 import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpNativeInheritedMember, CsharpNativeTargetBindingFact } from "../../target-model/types/native-inheritance.js";
+import { csharpNativeInheritanceLookup } from "../../target-model/types/native-inheritance.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../target-model/types/model.js";
 import { csharpWellKnownSymbolTargetMemberName, csharpObjectShapeMemberContractKey,
@@ -33,7 +34,8 @@ import type { CsharpProviderRelationResolver } from "../../providers/model/relat
 import { objectShapeArtifactKey } from "../../target-model/records/object-shape-demand.js";
 import { objectShapeStorageMemberName, objectShapeBoundStorageMemberName,
   objectShapeAccessorGetterStorageMemberName, objectShapeAccessorSetterStorageMemberName,
-  csharpDeferredCaptureStorageNames, csharpFrozenStorageName } from "../../target-model/names/object-members.js";
+  csharpDeferredCaptureStorageNames, csharpFrozenStorageName, csharpJsonValueProjectionMethodName,
+  csharpJsonValueWriterMethodName, csharpEnumerableKeysMethodName, csharpEnumerableKeysStorageName } from "../../target-model/names/object-members.js";
 
 export interface CsharpNativeMemberNameInput {
   readonly ast: AstReader;
@@ -57,6 +59,7 @@ export interface CsharpNativeMemberNameInput {
   readonly callableCreations: Pick<CsharpCallableCreationIndex, "callableTarget">;
   readonly classPropertyStorage: CsharpTargetOperationClassifications["classPropertyStorage"];
   readonly captureFrameShape: CsharpCaptureStorage["captureFrameShape"];
+  readonly capturedBinding: CsharpCaptureStorage["capturedBinding"];
   readonly bindingPatterns: CsharpBindingPatternClassifications;
   readonly providers: Pick<CsharpProviderRelationResolver, "findTargetBindingByTargetId" | "findTargetBindingByMetadataName">;
 }
@@ -133,6 +136,29 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
         }
       }
       hiding.push(Object.freeze({ subject: member.subject, hides }));
+    }
+    const factory = input.factories.get(declaration);
+    if (factory !== undefined) {
+      const root = nativeMembers(undefined, "class", declaration);
+      if (root !== undefined) {
+        const frames = new Set<Node>();
+        for (const capture of factory.captures) {
+          const shared = input.capturedBinding.get(capture.declaration);
+          if (shared !== undefined) {
+            if (frames.has(shared.frame.scope)) continue;
+            frames.add(shared.frame.scope);
+          }
+          recordMember({ kind: "value", container: declaration, member: capture.fieldName, role: "member" }, {
+            name: capture.fieldName, kind: "field", genericParameterIds: [], parameters: [],
+          }, root);
+        }
+      }
+      if (factory.retainsEnvironment) {
+        nativeBaseMembers ??= nativeMembers(inherited.nativeBase, "class", declaration);
+        if (nativeBaseMembers !== undefined) recordMember({ kind: "source", declaration, role: "storage" }, {
+          name: factory.environmentName, kind: "field", genericParameterIds: [], parameters: [],
+        }, [...inherited.members, ...nativeBaseMembers]);
+      }
     }
   }
   moduleMembers();
@@ -304,6 +330,7 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
         if (backing !== undefined) names.push(nativeName(backing.storageName));
       }
     }
+    if (artifacts.get(objectShapeArtifactKey(shape))?.capabilities.includes("enumerable-keys")) names.push(csharpEnumerableKeysMethodName);
     return names;
   }
 
@@ -360,8 +387,9 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
 
   function artifactMembers(): void {
     const declarations = new Set<string>();
-    for (const artifact of input.artifactClosure.artifacts) {
-      const shape = artifact.fact.declarationTemplate ?? artifact.fact;
+    for (const requested of input.artifactClosure.artifacts) {
+      const shape = requested.fact.declarationTemplate ?? requested.fact;
+      const artifact = artifacts.get(objectShapeArtifactKey(shape))!;
       const source = artifact.materialization === "source"
         ? input.projectTypes.heritageForTarget(shape.targetType)?.definition : undefined;
       if (artifact.materialization === "source" && source?.kind !== "class" && source?.kind !== "interface") continue;
@@ -422,7 +450,15 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
         field(names.valueName);
         field(names.initializedName);
       }
-      for (const capture of artifact.materialization === "synthetic" ? shape.methodImplementation?.captures ?? [] : []) field(capture.fieldName);
+      const capturedFrames = new Set<Node>();
+      for (const capture of artifact.materialization === "synthetic" ? shape.methodImplementation?.captures ?? [] : []) {
+        const shared = input.capturedBinding.get(capture.declaration);
+        if (shared !== undefined) {
+          if (capturedFrames.has(shared.frame.scope)) continue;
+          capturedFrames.add(shared.frame.scope);
+        }
+        field(capture.fieldName);
+      }
       for (const method of artifact.materialization === "synthetic" ? frame?.methods ?? [] : []) {
         const signature = getCsharpLambdaSignature(method.type);
         if (signature === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
@@ -439,6 +475,31 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
           parameters: [{ type: projection.receiver.targetType, passingMode: "by-value" },
             ...(projection.selection.kind === "has-own" ? [{ type: csharpStringTargetType(), passingMode: "by-value" as const }]
               : projection.selection.kind === "assign" ? [{ type: projection.selection.sourceShape.targetType, passingMode: "by-value" as const }] : [])] });
+      }
+      if (artifact.capabilities.includes("enumerable-keys") && artifact.materialization === "synthetic") {
+        recordHeader(csharpEnumerableKeysMethodName, { name: csharpEnumerableKeysMethodName,
+          kind: "method", genericParameterIds: [], parameters: [] });
+        if (!structural) field(csharpEnumerableKeysStorageName);
+      }
+      if (artifact.capabilities.includes("json-serialization") && !structural) {
+        const projectionName = csharpJsonValueProjectionMethodName;
+        const writerName = csharpJsonValueWriterMethodName;
+        recordHeader(projectionName, { name: projectionName, kind: "method", genericParameterIds: [],
+          parameters: [{ type: csharpStringTargetType(), passingMode: "by-value" }] });
+        const candidates = ancestors.filter(member => member.name === writerName && member.kind === "method");
+        if (candidates.length > 0) {
+          const writer = nativeBinding("System.Text.Json.Utf8JsonWriter", true, source?.declaration);
+          const context = nativeBinding("Tsonic.CSharp.Js.JsonWriteContext", true, source?.declaration);
+          if (writer === undefined || context === undefined) continue;
+          const writerType = writer.csharpInheritance.find(entry => entry.targetId === writer.id)!.type;
+          const contextType = context.csharpInheritance.find(entry => entry.targetId === context.id)!.type;
+          recordHeader(writerName, { name: writerName, kind: "method", genericParameterIds: [],
+            parameters: [{ type: writerType, passingMode: "by-value" }, { type: contextType, passingMode: "by-value" },
+              { type: csharpStringTargetType(), passingMode: "by-value" }] });
+        } else {
+          const subject = Object.freeze({ kind: "artifact" as const, container, member: writerName, role: "member" as const });
+          hiding.push(Object.freeze({ subject, hides: ancestors.some(member => member.name === writerName) }));
+        }
       }
     }
   }
@@ -484,8 +545,10 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
     if (nativeSignatures.has(key)) return nativeSignatures.get(key);
     if (base !== undefined && base.kind !== "target-named") return failTargetAnalysisInvariant("tsonic-csharp",
       "An admitted native container requires its selected named class base before name sealing.", subject);
-    const binding = base === undefined ? nativeBinding(root === "struct" ? "System.ValueType" : "System.Object", true, subject)
-      : nativeBinding(base.id, false, subject);
+    const lookup = base === undefined ? undefined : csharpNativeInheritanceLookup(base);
+    const binding = lookup === undefined ? nativeBinding(root === "struct" ? "System.ValueType" : "System.Object", true, subject)
+      : lookup.kind === "metadata-name" ? nativeBinding(lookup.metadataName, true, subject)
+      : nativeBinding(lookup.targetId, false, subject);
     if (binding === undefined) return undefined;
     const substitutions = base?.kind === "target-named"
       ? new Map((binding.typeParameters ?? []).map((parameter, index) => [parameter.identity, base.typeArguments![index]!]))

@@ -6,6 +6,7 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../../../dist/backend/planner/types/target-types.js";
 import { renderObjectShapeMembers } from "../../../dist/backend/planner/objects/declarations.js";
+import { objectShapeArtifactKey } from "../../../dist/target-model/records/object-shape-demand.js";
 import {
   printCsharpCompilationUnit,
   printCsharpExpression,
@@ -27,6 +28,17 @@ import {
 } from "../../../dist/policy/types/index.js";
 
 const unbackedObjectStorage = Object.freeze({ nativeField: { get: () => undefined } });
+
+function unhiddenObjectMembers(shape, names) {
+  const admitted = new Set(names);
+  return Object.freeze({ memberHiding: Object.freeze({ get(subject) {
+    assert.equal(subject.kind, "artifact", "printer fixture reads an admitted artifact identity");
+    assert.equal(subject.container, objectShapeArtifactKey(shape), "printer fixture retains its exact container");
+    assert.equal(subject.role, "member", "printer fixture reads the final member decision");
+    assert.equal(admitted.has(subject.member), true, `printer fixture admits ${subject.member}`);
+    return false;
+  } }) });
+}
 
 test("generated native expressions retain precedence and exact association at printing", () => {
   const name = value => ({ kind: "IdentifierName", name: value });
@@ -901,6 +913,7 @@ test("object shape methods require explicit delegate signature metadata", () => 
       undefined,
       undefined,
       unbackedObjectStorage,
+      unhiddenObjectMembers(rawDelegateShape, ["Visit", "__tsonic_shape_method_0_Visit"]),
     ),
     undefined,
   );
@@ -920,6 +933,7 @@ test("object shape methods require explicit delegate signature metadata", () => 
     undefined,
     undefined,
     unbackedObjectStorage,
+    unhiddenObjectMembers(metadataBackedShape, ["Visit", "__tsonic_shape_method_0_Visit"]),
   );
   assert.ok(members);
   assert.equal(members.length, 2);
@@ -953,6 +967,7 @@ test("object shape methods require explicit delegate signature metadata", () => 
       diagnostics,
       { Kind: "KindTypeLiteral" },
       unbackedObjectStorage,
+      unhiddenObjectMembers(missingReturnFactShape, ["Visit", "__tsonic_shape_method_0_Visit"]),
     ),
     undefined,
   );
@@ -991,6 +1006,7 @@ test("object shape declarations enforce required members while leaving optional 
     undefined,
     undefined,
     unbackedObjectStorage,
+    unhiddenObjectMembers(shape, ["requiredValue", "optionalValue"]),
   );
   assert.deepEqual(Object.fromEntries(fields?.map((member) => [member.name, member.modifiers]) ?? []), {
     optionalValue: ["public"],
@@ -1004,6 +1020,7 @@ test("object shape declarations enforce required members while leaving optional 
     undefined,
     undefined,
     unbackedObjectStorage,
+    unhiddenObjectMembers(shape, ["requiredValue", "optionalValue"]),
   );
   assert.deepEqual(Object.fromEntries(properties?.map((member) => [member.name, member.modifiers]) ?? []), {
     optionalValue: ["public"],

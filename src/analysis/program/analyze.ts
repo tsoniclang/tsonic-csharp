@@ -468,7 +468,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
     requiredBindingRoots: nativeDemand.requiredBindingRoots, artifactClosure: objectShapeClosure.value,
     nativeValueCarriers, storage: analysis.storage, moduleInitialization: moduleInitialization.index,
     callables: analysis.callables, callableCreations, classPropertyStorage: admittedOperations.classPropertyStorage,
-    captureFrameShape: captureStorage.captureFrameShape, bindingPatterns, providers: analysis.policy.providers,
+    captureFrameShape: captureStorage.captureFrameShape, capturedBinding: captureStorage.capturedBinding,
+    bindingPatterns, providers: analysis.policy.providers,
   });
   if (nativeMemberNames.issues.length > 0) return rejectedTargetStage(nativeMemberNames.issues);
   const names = analysis.names.seal(nativeDemand.requiredBindingRoots, nativeMemberNames);

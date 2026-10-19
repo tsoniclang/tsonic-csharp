@@ -38,9 +38,12 @@ import {
 import { isCsharpEnumerableKeysMember } from "./enumerable-keys.js";
 import type { CsharpObjectShapeProjectionDeclaration } from "../../../../target-model/records/object-shape-demand.js";
 import { renderObjectShapeProjectionMethod } from "../closed-object-shapes.js";
+import type { CsharpNamePlan } from "../../../../target-model/names/model.js";
+import { planCsharpArtifactMemberHiding } from "../../declarations/modifiers.js";
 
 export function objectShapeDeclarationMatches(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
+  names: CsharpNamePlan,
   declaration: CsharpClassDeclaration,
   fact: CsharpObjectShapeFact,
   jsonSerializable = false,
@@ -137,7 +140,7 @@ export function objectShapeDeclarationMatches(
     ),
   );
   if (projections.some(projection => {
-    const selected = renderObjectShapeProjectionMethod(typeParameterNames, projection);
+    const selected = renderObjectShapeProjectionMethod(typeParameterNames, projection, names);
     return selected.kind === "rejected" || !declaration.members.some(member =>
       member.kind === "MethodDeclaration" && JSON.stringify(member) === JSON.stringify(selected.method));
   })) {
@@ -156,7 +159,7 @@ export function objectShapeDeclarationMatches(
     }
     if (member.kind === "FieldDeclaration" || member.kind === "PropertyDeclaration") {
       if (member.kind === "PropertyDeclaration" && member.explicitInterface !== undefined) return true;
-      if (frozen && member.kind === "FieldDeclaration" && shapeFrozenStorageMatches(member, fact)) return true;
+      if (frozen && member.kind === "FieldDeclaration" && shapeFrozenStorageMatches(member, fact, names)) return true;
       return fact.members.some((candidate) =>
         candidate.bound === true
           ? candidate.targetName === member.name || objectShapeBoundStorageMemberName(fact, candidate) === member.name
@@ -173,9 +176,11 @@ export function objectShapeDeclarationMatches(
   });
 }
 
-function shapeFrozenStorageMatches(member: Extract<CsharpTypeMember, { readonly kind: "FieldDeclaration" }>, fact: CsharpObjectShapeFact): boolean {
-  return member.modifiers.length === 1 && member.modifiers[0] === "private" && fact.members.some(candidate =>
-    candidate.accessor === undefined && member.name === csharpFrozenStorageName(fact, objectShapeStorageMemberName(fact, candidate)));
+function shapeFrozenStorageMatches(member: Extract<CsharpTypeMember, { readonly kind: "FieldDeclaration" }>, fact: CsharpObjectShapeFact, names: CsharpNamePlan): boolean {
+  if (!fact.members.some(candidate => candidate.accessor === undefined &&
+    member.name === csharpFrozenStorageName(fact, objectShapeStorageMemberName(fact, candidate)))) return false;
+  const expectedModifiers = [...planCsharpArtifactMemberHiding(names, fact, member.name), "private"];
+  return JSON.stringify(member.modifiers) === JSON.stringify(expectedModifiers);
 }
 
 function isObjectShapeStorageDeclaration(
