@@ -34,7 +34,7 @@ import { planCsharpConstructorInitializerArgument } from "./initializer-argument
 import type { DestructuringPlannerState } from "../../bindings/index.js";
 import { planCsharpPreparedConstructor, type CsharpConstructorArgumentPlan } from "./constructor-entry.js";
 import { planCsharpParameterPropertyAssignments } from "./parameter-properties.js";
-import { csharpConstructorBaseCall, csharpConstructorRequiresPreparation } from "../../../../analysis/callables/constructor-entry.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 
 export function planClassStaticBlockDeclaration(
   node: Node,
@@ -66,7 +66,9 @@ export function planConstructorDeclarations(
   initializers: readonly CsharpStatement[],
 ): readonly CsharpConstructorDeclaration[] {
   const declaration = AsConstructorDeclaration(input.program.source.ast, node)!;
-  const baseCall = csharpConstructorBaseCall(input.program.source.ast, node);
+  const entry = input.program.records.constructorEntry.get(node);
+  if (entry === undefined) failCsharpPlannerInvariant("An admitted constructor requires its sealed native entry plan.", node);
+  const baseCall = entry.baseCall;
   const leadingSuperCall = baseCall === undefined ? undefined : AsCallExpression(input.program.source.ast, baseCall);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
@@ -83,27 +85,26 @@ export function planConstructorDeclarations(
       parameters: parameters.parameters,
       body: { kind: "Block", statements: [] },
   };
-  if (csharpConstructorRequiresPreparation(input.program.source.ast, node, input.program.records, input.program.records,
-    parameter => input.program.records.capturedBinding.get(parameter) !== undefined)) {
+  if (entry.prepared) {
     const baseArgumentPlans = leadingSuperCall === undefined ? []
       : planBaseConstructorArguments(leadingSuperCall, sourceFile, input, diagnostics, state, false);
-    if (baseArgumentPlans === undefined) return [constructor];
+    if (baseArgumentPlans === undefined) failCsharpPlannerInvariant("A prepared constructor requires its admitted base argument plans.", node);
     return planCsharpPreparedConstructor(node, declaration.Body, constructor, parameters,
       baseArgumentPlans, sourceFile, input, diagnostics, state, leadingSuperCall !== undefined, initializers);
   }
   const baseArgumentPlans = leadingSuperCall === undefined ? []
     : planBaseConstructorArguments(leadingSuperCall, sourceFile, input, diagnostics, state, true);
-  if (baseArgumentPlans === undefined) return [constructor];
+  if (baseArgumentPlans === undefined) failCsharpPlannerInvariant("A native constructor requires its admitted base argument plans.", node);
   const baseArguments: CsharpArgument[] = [];
   for (const argument of baseArgumentPlans) {
     const syntax = planCsharpConstructorInitializerArgument(argument.node, argument.value, parameters.parameters, input, diagnostics, argument.expectedCarrier);
-    if (syntax === undefined) return [constructor];
+    if (syntax === undefined) failCsharpPlannerInvariant("An admitted constructor argument requires its native initializer syntax.", argument.node);
     baseArguments.push(syntax);
   }
   return [{ ...constructor,
     ...(leadingSuperCall === undefined
       ? {}
-      : { initializer: { kind: "base", arguments: baseArguments ?? [] } }),
+      : { initializer: { kind: "base", arguments: baseArguments } }),
     body: {
       kind: "Block",
       statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state,
@@ -126,14 +127,14 @@ function planBaseConstructorArguments(
   const selection = callNode === undefined ? undefined : input.program.records.selectedCall.get(callNode);
   for (const [index, argument] of (call.Arguments?.Nodes ?? []).entries()) {
     if (argument === undefined) {
-      continue;
+      failCsharpPlannerInvariant("An admitted base constructor requires a dense source argument list.", callNode);
     }
     const carrier = selection?.sourceArgumentParameterTypes?.[index];
     const selectedArgument = directEntry ? input.program.records.sourceArgument.get(argument) : undefined;
     const plannedArgument = planCallArgument(argument, sourceFile, input, diagnostics, carrier, state,
       selectedArgument?.kind === "resolved" ? selectedArgument.argument.passingMode : undefined);
     if (plannedArgument === undefined) {
-      return undefined;
+      failCsharpPlannerInvariant("An admitted base argument requires its native expression plan.", argument);
     }
     planned.push({ node: argument, value: plannedArgument, expectedCarrier: carrier });
   }
