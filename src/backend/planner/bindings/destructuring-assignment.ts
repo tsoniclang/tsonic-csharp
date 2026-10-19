@@ -24,6 +24,7 @@ import { runtimeArrayHelperCall } from "../expressions/arrays/helpers.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import type { CsharpDestructuringAssignmentPattern, CsharpDestructuringAssignmentTarget } from "../../../target-model/records/value-projections.js";
+import { planCsharpAbsentValue } from "../expressions/optional-storage.js";
 
 export function isDestructuringAssignmentExpression(
   node: Node | undefined,
@@ -193,6 +194,21 @@ function planAssignmentPatternFromExpression(
         kind: "AssignmentExpression", name: objectShapeStorageMemberName(projection.restShape, rest),
         expression: { kind: "SimpleMemberAccessExpression", receiver: sourceExpression, name: objectShapeStorageMemberName(source.shape, member) },
       })) }, element.sourceNode);
+    }
+    if (projection?.kind === "object-shape-absence") {
+      const absent = planCsharpAbsentValue(projection.carrier, input.scope.typeParameterNames);
+      if (absent === undefined) return failCsharpPlannerInvariant(
+        "An admitted absent object assignment requires its native absence carrier.", element.sourceNode);
+      if (element.initializer === undefined) return target(element.target, absent, element.sourceNode);
+      const contract = input.program.records.bindingPatternProjection.get(element.sourceNode)?.defaultValue;
+      if (contract?.kind !== "absence") return failCsharpPlannerInvariant(
+        "An admitted absent object assignment default requires its exact default contract.", element.sourceNode);
+      const initial = planExpression(element.initializer, sourceFile, input, diagnostics, state);
+      if (initial === undefined) return [];
+      const selected = planCsharpBindingDefaultValue(element.initializer, sourceFile, input, diagnostics,
+        absent, contract, initial, state);
+      return selected === undefined ? [] : consumeCsharpPlannedValue(selected,
+        value => target(element.target, value, element.sourceNode));
     }
     if (projection?.kind !== "object-shape-member") return failCsharpPlannerInvariant(
       "Object assignment requires its admitted native member.", element.sourceNode);

@@ -7,7 +7,7 @@ import { analyzeCsharpNativeDemand } from "../../../dist/analysis/operations/nat
 import { analyzeCsharpExpectedTypes } from "../../../dist/analysis/expected-types/analyze.js";
 import { admitCsharpExpectedNativeUses } from "../../../dist/analysis/expected-types/native-uses.js";
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
-import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/relations/resolver.js";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 
 function owners(sourceText, surface = "native") {
   const compiled = compileCsharpSource({ sourceText, surface });

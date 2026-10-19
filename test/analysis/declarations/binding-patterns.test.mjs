@@ -6,7 +6,7 @@ import { analyzeCsharpBindingPatterns, isCsharpUnusedTupleDefault } from "../../
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpJsSetTargetType } from "../../../dist/target-model/types/carriers/js.js";
-import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/relations/resolver.js";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
 import { createDestructuringPlannerState } from "../../../dist/backend/planner/bindings/binding-state.js";
 import { planBindingPatternFromExpression } from "../../../dist/backend/planner/bindings/binding-patterns.js";
@@ -15,6 +15,66 @@ import { csharpCarrierAdmitsSourceAbsence } from "../../../dist/target-model/typ
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 const arrayMessage = "Array destructuring requires a finalized provider array or tuple runtime-carrier fact for the source expression. Runtime carrier fact is missing for the array destructuring source expression.";
+
+for (const surface of ["native", "js"]) {
+  test(`known absent object bindings preserve canonical storage, defaults and evaluation order on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      let calls = 0;
+      function source(): {} { calls += 1; return {}; }
+      function fallback(): number { calls += 10; return 5; }
+      function flag(): boolean { calls += 100; return true; }
+      export function run(): [number | undefined, number, number, boolean, number, number | undefined, number] {
+        const { missing }: { missing?: number } = source();
+        const { missing: defaulted = fallback() }: { missing?: number } = source();
+        const { present = fallback() }: { present?: number } = { present: 0 };
+        const { off = flag() }: { off?: boolean } = { off: false };
+        const { nested: { missing: nested = 6 } }: { nested: { missing?: number } } = { nested: {} };
+        const { missing: renamed }: { missing?: number } = source();
+        return [missing, defaulted, present, off, nested, renamed, calls];
+      }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "optional absence, nesting, renaming and defaults are valid checked source");
+    assert.equal(compiled.result.diagnostics.length, 0,
+      compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+    const program = compiled.result.program;
+    assert.equal(program !== undefined, true, "the admitted bindings publish a native program");
+    const ast = program.source.ast;
+    const absent = [];
+    const visit = node => {
+      const fact = program.records.bindingPatternProjection.get(node);
+      if (fact?.element?.kind === "object-shape-absence") absent.push({ node, fact });
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    program.sourceFiles.forEach(visit);
+    assert.equal(absent.length, 4, "only the four physically missing optional extractions are absent");
+    for (const { node, fact } of absent) {
+      assert.equal(Object.isFrozen(fact) && Object.isFrozen(fact.element) && Object.isFrozen(fact.binding) &&
+        Object.isFrozen(fact.binding.conversion), true, "absent extraction, destination and admitted conversion are immutable");
+      assert.equal(program.records.bindingPatternProjection.get(node) === fact, true, "the sealed decision is an identity-stable lookup");
+    }
+    const generated = [...compiled.artifacts.values()].join("\n");
+    assert.equal(/__tsonic_destructure\d+\.missing\b/u.test(generated), false,
+      "a known absent extraction emits no fabricated physical field read");
+    executeCsharpConstruction(compiled, `known-absent-binding-${surface}`, false, false, [], `
+var result = Tsonic.Generated.Index.run();
+if (result.Item1 != null || result.Item2 != 5 || result.Item3 != 0 || result.Item4 || result.Item5 != 6 || result.Item6 != null || result.Item7 != 13)
+    throw new System.Exception("native absence/default/presence/evaluation order");
+`);
+    const { node, fact } = absent[0];
+    const pattern = ast.parent(node);
+    const records = { ...program.records, bindingPatternProjection: { get: selected => selected === node
+      ? { ...fact, element: { ...fact.element, carrier: csharpSourcePrimitiveTargetType("int32") } }
+      : program.records.bindingPatternProjection.get(selected) } };
+    const corrupted = { ...program, records };
+    const diagnostics = [];
+    assert.throws(() => planBindingPatternFromExpression(pattern, { kind: "IdentifierName", name: "source" },
+      ast.getSourceFile(pattern), createCsharpPlanningContext(corrupted), diagnostics,
+      createDestructuringPlannerState(pattern, ast)),
+    error => error.message.includes("An admitted absent object binding requires its native absence carrier."),
+    "a corrupted absent carrier is an internal producer invariant, not another source decision");
+    assert.equal(diagnostics.length, 0, "corrupted admitted evidence does not add a source refusal");
+  });
+}
 
 function publishedProgram(sourceText, surface) {
   const compiled = compileCsharpSource({ sourceText, surface });

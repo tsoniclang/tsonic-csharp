@@ -39,9 +39,9 @@ test("source and object member selection never invent missing finalized evidence
   const source = shape([selected]);
   const object = selectCsharpBindingPatternProjection({ kind: "object-source", shape: source, sourceOwned: true });
   assert.equal(object.kind === "source" && object.source.kind === "object-shape-source" && object.source.shape === source, true, "binding-pattern-projections:41: object.kind === \"source\" && object.source.kind === \"object-shape-source\" && object.source.");
-  const exact = selectCsharpBindingPatternProjection({ kind: "object-member", shape: source, sourceName: "selected", description: "Property" });
+  const exact = selectCsharpBindingPatternProjection({ kind: "object-member", shape: source, sourceName: "selected", description: "Property", permitsAbsence: false });
   assert.equal(exact.kind === "element" && exact.element.member === selected, true, "binding-pattern-projections:43: exact.kind === \"element\" && exact.element.member === selected");
-  const missing = selectCsharpBindingPatternProjection({ kind: "object-member", shape: source, sourceName: "missing", description: "Property" });
+  const missing = selectCsharpBindingPatternProjection({ kind: "object-member", shape: source, sourceName: "missing", description: "Property", permitsAbsence: false });
   assert.equal(missing.kind === "unresolved" && missing.reasons.length === 1, true, "binding-pattern-projections:45: missing.kind === \"unresolved\" && missing.reasons.length === 1");
   assert.equal(selectCsharpBindingPatternProjection({ kind: "array-source", carrier: undefined }).kind, "unresolved", "binding-pattern-projections:46: selectCsharpBindingPatternProjection({ kind: \"array-source\", carrier: undefined }).kind");
   assert.equal(selectCsharpBindingPatternProjection({ kind: "array-source", carrier: integer }).kind, "unresolved", "binding-pattern-projections:47: selectCsharpBindingPatternProjection({ kind: \"array-source\", carrier: integer }).kind");
@@ -69,6 +69,25 @@ test("rest projections preserve native member correspondence and every mismatch"
     rest: shape([member("first", floating), member("second", floating)]), extractedNames: new Set(), description: "Object rest" });
   assert.equal(invalid.kind === "unresolved" && invalid.reasons.length === 2 &&
     invalid.reasons.every(reason => reason.includes("matching finalized")), true, "all invalid members remain reported");
+});
+
+test("known absence requires both a closed missing member and checked optional permission", () => {
+  const request = { kind: "object-member", shape: shape([]), sourceName: "missing", description: "Property", permitsAbsence: true };
+  const absent = selectCsharpBindingPatternProjection(request);
+  assert.equal(absent.kind === "element" && absent.element.kind === "object-shape-absence", true,
+    "an exactly missing optional member has one explicit native-absence extraction");
+  assert.equal(Object.isFrozen(absent) && Object.isFrozen(absent.element), true, "the final absence selection is frozen");
+  assert.equal(selectCsharpBindingPatternProjection({ ...request, permitsAbsence: false }).kind, "unresolved",
+    "physical absence alone never permits a mandatory member");
+  const present = member("missing");
+  const selected = selectCsharpBindingPatternProjection({ ...request, shape: shape([present]) });
+  assert.equal(selected.kind === "element" && selected.element.kind === "object-shape-member" && selected.element.member === present,
+    true, "checked optionality never discards a physically present value");
+  const ambiguous = selectCsharpBindingPatternProjection({ ...request, shape: shape([present, present]) });
+  assert.equal(ambiguous.kind, "unresolved", "ambiguous physical members are never treated as absent");
+  const { permitsAbsence, ...retired } = request;
+  assert.throws(() => selectCsharpBindingPatternProjection(retired), /requires its checked absence permission/u,
+    "the retired object-member request without a checked permission has no fallback form");
 });
 
 test("the target policy owns missing source-owned rest and default correspondence without inventing a carrier", () => {

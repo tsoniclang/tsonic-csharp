@@ -26,6 +26,7 @@ export type CsharpBindingElementProjection =
   | { readonly kind: "array-rest"; readonly start: number; readonly restCarrier: TargetTypeRef }
   | { readonly kind: "tuple-rest"; readonly start: number; readonly restCarrier: Extract<TargetTypeRef, { readonly kind: "tuple" }> }
   | { readonly kind: "object-shape-member"; readonly member: CsharpObjectShapeMemberFact }
+  | { readonly kind: "object-shape-absence"; readonly carrier: TargetTypeRef }
   | {
       readonly kind: "object-shape-rest";
       readonly restShape: CsharpObjectShapeFact;
