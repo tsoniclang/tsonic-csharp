@@ -30,9 +30,10 @@ export function planArrayDefaultProjection(
     failCsharpPlannerInvariant("An admitted array default lost its native element rendering.", initializer);
   }
   const defaultValue = planExpression(initializer, sourceFile, input, diagnostics, state);
-  if (defaultValue === undefined) return undefined;
+  if (defaultValue === undefined) failCsharpPlannerInvariant("An admitted array default requires its native initializer plan.", initializer);
   const value = planCsharpBindingDefaultValue(initializer, sourceFile, input, diagnostics,
     projected, contract, defaultValue, state,
     planCsharpArrayBindingPresence(sourceExpression, index, sourceCarrier.lengthMember));
-  return value === undefined ? undefined : { carrier, type, value };
+  if (value === undefined) failCsharpPlannerInvariant("An admitted array default requires its native projection plan.", initializer);
+  return { carrier, type, value };
 }
