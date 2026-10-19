@@ -3,7 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { csharpAbsenceTargetType, isCsharpVoidTargetType } from "../../../target-model/types/index.js";
+import { isCsharpVoidTargetType } from "../../../target-model/types/index.js";
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type {
   CsharpPlanningContext,
@@ -17,8 +17,7 @@ import {
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
-import { planCsharpSourceUndefinedValue, type CsharpSourceUndefinedValuePlan } from "./undefined-values.js";
-import { readCsharpExpressionConversionClassification } from "./conversions.js";
+import { planCsharpAbsentValue } from "./optional-storage.js";
 import { csharpPlannedEffect, csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
 
@@ -55,14 +54,9 @@ export function planVoidExpression(
     ));
     return undefined;
   }
-  let result: CsharpSourceUndefinedValuePlan | undefined;
-  if (!isCsharpVoidTargetType(target)) {
-    const selection = readCsharpExpressionConversionClassification(node, input, diagnostics,
-      csharpAbsenceTargetType(), target, "implicit");
-    if (selection === undefined) return undefined;
-    result = planCsharpSourceUndefinedValue(node, target, sourceFile, input, diagnostics, selection);
-  }
-  if (result !== undefined && result.kind !== "resolved") {
+  const effectOnly = isCsharpVoidTargetType(target);
+  const result = effectOnly ? undefined : planCsharpAbsentValue(target, input.scope.typeParameterNames);
+  if (!effectOnly && result === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "The selected C# void result cannot represent undefined."));
     return undefined;
   }
@@ -71,5 +65,5 @@ export function planVoidExpression(
   if (expression.completion.kind === "never") return expression;
   const prelude = planCsharpPlannedDiscard(expression);
   return result === undefined ? csharpPlannedEffect(target, prelude)
-    : csharpPlannedValue(target, result.expression, prelude);
+    : csharpPlannedValue(target, result, prelude);
 }

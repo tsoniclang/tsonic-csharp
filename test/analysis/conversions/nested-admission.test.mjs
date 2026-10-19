@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { admitCsharpConversionSelection } from "../../../dist/analysis/conversions/validation.js";
 import { sealCsharpConversionUses } from "../../../dist/analysis/conversions/use-admission.js";
 import { csharpOperationConversionIssue, csharpSelectedCallConversionIssue } from "../../../dist/analysis/operations/conversion-admission.js";
@@ -409,3 +410,19 @@ test("omission admission does not fabricate source formal slots for native provi
     assert.equal(compiled.artifacts.size > 0, true, `${surface}: the existing native constructor remains emitted`);
   }
 });
+
+for (const surface of ["native", "js"]) {
+  test(`intrinsic void construction retains the physical absence before one outer conversion on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+let visits = 0;
+function unit(): void { visits += 1; }
+function value(): number { visits += 1; return visits; }
+function optional(value: number | undefined): boolean { return value === undefined; }
+export function run(): boolean {
+  return optional(void unit()) && optional(void value()) && visits === 2;
+}
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    executeCsharpConstruction(compiled, `intrinsic-void-native-absence-${surface}`);
+  });
+}
