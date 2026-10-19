@@ -142,7 +142,7 @@ sealed partial class ReflectionProvider
         {
             kind,
             id = MethodId(method),
-            baseDefinitionId = MethodId(method.GetBaseDefinition()),
+            baseDefinitionId = MethodId(MetadataBaseDefinition(method)),
             @virtual = method.IsVirtual,
             @abstract = method.IsAbstract,
             final = method.IsFinal,

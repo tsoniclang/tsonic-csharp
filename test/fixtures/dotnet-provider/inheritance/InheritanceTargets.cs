@@ -57,4 +57,49 @@ public class DispatchDerived : DispatchBase<int>
     public override int AbstractTransform(int value) => value + 2;
     public override int Item { get => stored; protected set => stored = value; }
     public override event Action<int> Changed { add { } remove { } }
+    public override ref int RefReturn() => ref stored;
+    public override ref readonly int ReadonlyRefReturn() => ref stored;
+    public override TResult GenericSlot<TResult>(ref int value, in TResult read) => read;
+}
+
+public class SlotBase<T>
+{
+    public virtual T Apply(T value) => value;
+    public virtual T NewSlot(T value) => value;
+}
+
+public class SlotDerived : SlotBase<int>
+{
+    public sealed override int Apply(int value) => value;
+    public new virtual int NewSlot(int value) => value;
+}
+
+public class MiddleSlot : SlotBase<int>
+{
+    public new virtual int Apply(int value) => value;
+}
+
+public class LastSlot : MiddleSlot
+{
+    public override int Apply(int value) => value;
+}
+
+public class CovariantBase
+{
+    public virtual object Create() => new object();
+}
+
+public class CovariantDerived : CovariantBase
+{
+    public override string Create() => "native";
+}
+
+public class SameNameBase
+{
+    public virtual int Match(int value) => value;
+}
+
+public class SameNameDerived : SameNameBase
+{
+    public int Match(string value) => value.Length;
 }

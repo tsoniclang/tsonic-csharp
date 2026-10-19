@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { createTestWorkspace } from "../../../../../tsonic/test/scripts/test-workspaces.mjs";
 import { createDotnetReflectionTypeDataProvider } from "../../../helpers/dotnet-reflection-provider.mjs";
 import { buildDotnetFixture } from "../../../helpers/dotnet-fixtures.mjs";
 import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
@@ -30,7 +33,7 @@ function fixture() {
   const provider = createDotnetReflectionTypeDataProvider({ references: [reference], disablePersistentCache: true });
   const module = getCompleteDotnetModule(provider, moduleSpecifier);
   assert.equal("exports" in module, true, "complete native inheritance fixture acquisition");
-  captured = { provider, module };
+  captured = { provider, module, reference };
   return captured;
 }
 
@@ -210,3 +213,103 @@ test("the deleted optional dispatch shape and incomplete physical slots are reje
   const old = { ...binding, csharpInheritableMembers: [{ ...binding.csharpInheritableMembers[0], dispatchSlots: undefined }] };
   assert.equal(csharpNativeTargetBindingFact(old) === undefined, true, "old native-view payload is not a complete success");
 });
+
+test("the one metadata-only base-slot producer agrees with actual native GetBaseDefinition across the complete slot family", () => {
+  const directory = createTestWorkspace(resolve(repoRoot, ".temp/native-inheritance-oracle"), "run-");
+  mkdirSync(directory, { recursive: true });
+  const project = resolve(directory, "NativeSlotOracle.csproj");
+  const xml = value => value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  writeFileSync(project, `<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><AllowUnsafeBlocks>true</AllowUnsafeBlocks><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup><ItemGroup><Reference Include="InheritanceProviderFixture"><HintPath>${xml(fixture().reference)}</HintPath></Reference></ItemGroup></Project>`);
+  writeFileSync(resolve(directory, "Program.cs"), nativeSlotOracleSource);
+  const built = spawnSync("dotnet", ["build", project, "--nologo", "--verbosity", "quiet",
+    `--maxcpucount:${process.env.DOTNET_PROCESSOR_COUNT}`, "-p:UseSharedCompilation=false"], { encoding: "utf8" });
+  assert.equal(built.status, 0, `handwritten native slot oracle builds: ${built.stdout}\n${built.stderr}`);
+  const observed = spawnSync("dotnet", ["run", "--project", project, "--no-build", "--no-restore", "--no-launch-profile"], { encoding: "utf8" });
+  assert.equal(observed.status, 0, `handwritten native slot oracle executes: ${observed.stdout}\n${observed.stderr}`);
+  const expected = JSON.parse(observed.stdout);
+  assert.equal(expected.length >= 30, true, "the oracle covers complete methods, accessors and physical signature families");
+  const pointerProvider = createDotnetReflectionTypeDataProvider({
+    references: [resolve(directory, "bin/Debug/net10.0/NativeSlotOracle.dll")], disablePersistentCache: true,
+  });
+  const pointers = getCompleteDotnetModule(pointerProvider, "@tsonic/dotnet/NativeSlotOracle.js");
+  assert.equal("exports" in pointers, true, "real function-pointer override metadata acquisition");
+  const declarations = [...fixture().module.exports, ...pointers.exports].filter(entry => entry.kind === "type");
+  const actual = new Map(declarations.flatMap(entry => (entry.inheritableMembers ?? []).flatMap(member =>
+    member.dispatchSlots.map(slot => [slot.id, slot]))));
+  for (const entry of expected) {
+    const slot = actual.get(entry.id);
+    assert.equal(slot !== undefined, true, `exact physical native method identity ${entry.label}`);
+    assert.equal(slot.baseDefinitionId, entry.baseDefinitionId, `actual native base slot ${entry.label}`);
+    assert.equal(slot.virtual, entry.virtual, `actual native virtual flag ${entry.label}`);
+    assert.equal(slot.abstract, entry.abstract, `actual native abstract flag ${entry.label}`);
+    assert.equal(slot.final, entry.final, `actual native final flag ${entry.label}`);
+  }
+  const sameName = expected.find(entry => entry.label === "SameNameDerived.Match");
+  assert.equal(sameName.id, sameName.baseDefinitionId, "same name is not evidence of a native override");
+  const nearest = expected.find(entry => entry.label === "LastSlot.Apply");
+  assert.equal(nearest.baseDefinitionId.includes(".MiddleSlot.Apply("), true, "stop at the nearest actual native newslot");
+  const covariant = expected.find(entry => entry.label === "CovariantDerived.Create");
+  assert.equal(covariant.id, covariant.baseDefinitionId, "native covariant newslot retains the actual API meaning, not its MethodImpl declaration");
+  const pointer = actual.get(expected.find(entry => entry.label === "FunctionPointerDerived.Invoke").id);
+  assert.equal(pointer.parameters[0].type.kind, "function-pointer");
+  assert.deepEqual(pointer.parameters[0].type.abi, ["unmanaged", "Cdecl"]);
+  console.log(`native-slot-oracle observations=${expected.length} native-stdout=${observed.stdout.trim()}`);
+});
+
+const nativeSlotOracleSource = String.raw`
+using System.Reflection;
+using System.Text.Json;
+using InheritanceProviderFixtures;
+
+var types = new[] { typeof(SlotBase<>), typeof(SlotDerived), typeof(MiddleSlot), typeof(LastSlot),
+    typeof(CovariantBase), typeof(CovariantDerived), typeof(SameNameBase), typeof(SameNameDerived),
+    typeof(DispatchBase<>), typeof(DispatchDerived), typeof(NativeSlotOracle.FunctionPointerBase),
+    typeof(NativeSlotOracle.FunctionPointerDerived) };
+var rows = types.SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic |
+    BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
+    .Where(method => method.IsPublic || method.IsFamily || method.IsFamilyOrAssembly)
+    .Select(method => new { label = type.Name + "." + method.Name, id = MethodId(method),
+        baseDefinitionId = MethodId(method.GetBaseDefinition()), @virtual = method.IsVirtual,
+        @abstract = method.IsAbstract, final = method.IsFinal })).ToArray();
+Console.WriteLine(JsonSerializer.Serialize(rows));
+
+static string MethodId(MethodInfo method) => TargetId(method.DeclaringType!) + "." + method.Name +
+    (method.IsGenericMethodDefinition ? "\u0060\u0060" + method.GetGenericArguments().Length : "") +
+    "(" + string.Join(",", method.GetParameters().Select(ParameterId)) + ")";
+static string ParameterId(ParameterInfo parameter)
+{
+    var type = parameter.ParameterType.IsByRef ? parameter.ParameterType.GetElementType()! : parameter.ParameterType;
+    var name = TypeId(type);
+    if (!parameter.ParameterType.IsByRef) return name;
+    if (parameter.IsOut) return "out " + name;
+    return parameter.GetCustomAttributesData().Any(attribute => attribute.AttributeType == typeof(System.Runtime.InteropServices.InAttribute))
+        ? "in " + name : "ref " + name;
+}
+static string TypeId(Type type)
+{
+    if (type.IsArray) return TypeId(type.GetElementType()!) +
+        (type.IsSZArray ? "[]" : type.GetArrayRank() == 1 ? "[*]" : "[" + new string(',', type.GetArrayRank() - 1) + "]");
+    if (type.IsGenericParameter) return type.Name;
+    if (type.IsGenericType && !type.IsGenericTypeDefinition) return TargetId(type.GetGenericTypeDefinition()) +
+        "<" + string.Join(",", type.GetGenericArguments().Select(TypeId)) + ">";
+    return TargetId(type);
+}
+static string TargetId(Type type)
+{
+    var name = type.FullName ?? type.Name;
+    var generic = name.IndexOf("[[", StringComparison.Ordinal);
+    return type.Assembly.GetName().FullName + "::" + (generic < 0 ? name : name[..generic]);
+}
+
+namespace NativeSlotOracle
+{
+    public unsafe class FunctionPointerBase
+    {
+        public virtual delegate* unmanaged[Cdecl]<int, int> Invoke(delegate* unmanaged[Cdecl]<int, int> callback) => callback;
+    }
+    public unsafe class FunctionPointerDerived : FunctionPointerBase
+    {
+        public override delegate* unmanaged[Cdecl]<int, int> Invoke(delegate* unmanaged[Cdecl]<int, int> callback) => callback;
+    }
+}
+`;
