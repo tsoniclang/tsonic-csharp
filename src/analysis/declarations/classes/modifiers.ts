@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import { HasSourceKind, HasSyntacticModifier, KindPrivateIdentifier, ModifierFlagsStatic, ModifierFlagsAsync } from "@tsonic/target-api/source";
+import { HasSourceKind, HasSyntacticModifier, KindPrivateIdentifier, ModifierFlagsStatic, ModifierFlagsAsync, sourceParameterIsProperty, sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
 import type { CsharpProjectCallableAdapters, CsharpProjectCallableDispatch } from "../../../target-model/records/callable-adapters.js";
 import type { CsharpCaptureStorage } from "../../../target-model/records/capture-storage.js";
 import type { CsharpMemberVisibility, CsharpMemberModifier, CsharpCallableModifier, CsharpDispatchModifier, CsharpMemberModifierSelection } from "../../../target-model/records/declaration-modifiers.js";
@@ -17,7 +17,7 @@ export function analyzeCsharpDeclarationModifiers(input: {
   for (const node of input.nodes) {
     const kind = input.ast.kindName(node);
     if (kind !== "KindMethodDeclaration" && kind !== "KindConstructor" && kind !== "KindPropertyDeclaration" &&
-      kind !== "KindGetAccessor" && kind !== "KindSetAccessor") continue;
+      kind !== "KindGetAccessor" && kind !== "KindSetAccessor" && !sourceParameterIsProperty(input.ast, node)) continue;
     const name = input.ast.name(node);
     const access = HasSourceKind(input.ast, name, KindPrivateIdentifier) || input.ast.hasModifierKind(node, "private") ? "private"
       : input.ast.hasModifierKind(node, "protected") ? "protected" : "public";
@@ -34,7 +34,7 @@ export function analyzeCsharpDeclarationModifiers(input: {
         ...(HasSyntacticModifier(input.ast, node, ModifierFlagsAsync) ? ["async" as const] : [])]);
     const property = dispatch?.kind === "property" ? Object.freeze(dispatchModifiers(dispatch, abstract)) : undefined;
     const implementation = Object.freeze(member.map(modifier => modifier === "public" ? "private" as const : modifier));
-    values.set(node, Object.freeze({ member, implementation, method, property }));
+    values.set(node, Object.freeze({ member, implementation, method, property, abstract, erased: sourceClassFieldIsTypeOnly(input.ast, node) }));
     requireCsharpRecord(input.required, { family: "memberModifiers", subject: node, construct: kind, producer: "analyzeCsharpDeclarationModifiers" });
   }
   return createCsharpDeclarationModifierRecords(values);

@@ -6,6 +6,8 @@ export type CsharpDispatchModifier = "override" | "virtual" | "abstract";
 export type CsharpCallableModifier = CsharpDispatchModifier | "async";
 
 export interface CsharpMemberModifierSelection {
+  readonly abstract: boolean;
+  readonly erased: boolean;
   readonly member: readonly CsharpMemberModifier[];
   readonly implementation: readonly CsharpMemberModifier[];
   readonly method: readonly CsharpCallableModifier[] | undefined;

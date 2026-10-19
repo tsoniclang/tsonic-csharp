@@ -14,7 +14,6 @@ import {
   KindParameter,
   KindSetAccessor,
   SourceKind,
-  sourceClassFieldIsTypeOnly,
 } from "@tsonic/target-api/source";
 import {
   failCsharpPlannerInvariant,
@@ -43,7 +42,8 @@ export function planClassMembers(
   const planned: CsharpTypeMember[] = [];
   const accessorProperties = new Map<string, CsharpPropertyDeclaration>();
   for (const member of members) {
-    if (member === undefined || input.program.records.compileTimeMetadata.get(member) || sourceClassFieldIsTypeOnly(input.program.source.ast, member)) {
+    if (member === undefined) failCsharpPlannerInvariant("An admitted class requires its dense checked member declarations.");
+    if (input.program.records.compileTimeMetadata.get(member) || input.program.records.memberModifiers.get(member)?.erased === true) {
       continue;
     }
     const owner = input.program.source.ast.parent(member);
@@ -64,14 +64,11 @@ export function planClassMembers(
       case KindMethodDeclaration: {
         const participation = input.program.records.nativeParticipation.get(member);
         if (participation === "body" || participation === "signature") {
-          const firstDiagnostic = diagnostics.length;
           const write = input.program.records.methodWrite.get(member);
           const method = planMethodDeclaration(member, sourceFile, memberInput, diagnostics,
             { kind: "source", declaration: member, role: write === undefined ? "member" : "implementation" });
           planned.push(...(write === undefined ? [method] : planCsharpMutableMethod(member, method, write, input, diagnostics)));
-          if (!diagnostics.some((issue, index) => index >= firstDiagnostic && issue.category === "error")) {
-            planned.push(...planCsharpProjectCallableAdapters(member, method, sourceFile, memberInput, diagnostics));
-          }
+          planned.push(...planCsharpProjectCallableAdapters(member, method, sourceFile, memberInput, diagnostics));
         }
         break;
       }
