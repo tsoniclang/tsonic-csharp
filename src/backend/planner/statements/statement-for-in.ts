@@ -111,7 +111,7 @@ export function planForInStatement(
     },
   };
   const collection = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
-  if (collection === undefined) return [];
+  if (collection === undefined) failCsharpPlannerInvariant("Admitted property-key iteration requires its collection value plan.", statement.Expression);
   return consumeCsharpPlannedValue(collection, value => [...bindingActivation.outerPrelude, {
     kind: "Block",
     body: {
