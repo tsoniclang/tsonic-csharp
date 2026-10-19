@@ -1,16 +1,16 @@
 import type {
   CsharpObjectShapeArtifact,
-} from "../artifacts/index.js";
+} from "../../target-model/records/object-shape-demand.js";
 import type {
   CsharpObjectShapeNameCandidate,
-} from "../../target-ast/normalization/object-shape-names.js";
+} from "../../target-model/records/object-shape-names.js";
 import {
   csharpRenderShapeForTargetNamedType,
   csharpStructuralObjectShapeIdentity,
   targetTypeRefKey,
-} from "../../../target-model/types/index.js";
+} from "../../target-model/types/index.js";
 
-export function csharpObjectShapeNameCandidates(
+export function analyzeCsharpObjectShapeNames(
   artifacts: readonly CsharpObjectShapeArtifact[],
 ): readonly CsharpObjectShapeNameCandidate[] {
   return artifacts.flatMap((artifact) => {

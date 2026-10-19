@@ -12,6 +12,7 @@ import type { CsharpObjectShapeClassifications } from "./model.js";
 import { csharpObjectShapeTypeParameters, csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { createCsharpObjectShapeEmissionRecords } from "../program/records/object-shape-emission.js";
+import { analyzeCsharpObjectShapeNames } from "./display-names.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
 import type { CsharpBindingPatternClassifications } from "../../target-model/records/value-projections.js";
@@ -146,5 +147,6 @@ export function analyzeCsharpObjectShapeEmission(input: {
     }
   }
   return Object.freeze({ records: createCsharpObjectShapeEmissionRecords(parameters, keys, emissions,
-    [...headers.values()].sort((left, right) => left.name.localeCompare(right.name))), issues: Object.freeze(issues) });
+    [...headers.values()].sort((left, right) => left.name.localeCompare(right.name)),
+    Object.freeze(analyzeCsharpObjectShapeNames(input.demand.artifacts))), issues: Object.freeze(issues) });
 }

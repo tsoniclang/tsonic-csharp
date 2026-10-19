@@ -22,9 +22,6 @@ import {
 import {
   applyCsharpObjectShapeDisplayNames,
 } from "../../target-ast/normalization/object-shape-names.js";
-import {
-  csharpObjectShapeNameCandidates,
-} from "../objects/display-names.js";
 export type CsharpPlanningResult = TargetStageResult<CsharpOutputPlan>;
 
 export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningResult {
@@ -65,7 +62,7 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
   ];
   const normalizedUnits = applyCsharpObjectShapeDisplayNames(
     sources.map((source) => source.unit),
-    csharpObjectShapeNameCandidates(input.artifacts.objectShapeArtifacts()),
+    input.program.records.objectShapeNames.get(),
   );
   const plan: CsharpOutputPlan = Object.freeze({
     project,

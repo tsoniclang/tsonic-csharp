@@ -1,11 +1,7 @@
 import type { CsharpCompilationUnit } from "../syntax/index.js";
 import { transformCsharpTargetAst } from "./transformation.js";
 
-export interface CsharpObjectShapeNameCandidate {
-  readonly canonicalName: string;
-  readonly identity: string;
-  readonly preferredStem: string;
-}
+import type { CsharpObjectShapeNameCandidate } from "../../../target-model/records/object-shape-names.js";
 
 export function applyCsharpObjectShapeDisplayNames(
   units: readonly CsharpCompilationUnit[],
