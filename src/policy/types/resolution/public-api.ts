@@ -151,6 +151,8 @@ export function resolveSelectedValueWithState(
       ? host.bindingProjection(declaration, sourceFile)?.bindingCarrier : undefined);
   const queries = host.semantics(sourceFile);
   const declaredType = declaration === undefined ? undefined : queries.declarations.declaredValueType(declaration);
+  if (scopedTarget !== undefined && getCsharpNullableElementTargetType(scopedTarget) !== undefined &&
+    sourceAbsenceUse(node, host) !== undefined) return scopedTarget;
   if (declaredType !== undefined && queries.types.isUnion(declaredType)) {
     const storage = scopedTarget ?? resolveNodeWithState(declaration, sourceFile, nextState(state));
     const guarded = storage === undefined ? undefined : selectCsharpNativeFlowMembers(host, node, storage,
@@ -201,8 +203,7 @@ export function resolveSelectedValueWithState(
           parent = host.ast.parent(value);
         }
         const members = queries.types.isUnion(selectedType) ? queries.types.unionOrIntersectionTypes(selectedType) : [selectedType];
-        if (!members.some(member => queries.types.isNullish(member)) && !host.ast.is.IsTypeOfExpression(parent) &&
-          sourceAbsenceUse(node, host) === undefined) return payload;
+        if (!members.some(member => queries.types.isNullish(member)) && !host.ast.is.IsTypeOfExpression(parent)) return payload;
       }
       const refinement = selectCsharpAuthoredUnionRefinement(
         scopedTarget, declaredType, selectedType, queries,
