@@ -198,7 +198,7 @@ function renderObjectShapeDeclaration(
       ...captureMethods,
       ...methodValues,
       ...enumerableKeys,
-      ...(capabilities.includes("js-freeze") ? guardCsharpFrozenDataProperties(fact, members, input, diagnostics) : members),
+      ...guardCsharpFrozenDataProperties(fact, members, input, diagnostics),
       ...(jsonSerializable ? renderJsonSerializableObjectShapeMethod(fact, input.program.records) : []),
       ...renderObjectShapeProjectionMethods(
         input,
