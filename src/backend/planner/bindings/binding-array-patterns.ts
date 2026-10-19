@@ -75,7 +75,7 @@ function planArrayBindingElement(
   }
   const name = element.name;
   if (name === undefined) {
-    return [];
+    failCsharpPlannerInvariant("An admitted array binding requires its checked destination name.", elementNode);
   }
   const projected = planArrayBindingProjection(sourceExpression, index, sourceCarrier);
   const selected = fact?.element;
@@ -104,11 +104,12 @@ function planArrayBindingElement(
         const whenNull = planExpression(element.Initializer, sourceFile, input, diagnostics, state
         );
         if (whenNull === undefined) {
-          return [];
+          failCsharpPlannerInvariant("An admitted tuple default requires its native initializer plan.", element.Initializer);
         }
         const defaulted = planCsharpBindingDefaultValue(element.Initializer, sourceFile, input, diagnostics,
           projected, fact.defaultValue, whenNull, state);
-        return defaulted === undefined ? [] : consumeCsharpPlannedValue(defaulted, expression => planBindingNameFromProjection(
+        if (defaulted === undefined) failCsharpPlannerInvariant("An admitted tuple default requires its exact native projection.", elementNode);
+        return consumeCsharpPlannedValue(defaulted, expression => planBindingNameFromProjection(
           name, expression,
           elementNode,
           sourceFile,
@@ -127,7 +128,7 @@ function planArrayBindingElement(
       "Array default requires its admitted native default contract.", elementNode);
     const defaultedProjection = planArrayDefaultProjection(sourceExpression, index, projected, sourceCarrier, contract, element.Initializer, sourceFile, input, diagnostics, state, planExpression);
     if (defaultedProjection === undefined) {
-      return [];
+      failCsharpPlannerInvariant("An admitted array default requires its native projection.", elementNode);
     }
     return consumeCsharpPlannedValue(defaultedProjection.value, expression =>
       planBindingNameFromProjection(name, expression, elementNode, sourceFile, input, diagnostics, state));
