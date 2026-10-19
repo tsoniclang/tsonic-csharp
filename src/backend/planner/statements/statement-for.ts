@@ -28,6 +28,7 @@ import { planCsharpCaptureFrame, planCsharpCaptureFrameRotation } from "../bindi
 import { sourceExpressionSequence } from "@tsonic/target-api/source";
 import { expressionStatement, planCsharpPlannedDiscard, planDiscardedExpression } from "./statement-output.js";
 import { csharpLoopContinuationLabel, planCsharpLoopContinuation } from "./loop-regions.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planForStatement(
   node: Node,
@@ -86,13 +87,13 @@ function planForStatementCore(
     : planConditionExpression(conditionNode, "For statement", sourceFile, input, diagnostics, state);
   const conditionPrelude = conditionNodes.slice(0, -1).map(expression => planExpression(expression, sourceFile, input, diagnostics, state));
   if (statement.Condition !== undefined && condition === undefined) {
-    return initializer?.prelude ?? [];
+    failCsharpPlannerInvariant("An admitted for condition requires its native value plan.", node);
   }
   const incrementorNodes = statement.Incrementor === undefined ? [] : sourceExpressionSequence(input.program.source.ast, statement.Incrementor);
   const incrementors = incrementorNodes
     .map(expression => planExpression(expression, sourceFile, input, diagnostics, state));
   if (incrementors.some(expression => expression === undefined) || conditionPrelude.some(expression => expression === undefined)) {
-    return initializer?.prelude ?? [];
+    failCsharpPlannerInvariant("An admitted for continuation requires its native expression plans.", node);
   }
   const rotation = frame === undefined ? undefined : planCsharpCaptureFrameRotation(frame, input, diagnostics, state);
   const iterationPrelude = conditionPrelude.flatMap(expression => planCsharpPlannedDiscard(expression!));
@@ -100,8 +101,8 @@ function planForStatementCore(
   const expandedCondition = iterationPrelude.length !== 0 || (condition?.prelude.length ?? 0) !== 0;
   const label = expandedIncrement ? planCsharpLoopContinuation(node, state) : undefined;
   const body = condition?.completion.kind === "never" ? [] : planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state);
-  const outerLabels = new Set(state.controlLabels.flatMap(target => [target.breakLabel,
-    ...(target.continueLabel === undefined || target.loop === node ? [] : [target.continueLabel])]));
+  const continuationExits = input.program.records.loopContinuationExit.get(node);
+  if (continuationExits === undefined) failCsharpPlannerInvariant("An admitted for body requires its sealed continuation completion.", node);
   const incrementStatements = [
     ...(rotation === undefined ? [] : [expressionStatement(rotation)]),
     ...incrementors.flatMap(expression => planCsharpPlannedDiscard(expression!)),
@@ -121,11 +122,11 @@ function planForStatementCore(
       ...(expandedCondition ? conditionTest : []),
       { kind: "Block", body: { kind: "Block", statements: body } },
       ...continuation,
-      ...(continuation.length === 0 && exitsBeforeIncrementor(body, outerLabels) ? [] : incrementStatements),
+      ...(continuation.length === 0 && continuationExits ? [] : incrementStatements),
     ] },
   } : {
     kind: "ForStatement",
-    ...(incrementors.length > 0 && exitsBeforeIncrementor(body, outerLabels) ? { unreachableIncrementor: true } : {}),
+    ...(incrementors.length > 0 && continuationExits ? { unreachableIncrementor: true } : {}),
     ...(condition?.completion.kind === "value" && !expandedCondition
       ? { condition: condition.completion.expression }
       : {}),
@@ -155,16 +156,6 @@ function planForStatementCore(
       }];
 }
 
-function exitsBeforeIncrementor(statements: readonly CsharpStatement[], outerLabels: ReadonlySet<string>): boolean {
-  const last = statements[statements.length - 1];
-  if (last === undefined) return false;
-  if (last.kind === "ReturnStatement" || last.kind === "ThrowStatement" || last.kind === "BreakStatement") return true;
-  if (last.kind === "GotoStatement") return outerLabels.has(last.label);
-  if (last.kind === "Block") return exitsBeforeIncrementor(last.body.statements, outerLabels);
-  return last.kind === "IfStatement" && last.elseBody !== undefined &&
-    exitsBeforeIncrementor(last.thenBody.statements, outerLabels) && exitsBeforeIncrementor(last.elseBody.statements, outerLabels);
-}
-
 interface PlannedForInitializer {
   readonly prelude: readonly CsharpStatement[];
   readonly preludeScope?: "loop" | "enclosing";
@@ -187,8 +178,9 @@ function planForInitializer(
     };
   }
   const expression = planExpression(node, sourceFile, input, diagnostics, state);
+  if (expression === undefined) failCsharpPlannerInvariant("An admitted for initializer requires its native value plan.", node);
   return {
-    prelude: expression === undefined ? [] : planCsharpPlannedDiscard(expression),
+    prelude: planCsharpPlannedDiscard(expression),
   };
 }
 

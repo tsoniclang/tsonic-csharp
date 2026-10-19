@@ -20,6 +20,7 @@ import { type CsharpGenericProjectionIndex } from "../../target-model/records/ty
 import { csharpCallableValueType } from "../callables/value-type.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { isCsharpStringTargetType } from "../../target-model/types/identity.js";
+import { isCsharpNeverTargetType } from "../../target-model/types/carriers/scalar-types.js";
 import type { CsharpExpectedNativeUse } from "../../target-model/records/native-demand.js";
 import { analyzeCsharpNumericRepresentations } from "../numeric/representations.js";
 import { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
@@ -490,7 +491,13 @@ function analyzeCsharpTargetProgramBeforeSeal(
     !analysis.sourceEvidence.compileTimeMetadata.get(node) &&
     !admittedOperations.nativeUnreachable.get(node) && nativeParticipation.participation.get(node) !== "erased";
   const statementCompletions = analyzeCsharpStatementCompletions({ ast: source.ast, nodes: sourceStorage.nodes,
-    admitted: admittedControlNode, required: analysis.requiredRecords });
+    admitted: admittedControlNode, required: analysis.requiredRecords, facts: {
+      erased: node => analysis.sourceEvidence.compileTimeMetadata.get(node) === true ||
+        admittedOperations.nativeUnreachable.get(node) === true || admittedOperations.erasedStatement.get(node) === true ||
+        nativeParticipation.participation.get(node) === "erased",
+      expressionExits: node => isCsharpNeverTargetType(analysis.valueReads.valueRead.get(node)?.value),
+      guardResult: node => admittedOperations.nativeGuardResult.get(node),
+    } });
   const nativeControlIssues = analyzeCsharpNativeControlFlow(source, statementCompletions.controlExit, admittedControlNode);
   if (nativeControlIssues.length !== 0) return rejectedTargetStage(nativeControlIssues);
   const statementExits = analyzeCsharpStatementExits({ ast: source.ast, nodes: sourceStorage.nodes,

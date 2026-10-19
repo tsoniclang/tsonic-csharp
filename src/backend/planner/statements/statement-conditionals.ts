@@ -48,7 +48,7 @@ export function planIfStatement(
   }
   const condition = planConditionExpression(statement.Expression, "If statement", sourceFile, input, diagnostics, state);
   if (condition === undefined) {
-    return [];
+    return failCsharpPlannerInvariant("An admitted if statement requires its native condition plan.", node);
   }
   return consumeCsharpPlannedValue(condition, value => [{
     kind: "IfStatement",
@@ -74,7 +74,7 @@ export function planWhileStatement(
   const statement = AsWhileStatement(input.program.source.ast, node)!;
   const condition = planConditionExpression(statement.Expression, "While statement", sourceFile, input, diagnostics, state);
   if (condition === undefined) {
-    return [];
+    return failCsharpPlannerInvariant("An admitted while statement requires its native condition plan.", node);
   }
   if (condition.completion.kind !== "value") return condition.prelude;
   const body = planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state);
@@ -103,7 +103,7 @@ export function planDoStatement(
   const statement = AsDoStatement(input.program.source.ast, node)!;
   const condition = planConditionExpression(statement.Expression, "Do statement", sourceFile, input, diagnostics, state);
   if (condition === undefined) {
-    return [];
+    return failCsharpPlannerInvariant("An admitted do statement requires its native condition plan.", node);
   }
   const label = condition.prelude.length === 0 ? undefined : planCsharpLoopContinuation(node, state);
   const body = planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state);
@@ -132,11 +132,11 @@ export function planConditionExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-): CsharpPlannedValue | undefined {
+): CsharpPlannedValue {
   if (expression === undefined) {
     return failCsharpPlannerInvariant(`A checked ${statementKind} requires its condition expression.`, sourceFile);
   }
-  return planCheckedConditionExpression(
+  const planned = planCheckedConditionExpression(
     expression,
     `${statementKind} condition`,
     sourceFile,
@@ -151,4 +151,6 @@ export function planConditionExpression(
         state,
       ),
   );
+  if (planned === undefined) failCsharpPlannerInvariant("An admitted control-flow condition requires its native value plan.", expression);
+  return planned;
 }

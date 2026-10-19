@@ -1,6 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { sourceControlTransferTarget, sourceLabeledStatementTarget, type SourceLabeledStatementTarget } from "@tsonic/target-api/source";
+import { analyzeSourceStatementExits, type SourceStatementExitFacts } from "@tsonic/target-api/analysis";
 import type { CsharpControlExitCompletion, CsharpStatementCompletionRecords } from "../../target-model/records/statement-completion.js";
 import { createCsharpStatementCompletionRecords } from "../program/records/statement-completion.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
@@ -10,9 +11,11 @@ export function analyzeCsharpStatementCompletions(input: {
   readonly nodes: readonly Node[];
   readonly admitted: (node: Node) => boolean;
   readonly required: CsharpRequiredRecord[];
+  readonly facts: SourceStatementExitFacts;
 }): CsharpStatementCompletionRecords {
   const exits = new Map<Node, CsharpControlExitCompletion>();
   const labels = new Map<Node, SourceLabeledStatementTarget>();
+  const continuations = new Map<Node, boolean>();
   for (const node of input.nodes) {
     if (!input.admitted(node)) continue;
     if (input.ast.is.IsBreakStatement(node) || input.ast.is.IsContinueStatement(node)) {
@@ -31,5 +34,18 @@ export function analyzeCsharpStatementCompletions(input: {
         construct: input.ast.kindName(node), producer: "analyzeCsharpStatementCompletions" });
     }
   }
-  return createCsharpStatementCompletionRecords({ exits, labels });
+  for (const node of input.nodes) {
+    if (!input.admitted(node) || !input.ast.is.IsForStatement(node)) continue;
+    const body = input.ast.as.AsForStatement(node)?.Statement;
+    if (body === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A checked for statement requires its exact body.", node);
+    const completion = analyzeSourceStatementExits(input.ast, [body], { ...input.facts,
+      controlTarget: source => exits.get(source)?.target,
+      continueFallsThrough: (_source, target) => target === node,
+    }).get(body);
+    if (completion === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A checked for body requires its source completion.", body);
+    continuations.set(node, completion);
+    requireCsharpRecord(input.required, { family: "loopContinuationExit", subject: node,
+      construct: input.ast.kindName(node), producer: "analyzeCsharpStatementCompletions" });
+  }
+  return createCsharpStatementCompletionRecords({ exits, labels, continuations });
 }

@@ -9,4 +9,5 @@ export interface CsharpControlExitCompletion {
 export interface CsharpStatementCompletionRecords {
   readonly controlExit: { readonly get: (subject: Node | undefined) => CsharpControlExitCompletion | undefined };
   readonly labeledStatement: { readonly get: (subject: Node | undefined) => SourceLabeledStatementTarget | undefined };
+  readonly loopContinuationExit: { readonly get: (subject: Node | undefined) => boolean | undefined };
 }

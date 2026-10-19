@@ -5,9 +5,11 @@ import type { CsharpControlExitCompletion, CsharpStatementCompletionRecords } fr
 export function createCsharpStatementCompletionRecords(input: {
   readonly exits: ReadonlyMap<Node, CsharpControlExitCompletion>;
   readonly labels: ReadonlyMap<Node, SourceLabeledStatementTarget>;
+  readonly continuations: ReadonlyMap<Node, boolean>;
 }): CsharpStatementCompletionRecords {
   return Object.freeze({
     controlExit: Object.freeze({ get: (subject: Node | undefined) => subject === undefined ? undefined : input.exits.get(subject) }),
     labeledStatement: Object.freeze({ get: (subject: Node | undefined) => subject === undefined ? undefined : input.labels.get(subject) }),
+    loopContinuationExit: Object.freeze({ get: (subject: Node | undefined) => subject === undefined ? undefined : input.continuations.get(subject) }),
   });
 }
