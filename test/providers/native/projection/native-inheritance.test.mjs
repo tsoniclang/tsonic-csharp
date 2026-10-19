@@ -229,7 +229,7 @@ test("the one metadata-only base-slot producer agrees with actual native GetBase
   const expected = JSON.parse(observed.stdout);
   assert.equal(expected.length >= 30, true, "the oracle covers complete methods, accessors and physical signature families");
   const pointerProvider = createDotnetReflectionTypeDataProvider({
-    references: [resolve(directory, "bin/Debug/net10.0/NativeSlotOracle.dll")], disablePersistentCache: true,
+    references: [fixture().reference, resolve(directory, "bin/Debug/net10.0/NativeSlotOracle.dll")], disablePersistentCache: true,
   });
   const pointers = getCompleteDotnetModule(pointerProvider, "@tsonic/dotnet/NativeSlotOracle.js");
   assert.equal("exports" in pointers, true, "real function-pointer override metadata acquisition");

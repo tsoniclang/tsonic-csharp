@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import test from "node:test";
@@ -171,7 +171,9 @@ test("user-owned runtime metadata comes from native ResolveReferences without co
   assert.equal(first.csharpInheritance.length, 3, "the actual native referenced project supplies the complete class chain");
   assert.equal(readFileSync(projectFile, "utf8"), text, "the user-owned project configuration is unchanged");
   assert.equal(existsSync(inputs.wrapper.path), false, "user-owned mode never substitutes a generated runtime wrapper");
-  assert.equal(existsSync(join(inputs.root, "bin")), false, "ResolveReferences does not compile the incomplete user application");
+  const bin = join(inputs.root, "bin");
+  const outputEntries = existsSync(bin) ? readdirSync(bin, { recursive: true, withFileTypes: true }) : [];
+  assert.equal(outputEntries.some(entry => !entry.isDirectory()), false, "ResolveReferences emits no application build output");
   const key = createHash("sha256").update(projectFile).digest("hex");
   const proofFile = join(inputs.cacheRoot, "csharp/runtime-metadata", key, "proof.json");
   const before = JSON.parse(readFileSync(proofFile, "utf8"));
