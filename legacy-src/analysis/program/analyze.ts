@@ -564,7 +564,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     demand: objectShapeDemand, storage: analysis.storage, captures: captureStorage });
   if (objectMembers.issues.length !== 0) return rejectedTargetStage(objectMembers.issues);
   const objectLiterals = analyzeCsharpObjectLiterals({ source: sourceSyntax, demand: nativeDemand, shapes: callableAdapters.objectShapes,
-    operations: admittedOperations, methods: objectMethods.records, members: objectMembers.records });
+    operations: admittedOperations, methods: objectMethods.records, members: objectMembers.records, storage: analysis.storage });
   if (objectLiterals.issues.length !== 0) return rejectedTargetStage(objectLiterals.issues);
   const records = createCsharpProgramRecords({
     objectLiterals: objectLiterals.records,

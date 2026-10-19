@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import { AsObjectLiteralExpression, AsPropertyAssignment, AsShorthandPropertyAssignment, AsSpreadAssignment, ObjectLiteralProperty_SourceName,
+import { AsGetAccessorDeclaration, AsSetAccessorDeclaration, AsParameterDeclaration, AsMethodDeclaration, AsObjectLiteralExpression, AsPropertyAssignment, AsShorthandPropertyAssignment, AsSpreadAssignment, ObjectLiteralProperty_SourceName,
+  HasSyntacticModifier, ModifierFlagsAsync,
   KindMethodDeclaration, KindGetAccessor, KindSetAccessor, KindSpreadAssignment, KindPropertyAssignment, KindShorthandPropertyAssignment } from "@tsonic/target-api/source";
 import type { TargetSourceSyntaxProgram } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -13,13 +14,15 @@ import type { CsharpObjectMethodRecords } from "../../target-model/records/objec
 import type { CsharpObjectMemberRecords } from "../../target-model/records/object-members.js";
 import { csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey, resolveCsharpObjectShapeMemberBySourceKey,
   csharpObjectShapeMemberLookupFailureMessage, isCsharpJsValueObjectShapeTargetType, validateCsharpJsValueObjectShapeCarrier,
-  csharpStringTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
+  csharpDelegateTargetType, csharpStringTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
-import { objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
+import { objectShapeStorageMemberName, objectShapeAccessorGetterStorageMemberName, objectShapeAccessorSetterStorageMemberName } from "../../target-model/names/object-members.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { createCsharpObjectLiteralRecords } from "../program/records/object-literals.js";
 import type { CsharpSourceMemberKey } from "../../target-model/types/model.js";
+import { selectCsharpObjectLiteralCallable } from "../../policy/objects/object-literals.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 
 export function analyzeCsharpObjectLiterals(input: {
   readonly source: TargetSourceSyntaxProgram;
@@ -28,6 +31,7 @@ export function analyzeCsharpObjectLiterals(input: {
   readonly operations: Pick<CsharpTargetOperationClassifications, "jsObjectLiteral">;
   readonly methods: CsharpObjectMethodRecords;
   readonly members: CsharpObjectMemberRecords;
+  readonly storage: Pick<CsharpStorageClassifications, "requiredStorageType">;
 }) {
   const { ast } = input.source;
   const issues: TargetDiagnostic[] = [];
@@ -140,8 +144,56 @@ export function analyzeCsharpObjectLiterals(input: {
       } else if (kind === KindMethodDeclaration) {
         const authored = shape.methodImplementation?.declaration === ast.parent(property) &&
           shape.members.some(candidate => candidate.methodValueContract !== undefined && candidate.sourceDeclarations?.includes(property));
-        members.push(Object.freeze({ kind: authored ? "authored" : "method", property, member }));
-      } else if (kind === KindGetAccessor || kind === KindSetAccessor) members.push(Object.freeze({ kind: "accessor", property, member }));
+        if (authored) { members.push(Object.freeze({ kind: "authored", property, member })); continue; }
+        const declaration = AsMethodDeclaration(ast, property);
+        if (declaration === undefined) { reject(property, "Object literal method emission requires a method-declaration AST node."); continue; }
+        if (declaration.TypeParameters?.Nodes.some(parameter => parameter !== undefined)) {
+          reject(property, "Object literal generic methods require finalized target delegate facts before C# emission."); continue;
+        }
+        if (declaration.Body === undefined) { reject(property, "Object literal method emission requires a method body."); continue; }
+        const layout = input.members.objectMember.get(shape, member);
+        if (layout === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted object method requires its selected native member layout.", property);
+        const storage = member.memberKind === "method" ? layout.methodStorage : member.type;
+        if (storage === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted object method requires its native callable storage.", property);
+        const receiver = layout.receiverBound ? shape.targetType : undefined;
+        const selected = selectCsharpObjectLiteralCallable({ carrier: member.type, storage, receiver });
+        if (selected.kind === "rejected") {
+          reject(property, selected.reason === "carrier"
+            ? `Object-shape method '${member.sourceName}' must carry a renderable delegate target type before C# emission.`
+            : `Object-shape method '${member.sourceName}' must carry a finalized delegate target type with explicit return facts before C# emission.`);
+          continue;
+        }
+        const parameters = (declaration.Parameters?.Nodes ?? []).filter((parameter): parameter is Node => parameter !== undefined);
+        members.push(Object.freeze({ kind: "method", property, member, callable: Object.freeze({ body: declaration.Body,
+          parameters: Object.freeze(parameters), carrier: member.type, storage, signature: selected.signature, receiver,
+          async: HasSyntacticModifier(ast, property, ModifierFlagsAsync), storageName: objectShapeStorageMemberName(shape, member) }) }));
+      } else if (kind === KindGetAccessor || kind === KindSetAccessor) {
+        const getter = kind === KindGetAccessor;
+        if (member.accessor === undefined || !getter && member.accessor.setter !== true) {
+          reject(property, "Object-literal accessor must match one exact finalized accessor-shape member."); continue;
+        }
+        if (csharpTargetTypeRenderingRejection(shape.targetType) !== undefined) {
+          reject(property, `Object-shape accessor '${member.sourceName}' has no renderable receiver carrier.`); continue;
+        }
+        const declaration = getter ? AsGetAccessorDeclaration(ast, property) : AsSetAccessorDeclaration(ast, property);
+        const parameters = (declaration?.Parameters?.Nodes ?? []).filter((parameter): parameter is Node => parameter !== undefined);
+        if (declaration?.Body === undefined || !getter && (parameters.length !== 1 || AsParameterDeclaration(ast, parameters[0]!) === undefined)) {
+          reject(property, getter ? "Object-literal getter requires one exact body and result-carrier contract."
+            : "Object-literal setter requires one exact parameter and body."); continue;
+        }
+        const carrier = getter ? csharpDelegateTargetType("System.Func", [], member.type) : csharpDelegateTargetType("System.Action", [member.type]);
+        const storage = getter ? csharpDelegateTargetType("System.Func", [shape.targetType], member.type)
+          : csharpDelegateTargetType("System.Action", [shape.targetType, member.type]);
+        const selected = selectCsharpObjectLiteralCallable({ carrier, storage, receiver: shape.targetType });
+        const parameterType = getter ? undefined : input.storage.requiredStorageType.get(parameters[0]!);
+        if (selected.kind === "rejected" || !getter && (parameterType === undefined || !targetTypeRefEquals(parameterType, member.type))) {
+          reject(property, getter ? "Object-literal getter requires one exact body and result-carrier contract."
+            : "Object-literal setter has no exact sealed parameter-carrier contract."); continue;
+        }
+        members.push(Object.freeze({ kind: "accessor", property, member, callable: Object.freeze({ body: declaration.Body,
+          parameters: Object.freeze(parameters), carrier, storage, signature: selected.signature, receiver: shape.targetType, async: false,
+          storageName: getter ? objectShapeAccessorGetterStorageMemberName(shape, member) : objectShapeAccessorSetterStorageMemberName(shape, member) }) }));
+      }
       else reject(property, "Object literal member is outside the current C# planning surface.");
     }
     if (js) {
