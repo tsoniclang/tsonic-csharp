@@ -444,7 +444,7 @@ static string TypeId(Type type, Type? modified = null)
         (type.IsSZArray ? "[]" : type.GetArrayRank() == 1 ? "[*]" : "[" + new string(',', type.GetArrayRank() - 1) + "]");
     if (type.IsGenericParameter) return type.Name;
     if (type.IsGenericType && !type.IsGenericTypeDefinition) return TargetId(type.GetGenericTypeDefinition()) +
-        "<" + string.Join(",", type.GetGenericArguments().Select(TypeId)) + ">";
+        "<" + string.Join(",", type.GetGenericArguments().Select(argument => TypeId(argument))) + ">";
     return TargetId(type);
 }
 static object NativeTypeIdentity(Type type, Type modified) => new
