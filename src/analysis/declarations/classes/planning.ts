@@ -7,6 +7,7 @@ import type { CsharpStorageClassifications } from "../../../target-model/records
 import type { CsharpClassCaptureEmission, CsharpNativeClassEmission } from "../../../target-model/records/class-emission.js";
 import type { CsharpNamePlan } from "../../../target-model/names/model.js";
 import { createCsharpClassEmissionRecords } from "../../program/records/class-emission.js";
+import { sourceObjectMemberDeclarations } from "@tsonic/target-api/source";
 
 export function analyzeCsharpClassEmission(input: {
   readonly ast: AstReader;
@@ -31,7 +32,7 @@ export function analyzeCsharpClassEmission(input: {
     const members: Node[] = [];
     const staticMembers: Node[] = [];
     let authoredConstructor: Node | undefined;
-    for (const member of input.ast.members(node)) {
+    for (const member of sourceObjectMemberDeclarations(input.ast, node)) {
       if (member === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted native class requires dense checked members.", node);
       const isStatic = input.ast.hasModifierKind(member, "static") || input.ast.is.IsClassStaticBlockDeclaration(member);
       if (isStatic) staticMembers.push(member);

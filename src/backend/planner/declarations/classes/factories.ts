@@ -5,7 +5,7 @@ import type { CsharpCaptureFrame } from "../../../../target-model/records/captur
 import type { CsharpClassDeclaration, CsharpConstructorDeclaration, CsharpExpression, CsharpInterfaceDeclaration, CsharpParameter, CsharpStatement, CsharpTypeMember, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { DestructuringPlannerState } from "../../bindings/index.js";
-import { csharpCaptureFrameExpression, csharpCapturedBindingExpression } from "../../bindings/capture-storage.js";
+import { csharpCaptureFrameExpression } from "../../bindings/capture-storage.js";
 import { getCsharpLocalBindingName } from "../../bindings/binding-state.js";
 import { csharpTypeFromObjectShapeFact } from "../../objects/planning.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";

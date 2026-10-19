@@ -17,6 +17,7 @@ import { analyzeCsharpClassFieldInitialization } from "../project-types/class-in
 import { analyzeCsharpCallableParameterEmission } from "../callables/parameters.js";
 import { analyzeCsharpCallableDeclarationEmission } from "../callables/declaration-emission.js";
 import { analyzeCsharpMethodEmission } from "../declarations/classes/methods.js";
+import { analyzeCsharpClassEmission } from "../declarations/classes/planning.js";
 import { analyzeCsharpStatementExits } from "../control-flow/statement-exits.js";
 import { analyzeCsharpStatementCompletions } from "../control-flow/statement-completion.js";
 import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js";
@@ -533,7 +534,11 @@ function analyzeCsharpTargetProgramBeforeSeal(
     declarations: analysis.declarations, values: analysis.valueReads, storage: analysis.storage, literals: literalValues,
     exact: exactLiterals, admitted: admittedControlNode, required: analysis.requiredRecords });
   if (callableParameters.issues.length !== 0) return rejectedTargetStage(callableParameters.issues);
+  const classEmission = analyzeCsharpClassEmission({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, factories: classFactories,
+    captures: captureStorage, storage: analysis.storage, names, admitted: admittedControlNode });
+  if (classEmission.issues.length !== 0) return rejectedTargetStage(classEmission.issues);
   const records = createCsharpProgramRecords({
+    classEmission: classEmission.records,
     callableParameters: callableParameters.records,
     callableDeclarations: callableDeclarations.records,
     nativeMemberNames,

@@ -38,8 +38,10 @@ import type { CsharpCallableDeclarationRecords } from "../../../target-model/rec
 import type { CsharpNativeMemberNames } from "../../../target-model/names/model.js";
 import { createCsharpNativeMemberHidingRecords } from "./native-member-names.js";
 import type { CsharpMethodEmissionRecords } from "../../../target-model/records/method-emission.js";
+import type { CsharpClassEmissionRecords } from "../../../target-model/records/class-emission.js";
 
 export interface CsharpProgramRecordInput {
+  readonly classEmission: CsharpClassEmissionRecords;
   readonly nativeMemberNames: CsharpNativeMemberNames;
   readonly methods: CsharpMethodEmissionRecords;
   readonly callableDeclarations: CsharpCallableDeclarationRecords;
@@ -87,6 +89,7 @@ export function createCsharpProgramRecords(
   required: readonly CsharpRequiredRecord[],
 ): CsharpProgramRecords {
   const records: CsharpProgramRecords = Object.freeze({
+    ...input.classEmission,
     ...input.callableParameters,
     ...input.callableDeclarations,
     nativeMemberHiding: createCsharpNativeMemberHidingRecords(input.nativeMemberNames),

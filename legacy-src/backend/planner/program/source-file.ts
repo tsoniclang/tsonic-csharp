@@ -116,8 +116,8 @@ export function planSourceFile(
     if (factory.sourceFile !== sourceFile) continue;
     const instance = planClassDeclaration(factory.declaration, sourceFile, input, diagnostics);
     localTypeScopes.push({ kind: "NamespaceDeclaration", name: `${readNamespace(input)}.${factory.instanceScope}`,
-      members: [instance] });
-    namespaceMembers.push(planClassFactoryDeclaration(factory, instance, input, diagnostics));
+      members: [instance.declaration] });
+    namespaceMembers.push(planClassFactoryDeclaration(factory, instance.constructorParameters, input, diagnostics));
     const identity = planClassFactoryIdentity(factory, input, diagnostics);
     if (identity !== undefined) namespaceMembers.push(identity);
   }
@@ -159,7 +159,7 @@ export function planSourceFile(
             }
             break;
           case KindClassDeclaration: {
-            appendTypeDeclaration(statement, planClassDeclaration(statement, sourceFile, input, diagnostics));
+            appendTypeDeclaration(statement, planClassDeclaration(statement, sourceFile, input, diagnostics).declaration);
             const statics = planGenericClassStaticMembers(statement, sourceFile, input, diagnostics);
             if (statics !== undefined) appendTypeDeclaration(statement, statics);
             break;
