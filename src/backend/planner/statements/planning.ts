@@ -89,10 +89,12 @@ export function planBlockStatements(
     return [];
   }
   input = withCsharpDelegateAdapterDeclarations(blockNode, input);
-  const block = AsBlock(input.program.source.ast, blockNode)!;
-  const statements = (block.Statements?.Nodes ?? []).slice(skipLeadingStatements).filter(
-    (statement): statement is Node => statement !== undefined,
-  );
+  const block = AsBlock(input.program.source.ast, blockNode);
+  if (block?.Statements === undefined) failCsharpPlannerInvariant("An admitted block requires its checked statement list.", blockNode);
+  const statements = block.Statements.Nodes.slice(skipLeadingStatements).map(statement => {
+    if (statement === undefined) failCsharpPlannerInvariant("An admitted block requires dense checked statements.", blockNode);
+    return statement;
+  });
   const explicitUnsafe = isExplicitUnsafeBlockMarker(statements[0], input);
   for (const statement of statements) {
     if (input.program.source.ast.is.IsFunctionDeclaration(statement)) {
@@ -170,7 +172,7 @@ export function planStatements(
         planExpression,
         planStatements,
       });
-      if (statement === undefined) return [];
+      if (statement === undefined) failCsharpPlannerInvariant("An admitted switch requires its native plan.", node);
       const body = input.program.source.ast.as.AsSwitchStatement(node)?.CaseBlock;
       const captures = body === undefined ? [] : planCsharpCaptureFrame(body, input, diagnostics, state);
       return captures.length === 0 ? [statement] : [{ kind: "Block", body: { kind: "Block", statements: [...captures, statement] } }];
@@ -202,11 +204,9 @@ export function planStatements(
       if (type === undefined) {
         return failCsharpPlannerInvariant("An admitted local class lost its renderable native factory type.", node);
       }
-      const firstDiagnostic = diagnostics.length;
       const initializer = planClassFactoryExpression(factory, sourceFile, input, diagnostics, state);
       if (initializer === undefined) {
-        if (diagnostics.some((issue, index) => index >= firstDiagnostic && issue.category === "error")) return [];
-        return failCsharpPlannerInvariant("An admitted local class lost its native capture values without a child refusal.", node);
+        return failCsharpPlannerInvariant("An admitted local class lost its native capture values.", node);
       }
       return consumeCsharpPlannedValue(initializer, expression => [{ kind: "LocalDeclarationStatement", type, initializer: expression,
         name: planIdentifierName(input.program.source.ast.name(node), "Class", input, diagnostics, "Local class") }]);
