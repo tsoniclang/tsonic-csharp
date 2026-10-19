@@ -47,7 +47,6 @@ import {
   planCsharpPlannedDiscard,
 } from "./statement-output.js";
 import { planCsharpExpressionCompletion } from "../expressions/planned-value-composition.js";
-import { csharpVoidReturnCompletion } from "../../../target-model/types/index.js";
 import {
   convertCsharpYieldResumeExpression,
   planCsharpYieldValue,
@@ -104,7 +103,7 @@ export function planReturnStatement(
       : planExpression(statement.Expression, sourceFile, input, diagnostics, state
         );
     if (expression === undefined) {
-      return [];
+      return failCsharpPlannerInvariant("An admitted generator return requires its native completion value.", node);
     }
     const generator = state.generator;
     return [
@@ -121,24 +120,22 @@ export function planReturnStatement(
       { kind: "GotoStatement", label: generator.exitLabel },
     ])];
   }
-  const expectedReturnExpressionType = state.currentReturnExpressionType ?? state.currentReturnType;
-  const expectedReturnExpressionTargetType = state.currentReturnExpressionTargetType;
-  const completion = statement.Expression === undefined ? undefined : csharpVoidReturnCompletion(
-    input.types.classifications.resolveNode(statement.Expression, sourceFile), expectedReturnExpressionTargetType);
-  if (completion !== undefined && statement.Expression !== undefined) {
+  const completion = input.program.records.returnCompletion.get(node);
+  if (completion === undefined) failCsharpPlannerInvariant("An admitted return requires its sealed native completion.", node);
+  const expectedReturnExpressionTargetType = completion.target;
+  if (completion.kind !== "value" && statement.Expression !== undefined) {
     const value = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
-    return value === undefined ? [] : planCsharpVoidReturn(value, completion, expectedReturnExpressionTargetType, input.scope.typeParameterNames);
+    if (value === undefined) failCsharpPlannerInvariant("An admitted void return requires its native operand plan.", statement.Expression);
+    return planCsharpVoidReturn(value, completion.kind, expectedReturnExpressionTargetType, input.scope.typeParameterNames);
   }
-  if (statement.Expression === undefined && state.currentUndefinedReturn) {
+  if (statement.Expression === undefined && completion.kind === "absence") {
     return [planCsharpAbsenceReturn(expectedReturnExpressionTargetType, input.scope.typeParameterNames)];
   }
   const expression = statement.Expression === undefined
     ? undefined
-    : expectedReturnExpressionType === undefined
-      ? planExpression(statement.Expression, sourceFile, input, diagnostics, state)
-      : planExpression(statement.Expression, sourceFile, input, diagnostics, state);
+    : planExpression(statement.Expression, sourceFile, input, diagnostics, state);
   if (statement.Expression !== undefined && expression === undefined) {
-    return [];
+    return failCsharpPlannerInvariant("An admitted return requires its native operand plan.", statement.Expression);
   }
   return expression === undefined ? [{ kind: "ReturnStatement" }]
     : consumeCsharpPlannedValue(expression, value => [{ kind: "ReturnStatement", expression: value }],
@@ -222,7 +219,7 @@ export function planThrowStatement(
   }
   const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
   if (expression === undefined) {
-    return [];
+    return failCsharpPlannerInvariant("An admitted throw requires its native operand plan.", statement.Expression);
   }
   return consumeCsharpPlannedValue(expression, value => {
     const native = isCsharpJsValueTargetType(thrown.targetCarrier) ? csharpThrownValueFromExpression(value) : value;
@@ -300,22 +297,28 @@ export function planExpressionStatement(
         state,
       );
       if (yieldPlan === undefined) {
-        return [];
+        return failCsharpPlannerInvariant("An admitted yield assignment requires its native suspension plan.", rightYield);
       }
       state.expressionOverrides.set(rightYield, yieldPlan.resumeExpression);
-      const planned = planExpression(expression, sourceFile, input, diagnostics, state);
-      state.expressionOverrides.delete(rightYield);
-      return planned === undefined
-        ? []
-        : [...yieldPlan.statements, ...planCsharpPlannedDiscard(planned)];
+      try {
+        const planned = planExpression(expression, sourceFile, input, diagnostics, state);
+        if (planned === undefined) failCsharpPlannerInvariant("An admitted yield assignment requires its native value plan.", expression);
+        return [...yieldPlan.statements, ...planCsharpPlannedDiscard(planned)];
+      } finally {
+        state.expressionOverrides.delete(rightYield);
+      }
     }
   }
   const assignmentExpression = destructuringAssignmentExpressionStatementExpression(expression, input.program.source.ast);
   if (isDestructuringAssignmentExpression(assignmentExpression, input)) {
-    return planDestructuringAssignmentStatement(assignmentExpression, sourceFile, input, diagnostics, state ?? createDestructuringPlannerState(assignmentExpression, input.program.source.ast), planExpression) ?? [];
+    const planned = planDestructuringAssignmentStatement(assignmentExpression, sourceFile, input, diagnostics, state ?? createDestructuringPlannerState(assignmentExpression, input.program.source.ast), planExpression);
+    if (planned === undefined) failCsharpPlannerInvariant("An admitted destructuring assignment requires its native value plan.", assignmentExpression);
+    return planned;
   }
+  if (expression === undefined) failCsharpPlannerInvariant("An admitted expression statement requires its checked operand.", node);
   const planned = planExpression(expression!, sourceFile, input, diagnostics, state);
-  return planned === undefined ? [] : planCsharpPlannedDiscard(planned);
+  if (planned === undefined) failCsharpPlannerInvariant("An admitted expression statement requires its native value plan.", expression);
+  return planCsharpPlannedDiscard(planned);
 }
 
 function destructuringAssignmentExpressionStatementExpression(

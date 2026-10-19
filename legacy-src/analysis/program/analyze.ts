@@ -492,6 +492,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
     !analysis.sourceEvidence.compileTimeMetadata.get(node) &&
     !admittedOperations.nativeUnreachable.get(node) && nativeParticipation.participation.get(node) !== "erased";
   const statementCompletions = analyzeCsharpStatementCompletions({ ast: source.ast, nodes: sourceStorage.nodes,
+    returnContexts: analysis.expectedTypes.returnContext, returnContracts: analysis.declarations.returnContract,
+    values: analysis.valueReads.valueRead,
     admitted: admittedControlNode, required: analysis.requiredRecords, facts: {
       erased: node => analysis.sourceEvidence.compileTimeMetadata.get(node) === true ||
         admittedOperations.nativeUnreachable.get(node) === true || admittedOperations.erasedStatement.get(node) === true ||
