@@ -10,6 +10,7 @@ import { analyzeCsharpClassFactories } from "../project-types/class-factories.js
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 import { createCsharpProgramRecords } from "./records/create.js";
 import { analyzeCsharpStatementExits } from "../control-flow/statement-exits.js";
+import { analyzeCsharpStatementCompletions } from "../control-flow/statement-completion.js";
 import type { CsharpRequiredRecord } from "./records/required-records.js";
 import { analyzeSourceLiteralValues, sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
@@ -179,8 +180,6 @@ function analyzeCsharpTargetProgramBeforeSeal(
   }));
   const source = input.source;
   if (source.semantics.enumConstants.issues.length !== 0) return rejectedTargetStage(source.semantics.enumConstants.issues);
-  const nativeControlIssues = analyzeCsharpNativeControlFlow(source);
-  if (nativeControlIssues.length !== 0) return rejectedTargetStage(nativeControlIssues);
   const memoryBindings = createTsonicMemoryBindingIndex(source);
   const sourceAttributeApplications = createCsharpSourceAttributeApplicationIndex(source, source.navigation.sourceFiles);
   const safetyApplications = createCsharpSafetyApplicationFactIndex({
@@ -487,11 +486,19 @@ function analyzeCsharpTargetProgramBeforeSeal(
     analysis.sourceEvidence.compileTimeMetadata, nativeParticipation.participation,
     admittedOperations.nativeUnreachable);
   if (rawInterfaceIssues.length > 0) return rejectedTargetStage(rawInterfaceIssues);
+  const admittedControlNode = (node: Node): boolean => nativeDemand.nativeUse.order(node) !== undefined &&
+    !analysis.sourceEvidence.compileTimeMetadata.get(node) &&
+    !admittedOperations.nativeUnreachable.get(node) && nativeParticipation.participation.get(node) !== "erased";
+  const statementCompletions = analyzeCsharpStatementCompletions({ ast: source.ast, nodes: sourceStorage.nodes,
+    admitted: admittedControlNode, required: analysis.requiredRecords });
+  const nativeControlIssues = analyzeCsharpNativeControlFlow(source, statementCompletions.controlExit, admittedControlNode);
+  if (nativeControlIssues.length !== 0) return rejectedTargetStage(nativeControlIssues);
   const statementExits = analyzeCsharpStatementExits({ ast: source.ast, nodes: sourceStorage.nodes,
     operations: admittedOperations, metadata: analysis.sourceEvidence.compileTimeMetadata,
     participation: nativeParticipation.participation, values: analysis.valueReads.valueRead,
     required: analysis.requiredRecords });
   const records = createCsharpProgramRecords({
+    statementCompletions,
     statementExits,
     objectShapeDemand,
     nativeValueCarriers,

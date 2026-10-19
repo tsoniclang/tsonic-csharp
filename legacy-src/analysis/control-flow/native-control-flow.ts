@@ -1,6 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { TryStatement_FinallyBlock, sourceControlTransferTarget, sourceEnclosingCallable,
+import { TryStatement_FinallyBlock, sourceEnclosingCallable,
   type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpNativeParticipationInput, CsharpNativeUseClassifications } from "../../target-model/records/native-demand.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
@@ -19,6 +19,7 @@ import type { CsharpValueReadClassifications } from "../../target-model/records/
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { directCsharpSourceYieldExpression } from "../../target-model/syntax/yield-expression.js";
 import { csharpDestructuringAssignmentSyntax } from "../../target-model/syntax/operators.js";
+import type { CsharpStatementCompletionRecords } from "../../target-model/records/statement-completion.js";
 
 export function admitCsharpIterationBindings(
   policy: CsharpPolicyContext,
@@ -79,7 +80,11 @@ export function admitCsharpIterationBindings(
     iteration: Object.freeze({ get: (node: Node) => iterations.get(node) }) }), issues: Object.freeze(issues) });
 }
 
-export function analyzeCsharpNativeControlFlow(source: TargetSourceProgram): readonly TargetDiagnostic[] {
+export function analyzeCsharpNativeControlFlow(
+  source: TargetSourceProgram,
+  controlExit: CsharpStatementCompletionRecords["controlExit"],
+  admitted: (node: Node) => boolean,
+): readonly TargetDiagnostic[] {
   const issues: TargetDiagnostic[] = [];
   const ast = source.ast;
   const within = (node: Node, root: Node): boolean => {
@@ -94,9 +99,9 @@ export function analyzeCsharpNativeControlFlow(source: TargetSourceProgram): rea
     if (cleanup !== undefined && sourceEnclosingCallable(node, ast) !== sourceEnclosingCallable(cleanup, ast))
       cleanup = undefined;
     const kind = ast.kindName(node);
-    if (cleanup !== undefined && (kind === "KindReturnStatement" || kind === "KindBreakStatement" ||
+    if (admitted(node) && cleanup !== undefined && (kind === "KindReturnStatement" || kind === "KindBreakStatement" ||
       kind === "KindContinueStatement")) {
-      const target = kind === "KindReturnStatement" ? undefined : sourceControlTransferTarget(ast, node);
+      const target = kind === "KindReturnStatement" ? undefined : controlExit.get(node)?.target;
       if (target === undefined || !within(target, cleanup)) issues.push(Object.freeze({
         code: "CSHARP_NATIVE_FINALLY_CONTROL_TRANSFER", category: "error", source: "tsonic-csharp", sourceNode: node,
         message: "Native C# forbids return, break or continue leaving a finally body. Keep the control transfer outside cleanup.",

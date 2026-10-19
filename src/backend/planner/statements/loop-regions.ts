@@ -39,3 +39,16 @@ export function csharpLoopContinuationLabel(
   return region.used ? [{ kind: "LabeledStatement", name: label,
     statement: { kind: "Block", body: { kind: "Block", statements: [] } } }] : [];
 }
+
+export function finishCsharpLoopBody(
+  body: Node,
+  statements: readonly CsharpStatement[],
+  state: DestructuringPlannerState,
+): readonly CsharpStatement[] {
+  const targets = state.controlLabels.filter(target => target.loopBody === body &&
+    target.continueUsed === true && target.continueOwned !== true && target.continueLabel !== undefined);
+  return targets.length === 0 ? statements : [...statements, ...targets.map((target): CsharpStatement => ({
+    kind: "LabeledStatement", name: target.continueLabel!,
+    statement: { kind: "Block", body: { kind: "Block", statements: [] } },
+  }))];
+}

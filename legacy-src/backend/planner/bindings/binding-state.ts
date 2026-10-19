@@ -75,10 +75,11 @@ export interface GeneratorDelegationSyntheticNames {
 }
 
 export interface ControlLabelTarget {
-  readonly sourceName: string;
+  readonly source: Node;
   readonly breakLabel: string;
   readonly continueLabel?: string;
   readonly loop?: Node;
+  readonly loopBody?: Node;
   breakUsed?: boolean;
   continueUsed?: boolean;
   continueOwned?: boolean;

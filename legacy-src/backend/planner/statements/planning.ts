@@ -2,7 +2,6 @@ import type { CsharpPlanningContext } from "../context.js";
 import {
   AsBlock,
   AsForInOrOfStatement,
-  AsLabeledStatement,
   AsVariableStatement,
   KindBlock,
   KindBreakStatement,
@@ -59,7 +58,7 @@ import {
 import { planSwitchStatement } from "./switch-statements.js";
 import { planForInStatement, planForOfStatement } from "./statement-loops.js";
 import { planLabeledStatement } from "./statement-labels.js";
-import { withCsharpLoopContinuation } from "./loop-regions.js";
+import { withCsharpLoopContinuation, finishCsharpLoopBody } from "./loop-regions.js";
 import { planTryStatement } from "./statement-try.js";
 import {
   planBreakStatement,
@@ -156,16 +155,15 @@ export function planStatements(
     case KindReturnStatement:
       return planReturnStatement(node, sourceFile, input, diagnostics, state);
     case KindBreakStatement:
-      return planBreakStatement(node, input.program.source.ast, diagnostics, state);
+      return planBreakStatement(node, input, diagnostics, state);
     case KindContinueStatement:
-      return planContinueStatement(node, input.program.source.ast, diagnostics, state);
+      return planContinueStatement(node, input, diagnostics, state);
     case KindThrowStatement:
       return planThrowStatement(node, sourceFile, input, diagnostics, state);
     case KindDebuggerStatement:
       return planDebuggerStatement();
     case KindLabeledStatement: {
-      const statement = AsLabeledStatement(input.program.source.ast, node)!;
-      return [planLabeledStatement(statement, sourceFile, input, diagnostics, state, planNestedStatementBody)];
+      return [planLabeledStatement(node, sourceFile, input, diagnostics, state, planNestedStatementBody)];
     }
     case KindSwitchStatement: {
       const statement = planSwitchStatement(node, sourceFile, input, diagnostics, state, {
@@ -240,8 +238,8 @@ function planNestedStatementBody(
   if (node === undefined) {
     return [];
   }
-  if (HasSourceKind(input.program.source.ast, node, KindBlock)) {
-    return planBlockStatements(node, sourceFile, input, diagnostics, state);
-  }
-  return planStatements(node, sourceFile, input, diagnostics, state);
+  const statements = HasSourceKind(input.program.source.ast, node, KindBlock)
+    ? planBlockStatements(node, sourceFile, input, diagnostics, state)
+    : planStatements(node, sourceFile, input, diagnostics, state);
+  return finishCsharpLoopBody(node, statements, state);
 }

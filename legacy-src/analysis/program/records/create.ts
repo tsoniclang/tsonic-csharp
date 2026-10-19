@@ -25,9 +25,11 @@ import type { CsharpCallableCreationIndex } from "../../callables/model.js";
 import type { CsharpObjectShapeDemand } from "../../../target-model/records/object-shape-demand.js";
 import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
 import type { CsharpStatementExitRecords } from "../../../target-model/records/statement-exits.js";
+import type { CsharpStatementCompletionRecords } from "../../../target-model/records/statement-completion.js";
 
 export interface CsharpProgramRecordInput {
   readonly statementExits: CsharpStatementExitRecords;
+  readonly statementCompletions: CsharpStatementCompletionRecords;
   readonly objectShapeDemand: CsharpObjectShapeDemand;
   readonly nativeValueCarriers: CsharpNativeValueCarriers;
   readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
@@ -62,6 +64,7 @@ export function createCsharpProgramRecords(
 ): CsharpProgramRecords {
   const records: CsharpProgramRecords = Object.freeze({
     statementExit: input.statementExits.statementExit,
+    ...input.statementCompletions,
     objectShapeArtifact: input.objectShapeDemand,
     nativeValueDeclaration: input.nativeValueCarriers.nativeValueDeclaration,
     literalValue: input.literalValues.literalValue,

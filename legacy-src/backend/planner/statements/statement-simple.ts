@@ -7,7 +7,6 @@ import {
   AsParenthesizedExpression,
   AsReturnStatement,
   AsThrowStatement,
-  Node_Text,
 } from "@tsonic/target-api/source";
 import type {
   AstReader,
@@ -35,7 +34,7 @@ import {
 } from "../expressions/exception-flow.js";
 import { isCsharpJsValueTargetType } from "../../../target-model/types/index.js";
 import {
-  findControlLabel,
+  findCsharpControlTarget,
 } from "./statement-labels.js";
 import {
   createDestructuringPlannerState,
@@ -148,13 +147,16 @@ export function planReturnStatement(
 
 export function planBreakStatement(
   node: Node,
-  ast: AstReader,
+  input: CsharpPlanningContext,
   _diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
+  const ast = input.program.source.ast;
   const statement = AsBreakStatement(ast, node)!;
   if (statement.Label !== undefined) {
-    const target = findControlLabel(state, Node_Text(ast, statement.Label));
+    const selected = input.program.records.controlExit.get(node);
+    if (selected?.completion !== "break") failCsharpPlannerInvariant("An admitted break lost its exact source destination.", node);
+    const target = findCsharpControlTarget(state, selected.target);
     if (target === undefined) {
       return failCsharpPlannerInvariant("A checked labeled break lost its active native label target.", node);
     }
@@ -166,13 +168,16 @@ export function planBreakStatement(
 
 export function planContinueStatement(
   node: Node,
-  ast: AstReader,
+  input: CsharpPlanningContext,
   _diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
+  const ast = input.program.source.ast;
   const statement = AsContinueStatement(ast, node)!;
   if (statement.Label !== undefined) {
-    const target = findControlLabel(state, Node_Text(ast, statement.Label));
+    const selected = input.program.records.controlExit.get(node);
+    if (selected?.completion !== "continue") failCsharpPlannerInvariant("An admitted continue lost its exact source destination.", node);
+    const target = findCsharpControlTarget(state, selected.target);
     if (target?.continueLabel === undefined) {
       return failCsharpPlannerInvariant("A checked labeled continue lost its active native iteration target.", node);
     }
@@ -180,6 +185,7 @@ export function planContinueStatement(
     const region = [...state.loopContinuations].reverse().find(region => region.loop === target.loop);
     if (region?.label !== undefined) {
       region.used = true;
+      target.continueOwned = true;
       return [{ kind: "GotoStatement", label: region.label }];
     }
     return [{ kind: "GotoStatement", label: target.continueLabel }];
