@@ -10,7 +10,7 @@ import { planCsharpBindingDefaultValue } from "../../bindings/optional-values.js
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import type { CsharpDefaultParameterContract } from "../../../../target-model/records/declarations.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 type CsharpRuntimeParameterDefaultPlan = {
   readonly valueType: CsharpTypeNode;
@@ -28,7 +28,7 @@ export function planCsharpRuntimeParameterDefault(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   selectedParameterType?: TargetTypeRef,
-): CsharpRuntimeParameterDefaultPlan | undefined {
+): CsharpRuntimeParameterDefaultPlan {
   const contract = input.program.records.runtimeDefault.get(node);
   if (contract === undefined) {
     return failCsharpPlannerInvariant("A runtime parameter default requires its sealed contract.", node);
@@ -48,7 +48,7 @@ function planRuntimeParameterDefault(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-): CsharpRuntimeParameterDefaultPlan | undefined {
+): CsharpRuntimeParameterDefaultPlan {
   const declaration = input.program.source.ast.as.AsParameterDeclaration(node);
   if (declaration?.Initializer === undefined) {
     return failCsharpPlannerInvariant(
@@ -57,19 +57,17 @@ function planRuntimeParameterDefault(
   const valueType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, contract.valueType, diagnostics, node);
   const parameterType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, incomingType, diagnostics, node);
   if (valueType === undefined || parameterType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "A runtime parameter default requires renderable sealed native value and incoming carriers."));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted runtime parameter default requires renderable native value and incoming carriers.", node);
   }
   const initializer = planExpression(declaration.Initializer, sourceFile, input, diagnostics, state);
-  if (initializer === undefined) return undefined;
+  if (initializer === undefined) failCsharpPlannerInvariant("An admitted runtime parameter default requires its native initializer plan.", declaration.Initializer);
   const incoming: CsharpExpression = { kind: "IdentifierName", name: incomingName };
   const value = planCsharpBindingDefaultValue(node, sourceFile, input, diagnostics,
     incoming, contract.native, initializer, state);
-  if (value === undefined) return undefined;
+  if (value === undefined) failCsharpPlannerInvariant("An admitted runtime parameter default requires its native value plan.", node);
   return {
     valueType, parameterType,
-    passthrough: targetTypeRefEquals(contract.valueType, incomingType) && value.prelude.length === 0 && value.completion.kind === "value" &&
-      value.completion.expression.kind === "IdentifierName" && value.completion.expression.name === incomingName,
+    passthrough: contract.passthrough,
     ...(contract.acceptsOmission ? {
       defaultValue: contract.kind === "nullable" ? { kind: "LiteralExpression", value: null } as const
         : { kind: "DefaultExpression", type: parameterType } as const,

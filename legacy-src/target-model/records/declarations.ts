@@ -10,6 +10,7 @@ export type CsharpReturnTargetContract =
 export type CsharpDefaultParameterContract = CsharpRuntimeParameterDefault & {
   readonly acceptsOmission: boolean;
   readonly native: CsharpDefaultValueContract;
+  readonly passthrough: boolean;
 };
 
 export interface CsharpDeclarationClassifications {

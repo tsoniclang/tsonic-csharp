@@ -110,8 +110,9 @@ export function analyzeCsharpDeclarations(
           const slot = owner === undefined ? undefined : queries.types.declarationSignatureInfo(owner)
             ?.parameters.find(parameter => parameter.declaration === node);
           if (slot === undefined) throw new Error("A native parameter default requires its exact checked declaration slot.");
-          runtimeDefaults.set(node, Object.freeze({ ...runtimeDefault, acceptsOmission: slot.acceptsOmission,
-            native: selectCsharpDefaultValueContract(runtimeDefault.parameterType, runtimeDefault.valueType, false) }));
+          const native = selectCsharpDefaultValueContract(runtimeDefault.parameterType, runtimeDefault.valueType, false);
+          runtimeDefaults.set(node, Object.freeze({ ...runtimeDefault, acceptsOmission: slot.acceptsOmission, native,
+            passthrough: native.kind === "value" && !native.normalize && targetTypeRefEquals(native.source, native.target) }));
         }
       }
     }
