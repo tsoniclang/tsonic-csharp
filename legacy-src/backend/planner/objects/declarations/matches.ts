@@ -40,10 +40,12 @@ import type { CsharpObjectShapeProjectionDeclaration } from "../../../../target-
 import { renderObjectShapeProjectionMethod } from "../closed-object-shapes.js";
 import type { CsharpNativeMemberHidingReader } from "../../../../target-model/records/native-member-names.js";
 import { planCsharpArtifactMemberHiding } from "../../declarations/modifiers.js";
+import type { CsharpObjectShapeEmissionRecords } from "../../../../target-model/records/object-shape-emission.js";
 
 export function objectShapeDeclarationMatches(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   names: CsharpNativeMemberHidingReader,
+  records: Pick<CsharpObjectShapeEmissionRecords, "objectShapeParameters">,
   declaration: CsharpClassDeclaration,
   fact: CsharpObjectShapeFact,
   jsonSerializable = false,
@@ -58,7 +60,7 @@ export function objectShapeDeclarationMatches(
   const actualContracts = declaration.members.filter(member =>
     member.kind === "PropertyDeclaration" && member.explicitInterface !== undefined);
   if (JSON.stringify(actualContracts) !== JSON.stringify(methodValueContracts)) return false;
-  const typeParameters = renderObjectShapeTypeParameters(typeParameterNames, fact, undefined, undefined);
+  const typeParameters = renderObjectShapeTypeParameters(typeParameterNames, fact, records, undefined);
   if (typeParameters === undefined || !objectShapeTypeParametersMatch(declaration.typeParameters, typeParameters)) {
     return false;
   }

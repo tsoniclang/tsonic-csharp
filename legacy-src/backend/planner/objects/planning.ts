@@ -132,6 +132,7 @@ export function materializeObjectShapeDeclarations(
         : existing.kind === "ClassDeclaration" && !objectShapeDeclarationMatches(
         typeParameterNames,
         input.program.records.nativeMemberHiding,
+        input.program.records,
         existing,
         declarationArtifact.fact,
         declarationArtifact.capabilities.includes("json-serialization"),
@@ -217,7 +218,7 @@ function renderObjectShapeDeclaration(
   const typeParameters = renderObjectShapeTypeParameters(
     input.scope.typeParameterNames,
     fact,
-    undefined,
+    input.program.records,
     undefined,
   );
   if ((fact.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true) {

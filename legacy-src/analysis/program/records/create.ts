@@ -42,11 +42,13 @@ import type { CsharpClassEmissionRecords } from "../../../target-model/records/c
 import type { CsharpBindingIdentityRecords } from "../../../target-model/records/binding-identities.js";
 import type { CsharpSourceFileRecords } from "../../../target-model/records/source-files.js";
 import type { CsharpObjectShapeRecords } from "../../../target-model/records/object-shapes.js";
+import type { CsharpObjectShapeEmissionRecords } from "../../../target-model/records/object-shape-emission.js";
 
 export interface CsharpProgramRecordInput {
   readonly bindingIdentities: CsharpBindingIdentityRecords;
   readonly sourceFiles: CsharpSourceFileRecords;
   readonly objectShapes: CsharpObjectShapeRecords;
+  readonly objectShapeEmission: CsharpObjectShapeEmissionRecords;
   readonly classEmission: CsharpClassEmissionRecords;
   readonly nativeMemberNames: CsharpNativeMemberNames;
   readonly methods: CsharpMethodEmissionRecords;
@@ -98,6 +100,7 @@ export function createCsharpProgramRecords(
     ...input.bindingIdentities,
     ...input.sourceFiles,
     ...input.objectShapes,
+    ...input.objectShapeEmission,
     ...input.classEmission,
     ...input.callableParameters,
     ...input.callableDeclarations,
