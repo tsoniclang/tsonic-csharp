@@ -6,7 +6,7 @@ import { consumeCsharpPlannedValue } from "./statement-output.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { finishSwitchSections, planOrderedSwitch } from "./ordered-switch.js";
+import { finishSwitchSections, planOrderedSwitch, type CsharpPlannedSwitchSection } from "./ordered-switch.js";
 
 interface SwitchStatementPlanner {
   readonly planExpression: (
@@ -31,17 +31,26 @@ export function planSwitchStatement(
     return failCsharpPlannerInvariant("An admitted switch lost its selected native classification.", node);
   }
   const ast = input.program.source.ast;
-  const body = (clause: Node) => (ast.as.AsCaseOrDefaultClause(clause)?.Statements?.Nodes ?? [])
-    .filter((statement): statement is Node => statement !== undefined)
-    .flatMap(statement => planner.planStatements(statement, sourceFile, input, diagnostics, state));
+  const body = (clause: Node): readonly CsharpStatement[] => {
+    const statements = ast.as.AsCaseOrDefaultClause(clause)?.Statements?.Nodes;
+    if (statements === undefined || statements.some(statement => statement === undefined)) {
+      failCsharpPlannerInvariant("An admitted switch clause lost its dense source statements.", clause);
+    }
+    return statements.flatMap(statement => planner.planStatements(statement!, sourceFile, input, diagnostics, state));
+  };
   if (selection.kind === "ordered") return planOrderedSwitch(selection, sourceFile, input, diagnostics, state, body);
   const statement = ast.as.AsSwitchStatement(node)!;
   const expression = statement.Expression === undefined ? undefined
     : planner.planExpression(statement.Expression, sourceFile, input, diagnostics);
-  if (expression === undefined || statement.CaseBlock === undefined) return undefined;
-  const sections: CsharpSwitchSection[] = [];
+  if (statement.Expression === undefined || statement.CaseBlock === undefined) {
+    failCsharpPlannerInvariant("An admitted switch lost its checked discriminant or case block.", node);
+  }
+  if (expression === undefined) return undefined;
+  const sections: CsharpPlannedSwitchSection[] = [];
   for (const clause of ast.as.AsCaseBlock(statement.CaseBlock)?.Clauses?.Nodes ?? []) {
-    if (clause === undefined) continue;
+    if (clause === undefined) failCsharpPlannerInvariant("An admitted switch lost a dense checked clause.", node);
+    const exits = input.program.records.statementExit.get(clause);
+    if (exits === undefined) failCsharpPlannerInvariant("An admitted switch clause lost its sealed source completion.", clause);
     let label: CsharpSwitchSection["label"];
     if (ast.is.IsDefaultClause(clause)) label = { kind: "DefaultSwitchLabel" };
     else {
@@ -53,7 +62,7 @@ export function planSwitchStatement(
       }
       label = { kind: "CaseSwitchLabel", expression: value.completion.expression };
     }
-    sections.push({ kind: "SwitchSection", label, statements: body(clause) });
+    sections.push({ exits, syntax: { kind: "SwitchSection", label, statements: body(clause) } });
   }
   return { kind: "Block", body: { kind: "Block", statements: consumeCsharpPlannedValue(expression, value => [{
     kind: "SwitchStatement", expression: value, sections: finishSwitchSections(sections),

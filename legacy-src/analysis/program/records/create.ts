@@ -24,8 +24,10 @@ import { assertCsharpRequiredRecords, type CsharpRequiredRecord } from "./requir
 import type { CsharpCallableCreationIndex } from "../../callables/model.js";
 import type { CsharpObjectShapeDemand } from "../../../target-model/records/object-shape-demand.js";
 import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
+import type { CsharpStatementExitRecords } from "../../../target-model/records/statement-exits.js";
 
 export interface CsharpProgramRecordInput {
+  readonly statementExits: CsharpStatementExitRecords;
   readonly objectShapeDemand: CsharpObjectShapeDemand;
   readonly nativeValueCarriers: CsharpNativeValueCarriers;
   readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
@@ -59,6 +61,7 @@ export function createCsharpProgramRecords(
   required: readonly CsharpRequiredRecord[],
 ): CsharpProgramRecords {
   const records: CsharpProgramRecords = Object.freeze({
+    statementExit: input.statementExits.statementExit,
     objectShapeArtifact: input.objectShapeDemand,
     nativeValueDeclaration: input.nativeValueCarriers.nativeValueDeclaration,
     literalValue: input.literalValues.literalValue,

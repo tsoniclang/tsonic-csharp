@@ -21,8 +21,9 @@ import type { CsharpGenericProjectionIndex } from "./type-projections.js";
 import type { CsharpNativeValueCarriers } from "./native-value-carriers.js";
 import type { CsharpObjectShapeDemand } from "./object-shape-demand.js";
 import type { CsharpAdmittedIteration } from "./selection.js";
+import type { CsharpStatementExitRecords } from "./statement-exits.js";
 
-export interface CsharpProgramRecords {
+export interface CsharpProgramRecords extends CsharpStatementExitRecords {
   readonly objectShapeArtifact: CsharpObjectShapeDemand;
   readonly nativeValueDeclaration: CsharpNativeValueCarriers["nativeValueDeclaration"];
   readonly literalValue: import("@tsonic/target-api/source").SourceLiteralIndex["literalValue"];

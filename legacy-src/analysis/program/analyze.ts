@@ -9,6 +9,7 @@ import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-
 import { analyzeCsharpClassFactories } from "../project-types/class-factories.js";
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 import { createCsharpProgramRecords } from "./records/create.js";
+import { analyzeCsharpStatementExits } from "../control-flow/statement-exits.js";
 import type { CsharpRequiredRecord } from "./records/required-records.js";
 import { analyzeSourceLiteralValues, sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
@@ -486,7 +487,12 @@ function analyzeCsharpTargetProgramBeforeSeal(
     analysis.sourceEvidence.compileTimeMetadata, nativeParticipation.participation,
     admittedOperations.nativeUnreachable);
   if (rawInterfaceIssues.length > 0) return rejectedTargetStage(rawInterfaceIssues);
+  const statementExits = analyzeCsharpStatementExits({ ast: source.ast, nodes: sourceStorage.nodes,
+    operations: admittedOperations, metadata: analysis.sourceEvidence.compileTimeMetadata,
+    participation: nativeParticipation.participation, values: analysis.valueReads.valueRead,
+    required: analysis.requiredRecords });
   const records = createCsharpProgramRecords({
+    statementExits,
     objectShapeDemand,
     nativeValueCarriers,
     literalValues, exactLiterals, nativeParticipation, nativeDemand, bindingPatterns,

@@ -14,7 +14,7 @@ export interface CsharpRequiredRecordOrigin {
 
 export interface CsharpRequiredNodeRecord extends CsharpRequiredRecordOrigin {
   readonly family: "classFactory" | "requiredStorageType" | "nativeParticipation" | "nativeHandler" |
-    "sourceArgument" | "bindingPatternProjection" | "callableTarget" | "nativeValueDeclaration";
+    "sourceArgument" | "bindingPatternProjection" | "callableTarget" | "nativeValueDeclaration" | "statementExit";
 }
 
 export type CsharpRequiredRecord = CsharpRequiredNodeRecord
@@ -64,6 +64,8 @@ function csharpRequiredRecordPublished(records: CsharpProgramRecords, requiremen
       return records.callableTarget.get(requirement.subject) !== undefined;
     case "nativeValueDeclaration":
       return records.nativeValueDeclaration.get(requirement.subject) !== undefined;
+    case "statementExit":
+      return records.statementExit.get(requirement.subject) !== undefined;
     case "nativeUse":
       return records.nativeUse.get(requirement.site) !== undefined;
     case "exactLiteral": {

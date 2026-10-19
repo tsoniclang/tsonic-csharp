@@ -9,6 +9,12 @@ import { planSelectedCsharpBinaryOperation } from "../expressions/operators/sele
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { CsharpPlannedValue } from "../expressions/planned-values.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
+
+export interface CsharpPlannedSwitchSection {
+  readonly syntax: CsharpSwitchSection;
+  readonly exits: boolean;
+}
 
 export function planOrderedSwitch(
   selection: Extract<CsharpSwitchSelection, { readonly kind: "ordered" }>,
@@ -20,7 +26,8 @@ export function planOrderedSwitch(
 ): CsharpStatement | undefined {
   const expression = planExpression(selection.expression, sourceFile, input, diagnostics, state);
   const type = csharpTypeFromTargetTypeRef(selection.type, input.scope.typeParameterNames);
-  if (expression === undefined || type === undefined) return undefined;
+  if (type === undefined) failCsharpPlannerInvariant("An admitted ordered switch lost its native value type.", selection.expression);
+  if (expression === undefined) return undefined;
   const valueName = allocateExpressionTemp(state);
   const sectionName = allocateExpressionTemp(state);
   const value: CsharpExpression = { kind: "IdentifierName", name: valueName };
@@ -48,12 +55,16 @@ export function planOrderedSwitch(
         operatorToken: { kind: "EqualsToken" }, right: { kind: "LiteralExpression", value: index } },
     }] }, ...(alternative === undefined ? {} : { elseBody: { kind: "Block" as const, statements: [alternative] } }) }]) } };
   }
-  const sections = selection.clauses.map((clause, index) => ({
-    kind: "SwitchSection" as const,
-    label: index === selection.defaultIndex ? { kind: "DefaultSwitchLabel" as const }
-      : { kind: "CaseSwitchLabel" as const, expression: { kind: "LiteralExpression" as const, value: index } },
-    statements: planBody(clause.node),
-  }));
+  const sections = selection.clauses.map((clause, index): CsharpPlannedSwitchSection => {
+    const exits = input.program.records.statementExit.get(clause.node);
+    if (exits === undefined) failCsharpPlannerInvariant("An admitted switch clause lost its sealed source completion.", clause.node);
+    return { exits, syntax: {
+      kind: "SwitchSection",
+      label: index === selection.defaultIndex ? { kind: "DefaultSwitchLabel" }
+        : { kind: "CaseSwitchLabel", expression: { kind: "LiteralExpression", value: index } },
+      statements: planBody(clause.node),
+    } };
+  });
   return { kind: "Block", body: { kind: "Block", statements: consumeCsharpPlannedValue(expression, value => [
     { kind: "LocalDeclarationStatement", name: valueName, type, initializer: value },
     { kind: "LocalDeclarationStatement", name: sectionName, type: { kind: "PredefinedType", name: "int" },
@@ -63,25 +74,12 @@ export function planOrderedSwitch(
   ]) } };
 }
 
-export function finishSwitchSections(sections: readonly CsharpSwitchSection[]) {
+export function finishSwitchSections(sections: readonly CsharpPlannedSwitchSection[]): readonly CsharpSwitchSection[] {
   return sections.map((section, index) => {
-    const last = section.statements[section.statements.length - 1];
-    if (last !== undefined && terminates(last)) return section;
+    if (section.exits) return section.syntax;
     const next = sections[index + 1];
-    return { ...section, statements: [...section.statements, next === undefined
+    return { ...section.syntax, statements: [...section.syntax.statements, next === undefined
       ? { kind: "BreakStatement" as const }
-      : { kind: "GotoSwitchStatement" as const, label: next.label }] };
+      : { kind: "GotoSwitchStatement" as const, label: next.syntax.label }] };
   });
-}
-
-function terminates(statement: CsharpStatement): boolean {
-  switch (statement.kind) {
-    case "BreakStatement": case "ContinueStatement": case "GotoStatement":
-    case "GotoSwitchStatement": case "ReturnStatement": case "ThrowStatement": return true;
-    case "Block": {
-      const last = statement.body.statements[statement.body.statements.length - 1];
-      return last !== undefined && terminates(last);
-    }
-    default: return false;
-  }
 }
