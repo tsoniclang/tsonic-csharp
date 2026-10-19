@@ -34,7 +34,8 @@ import {
   getCsharpDelegateSignature,
   isCsharpVoidTargetType,
 } from "../../../../target-model/types/index.js";
-import { renderCsharpStructuralInterfaceMembers } from "./structural-interfaces.js";
+import { renderCsharpStructuralMethod } from "./structural-interfaces.js";
+import type { CsharpStructuralObjectEmissionRecords } from "../../../../target-model/records/structural-object-emission.js";
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { csharpObjectShapeMethodDeclaration } from "../../../../target-model/types/method-values.js";
 import { renderCsharpDeferredCaptureMember } from "./deferred-captures.js";
@@ -48,7 +49,7 @@ export function renderObjectShapeMembers(
   receiverBoundMethodKeys: ReadonlySet<string>,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
-  storage: Pick<CsharpStorageClassifications, "nativeField">,
+  storage: Pick<CsharpStorageClassifications, "nativeField"> & CsharpStructuralObjectEmissionRecords,
   names: CsharpNativeMemberHidingReader,
   deferredCaptures: ReadonlySet<string> = new Set(),
 ): CsharpClassDeclaration["members"] | undefined {
@@ -144,13 +145,12 @@ export function renderObjectShapeMembers(
 
 function renderCopiedGenericMethod(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
-  shape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number], storage: Pick<CsharpStorageClassifications, "nativeField">,
+  shape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number], storage: Pick<CsharpStorageClassifications, "nativeField"> & CsharpStructuralObjectEmissionRecords,
   names: CsharpNativeMemberHidingReader,
 ): readonly (CsharpTypeMember | undefined)[] {
   const storageType = member.methodStorageType === undefined ? undefined : csharpTypeFromTargetTypeRef(member.methodStorageType, typeParameterNames);
-  const contract = renderCsharpStructuralInterfaceMembers(typeParameterNames, { ...shape, members: [member] }, storage, false, [], names);
-  const method = contract?.[0];
-  if (storageType === undefined || method?.kind !== "MethodDeclaration") return [undefined];
+  const method = renderCsharpStructuralMethod(typeParameterNames, shape, member, { ...storage, nativeMemberHiding: names });
+  if (storageType === undefined) return [undefined];
   const name = objectShapeStorageMemberName(shape, member);
   const call: CsharpExpression = { kind: "InvocationExpression", callee: {
     kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: member.targetName,

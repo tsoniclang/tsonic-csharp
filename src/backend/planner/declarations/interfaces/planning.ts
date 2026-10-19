@@ -37,7 +37,7 @@ import {
 import {
   getCsharpObjectShapeFactForNode,
 } from "../../objects/fact-queries.js";
-import { csharpInheritedStructuralInterfaces, renderCsharpStructuralInterfaceMethodValues } from "../../objects/declarations/structural-interfaces.js";
+import { renderCsharpStructuralInterfaceMethodValues } from "../../objects/declarations/structural-interfaces.js";
 import { planCsharpNativeMemberHiding, planCsharpAdmittedMemberName } from "../modifiers.js";
 import { renderObjectShapeProjectionMethods } from "../../objects/closed-object-shapes.js";
 import {
@@ -75,9 +75,8 @@ export function planInterfaceDeclaration(
         return failCsharpPlannerInvariant("An admitted interface member lost its native declaration form.", member);
     }
   });
-  const inherited = objectShape === undefined ? [] : csharpInheritedStructuralInterfaces(objectShape, input);
   if (objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "method-values")) {
-    const rendered = renderCsharpStructuralInterfaceMethodValues(input.scope.typeParameterNames, objectShape, inherited, input.program.names);
+    const rendered = renderCsharpStructuralInterfaceMethodValues(input.scope.typeParameterNames, objectShape, input.program.records);
     if (rendered === undefined) failCsharpPlannerInvariant("An admitted interface method value lost its native callable storage.", node);
     members.push(...rendered);
   }

@@ -46,7 +46,7 @@ export {
 export { objectShapeMethodStorageTargetType } from "./object-shape-storage.js";
 
 import { guardCsharpFrozenDataProperties } from "./frozen-data-properties.js";
-import { csharpInheritedStructuralInterfaces, renderCsharpStructuralInterfaceMembers } from "./declarations/structural-interfaces.js";
+import { renderCsharpStructuralInterfaceMembers } from "./declarations/structural-interfaces.js";
 import { renderCsharpMethodValueContracts } from "./declarations/method-values.js";
 import { csharpClosedValueCarrierInterfaceType } from "./declarations/interfaces.js";
 import { csharpEnumerableKeysContract, renderCsharpEnumerableKeys } from "./declarations/enumerable-keys.js";
@@ -150,9 +150,7 @@ function renderObjectShapeDeclaration(
   );
   if (selected.representation === "interface") {
     const inheritedEnumerableKeys = selected.inheritedEnumerableKeys;
-    const inherited = csharpInheritedStructuralInterfaces(fact, input);
-    const contractMembers = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, fact, input.program.records,
-      capabilities.includes("method-values"), inherited, input.program.records.nativeMemberHiding);
+    const contractMembers = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, fact, input.program.records);
     if (contractMembers === undefined || interfaces === undefined || typeParameters === undefined) {
       failCsharpPlannerInvariant("A structural reference contract requires exact renderable member signatures.", fact.methodImplementation?.declaration);
     }

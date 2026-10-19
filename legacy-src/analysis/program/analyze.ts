@@ -9,6 +9,7 @@ import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-
 import { analyzeCsharpClassFactories } from "../project-types/class-factories.js";
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 import { createCsharpProgramRecords } from "./records/create.js";
+import { analyzeCsharpStructuralObjectEmission } from "../objects/structural-emission.js";
 import { analyzeCsharpDeclarationModifiers } from "../declarations/classes/modifiers.js";
 import { analyzeCsharpNativeDeclarationForms } from "../declarations/native-forms.js";
 import { analyzeCsharpStructuralInterfaceEmission } from "../declarations/interfaces/structural.js";
@@ -550,7 +551,11 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const objectShapeEmission = analyzeCsharpObjectShapeEmission({ ast: source.ast, nodes: sourceStorage.nodes, nativeDemand, bindings: bindingPatterns,
     demand: objectShapeDemand, shapes: callableAdapters.objectShapes, names });
   if (objectShapeEmission.issues.length !== 0) return rejectedTargetStage(objectShapeEmission.issues);
+  const structuralObjectEmission = analyzeCsharpStructuralObjectEmission({ shapes: callableAdapters.objectShapes,
+    demand: objectShapeDemand, storage: analysis.storage });
+  if (structuralObjectEmission.issues.length !== 0) return rejectedTargetStage(structuralObjectEmission.issues);
   const records = createCsharpProgramRecords({
+    structuralObjectEmission: structuralObjectEmission.records,
     compilation: Object.freeze({ namespace: project.value.namespace, languageDialect: configuration.languageDialect }),
     sourceUnions: analyzeCsharpSourceUnionEmission(typeDefinitions),
     objectShapeEmission: objectShapeEmission.records,
