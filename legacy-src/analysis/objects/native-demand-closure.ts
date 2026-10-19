@@ -18,7 +18,6 @@ import {
   isCsharpClosedJsonRuntimeLeaf,
   isCsharpRecordDictionaryTargetType,
   isCsharpStringTargetType,
-  resolveCsharpJsonObjectShapeContract,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../target-model/types/index.js";
@@ -28,6 +27,7 @@ import { objectShapeArtifactKey } from "../../target-model/records/object-shape-
 import { objectShapeProjectionKey } from "../../target-model/records/object-shape-demand.js";
 import { collectCsharpReferenceClosure } from "./native-demand-references.js";
 import { resolveCsharpSourceClassStorage } from "./native-demand-storage.js";
+import { selectCsharpJsonObjectShapeContract } from "../../policy/objects/json-object-shapes.js";
 
 export function collectJsonClosure(
   { collectJsonShape, collectJsonType, visibleObjectShapes }: CsharpObjectShapeDemandScope,
@@ -226,7 +226,7 @@ export function collectJsonType(
 }
 
 export function collectJsonShape(
-  { collectJsonType }: CsharpObjectShapeDemandScope,
+  { collectJsonType, jsonContracts }: CsharpObjectShapeDemandScope,
   shape: CsharpObjectShapeFact,
   state: JsonClosureState,
 ): string | undefined {
@@ -241,7 +241,11 @@ export function collectJsonShape(
     return `Closed JSON object shape '${key}' is recursively self-referential.`;
   }
   state.visiting.add(key);
-  const contract = resolveCsharpJsonObjectShapeContract(shape);
+  let contract = jsonContracts.get(shape);
+  if (contract === undefined) {
+    contract = selectCsharpJsonObjectShapeContract({ shape });
+    jsonContracts.set(shape, contract);
+  }
   if (contract.kind === "rejected") {
     state.visiting.delete(key);
     return contract.reason;

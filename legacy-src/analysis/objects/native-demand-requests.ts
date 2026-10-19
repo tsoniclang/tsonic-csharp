@@ -6,6 +6,7 @@ import type {
   TargetTypeRef,
 } from "../../target-model/types/index.js";
 import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
+import { selectCsharpJsonObjectShapeContract } from "../../policy/objects/json-object-shapes.js";
 import type { CsharpArtifactRequestResult, CsharpObjectShapeProjectionRequestResult } from "./native-demand-batches.js";
 import type { CsharpObjectShapeArtifactClosure, CsharpObjectShapeDeclarationNaming, CsharpObjectShapeDemandClosure,
   CsharpPreparedObjectShapeProjection } from "./native-demand-batches.js";
@@ -427,7 +428,7 @@ export function requireObjectShapeMethodReceiver(
 }
 
 export function closeObjectShapeArtifacts(
-  { records, host }: CsharpObjectShapeDemandScope,
+  { records, host, jsonContracts }: CsharpObjectShapeDemandScope,
 ): readonly CsharpObjectShapeArtifactClosure[] {
   const declarations = new Map<string, {
     readonly capabilities: Set<CsharpObjectShapeCapability>;
@@ -470,7 +471,15 @@ export function closeObjectShapeArtifacts(
         }
         receivers.add(csharpObjectShapeMemberContractKey(selected.member));
       }
+      let jsonContract = jsonContracts.get(record.fact);
+      if (surface.capabilities.has("json-serialization") && jsonContract === undefined) {
+        jsonContract = selectCsharpJsonObjectShapeContract({ shape: record.fact });
+        jsonContracts.set(record.fact, jsonContract);
+      }
+      if (jsonContract?.kind === "rejected" && surface.capabilities.has("json-serialization"))
+        return failTargetAnalysisInvariant("tsonic-csharp", "An admitted JSON declaration requires its exact native template contract.", record.fact.methodImplementation?.declaration);
       return Object.freeze({
+        jsonContract: surface.capabilities.has("json-serialization") && jsonContract?.kind === "resolved" ? jsonContract.contract : undefined,
         key,
         fact: record.fact,
         materialization: record.materialization,
@@ -516,7 +525,7 @@ export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDeman
   const requireOpen = (): void => {
     if (sealed) throw new Error("C# object-shape artifact demand is sealed.");
   };
-  const operations: Omit<CsharpObjectShapeDemandScope, "host" | "records" | "projections"> = {
+  const operations: Omit<CsharpObjectShapeDemandScope, "host" | "records" | "projections" | "jsonContracts"> = {
     registerObjectShape(fact, materialization) {
       requireOpen();
       return registerObjectShape(scope, fact, materialization);
@@ -552,7 +561,7 @@ export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDeman
     collectJsonShape: (shape, state) => collectJsonShape(scope, shape, state),
     inheritedObjectShapeCapabilities: fact => inheritedObjectShapeCapabilities(scope, fact),
   };
-  scope = Object.freeze({ host, records: new Map(), projections: new Map(), ...operations });
+  scope = Object.freeze({ host, records: new Map(), projections: new Map(), jsonContracts: new Map(), ...operations });
   return Object.freeze({
     registerObjectShape: operations.registerObjectShape,
     requireObjectShapeCapability: operations.requireObjectShapeCapability,

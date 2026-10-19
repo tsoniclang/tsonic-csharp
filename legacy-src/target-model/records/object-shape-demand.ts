@@ -1,4 +1,5 @@
 import type { Node } from "@tsonic/tsts";
+import type { CsharpJsonObjectShapeContract } from "./json-object-shapes.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../types/model.js";
 import { targetTypeRefKey } from "../types/equality.js";
 import { isSourceDeclaredNominalShape } from "../types/object-shape-projection.js";
@@ -20,6 +21,7 @@ export interface CsharpObjectShapeProjectionDeclaration {
 }
 
 export interface CsharpObjectShapeArtifact {
+  readonly jsonContract: CsharpJsonObjectShapeContract | undefined;
   readonly key: string;
   readonly fact: CsharpObjectShapeFact;
   readonly materialization: "source" | "synthetic";

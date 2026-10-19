@@ -122,7 +122,7 @@ export function planClassDeclaration(
       ...(objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "js-freeze")
         ? guardCsharpFrozenDataProperties(objectShape, members, input, diagnostics) : members),
       ...(jsonSerializable && objectShape !== undefined
-        ? renderJsonSerializableObjectShapeMethod(objectShape, input.program.records.nativeMemberHiding)
+        ? renderJsonSerializableObjectShapeMethod(objectShape, input.program.records)
         : []),
       ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input,
         input.artifacts.objectShapeProjections(objectShape), diagnostics)),

@@ -1,4 +1,5 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
+import type { CsharpJsonObjectShapeContractResult } from "../../target-model/records/json-object-shapes.js";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
 import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "./model.js";
@@ -98,6 +99,7 @@ interface CsharpObjectShapeClosure {
 type CsharpObjectShapeClosureResult = CsharpObjectShapeClosure | { readonly kind: "rejected"; readonly reason: string };
 
 export interface CsharpObjectShapeDemandScope {
+  readonly jsonContracts: Map<CsharpObjectShapeFact, CsharpJsonObjectShapeContractResult>;
   readonly host: CsharpObjectShapeDemandHost;
   readonly records: Map<string, MutableObjectShapeArtifact>;
   readonly projections: Map<Node, { readonly receiver: CsharpObjectShapeFact; readonly selection: CsharpObjectShapeProjection }>;

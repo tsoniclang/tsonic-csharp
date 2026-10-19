@@ -8,11 +8,9 @@ import type {
 import type {
   CsharpObjectShapeFact,
 } from "../../../target-model/types/index.js";
+import type { CsharpJsonObjectShapeContract, CsharpJsonObjectShapeRecords } from "../../../target-model/records/json-object-shapes.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import {
-  resolveCsharpJsonObjectShapeContract,
-} from "../../../target-model/types/index.js";
-import {
-  objectShapeStorageMemberName,
   csharpJsonValueWriterMethodName,
   csharpJsonValueProjectionMethodName,
 } from "../../../target-model/names/object-members.js";
@@ -26,10 +24,7 @@ export function objectShapeRequiresJsonSerialization(
   input: CsharpPlanningContext,
   fact: CsharpObjectShapeFact,
 ): boolean {
-  return input.artifacts.objectShapeHasCapability(
-    fact,
-    "json-serialization",
-  );
+  return input.program.records.jsonObjectShape.get(fact) !== undefined;
 }
 
 export function csharpJsonValueInterfaceType(): CsharpTypeNode {
@@ -38,22 +33,21 @@ export function csharpJsonValueInterfaceType(): CsharpTypeNode {
 
 export function renderJsonSerializableObjectShapeMethod(
   fact: CsharpObjectShapeFact,
-  names: CsharpNativeMemberHidingReader,
+  records: CsharpJsonObjectShapeRecords & { readonly nativeMemberHiding: CsharpNativeMemberHidingReader },
 ): readonly CsharpMethodDeclaration[] {
   const writer = { kind: "IdentifierName", name: "writer" } as const;
   const context = { kind: "IdentifierName", name: "context" } as const;
   const key = { kind: "IdentifierName", name: "key" } as const;
-  const contract = resolveCsharpJsonObjectShapeContract(fact);
-  if (contract.kind === "rejected") {
-    throw new Error(contract.reason);
-  }
-  const projected = contract.contract.kind === "to-json"
+  const contract = records.jsonObjectShape.get(fact);
+  if (contract === undefined) failCsharpPlannerInvariant("An admitted JSON object requires its sealed native contract.", fact.methodImplementation?.declaration);
+  const names = records.nativeMemberHiding;
+  const projected = contract.kind === "to-json"
     ? invokeMember(
         { kind: "IdentifierName", name: "this" },
-        contract.contract.member.targetName,
-        contract.contract.passesPropertyKey ? [key] : [],
+        contract.member.targetName,
+        contract.passesPropertyKey ? [key] : [],
       )
-    : createJsonObjectProjection(fact);
+    : createJsonObjectProjection(contract.properties);
   const projectionMethod: CsharpMethodDeclaration = {
     kind: "MethodDeclaration",
     name: csharpJsonValueProjectionMethodName,
@@ -68,7 +62,7 @@ export function renderJsonSerializableObjectShapeMethod(
       statements: [{ kind: "ReturnStatement", expression: projected }],
     },
   };
-  if (contract.contract.kind === "to-json") {
+  if (contract.kind === "to-json") {
     return [
       projectionMethod,
       {
@@ -100,10 +94,7 @@ export function renderJsonSerializableObjectShapeMethod(
   const statements: CsharpStatement[] = [
     expressionStatement(invokeMember(writer, "WriteStartObject")),
   ];
-  for (const member of fact.members) {
-    if (member.memberKind === "method" || member.sourceKey.kind !== "property") {
-      continue;
-    }
+  for (const member of contract.properties) {
     statements.push(
       expressionStatement({
         kind: "InvocationExpression",
@@ -114,8 +105,8 @@ export function renderJsonSerializableObjectShapeMethod(
         },
         arguments: [
           writer,
-          { kind: "LiteralExpression" as const, value: member.sourceName },
-          { kind: "IdentifierName" as const, name: objectShapeStorageMemberName(fact, member) },
+          { kind: "LiteralExpression" as const, value: member.key },
+          { kind: "IdentifierName" as const, name: member.name },
           context,
         ]
           .map((expression) => ({ kind: "Argument" as const, expression })),
@@ -140,15 +131,12 @@ export function renderJsonSerializableObjectShapeMethod(
   ];
 }
 
-function createJsonObjectProjection(fact: CsharpObjectShapeFact): CsharpExpression {
+function createJsonObjectProjection(properties: Extract<CsharpJsonObjectShapeContract, { readonly kind: "properties" }>["properties"]): CsharpExpression {
   const values: CsharpExpression[] = [];
-  for (const member of fact.members) {
-    if (member.memberKind === "method" || member.sourceKey.kind !== "property") {
-      continue;
-    }
+  for (const member of properties) {
     values.push(
-      { kind: "LiteralExpression", value: member.sourceName },
-      { kind: "IdentifierName", name: objectShapeStorageMemberName(fact, member) },
+      { kind: "LiteralExpression", value: member.key },
+      { kind: "IdentifierName", name: member.name },
     );
   }
   return {

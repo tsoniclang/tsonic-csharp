@@ -47,6 +47,7 @@ import type { CsharpStructuralObjectEmissionRecords } from "../../../target-mode
 import type { CsharpCompilationEmission } from "../../../target-model/records/compilation.js";
 import type { CsharpSourceUnionEmissionRecords } from "../../../target-model/records/source-unions.js";
 import { createCsharpCompilationRecords } from "./compilation.js";
+import { createCsharpJsonObjectShapeRecords } from "./json-object-shapes.js";
 
 export interface CsharpProgramRecordInput {
   readonly bindingIdentities: CsharpBindingIdentityRecords;
@@ -108,6 +109,7 @@ export function createCsharpProgramRecords(
     ...input.sourceFiles,
     ...input.objectShapes,
     ...input.objectShapeEmission,
+    ...createCsharpJsonObjectShapeRecords(input.objectShapeDemand),
     ...input.structuralObjectEmission,
     ...createCsharpCompilationRecords(input.compilation),
     ...input.sourceUnions,

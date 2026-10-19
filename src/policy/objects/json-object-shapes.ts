@@ -1,44 +1,26 @@
-import type {
-  CsharpObjectShapeFact,
-  CsharpObjectShapeMemberFact,
-  TargetTypeRef,
-} from "./model.js";
+import type { CsharpJsonObjectShapePolicyInput } from "../model/json-object-shapes.js";
+import type { CsharpJsonObjectShapeContractResult } from "../../target-model/records/json-object-shapes.js";
+import { csharpJsonObjectProtocol } from "../../target-model/records/json-object-shapes.js";
+import { objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
 import {
   getCsharpDelegateSignature,
-} from "./carriers/delegates.js";
+} from "../../target-model/types/carriers/delegates.js";
 import {
   isCsharpStringTargetType,
-} from "./identity.js";
+} from "../../target-model/types/identity.js";
 
-export type CsharpJsonObjectShapeContract =
-  | { readonly kind: "properties" }
-  | {
-      readonly kind: "to-json";
-      readonly member: CsharpObjectShapeMemberFact;
-      readonly returnType: TargetTypeRef;
-      readonly passesPropertyKey: boolean;
-    };
-
-export type CsharpJsonObjectShapeContractResult =
-  | {
-      readonly kind: "resolved";
-      readonly contract: CsharpJsonObjectShapeContract;
-    }
-  | {
-      readonly kind: "rejected";
-      readonly reason: string;
-    };
-
-export function resolveCsharpJsonObjectShapeContract(
-  shape: CsharpObjectShapeFact,
+export function selectCsharpJsonObjectShapeContract(
+  { shape }: CsharpJsonObjectShapePolicyInput,
 ): CsharpJsonObjectShapeContractResult {
   const candidates = shape.members.filter((member) =>
     member.memberKind === "method" &&
     member.sourceKey.kind === "property" &&
-    member.sourceKey.name === "toJSON"
+    member.sourceKey.name === csharpJsonObjectProtocol.sourceProperty
   );
   if (candidates.length === 0) {
-    return { kind: "resolved", contract: { kind: "properties" } };
+    return { kind: "resolved", contract: Object.freeze({ kind: "properties", properties: Object.freeze(shape.members
+      .filter(member => member.memberKind !== "method" && member.sourceKey.kind === "property")
+      .map(member => Object.freeze({ key: member.sourceName, name: objectShapeStorageMemberName(shape, member) }))) }) };
   }
   if (candidates.length !== 1) {
     return {

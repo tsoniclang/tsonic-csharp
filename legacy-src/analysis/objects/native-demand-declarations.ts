@@ -130,6 +130,7 @@ export function publishCsharpNativeArtifactDemand(
       return published;
     }));
     return Object.freeze({ key: artifact.key, fact: artifact.fact, materialization: artifact.materialization,
+      jsonContract: artifact.jsonContract,
       capabilities: artifact.capabilities, projections, typeParameterNames,
       receiverBoundMethodKeys: artifact.receiverBoundMethodKeys, dependencies: artifact.dependencies,
       dependents: artifact.dependents });
