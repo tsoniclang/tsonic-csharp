@@ -4,6 +4,7 @@ import type { CsharpInterfaceMember, CsharpTypeMember, CsharpTypeNode } from "..
 import { csharpEnumerableKeysMethodName, csharpEnumerableKeysStorageName } from "../../../../target-model/names/object-members.js";
 import type { CsharpNativeMemberHidingReader } from "../../../../target-model/records/native-member-names.js";
 import { planCsharpArtifactMemberHiding } from "../../declarations/modifiers.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 
 const stringType: CsharpTypeNode = { kind: "PredefinedType", name: "string" };
 export const csharpEnumerableKeysType: CsharpTypeNode = {
@@ -21,14 +22,14 @@ export function renderCsharpEnumerableKeys(
   shape: CsharpObjectShapeFact,
   input: CsharpPlanningContext,
 ): readonly CsharpTypeMember[] | undefined {
-  const order = input.program.objectShapes.propertyOrder(shape, undefined, "keys");
-  if (order.kind === "rejected") return undefined;
+  const order = input.program.records.enumerableKeys.get(shape);
+  if (order === undefined) failCsharpPlannerInvariant("An admitted enumerable-key contract requires its sealed native property order.");
   return [
     { kind: "FieldDeclaration", name: csharpEnumerableKeysStorageName,
       modifiers: [...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, csharpEnumerableKeysStorageName), "private", "static", "readonly"],
       type: { kind: "ArrayType", elementType: stringType },
       initializer: { kind: "ArrayCreationExpression", elementType: stringType,
-        elements: order.propertyOrder.map(value => ({ kind: "LiteralExpression", value })) } },
+        elements: order.map(value => ({ kind: "LiteralExpression", value })) } },
     { kind: "MethodDeclaration", name: csharpEnumerableKeysMethodName,
       modifiers: [...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, csharpEnumerableKeysMethodName), "public"],
       returnType: csharpEnumerableKeysType, parameters: [],
