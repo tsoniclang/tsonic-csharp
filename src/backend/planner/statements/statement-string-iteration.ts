@@ -73,7 +73,7 @@ export function planStringCodePointForOfStatement(
   const collectionExpression = planExpression(statement.Expression, sourceFile, input, diagnostics);
   const surrogatePairTest = stringHasSurrogatePairAt(input.scope.typeParameterNames, collectionIdentifier, indexIdentifier, selectedIteration, statementNode);
   if (collectionExpression === undefined) {
-    return [];
+    return failCsharpPlannerInvariant("Admitted string iteration requires its collection value plan.", statement.Expression);
   }
   return consumeCsharpPlannedValue(collectionExpression, value => {
   const loopBlock: CsharpStatement = {
