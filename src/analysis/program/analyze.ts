@@ -417,7 +417,7 @@ export function analyzeCsharpTargetProgram(
       nativeParticipation.participation, analysis.sourceEvidence.compileTimeMetadata,
       analysis.valueReads.valueRead),
     ...admitCsharpNativeDeclarations(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
-      projectTypes, analysis.sourceEvidence, analysis.storage,
+      projectTypes, source.navigation, names, analysis.sourceEvidence, analysis.storage,
       nativeParticipation.participation, admittedOperations.nativeUnreachable,
       analysis.declarations, callableAdapters.callableDispatch, classFactories.classFactory, captureStorage),
     ...admitCsharpNativeStorageBindings(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,

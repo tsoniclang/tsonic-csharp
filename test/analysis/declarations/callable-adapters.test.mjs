@@ -309,7 +309,7 @@ function nativeMethodNodes(program) {
 
 function admitMethodRecords(program, nodes, records = program.records) {
   return admitCsharpNativeDeclarations(program.source.ast, nodes, records.nativeUse,
-    program.projectTypes, records, records, records.nativeParticipation, records.nativeUnreachable,
+    program.projectTypes, program.sourceNavigation, program.names, records, records, records.nativeParticipation, records.nativeUnreachable,
     records, records.callableDispatch, records.classFactory, records);
 }
 
@@ -450,7 +450,7 @@ test("method and raw-adapter planners reject only corrupted admitted contracts",
 });
 
 test("a rejected method default cannot become an adapter-stream invariant", () => {
-  const compiled = compileCsharpSource({ sourceText: `
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
     function tag(parts: TemplateStringsArray): number { return 1; }
     class Base { read(): number { return 1; } }
     export class View extends Base {
@@ -460,5 +460,9 @@ test("a rejected method default cannot become an adapter-stream invariant", () =
   assert.equal(compiled.sourceDiagnosticsText, "", "the checked optional override is valid source");
   assert.equal(compiled.result.diagnostics.some(issue => issue.category === "error"), true,
     "the unsupported initializer retains its source refusal instead of an internal error");
+  assert.equal(compiled.targetDiagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST"), true,
+    "the checked JS initializer keeps its actual unsupported-expression refusal");
+  assert.equal(compiled.targetDiagnostics.some(issue => issue.code.startsWith("TSONIC_INTERNAL_")), false,
+    "a refused initializer cannot become an internal adapter-stream failure");
   assert.equal(compiled.artifacts.size, 0, "a rejected child cannot publish its incomplete adapter");
 });

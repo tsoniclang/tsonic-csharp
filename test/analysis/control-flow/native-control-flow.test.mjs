@@ -4,11 +4,11 @@ import { nativeFinallyOverrideSource } from "../../../../tsonic/test/fixtures/na
 import { compileCsharpSource, checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { admitCsharpNativeDeclarations } from "../../../dist/analysis/declarations/native-value-declarations.js";
-import { admitCsharpStatementBindings } from "../../../dist/analysis/control-flow/native-control-flow.js";
+import { admitCsharpNativeStorageBindings, admitCsharpStatementBindings } from "../../../dist/analysis/control-flow/native-control-flow.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
 import { planPropertyDeclaration } from "../../../dist/backend/planner/declarations/classes/properties.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { planBindingPatternFromExpression } from "../../../dist/backend/planner/bindings/binding-patterns.js";
+import { getCsharpTypeForExpressionCarrier, planBindingPatternFromExpression } from "../../../dist/backend/planner/bindings/binding-patterns.js";
 import { createDestructuringPlannerState } from "../../../dist/backend/planner/bindings/binding-state.js";
 import { planCsharpGeneratedMethodCall } from "../../../dist/backend/planner/declarations/generated-methods.js";
 import { planBreakStatement, planContinueStatement, planReturnStatement } from "../../../dist/backend/planner/statements/statement-simple.js";
@@ -27,6 +27,61 @@ for (const surface of ["native", "js"]) {
       assert.equal(compiled.artifacts.size, 0, "invalid native control flow must not publish partial artifacts");
       assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true,
         "cleanup transfer rejection precedes successful record publication and planning");
+    }
+  });
+}
+
+for (const surface of ["native", "js"]) {
+  test(`destructuring sources have exact final native renderability before publication on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      export function run(): number {
+        const source: [number] = [7];
+        const [value] = source;
+        let assigned = 0;
+        [assigned] = source;
+        return value + assigned;
+      }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "both source forms are checked native bindings");
+    assert.equal(compiled.targetDiagnostics.length, 0, "both final native sources are admitted");
+    const program = compiled.result.program;
+    const ast = program.source.ast;
+    const forms = [];
+    const visit = node => {
+      if (ast.is.IsVariableDeclaration(node)) {
+        const declaration = ast.as.AsVariableDeclaration(node);
+        if (ast.is.IsArrayBindingPattern(declaration.name)) forms.push({ node, source: declaration.Initializer,
+          subject: declaration.name, description: "Destructuring source expression" });
+      } else if (ast.is.IsBinaryExpression(node)) {
+        const assignment = ast.as.AsBinaryExpression(node);
+        if (ast.is.IsArrayLiteralExpression(assignment.Left)) forms.push({ node, source: assignment.Right,
+          subject: assignment.Left, description: "Destructuring assignment source" });
+      }
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    program.sourceFiles.forEach(visit);
+    assert.equal(forms.length, 2, "declaration and assignment sources are both covered");
+    for (const form of forms) {
+      const original = program.records.nativeUse.expression(form.source);
+      assert.equal(original !== undefined, true, `${form.description}: exact final native use exists`);
+      const nativeUse = { ...program.records.nativeUse,
+        expression: node => node !== form.source ? program.records.nativeUse.expression(node)
+          : { ...original, use: { ...original.use,
+            completion: { kind: "value", type: { kind: "opaque", id: "corrupted-native-source" } } } } };
+      const issues = admitCsharpNativeStorageBindings(ast, [form.node], nativeUse, program.records,
+        program.records.nativeRefReturn, program.records.nativeParticipation,
+        program.records.compileTimeMetadata, program.records.nativeUnreachable);
+      assert.equal(issues.length, 1, `${form.description}: one pre-seal refusal owner`);
+      assert.equal(issues[0].sourceNode === form.subject, true, `${form.description}: original source subject`);
+      assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", `${form.description}: original refusal code`);
+      assert.equal(issues[0].message, `${form.description} requires its admitted native source carrier before C# emission.`,
+        `${form.description}: original refusal message`);
+      const diagnostics = [];
+      const input = createCsharpPlanningContext({ ...program, records: { ...program.records, nativeUse } });
+      assert.throws(() => getCsharpTypeForExpressionCarrier(form.source, input, diagnostics, form.subject, form.description),
+        error => error.message.includes("admitted native source carrier rendering"),
+        `${form.description}: bypassing admission is a separate renderer invariant`);
+      assert.equal(diagnostics.length, 0, `${form.description}: the renderer repeats no source diagnostic`);
     }
   });
 }
@@ -348,6 +403,7 @@ test(`${declarationKind} native heritage renderability is refused by its owner b
   assert.equal(declaration !== undefined, true, "the checked interface is present");
   const issues = admitCsharpNativeDeclarations(ast, [declaration], { order: () => [] },
     { heritageForDeclaration: () => ({ interfaces: [{ kind: "opaque", id: "missing" }] }) },
+    source.navigation, { resolve: () => ({ kind: "resolved", name: "View" }) },
     { compileTimeMetadata: { get: () => false }, sourceField: { get: () => undefined } },
     { storageType: { get: () => ({ kind: "source-primitive", name: "float64" }) } },
     { get: () => undefined }, { get: () => false },
@@ -378,6 +434,7 @@ test("declaration admission consumes exact retained masks, not empty constructio
   ]) {
     const issues = admitCsharpNativeDeclarations(ast, [declaration], { order: () => [] },
       { heritageForDeclaration: () => ({ interfaces: [{ kind: "opaque", id: "missing" }] }) },
+      source.navigation, { resolve: () => ({ kind: "resolved", name: "View" }) },
       { compileTimeMetadata: { get: () => control.metadata }, sourceField: { get: () => undefined } },
       { storageType: { get: () => ({ kind: "source-primitive", name: "float64" }) } },
       { get: () => control.participation }, { get: () => control.unreachable },

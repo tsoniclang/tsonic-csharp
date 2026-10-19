@@ -1,4 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
+import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { HasSyntacticModifier, ModifierFlagsAbstract, ModifierFlagsAccessor, ModifierFlagsAmbient,
   ModifierFlagsConst, ModifierFlagsOverride, ModifierFlagsPrivate, ModifierFlagsProtected, ModifierFlagsPublic,
@@ -16,6 +17,8 @@ import type { CsharpObjectShapeDemand } from "../../target-model/records/object-
 import { objectShapeArtifactKey } from "../../target-model/records/object-shape-demand.js";
 import type { CsharpObjectShapeClassifications } from "../objects/model.js";
 import type { CsharpObjectShapeFact } from "../../target-model/types/model.js";
+import type { CsharpNamePlan } from "../../target-model/names/model.js";
+import { admitCsharpClassMemberNames } from "../names/source-names.js";
 import { csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { csharpBigIntegerTargetType, csharpCarrierAdmitsSourceAbsence, csharpNullableTargetType,
@@ -27,6 +30,8 @@ export function admitCsharpNativeDeclarations(
   nodes: readonly Node[],
   nativeUse: CsharpNativeUseClassifications["nativeUse"],
   projectTypes: Pick<CsharpProjectTypeClassifications, "heritageForDeclaration">,
+  authoredHeritage: Pick<SourceProgramNavigation, "declaredHeritage">,
+  names: Pick<CsharpNamePlan, "resolve">,
   metadata: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata" | "sourceField">,
   storage: Pick<CsharpStorageClassifications, "storageType" | "nativeBacking" | "typedLocationIdentity">,
   participation: CsharpNativeParticipationInput["participation"],
@@ -81,12 +86,12 @@ export function admitCsharpNativeDeclarations(
       const write = declarations.methodWrite.get(node);
       if (write !== undefined) {
         const owner = ast.parent(node);
-        const heritage = owner === undefined ? undefined : projectTypes.heritageForDeclaration(owner);
+        const heritage = owner === undefined ? undefined : authoredHeritage.declaredHeritage(owner);
         if (csharpTargetTypeRenderingRejection(write.type) !== undefined ||
           csharpSourceTypeParameters(node, ast).some(parameter => parameter !== undefined) ||
           ast.hasModifierKind(node, "static") || ast.hasModifierKind(node, "abstract") ||
           dispatch?.overridesBase === true || dispatch?.hasDerivedOverride === true ||
-          heritage !== undefined && (heritage.baseType !== undefined || heritage.interfaces.length > 0)) {
+          heritage?.kind === "resolved" && heritage.edges.length > 0) {
           refuse(node, "A writable source method requires a closed non-generic instance delegate without native inheritance or interface dispatch obligations.");
         }
       }
@@ -104,6 +109,10 @@ export function admitCsharpNativeDeclarations(
       }
     }
     if (classDeclaration) {
+      const members = ast.members(node).filter((member): member is Node => member !== undefined &&
+        !metadata.compileTimeMetadata.get(member) && !sourceClassFieldIsTypeOnly(ast, member) &&
+        (!ast.is.IsMethodDeclaration(member) || participation.get(member) === "body" || participation.get(member) === "signature"));
+      issues.push(...admitCsharpClassMemberNames(ast, members, names, methodDispatch, declarations.methodWrite));
       const factory = factories.get(node);
       if (factory !== undefined) {
         if (csharpTargetTypeRenderingRejection(factory.factoryType) !== undefined ||

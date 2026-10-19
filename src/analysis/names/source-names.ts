@@ -20,6 +20,11 @@ import type {
   CsharpNamePlan,
   CsharpSourceNameResolution,
 } from "../../target-model/names/model.js";
+import type { CsharpProjectCallableAdapters } from "../../target-model/records/callable-adapters.js";
+import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
+import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
+import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
+import { csharpTargetStorageIdentityEquals } from "../../policy/types/storage/storage-identity.js";
 import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
@@ -334,6 +339,53 @@ export function createCsharpSourceNameBuilder(
       if (child !== undefined) visitNames(child);
     });
   }
+}
+
+export function admitCsharpClassMemberNames(
+  ast: AstReader,
+  members: readonly Node[],
+  names: Pick<CsharpNamePlan, "resolve">,
+  dispatch: CsharpProjectCallableAdapters["callableDispatch"],
+  writes: CsharpDeclarationClassifications["methodWrite"],
+): readonly TargetDiagnostic[] {
+  const groups = new Map<string, { readonly static: boolean; readonly accessor: boolean;
+    readonly contract: CsharpSourceCallableContract | undefined }[]>();
+  const issues: TargetDiagnostic[] = [];
+  for (const member of members) {
+    const nameNode = ast.name(member);
+    const selected = names.resolve(nameNode);
+    if (nameNode === undefined || selected.kind !== "resolved") continue;
+    const method = ast.is.IsMethodDeclaration(member) && writes.get(member) === undefined;
+    const contract = method ? dispatch.get(member)?.implementation : undefined;
+    if (method && contract === undefined) continue;
+    const accessor = ast.kindName(member) === "KindGetAccessor" || ast.kindName(member) === "KindSetAccessor";
+    const current = { static: ast.hasModifierKind(member, "static"), accessor, contract };
+    const group = groups.get(selected.name) ?? [];
+    if (accessor && group.some(previous => previous.accessor && previous.static === current.static)) continue;
+    const conflict = group.find(previous => previous.static !== current.static &&
+      (previous.contract === undefined || contract === undefined || sameNativeMemberParameters(previous.contract, contract)));
+    if (conflict !== undefined) {
+      const code = conflict.contract !== undefined && contract !== undefined ? "CS0111" : "CS0102";
+      issues.push(Object.freeze({ code: "CSHARP_INVALID_IDENTIFIER", category: "error", source: "tsonic-csharp",
+        sourceNode: nameNode,
+        message: `Static member '${selected.name}' and instance member '${selected.name}' cannot share the emitted C# name '${selected.name}' (${code}).` }));
+    }
+    group.push(current);
+    groups.set(selected.name, group);
+  }
+  return Object.freeze(issues);
+}
+
+function sameNativeMemberParameters(left: CsharpSourceCallableContract, right: CsharpSourceCallableContract): boolean {
+  if (left.methodTypeParameterIdentities.length !== right.methodTypeParameterIdentities.length ||
+    left.parameters.length !== right.parameters.length) return false;
+  const substitutions = new Map(right.methodTypeParameterIdentities.map((identity, index) => [identity,
+    { kind: "type-parameter" as const, identity: left.methodTypeParameterIdentities[index]!, name: "T" }]));
+  return left.parameters.every(({ targetParameter: selected }, index) => {
+    const other = right.parameters[index]!.targetParameter;
+    return selected.passingMode === other.passingMode && csharpTargetStorageIdentityEquals(selected.type,
+      substituteTargetTypeParameters(other.type, substitutions));
+  });
 }
 
 function exactPrivateDeclaration(

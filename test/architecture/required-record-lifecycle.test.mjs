@@ -306,8 +306,10 @@ test("owning issues reject before the late registrations finish and before the o
     ["native values", calling("analyzeCsharpNativeValueCarriers")],
     ["native-value issues", rejection("nativeValueCarriers.issues.length > 0")],
     ["binding-pattern issues", rejection("bindingPatterns.issues.length > 0")],
-    ["pending native uses", rejection("pendingUses.length > 0")],
     ["ref-like placement", rejection("analysis.refLikeDiagnostics.length > 0")],
+    ["noncallable issues", rejection("nonCallableIssues.length > 0")],
+    ["pending native uses", rejection("pendingUses.length > 0")],
+    ["raw-interface issues", rejection("rawInterfaceIssues.length > 0")],
     ["assembly", calling("createCsharpProgramRecords")],
     ["program literal", statement => ownDeclaration(statement, "program") !== undefined],
   ];

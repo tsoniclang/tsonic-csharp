@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import {
   assertCsharpCompilationSucceeded,
   compileCsharpSource,
@@ -50,14 +51,103 @@ for (const surface of ["native", "js"]) {
       function next(value: int): [int] { calls += 1; return [value]; }
       class View {
         static ready: [int] = ([selected] = next(4));
-        ready: [int] = ([selected] = next(7));
-        read(): int { return this.ready[0]; }
+        instanceReady: [int] = ([selected] = next(7));
+        read(): int { return this.instanceReady[0]; }
       }
       export function run(): int { const ready = View.ready[0]; const view = new View(); return view.read() + ready + selected + calls; }
     ` });
     assertCsharpCompilationSucceeded(compiled);
     executeCsharpConstruction(compiled, `class-initializer-destructuring-${surface}`, false, false, [], `
 if (Tsonic.Generated.Index.run() != 20) throw new System.Exception("native initializer scope and exactly-once order");
+`);
+  });
+}
+
+for (const surface of ["native", "js"]) {
+  for (const control of [
+    { label: "field", name: "ready", nativeCode: "CS0102", sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      let selected: int = 0;
+      let calls: int = 0;
+      function next(value: int): [int] { calls += 1; return [value]; }
+      class View {
+        static ready: [int] = ([selected] = next(4));
+        ready: [int] = ([selected] = next(7));
+        read(): int { return this.ready[0]; }
+      }
+      export function run(): int { const ready = View.ready[0]; const view = new View(); return view.read() + ready + selected + calls; }
+    ` },
+    { label: "method", name: "read", nativeCode: "CS0111", sourceText: `
+      export class View {
+        static read(): number { return 1; }
+        read(): number { return 2; }
+      }
+      export function run(): number { return View.read() + new View().read(); }
+    ` },
+    { label: "accessor", name: "ready", nativeCode: "CS0102", sourceText: `
+      export class View {
+        static get ready(): number { return 1; }
+        static set ready(value: number) { void value; }
+        get ready(): number { return 2; }
+        set ready(value: number) { void value; }
+      }
+      export function run(): number { return View.ready + new View().ready; }
+    ` },
+    { label: "generic method", name: "read", nativeCode: "CS0111", sourceText: `
+      export class View {
+        static read<T>(value: T): T { return value; }
+        read<U>(value: U): U { return value; }
+      }
+      export function run(): number { return View.read(1) + new View().read(2); }
+    ` },
+    { label: "nullable-reference method", name: "read", nativeCode: "CS0111", sourceText: `
+      export class View {
+        static read(value: string): number { return value.length; }
+        read(value: string | undefined): number { return value === undefined ? 0 : value.length; }
+      }
+      export function run(): number { return View.read("a") + new View().read(undefined); }
+    ` },
+  ]) {
+    test(`${surface} static and instance ${control.label} collisions are refused before native publication`, () => {
+      const compiled = compileCsharpSource({ surface, sourceText: control.sourceText });
+      assert.equal(compiled.sourceDiagnosticsText, "", "the original colliding members are checked TypeScript");
+      assert.equal(compiled.targetDiagnostics.length, 1, "one native member-name owner reports the conflicting pair");
+      const diagnostic = compiled.targetDiagnostics[0];
+      assert.equal(diagnostic.code, "CSHARP_INVALID_IDENTIFIER", "the existing native-name refusal code is used");
+      assert.equal(diagnostic.message,
+        `Static member '${control.name}' and instance member '${control.name}' cannot share the emitted C# name '${control.name}' (${control.nativeCode}).`,
+        "the exact refusal identifies both members and the native C# constraint");
+      const source = createTargetSourceProgram(compiled.source);
+      const ast = source.ast;
+      let subject;
+      const visit = node => {
+        const name = ast.name(node);
+        if (subject === undefined && name !== undefined && ast.is.IsIdentifier(name) && ast.text(name) === control.name &&
+          (ast.is.IsPropertyDeclaration(node) || ast.is.IsMethodDeclaration(node) || ast.kindName(node) === "KindGetAccessor") &&
+          !ast.hasModifierKind(node, "static")) subject = name;
+        ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+      };
+      source.navigation.sourceFiles.forEach(visit);
+      assert.equal(subject !== undefined && diagnostic.sourceNode === subject, true,
+        "the exact second authored member name owns the refusal");
+      assert.equal(compiled.artifacts.size, 0, "the native name collision emits no artifacts");
+      assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true,
+        "the pair is refused before successful program publication or planning");
+    });
+  }
+  test(`${surface} native member-name admission preserves distinct overloads and inherited hiding`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      export class Overloaded {
+        static read(value: number): number { return value; }
+        read(): number { return 2; }
+      }
+      class Base { read(): number { return 3; } }
+      export class Hidden extends Base { static read(): number { return 4; } }
+      export function run(): number { return Overloaded.read(3) + new Overloaded().read() + new Base().read() + Hidden.read(); }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    executeCsharpConstruction(compiled, `native-overloads-and-hiding-${surface}`, false, false, [], `
+if (Tsonic.Generated.Index.run() != 12) throw new System.Exception("native overload and inherited member identity");
 `);
   });
 }

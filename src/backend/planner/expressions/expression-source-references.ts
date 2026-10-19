@@ -21,8 +21,7 @@ import {
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
-import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
+import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../diagnostics.js";
 import {
   getCsharpLocalBindingName,
 } from "../bindings/index.js";
@@ -62,7 +61,7 @@ export function planIdentifierExpression(
   if (selectedClass !== undefined) return selectedClass;
   if (declarationReference !== undefined && input.program.records.classFactory.get(declarationReference.declaration) !== undefined) {
     return { kind: "IdentifierName", name: getCsharpLocalBindingName(identifier, input, state) ??
-      requireCsharpIdentifier(sourceName, diagnostics, "Local class value") };
+      requireSealedSourceReferenceName(identifier, input) };
   }
   if (declarationReference !== undefined && input.program.source.ast.is.IsClassDeclaration(declarationReference.declaration)) {
     const constructor = getCsharpDelegateSignature(input.types.classifications.resolveNode(identifier));
@@ -114,11 +113,17 @@ export function planIdentifierExpression(
   const expression: CsharpExpression = (declaration === undefined ? undefined : csharpCapturedBindingExpression(declaration, input, state)) ?? {
     kind: "IdentifierName",
     name: getCsharpLocalBindingName(identifier, input, state) ??
-      requireCsharpIdentifier(sourceName, diagnostics, "Source identifier"),
+      requireSealedSourceReferenceName(identifier, input),
   };
   const value: CsharpExpression = declaration !== undefined && input.program.records.nativeBacking.get(declaration) !== undefined
     ? { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Value" } : expression;
   return planFlowReadUseSiteProjection(identifier, value, sourceFile, input, diagnostics);
+}
+
+function requireSealedSourceReferenceName(node: Node, input: CsharpPlanningContext): string {
+  const selected = input.program.names.resolve(node);
+  return selected.kind === "resolved" ? selected.name : failCsharpPlannerInvariant(
+    "An admitted authored reference lost its sealed native name.", node);
 }
 
 function planProviderValueReference(

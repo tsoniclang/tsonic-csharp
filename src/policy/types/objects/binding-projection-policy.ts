@@ -284,30 +284,31 @@ function resolveObjectBindingProjection(
   const declaration = host.ast.as.AsBindingElement(binding);
   if (declaration?.DotDotDotToken !== undefined) {
     const selected = host.scopedTargetType(binding);
-    if (selected !== undefined) return selected;
     const sourceFile = host.ast.getSourceFile(binding);
-    return sourceFile === undefined ? undefined : host.objectShapes.resolveTypeWithState(
+    const shape = selected !== undefined ? host.objectShapes.resolveTarget(selected)
+      : sourceFile === undefined ? undefined : host.objectShapes.resolveTypeWithState(
       host.semantics(sourceFile).declarations.declaredValueType(binding), sourceFile, undefined, nextState(state),
-    )?.targetType;
+    );
+    return shape === undefined ? undefined : host.objectShapes.resolveCopyShape(shape)?.targetType;
   }
   const property = declaration?.PropertyName ?? declaration?.name;
-  if (
-    property === undefined ||
-    !(
-      host.ast.is.IsIdentifier(property) ||
-      host.ast.is.IsStringLiteral(property) ||
-      host.ast.is.IsNumericLiteral(property)
-    )
-  ) {
-    return undefined;
-  }
+  if (property === undefined) return undefined;
+  let sourceName: string;
+  if (host.ast.is.IsComputedPropertyName(property) || host.ast.is.IsNumericLiteral(property)) {
+    const sourceFile = host.ast.getSourceFile(property);
+    const selectedName = sourceFile === undefined ? undefined : host.semantics(sourceFile).propertyNames.get(property);
+    if (selectedName?.kind !== "resolved") return undefined;
+    sourceName = selectedName.name;
+  } else if (host.ast.is.IsIdentifier(property) || host.ast.is.IsStringLiteral(property)) {
+    sourceName = host.ast.text(property);
+  } else return undefined;
   const shape = host.objectShapes.resolveTarget(ownerType);
   if (shape === undefined) {
     return undefined;
   }
   const selected = resolveCsharpObjectShapeMemberBySourceContract(
     shape,
-    host.ast.text(property),
+    sourceName,
     "checked-object-binding-property",
   );
   return selected.kind === "resolved" ? selected.member.type : undefined;

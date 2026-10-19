@@ -8,6 +8,7 @@ import { createCsharpProviderRelationResolver } from "../../../../dist/providers
 import { createCsharpTargetConfiguration } from "../../../../dist/options/csharp-target-options.js";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { planThrowStatement } from "../../../../dist/backend/planner/statements/statement-simple.js";
+import { admitCsharpStatementBindings } from "../../../../dist/analysis/control-flow/native-control-flow.js";
 import { csharpStringTargetType } from "../../../../dist/target-model/types/index.js";
 
 test("native throw planning requires its exact sealed operand, source carrier and target conversion", () => {
@@ -36,12 +37,21 @@ test("native throw planning requires its exact sealed operand, source carrier an
   for (const selected of [undefined, { ...classification, expression: declaration },
     { ...classification, sourceCarrier: csharpStringTargetType() }]) {
     const changed = { ...program, records: { ...program.records, throwValue: { get: () => selected } } };
-    const diagnostics = [];
-    assert.deepEqual(planThrowStatement(statement, source.ast.getSourceFile(statement),
-      { ...context, program: changed }, diagnostics), []);
-    assert.equal(diagnostics.length, 1);
-    assert.equal(diagnostics[0].message, "Throw expression has no exact sealed C# native error carrier classification.");
+    const issues = admitCsharpStatementBindings(source.ast, [statement], program.records.nativeUse,
+      changed.records, program.records, program.records.generator, program.records.nativeParticipation,
+      program.records.compileTimeMetadata, program.records.valueRead);
+    assert.equal(issues.length, 1, "one pre-seal owner rejects each original invalid throw classification");
+    assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", "the original source refusal code is retained");
+    assert.equal(issues[0].sourceNode === classification.expression, true, "the exact original operand owns the refusal");
+    assert.equal(issues[0].message, "Throw expression has no exact sealed C# native error carrier classification.");
   }
+  const missing = { ...program, records: { ...program.records, throwValue: { get: () => undefined } } };
+  const missingDiagnostics = [];
+  assert.throws(() => planThrowStatement(statement, source.ast.getSourceFile(statement),
+    { ...context, program: missing }, missingDiagnostics),
+  error => error.message.includes("An admitted throw lost its selected native error carrier."),
+  "only bypassing successful admission reaches the separate missing-record invariant");
+  assert.equal(missingDiagnostics.length, 0, "corrupted published evidence never repeats a source refusal");
   const native = program.records.nativeUse.expression(classification.expression);
   assert.equal(native !== undefined && native.use.kind !== "erased", true, "the actual throw operand has one admitted native use");
   const invalidTarget = csharpStringTargetType();

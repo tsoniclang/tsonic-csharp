@@ -18,6 +18,7 @@ import type { CsharpConversionSelection } from "../../target-model/conversions/s
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { directCsharpSourceYieldExpression } from "../../target-model/syntax/yield-expression.js";
+import { csharpDestructuringAssignmentSyntax } from "../../target-model/syntax/operators.js";
 
 export function admitCsharpIterationBindings(
   policy: CsharpPolicyContext,
@@ -245,9 +246,22 @@ export function admitCsharpNativeStorageBindings(
     issues.push(Object.freeze({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp",
       sourceNode: node, message }));
   };
+  const admitBindingSource = (source: Node, diagnosticNode: Node, description: string): void => {
+    const selected = nativeUse.expression(source)?.use;
+    if (selected === undefined) return;
+    const carrier = selected.kind === "erased" ? undefined
+      : selected.completion.kind === "value" ? selected.completion.type : selected.carrier;
+    if (carrier === undefined || csharpTargetTypeRenderingRejection(carrier) !== undefined) {
+      refuse(diagnosticNode, `${description} requires its admitted native source carrier before C# emission.`);
+    }
+  };
   for (const node of nodes) {
     if (nativeUse.order(node) === undefined || metadata.get(node) || unreachable.get(node) ||
       participation.get(node) === "erased") continue;
+    const assignment = csharpDestructuringAssignmentSyntax(ast, node);
+    if (assignment !== undefined) {
+      admitBindingSource(assignment.source, assignment.pattern, "Destructuring assignment source");
+    }
     const backing = storage.nativeBacking.get(node);
     if (ast.is.IsParameterDeclaration(node)) {
       if (backing !== undefined && csharpTargetTypeRenderingRejection(csharpRuntimeLocationTargetType(backing.pointeeType)) !== undefined) {
@@ -262,6 +276,10 @@ export function admitCsharpNativeStorageBindings(
     if (statement !== undefined && (ast.is.IsForInStatement(statement) || ast.is.IsForOfStatement(statement))) continue;
     const declaration = ast.as.AsVariableDeclaration(node)!;
     const initializer = declaration.Initializer;
+    if (initializer !== undefined && declaration.name !== undefined &&
+      (ast.is.IsObjectBindingPattern(declaration.name) || ast.is.IsArrayBindingPattern(declaration.name))) {
+      admitBindingSource(initializer, declaration.name, "Destructuring source expression");
+    }
     const nativeRef = initializer !== undefined && ast.variableDeclarationKind(node) === "const"
       ? nativeRefs.get(initializer) : undefined;
     if (nativeRef?.kind === "resolved" && nativeRef.returnType === undefined) {
