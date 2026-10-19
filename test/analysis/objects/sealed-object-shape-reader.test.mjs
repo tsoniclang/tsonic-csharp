@@ -7,7 +7,7 @@ import { emptyCsharpTypeDefinitions } from "../../../dist/target-model/types/sou
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { resolveCsharpOptionalStorage } from "../../../dist/target-model/types/carriers/optional-storage.js";
 import { analyzeCsharpProjectCallableAdapters } from "../../../dist/analysis/project-types/callable-adapters.js";
-import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/relations/resolver.js";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 
 const integer = { kind: "source-primitive", name: "int64" };
 const string = { kind: "source-primitive", name: "string" };

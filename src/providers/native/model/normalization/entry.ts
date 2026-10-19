@@ -4,7 +4,7 @@ import { validateOptionalDotnetAssemblyReference } from "./dotnet-identities.js"
 import { validateProviderExportDeclaration } from "./provider-declarations.js";
 import { validateUnsupportedExports } from "./dotnet-signatures.js";
 import type { DotnetModuleModel } from "../index.js";
-import type { DotnetProviderDiagnostic } from "../../provider.js";
+import type { DotnetProviderDiagnostic } from "../../projection/provider.js";
 import type { ProviderDeclarationModel } from "@tsonic/tsts";
 
 export function validateDotnetModuleModelContract(module: DotnetModuleModel): DotnetProviderDiagnostic | undefined {

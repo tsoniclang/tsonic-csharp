@@ -28,7 +28,7 @@ import {
   providerSignatureSourceIdentity,
   providerTypeSourceIdentity,
   providerValueSourceIdentity,
-} from "../../../dist/providers/native/relations/index.js";
+} from "../../../dist/providers/model/provider-relations.js";
 
 export {
   assert,

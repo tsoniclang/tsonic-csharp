@@ -7,6 +7,7 @@ import type {
 } from "../../target-ast/syntax/index.js";
 import {
   csharpTypeFromTargetTypeRef,
+  csharpTypeFromSourcePrimitiveKind,
 } from "../types/target-types.js";
 import type {
   TargetTypeRef,
@@ -18,7 +19,6 @@ import type {
 import type {
   CsharpPlanningContext,
 } from "../context.js";
-import { qualifiedCsharpType } from "../types/index.js";
 
 export function planCsharpExactLiteralConversion(
   input: CsharpPlanningContext,
@@ -63,18 +63,14 @@ export function planCsharpExactLiteralRecipe(
         },
       };
     case "float": {
-      if ("bits" in recipe) {
-        return { kind: "resolved", expression: { kind: "InvocationExpression",
-          callee: { kind: "SimpleMemberAccessExpression", receiver: qualifiedCsharpType("System", "BitConverter"),
-            name: "UInt16BitsToHalf" },
-          arguments: [{ kind: "Argument", expression: { kind: "LiteralExpression", value: recipe.bits } }] } };
-      }
-      const literal: CsharpExpression = { kind: "NumericLiteralExpression", token: recipe.token,
-        suffix: recipe.precision === "float32" ? "F" : recipe.precision === "decimal" ? "M" : "D" };
+      const suffix = recipe.precision === "float32" ? "F" : recipe.precision === "decimal" ? "M" : "D";
+      const literal: CsharpExpression = { kind: "NumericLiteralExpression", token: recipe.token, suffix };
       const expression: CsharpExpression = recipe.negative
         ? { kind: "PrefixUnaryExpression", operatorToken: { kind: "MinusToken" }, operand: literal }
         : literal;
-      return { kind: "resolved", expression };
+      return { kind: "resolved", expression: recipe.precision === "float16"
+        ? { kind: "CastExpression", type: csharpTypeFromSourcePrimitiveKind("float16"), expression }
+        : expression };
     }
     case "integer": {
       const expression = planIntegerLiteral(typeParameterNames, recipe.value, recipe.target);

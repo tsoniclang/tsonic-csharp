@@ -3,11 +3,11 @@ import test from "node:test";
 
 import {
   dotnetModuleToProviderDeclarationModel,
-} from "../../../../../dist/public/provider-dotnet.js";
+} from "../../../../dist/public/provider-dotnet.js";
 import {
   createDotnetReflectionTypeDataProvider,
-} from "../../../../helpers/dotnet-reflection-provider.mjs";
-import { getCompleteDotnetModule } from "../../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
+} from "../../../helpers/dotnet-reflection-provider.mjs";
+import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 
 const moduleSpecifier = "@tsonic/dotnet/System.Text.Json.js";
 

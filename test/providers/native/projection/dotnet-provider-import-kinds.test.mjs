@@ -6,7 +6,7 @@ import {
   namedDotnetTypeRef,
   test,
   testTargetId,
-} from "../../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
+} from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 
 test(".NET provider preserves exact synthetic export slices used by provider heritage", () => {
   const observedContexts = [];

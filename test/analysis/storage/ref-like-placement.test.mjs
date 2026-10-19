@@ -5,7 +5,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { nativeRefLikeFixture } from "../../helpers/native-ref-like-fixture.mjs";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { isCsharpTargetTypeRef, snapshotCsharpTargetTypes } from "../../../dist/target-model/types/snapshot.js";
-import { validateDotnetTypeParameters } from "../../../dist/providers/native/model/contract/dotnet-signatures.js";
+import { validateDotnetTypeParameters } from "../../../dist/providers/native/model/normalization/dotnet-signatures.js";
 
 const imports = `import type { int32 } from "@tsonic/core/types.js";
 import { Span } from "@tsonic/dotnet/System.js";`;

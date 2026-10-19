@@ -38,7 +38,7 @@ namespace Tsonic.Generated
     {
         public static string? choose(bool flag)
         {
-            string? value = null;
+            string? value = default(string?);
             if (flag)
             {
                 value = "yes";

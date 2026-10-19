@@ -99,6 +99,13 @@ function selectArrayElementDestination(
   { readonly kind: "rejected"; readonly reason: string } {
   const { host, resolveNodeWithState, resolveSourceTypeComponentEvidence } = scope;
   const flow = host.navigation.expressionValueFlow(expression);
+  const uses = flow.uses.filter(use => !use.throughMember && (use.role === "argument" || use.role === "return")).map(use => {
+    const owner = use.role === "return" ? sourceEnclosingCallable(use.reference, host.ast) : undefined;
+    const argument = use.role === "argument" ? sourceExpressionCallArgument(use.reference,
+      { ast: host.ast, semantics: { forNode: host.semanticsFor } }) : owner === undefined ? undefined
+      : sourceExpressionCallArgument(owner, { ast: host.ast, semantics: { forNode: host.semanticsFor } });
+    return { use, owner, argument };
+  });
   const destinations: TargetTypeRef[] = [];
   let directContext = true;
   const elementOf = (carrier: TargetTypeRef | undefined): TargetTypeRef | undefined =>
@@ -131,7 +138,9 @@ function selectArrayElementDestination(
       const result = getCsharpCallableValueSignature(getCsharpNullableElementTargetType(carrier) ?? carrier)?.returnType;
       return host.ast.hasModifierKind(reference, "async") ? getCsharpTaskResultTargetType(result) : result;
     };
-    const actual = scope.resolveSourceCallArgumentParameter(selected, binding, callQueries.sourceFile);
+    const excludedArguments = empty ? undefined : new Set([argument.argumentIndex, ...uses.flatMap(entry =>
+      entry.argument?.call === argument.call ? [entry.argument.argumentIndex] : [])]);
+    const actual = scope.resolveSourceCallArgumentParameter(selected, binding, callQueries.sourceFile, excludedArguments);
     return returning ? returned(actual) : actual;
   };
   for (const declaration of flow.aliasDeclarations) {
@@ -141,22 +150,18 @@ function selectArrayElementDestination(
       add(resolveNodeWithState(authored, host.semanticsFor(authored).sourceFile, nextState(state)));
     }
   }
-  for (const use of flow.uses) {
-    if (use.throughMember || use.role !== "argument" && use.role !== "return") continue;
+  for (const { use, owner, argument } of uses) {
     directContext = false;
     if (use.role === "argument") {
-      const argument = sourceExpressionCallArgument(use.reference, { ast: host.ast, semantics: { forNode: host.semanticsFor } });
       if (argument !== undefined) add(argumentDestination(argument, use.reference, false));
       continue;
     }
-    const owner = sourceEnclosingCallable(use.reference, host.ast);
     if (owner === undefined) continue;
     const authored = host.ast.typeNode(owner);
     const ownerQueries = host.semanticsFor(owner);
     let returned: TargetTypeRef | undefined;
     if (authored !== undefined) returned = resolveNodeWithState(authored, ownerQueries.sourceFile, nextState(state));
     else {
-      const argument = sourceExpressionCallArgument(owner, { ast: host.ast, semantics: { forNode: host.semanticsFor } });
       if (argument !== undefined) {
         add(argumentDestination(argument, owner, true));
         continue;

@@ -40,18 +40,18 @@ export type {
   DotnetProviderModuleResult,
   DotnetProviderOwnership,
   DotnetTypeDataProvider,
-} from "./provider.js";
+} from "./projection/provider.js";
 export {
   completeDotnetProviderContext,
   completeDotnetProviderMaterialization,
   createDotnetSourceDeclarationProvider,
   createDotnetSourceDeclarationProviderSet,
   emptyIncrementalDotnetProviderMaterialization,
-} from "./provider.js";
+} from "./projection/provider.js";
 export {
   validateDotnetModuleModelContract,
   validateDotnetProviderDeclarationModelContract,
-} from "./model/contract.js";
+} from "./model/normalization/index.js";
 export type {
   DotnetReflectionTypeDataProvider,
   DotnetReflectionTypeDataProviderOptions,
@@ -85,23 +85,23 @@ export {
   dotnetModuleSpecifierPolicy,
   normalizeDotnetAssemblySourcePackages,
   parseDotnetModuleSpecifier,
-} from "./projection/modules/specifier.js";
+} from "./projection/module-specifier.js";
 export type {
   DotnetAssemblySourcePackage,
   DotnetModuleSpecifier,
   DotnetModuleSpecifierPolicy,
-} from "./projection/modules/specifier.js";
+} from "./projection/module-specifier.js";
 export {
   augmentDotnetModuleWithNativeArray,
   dotnetNativeArrayCreateMemberId,
   dotnetNativeArrayIndexerMemberId,
   dotnetNativeArrayLengthMemberId,
   dotnetNativeArrayTypeId,
-} from "./projection/modules/native-array.js";
+} from "./projection/module-native-array.js";
 export { dotnetModuleToProviderDeclarationModel } from "./projection/declarations/index.js";
 export {
   csharpDotnetProviderContributionKind,
-} from "./contributions.js";
+} from "./acquisition/contributions.js";
 export type {
   CsharpDotnetProviderContribution,
-} from "./contributions.js";
+} from "./acquisition/contributions.js";

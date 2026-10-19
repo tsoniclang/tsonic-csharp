@@ -5,6 +5,7 @@ import {
   assertCsharpCompilationSucceeded,
   compileCsharpSource,
 } from "../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 test("complete RegExp operations consume selected JS-source-profile evidence", () => {
   const compiled = compileCsharpSource({
@@ -57,7 +58,15 @@ test("complete RegExp operations consume selected JS-source-profile evidence", (
   assert.match(source, /replaceAll/u);
   const indexed = source.split("\n").find(line => line.trimStart().startsWith("double indexed ="));
   assert.ok(indexed);
-  assert.match(indexed, /^\s*double indexed = \(executed\?\.indices is Tsonic\.CSharp\.Js\.RegExpIndicesArray (__tsonic_present_\d+) \? \1\[0\] : default\(\(int, int\)\?\)\)\?\.Item1 \?\? -1;$/u);
+  assert.match(indexed, /^\s*double indexed = \(executed\?\.indices is Tsonic\.CSharp\.Js\.RegExpIndicesArray (__tsonic_present_\d+) \? \1\[0D\] : default\(\(int, int\)\?\)\)\?\.Item1 \?\? -1D;$/u);
+  const nativeIndices = compileCsharpSource({ surface: "js", sourceText: `
+    export function start(input: string): number {
+      return /a/d.exec(input)?.indices?.[0]?.[0] ?? -1;
+    }
+  ` });
+  assertCsharpCompilationSucceeded(nativeIndices);
+  executeCsharpConstruction(nativeIndices, "regexp-native-indices", false, false, [],
+    'if (Tsonic.Generated.Index.start("a") != 0D || Tsonic.Generated.Index.start("z") != -1D) throw new System.Exception("native RegExp indices and absence");');
 });
 
 test("explicit JsString preserves exact UTF-16 semantics without changing native string defaults", () => {
@@ -124,10 +133,12 @@ test("custom well-known RegExp protocols use exact structural member evidence", 
   const source = compiled.artifacts.get("src/Index.cs");
   assert.doesNotMatch(source, /RegExpProtocolDispatch[^\n]*"match"/u);
   assert.match(source, /RegExpProtocolDispatch\.Invoke/u);
-  assert.match(source, /__tsonic_shape_method_0_match/u);
-  assert.match(source, /__tsonic_shape_method_0_search/u);
-  assert.match(source, /__tsonic_shape_method_0_replace/u);
-  assert.match(source, /__tsonic_shape_method_0_split/u);
+  assert.match(source, /__tsonic_protocol\.match\(__tsonic_input\)/u);
+  assert.match(source, /__tsonic_protocol\.search\(__tsonic_input\)/u);
+  assert.match(source, /__tsonic_protocol\.replace\(__tsonic_input, __tsonic_protocolArgument0\)/u);
+  assert.match(source, /__tsonic_protocol\.split\(__tsonic_input\)/u);
+  executeCsharpConstruction(compiled, "regexp-native-protocols", false, false, [],
+    'if (Tsonic.Generated.Index.protocols("a") != "a7xamissing") throw new System.Exception("native RegExp protocol dispatch");');
 });
 
 test("same-spelled project members never acquire RegExp runtime identity", () => {

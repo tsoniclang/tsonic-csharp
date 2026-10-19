@@ -124,7 +124,7 @@ export function nativeMemoryProvider({ missingRelation = false, wrongCarrier = f
       return { extensions: [{ identity: { id: providerId, version: "1" },
         initialize(context) { context.registerSourceDeclarationProvider(provider); } }] };
     },
-    createTargetContributions() { return [csharpProviderPolicyContribution(providerId, "1", relations, [])]; },
+    createTargetContributions() { return [csharpProviderPolicyContribution({ providerId, providerVersion: "1", targetBindings: [], relations, rejections: [] })]; },
   };
 }
 

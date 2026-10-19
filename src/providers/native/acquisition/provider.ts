@@ -15,31 +15,31 @@ import {
   dotnetModuleSpecifierPolicy,
   normalizeDotnetAssemblySourcePackages,
   parseDotnetModuleSpecifier,
-} from "../projection/modules/specifier.js";
+} from "../projection/module-specifier.js";
 import type {
   DotnetAssemblySourcePackage,
   DotnetModuleSpecifierPolicy,
-} from "../projection/modules/specifier.js";
+} from "../projection/module-specifier.js";
 import type {
   DotnetProviderIdentity,
 } from "../model/index.js";
 import {
   validateDotnetModuleModelContract,
-} from "../model/contract.js";
+} from "../model/normalization/index.js";
 import {
   augmentDotnetModuleWithNativeArray,
-} from "../projection/modules/native-array.js";
+} from "../projection/module-native-array.js";
 import type {
   DotnetProviderDeclarationContext,
   DotnetProviderDiagnostic,
   DotnetProviderModuleResult,
   DotnetProviderOwnership,
   DotnetTypeDataProvider,
-} from "../provider.js";
+} from "../projection/provider.js";
 import {
   emptyIncrementalDotnetProviderMaterialization,
   resolveDotnetProviderDeclarationProjection,
-} from "../provider.js";
+} from "../projection/provider.js";
 import {
   createDotnetProviderCache,
 } from "./cache.js";
@@ -52,7 +52,7 @@ import type {
 import {
   dotnetModuleSpecifierForMetadataName,
   dotnetModuleSpecifierForTargetId,
-} from "../projection/modules/lookup.js";
+} from "../projection/module-lookup.js";
 import {
   dotnetProviderGlobalTelemetry,
 } from "./telemetry.js";
@@ -72,7 +72,7 @@ import {
 } from "./diagnostics.js";
 import {
   dotnetProviderDiagnosticToExtensionDiagnostic,
-} from "../diagnostics.js";
+} from "../model/diagnostics.js";
 import {
   defaultToolProjectPath,
 } from "./paths.js";
@@ -81,16 +81,16 @@ import {
 } from "./module-request-validation.js";
 import {
   missingDotnetSameModuleProviderRefExports,
-} from "../projection/modules/slices.js";
+} from "../projection/module-slices.js";
 import {
   createDotnetTargetBindingIndex,
 } from "./target-binding-index.js";
 import {
   dotnetProviderTargetRelationTemplates,
-} from "../relations/target-relations.js";
+} from "../projection/target-relations.js";
 import type {
   DotnetProviderTargetRelationTemplate,
-} from "../relations/target-relations.js";
+} from "../projection/target-relations.js";
 import {
   createDotnetReflectionCacheRequest,
   moduleMemoryCacheKey,
