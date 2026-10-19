@@ -145,7 +145,7 @@ export function renderObjectShapeMembers(
 function renderCopiedGenericMethod(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   shape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number], storage: Pick<CsharpStorageClassifications, "nativeField">,
-  names: Pick<CsharpNamePlan, "memberHiding">,
+  names: CsharpNativeMemberHidingReader,
 ): readonly (CsharpTypeMember | undefined)[] {
   const storageType = member.methodStorageType === undefined ? undefined : csharpTypeFromTargetTypeRef(member.methodStorageType, typeParameterNames);
   const contract = renderCsharpStructuralInterfaceMembers(typeParameterNames, { ...shape, members: [member] }, storage, false, [], names);
@@ -188,7 +188,7 @@ function renderObjectShapeAccessorMember(
   type: CsharpTypeNode,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
-  names: Pick<CsharpNamePlan, "memberHiding">,
+  names: CsharpNativeMemberHidingReader,
 ): readonly (CsharpTypeMember | undefined)[] {
   const selfType = csharpTypeFromTargetTypeRef(objectShape.targetType, typeParameterNames);
   const getterType = csharpTypeFromTargetTypeRef(
@@ -285,7 +285,7 @@ function renderObjectShapeMethodMember(
   receiverBound: boolean,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
-  names: Pick<CsharpNamePlan, "memberHiding">,
+  names: CsharpNativeMemberHidingReader,
 ): readonly (CsharpTypeMember | undefined)[] {
   const signature = csharpDelegateSignatureFromTargetTypeRef(typeParameterNames, member.type);
   const storageTargetType = objectShapeMethodStorageTargetType(

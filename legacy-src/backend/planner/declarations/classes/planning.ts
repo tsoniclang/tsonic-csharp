@@ -107,7 +107,7 @@ export function planClassDeclaration(
         ? guardCsharpFrozenDataProperties(objectShape, members, input, diagnostics) : members).map(member =>
           member.kind === "ConstructorDeclaration" ? completeConstructor(member, []) : member),
       ...(jsonSerializable && objectShape !== undefined
-        ? renderJsonSerializableObjectShapeMethod(objectShape, input.program.names)
+        ? renderJsonSerializableObjectShapeMethod(objectShape, input.program.records.nativeMemberHiding)
         : []),
       ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input,
         input.artifacts.objectShapeProjections(objectShape), diagnostics)),

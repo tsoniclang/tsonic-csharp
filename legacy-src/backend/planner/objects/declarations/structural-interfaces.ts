@@ -1,6 +1,6 @@
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../../target-model/types/model.js";
 import { getCsharpDelegateSignature } from "../../../../target-model/types/index.js";
-import type { CsharpNamePlan } from "../../../../target-model/names/model.js";
+import type { CsharpNativeMemberHidingReader } from "../../../../target-model/records/native-member-names.js";
 import { planCsharpArtifactMemberHiding } from "../../declarations/modifiers.js";
 import type { CsharpInterfaceMember, CsharpInterfacePropertyDeclaration } from "../../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
@@ -50,7 +50,7 @@ export function csharpMethodValueHandleIsInherited(
 
 export function renderCsharpStructuralInterfaceMembers(typeParameterNames: ReadonlyMap<string, string> | undefined,
   shape: CsharpObjectShapeFact, storage: Pick<CsharpStorageClassifications, "nativeField">, methodValues: boolean,
-  inherited: readonly CsharpInheritedStructuralInterface[], names: Pick<CsharpNamePlan, "memberHiding">): readonly CsharpInterfaceMember[] | undefined {
+  inherited: readonly CsharpInheritedStructuralInterface[], names: CsharpNativeMemberHidingReader): readonly CsharpInterfaceMember[] | undefined {
   const result: CsharpInterfaceMember[] = [];
   for (const member of shape.members) {
     if (member.memberKind === "method") {
@@ -100,7 +100,7 @@ export function renderCsharpStructuralInterfaceMembers(typeParameterNames: Reado
 export function renderCsharpStructuralInterfaceMethodValues(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   shape: CsharpObjectShapeFact, inherited: readonly CsharpInheritedStructuralInterface[],
-  names: Pick<CsharpNamePlan, "memberHiding">,
+  names: CsharpNativeMemberHidingReader,
 ): readonly CsharpInterfacePropertyDeclaration[] | undefined {
   const result: CsharpInterfacePropertyDeclaration[] = [];
   for (const member of shape.members) {
@@ -115,7 +115,7 @@ export function renderCsharpStructuralInterfaceMethodValues(
 function renderCsharpStructuralInterfaceMethodValue(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   shape: CsharpObjectShapeFact, member: CsharpObjectShapeMemberFact,
-  inherited: readonly CsharpInheritedStructuralInterface[], names: Pick<CsharpNamePlan, "memberHiding">,
+  inherited: readonly CsharpInheritedStructuralInterface[], names: CsharpNativeMemberHidingReader,
 ): readonly CsharpInterfacePropertyDeclaration[] | undefined {
   const valueType = member.methodValueContract ?? member.type;
   const type = valueType === undefined ? undefined : csharpTypeFromTargetTypeRef(
