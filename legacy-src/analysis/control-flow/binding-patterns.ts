@@ -2,6 +2,7 @@ import type { AstReader, Node, SourceFile, Type } from "@tsonic/tsts";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { tryCsharpIdentifier } from "../../target-model/names/identifiers.js";
 import {
   AsBinaryExpression,
   AsBindingElement,
@@ -188,12 +189,12 @@ export function analyzeCsharpBindingPatterns(
       AsForInOrOfStatement(ast, statement)?.Initializer === list ? statement : undefined;
   }
 
-  function issue(node: Node, message: string, evidence: readonly string[] = []): void {
+  function issue(node: Node, message: string, evidence: readonly string[] = [], code = "CSHARP_UNSUPPORTED_AST"): void {
     const patternRoot = root;
     if (patternRoot === undefined) {
       failTargetAnalysisInvariant("tsonic-csharp", "A binding-pattern candidate issue was recorded outside its pattern root.", node);
     }
-    candidates.push(Object.freeze({ node, root: patternRoot, code: "CSHARP_UNSUPPORTED_AST", message,
+    candidates.push(Object.freeze({ node, root: patternRoot, code, message,
       evidence: Object.freeze([...new Set(evidence)]) }));
   }
 
@@ -508,7 +509,13 @@ export function analyzeCsharpBindingPatterns(
         } else issue(propertyName, "Object destructuring from source-owned declarations supports only identifier property names until provider object-shape facts supply target member names.");
         continue;
       }
-      recordElement(elementNode, selected.element);
+      if (selected.element.kind !== "source-owned-member") failTargetAnalysisInvariant("tsonic-csharp", "A source-owned binding requires its selected native member projection.", elementNode);
+      const targetName = tryCsharpIdentifier(selected.element.propertyName);
+      if (targetName === undefined) {
+        issue(propertyName, `Object destructuring source property '${selected.element.propertyName}' is not a valid C# identifier. Add an explicit target name/fact instead of relying on backend name rewriting.`, [], "CSHARP_INVALID_IDENTIFIER");
+        continue;
+      }
+      recordElement(elementNode, { ...selected.element, propertyName: targetName });
       const member = members.find(candidate => candidate.name === sourceName);
       const carrier = member === undefined ? undefined : input.typePolicy.resolveType(member.type, sourceFile);
       if (carrier === undefined) {

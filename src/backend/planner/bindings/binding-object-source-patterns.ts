@@ -5,7 +5,6 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
-import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 
 export function planObjectBindingElement(
   elementNode: Node,
@@ -22,6 +21,6 @@ export function planObjectBindingElement(
     "Source-owned binding requires its admitted direct member projection.", elementNode);
   return planBindingNameFromProjection(element.name, {
     kind: "SimpleMemberAccessExpression", receiver: sourceExpression,
-    name: requireCsharpIdentifier(selected.propertyName, diagnostics, "Object destructuring source property"),
+    name: selected.propertyName,
   }, elementNode, sourceFile, input, diagnostics, state);
 }
