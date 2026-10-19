@@ -213,7 +213,7 @@ export function analyzeCsharpConversions(
       classifyArraySpreadElements(node, targetType, operations, valueReads);
     }
     classifyYieldResume(node);
-    classifyCallUses(node, operations);
+    classifyInvocationUses(node, operations);
     classifySelectedTargetCallUses(operations.selectedCall.get(node)?.target ?? operations.selectedConstruction.get(node)?.target, valueReads);
     policy.ast.forEachChild(
       node,
@@ -345,30 +345,31 @@ export function analyzeCsharpConversions(
     );
   }
 
-  function classifyCallUses(
+  function classifyInvocationUses(
     node: Node,
     operations: CsharpTargetOperationClassifications,
   ): void {
-    const classification = operations.selectedCall.get(node);
+    const call = operations.selectedCall.get(node);
+    const classification = call ?? operations.selectedConstruction.get(node);
     if (classification === undefined) {
       return;
     }
     let completion: CsharpCallConversionRequests["completion"];
     const omitted: { readonly source: TargetTypeRef; readonly target: TargetTypeRef | undefined }[] = [];
-    if (classification.sourceResult !== undefined) {
-      classifyPair(classification.sourceResult.nativeType, classification.sourceResult.selectedType, "explicit", node);
+    if (call?.sourceResult !== undefined) {
+      classifyPair(call.sourceResult.nativeType, call.sourceResult.selectedType, "explicit", node);
     }
-    if (classification.optionalCallee !== undefined || classification.optionalReceiver?.guard === true) {
-      const source = classification.sourceResult?.selectedType ?? (classification.target?.kind === "resolved"
-        ? classification.target.call.targetMember.returnType : undefined);
-      const target = classification.selectedResultType;
+    if (call !== undefined && (call.optionalCallee !== undefined || call.optionalReceiver?.guard === true)) {
+      const source = call.sourceResult?.selectedType ?? (call.target?.kind === "resolved"
+        ? call.target.call.targetMember.returnType : undefined);
+      const target = call.selectedResultType;
       if (source !== undefined && target !== undefined) {
         classifyPair(source, target, "implicit", node);
         completion = Object.freeze({ source, target });
       }
     }
-    const source = classification.source ?? (
-      classification.target?.kind === "resolved"
+    const source = call?.source ?? (
+      classification.target?.kind === "resolved" || classification.target?.kind === "source-owned"
         ? classification.target.source
         : undefined
     );
@@ -382,13 +383,13 @@ export function analyzeCsharpConversions(
         return declarations.length === 1 ? declarations[0] : undefined;
       });
       const substitutions = new Map(parameters.flatMap((parameter, index) => {
-        const type = classification.sourceTypeArguments?.[index];
+        const type = call?.sourceTypeArguments?.[index];
         const identity = parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast)?.identity;
         return identity === undefined || type === undefined ? [] : [[identity, type] as const];
       }));
       for (const [index, argument] of selectedArguments.entries()) {
         const parameter = parameters[index];
-        const type = classification.sourceTypeArguments?.[index];
+        const type = call?.sourceTypeArguments?.[index];
         const requirements = parameter === undefined ? undefined : evidence.typeParameterConstraints.get(parameter);
         if (type === undefined || requirements?.kind !== "resolved") continue;
         for (const constraint of requirements.constraints) {

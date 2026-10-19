@@ -304,7 +304,7 @@ test("native void absence admission requires the actual root completion and exac
       rejected.reason === "An absence conversion requires its exact source and destination storage contracts.", true,
     "a missing or forged completion cannot weaken the exact absence contract");
   }
-  const nested = Object.freeze({ kind: "provider-argument-adapter", adapter: providerAdapter(source, target),
+  const nested = Object.freeze({ kind: "provider-argument-adapter", adapter: providerAdapter(target, target),
     sourceToInput: selection, resultToTarget: Object.freeze({ kind: "identity" }) });
   assert.equal(admitCsharpConversionSelection(policy, source, target, nested, { kind: "void" }).kind, "rejected",
     "a root completion cannot authorize an arbitrary nested carrier conversion");
