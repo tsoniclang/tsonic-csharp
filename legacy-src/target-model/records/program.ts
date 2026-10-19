@@ -10,6 +10,7 @@ import type { CsharpDeclarationClassifications } from "./declarations.js";
 import type { CsharpExpectedTypeClassifications } from "./expected-types.js";
 import type { CsharpModuleInitializationIndex } from "./module-initialization.js";
 import type { CsharpNativeParticipationInput, CsharpNativeUseClassifications } from "./native-demand.js";
+import type { CsharpNativeUseRecords } from "./native-demand.js";
 import type { CsharpBindingPatternClassifications } from "./value-projections.js";
 import type { CsharpNumericRepresentations } from "./numeric.js";
 import type { CsharpTargetOperationClassifications } from "./operations.js";
@@ -42,7 +43,9 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly nativeValueDeclaration: CsharpNativeValueCarriers["nativeValueDeclaration"];
   readonly literalValue: import("@tsonic/target-api/source").SourceLiteralIndex["literalValue"];
   readonly nativeParticipation: CsharpNativeParticipationInput["participation"];
-  readonly nativeUse: CsharpNativeUseClassifications["nativeUse"];
+  readonly nativeUse: CsharpNativeUseRecords["nativeUse"];
+  readonly nativeOrder: CsharpNativeUseRecords["nativeOrder"];
+  readonly nativeExpression: CsharpNativeUseRecords["nativeExpression"];
   readonly bindingPatternProjection: CsharpBindingPatternClassifications["bindingPatternProjection"];
   readonly attributeApplication: CsharpAttributeApplicationIndex["attributeApplication"];
   readonly callableDispatch: CsharpProjectCallableAdapters["callableDispatch"];

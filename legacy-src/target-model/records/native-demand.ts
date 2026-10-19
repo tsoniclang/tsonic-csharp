@@ -163,3 +163,9 @@ export interface CsharpNativeUseClassifications {
     readonly expression: (node: Node) => { readonly site: TargetUseSiteRef; readonly use: CsharpNativeUse } | undefined;
   };
 }
+
+export interface CsharpNativeUseRecords {
+  readonly nativeUse: { readonly get: (site: TargetUseSiteRef) => CsharpNativeUse | undefined };
+  readonly nativeOrder: { readonly get: (construct: Node) => readonly CsharpNativeOrderStep[] | undefined };
+  readonly nativeExpression: { readonly get: (node: Node) => { readonly site: TargetUseSiteRef; readonly use: CsharpNativeUse } | undefined };
+}

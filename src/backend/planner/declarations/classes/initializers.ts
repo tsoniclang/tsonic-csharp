@@ -38,7 +38,7 @@ export function planClassInitializationRegion(
   let relocates = factory || !isStatic && input.program.records.requiresClassConstructor.get(declaration);
   const region = input.program.records.classInitializationRegion.get(declaration, isStatic);
   for (const node of region) {
-    if (sourceClassFieldIsTypeOnly(ast, node) || input.program.records.nativeUse.order(node) === undefined ||
+    if (sourceClassFieldIsTypeOnly(ast, node) || input.program.records.nativeOrder.get(node) === undefined ||
       input.program.records.compileTimeMetadata.get(node) || input.program.records.nativeUnreachable.get(node) ||
       input.program.records.nativeParticipation.get(node) === "erased") continue;
     if (ast.is.IsClassStaticBlockDeclaration(node)) {

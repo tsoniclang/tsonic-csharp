@@ -15,7 +15,7 @@ export function readCsharpNativeUse(
 }
 
 export function readCsharpNativeExpressionUse(input: CsharpPlanningContext, expression: Node) {
-  return input.program.records.nativeUse.expression(expression);
+  return input.program.records.nativeExpression.get(expression);
 }
 
 export function requireCsharpNativeExpressionUse(input: CsharpPlanningContext, expression: Node) {
