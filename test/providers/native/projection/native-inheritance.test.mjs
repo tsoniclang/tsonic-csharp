@@ -352,10 +352,11 @@ test("the one metadata-only base-slot producer agrees with actual native GetBase
   assert.equal(signatureOwner !== undefined, true, "the exact native constructor, operator and indexer owner is retained");
   for (const identity of nativeObserved.signatures) {
     const retained = [...signatureOwner.members, ...(signatureOwner.unsupportedMembers ?? [])]
-      .find(member => member.targetId === identity.id ||
-        identity.kind === "operator" && member.signatures?.some(signature => signature.id === identity.id));
+      .find(member => member.targetId === identity.id);
     assert.equal(retained !== undefined, true, `the canonical native identity reaches ${identity.kind}`);
     assert.equal(retained.metadataName, identity.metadataName, `the exact published native ${identity.kind} metadata description is retained`);
+    assert.equal(retained.signatures?.some(signature => signature.id === identity.signatureId), true,
+      `the exact independent native ${identity.kind} physical signature is retained`);
   }
   const pointerIdentity = name => {
     const entry = expected.find(row => row.label === `FunctionPointerSignatures.${name}`);
@@ -390,16 +391,23 @@ var rows = types.SelectMany(type => type.GetMethods(BindingFlags.Public | Bindin
         baseDefinitionId = MethodId(method.GetBaseDefinition()), @virtual = method.IsVirtual,
         @abstract = method.IsAbstract, final = method.IsFinal })).ToArray();
 var identityOwner = typeof(NativeSlotOracle.FunctionPointerSignatures);
-var signatures = identityOwner.GetConstructors().Select(constructor => new
-    { kind = "constructor", id = TargetId(identityOwner) + "..ctor(" + Parameters(constructor.GetParameters()) + ")",
-      metadataName = identityOwner.FullName + "..ctor(" + MetadataParameters(constructor.GetParameters()) + ")" })
+var signatures = identityOwner.GetConstructors().Select(constructor =>
+    {
+        var id = TargetId(identityOwner) + "..ctor(" + Parameters(constructor.GetParameters()) + ")";
+        return new { kind = "constructor", id, signatureId = id,
+            metadataName = identityOwner.FullName + "..ctor(" + MetadataParameters(constructor.GetParameters()) + ")" };
+    })
     .Concat(identityOwner.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-        .Where(property => property.GetIndexParameters().Length != 0).Select(property => new
-        { kind = "indexer", id = TargetId(identityOwner) + "." + property.Name + "(" + Parameters(property.GetIndexParameters()) + ")",
-          metadataName = identityOwner.FullName + "." + property.Name + "(" + MetadataParameters(property.GetIndexParameters()) + ")" }))
+        .Where(property => property.GetIndexParameters().Length != 0).Select(property =>
+        {
+            var id = TargetId(identityOwner) + "." + property.Name + "(" + Parameters(property.GetIndexParameters()) + ")";
+            return new { kind = "indexer", id, signatureId = id,
+                metadataName = identityOwner.FullName + "." + property.Name + "(" + MetadataParameters(property.GetIndexParameters()) + ")" };
+        }))
     .Concat(identityOwner.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
         .Where(method => method.Name == "op_Addition").Select(method => new
-        { kind = "operator", id = MethodId(method) + ":" + TypeId(method.ReturnType, method.ReturnParameter.GetModifiedParameterType()),
+        { kind = "operator", id = TargetId(identityOwner) + "." + method.Name,
+          signatureId = MethodId(method) + ":" + TypeId(method.ReturnType, method.ReturnParameter.GetModifiedParameterType()),
           metadataName = identityOwner.FullName + "." + method.Name }))
     .ToArray();
 Console.WriteLine(JsonSerializer.Serialize(new { slots = rows, signatures }));
