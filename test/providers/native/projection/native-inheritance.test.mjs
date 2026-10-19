@@ -11,7 +11,8 @@ import { buildDotnetFixture } from "../../../helpers/dotnet-fixtures.mjs";
 import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 import { nativeObjectFixtureDeclaration, nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import { validateDotnetModuleModelContract } from "../../../../dist/public/provider-dotnet.js";
-import { csharpNativeTargetBindingFact } from "../../../../dist/target-model/types/native-inheritance.js";
+import { csharpNativeInheritanceLookup, csharpNativeTargetBindingFact } from "../../../../dist/target-model/types/native-inheritance.js";
+import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
 import { createDotnetTargetBindingIndex } from "../../../../dist/providers/native/acquisition/target-binding-index.js";
 import { validateModuleSatisfiesRequest } from "../../../../dist/providers/native/acquisition/module-request-validation.js";
 
@@ -50,6 +51,94 @@ function synthetic() {
     isByRefLike: false, constraintRequiresReferenceType: true, allowsRefLikeTypeArguments: [],
   });
 }
+
+test("native root lookup matches actual published nested and generic metadata names without changing physical identity", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const cases = [
+    { module: "System", sourceName: "SpecialFolder", metadataName: "System.Environment.SpecialFolder",
+      render: { kind: "named", namespace: ["System"], name: "Environment", nested: [{ name: "SpecialFolder" }] } },
+    { module: "System.Collections.Generic", sourceName: "List", metadataName: "System.Collections.Generic.List`1",
+      render: { kind: "named", namespace: ["System", "Collections", "Generic"], name: "List", genericArity: 1 } },
+    { module: "System.Collections.Generic", sourceName: "Dictionary", metadataName: "System.Collections.Generic.Dictionary`2",
+      render: { kind: "named", namespace: ["System", "Collections", "Generic"], name: "Dictionary", genericArity: 2 } },
+  ];
+  const routes = [];
+  for (const control of cases) {
+    const module = getCompleteDotnetModule(provider, `@tsonic/dotnet/${control.module}.js`, { requestedExports: [control.sourceName] });
+    assert.equal("exports" in module, true, `${control.metadataName}: native module acquisition`);
+    const published = module.exports.find(entry => entry.kind === "type" && entry.metadataName === control.metadataName);
+    assert.equal(published !== undefined, true, `${control.metadataName}: actual native declaration`);
+    const symbolic = { kind: "target-named", id: control.metadataName, csharpRender: control.render,
+      csharpAllowsRefLikeTypeArguments: [] };
+    const route = csharpNativeInheritanceLookup(symbolic);
+    assert.equal(route.kind, "metadata-name", `${control.metadataName}: exact explicit name selects the metadata route`);
+    assert.equal(route.metadataName, published.metadataName, `${control.metadataName}: published query spelling`);
+    const selected = resolvedNativeBinding(provider.findTargetBindingByMetadataName(route.metadataName, "ordinary"));
+    assert.equal(selected?.id, published.targetId, `${control.metadataName}: existing native query selects the declaration`);
+    const physical = csharpNativeInheritanceLookup({ ...symbolic, id: published.targetId });
+    assert.equal(physical.kind, "target-id", `${control.metadataName}: physical identity remains assembly-qualified`);
+    assert.equal(physical.targetId, published.targetId, `${control.metadataName}: exact native identity is preserved`);
+    routes.push({ metadataName: published.metadataName, symbolic: route, physical });
+  }
+  assert.equal(routes[0].physical.targetId.endsWith("::System.Environment+SpecialFolder"), true,
+    "the nested physical identity retains plus while metadata-name queries retain dot");
+  const inferredArity = csharpNativeInheritanceLookup({ kind: "target-named", id: "System.Collections.Generic.List`1",
+    csharpAllowsRefLikeTypeArguments: [], typeArguments: [{ kind: "source-primitive", name: "number" }],
+    csharpRender: { kind: "named", namespace: ["System", "Collections", "Generic"], name: "List" } });
+  assert.equal(inferredArity.kind, "metadata-name", "explicit constructed arguments retain the existing non-nested arity rule");
+  assert.equal(inferredArity.metadataName, routes[1].metadataName, "the inferred arity matches the actual native declaration");
+  console.log(JSON.stringify({ nativeInheritanceRoutes: routes }));
+});
+
+test("native root lookup retains assembly collisions and unsupported symbolic aliases on their original query routes", () => {
+  const providers = ["Acme.Contracts", "Contoso.Contracts"].map(assembly => {
+    const projectDirectory = resolve(repoRoot, "test/fixtures/dotnet-provider/assembly-identity", assembly);
+    const reference = buildDotnetFixture({ project: resolve(projectDirectory, `${assembly}.csproj`), projectDirectory,
+      outputDirectory: resolve(repoRoot, ".temp/native-root-identity", assembly, "bin"),
+      intermediateDirectory: resolve(repoRoot, ".temp/native-root-identity", assembly, "obj"),
+      outputAssemblyName: `${assembly}.dll` });
+    return createDotnetReflectionTypeDataProvider({ references: [reference], disablePersistentCache: true,
+      providerIdentity: { id: `native-root.${assembly}`, version: "1" } });
+  });
+  const resolver = createCsharpProviderRelationResolver({ providers, providerPolicies: [] });
+  const bindings = providers.map(provider => resolvedNativeBinding(provider.findTargetBindingByMetadataName("Shared.Widget", "ordinary")));
+  assert.equal(bindings.every(binding => binding !== undefined), true, "both actual native assemblies independently declare the same metadata name");
+  assert.equal(bindings[0].id === bindings[1].id, false, "same metadata name does not erase assembly identity");
+  for (const binding of bindings) {
+    const route = csharpNativeInheritanceLookup(binding.csharpType);
+    assert.equal(route.kind, "target-id", "a physical carrier is never rerouted to an ambiguous name");
+    assert.equal(resolvedNativeBinding(resolver.findTargetBindingByTargetId(route.targetId, "ordinary"))?.id,
+      binding.id, "each physical route selects only its actual assembly");
+  }
+  const symbolic = { kind: "target-named", id: "Shared.Widget", csharpAllowsRefLikeTypeArguments: [],
+    csharpRender: { kind: "named", namespace: ["Shared"], name: "Widget" } };
+  const named = csharpNativeInheritanceLookup(symbolic);
+  assert.equal(named.kind, "metadata-name", "an exact symbolic native name selects one metadata query");
+  const original = resolver.findTargetBindingByMetadataName("Shared.Widget", "inheritance");
+  const rejected = resolver.findTargetBindingByMetadataName(named.metadataName, "inheritance");
+  assert.equal(rejected.kind, "rejected", "two complete native winners are never silently selected");
+  assert.equal(rejected.diagnostic.extensionCode, "CSHARP_PROVIDER_TARGET_BINDING_CONFLICT", "the existing query-local rejection owns ambiguity");
+  assert.equal(rejected.diagnostic.extensionCode, original.diagnostic.extensionCode, "the original diagnostic code is unchanged");
+  assert.equal(rejected.diagnostic.message, original.diagnostic.message, "the original diagnostic message is unchanged");
+  for (const [label, type] of [
+    ["unmatched symbolic alias", { ...symbolic, id: "Unsupported.WidgetAlias" }],
+    ["extern alias", { ...symbolic, csharpRender: { ...symbolic.csharpRender, externAlias: "Selected" } }],
+    ["using namespace", { ...symbolic, csharpRender: { ...symbolic.csharpRender, usingNamespace: ["Shared"] } }],
+    ["absent explicit render", { ...symbolic, csharpRender: undefined }],
+    ["unqualified render", { ...symbolic, csharpRender: { kind: "named", name: "Widget" } }],
+  ]) {
+    const route = csharpNativeInheritanceLookup(type);
+    assert.equal(route.kind, "target-id", `${label}: there is no alias, spelling parse or fallback`);
+    assert.equal(route.targetId, type.id, `${label}: the exact original query is retained`);
+    assert.equal(resolver.findTargetBindingByTargetId(route.targetId, "ordinary").kind, "missing",
+      `${label}: unsupported identity remains missing`);
+    const direct = resolver.findTargetBindingByTargetId(type.id, "inheritance");
+    const selected = resolver.findTargetBindingByTargetId(route.targetId, "inheritance");
+    assert.equal(selected.kind, "rejected", `${label}: retained inheritance cannot invent a native view`);
+    assert.equal(selected.diagnostic.extensionCode, direct.diagnostic.extensionCode, `${label}: original rejection code`);
+    assert.equal(selected.diagnostic.message, direct.diagnostic.message, `${label}: original rejection message`);
+  }
+});
 
 test("native inheritance carries class identities and constructed arguments through System.Object", () => {
   const closed = declaration("ClosedBase");

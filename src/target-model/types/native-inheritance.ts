@@ -1,9 +1,33 @@
 import type { ArgumentPassingMode } from "@tsonic/tsts";
 import type {
   CsharpTargetBindingFact,
+  CsharpTargetNamedTypeRef,
   TargetBindingFact,
   TargetTypeRef,
 } from "./model.js";
+
+export type CsharpNativeInheritanceLookup =
+  | { readonly kind: "target-id"; readonly targetId: string }
+  | { readonly kind: "metadata-name"; readonly metadataName: string };
+
+export function csharpNativeInheritanceLookup(
+  type: CsharpTargetNamedTypeRef,
+): CsharpNativeInheritanceLookup {
+  const physical = Object.freeze({ kind: "target-id" as const, targetId: type.id });
+  const shape = type.csharpRender;
+  if (shape?.kind !== "named" || shape.externAlias !== undefined ||
+    shape.namespace === undefined || shape.usingNamespace !== undefined) return physical;
+  const segments = [{ name: shape.name, genericArity: shape.genericArity }, ...(shape.nested ?? [])];
+  const names = segments.map((segment, index) => {
+    const arity = segment.genericArity ?? (shape.nested === undefined && index === segments.length - 1
+      ? type.typeArguments?.length ?? 0 : 0);
+    return arity === 0 ? segment.name : `${segment.name}\u0060${arity}`;
+  });
+  const metadataName = [...shape.namespace, ...names].join(".");
+  return type.id === metadataName
+    ? Object.freeze({ kind: "metadata-name", metadataName })
+    : physical;
+}
 
 export interface CsharpNativeInheritedDispatchSlot {
   readonly kind: "method" | "get" | "set" | "add" | "remove";

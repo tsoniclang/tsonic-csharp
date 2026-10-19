@@ -7,10 +7,11 @@ import test from "node:test";
 import { createTestWorkspace } from "../../../../tsonic/test/scripts/test-workspaces.mjs";
 import { createDotnetReflectionTypeDataProvider } from "../../helpers/dotnet-reflection-provider.mjs";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
-import { csharpRuntimeSourceContributions } from "../../../dist/providers/runtime/source-projects.js";
+import { csharpCoreRuntimeSource, csharpRuntimeSourceContributions } from "../../../dist/providers/runtime/source-projects.js";
 import { analyzeCsharpProject } from "../../../dist/analysis/project/classification.js";
 import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
-import { csharpNativeTargetBindingFact } from "../../../dist/target-model/types/native-inheritance.js";
+import { csharpNativeInheritanceLookup, csharpNativeTargetBindingFact } from "../../../dist/target-model/types/native-inheritance.js";
+import { csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { printCsharpRuntimeProject } from "../../../dist/print/project/csharp-runtime-project.js";
 import { planCsharpProjectFile } from "../../../dist/backend/planner/project/project-artifacts.js";
 import { printCsharpProjectFile } from "../../../dist/print/project/csharp-project.js";
@@ -73,6 +74,40 @@ test("preparation, ordinary queries and complete SDK inheritance winners have ze
   assert.equal(valueType.csharpInheritance.length, 2, "the actual native struct-container root reaches Object");
   assert.equal(existsSync(inputs.wrapper.path), false, "a native struct-container root also performs no runtime build");
   assert.equal(provider.validateReferences().length, 0, "all selected native reference snapshots remain valid");
+});
+
+test("Error and Exception roots select the actual published metadata names and keep their physical chain identities", () => {
+  const root = createTestWorkspace(resolve(repository, ".temp/native-runtime-metadata"), "core-");
+  const cacheRoot = join(root, "cache");
+  const configuration = createCsharpTargetConfiguration({ id: "csharp", options: { targetFramework: framework } },
+    repository, join(root, "out"));
+  const classified = analyzeCsharpProject(configuration, csharpRuntimeSourceContributions(csharpCoreRuntimeSource).references, cacheRoot);
+  assert.equal(classified.kind, "resolved", "the selected actual core runtime is classified");
+  const project = classified.value;
+  const inputs = { root, cacheRoot, wrapper: project.runtimeProjects[0], preparation: Object.freeze({
+    sources: project.runtimeSources, projects: project.runtimeProjects, project: project.project,
+    properties: project.properties, cacheRoot }) };
+  const provider = resolver(inputs);
+  const routes = [];
+  for (const carrier of [csharpExceptionTargetType(), csharpRuntimeErrorTargetType()]) {
+    const route = csharpNativeInheritanceLookup(carrier);
+    assert.equal(route.kind, "metadata-name", `${carrier.id}: explicit native evidence selects one metadata query`);
+    const selected = native(provider.findTargetBindingByMetadataName(route.metadataName, "inheritance"));
+    assert.equal(selected.targetName, route.metadataName, `${carrier.id}: the actual provider publishes the exact selected name`);
+    assert.equal(selected.id === carrier.id, false, `${carrier.id}: symbolic identity is not a fabricated physical identity`);
+    const physical = csharpNativeInheritanceLookup(selected.csharpType);
+    assert.equal(physical.kind, "target-id", `${carrier.id}: reflected native evidence preserves assembly identity`);
+    assert.equal(physical.targetId, selected.id, `${carrier.id}: exact actual physical root`);
+    for (const entry of selected.csharpInheritance)
+      assert.equal(native(provider.findTargetBindingByTargetId(entry.targetId, "inheritance")).id, entry.targetId,
+        `${carrier.id}: the complete physical native chain is acquired`);
+    routes.push({ carrier: carrier.id, selected: route, physical });
+  }
+  const evidence = proof(inputs);
+  for (const output of [...evidence.outputs, ...evidence.references])
+    assert.equal(createHash("sha256").update(readFileSync(output.path)).digest("hex"), output.sha256,
+      "the selected core runtime output and actual reference retain exact native build content");
+  console.log(JSON.stringify({ nativeCoreRootRoutes: routes, inputFingerprint: evidence.inputFingerprint }));
 });
 
 test("one retained native runtime demand uses the actual wrapper reference and reuses exact content across sessions", () => {
